@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "tsc && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "format": "prettier --write './src/**/*.{ts,tsx,js,jsx}'"
+    "format": "prettier --write './src/**/*.{ts,tsx,js,jsx}'",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
