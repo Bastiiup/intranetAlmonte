@@ -6,6 +6,7 @@
 // Establecer variables de entorno antes de cargar el servidor
 process.env.HOSTNAME = '0.0.0.0'
 process.env.PORT = process.env.PORT || '8080'
+process.env.NODE_ENV = process.env.NODE_ENV || 'production'
 
 console.log(`🚀 Iniciando servidor Next.js en modo standalone...`)
 console.log(`📍 Hostname: ${process.env.HOSTNAME}`)
