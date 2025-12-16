@@ -39,6 +39,13 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json(response, { status: 200 })
   } catch (error: any) {
+    // Si es 404, el content type no existe aún - retornar array vacío en lugar de error
+    if (error.status === 404) {
+      return NextResponse.json(
+        { data: [], meta: {} },
+        { status: 200 }
+      )
+    }
     console.error('Error al obtener mensajes:', error)
     return NextResponse.json(
       { error: error.message || 'Error al obtener mensajes' },

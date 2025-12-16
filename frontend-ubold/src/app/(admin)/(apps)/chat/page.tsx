@@ -102,7 +102,7 @@ const Page = () => {
     cargarContactos()
   }, [])
 
-  // Cargar mensajes y configurar polling
+    // Cargar mensajes y configurar polling
   useEffect(() => {
     if (!currentContact) return
 
@@ -118,6 +118,14 @@ const Page = () => {
         
         const response = await fetch(`/api/chat/mensajes?${query.toString()}`)
         if (!response.ok) {
+          // Si es 404, el content type no existe aún - no mostrar error repetitivo
+          if (response.status === 404) {
+            if (!soloNuevos) {
+              // Solo mostrar el error la primera vez, no en cada polling
+              console.warn('Content type intranet-chats no encontrado en Strapi. Asegúrate de que esté creado y Strapi reiniciado.')
+            }
+            return
+          }
           throw new Error('Error al cargar mensajes')
         }
         
@@ -163,7 +171,10 @@ const Page = () => {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
         }, 100)
       } catch (err: any) {
-        console.error('Error al cargar mensajes:', err)
+        // Solo loguear errores que no sean 404 (ya manejados arriba)
+        if (err.status !== 404) {
+          console.error('Error al cargar mensajes:', err)
+        }
       }
     }
     
