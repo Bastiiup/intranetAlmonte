@@ -508,7 +508,7 @@ export default function PosInterface({}: PosInterfaceProps) {
               {/* Lista de Productos */}
               {loading ? (
                 <div className="text-center py-5">
-                  <Spinner animation="border" variant="primary" size="lg" />
+                  <Spinner animation="border" variant="primary" style={{ width: '3rem', height: '3rem' }} />
                   <p className="mt-3 text-muted">Cargando productos...</p>
                 </div>
               ) : products.length === 0 ? (
