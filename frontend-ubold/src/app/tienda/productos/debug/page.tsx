@@ -8,7 +8,18 @@ export const dynamic = 'force-dynamic'
 
 export default async function ProductosDebugPage() {
   const endpointsToTest = [
-    '/api/producto', // Principal - singular como aparece en Strapi
+    // Variaciones basadas en "Product · Libro · Edición"
+    '/api/product-libro-edicion',
+    '/api/product-libro-edicions',
+    '/api/producto-libro-edicion',
+    '/api/producto-libro-edicions',
+    '/api/product-libro-ediciones',
+    '/api/libro-edicion',
+    '/api/libro-edicions',
+    '/api/edicion',
+    '/api/edicions',
+    // Variaciones simples
+    '/api/producto',
     '/api/productos',
     '/api/products',
     '/api/ecommerce-productos',

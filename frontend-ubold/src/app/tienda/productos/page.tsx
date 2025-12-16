@@ -17,19 +17,39 @@ export default async function ProductosPage() {
     // Probamos con diferentes endpoints según las colecciones disponibles
     let response: any = null
     
-    // Intentar primero con "producto" (singular, como aparece en Strapi)
+    // Intentar primero con variaciones de "Product · Libro · Edición"
     try {
-      response = await strapiClient.get<any>('/api/producto?populate=*&pagination[pageSize]=100')
+      response = await strapiClient.get<any>('/api/product-libro-edicion?populate=*&pagination[pageSize]=100')
     } catch {
       try {
-        // Intentar con plural por si acaso
-        response = await strapiClient.get<any>('/api/productos?populate=*&pagination[pageSize]=100')
+        response = await strapiClient.get<any>('/api/product-libro-edicions?populate=*&pagination[pageSize]=100')
       } catch {
         try {
-          response = await strapiClient.get<any>('/api/products?populate=*&pagination[pageSize]=100')
+          response = await strapiClient.get<any>('/api/producto-libro-edicion?populate=*&pagination[pageSize]=100')
         } catch {
-          // Intentar con la colección de productos de ecommerce
-          response = await strapiClient.get<any>('/api/ecommerce-productos?populate=*&pagination[pageSize]=100')
+          try {
+            response = await strapiClient.get<any>('/api/libro-edicion?populate=*&pagination[pageSize]=100')
+          } catch {
+            try {
+              response = await strapiClient.get<any>('/api/edicion?populate=*&pagination[pageSize]=100')
+            } catch {
+              try {
+                // Intentar con "producto" simple
+                response = await strapiClient.get<any>('/api/producto?populate=*&pagination[pageSize]=100')
+              } catch {
+                try {
+                  response = await strapiClient.get<any>('/api/productos?populate=*&pagination[pageSize]=100')
+                } catch {
+                  try {
+                    response = await strapiClient.get<any>('/api/products?populate=*&pagination[pageSize]=100')
+                  } catch {
+                    // Último intento con ecommerce
+                    response = await strapiClient.get<any>('/api/ecommerce-productos?populate=*&pagination[pageSize]=100')
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -71,9 +91,13 @@ export default async function ProductosPage() {
                   <div>
                     <strong>URL de Strapi:</strong> {STRAPI_API_URL}
                     <br />
-                    <small className="text-muted">
-                      Endpoint: <code>/api/producto</code>
-                    </small>
+                <small className="text-muted">
+                  Endpoints probados: <code>/api/product-libro-edicion</code>, <code>/api/producto</code>, etc.
+                  <br />
+                  <a href="/tienda/productos/debug" className="text-decoration-underline">
+                    Ver todos los endpoints probados
+                  </a>
+                </small>
                   </div>
                   <a href="/tienda/productos/debug" className="text-decoration-underline">
                     🔍 Diagnóstico
