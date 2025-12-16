@@ -34,12 +34,16 @@ export default function EditarProductoPage({ params }: EditarProductoPageProps) 
         let response: any = null
         
         try {
-          response = await strapiClient.get<any>(`/api/productos/${productoId}?populate=*`)
+          response = await strapiClient.get<any>(`/api/producto/${productoId}?populate=*`)
         } catch {
           try {
-            response = await strapiClient.get<any>(`/api/products/${productoId}?populate=*`)
+            response = await strapiClient.get<any>(`/api/productos/${productoId}?populate=*`)
           } catch {
-            response = await strapiClient.get<any>(`/api/ecommerce-productos/${productoId}?populate=*`)
+            try {
+              response = await strapiClient.get<any>(`/api/products/${productoId}?populate=*`)
+            } catch {
+              response = await strapiClient.get<any>(`/api/ecommerce-productos/${productoId}?populate=*`)
+            }
           }
         }
         
@@ -76,16 +80,21 @@ export default function EditarProductoPage({ params }: EditarProductoPageProps) 
     setSuccess(false)
 
     try {
-      // Determinar qué endpoint usar
-      let endpoint = `/api/productos/${productoId}`
+      // Determinar qué endpoint usar (empezar con "producto" singular)
+      let endpoint = `/api/producto/${productoId}`
       try {
-        await strapiClient.get<any>(`/api/productos/${productoId}`)
+        await strapiClient.get<any>(`/api/producto/${productoId}`)
       } catch {
         try {
-          await strapiClient.get<any>(`/api/products/${productoId}`)
-          endpoint = `/api/products/${productoId}`
+          await strapiClient.get<any>(`/api/productos/${productoId}`)
+          endpoint = `/api/productos/${productoId}`
         } catch {
-          endpoint = `/api/ecommerce-productos/${productoId}`
+          try {
+            await strapiClient.get<any>(`/api/products/${productoId}`)
+            endpoint = `/api/products/${productoId}`
+          } catch {
+            endpoint = `/api/ecommerce-productos/${productoId}`
+          }
         }
       }
 

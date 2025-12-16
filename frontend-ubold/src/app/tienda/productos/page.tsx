@@ -16,15 +16,20 @@ export default async function ProductosPage() {
     // Probamos con diferentes endpoints según las colecciones disponibles
     let response: any = null
     
-    // Intentar primero con "productos" o variaciones comunes
+    // Intentar primero con "producto" (singular, como aparece en Strapi)
     try {
-      response = await strapiClient.get<any>('/api/productos?populate=*&pagination[pageSize]=100')
+      response = await strapiClient.get<any>('/api/producto?populate=*&pagination[pageSize]=100')
     } catch {
       try {
-        response = await strapiClient.get<any>('/api/products?populate=*&pagination[pageSize]=100')
+        // Intentar con plural por si acaso
+        response = await strapiClient.get<any>('/api/productos?populate=*&pagination[pageSize]=100')
       } catch {
-        // Intentar con la colección de productos de ecommerce
-        response = await strapiClient.get<any>('/api/ecommerce-productos?populate=*&pagination[pageSize]=100')
+        try {
+          response = await strapiClient.get<any>('/api/products?populate=*&pagination[pageSize]=100')
+        } catch {
+          // Intentar con la colección de productos de ecommerce
+          response = await strapiClient.get<any>('/api/ecommerce-productos?populate=*&pagination[pageSize]=100')
+        }
       }
     }
     
@@ -58,6 +63,7 @@ export default async function ProductosPage() {
                 <br />
                 <small className="text-muted">
                   Endpoints probados: 
+                  <code>/api/producto</code> (principal), 
                   <code>/api/productos</code>, 
                   <code>/api/products</code>, 
                   <code>/api/ecommerce-productos</code>

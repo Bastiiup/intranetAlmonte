@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function ProductosDebugPage() {
   const endpointsToTest = [
+    '/api/producto', // Principal - singular como aparece en Strapi
     '/api/productos',
     '/api/products',
     '/api/ecommerce-productos',
