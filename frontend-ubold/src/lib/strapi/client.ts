@@ -9,13 +9,28 @@ import { getStrapiUrl, STRAPI_API_TOKEN } from './config'
 import type { StrapiError, StrapiResponse } from './types'
 
 // Opciones por defecto para las peticiones
-const defaultHeaders: HeadersInit = {
+const defaultHeaders: Record<string, string> = {
   'Content-Type': 'application/json',
 }
 
 // Construir headers con autenticación si el token está disponible
 const getHeaders = (customHeaders?: HeadersInit): HeadersInit => {
-  const headers = { ...defaultHeaders, ...customHeaders }
+  const headers: Record<string, string> = { ...defaultHeaders }
+  
+  // Agregar headers personalizados si existen
+  if (customHeaders) {
+    if (customHeaders instanceof Headers) {
+      customHeaders.forEach((value, key) => {
+        headers[key] = value
+      })
+    } else if (Array.isArray(customHeaders)) {
+      customHeaders.forEach(([key, value]) => {
+        headers[key] = value
+      })
+    } else {
+      Object.assign(headers, customHeaders)
+    }
+  }
   
   // Agregar token de autenticación si está disponible (solo en servidor)
   if (STRAPI_API_TOKEN) {
