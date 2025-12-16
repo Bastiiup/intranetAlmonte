@@ -89,34 +89,38 @@ const Page = () => {
         if (clientesArray.length > 0) {
           const primerCliente = clientesArray[0]
           console.log('[Chat] Estructura completa del primer cliente:', JSON.stringify(primerCliente, null, 2))
-          console.log('[Chat] Campos disponibles en attributes:', {
-            keys: Object.keys(primerCliente.attributes || {}),
-            nombre: primerCliente.attributes?.nombre,
-            NOMBRE: primerCliente.attributes?.NOMBRE,
-            name: primerCliente.attributes?.name,
-            todosLosCampos: primerCliente.attributes,
+          console.log('[Chat] Campos disponibles (nivel raíz):', {
+            keys: Object.keys(primerCliente),
+            nombre: primerCliente.nombre,
+            tieneAttributes: !!primerCliente.attributes,
           })
         }
         
         const contactosMapeados: ContactType[] = clientesArray
-          .filter((cliente: any) => cliente && cliente.id) // Solo filtrar por ID válido
+          .filter((cliente: any) => {
+            // Solo incluir clientes que tengan ID y nombre
+            if (!cliente || !cliente.id) return false
+            
+            // Los datos vienen directamente en el objeto, NO en attributes
+            const nombre = cliente.nombre || ''
+            
+            // Solo incluir si tiene el campo "nombre" con valor
+            return !!nombre && nombre.trim() !== ''
+          })
           .map((cliente: any) => {
-            const attrs = cliente.attributes || {}
+            // Los datos vienen directamente en el objeto, NO en attributes
+            // Según los logs: { id: 2630, nombre: "Cliente de Prueba", ... }
+            const nombre = cliente.nombre || ''
             
-            // Obtener el nombre - usar SOLO el campo "nombre" (minúsculas) como aparece en el formulario de Strapi
-            // El campo se llama "nombre" en minúsculas según el schema.json
-            const nombre = attrs.nombre || ''
-            
-            // Si no tiene nombre, mostrar advertencia pero igual incluirlo
             if (!nombre || nombre.trim() === '') {
-              console.warn('[Chat] Cliente sin campo "nombre":', {
+              console.error('[Chat] ERROR: Cliente sin nombre después del filtro:', {
                 id: cliente.id,
-                attrsKeys: Object.keys(attrs),
-                correo: attrs.correo_electronico,
+                cliente: cliente,
               })
+              return null
             }
             
-            const ultimaActividad = attrs.ultima_actividad || attrs.ULTIMA_ACTIVIDAD
+            const ultimaActividad = cliente.ultima_actividad
             const ahora = new Date()
             const ultimaActividadDate = ultimaActividad ? new Date(ultimaActividad) : null
             
@@ -128,18 +132,18 @@ const Page = () => {
             // Debug: Log de cada cliente mapeado
             console.log('[Chat] Cliente mapeado:', {
               id: cliente.id,
-              nombre: nombre.trim() || '(sin nombre)',
-              nombreRaw: attrs.nombre,
-              correo: attrs.correo_electronico,
+              nombre: nombre.trim(),
+              correo: cliente.correo_electronico,
               isOnline,
             })
             
             return {
               id: String(cliente.id),
-              name: nombre.trim() || `Cliente #${cliente.id}`, // Solo usar fallback si realmente no hay nombre
+              name: nombre.trim(), // SOLO el nombre real del campo "nombre"
               isOnline,
             }
           })
+          .filter((contacto: ContactType | null) => contacto !== null) as ContactType[]
         
         console.log('[Chat] Total contactos mapeados:', contactosMapeados.length)
         
@@ -189,15 +193,30 @@ const Page = () => {
         const data = await response.json()
         const mensajesData = Array.isArray(data.data) ? data.data : [data.data]
         
+        // Debug: Ver estructura del primer mensaje
+        if (mensajesData.length > 0) {
+          console.log('[Chat] Estructura del primer mensaje:', JSON.stringify(mensajesData[0], null, 2))
+        }
+        
         // Mapear mensajes de Strapi a MessageType
+        // Los datos vienen directamente en el objeto, NO en attributes (igual que con clientes)
         const mensajesMapeados: MessageType[] = mensajesData.map((mensaje: any) => {
-          const attrs = mensaje.attributes || {}
-          const fecha = new Date(attrs.fecha || attrs.createdAt)
+          // Los datos vienen directamente: { id, texto, remitente_id, cliente_id, fecha, ... }
+          const texto = mensaje.texto || mensaje.TEXTO || ''
+          const remitenteId = mensaje.remitente_id || mensaje.REMITENTE_ID || 1
+          const fecha = mensaje.fecha ? new Date(mensaje.fecha) : new Date(mensaje.createdAt || Date.now())
+          
+          console.log('[Chat] Mensaje mapeado:', {
+            id: mensaje.id,
+            texto,
+            remitenteId,
+            fecha: fecha.toISOString(),
+          })
           
           return {
             id: String(mensaje.id),
-            senderId: String(attrs.remitente_id),
-            text: attrs.texto || '',
+            senderId: String(remitenteId),
+            text: texto,
             time: fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
           }
         })
@@ -217,7 +236,8 @@ const Page = () => {
         // Actualizar última fecha del mensaje más reciente
         if (mensajesMapeados.length > 0) {
           const ultimoMensaje = mensajesData[mensajesData.length - 1]
-          const ultimaFecha = ultimoMensaje?.attributes?.fecha || ultimoMensaje?.attributes?.createdAt
+          // Los datos vienen directamente, no en attributes
+          const ultimaFecha = ultimoMensaje?.fecha || ultimoMensaje?.createdAt
           if (ultimaFecha) {
             setLastMessageDate(ultimaFecha)
           }
@@ -291,18 +311,20 @@ const Page = () => {
             const mensajesData = Array.isArray(data.data) ? data.data : [data.data]
             if (mensajesData.length > 0) {
               const ultimoMensaje = mensajesData[mensajesData.length - 1]
-              const attrs = ultimoMensaje.attributes || {}
-              const fecha = new Date(attrs.fecha || attrs.createdAt)
+              // Los datos vienen directamente, no en attributes
+              const texto = ultimoMensaje.texto || ultimoMensaje.TEXTO || ''
+              const remitenteId = ultimoMensaje.remitente_id || ultimoMensaje.REMITENTE_ID || 1
+              const fecha = ultimoMensaje.fecha ? new Date(ultimoMensaje.fecha) : new Date(ultimoMensaje.createdAt || Date.now())
               
               const nuevoMensaje: MessageType = {
                 id: String(ultimoMensaje.id),
-                senderId: String(attrs.remitente_id),
-                text: attrs.texto || '',
+                senderId: String(remitenteId),
+                text: texto,
                 time: fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
               }
               
               setMessages((prev) => [...prev, nuevoMensaje])
-              setLastMessageDate(attrs.fecha || attrs.createdAt)
+              setLastMessageDate(ultimoMensaje.fecha || ultimoMensaje.createdAt)
               
               setTimeout(() => {
                 messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
