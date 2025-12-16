@@ -7,35 +7,95 @@ import { STRAPI_API_URL, STRAPI_API_TOKEN } from '@/lib/strapi/config'
 export const dynamic = 'force-dynamic'
 
 export default async function ProductosDebugPage() {
+  // Lista amplia de posibles endpoints relacionados con productos/libros
   const endpointsToTest = [
-    // Endpoint principal confirmado
+    // Basados en lo que sabemos que funciona
+    '/api/wo-clientes', // Sabemos que este existe (chat funciona)
+    '/api/intranet-chats', // Sabemos que este existe (chat funciona)
+    
+    // Variaciones de "product-libro-edicion"
     '/api/product-libro-edicion',
-    // Variaciones por si acaso
     '/api/product-libro-edicions',
     '/api/producto-libro-edicion',
+    '/api/producto-libro-edicions',
+    '/api/product-libro-ediciones',
+    '/api/producto-libro-ediciones',
+    
+    // Variaciones simples
     '/api/libro-edicion',
+    '/api/libro-edicions',
+    '/api/libro-ediciones',
     '/api/edicion',
-    // Fallbacks
+    '/api/edicions',
+    '/api/ediciones',
+    '/api/libro',
+    '/api/libros',
+    '/api/book',
+    '/api/books',
+    
+    // Variaciones de producto
     '/api/producto',
     '/api/productos',
+    '/api/product',
     '/api/products',
+    
+    // Variaciones con prefijos
+    '/api/ecommerce-productos',
+    '/api/ecommerce-products',
+    '/api/ecommerce-producto',
+    '/api/ecommerce-product',
+    '/api/tienda-productos',
+    '/api/tienda-products',
+    '/api/tienda-producto',
+    '/api/tienda-product',
+    '/api/woocommerce-products',
+    '/api/woocommerce-productos',
+    '/api/wo-products',
+    '/api/wo-productos',
+    
+    // Otras variaciones posibles
+    '/api/product-libro',
+    '/api/producto-libro',
+    '/api/libro-producto',
+    '/api/libro-product',
   ]
 
-  const results: Array<{ endpoint: string; success: boolean; error?: string; data?: any }> = []
+  const results: Array<{ 
+    endpoint: string
+    success: boolean
+    existe: boolean
+    tieneDatos: boolean
+    error?: string
+    status?: number
+    data?: any 
+  }> = []
 
   for (const endpoint of endpointsToTest) {
     try {
       const response = await strapiClient.get<any>(`${endpoint}?pagination[pageSize]=1`)
+      const tieneDatos = Array.isArray(response.data) 
+        ? response.data.length > 0 
+        : response.data !== undefined && response.data !== null
+      
       results.push({
         endpoint,
         success: true,
+        existe: true,
+        tieneDatos,
         data: response,
       })
     } catch (err: any) {
+      const status = err.status || 500
+      // Si es 404, no existe. Si es otro error (403, 401, etc), existe pero puede tener problemas de permisos
+      const existe = status !== 404
+      
       results.push({
         endpoint,
         success: false,
-        error: err.message || `HTTP ${err.status || 'Unknown'}`,
+        existe,
+        tieneDatos: false,
+        error: err.message || `HTTP ${status}`,
+        status,
       })
     }
   }
@@ -142,14 +202,22 @@ export default async function ProductosDebugPage() {
                         <td>
                           {result.success ? (
                             <span className="badge bg-success">✅ OK</span>
+                          ) : result.existe ? (
+                            <span className="badge bg-warning">⚠️ Existe (permisos?)</span>
                           ) : (
-                            <span className="badge bg-danger">❌ Error</span>
+                            <span className="badge bg-danger">❌ No existe</span>
                           )}
                         </td>
                         <td>
                           {result.success ? (
                             <small className="text-success">
                               Datos encontrados: {result.data?.data?.length || 0} registro(s)
+                            </small>
+                          ) : result.existe ? (
+                            <small className="text-warning">
+                              Existe pero error: {result.error} (Status: {result.status})
+                              <br />
+                              <strong>Posible problema de permisos</strong>
                             </small>
                           ) : (
                             <small className="text-danger">{result.error}</small>
@@ -163,16 +231,40 @@ export default async function ProductosDebugPage() {
 
               {results.some(r => r.success) && (
                 <Alert variant="success" className="mb-3">
-                  <strong>✅ Endpoints que funcionan:</strong>
+                  <strong>✅ Endpoints que funcionan correctamente:</strong>
                   <ul className="mb-0 mt-2">
                     {results.filter(r => r.success).map((r, i) => (
-                      <li key={i}><code>{r.endpoint}</code></li>
+                      <li key={i}>
+                        <code>{r.endpoint}</code>
+                        {r.tieneDatos && <span className="text-success ms-2">(con datos)</span>}
+                      </li>
                     ))}
                   </ul>
                 </Alert>
               )}
 
-              {!results.some(r => r.success) && (
+              {results.some(r => r.existe && !r.success) && (
+                <Alert variant="warning" className="mb-3">
+                  <strong>⚠️ Endpoints que existen pero tienen problemas:</strong>
+                  <ul className="mb-0 mt-2">
+                    {results.filter(r => r.existe && !r.success).map((r, i) => (
+                      <li key={i}>
+                        <code>{r.endpoint}</code>
+                        <span className="text-warning ms-2">
+                          (Error {r.status}: {r.error})
+                        </span>
+                        <br />
+                        <small className="text-muted ms-3">
+                          Este endpoint existe pero puede tener problemas de permisos. 
+                          Verifica en Strapi → Settings → Roles → API Token → Permissions
+                        </small>
+                      </li>
+                    ))}
+                  </ul>
+                </Alert>
+              )}
+
+              {!results.some(r => r.success || r.existe) && (
                 <Alert variant="warning" className="mb-3">
                   <strong>⚠️ Ningún endpoint funcionó</strong>
                   <p className="mb-2 mt-2">
