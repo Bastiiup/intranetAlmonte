@@ -1,8 +1,11 @@
-import { Container, Card, Alert, Badge } from 'react-bootstrap'
+import { Container, Card, Alert, Badge, CardHeader, CardBody } from 'react-bootstrap'
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import strapiClient from '@/lib/strapi/client'
 import { STRAPI_API_URL, STRAPI_API_TOKEN } from '@/lib/strapi/config'
+
+// Forzar renderizado dinámico (no estático) para poder usar variables de entorno
+export const dynamic = 'force-dynamic'
 
 /**
  * Página de prueba para verificar la conexión con Strapi
@@ -32,11 +35,17 @@ export default async function TestStrapiPage() {
       data: testResponse,
     }
   } catch (err: any) {
+    // No lanzar el error para que el build no falle
     testError = err.message || 'Error desconocido'
     strapiInfo = {
       success: false,
       error: testError,
       status: err.status,
+    }
+    
+    // Solo loguear en desarrollo, no en build
+    if (process.env.NODE_ENV !== 'production' || typeof window !== 'undefined') {
+      console.error('Error al probar conexión con Strapi:', err)
     }
   }
 
@@ -48,10 +57,10 @@ export default async function TestStrapiPage() {
         <div className="col-12">
           {/* Configuración */}
           <Card className="mb-4">
-            <Card.Header>
+            <CardHeader>
               <h5 className="mb-0">Configuración</h5>
-            </Card.Header>
-            <Card.Body>
+            </CardHeader>
+            <CardBody>
               <div className="mb-3">
                 <strong>URL de Strapi:</strong>
                 <br />
@@ -81,15 +90,15 @@ export default async function TestStrapiPage() {
                   Agrega <code>STRAPI_API_TOKEN</code> en las variables de entorno.
                 </Alert>
               )}
-            </Card.Body>
+            </CardBody>
           </Card>
 
           {/* Prueba de conexión */}
           <Card>
-            <Card.Header>
+            <CardHeader>
               <h5 className="mb-0">Prueba de Conexión</h5>
-            </Card.Header>
-            <Card.Body>
+            </CardHeader>
+            <CardBody>
               {strapiInfo?.success ? (
                 <Alert variant="success">
                   <strong>✅ Conexión exitosa</strong>
@@ -129,15 +138,15 @@ export default async function TestStrapiPage() {
                   </small>
                 </Alert>
               )}
-            </Card.Body>
+            </CardBody>
           </Card>
 
           {/* Instrucciones */}
           <Card className="mt-4">
-            <Card.Header>
+            <CardHeader>
               <h5 className="mb-0">📝 Instrucciones</h5>
-            </Card.Header>
-            <Card.Body>
+            </CardHeader>
+            <CardBody>
               <ol>
                 <li>
                   <strong>Configura las variables de entorno:</strong>
@@ -162,7 +171,7 @@ export default async function TestStrapiPage() {
                   </ul>
                 </li>
               </ol>
-            </Card.Body>
+            </CardBody>
           </Card>
         </div>
       </div>

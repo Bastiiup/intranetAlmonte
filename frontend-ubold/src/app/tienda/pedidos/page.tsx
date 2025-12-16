@@ -1,8 +1,11 @@
-import { Container, Alert, Card } from 'react-bootstrap'
+import { Container, Alert, Card, CardBody } from 'react-bootstrap'
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import strapiClient from '@/lib/strapi/client'
 import { STRAPI_API_URL } from '@/lib/strapi/config'
+
+// Forzar renderizado dinámico (no estático) para poder usar variables de entorno
+export const dynamic = 'force-dynamic'
 
 export default async function PedidosPage() {
   let pedidos: any[] = []
@@ -23,8 +26,13 @@ export default async function PedidosPage() {
     }
   } catch (err: any) {
     // Manejar errores (puede ser que la colección no exista aún, o que falte el token)
+    // No lanzar el error para que el build no falle
     error = err.message || 'Error al conectar con Strapi'
-    console.error('Error al obtener pedidos:', err)
+    
+    // Solo loguear en desarrollo, no en build
+    if (process.env.NODE_ENV !== 'production' || typeof window !== 'undefined') {
+      console.error('Error al obtener pedidos:', err)
+    }
   }
 
   return (
@@ -34,7 +42,7 @@ export default async function PedidosPage() {
       <div className="row">
         <div className="col-12">
           <Card>
-            <Card.Body>
+            <CardBody>
               <h4 className="card-title mb-4">Lista de Pedidos</h4>
               
               {/* Mostrar información de conexión */}
@@ -117,7 +125,7 @@ export default async function PedidosPage() {
                   </ul>
                 </Alert>
               )}
-            </Card.Body>
+            </CardBody>
           </Card>
         </div>
       </div>
