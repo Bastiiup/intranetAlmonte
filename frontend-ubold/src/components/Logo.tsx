@@ -1,53 +1,98 @@
 'use client'
 import Image from 'next/image'
 import Link from 'next/link'
-import { CSSProperties } from 'react'
-
-// Si tienes una imagen del logo, descomenta estas líneas y reemplaza la ruta:
-// import logoMoraleja from '@/assets/images/logo-moraleja.png'
-// import logoMoralejaSm from '@/assets/images/logo-moraleja-sm.png'
+import { useState } from 'react'
 
 interface LogoProps {
   className?: string
   size?: 'sm' | 'lg'
-  useImage?: boolean // Si quieres usar imagen en lugar de texto
 }
 
-const Logo = ({ className = '', size = 'lg', useImage = false }: LogoProps) => {
-  // Si quieres usar una imagen, descomenta esto:
-  // if (useImage) {
-  //   return (
-  //     <Link href="/" className={className} style={{ textDecoration: 'none' }}>
-  //       <Image 
-  //         src={size === 'sm' ? logoMoralejaSm : logoMoraleja} 
-  //         alt="MORALEJA Logo" 
-  //         width={size === 'sm' ? 80 : 120} 
-  //         height={size === 'sm' ? 22 : 30}
-  //         style={{ objectFit: 'contain' }}
-  //       />
-  //     </Link>
-  //   )
-  // }
+const Logo = ({ className = '', size = 'lg' }: LogoProps) => {
+  const [imageError, setImageError] = useState(false)
+  
+  // Dimensiones del logo según el tamaño
+  const logoDimensions = {
+    lg: { width: 140, height: 40 },
+    sm: { width: 100, height: 28 },
+  }
 
-  // Versión con texto estilizado (actual)
-  const logoStyle: CSSProperties = {
-    fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
-    fontWeight: 'bold',
-    fontSize: size === 'sm' ? '14px' : '20px',
-    color: '#14b8a6', // Color teal/verde azulado más brillante
-    letterSpacing: '1px',
-    textTransform: 'uppercase',
-    textDecoration: 'none',
-    display: 'inline-block',
-    lineHeight: '1.2',
-    padding: size === 'sm' ? '4px 8px' : '6px 12px',
-    backgroundColor: '#000000', // Fondo negro
-    borderRadius: '4px',
+  const dimensions = logoDimensions[size]
+
+  // Fallback si la imagen no se carga
+  if (imageError) {
+    return (
+      <Link 
+        href="/" 
+        className={className} 
+        style={{ 
+          textDecoration: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '100%',
+          height: '100%',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: `${dimensions.width}px`,
+            height: `${dimensions.height}px`,
+            fontSize: size === 'sm' ? '14px' : '18px',
+            fontWeight: 'bold',
+            color: '#14b8a6',
+            letterSpacing: '1px',
+          }}
+        >
+          MORALEJA
+        </div>
+      </Link>
+    )
   }
 
   return (
-    <Link href="/" className={className} style={{ textDecoration: 'none' }}>
-      <span style={logoStyle}>MORALEJA</span>
+    <Link 
+      href="/" 
+      className={className} 
+      style={{ 
+        textDecoration: 'none',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+        height: '100%',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: `${dimensions.width}px`,
+          height: `${dimensions.height}px`,
+          position: 'relative',
+          margin: '0 auto',
+        }}
+      >
+        <Image
+          src="/images/logo/logo-moraleja.png"
+          alt="MORALEJA Logo"
+          width={dimensions.width}
+          height={dimensions.height}
+          style={{
+            objectFit: 'contain',
+            width: '100%',
+            height: '100%',
+            maxWidth: '100%',
+            maxHeight: '100%',
+          }}
+          priority
+          onError={() => setImageError(true)}
+        />
+      </div>
     </Link>
   )
 }
