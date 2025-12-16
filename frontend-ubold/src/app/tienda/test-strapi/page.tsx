@@ -27,9 +27,22 @@ export default async function TestStrapiPage() {
   let testError: string | null = null
 
   try {
-    // Probar con un endpoint común de Strapi (puede que no exista, pero es para probar)
-    // Si tienes una colección específica, cámbiala aquí
-    const testResponse = await strapiClient.get<any>('/api/pedidos?pagination[pageSize]=1')
+    // Probar con diferentes endpoints según las colecciones disponibles
+    // Intentamos con las colecciones que vimos en Strapi
+    let testResponse: any = null
+    
+    // Intentar primero con "ecommerce-pedidos"
+    try {
+      testResponse = await strapiClient.get<any>('/api/ecommerce-pedidos?pagination[pageSize]=1')
+    } catch {
+      // Si falla, intentar con "wo-pedidos"
+      try {
+        testResponse = await strapiClient.get<any>('/api/wo-pedidos?pagination[pageSize]=1')
+      } catch {
+        // Último intento con "turnos-tiendas"
+        testResponse = await strapiClient.get<any>('/api/turnos-tiendas?pagination[pageSize]=1')
+      }
+    }
     strapiInfo = {
       success: true,
       data: testResponse,

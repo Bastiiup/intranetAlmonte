@@ -14,9 +14,21 @@ export default async function PedidosPage() {
 
   try {
     // Intentar obtener pedidos desde Strapi
-    // Nota: Ajusta la ruta según tu colección en Strapi
-    // Ejemplos comunes: '/api/pedidos', '/api/orders', '/api/ordenes'
-    const response = await strapiClient.get<any>('/api/pedidos?populate=*')
+    // Probamos con diferentes endpoints según las colecciones disponibles
+    let response: any = null
+    
+    // Intentar primero con "ecommerce-pedidos" (Ecommerce · Pedido)
+    try {
+      response = await strapiClient.get<any>('/api/ecommerce-pedidos?populate=*&pagination[pageSize]=100')
+    } catch {
+      // Si falla, intentar con "wo-pedidos" (WO-Pedidos)
+      try {
+        response = await strapiClient.get<any>('/api/wo-pedidos?populate=*&pagination[pageSize]=100')
+      } catch {
+        // Último intento con "pedidos"
+        response = await strapiClient.get<any>('/api/pedidos?populate=*&pagination[pageSize]=100')
+      }
+    }
     
     // Strapi devuelve los datos en response.data
     if (Array.isArray(response.data)) {
@@ -50,7 +62,10 @@ export default async function PedidosPage() {
                 <strong>URL de Strapi:</strong> {STRAPI_API_URL}
                 <br />
                 <small className="text-muted">
-                  Endpoint: {STRAPI_API_URL}/api/pedidos
+                  Endpoints probados: 
+                  <code>/api/ecommerce-pedidos</code>, 
+                  <code>/api/wo-pedidos</code>, 
+                  <code>/api/pedidos</code>
                 </small>
               </Alert>
 
@@ -62,9 +77,9 @@ export default async function PedidosPage() {
                   <small>
                     Asegúrate de que:
                     <ul className="mb-0 mt-2">
-                      <li>La colección "pedidos" existe en Strapi</li>
+                      <li>Las colecciones "ecommerce-pedidos", "wo-pedidos" o "pedidos" existen en Strapi</li>
                       <li>El API Token está configurado en las variables de entorno</li>
-                      <li>Los permisos de la colección están habilitados en Strapi</li>
+                      <li>Los permisos de la colección están habilitados en Strapi (Settings → Roles → Public → Find)</li>
                     </ul>
                   </small>
                 </Alert>
