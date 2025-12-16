@@ -125,10 +125,12 @@ export default async function ProductosPage() {
                               <td>#{producto.id}</td>
                               <td>
                                 <strong>{nombre}</strong>
-                                {slug && (
-                                  <br />
-                                  <small className="text-muted">/{slug}</small>
-                                )}
+                                {slug ? (
+                                  <>
+                                    <br />
+                                    <small className="text-muted">/{slug}</small>
+                                  </>
+                                ) : null}
                               </td>
                               <td>
                                 {attrs.imagen?.data ? (
