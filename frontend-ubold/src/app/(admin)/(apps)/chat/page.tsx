@@ -66,25 +66,63 @@ const Page = () => {
         }
         const data = await response.json()
         
-        // Mapear clientes de Strapi a ContactType
-        const contactosMapeados: ContactType[] = (Array.isArray(data.data) ? data.data : [data.data]).map((cliente: any) => {
-          const attrs = cliente.attributes || {}
-          const ultimaActividad = attrs.ultima_actividad
-          const ahora = new Date()
-          const ultimaActividadDate = ultimaActividad ? new Date(ultimaActividad) : null
-          
-          // Considerar online si la última actividad fue en las últimas 5 minutos
-          const isOnline = ultimaActividadDate 
-            ? (ahora.getTime() - ultimaActividadDate.getTime()) < 5 * 60 * 1000
-            : false
-          
-          return {
-            id: String(cliente.id),
-            name: attrs.nombre || 'Sin nombre',
-            isOnline,
-            // Puedes agregar más campos si los necesitas
-          }
+        // Debug: Log de la respuesta completa
+        console.log('[Chat] Datos recibidos de Strapi:', {
+          hasData: !!data.data,
+          isArray: Array.isArray(data.data),
+          count: Array.isArray(data.data) ? data.data.length : data.data ? 1 : 0,
+          sample: Array.isArray(data.data) ? data.data[0] : data.data,
         })
+        
+        // Verificar que hay datos
+        if (!data.data || (Array.isArray(data.data) && data.data.length === 0)) {
+          console.warn('[Chat] No se encontraron clientes en Strapi')
+          setContacts([])
+          setError('No se encontraron clientes. Verifica que existan registros en WO-Clientes en Strapi.')
+          return
+        }
+        
+        // Mapear clientes de Strapi a ContactType
+        const clientesArray = Array.isArray(data.data) ? data.data : [data.data]
+        const contactosMapeados: ContactType[] = clientesArray
+          .filter((cliente: any) => cliente && cliente.id) // Filtrar clientes válidos
+          .map((cliente: any) => {
+            const attrs = cliente.attributes || {}
+            
+            // Intentar obtener el nombre de diferentes formas posibles
+            const nombre = 
+              attrs.nombre ||           // Campo estándar
+              attrs.NOMBRE ||           // Si viene en mayúsculas
+              attrs.name ||             // Si viene en inglés
+              attrs.correo_electronico?.split('@')[0] || // Usar email como fallback
+              `Cliente #${cliente.id}`  // Último recurso
+            
+            const ultimaActividad = attrs.ultima_actividad || attrs.ULTIMA_ACTIVIDAD
+            const ahora = new Date()
+            const ultimaActividadDate = ultimaActividad ? new Date(ultimaActividad) : null
+            
+            // Considerar online si la última actividad fue en las últimas 5 minutos
+            const isOnline = ultimaActividadDate 
+              ? (ahora.getTime() - ultimaActividadDate.getTime()) < 5 * 60 * 1000
+              : false
+            
+            // Debug: Log de cada cliente mapeado
+            console.log('[Chat] Cliente mapeado:', {
+              id: cliente.id,
+              nombre,
+              nombreOriginal: attrs.nombre,
+              attrsKeys: Object.keys(attrs),
+              isOnline,
+            })
+            
+            return {
+              id: String(cliente.id),
+              name: nombre,
+              isOnline,
+            }
+          })
+        
+        console.log('[Chat] Total contactos mapeados:', contactosMapeados.length)
         
         setContacts(contactosMapeados)
         if (contactosMapeados.length > 0 && !currentContact) {

@@ -29,13 +29,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'cliente_id es requerido' }, { status: 400 })
     }
     
-    let query = `/api/intranet-chats?filters[cliente_id][$eq]=${clienteId}&sort=fecha:asc&pagination[pageSize]=1000`
+    // Convertir clienteId a número para asegurar que sea un integer
+    const clienteIdNum = parseInt(clienteId, 10)
+    if (isNaN(clienteIdNum)) {
+      return NextResponse.json({ error: 'cliente_id debe ser un número válido' }, { status: 400 })
+    }
+    
+    let query = `/api/intranet-chats?filters[cliente_id][$eq]=${clienteIdNum}&sort=fecha:asc&pagination[pageSize]=1000`
     
     if (ultimaFecha) {
       query += `&filters[fecha][$gt]=${ultimaFecha}`
     }
     
+    console.log('[API /chat/mensajes] Obteniendo mensajes:', {
+      clienteId: clienteIdNum,
+      ultimaFecha,
+      query,
+    })
+    
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<ChatMensajeAttributes>>>(query)
+    
+    // Log para debugging
+    const mensajesData = Array.isArray(response.data) ? response.data : [response.data]
+    console.log('[API /chat/mensajes] Mensajes recibidos:', {
+      count: mensajesData.length,
+      sample: mensajesData[0],
+    })
     
     return NextResponse.json(response, { status: 200 })
   } catch (error: any) {
@@ -69,18 +88,39 @@ export async function POST(request: NextRequest) {
       )
     }
     
+    // Convertir cliente_id a número para asegurar que sea un integer
+    const clienteIdNum = parseInt(String(cliente_id), 10)
+    if (isNaN(clienteIdNum)) {
+      return NextResponse.json(
+        { error: 'cliente_id debe ser un número válido' },
+        { status: 400 }
+      )
+    }
+    
+    const remitenteIdNum = parseInt(String(remitente_id), 10) || 1
+    
+    console.log('[API /chat/mensajes] Enviando mensaje:', {
+      texto: texto.substring(0, 50) + '...',
+      cliente_id: clienteIdNum,
+      remitente_id: remitenteIdNum,
+    })
+    
     const response = await strapiClient.post<StrapiResponse<StrapiEntity<ChatMensajeAttributes>>>(
       '/api/intranet-chats',
       {
         data: {
           texto,
-          remitente_id: remitente_id || 1,
-          cliente_id,
+          remitente_id: remitenteIdNum,
+          cliente_id: clienteIdNum,
           fecha: new Date().toISOString(),
           leido: false,
         },
       }
     )
+    
+    console.log('[API /chat/mensajes] Mensaje enviado exitosamente:', {
+      id: Array.isArray(response.data) ? response.data[0]?.id : response.data?.id,
+    })
     
     return NextResponse.json(response, { status: 201 })
   } catch (error: any) {
