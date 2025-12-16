@@ -87,25 +87,71 @@ export default async function PedidosPage() {
 
               {/* Mostrar pedidos si existen */}
               {!error && pedidos.length > 0 && (
-                <div className="table-responsive">
-                  <table className="table table-striped">
-                    <thead>
-                      <tr>
-                        <th>ID</th>
-                        <th>Número de Pedido</th>
-                        <th>Fecha de Pedido</th>
-                        <th>Estado</th>
-                        <th>Publicación</th>
-                        <th>Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                <>
+                  <Alert variant="success" className="mb-3">
+                    <strong>✅ {pedidos.length} pedido(s) encontrado(s)</strong>
+                    <br />
+                    <small>
+                      Si los campos no se muestran correctamente, ve a{' '}
+                      <a href="/tienda/pedidos/debug" className="text-decoration-underline">
+                        /tienda/pedidos/debug
+                      </a>{' '}
+                      para ver la estructura exacta de los datos.
+                    </small>
+                  </Alert>
+                  
+                  <div className="table-responsive">
+                    <table className="table table-striped">
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Número de Pedido</th>
+                          <th>Fecha de Pedido</th>
+                          <th>Estado</th>
+                          <th>Publicación</th>
+                          <th>Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
                       {pedidos.map((pedido: any) => {
                         // Obtener los campos según la estructura de Strapi
-                        const numeroPedido = pedido.attributes?.NUMERO_PEDIDO || pedido.attributes?.numero_pedido || pedido.attributes?.numeroPedido || pedido.id
-                        const fechaPedido = pedido.attributes?.FECHA_PEDIDO || pedido.attributes?.fecha_pedido || pedido.attributes?.fechaPedido || pedido.attributes?.createdAt
-                        const estado = pedido.attributes?.ESTADO || pedido.attributes?.estado || 'Sin estado'
-                        const status = pedido.attributes?.STATUS || pedido.attributes?.status || 'Sin estado'
+                        // Intentar múltiples variaciones de nombres de campos
+                        const attrs = pedido.attributes || {}
+                        
+                        // Número de pedido - probar todas las variaciones posibles
+                        const numeroPedido = 
+                          attrs.NUMERO_PEDIDO || 
+                          attrs.numero_pedido || 
+                          attrs.numeroPedido || 
+                          attrs.numero_pedido ||
+                          attrs.numero ||
+                          attrs.order_number ||
+                          attrs.orderNumber ||
+                          pedido.id
+                        
+                        // Fecha de pedido - probar todas las variaciones posibles
+                        const fechaPedido = 
+                          attrs.FECHA_PEDIDO || 
+                          attrs.fecha_pedido || 
+                          attrs.fechaPedido || 
+                          attrs.fecha ||
+                          attrs.date ||
+                          attrs.order_date ||
+                          attrs.orderDate ||
+                          attrs.createdAt ||
+                          attrs.created_at
+                        
+                        // Estado - probar todas las variaciones posibles
+                        const estado = 
+                          attrs.ESTADO || 
+                          attrs.estado || 
+                          attrs.status ||
+                          attrs.ESTADO_PEDIDO ||
+                          attrs.estado_pedido ||
+                          'Sin estado'
+                        
+                        // Status de publicación
+                        const status = attrs.publishedAt ? 'Published' : (attrs.STATUS || attrs.status || 'Sin estado')
                         
                         // Formatear fecha si existe
                         let fechaFormateada = 'Sin fecha'
@@ -156,9 +202,10 @@ export default async function PedidosPage() {
                           </tr>
                         )
                       })}
-                    </tbody>
-                  </table>
-                </div>
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
 
               {/* Mensaje si no hay pedidos */}

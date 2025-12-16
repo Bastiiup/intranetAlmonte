@@ -69,9 +69,9 @@ export default async function PedidosDebugPage() {
 
                   {rawData.data && rawData.data.length > 0 && (
                     <>
-                      <h5 className="mt-4 mb-3">Primer pedido (estructura):</h5>
+                      <h5 className="mt-4 mb-3">Primer pedido - Estructura de campos:</h5>
                       <div className="table-responsive">
-                        <table className="table table-bordered">
+                        <table className="table table-bordered table-sm">
                           <thead>
                             <tr>
                               <th>Campo</th>
@@ -82,23 +82,41 @@ export default async function PedidosDebugPage() {
                           <tbody>
                             <tr>
                               <td><code>id</code></td>
-                              <td>{rawData.data[0].id}</td>
-                              <td>{typeof rawData.data[0].id}</td>
+                              <td><strong>{rawData.data[0].id}</strong></td>
+                              <td><span className="badge bg-info">{typeof rawData.data[0].id}</span></td>
                             </tr>
-                            {rawData.data[0].attributes && Object.keys(rawData.data[0].attributes).map((key) => (
-                              <tr key={key}>
-                                <td><code>attributes.{key}</code></td>
-                                <td>
-                                  {typeof rawData.data[0].attributes[key] === 'object' 
-                                    ? JSON.stringify(rawData.data[0].attributes[key])
-                                    : String(rawData.data[0].attributes[key])}
-                                </td>
-                                <td>{typeof rawData.data[0].attributes[key]}</td>
-                              </tr>
-                            ))}
+                            {rawData.data[0].attributes && Object.keys(rawData.data[0].attributes).sort().map((key) => {
+                              const value = rawData.data[0].attributes[key]
+                              const valueStr = typeof value === 'object' && value !== null
+                                ? JSON.stringify(value, null, 2)
+                                : String(value || 'null/undefined')
+                              
+                              return (
+                                <tr key={key}>
+                                  <td><code>attributes.{key}</code></td>
+                                  <td>
+                                    <pre className="mb-0" style={{ fontSize: '11px', maxWidth: '400px', overflow: 'auto' }}>
+                                      {valueStr}
+                                    </pre>
+                                  </td>
+                                  <td>
+                                    <span className="badge bg-secondary">{typeof value}</span>
+                                  </td>
+                                </tr>
+                              )
+                            })}
                           </tbody>
                         </table>
                       </div>
+                      
+                      <Alert variant="info" className="mt-3">
+                        <strong>💡 Cómo usar esta información:</strong>
+                        <ul className="mb-0 mt-2">
+                          <li>Copia los nombres exactos de los campos que ves arriba</li>
+                          <li>Comparte esos nombres conmigo para actualizar el código</li>
+                          <li>O actualiza manualmente el código en <code>src/app/tienda/pedidos/page.tsx</code></li>
+                        </ul>
+                      </Alert>
                     </>
                   )}
                 </>
