@@ -58,7 +58,7 @@ const ContactList = ({ contacts, setContact }: PropsType) => {
             <ListGroupItem
               key={contact.id}
               action
-              className={`d-flex gap-2 justify-content-between ${contact.id === currentContact.id ? 'active' : ''}`}
+              className={`d-flex gap-2 justify-content-between ${currentContact && contact.id === currentContact.id ? 'active' : ''}`}
               onClick={() => {
                 setContact(contact)
                 setCurrentContact(contact)
