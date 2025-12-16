@@ -1,7 +1,7 @@
 import { Container, Alert, Card, CardBody } from 'react-bootstrap'
+import { headers } from 'next/headers'
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import strapiClient from '@/lib/strapi/client'
 import { STRAPI_API_URL } from '@/lib/strapi/config'
 
 // Forzar renderizado dinámico (no estático) para poder usar variables de entorno
@@ -10,36 +10,32 @@ export const dynamic = 'force-dynamic'
 export default async function PedidosPage() {
   let pedidos: any[] = []
   let error: string | null = null
-  let isLoading = false
+  let endpointUsed = ''
 
   try {
-    // Intentar obtener pedidos desde Strapi
-    // Probamos con diferentes endpoints según las colecciones disponibles
-    let response: any = null
+    // Usar API Route como proxy (igual que el chat)
+    // Esto maneja el token de Strapi solo en el servidor
+    const headersList = await headers()
+    const host = headersList.get('host') || 'localhost:3000'
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
+    const baseUrl = `${protocol}://${host}`
     
-    // Intentar primero con "ecommerce-pedidos" (Ecommerce · Pedido)
-    try {
-      response = await strapiClient.get<any>('/api/ecommerce-pedidos?populate=*&pagination[pageSize]=100')
-    } catch {
-      // Si falla, intentar con "wo-pedidos" (WO-Pedidos)
-      try {
-        response = await strapiClient.get<any>('/api/wo-pedidos?populate=*&pagination[pageSize]=100')
-      } catch {
-        // Último intento con "pedidos"
-        response = await strapiClient.get<any>('/api/pedidos?populate=*&pagination[pageSize]=100')
-      }
-    }
+    const response = await fetch(`${baseUrl}/api/tienda/pedidos`, {
+      cache: 'no-store', // Forzar fetch dinámico
+    })
     
-    // Strapi devuelve los datos en response.data
-    if (Array.isArray(response.data)) {
-      pedidos = response.data
-    } else if (response.data) {
-      pedidos = [response.data]
+    const data = await response.json()
+    
+    if (data.success && data.data) {
+      pedidos = Array.isArray(data.data) ? data.data : [data.data]
+      endpointUsed = data.endpoint || ''
+    } else {
+      error = data.error || 'Error al obtener pedidos'
     }
   } catch (err: any) {
     // Manejar errores (puede ser que la colección no exista aún, o que falte el token)
     // No lanzar el error para que el build no falle
-    error = err.message || 'Error al conectar con Strapi'
+    error = err.message || 'Error al conectar con la API'
     
     // Solo loguear en desarrollo, no en build
     if (process.env.NODE_ENV !== 'production' || typeof window !== 'undefined') {
@@ -62,10 +58,9 @@ export default async function PedidosPage() {
                 <strong>URL de Strapi:</strong> {STRAPI_API_URL}
                 <br />
                 <small className="text-muted">
-                  Endpoints probados: 
-                  <code>/api/ecommerce-pedidos</code>, 
-                  <code>/api/wo-pedidos</code>, 
-                  <code>/api/pedidos</code>
+                  Endpoint usado: <code>{endpointUsed || '/api/ecommerce-pedidos'}</code>
+                  <br />
+                  <span className="text-success">✅ Usando API Route como proxy (igual que el chat)</span>
                 </small>
               </Alert>
 

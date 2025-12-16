@@ -1,7 +1,7 @@
 import { Container, Alert, Card, CardBody, Badge } from 'react-bootstrap'
+import { headers } from 'next/headers'
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import strapiClient from '@/lib/strapi/client'
 import { STRAPI_API_URL } from '@/lib/strapi/config'
 import ProductosGrid from './components/ProductosGrid'
 
@@ -11,36 +11,30 @@ export const dynamic = 'force-dynamic'
 export default async function ProductosPage() {
   let productos: any[] = []
   let error: string | null = null
+  let endpointUsed = ''
 
   try {
-    // Intentar obtener productos desde Strapi
-    // Probamos con diferentes endpoints según las colecciones disponibles
-    let response: any = null
+    // Usar API Route como proxy (igual que el chat)
+    // Esto maneja el token de Strapi solo en el servidor
+    const headersList = await headers()
+    const host = headersList.get('host') || 'localhost:3000'
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
+    const baseUrl = `${protocol}://${host}`
     
-    // Endpoint correcto: product-libro-edicion (según la URL de Strapi)
-    try {
-      response = await strapiClient.get<any>('/api/product-libro-edicion?populate=*&pagination[pageSize]=100')
-    } catch {
-      // Fallbacks por si acaso
-      try {
-        response = await strapiClient.get<any>('/api/product-libro-edicions?populate=*&pagination[pageSize]=100')
-      } catch {
-        try {
-          response = await strapiClient.get<any>('/api/producto-libro-edicion?populate=*&pagination[pageSize]=100')
-        } catch {
-          response = await strapiClient.get<any>('/api/producto?populate=*&pagination[pageSize]=100')
-        }
-      }
-    }
+    const response = await fetch(`${baseUrl}/api/tienda/productos`, {
+      cache: 'no-store', // Forzar fetch dinámico
+    })
     
-    // Strapi devuelve los datos en response.data
-    if (Array.isArray(response.data)) {
-      productos = response.data
-    } else if (response.data) {
-      productos = [response.data]
+    const data = await response.json()
+    
+    if (data.success && data.data) {
+      productos = Array.isArray(data.data) ? data.data : [data.data]
+      endpointUsed = data.endpoint || ''
+    } else {
+      error = data.error || 'Error al obtener productos'
     }
   } catch (err: any) {
-    error = err.message || 'Error al conectar con Strapi'
+    error = err.message || 'Error al conectar con la API'
     
     if (process.env.NODE_ENV !== 'production' || typeof window !== 'undefined') {
       console.error('Error al obtener productos:', err)
@@ -71,7 +65,9 @@ export default async function ProductosPage() {
                     <strong>URL de Strapi:</strong> {STRAPI_API_URL}
                     <br />
                     <small className="text-muted">
-                      Endpoint: <code>/api/product-libro-edicion</code>
+                      Endpoint usado: <code>{endpointUsed || '/api/product-libro-edicion'}</code>
+                      <br />
+                      <span className="text-success">✅ Usando API Route como proxy (igual que el chat)</span>
                       <br />
                       <a href="/tienda/productos/debug" className="text-decoration-underline">
                         🔍 Ver diagnóstico completo
