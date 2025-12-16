@@ -193,15 +193,30 @@ const Page = () => {
         const data = await response.json()
         const mensajesData = Array.isArray(data.data) ? data.data : [data.data]
         
+        // Debug: Ver estructura del primer mensaje
+        if (mensajesData.length > 0) {
+          console.log('[Chat] Estructura del primer mensaje:', JSON.stringify(mensajesData[0], null, 2))
+        }
+        
         // Mapear mensajes de Strapi a MessageType
+        // Los datos vienen directamente en el objeto, NO en attributes (igual que con clientes)
         const mensajesMapeados: MessageType[] = mensajesData.map((mensaje: any) => {
-          const attrs = mensaje.attributes || {}
-          const fecha = new Date(attrs.fecha || attrs.createdAt)
+          // Los datos vienen directamente: { id, texto, remitente_id, cliente_id, fecha, ... }
+          const texto = mensaje.texto || mensaje.TEXTO || ''
+          const remitenteId = mensaje.remitente_id || mensaje.REMITENTE_ID || 1
+          const fecha = mensaje.fecha ? new Date(mensaje.fecha) : new Date(mensaje.createdAt || Date.now())
+          
+          console.log('[Chat] Mensaje mapeado:', {
+            id: mensaje.id,
+            texto,
+            remitenteId,
+            fecha: fecha.toISOString(),
+          })
           
           return {
             id: String(mensaje.id),
-            senderId: String(attrs.remitente_id),
-            text: attrs.texto || '',
+            senderId: String(remitenteId),
+            text: texto,
             time: fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
           }
         })
@@ -221,7 +236,8 @@ const Page = () => {
         // Actualizar última fecha del mensaje más reciente
         if (mensajesMapeados.length > 0) {
           const ultimoMensaje = mensajesData[mensajesData.length - 1]
-          const ultimaFecha = ultimoMensaje?.attributes?.fecha || ultimoMensaje?.attributes?.createdAt
+          // Los datos vienen directamente, no en attributes
+          const ultimaFecha = ultimoMensaje?.fecha || ultimoMensaje?.createdAt
           if (ultimaFecha) {
             setLastMessageDate(ultimaFecha)
           }
@@ -295,18 +311,20 @@ const Page = () => {
             const mensajesData = Array.isArray(data.data) ? data.data : [data.data]
             if (mensajesData.length > 0) {
               const ultimoMensaje = mensajesData[mensajesData.length - 1]
-              const attrs = ultimoMensaje.attributes || {}
-              const fecha = new Date(attrs.fecha || attrs.createdAt)
+              // Los datos vienen directamente, no en attributes
+              const texto = ultimoMensaje.texto || ultimoMensaje.TEXTO || ''
+              const remitenteId = ultimoMensaje.remitente_id || ultimoMensaje.REMITENTE_ID || 1
+              const fecha = ultimoMensaje.fecha ? new Date(ultimoMensaje.fecha) : new Date(ultimoMensaje.createdAt || Date.now())
               
               const nuevoMensaje: MessageType = {
                 id: String(ultimoMensaje.id),
-                senderId: String(attrs.remitente_id),
-                text: attrs.texto || '',
+                senderId: String(remitenteId),
+                text: texto,
                 time: fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
               }
               
               setMessages((prev) => [...prev, nuevoMensaje])
-              setLastMessageDate(attrs.fecha || attrs.createdAt)
+              setLastMessageDate(ultimoMensaje.fecha || ultimoMensaje.createdAt)
               
               setTimeout(() => {
                 messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
