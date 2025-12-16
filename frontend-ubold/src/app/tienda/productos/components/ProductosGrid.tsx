@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { Card, CardBody, Badge, Button, InputGroup, Form, Row, Col, Spinner, Alert } from 'react-bootstrap'
-import { LuSearch, LuEdit, LuEye, LuImage } from 'react-icons/lu'
+import { LuSearch, LuPencil, LuEye, LuImage } from 'react-icons/lu'
 import Image from 'next/image'
 import Link from 'next/link'
 import { STRAPI_API_URL } from '@/lib/strapi/config'
@@ -414,7 +414,7 @@ export default function ProductosGrid({ productos, error }: ProductosGridProps) 
                     <div className="d-flex gap-2 mt-2">
                       <Link href={`/tienda/productos/${producto.id}`} className="flex-grow-1">
                         <Button variant="primary" size="sm" className="w-100">
-                          <LuEdit className="me-1" />
+                          <LuPencil className="me-1" />
                           Editar
                         </Button>
                       </Link>
