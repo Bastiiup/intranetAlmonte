@@ -161,6 +161,23 @@ export const menuItems: MenuItemType[] = [
     ],
   },
   {
+    key: 'tienda',
+    label: 'Tienda',
+    icon: TbBasket,
+    children: [
+      { key: 'tienda-pos', label: 'POS', url: '/tienda/pos' },
+      { key: 'tienda-turno', label: 'Número de atención', url: '/tienda/turno' },
+      {
+        key: 'tienda-gestion',
+        label: 'Gestionar productos',
+        children: [
+          { key: 'tienda-pedidos', label: 'Pedidos', url: '/tienda/pedidos' },
+          { key: 'tienda-editar-pedidos', label: 'Edición de pedidos', url: '/tienda/pedidos/editar' },
+        ],
+      },
+    ],
+  },
+  {
     key: 'email',
     label: 'Email',
     icon: LuInbox,
@@ -818,6 +835,23 @@ export const horizontalMenuItems: MenuItemType[] = [
             ],
           },
           { key: 'reviews', label: 'Reviews', url: '/reviews' },
+        ],
+      },
+      {
+        key: 'tienda',
+        label: 'Tienda',
+        icon: TbBasket,
+        children: [
+          { key: 'tienda-pos', label: 'POS', url: '/tienda/pos' },
+          { key: 'tienda-turno', label: 'Número de atención', url: '/tienda/turno' },
+          {
+            key: 'tienda-gestion',
+            label: 'Gestionar productos',
+            children: [
+              { key: 'tienda-pedidos', label: 'Pedidos', url: '/tienda/pedidos' },
+              { key: 'tienda-editar-pedidos', label: 'Edición de pedidos', url: '/tienda/pedidos/editar' },
+            ],
+          },
         ],
       },
       {
