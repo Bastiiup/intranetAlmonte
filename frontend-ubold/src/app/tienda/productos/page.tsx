@@ -62,6 +62,10 @@ export default async function ProductosPage() {
                   <code>/api/products</code>, 
                   <code>/api/ecommerce-productos</code>
                 </small>
+                <br />
+                <a href="/tienda/productos/debug" className="text-decoration-underline mt-2 d-inline-block">
+                  🔍 Ver diagnóstico completo de endpoints
+                </a>
               </Alert>
 
               {/* Mostrar error si existe */}
