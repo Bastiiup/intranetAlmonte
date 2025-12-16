@@ -99,29 +99,27 @@ const Page = () => {
         }
         
         const contactosMapeados: ContactType[] = clientesArray
-          .filter((cliente: any) => {
-            // Solo incluir clientes que tengan ID y el campo "nombre" con valor
-            if (!cliente || !cliente.id) return false
-            
-            const attrs = cliente.attributes || {}
-            const nombre = attrs.nombre // Campo "nombre" en minúsculas según el schema
-            
-            // Solo incluir si tiene el campo "nombre" con valor
-            return !!nombre && nombre.trim() !== ''
-          })
+          .filter((cliente: any) => cliente && cliente.id) // Solo filtrar por ID válido
           .map((cliente: any) => {
             const attrs = cliente.attributes || {}
             
-            // Obtener el nombre - usar SOLO el campo "nombre" (minúsculas) del schema de Strapi
-            const nombre = attrs.nombre || ''
+            // Obtener el nombre - intentar diferentes variaciones
+            // Primero el campo "nombre" en minúsculas (como en el schema)
+            const nombre = attrs.nombre || attrs.NOMBRE || attrs.name || ''
             
-            // Ya filtramos arriba, así que aquí siempre debería haber nombre
+            // Si no tiene nombre, loguear para debugging pero igual incluirlo temporalmente
             if (!nombre || nombre.trim() === '') {
-              console.error('[Chat] ERROR: Cliente sin nombre después del filtro:', {
+              console.warn('[Chat] Cliente sin campo nombre:', {
                 id: cliente.id,
-                attrs: attrs,
+                todosLosCampos: Object.keys(attrs),
+                valores: attrs,
               })
-              return null
+              // Temporalmente usar ID para debugging, pero esto NO debería pasar
+              return {
+                id: String(cliente.id),
+                name: `[SIN NOMBRE] Cliente #${cliente.id}`,
+                isOnline: false,
+              }
             }
             
             const ultimaActividad = attrs.ultima_actividad || attrs.ULTIMA_ACTIVIDAD
