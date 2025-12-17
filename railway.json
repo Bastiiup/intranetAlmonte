@@ -7,7 +7,9 @@
       "frontend-ubold/src/**",
       "frontend-ubold/public/**",
       "frontend-ubold/package.json",
-      "frontend-ubold/next.config.ts"
+      "frontend-ubold/next.config.ts",
+      "railway.json",
+      "nixpacks.toml"
     ]
   },
   "deploy": {
