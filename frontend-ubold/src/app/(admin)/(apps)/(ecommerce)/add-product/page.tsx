@@ -136,7 +136,15 @@ export default function AddProductPage() {
       const data = await response.json()
 
       if (data.success) {
-        setSuccess(true)
+        // Mostrar mensaje especial si se regeneró el ISBN
+        if (data.isbnRegenerado) {
+          setSuccess(true)
+          setError(null)
+          // Mostrar mensaje informativo sobre el ISBN regenerado
+          alert(`✅ Producto creado exitosamente.\n\nEl ISBN "${data.isbnOriginal}" ya existía, se generó uno nuevo automáticamente: "${data.isbnNuevo}"`)
+        } else {
+          setSuccess(true)
+        }
         setTimeout(() => {
           router.push('/products')
         }, 1500)

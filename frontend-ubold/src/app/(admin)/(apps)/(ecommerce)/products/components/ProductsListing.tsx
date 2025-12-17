@@ -194,16 +194,25 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
       cell: ({ row }) => {
         const imageSrc = typeof row.original.image === 'object' && 'src' in row.original.image
           ? row.original.image.src
-          : (row.original.image as any).src || '/images/products/1.png'
+          : null
         
-        // Debug: Log para el primer producto
-        if (row.index === 0 && typeof window !== 'undefined') {
-          console.log('[ProductsListing] Renderizando primer producto:', {
-            name: row.original.name,
-            imageSrc,
-            imageObject: row.original.image,
-            hasSrc: typeof row.original.image === 'object' && 'src' in row.original.image,
-          })
+        // Si no hay imagen, mostrar placeholder
+        if (!imageSrc) {
+          return (
+            <div className="d-flex">
+              <div className="avatar-md me-3 bg-light d-flex align-items-center justify-content-center rounded">
+                <span className="text-muted fs-xs">Sin imagen</span>
+              </div>
+              <div>
+                <h5 className="mb-0">
+                  <Link href={row.original.url} className="link-reset">
+                    {row.original.name}
+                  </Link>
+                </h5>
+                <p className="text-muted mb-0 fs-xxs">by: {row.original.brand}</p>
+              </div>
+            </div>
+          )
         }
         
         return (
