@@ -134,21 +134,34 @@ export async function PUT(
     
     const endpointUsed = `/api/libros/${productoId}`
     
-    // Preparar datos para Strapi (los datos pueden venir directamente o en attributes)
-    const updateData: any = {}
+    // Obtener el producto actual para ver su estructura
+    let productoActual: any = null
+    try {
+      const getResponse = await strapiClient.get<any>(`${endpointUsed}?populate=*`)
+      productoActual = getResponse.data || getResponse
+    } catch (getError: any) {
+      console.error('[API /tienda/productos/[id]] Error al obtener producto actual:', getError.message)
+    }
+    
+    // Preparar datos para Strapi
+    // En Strapi v4/v5, cuando los datos vienen directamente (sin attributes),
+    // el formato de actualización también debe ser directo dentro de { data: { ... } }
+    const updateData: any = {
+      data: {}
+    }
     
     if (body.nombre_libro !== undefined) {
-      updateData.nombre_libro = body.nombre_libro
+      updateData.data.nombre_libro = body.nombre_libro
     }
     if (body.descripcion !== undefined) {
-      updateData.descripcion = body.descripcion
+      updateData.data.descripcion = body.descripcion
     }
     if (body.portada_libro !== undefined) {
       // Si viene un ID de imagen, asignarlo directamente
       if (typeof body.portada_libro === 'number') {
-        updateData.portada_libro = body.portada_libro
+        updateData.data.portada_libro = body.portada_libro
       } else if (body.portada_libro === null) {
-        updateData.portada_libro = null
+        updateData.data.portada_libro = null
       }
     }
     
@@ -156,11 +169,15 @@ export async function PUT(
       id: productoId,
       endpoint: endpointUsed,
       updateData,
+      productoActual: productoActual ? {
+        tieneAttributes: !!productoActual.attributes,
+        keys: Object.keys(productoActual).slice(0, 10),
+      } : null,
     })
     
     const response = await strapiClient.put<any>(
       endpointUsed,
-      { data: updateData }
+      updateData
     )
     
     return NextResponse.json({
