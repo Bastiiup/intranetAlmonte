@@ -88,11 +88,43 @@ export async function POST(request: Request) {
       )
     }
 
-    // Obtener el email del usuario vinculado (puede ser un objeto o un ID)
-    const usuarioEmail = colaborador.usuario.email || colaborador.usuario.username
+    // Obtener el email del usuario vinculado
+    // El usuario puede venir como objeto (con populate) o como ID
+    let usuarioEmail: string | null = null
+    let usuarioId: string | number | null = null
+
+    if (typeof colaborador.usuario === 'object' && colaborador.usuario !== null) {
+      // Si viene como objeto (con populate), usar su email o username
+      usuarioEmail = colaborador.usuario.email || colaborador.usuario.username || null
+      usuarioId = colaborador.usuario.id || null
+    } else {
+      // Si viene como ID, necesitamos buscar el usuario
+      usuarioId = colaborador.usuario
+    }
+
+    // Si no tenemos el email, buscar el usuario por ID
+    if (!usuarioEmail && usuarioId) {
+      try {
+        const usuarioUrl = getStrapiUrl(`/api/users/${usuarioId}`)
+        const usuarioResponse = await fetch(usuarioUrl, {
+          headers: {
+            'Authorization': `Bearer ${process.env.STRAPI_API_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+        })
+        
+        if (usuarioResponse.ok) {
+          const usuarioData = await usuarioResponse.json()
+          usuarioEmail = usuarioData.email || usuarioData.username || null
+        }
+      } catch (e) {
+        console.error('[API /auth/login] Error al buscar usuario:', e)
+      }
+    }
+
     if (!usuarioEmail) {
       return NextResponse.json(
-        { error: 'Error: el usuario vinculado no tiene email configurado' },
+        { error: 'Error: no se pudo obtener el email del usuario vinculado' },
         { status: 500 }
       )
     }
