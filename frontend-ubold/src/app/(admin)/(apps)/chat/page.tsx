@@ -268,16 +268,20 @@ const Page = () => {
           const mensajeData = mensaje.attributes || mensaje
           const texto = mensajeData.texto || mensajeData.TEXTO || ''
           const remitenteId = mensajeData.remitente_id || mensajeData.REMITENTE_ID || 1
+          const clienteId = mensajeData.cliente_id || mensajeData.CLIENTE_ID || null
           const fecha = mensajeData.fecha ? new Date(mensajeData.fecha) : new Date(mensajeData.createdAt || Date.now())
           
           // Asegurar que el ID del remitente sea string para comparación consistente
           const remitenteIdStr = String(remitenteId)
           
+          // Debug detallado
           console.log('[Chat] Mensaje mapeado:', {
             id: mensaje.id,
-            texto,
+            texto: texto.substring(0, 30),
             remitenteId: remitenteIdStr,
+            clienteId: clienteId ? String(clienteId) : 'null',
             currentUserId,
+            currentContactId: currentContact?.id,
             isFromCurrentUser: remitenteIdStr === currentUserId,
             fecha: fecha.toISOString(),
           })
@@ -594,6 +598,17 @@ const Page = () => {
                   const messageSenderId = String(message.senderId)
                   const currentUserIdStr = currentUserId ? String(currentUserId) : null
                   const isFromCurrentUser = currentUserIdStr !== null && messageSenderId === currentUserIdStr
+                  
+                  // Debug en renderizado
+                  if (messages.indexOf(message) < 3) { // Solo loguear los primeros 3 para no saturar
+                    console.log('[Chat] Renderizando mensaje:', {
+                      messageId: message.id,
+                      messageSenderId,
+                      currentUserIdStr,
+                      isFromCurrentUser,
+                      messageText: message.text.substring(0, 20),
+                    })
+                  }
                   
                   return (
                   <Fragment key={message.id}>
