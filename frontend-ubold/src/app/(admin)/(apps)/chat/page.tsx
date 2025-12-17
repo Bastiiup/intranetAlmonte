@@ -46,11 +46,24 @@ const Page = () => {
   
   // Debug: Log del colaborador actual al cargar el componente
   useEffect(() => {
+    // También verificar localStorage directamente
+    const colaboradorFromStorage = typeof window !== 'undefined' 
+      ? localStorage.getItem('auth_colaborador') 
+      : null
+    let parsedColaborador = null
+    try {
+      parsedColaborador = colaboradorFromStorage ? JSON.parse(colaboradorFromStorage) : null
+    } catch (e) {
+      console.error('[Chat] Error al parsear colaborador de localStorage:', e)
+    }
+    
     console.log('[Chat] Colaborador actual cargado:', {
       colaboradorId: colaborador?.id,
       currentUserId,
       email_login: colaborador?.email_login,
       personaNombre: persona?.nombre_completo || persona?.nombres,
+      colaboradorFromStorage: parsedColaborador,
+      colaboradorFromHook: colaborador,
     })
   }, [colaborador, currentUserId, persona])
   
