@@ -54,23 +54,39 @@ const ProductDetails = ({ producto }: ProductDetailsProps) => {
   const createdAt = attrs.createdAt || producto.createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
   
-  // Obtener el ID correcto: preferir id numérico, luego documentId, luego el id de la URL
+  // Validar que producto existe
+  if (!producto) {
+    return (
+      <Alert variant="warning">
+        <strong>Error:</strong> No se pudo cargar la información del producto.
+      </Alert>
+    )
+  }
+
+  // Obtener el ID correcto: preferir id numérico, luego documentId
   // El ID numérico es el que usa Strapi para las actualizaciones
-  const productId = producto.id?.toString() || producto.documentId || 'unknown'
+  const productId = producto.id?.toString() || producto.documentId
   
-  console.log('[ProductDetails] ID del producto:', {
-    productoId: productId,
-    tieneId: !!producto.id,
-    tieneDocumentId: !!producto.documentId,
-    idValue: producto.id,
-    documentIdValue: producto.documentId,
-  })
+  // Validar que tenemos un ID válido
+  if (!productId || productId === 'unknown') {
+    console.error('[ProductDetails] No se pudo obtener un ID válido del producto:', {
+      id: producto.id,
+      documentId: producto.documentId,
+      producto: producto,
+    })
+  }
 
   const handleSaveNombre = async (newValue: string) => {
+    if (!productId || productId === 'unknown') {
+      throw new Error('No se pudo obtener el ID del producto')
+    }
+
     setSavingField('nombre')
     setError(null)
 
     try {
+      console.log('[ProductDetails] Guardando nombre:', { productId, newValue })
+      
       const response = await fetch(`/api/tienda/productos/${productId}`, {
         method: 'PUT',
         headers: {
@@ -81,17 +97,29 @@ const ProductDetails = ({ producto }: ProductDetailsProps) => {
         }),
       })
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `Error HTTP: ${response.status}`)
+      }
+
       const data = await response.json()
 
       if (!data.success) {
         throw new Error(data.error || 'Error al guardar nombre')
       }
 
+      console.log('[ProductDetails] Nombre guardado exitosamente')
+      
       // Recargar la página para mostrar los cambios
       router.refresh()
     } catch (err: any) {
-      setError(err.message || 'Error al guardar nombre')
-      console.error('Error al guardar nombre:', err)
+      const errorMessage = err.message || 'Error al guardar nombre'
+      setError(errorMessage)
+      console.error('[ProductDetails] Error al guardar nombre:', {
+        productId,
+        error: errorMessage,
+        err,
+      })
       throw err // Re-lanzar para que EditableField muestre el error
     } finally {
       setSavingField(null)
@@ -99,10 +127,16 @@ const ProductDetails = ({ producto }: ProductDetailsProps) => {
   }
 
   const handleSaveDescripcion = async (newValue: string) => {
+    if (!productId || productId === 'unknown') {
+      throw new Error('No se pudo obtener el ID del producto')
+    }
+
     setSavingField('descripcion')
     setError(null)
 
     try {
+      console.log('[ProductDetails] Guardando descripción:', { productId, newValue })
+      
       const response = await fetch(`/api/tienda/productos/${productId}`, {
         method: 'PUT',
         headers: {
@@ -113,17 +147,29 @@ const ProductDetails = ({ producto }: ProductDetailsProps) => {
         }),
       })
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `Error HTTP: ${response.status}`)
+      }
+
       const data = await response.json()
 
       if (!data.success) {
         throw new Error(data.error || 'Error al guardar descripción')
       }
 
+      console.log('[ProductDetails] Descripción guardada exitosamente')
+      
       // Recargar la página para mostrar los cambios
       router.refresh()
     } catch (err: any) {
-      setError(err.message || 'Error al guardar descripción')
-      console.error('Error al guardar descripción:', err)
+      const errorMessage = err.message || 'Error al guardar descripción'
+      setError(errorMessage)
+      console.error('[ProductDetails] Error al guardar descripción:', {
+        productId,
+        error: errorMessage,
+        err,
+      })
       throw err // Re-lanzar para que EditableField muestre el error
     } finally {
       setSavingField(null)

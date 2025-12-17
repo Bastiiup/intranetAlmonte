@@ -47,19 +47,31 @@ const ProductDisplay = ({ producto }: ProductDisplayProps) => {
     return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
   }
 
+  // Validar que producto existe
+  if (!producto) {
+    return (
+      <Col xl={4}>
+        <Alert variant="warning">
+          <strong>Error:</strong> No se pudo cargar la información del producto.
+        </Alert>
+      </Col>
+    )
+  }
+
   const currentImageUrl = getImageUrl()
   
   // Obtener el ID correcto: preferir id numérico, luego documentId
   // El ID numérico es el que usa Strapi para las actualizaciones
-  const productId = producto.id?.toString() || producto.documentId || 'unknown'
+  const productId = producto.id?.toString() || producto.documentId
   
-  console.log('[ProductDisplay] ID del producto:', {
-    productoId: productId,
-    tieneId: !!producto.id,
-    tieneDocumentId: !!producto.documentId,
-    idValue: producto.id,
-    documentIdValue: producto.documentId,
-  })
+  // Validar que tenemos un ID válido
+  if (!productId || productId === 'unknown') {
+    console.error('[ProductDisplay] No se pudo obtener un ID válido del producto:', {
+      id: producto.id,
+      documentId: producto.documentId,
+      producto: producto,
+    })
+  }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -69,6 +81,11 @@ const ProductDisplay = ({ producto }: ProductDisplayProps) => {
   }
 
   const handleSaveImage = async () => {
+    if (!productId || productId === 'unknown') {
+      setError('No se pudo obtener el ID del producto')
+      return
+    }
+
     setIsSaving(true)
     setError(null)
 
@@ -81,6 +98,8 @@ const ProductDisplay = ({ producto }: ProductDisplayProps) => {
           throw new Error('Por favor selecciona un archivo')
         }
 
+        console.log('[ProductDisplay] Subiendo archivo:', { productId, fileName: file.name })
+
         // Subir archivo a Strapi
         const formData = new FormData()
         formData.append('file', file)
@@ -90,13 +109,31 @@ const ProductDisplay = ({ producto }: ProductDisplayProps) => {
           body: formData,
         })
 
+        if (!uploadResponse.ok) {
+          const errorData = await uploadResponse.json().catch(() => ({}))
+          throw new Error(errorData.error || `Error HTTP: ${uploadResponse.status}`)
+        }
+
         const uploadData = await uploadResponse.json()
 
         if (!uploadData.success) {
           throw new Error(uploadData.error || 'Error al subir archivo')
         }
 
-        imageId = uploadData.id
+        // Strapi puede devolver un array o un objeto con id
+        if (Array.isArray(uploadData.data)) {
+          imageId = uploadData.data[0]?.id || uploadData.data[0]?.data?.id
+        } else if (uploadData.data?.id) {
+          imageId = uploadData.data.id
+        } else if (uploadData.id) {
+          imageId = uploadData.id
+        }
+
+        if (!imageId) {
+          throw new Error('No se pudo obtener el ID de la imagen subida')
+        }
+
+        console.log('[ProductDisplay] Archivo subido exitosamente, imageId:', imageId)
       } else if (imageUrl.trim()) {
         // Si es URL, necesitaríamos buscar o crear la imagen en Strapi
         // Por ahora, solo guardamos la URL como texto (esto requeriría más lógica)
@@ -104,6 +141,8 @@ const ProductDisplay = ({ producto }: ProductDisplayProps) => {
       }
 
       // Actualizar producto con la nueva imagen
+      console.log('[ProductDisplay] Actualizando producto con imagen:', { productId, imageId })
+      
       const updateResponse = await fetch(`/api/tienda/productos/${productId}`, {
         method: 'PUT',
         headers: {
@@ -114,18 +153,34 @@ const ProductDisplay = ({ producto }: ProductDisplayProps) => {
         }),
       })
 
+      if (!updateResponse.ok) {
+        const errorData = await updateResponse.json().catch(() => ({}))
+        throw new Error(errorData.error || `Error HTTP: ${updateResponse.status}`)
+      }
+
       const updateData = await updateResponse.json()
 
       if (!updateData.success) {
         throw new Error(updateData.error || 'Error al actualizar producto')
       }
 
+      console.log('[ProductDisplay] Imagen actualizada exitosamente')
+      
       // Recargar la página para mostrar los cambios
       router.refresh()
       setIsEditingImage(false)
+      setImageUrl('')
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
     } catch (err: any) {
-      setError(err.message || 'Error al guardar imagen')
-      console.error('Error al guardar imagen:', err)
+      const errorMessage = err.message || 'Error al guardar imagen'
+      setError(errorMessage)
+      console.error('[ProductDisplay] Error al guardar imagen:', {
+        productId,
+        error: errorMessage,
+        err,
+      })
     } finally {
       setIsSaving(false)
     }

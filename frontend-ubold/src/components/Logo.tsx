@@ -7,6 +7,11 @@ interface LogoProps {
 }
 
 const Logo = ({ className = '', size = 'lg' }: LogoProps) => {
+  // Dimensiones según el tamaño - respetando las variables CSS del tema
+  // logo-lg-height y logo-sm-height son 22px según _root.scss
+  const logoHeight = size === 'sm' ? 22 : 22
+  const logoWidth = logoHeight // Mantener proporción cuadrada
+  
   return (
     <Link 
       href="/" 
@@ -25,9 +30,10 @@ const Logo = ({ className = '', size = 'lg' }: LogoProps) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          width: '100%',
-          height: '100%',
-          padding: size === 'sm' ? '4px' : '8px',
+          width: `${logoWidth}px`,
+          height: `${logoHeight}px`,
+          maxWidth: '100%',
+          maxHeight: '100%',
         }}
       >
         <svg
@@ -35,13 +41,14 @@ const Logo = ({ className = '', size = 'lg' }: LogoProps) => {
           data-name="logosandtypes com"
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 150 150"
+          width={logoWidth}
+          height={logoHeight}
           style={{
             display: 'block',
-            width: '100%',
-            height: '100%',
+            width: `${logoWidth}px`,
+            height: `${logoHeight}px`,
             maxWidth: '100%',
             maxHeight: '100%',
-            objectFit: 'contain',
           }}
         >
           <defs>

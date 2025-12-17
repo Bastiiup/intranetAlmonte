@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button, Form } from 'react-bootstrap'
 import { TbPencil, TbCheck, TbX } from 'react-icons/tb'
 
@@ -24,8 +24,15 @@ export default function EditableField({
   as = 'span',
 }: EditableFieldProps) {
   const [isEditing, setIsEditing] = useState(false)
-  const [editValue, setEditValue] = useState(value)
+  const [editValue, setEditValue] = useState(value || '')
   const [isSaving, setIsSaving] = useState(false)
+
+  // Actualizar editValue cuando value cambia externamente
+  useEffect(() => {
+    if (!isEditing) {
+      setEditValue(value || '')
+    }
+  }, [value, isEditing])
 
   const handleSave = async () => {
     setIsSaving(true)
