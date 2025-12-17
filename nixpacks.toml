@@ -1,0 +1,15 @@
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = ["cd frontend-ubold && npm ci --prefer-offline --no-audit"]
+
+[phases.build]
+cmds = ["cd frontend-ubold && npm run build"]
+
+[start]
+cmd = "cd frontend-ubold && node server.js"
+
+[variables]
+NODE_ENV = "production"
+
