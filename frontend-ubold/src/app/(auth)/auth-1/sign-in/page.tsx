@@ -16,11 +16,17 @@ const Page = () => {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    document.title = 'Iniciar sesión - Intranet Almonte'
+    // Asegurar que el título y favicon estén actualizados
+    document.title = 'Iniciar Sesión - Intranet Almonte'
+    
     // Actualizar favicon
-    const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement || document.createElement('link')
+    let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement
+    if (!link) {
+      link = document.createElement('link')
+      link.rel = 'icon'
+      document.getElementsByTagName('head')[0].appendChild(link)
+    }
     link.type = 'image/svg+xml'
-    link.rel = 'icon'
     link.href = 'data:image/svg+xml,' + encodeURIComponent(`
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 150">
         <path d="M43.28,13.97c0,34.74,28.12,62.89,62.79,62.89,5.76,0,11.34-.79,16.65-2.26L106.08,13.97H43.28Z" fill="black"/>
@@ -28,7 +34,6 @@ const Page = () => {
         <path d="M80.06,86.92l42.66-12.31,16.78,62.04h-46.46l-12.98-49.73Z" fill="black"/>
       </svg>
     `)
-    document.getElementsByTagName('head')[0].appendChild(link)
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
