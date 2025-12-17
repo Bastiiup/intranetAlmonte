@@ -18,8 +18,7 @@ export interface AuthUser {
 export interface AuthColaborador {
   id: number
   email_login: string
-  rol_principal?: string
-  rol_operativo?: string
+  rol?: 'super_admin' | 'encargado_adquisiciones' | 'supervisor' | 'soporte'
   activo: boolean
   persona?: any
   empresa?: any
