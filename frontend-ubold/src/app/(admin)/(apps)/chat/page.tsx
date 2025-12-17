@@ -332,8 +332,33 @@ const Page = () => {
       })
 
       if (!response.ok) {
-        throw new Error('Error al enviar mensaje')
+        const errorData = await response.json().catch(() => ({}))
+        console.error('[Chat] Error al enviar mensaje:', {
+          status: response.status,
+          error: errorData,
+        })
+        throw new Error(errorData.error || 'Error al enviar mensaje')
       }
+
+      const responseData = await response.json()
+      console.log('[Chat] Mensaje enviado exitosamente:', responseData)
+
+      // Agregar el mensaje enviado inmediatamente al estado local
+      // para que aparezca de inmediato mientras se recarga desde el servidor
+      const mensajeEnviado: MessageType = {
+        id: responseData.data?.id ? String(responseData.data.id) : `temp-${Date.now()}`,
+        senderId: String(colaborador?.id || 1),
+        text: texto,
+        time: new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
+      }
+      
+      // Agregar el mensaje al estado inmediatamente
+      setMessages((prev) => {
+        // Evitar duplicados
+        const existe = prev.some((m) => m.id === mensajeEnviado.id || (m.text === mensajeEnviado.text && m.senderId === mensajeEnviado.senderId && Math.abs(new Date(m.time).getTime() - new Date().getTime()) < 2000))
+        if (existe) return prev
+        return [...prev, mensajeEnviado]
+      })
 
       // Forzar recarga completa de mensajes después de enviar
       // Esto asegura que el mensaje enviado aparezca inmediatamente
@@ -346,9 +371,19 @@ const Page = () => {
         })
         // No usar ultima_fecha para forzar recarga completa
         fetch(`/api/chat/mensajes?${query.toString()}`)
-          .then((res) => res.json())
+          .then((res) => {
+            if (!res.ok) {
+              console.error('[Chat] Error al recargar mensajes:', res.status)
+              return
+            }
+            return res.json()
+          })
           .then((data) => {
+            if (!data) return
+            
             const mensajesData = Array.isArray(data.data) ? data.data : [data.data]
+            console.log('[Chat] Mensajes recargados después de enviar:', mensajesData.length)
+            
             if (mensajesData.length > 0) {
               // Mapear mensajes
               const mensajesMapeados: MessageType[] = mensajesData.map((mensaje: any) => {
@@ -383,9 +418,9 @@ const Page = () => {
             }
           })
           .catch((err) => {
-            console.error('Error al recargar mensajes después de enviar:', err)
+            console.error('[Chat] Error al recargar mensajes después de enviar:', err)
           })
-      }, 500) // Esperar 500ms para que Strapi procese el mensaje
+      }, 800) // Esperar 800ms para que Strapi procese el mensaje
     } catch (err: any) {
       console.error('Error al enviar mensaje:', err)
       setError(err.message || 'Error al enviar mensaje')
