@@ -62,10 +62,13 @@ export async function GET(request: NextRequest) {
     }
     
     // Ejecutar ambas queries en paralelo
-    const [response1, response2] = await Promise.all([
-      strapiClient.get(query1).catch(() => ({ data: [] } as any)),
-      strapiClient.get(query2).catch(() => ({ data: [] } as any)),
+    const responses = await Promise.all([
+      strapiClient.get(query1).catch(() => ({ data: [] })),
+      strapiClient.get(query2).catch(() => ({ data: [] })),
     ])
+    
+    const response1: any = responses[0]
+    const response2: any = responses[1]
     
     // Extraer datos de ambas respuestas
     let data1: any[] = []
