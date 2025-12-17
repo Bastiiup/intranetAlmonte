@@ -11,29 +11,9 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    // Intentar múltiples endpoints según las colecciones disponibles
-    let response: any = null
-    let endpointUsed = ''
-    
-    // Endpoint correcto: product-libro-edicion (según la URL de Strapi)
-    try {
-      endpointUsed = '/api/product-libro-edicion'
-      response = await strapiClient.get<any>(`${endpointUsed}?populate=*&pagination[pageSize]=100`)
-    } catch {
-      // Fallbacks por si acaso
-      try {
-        endpointUsed = '/api/product-libro-edicions'
-        response = await strapiClient.get<any>(`${endpointUsed}?populate=*&pagination[pageSize]=100`)
-      } catch {
-        try {
-          endpointUsed = '/api/producto-libro-edicion'
-          response = await strapiClient.get<any>(`${endpointUsed}?populate=*&pagination[pageSize]=100`)
-        } catch {
-          endpointUsed = '/api/producto'
-          response = await strapiClient.get<any>(`${endpointUsed}?populate=*&pagination[pageSize]=100`)
-        }
-      }
-    }
+    // Endpoint correcto confirmado: /api/libros (verificado en test-strapi)
+    const endpointUsed = '/api/libros'
+    const response = await strapiClient.get<any>(`${endpointUsed}?populate=*&pagination[pageSize]=100`)
     
     // Log detallado para debugging
     console.log('[API /tienda/productos] Respuesta de Strapi:', {

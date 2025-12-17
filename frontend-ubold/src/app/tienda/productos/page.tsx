@@ -65,10 +65,13 @@ export default async function ProductosPage() {
                     <strong>URL de Strapi:</strong> {STRAPI_API_URL}
                     <br />
                     <small className="text-muted">
-                      Endpoint usado: <code>{endpointUsed || '/api/product-libro-edicion'}</code>
+                      Endpoint usado: <code>{endpointUsed || '/api/libros'}</code>
                       <br />
                       <span className="text-success">✅ Usando API Route como proxy (igual que el chat)</span>
                       <br />
+                      <a href="/tienda/test-strapi" className="text-decoration-underline me-2">
+                        🔍 Ver test de conexión
+                      </a>
                       <a href="/tienda/productos/debug" className="text-decoration-underline">
                         🔍 Ver diagnóstico completo
                       </a>

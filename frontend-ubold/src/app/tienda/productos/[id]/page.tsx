@@ -31,21 +31,8 @@ export default function EditarProductoPage({ params }: EditarProductoPageProps) 
   useEffect(() => {
     async function fetchProducto() {
       try {
-        let response: any = null
-        
-        try {
-          response = await strapiClient.get<any>(`/api/product-libro-edicion/${productoId}?populate=*`)
-        } catch {
-          try {
-            response = await strapiClient.get<any>(`/api/product-libro-edicions/${productoId}?populate=*`)
-          } catch {
-            try {
-              response = await strapiClient.get<any>(`/api/producto/${productoId}?populate=*`)
-            } catch {
-              response = await strapiClient.get<any>(`/api/productos/${productoId}?populate=*`)
-            }
-          }
-        }
+        // Endpoint correcto confirmado: /api/libros (verificado en test-strapi)
+        const response = await strapiClient.get<any>(`/api/libros/${productoId}?populate=*`)
         
         if (response.data) {
           const prod = response.data
@@ -80,18 +67,8 @@ export default function EditarProductoPage({ params }: EditarProductoPageProps) 
     setSuccess(false)
 
     try {
-      // Endpoint correcto: product-libro-edicion
-      let endpoint = `/api/product-libro-edicion/${productoId}`
-      try {
-        await strapiClient.get<any>(`/api/product-libro-edicion/${productoId}`)
-      } catch {
-        try {
-          await strapiClient.get<any>(`/api/product-libro-edicions/${productoId}`)
-          endpoint = `/api/product-libro-edicions/${productoId}`
-        } catch {
-          endpoint = `/api/producto/${productoId}`
-        }
-      }
+      // Endpoint correcto confirmado: /api/libros (verificado en test-strapi)
+      const endpoint = `/api/libros/${productoId}`
 
       // Preparar datos para actualizar según la estructura de Strapi
       const updateData: any = {
