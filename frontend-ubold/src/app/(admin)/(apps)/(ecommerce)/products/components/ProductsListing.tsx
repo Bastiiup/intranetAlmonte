@@ -52,14 +52,29 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
   const attrs = producto.attributes || {}
   const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (producto as any)
 
-  // Obtener URL de imagen (portada_libro en minúsculas como en Strapi)
+  // Obtener URL de imagen (igual que ProductosGrid que funciona)
   const getImageUrl = (): string => {
-    // Intentar primero con portada_libro (minúsculas, como está en Strapi)
-    const portada = data.portada_libro?.data || data.PORTADA_LIBRO?.data || data.portadaLibro?.data
-    if (!portada) return '/images/products/1.png'
+    // Usar el mismo orden que ProductosGrid que funciona
+    const portada = data.PORTADA_LIBRO?.data || data.portada_libro?.data || data.portadaLibro?.data
+    if (!portada) {
+      // Debug: Log para ver qué está pasando
+      if (typeof window !== 'undefined') {
+        console.log('[Products Listing] No se encontró portada:', {
+          productoId: producto.id,
+          tieneAttributes: !!producto.attributes,
+          keysData: Object.keys(data),
+          tienePortadaLibro: !!data.portada_libro,
+          tienePORTADA_LIBRO: !!data.PORTADA_LIBRO,
+        })
+      }
+      return '/images/products/1.png'
+    }
     
     const url = portada.attributes?.url || portada.attributes?.URL
-    if (!url) return '/images/products/1.png'
+    if (!url) {
+      console.log('[Products Listing] Portada encontrada pero sin URL:', { portada })
+      return '/images/products/1.png'
+    }
     
     // Si la URL ya es completa, retornarla tal cual
     if (url.startsWith('http')) {
@@ -68,7 +83,9 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
     
     // Si no, construir la URL completa con la base de Strapi
     const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
-    return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
+    const finalUrl = `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
+    console.log('[Products Listing] URL de imagen construida:', finalUrl)
+    return finalUrl
   }
 
   // Calcular stock total (igual que ProductosGrid)
@@ -141,10 +158,11 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
   const mappedProducts = useMemo(() => {
     if (productos && productos.length > 0) {
       console.log('[ProductsListing] Productos recibidos:', productos.length)
-      console.log('[ProductsListing] Primer producto:', productos[0])
+      console.log('[ProductsListing] Primer producto estructura completa:', JSON.stringify(productos[0], null, 2))
       const mapped = productos.map(mapStrapiProductToProductType)
       console.log('[ProductsListing] Productos mapeados:', mapped.length)
       console.log('[ProductsListing] Primer producto mapeado:', mapped[0])
+      console.log('[ProductsListing] Imagen del primer producto:', mapped[0]?.image)
       return mapped
     }
     console.log('[ProductsListing] No hay productos de Strapi, usando datos de ejemplo')
@@ -178,28 +196,42 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
     columnHelper.accessor('name', {
       header: 'Product',
       cell: ({ row }) => {
-        const imageSrc = typeof row.original.image === 'object' && 'src' in row.original.image 
-          ? row.original.image.src 
+        const imageSrc = typeof row.original.image === 'object' && 'src' in row.original.image
+          ? row.original.image.src
           : (row.original.image as any).src || '/images/products/1.png'
+        
+        // Debug: Log para el primer producto
+        if (row.index === 0 && typeof window !== 'undefined') {
+          console.log('[ProductsListing] Renderizando primer producto:', {
+            name: row.original.name,
+            imageSrc,
+            imageObject: row.original.image,
+            hasSrc: typeof row.original.image === 'object' && 'src' in row.original.image,
+          })
+        }
+        
         return (
           <div className="d-flex">
             <div className="avatar-md me-3">
               <Image 
                 src={imageSrc} 
-                alt="Product" 
+                alt={row.original.name || 'Product'} 
                 height={36} 
                 width={36} 
                 className="img-fluid rounded"
                 unoptimized={imageSrc.startsWith('http')}
+                onError={(e) => {
+                  console.error('[ProductsListing] Error al cargar imagen:', imageSrc, e)
+                }}
               />
             </div>
             <div>
               <h5 className="mb-0">
                 <Link href={row.original.url} className="link-reset">
-                  {row.original.name}
+                  {row.original.name || 'Sin nombre'}
                 </Link>
               </h5>
-              <p className="text-muted mb-0 fs-xxs">by: {row.original.brand}</p>
+              <p className="text-muted mb-0 fs-xxs">by: {row.original.brand || 'Sin autor'}</p>
             </div>
           </div>
         )
