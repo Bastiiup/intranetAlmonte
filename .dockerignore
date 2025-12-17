@@ -1,3 +1,20 @@
-# Ignorar todo para forzar Railway a usar NIXPACKS
-*
+# Ignorar archivos innecesarios para el build
+node_modules
+.next
+.git
+.vscode
+.idea
+*.log
+*.md
+!README.md
+.DS_Store
+coverage
+.nyc_output
+.cache
+tmp
+temp
+.env*.local
+*.tsbuildinfo
+Dockerfile.backup
+frontend-ubold/Dockerfile.backup
 
