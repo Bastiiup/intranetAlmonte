@@ -141,20 +141,39 @@ export default function ProductsGridDebug() {
 
       <Card>
         <CardBody>
-          <h4>Todos los Productos (primeros 3)</h4>
-          {productos.slice(0, 3).map((p, idx) => {
+          <h4>Todos los Productos - Análisis de Imágenes</h4>
+          <p className="text-muted mb-3">
+            Mostrando {productos.length} productos. Buscando productos que tengan imagen asignada...
+          </p>
+          {productos.map((p, idx) => {
             const pAttrs = p.attributes || {}
             const pData = (pAttrs && Object.keys(pAttrs).length > 0) ? pAttrs : (p as any)
-            const pPortada = pData.PORTADA_LIBRO?.data || pData.portada_libro?.data || pData.portadaLibro?.data
-            const pNombre = pData.NOMBRE_LIBRO || pData.nombre_libro || 'Sin nombre'
+            // Los datos pueden venir directamente (sin attributes) o en attributes
+            const portadaDirecta = pData.portada_libro || pData.PORTADA_LIBRO
+            const pPortada = portadaDirecta?.data || portadaDirecta
+            const pNombre = pData.NOMBRE_LIBRO || pData.nombre_libro || pData.nombre || 'Sin nombre'
+            const tieneImagen = pPortada !== null && pPortada !== undefined
             
             return (
-              <div key={p.id} className="mb-3 p-3 border rounded">
-                <h5>Producto {idx + 1} (ID: {p.id})</h5>
+              <div key={p.id || idx} className={`mb-3 p-3 border rounded ${tieneImagen ? 'bg-success-subtle' : 'bg-warning-subtle'}`}>
+                <h5>Producto {idx + 1} (ID: {p.id || p.documentId || 'N/A'})</h5>
                 <p><strong>Nombre:</strong> {pNombre}</p>
-                <p><strong>Tiene portada:</strong> {pPortada ? 'Sí' : 'No'}</p>
-                {pPortada && (
-                  <p><strong>URL de portada:</strong> {pPortada.attributes?.url || pPortada.attributes?.URL || 'Sin URL'}</p>
+                <p><strong>Tiene portada:</strong> {tieneImagen ? '✅ Sí' : '❌ No'}</p>
+                {tieneImagen ? (
+                  <>
+                    <p><strong>Estructura portada:</strong></p>
+                    <pre style={{ fontSize: '11px', maxHeight: '150px', overflow: 'auto' }}>
+                      {JSON.stringify(pPortada, null, 2)}
+                    </pre>
+                    {pPortada?.attributes?.url && (
+                      <p><strong>URL:</strong> {pPortada.attributes.url}</p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-warning">
+                    ⚠️ Este producto no tiene imagen asignada en Strapi. 
+                    Necesitas asignar una imagen desde el admin de Strapi.
+                  </p>
                 )}
               </div>
             )
