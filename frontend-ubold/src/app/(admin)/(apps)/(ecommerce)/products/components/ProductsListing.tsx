@@ -135,8 +135,14 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
   // Mapear productos de Strapi al formato ProductType si están disponibles
   const mappedProducts = useMemo(() => {
     if (productos && productos.length > 0) {
-      return productos.map(mapStrapiProductToProductType)
+      console.log('[ProductsListing] Productos recibidos:', productos.length)
+      console.log('[ProductsListing] Primer producto:', productos[0])
+      const mapped = productos.map(mapStrapiProductToProductType)
+      console.log('[ProductsListing] Productos mapeados:', mapped.length)
+      console.log('[ProductsListing] Primer producto mapeado:', mapped[0])
+      return mapped
     }
+    console.log('[ProductsListing] No hay productos de Strapi, usando datos de ejemplo')
     return productData
   }, [productos])
 
@@ -274,7 +280,7 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
     },
   ]
 
-  const [data, setData] = useState<ProductTypeExtended[]>(() => [...mappedProducts])
+  const [data, setData] = useState<ProductTypeExtended[]>([])
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -284,10 +290,10 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
 
   // Actualizar datos cuando cambien los productos de Strapi
   useEffect(() => {
-    if (productos && productos.length > 0) {
-      setData(mappedProducts)
-    }
-  }, [productos, mappedProducts])
+    console.log('[ProductsListing] useEffect - productos:', productos?.length, 'mappedProducts:', mappedProducts.length)
+    setData(mappedProducts)
+    console.log('[ProductsListing] Datos actualizados. Total:', mappedProducts.length)
+  }, [mappedProducts])
 
   const table = useReactTable<ProductTypeExtended>({
     data,
@@ -347,6 +353,9 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
       </Row>
     )
   }
+
+  // Debug: mostrar información sobre los datos
+  console.log('[ProductsListing] Render - data.length:', data.length, 'mappedProducts.length:', mappedProducts.length, 'productos:', productos?.length)
 
   return (
     <Row>
