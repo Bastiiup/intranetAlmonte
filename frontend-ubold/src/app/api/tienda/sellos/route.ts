@@ -25,11 +25,14 @@ export async function GET(request: NextRequest) {
       data: items
     })
   } catch (error: any) {
-    console.error('[API GET sellos] ❌ Error:', error)
+    console.error('[API GET sellos] ❌ Error:', error.message)
+    
+    // En lugar de devolver error 500, devolver array vacío
     return NextResponse.json({
-      success: false,
-      error: error.message || 'Error al obtener sellos'
-    }, { status: error.status || 500 })
+      success: true,
+      data: [],
+      warning: `No se pudieron cargar los sellos: ${error.message}`
+    })
   }
 }
 

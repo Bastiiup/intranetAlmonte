@@ -118,12 +118,12 @@ export default function AddProductPage() {
       if (formData.id_coleccion) dataToSend.id_coleccion = parseInt(formData.id_coleccion)
       if (formData.id_obra) dataToSend.id_obra = parseInt(formData.id_obra)
       
-      // === EDICIÓN ===
+      // === EDICIÓN (solo enviar si tienen valor) ===
       if (formData.numero_edicion) dataToSend.numero_edicion = parseInt(formData.numero_edicion)
       if (formData.agno_edicion) dataToSend.agno_edicion = parseInt(formData.agno_edicion)
-      if (formData.idioma) dataToSend.idioma = formData.idioma
-      if (formData.tipo_libro) dataToSend.tipo_libro = formData.tipo_libro
-      if (formData.estado_edicion) dataToSend.estado_edicion = formData.estado_edicion
+      if (formData.idioma && formData.idioma !== '') dataToSend.idioma = formData.idioma
+      if (formData.tipo_libro && formData.tipo_libro !== '') dataToSend.tipo_libro = formData.tipo_libro
+      if (formData.estado_edicion && formData.estado_edicion !== '') dataToSend.estado_edicion = formData.estado_edicion
       
       console.log('[AddProduct] Enviando datos:', dataToSend)
 
@@ -341,7 +341,7 @@ export default function AddProductPage() {
             <h5 className="card-title mb-0">Categorización</h5>
           </CardHeader>
           <CardBody>
-            <Row>
+          <Row>
               <Col md={6}>
                 <RelationSelector
                   label="Marcas"
@@ -395,8 +395,8 @@ export default function AddProductPage() {
                     onChange={(e) => setFormData(prev => ({...prev, numero_edicion: e.target.value}))}
                   />
                 </FormGroup>
-              </Col>
-              
+            </Col>
+
               <Col md={4}>
                 <FormGroup className="mb-3">
                   <FormLabel>Año de Edición</FormLabel>
@@ -422,9 +422,9 @@ export default function AddProductPage() {
                     <option value="Descatalogado">Descatalogado</option>
                   </FormSelect>
                 </FormGroup>
-              </Col>
-            </Row>
-            
+            </Col>
+          </Row>
+
             <Row>
               <Col md={6}>
                 <FormGroup className="mb-3">
@@ -452,9 +452,11 @@ export default function AddProductPage() {
                     onChange={(e) => setFormData(prev => ({...prev, tipo_libro: e.target.value}))}
                   >
                     <option value="">Seleccionar...</option>
-                    <option value="Físico">Físico</option>
-                    <option value="Digital">Digital</option>
-                    <option value="Audiolibro">Audiolibro</option>
+                    <option value="Plan Lector">Plan Lector</option>
+                    <option value="Texto Curricular">Texto Curricular</option>
+                    <option value="Texto PAES">Texto PAES</option>
+                    <option value="Texto Complementario">Texto Complementario</option>
+                    <option value="Otro">Otro</option>
                   </FormSelect>
                 </FormGroup>
               </Col>
@@ -536,7 +538,7 @@ export default function AddProductPage() {
                 disabled={loading}
               >
                 Cancelar
-              </Button>
+            </Button>
               <Button 
                 type="submit" 
                 variant="primary"
@@ -550,10 +552,10 @@ export default function AddProductPage() {
                 ) : (
                   'Crear Producto'
                 )}
-              </Button>
-            </div>
-          </Col>
-        </Row>
+            </Button>
+          </div>
+        </Col>
+      </Row>
       </form>
     </Container>
   )

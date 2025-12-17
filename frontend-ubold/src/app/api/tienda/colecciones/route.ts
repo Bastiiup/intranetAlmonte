@@ -5,13 +5,24 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    // Intentar primero con colecciones-series, luego con colecciones
+    // PROBAR estos nombres en orden hasta encontrar el correcto
     let response: any
+    let collectionEndpoint = '/api/colecciones'
+    
     try {
-      response = await strapiClient.get<any>('/api/colecciones-series?populate=*&pagination[pageSize]=1000')
+      // Intentar primero con /api/colecciones (más probable)
+      response = await strapiClient.get<any>(`${collectionEndpoint}?populate=*&pagination[pageSize]=1000`)
     } catch (error: any) {
-      // Si falla, intentar con colecciones
-      response = await strapiClient.get<any>('/api/colecciones?populate=*&pagination[pageSize]=1000')
+      // Si falla, probar con nombre alternativo
+      console.log('[API Colecciones] Primera URL falló, probando alternativa...')
+      try {
+        collectionEndpoint = '/api/serie-coleccions'
+        response = await strapiClient.get<any>(`${collectionEndpoint}?populate=*&pagination[pageSize]=1000`)
+      } catch (error2: any) {
+        // Último intento con colecciones-series
+        collectionEndpoint = '/api/colecciones-series'
+        response = await strapiClient.get<any>(`${collectionEndpoint}?populate=*&pagination[pageSize]=1000`)
+      }
     }
     
     let items: any[] = []
@@ -25,18 +36,21 @@ export async function GET(request: NextRequest) {
       items = [response]
     }
     
-    console.log('[API GET colecciones] ✅ Items obtenidos:', items.length)
+    console.log('[API Colecciones] ✅ Items obtenidos:', items.length, 'desde:', collectionEndpoint)
     
     return NextResponse.json({
       success: true,
       data: items
     })
   } catch (error: any) {
-    console.error('[API GET colecciones] ❌ Error:', error)
+    console.error('[API Colecciones] ❌ Error:', error.message)
+    
+    // En lugar de devolver error 500, devolver array vacío
     return NextResponse.json({
-      success: false,
-      error: error.message || 'Error al obtener colecciones'
-    }, { status: error.status || 500 })
+      success: true,
+      data: [],
+      warning: `No se pudieron cargar las colecciones: ${error.message}`
+    })
   }
 }
 
