@@ -339,7 +339,7 @@ export async function PUT(
       nombre: productoActual?.nombre_libro
     })
     
-    // PASO 2: Preparar datos para Strapi v4/v5
+    // PASO 4: Preparar datos para Strapi v4/v5
     // Strapi requiere formato: { data: { campo: valor } }
     const updateData: any = {
       data: {}
@@ -349,9 +349,11 @@ export async function PUT(
     // Solo incluir campos que realmente existen y que se están actualizando
     if (body.nombre_libro !== undefined) {
       updateData.data.nombre_libro = body.nombre_libro
+      console.log('[API /tienda/productos/[id] PUT] Agregando nombre_libro:', body.nombre_libro)
     }
     if (body.descripcion !== undefined) {
       updateData.data.descripcion = body.descripcion
+      console.log('[API /tienda/productos/[id] PUT] Agregando descripcion:', body.descripcion)
     }
     if (body.portada_libro !== undefined) {
       // Para relaciones de Media en Strapi:
@@ -360,51 +362,48 @@ export async function PUT(
       // - object con id: usar solo el id
       if (typeof body.portada_libro === 'number') {
         updateData.data.portada_libro = body.portada_libro
+        console.log('[API /tienda/productos/[id] PUT] Agregando portada_libro (number):', body.portada_libro)
       } else if (body.portada_libro === null) {
         updateData.data.portada_libro = null
+        console.log('[API /tienda/productos/[id] PUT] Eliminando portada_libro (null)')
       } else if (typeof body.portada_libro === 'object' && body.portada_libro.id) {
         updateData.data.portada_libro = body.portada_libro.id
+        console.log('[API /tienda/productos/[id] PUT] Agregando portada_libro (object.id):', body.portada_libro.id)
       }
     }
     
     // Validar que hay campos para actualizar
     if (Object.keys(updateData.data).length === 0) {
+      console.error('[API /tienda/productos/[id] PUT] ❌ No hay campos para actualizar')
       return NextResponse.json(
         { success: false, error: 'No se proporcionaron campos para actualizar' },
         { status: 400 }
       )
     }
     
-    // Validar que tenemos un ID numérico válido antes de continuar
-    if (!productoId || isNaN(Number(productoId))) {
-      console.error('[API /tienda/productos/[id] PUT] ❌ ID numérico inválido:', {
-        idOriginal: id,
-        productoId,
-        tipo: typeof productoId,
-      })
-      return NextResponse.json(
-        { success: false, error: `ID numérico inválido: ${productoId}` },
-        { status: 400 }
-      )
-    }
-    
     const endpointUsed = `/api/libros/${productoId}`
     
-    console.log('[API /tienda/productos/[id] PUT] Enviando actualización a Strapi:', {
+    console.log('[API /tienda/productos/[id] PUT] Datos a enviar en PUT:', {
       idOriginal: id,
       idNumerico: productoId,
       endpoint: endpointUsed,
       camposActualizados: Object.keys(updateData.data),
-      updateData: JSON.stringify(updateData, null, 2),
+      updateDataCompleto: JSON.stringify(updateData, null, 2),
     })
     
-    // PASO 3: Enviar actualización a Strapi
-    let response: any
+    // PASO 5: Enviar actualización a Strapi
     try {
-      response = await strapiClient.put<any>(
+      const response = await strapiClient.put<any>(
         endpointUsed,
         updateData
       )
+      
+      console.log('[API /tienda/productos/[id] PUT] Respuesta completa del PUT:', {
+        tieneData: !!response.data,
+        tieneIdDirecto: !!response.id,
+        keys: Object.keys(response),
+        respuestaCompleta: JSON.stringify(response, null, 2).substring(0, 1000) + '...'
+      })
       
       // Strapi puede devolver los datos en response.data o directamente
       const productoActualizado = response.data || response
@@ -414,6 +413,7 @@ export async function PUT(
         idNumerico: productoId,
         tieneRespuesta: !!productoActualizado,
         respuestaKeys: productoActualizado ? Object.keys(productoActualizado).slice(0, 10) : [],
+        productoActualizado: JSON.stringify(productoActualizado, null, 2).substring(0, 500) + '...'
       })
       
       return NextResponse.json({
@@ -430,7 +430,7 @@ export async function PUT(
         idUsado: productoId,
         idOriginal: id,
         updateDataEnviado: JSON.stringify(updateData, null, 2),
-        response: putError.response,
+        errorCompleto: JSON.stringify(putError, null, 2).substring(0, 1000) + '...'
       })
       
       // Proporcionar información útil sobre el error
@@ -455,6 +455,7 @@ export async function PUT(
             idOriginal: id,
             idNumericoUsado: productoId,
             endpoint: endpointUsed,
+            updateDataEnviado: updateData
           },
         },
         { status: putError.status || 500 }
