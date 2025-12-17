@@ -120,6 +120,18 @@ export async function GET(request: NextRequest) {
         { status: 200 }
       )
     }
+    // Si es 502 o 504, es un problema de conexión con Strapi
+    if (error.status === 502 || error.status === 504) {
+      console.error('[API /chat/mensajes] Error de conexión con Strapi:', {
+        status: error.status,
+        message: error.message,
+        url: process.env.NEXT_PUBLIC_STRAPI_URL,
+      })
+      return NextResponse.json(
+        { error: 'Error de conexión con Strapi. Verifica que el servidor esté disponible.' },
+        { status: 502 }
+      )
+    }
     console.error('Error al obtener mensajes:', error)
     return NextResponse.json(
       { error: error.message || 'Error al obtener mensajes' },
@@ -179,6 +191,18 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json(response, { status: 201 })
   } catch (error: any) {
+    // Si es 502 o 504, es un problema de conexión con Strapi
+    if (error.status === 502 || error.status === 504) {
+      console.error('[API /chat/mensajes POST] Error de conexión con Strapi:', {
+        status: error.status,
+        message: error.message,
+        url: process.env.NEXT_PUBLIC_STRAPI_URL,
+      })
+      return NextResponse.json(
+        { error: 'Error de conexión con Strapi. Verifica que el servidor esté disponible.' },
+        { status: 502 }
+      )
+    }
     console.error('Error al enviar mensaje:', error)
     return NextResponse.json(
       { error: error.message || 'Error al enviar mensaje' },

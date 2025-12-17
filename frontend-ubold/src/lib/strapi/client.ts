@@ -73,13 +73,30 @@ const strapiClient = {
    */
   async get<T>(path: string, options?: RequestInit): Promise<T> {
     const url = getStrapiUrl(path)
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: getHeaders(options?.headers),
-      ...options,
-    })
     
-    return handleResponse<T>(response)
+    // Crear un AbortController para timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 segundos
+    
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: getHeaders(options?.headers),
+        signal: controller.signal,
+        ...options,
+      })
+      
+      clearTimeout(timeoutId)
+      return handleResponse<T>(response)
+    } catch (error: any) {
+      clearTimeout(timeoutId)
+      if (error.name === 'AbortError') {
+        const timeoutError = new Error('Timeout: La petición a Strapi tardó más de 30 segundos') as Error & { status?: number }
+        timeoutError.status = 504
+        throw timeoutError
+      }
+      throw error
+    }
   },
 
   /**
@@ -90,14 +107,31 @@ const strapiClient = {
    */
   async post<T>(path: string, data?: unknown, options?: RequestInit): Promise<T> {
     const url = getStrapiUrl(path)
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: getHeaders(options?.headers),
-      body: data ? JSON.stringify(data) : undefined,
-      ...options,
-    })
     
-    return handleResponse<T>(response)
+    // Crear un AbortController para timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 segundos
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: getHeaders(options?.headers),
+        body: data ? JSON.stringify(data) : undefined,
+        signal: controller.signal,
+        ...options,
+      })
+      
+      clearTimeout(timeoutId)
+      return handleResponse<T>(response)
+    } catch (error: any) {
+      clearTimeout(timeoutId)
+      if (error.name === 'AbortError') {
+        const timeoutError = new Error('Timeout: La petición a Strapi tardó más de 30 segundos') as Error & { status?: number }
+        timeoutError.status = 504
+        throw timeoutError
+      }
+      throw error
+    }
   },
 
   /**

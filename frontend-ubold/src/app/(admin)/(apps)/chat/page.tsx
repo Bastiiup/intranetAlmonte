@@ -219,6 +219,14 @@ const Page = () => {
             }
             return
           }
+          // Si es 502 o 504, es un problema de conexión con Strapi - no lanzar error, solo loguear
+          if (response.status === 502 || response.status === 504) {
+            if (!soloNuevos) {
+              // Solo loguear la primera vez para no saturar la consola
+              console.warn('[Chat] Error de conexión con Strapi (502/504). Verifica que Strapi esté disponible.')
+            }
+            return // No lanzar error, simplemente no actualizar mensajes
+          }
           throw new Error('Error al cargar mensajes')
         }
         
@@ -287,10 +295,11 @@ const Page = () => {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
         }, 100)
       } catch (err: any) {
-        // Solo loguear errores que no sean 404 (ya manejados arriba)
-        if (err.status !== 404) {
+        // Solo loguear errores que no sean 404, 502 o 504 (ya manejados arriba)
+        if (err.status !== 404 && err.status !== 502 && err.status !== 504) {
           console.error('Error al cargar mensajes:', err)
         }
+        // Si es un error de conexión (502/504), no hacer nada más - el polling seguirá intentando
       }
     }
     
