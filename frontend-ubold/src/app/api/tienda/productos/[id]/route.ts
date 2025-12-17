@@ -247,6 +247,18 @@ export async function PUT(
       )
     }
     
+    // LOGS DETALLADOS DE ENTRADA
+    console.log('[API PUT] 🔍 DATOS DE ENTRADA:', {
+      idRecibido: id,
+      tipoDeId: typeof id,
+      idNumerico: parseInt(id),
+      esNumeroValido: !isNaN(parseInt(id)),
+      bodyRecibido: body
+    })
+    
+    console.log('[API PUT] 📍 Endpoint que se va a llamar:', `/api/libros/${id}`)
+    console.log('[API PUT] 🌐 URL completa Strapi:', `${process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'}/api/libros/${id}?populate=*`)
+    
     // PASO 2: Obtener producto directamente por ID
     // IMPORTANTE: Si el ID es un documentId (string no numérico), necesitamos buscar en la lista
     let productoId: number | null = null
