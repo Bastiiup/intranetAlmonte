@@ -161,8 +161,9 @@ const Products = ({ productos, error }: ProductsProps) => {
   return (
     <Row className="row-cols-xxl-4 row-cols-lg-3 row-cols-sm-2 row-col-1 g-2">
       {productos.map((producto) => {
+        // Los datos pueden venir en attributes o directamente (igual que ProductosGrid)
         const attrs = producto.attributes || {}
-        const data = attrs as any
+        const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (producto as any)
         
         // Buscar nombre con múltiples variaciones (usar nombre_libro en minúsculas primero, como está en Strapi)
         const nombre = getField(data, 'nombre_libro', 'NOMBRE_LIBRO', 'nombreLibro', 'NOMBRE', 'nombre', 'name', 'NAME') || 'Sin nombre'
