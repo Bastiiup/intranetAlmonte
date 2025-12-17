@@ -32,7 +32,7 @@ Esto significa que **Strapi está rechazando las peticiones** porque no hay toke
    - Haz clic en **"Save"**
    - **Copia el token** inmediatamente (solo se muestra una vez)
 
-### Paso 2: Configurar el Token en Railway
+### Paso 2: Configurar las Variables en Railway
 
 1. Ve a [Railway Dashboard](https://railway.app)
 
@@ -42,16 +42,40 @@ Esto significa que **Strapi está rechazando las peticiones** porque no hay toke
 
 4. Ve a la pestaña **"Variables"** (o **"Environment Variables"**)
 
-5. Haz clic en **"+ New Variable"** o **"Add Variable"**
+5. Agrega las siguientes variables **UNA POR UNA**:
 
-6. Configura la variable:
+   **Variable 1: STRAPI_API_TOKEN**
+   - Haz clic en **"+ New Variable"** o **"Add Variable"**
    - **Name**: `STRAPI_API_TOKEN`
-   - **Value**: Pega el token que copiaste de Strapi
+   - **Value**: 
+     ```
+     d9a0e303af189b9fa1f2c6aecdfef7f28e9f7217977f2429c3106a5be085b814699c2bccb40631dc74748760eb6eb9096dc0055632fcb9b5b0a10c234a16a2cb2563ff9379393a552ed8e9fd1571f9a209a1a198444443d1d1611c5e4169df4f333d4b6af9ead0ebf6ae22ef2033da1f8c0f5b9800af33e6bf7275ca35313b32
+     ```
    - **Scope**: `Service` (o el que corresponda)
+   - Haz clic en **"Add"** o **"Save"**
 
-7. Haz clic en **"Add"** o **"Save"**
+   **Variable 2: WOOCOMMERCE_CONSUMER_KEY**
+   - Haz clic en **"+ New Variable"** nuevamente
+   - **Name**: `WOOCOMMERCE_CONSUMER_KEY`
+   - **Value**: 
+     ```
+     ck_ead4ac3a050feefe4f4507412117571ece3547da
+     ```
+   - Haz clic en **"Add"** o **"Save"**
 
-8. **IMPORTANTE**: Railway necesita hacer un nuevo despliegue para que la variable tome efecto. Esto puede tardar 1-2 minutos.
+   **Variable 3: WOOCOMMERCE_CONSUMER_SECRET**
+   - Haz clic en **"+ New Variable"** nuevamente
+   - **Name**: `WOOCOMMERCE_CONSUMER_SECRET`
+   - **Value**: 
+     ```
+     cs_302d947602fe2a43bf79ac742805a1b864267748
+     ```
+   - Haz clic en **"Add"** o **"Save"**
+
+6. **IMPORTANTE**: 
+   - **NO incluyas las comillas** (`"`) al pegar los valores
+   - Railway necesita hacer un nuevo despliegue para que las variables tomen efecto
+   - Esto puede tardar 1-2 minutos
 
 ### Paso 3: Verificar que Funciona
 
@@ -83,15 +107,23 @@ Para ver todas las variables configuradas:
    - `NEXT_PUBLIC_STRAPI_URL` (opcional, pero recomendado)
    - Otras variables que hayas configurado
 
-## 📝 Variables Recomendadas
+## 📝 Variables Configuradas
 
 Para que todo funcione correctamente, asegúrate de tener estas variables:
 
 | Variable | Valor | Descripción |
 |----------|-------|-------------|
-| `STRAPI_API_TOKEN` | `tu_token_aqui` | Token de autenticación de Strapi (OBLIGATORIO) |
+| `STRAPI_API_TOKEN` | `d9a0e303af189b9fa1f2c6aecdfef7f28e9f7217977f2429c3106a5be085b814699c2bccb40631dc74748760eb6eb9096dc0055632fcb9b5b0a10c234a16a2cb2563ff9379393a552ed8e9fd1571f9a209a1a198444443d1d1611c5e4169df4f333d4b6af9ead0ebf6ae22ef2033da1f8c0f5b9800af33e6bf7275ca35313b32` | Token de autenticación de Strapi (OBLIGATORIO) |
+| `WOOCOMMERCE_CONSUMER_KEY` | `ck_ead4ac3a050feefe4f4507412117571ece3547da` | Consumer Key de WooCommerce |
+| `WOOCOMMERCE_CONSUMER_SECRET` | `cs_302d947602fe2a43bf79ac742805a1b864267748` | Consumer Secret de WooCommerce |
 | `NEXT_PUBLIC_STRAPI_URL` | `https://strapi.moraleja.cl` | URL de tu instancia de Strapi (opcional, tiene default) |
 | `NODE_ENV` | `production` | Entorno de ejecución (Railway lo configura automáticamente) |
+
+### ⚠️ Importante al Pegar los Valores
+
+- **NO incluyas las comillas** (`"`) que aparecen en el archivo `.env`
+- **NO incluyas espacios** al inicio o final del valor
+- Copia solo el valor sin las comillas ni el nombre de la variable
 
 ## 🚨 Troubleshooting
 
