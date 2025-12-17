@@ -111,13 +111,18 @@ export async function GET(
       }
       
       // Si no se encontró en la lista, retornar 404 con información útil
+      const idsDisponibles = productos.map((p: any) => ({
+        id: p.id,
+        documentId: p.documentId,
+        nombre: p.nombre_libro || p.NOMBRE_LIBRO || p.nombreLibro || 'Sin nombre',
+      }))
+      
       console.error('[API /tienda/productos/[id] GET] ❌ Producto no encontrado:', {
         idBuscado: id,
+        tipoId: typeof id,
+        esNumerico: !isNaN(parseInt(id)),
         totalProductos: productos.length,
-        idsDisponibles: productos.slice(0, 10).map((p: any) => ({
-          id: p.id,
-          documentId: p.documentId,
-        })),
+        idsDisponibles: idsDisponibles.slice(0, 10),
       })
       
       return NextResponse.json(
@@ -127,11 +132,10 @@ export async function GET(
           data: null,
           debug: {
             idBuscado: id,
+            tipoId: typeof id,
             totalProductos: productos.length,
-            idsDisponibles: productos.slice(0, 5).map((p: any) => ({
-              id: p.id,
-              documentId: p.documentId,
-            })),
+            idsDisponibles: idsDisponibles.slice(0, 10),
+            mensaje: `IDs disponibles: ${idsDisponibles.map(p => `id:${p.id} o documentId:${p.documentId}`).join(', ')}`,
           },
         },
         { status: 404 }
@@ -224,13 +228,18 @@ export async function PUT(
       })
       
       if (!productoEncontrado) {
+        const idsDisponibles = productos.map((p: any) => ({
+          id: p.id,
+          documentId: p.documentId,
+          nombre: p.nombre_libro || p.NOMBRE_LIBRO || p.nombreLibro || 'Sin nombre',
+        }))
+        
         console.error('[API /tienda/productos/[id] PUT] ❌ Producto no encontrado:', {
           idBuscado: id,
+          tipoId: typeof id,
+          esNumerico: !isNaN(parseInt(id)),
           totalProductos: productos.length,
-          idsDisponibles: productos.slice(0, 10).map((p: any) => ({
-            id: p.id,
-            documentId: p.documentId,
-          })),
+          idsDisponibles: idsDisponibles.slice(0, 10),
         })
         return NextResponse.json(
           { 
@@ -238,11 +247,10 @@ export async function PUT(
             error: `Producto con ID "${id}" no encontrado`,
             debug: {
               idBuscado: id,
+              tipoId: typeof id,
               totalProductos: productos.length,
-              idsDisponibles: productos.slice(0, 5).map((p: any) => ({
-                id: p.id,
-                documentId: p.documentId,
-              })),
+              idsDisponibles: idsDisponibles.slice(0, 10),
+              mensaje: `IDs disponibles: ${idsDisponibles.map(p => `id:${p.id} (${p.nombre}) o documentId:${p.documentId}`).join(', ')}`,
             },
           },
           { status: 404 }
