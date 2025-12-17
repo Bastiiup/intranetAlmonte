@@ -32,7 +32,7 @@ import { format } from 'date-fns'
 
 // Tipo extendido para productos que pueden tener imagen como URL o StaticImageData
 type ProductTypeExtended = Omit<ProductType, 'image'> & {
-  image: StaticImageData | { src: string }
+  image: StaticImageData | { src: string | null }
   strapiId?: number
 }
 
@@ -114,8 +114,9 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
   const createdAt = attrs.createdAt || (producto as any).createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
 
+  const imageUrl = getImageUrl()
   return {
-    image: { src: getImageUrl() },
+    image: { src: imageUrl || '' },
     name: nombre,
     brand: autor,
     code: isbn || `STRAPI-${producto.id}`,
