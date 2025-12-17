@@ -52,27 +52,24 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
   const attrs = producto.attributes || {}
   const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (producto as any)
 
-  // Obtener URL de imagen (igual que ProductosGrid que funciona)
+  // Obtener URL de imagen (manejar datos directos o en attributes - igual que Products Grid)
   const getImageUrl = (): string => {
-    // Usar el mismo orden que ProductosGrid que funciona
-    const portada = data.PORTADA_LIBRO?.data || data.portada_libro?.data || data.portadaLibro?.data
-    if (!portada) {
-      // Debug: Log para ver qué está pasando
-      if (typeof window !== 'undefined') {
-        console.log('[Products Listing] No se encontró portada:', {
-          productoId: producto.id,
-          tieneAttributes: !!producto.attributes,
-          keysData: Object.keys(data),
-          tienePortadaLibro: !!data.portada_libro,
-          tienePORTADA_LIBRO: !!data.PORTADA_LIBRO,
-        })
-      }
-      return '/images/products/1.png'
+    // Acceder a portada_libro - puede venir como objeto directo o con .data
+    let portada = data.portada_libro || data.PORTADA_LIBRO || data.portadaLibro
+    
+    // Si portada tiene .data, acceder a eso
+    if (portada?.data) {
+      portada = portada.data
     }
     
-    const url = portada.attributes?.url || portada.attributes?.URL
+    // Si portada es null o undefined, usar imagen por defecto
+    if (!portada || portada === null) {
+      return '/images/products/1.png'
+    }
+
+    // Obtener la URL - puede estar en attributes o directamente
+    const url = portada.attributes?.url || portada.attributes?.URL || portada.url || portada.URL
     if (!url) {
-      console.log('[Products Listing] Portada encontrada pero sin URL:', { portada })
       return '/images/products/1.png'
     }
     
@@ -83,9 +80,7 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
     
     // Si no, construir la URL completa con la base de Strapi
     const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
-    const finalUrl = `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
-    console.log('[Products Listing] URL de imagen construida:', finalUrl)
-    return finalUrl
+    return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
   }
 
   // Calcular stock total (igual que ProductosGrid)
