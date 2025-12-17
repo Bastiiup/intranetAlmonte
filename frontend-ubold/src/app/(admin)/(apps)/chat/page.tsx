@@ -43,6 +43,13 @@ const Page = () => {
   const { colaborador, persona } = useAuth()
   const currentUserId = colaborador?.id ? String(colaborador.id) : null
 
+  // Log inicial para verificar que el componente se carga
+  console.log('[Chat] Componente cargado:', {
+    currentUserId,
+    colaboradorId: colaborador?.id,
+    email: colaborador?.email_login,
+  })
+
   // Obtener datos del usuario actual para mostrar en mensajes
   const currentUserData = {
     id: currentUserId || '1',
@@ -139,9 +146,19 @@ const Page = () => {
 
   // Cargar mensajes y configurar polling
   useEffect(() => {
-    if (!currentContact || !currentUserId) return
+    console.log('[Chat] useEffect de mensajes ejecutado:', {
+      hasCurrentContact: !!currentContact,
+      currentContactId: currentContact?.id,
+      currentUserId,
+    })
+
+    if (!currentContact || !currentUserId) {
+      console.log('[Chat] No se cargan mensajes - falta currentContact o currentUserId')
+      return
+    }
 
     const cargarMensajes = async (soloNuevos: boolean = false) => {
+      console.log('[Chat] cargarMensajes llamado:', { soloNuevos, lastMessageDate })
       try {
         const query = new URLSearchParams({
           colaborador_id: currentContact.id,
@@ -154,8 +171,15 @@ const Page = () => {
         }
 
         const response = await fetch(`/api/chat/mensajes?${query.toString()}`)
+        console.log('[Chat] Respuesta de API:', {
+          status: response.status,
+          ok: response.ok,
+          url: query.toString(),
+        })
+        
         if (!response.ok) {
           if (response.status === 404 || response.status === 502 || response.status === 504) {
+            console.log('[Chat] Respuesta con error ignorado:', response.status)
             return
           }
           throw new Error('Error al cargar mensajes')
