@@ -27,16 +27,20 @@ export default async function Page() {
     
     if (data.success && data.data) {
       productos = Array.isArray(data.data) ? data.data : [data.data]
+      console.log('[Products Page] Productos obtenidos:', productos.length)
+      if (productos.length > 0) {
+        console.log('[Products Page] Primer producto:', JSON.stringify(productos[0], null, 2))
+      }
     } else {
       error = data.error || 'Error al obtener productos'
+      console.error('[Products Page] Error en respuesta:', data)
     }
   } catch (err: any) {
     error = err.message || 'Error al conectar con la API'
-    
-    if (process.env.NODE_ENV !== 'production') {
-      console.error('Error al obtener productos:', err)
-    }
+    console.error('[Products Page] Error al obtener productos:', err)
   }
+  
+  console.log('[Products Page] Render - productos:', productos.length, 'error:', error)
 
   return (
     <Container fluid>
