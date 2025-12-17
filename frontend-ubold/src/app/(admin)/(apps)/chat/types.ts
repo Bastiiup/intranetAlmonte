@@ -3,7 +3,7 @@ import { StaticImageData } from 'next/image'
 export type ContactType = {
   id: string
   name: string
-  avatar?: StaticImageData
+  avatar?: StaticImageData | { src: string } // Puede ser StaticImageData o una URL
   lastMessage?: string
   timestamp?: string
   unreadMessages?: number

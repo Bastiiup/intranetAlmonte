@@ -66,7 +66,15 @@ const ContactList = ({ contacts, setContact }: PropsType) => {
               <span className="d-flex justify-content-start align-items-center gap-2 overflow-hidden">
                 <span className="avatar avatar-sm flex-shrink-0">
                   {contact.avatar ? (
-                    <Image src={contact.avatar} alt="" height={36} width={36} className="img-fluid rounded-circle" />
+                    <Image 
+                      src={typeof contact.avatar === 'object' && 'src' in contact.avatar 
+                        ? contact.avatar.src 
+                        : (contact.avatar as any).src} 
+                      alt="" 
+                      height={36} 
+                      width={36} 
+                      className="img-fluid rounded-circle" 
+                    />
                   ) : (
                     <span className="avatar-title text-bg-primary fw-bold rounded-circle">{contact.name.charAt(0).toUpperCase()}</span>
                   )}

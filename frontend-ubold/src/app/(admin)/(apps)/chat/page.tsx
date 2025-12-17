@@ -55,14 +55,14 @@ const Page = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Cargar contactos desde Strapi
+  // Cargar contactos (colaboradores) desde Strapi
   useEffect(() => {
     const cargarContactos = async () => {
       try {
         setIsLoading(true)
-        const response = await fetch('/api/chat/clientes')
+        const response = await fetch('/api/chat/colaboradores')
         if (!response.ok) {
-          throw new Error('Error al cargar clientes')
+          throw new Error('Error al cargar colaboradores')
         }
         const data = await response.json()
         
@@ -76,71 +76,84 @@ const Page = () => {
         
         // Verificar que hay datos
         if (!data.data || (Array.isArray(data.data) && data.data.length === 0)) {
-          console.warn('[Chat] No se encontraron clientes en Strapi')
+          console.warn('[Chat] No se encontraron colaboradores en Strapi')
           setContacts([])
-          setError('No se encontraron clientes. Verifica que existan registros en WO-Clientes en Strapi.')
+          setError('No se encontraron colaboradores. Verifica que existan registros activos en Intranet-Colaboradores en Strapi.')
           return
         }
         
-        // Mapear clientes de Strapi a ContactType
-        const clientesArray = Array.isArray(data.data) ? data.data : [data.data]
+        // Mapear colaboradores de Strapi a ContactType
+        const colaboradoresArray = Array.isArray(data.data) ? data.data : [data.data]
         
-        // Debug: Ver estructura completa del primer cliente
-        if (clientesArray.length > 0) {
-          const primerCliente = clientesArray[0]
-          console.log('[Chat] Estructura completa del primer cliente:', JSON.stringify(primerCliente, null, 2))
-          console.log('[Chat] Campos disponibles (nivel raíz):', {
-            keys: Object.keys(primerCliente),
-            nombre: primerCliente.nombre,
-            tieneAttributes: !!primerCliente.attributes,
-          })
+        // Debug: Ver estructura completa del primer colaborador
+        if (colaboradoresArray.length > 0) {
+          const primerColaborador = colaboradoresArray[0]
+          console.log('[Chat] Estructura completa del primer colaborador:', JSON.stringify(primerColaborador, null, 2))
         }
         
-        const contactosMapeados: ContactType[] = clientesArray
-          .filter((cliente: any) => {
-            // Solo incluir clientes que tengan ID y nombre
-            if (!cliente || !cliente.id) return false
+        // Función auxiliar para obtener nombre completo de Persona
+        const obtenerNombrePersona = (persona: any): string => {
+          if (!persona) return ''
+          
+          if (persona.nombre_completo) {
+            return persona.nombre_completo
+          }
+          
+          const partes = []
+          if (persona.nombres) partes.push(persona.nombres)
+          if (persona.primer_apellido) partes.push(persona.primer_apellido)
+          if (persona.segundo_apellido) partes.push(persona.segundo_apellido)
+          
+          return partes.length > 0 ? partes.join(' ') : persona.rut || ''
+        }
+        
+        // Función auxiliar para obtener avatar de Persona
+        const obtenerAvatar = (persona: any): string | null => {
+          if (!persona?.imagen?.url) return null
+          return `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${persona.imagen.url}`
+        }
+        
+        const contactosMapeados: ContactType[] = colaboradoresArray
+          .filter((colaborador: any) => {
+            // Solo incluir colaboradores activos con persona relacionada
+            if (!colaborador || !colaborador.id || !colaborador.activo) return false
+            if (!colaborador.persona) return false
             
-            // Los datos vienen directamente en el objeto, NO en attributes
-            const nombre = cliente.nombre || ''
-            
-            // Solo incluir si tiene el campo "nombre" con valor
+            const nombre = obtenerNombrePersona(colaborador.persona)
             return !!nombre && nombre.trim() !== ''
           })
-          .map((cliente: any) => {
-            // Los datos vienen directamente en el objeto, NO en attributes
-            // Según los logs: { id: 2630, nombre: "Cliente de Prueba", ... }
-            const nombre = cliente.nombre || ''
+          .map((colaborador: any) => {
+            const persona = colaborador.persona
+            const nombre = obtenerNombrePersona(persona)
             
             if (!nombre || nombre.trim() === '') {
-              console.error('[Chat] ERROR: Cliente sin nombre después del filtro:', {
-                id: cliente.id,
-                cliente: cliente,
+              console.error('[Chat] ERROR: Colaborador sin nombre después del filtro:', {
+                id: colaborador.id,
+                email_login: colaborador.email_login,
               })
               return null
             }
             
-            const ultimaActividad = cliente.ultima_actividad
-            const ahora = new Date()
-            const ultimaActividadDate = ultimaActividad ? new Date(ultimaActividad) : null
+            // Por ahora, considerar todos como offline (luego podemos implementar lógica de última actividad)
+            const isOnline = false
             
-            // Considerar online si la última actividad fue en las últimas 5 minutos
-            const isOnline = ultimaActividadDate 
-              ? (ahora.getTime() - ultimaActividadDate.getTime()) < 5 * 60 * 1000
-              : false
+            const avatar = obtenerAvatar(persona)
             
-            // Debug: Log de cada cliente mapeado
-            console.log('[Chat] Cliente mapeado:', {
-              id: cliente.id,
+            // Debug: Log de cada colaborador mapeado
+            console.log('[Chat] Colaborador mapeado:', {
+              id: colaborador.id,
               nombre: nombre.trim(),
-              correo: cliente.correo_electronico,
+              email_login: colaborador.email_login,
+              rol: colaborador.rol,
               isOnline,
+              tieneAvatar: !!avatar,
             })
             
             return {
-              id: String(cliente.id),
-              name: nombre.trim(), // SOLO el nombre real del campo "nombre"
+              id: String(colaborador.id),
+              name: nombre.trim(),
               isOnline,
+              avatar: avatar ? { src: avatar } : undefined,
             }
           })
           .filter((contacto: ContactType | null) => contacto !== null) as ContactType[]
@@ -369,7 +382,7 @@ const Page = () => {
         <Alert variant="danger">
           <strong>Error:</strong> {error}
           <br />
-          <small>Verifica que el content type "chat-mensajes" exista en Strapi y que las variables de entorno estén configuradas.</small>
+          <small>Verifica que el content type "intranet-chats" exista en Strapi y que las variables de entorno estén configuradas.</small>
         </Alert>
       </Container>
     )
@@ -380,7 +393,7 @@ const Page = () => {
       <Container fluid>
         <PageBreadcrumb title="Chat" subtitle="Apps" />
         <Alert variant="info">
-          No hay clientes disponibles. Asegúrate de que existan registros en WO-Clientes en Strapi.
+          No hay colaboradores disponibles. Asegúrate de que existan registros activos en Intranet-Colaboradores en Strapi.
         </Alert>
       </Container>
     )
@@ -460,7 +473,15 @@ const Page = () => {
                     {currentContact && String(currentContact.id) !== message.senderId && (
                       <div className="d-flex align-items-start gap-2 my-3 chat-item">
                         {currentContact.avatar ? (
-                          <Image src={currentContact.avatar.src} width={36} height={36} className="avatar-md rounded-circle" alt="User" />
+                          <Image 
+                            src={typeof currentContact.avatar === 'object' && 'src' in currentContact.avatar 
+                              ? currentContact.avatar.src 
+                              : (currentContact.avatar as any).src} 
+                            width={36} 
+                            height={36} 
+                            className="avatar-md rounded-circle" 
+                            alt="User" 
+                          />
                         ) : (
                           <span className="avatar-sm flex-shrink-0">
                             <span className="avatar-title text-bg-primary fw-bold rounded-circle">
