@@ -3,11 +3,88 @@ import AppLogo from '@/components/AppLogo'
 import PasswordInputWithStrength from '@/components/PasswordInputWithStrength'
 import { author, currentYear } from '@/helpers'
 import Link from 'next/link'
-import { useState } from 'react'
-import { Button, Card, Col, Container, Form, FormControl, FormLabel, Row } from 'react-bootstrap'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { Alert, Button, Card, Col, Container, Form, FormControl, FormLabel, Row } from 'react-bootstrap'
+import { registro } from '@/lib/auth'
 
 const Page = () => {
+  const router = useRouter()
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [cliente, setCliente] = useState<any>(null)
+  const [buscandoCliente, setBuscandoCliente] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  // Buscar cliente cuando el email cambia
+  useEffect(() => {
+    const buscarCliente = async () => {
+      if (!email || email.length < 5) {
+        setCliente(null)
+        return
+      }
+
+      setBuscandoCliente(true)
+      setError(null)
+
+      try {
+        const response = await fetch(`/api/chat/clientes`)
+        if (!response.ok) throw new Error('Error al buscar cliente')
+
+        const data = await response.json()
+        const clientes = Array.isArray(data.data) ? data.data : []
+
+        const clienteEncontrado = clientes.find(
+          (c: any) => c.correo_electronico?.toLowerCase() === email.toLowerCase()
+        )
+
+        if (clienteEncontrado) {
+          setCliente(clienteEncontrado)
+        } else {
+          setCliente(null)
+          setError('No se encontró un cliente con este email en WO-Clientes')
+        }
+      } catch (err: any) {
+        setError('Error al buscar cliente: ' + (err.message || 'Error desconocido'))
+        setCliente(null)
+      } finally {
+        setBuscandoCliente(false)
+      }
+    }
+
+    const timeoutId = setTimeout(buscarCliente, 500) // Debounce
+    return () => clearTimeout(timeoutId)
+  }, [email])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+
+    if (!cliente) {
+      setError('Debes ingresar un email válido de un cliente existente')
+      return
+    }
+
+    if (!password || password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres')
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      await registro(email, password, cliente.id)
+      // Redirigir al dashboard después del registro
+      router.push('/')
+      router.refresh()
+    } catch (err: any) {
+      setError(err.message || 'Error al crear cuenta')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="auth-box overflow-hidden align-items-center d-flex">
       <Container>
@@ -20,27 +97,45 @@ const Page = () => {
               </div>
               <div className="auth-brand text-center mb-4">
                 <AppLogo />
-                <p className="text-muted w-lg-75 mt-3 mx-auto">Let’s get you started. Create your account by entering your details below.</p>
+                <p className="text-muted w-lg-75 mt-3 mx-auto">
+                  Crea tu cuenta usando el email de tu cliente en WO-Clientes.
+                </p>
               </div>
-              <Form>
-                <div className="mb-3 form-group">
-                  <FormLabel>
-                    Name <span className="text-danger">*</span>
-                  </FormLabel>
-                  <FormControl type="text" placeholder="Damian D." required />
-                </div>
 
+              {error && (
+                <Alert variant={cliente ? 'danger' : 'warning'} className="mb-3">
+                  {error}
+                </Alert>
+              )}
+
+              {cliente && (
+                <Alert variant="success" className="mb-3">
+                  <strong>Cliente encontrado:</strong> {cliente.nombre || `Cliente #${cliente.id}`}
+                </Alert>
+              )}
+
+              <Form onSubmit={handleSubmit}>
                 <div className="mb-3 form-group">
                   <FormLabel>
-                    Email address <span className="text-danger">*</span>
+                    Email del cliente <span className="text-danger">*</span>
                   </FormLabel>
-                  <FormControl type="email" placeholder="you@example.com" required />
+                  <FormControl
+                    type="email"
+                    placeholder="tu@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={loading || buscandoCliente}
+                  />
+                  {buscandoCliente && (
+                    <small className="text-muted">Buscando cliente...</small>
+                  )}
                 </div>
 
                 <div className="mb-3">
                   <PasswordInputWithStrength
                     id="password"
-                    label="Password"
+                    label="Contraseña"
                     name="password"
                     password={password}
                     setPassword={setPassword}
@@ -48,26 +143,21 @@ const Page = () => {
                   />
                 </div>
 
-                <div className="mb-3">
-                  <div className="form-check">
-                    <input className="form-check-input form-check-input-light fs-14" type="checkbox" id="termAndPolicy" />
-                    <label className="form-check-label" htmlFor="termAndPolicy">
-                      Agree the Terms & Policy
-                    </label>
-                  </div>
-                </div>
-
                 <div className="d-grid">
-                  <Button type="submit" className="btn btn-primary fw-semibold py-2">
-                    Create Account
+                  <Button
+                    type="submit"
+                    className="btn btn-primary fw-semibold py-2"
+                    disabled={loading || !cliente || !password}
+                  >
+                    {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
                   </Button>
                 </div>
               </Form>
 
               <p className="text-muted text-center mt-4 mb-0">
-                Already have an account?{' '}
+                ¿Ya tienes cuenta?{' '}
                 <Link href="/auth-1/sign-in" className="text-decoration-underline link-offset-3 fw-semibold">
-                  Login
+                  Iniciar sesión
                 </Link>
               </p>
             </Card>

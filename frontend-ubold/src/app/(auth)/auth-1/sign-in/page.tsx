@@ -1,9 +1,37 @@
+'use client'
+
 import AppLogo from '@/components/AppLogo'
 import { author, currentYear } from '@/helpers'
 import Link from 'next/link'
-import { Button, Card, Col, Container, Form, FormControl, FormLabel, Row } from 'react-bootstrap'
+import { useRouter } from 'next/navigation'
+import { useState } from 'react'
+import { Alert, Button, Card, Col, Container, Form, FormControl, FormLabel, Row } from 'react-bootstrap'
+import { login } from '@/lib/auth'
 
 const Page = () => {
+  const router = useRouter()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setLoading(true)
+
+    try {
+      await login(email, password)
+      // Redirigir al dashboard o página principal después del login
+      router.push('/')
+      router.refresh()
+    } catch (err: any) {
+      setError(err.message || 'Error al iniciar sesión')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="auth-box overflow-hidden align-items-center d-flex" style={{ minHeight: '100vh' }}>
       <Container>
@@ -17,46 +45,77 @@ const Page = () => {
 
               <div className="auth-brand text-center mb-4">
                 <AppLogo />
-                <p className="text-muted w-lg-75 mt-3 mx-auto">Let’s get you signed in. Enter your email and password to continue.</p>
+                <p className="text-muted w-lg-75 mt-3 mx-auto">
+                  Inicia sesión con tu email y contraseña de cliente.
+                </p>
               </div>
-              <Form>
+
+              {error && (
+                <Alert variant="danger" className="mb-3">
+                  {error}
+                </Alert>
+              )}
+
+              <Form onSubmit={handleSubmit}>
                 <div className="mb-3 form-group">
                   <FormLabel>
-                    Email address <span className="text-danger">*</span>
+                    Email <span className="text-danger">*</span>
                   </FormLabel>
-                  <FormControl type="email" placeholder="you@example.com" required />
+                  <FormControl
+                    type="email"
+                    placeholder="tu@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={loading}
+                  />
                 </div>
 
                 <div className="mb-3 form-group">
                   <FormLabel>
-                    Password <span className="text-danger">*</span>
+                    Contraseña <span className="text-danger">*</span>
                   </FormLabel>
-                  <FormControl type="password" placeholder="••••••••" required />
+                  <FormControl
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    disabled={loading}
+                  />
                 </div>
 
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <div className="form-check">
-                    <input className="form-check-input form-check-input-light fs-14" type="checkbox" id="rememberMe" />
+                    <input
+                      className="form-check-input form-check-input-light fs-14"
+                      type="checkbox"
+                      id="rememberMe"
+                    />
                     <label className="form-check-label" htmlFor="rememberMe">
-                      Keep me signed in
+                      Mantener sesión iniciada
                     </label>
                   </div>
                   <Link href="/auth-1/reset-password" className="text-decoration-underline link-offset-3 text-muted">
-                    Forgot Password?
+                    ¿Olvidaste tu contraseña?
                   </Link>
                 </div>
 
                 <div className="d-grid">
-                  <Button type="submit" className="btn-primary fw-semibold py-2">
-                    Sign In
+                  <Button
+                    type="submit"
+                    className="btn-primary fw-semibold py-2"
+                    disabled={loading}
+                  >
+                    {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
                   </Button>
                 </div>
               </Form>
 
               <p className="text-muted text-center mt-4 mb-0">
-                New here?{' '}
+                ¿No tienes cuenta?{' '}
                 <Link href="/auth-1/sign-up" className="text-decoration-underline link-offset-3 fw-semibold">
-                  Create an account
+                  Crear cuenta
                 </Link>
               </p>
             </Card>
