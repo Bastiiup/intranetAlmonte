@@ -221,411 +221,80 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  console.log('[API /tienda/productos/[id] PUT] ===== INICIANDO PUT =====')
-  
   try {
-    // PASO 1: Obtener parámetros y body
     const { id } = await params
-    console.log('[API /tienda/productos/[id] PUT] Params recibidos:', { 
-      id, 
-      tipoId: typeof id,
-      esNumerico: !isNaN(parseInt(id))
-    })
-    
-    let body: any = {}
-    try {
-      const bodyText = await request.text()
-      console.log('[API /tienda/productos/[id] PUT] Body recibido (texto):', bodyText)
-      body = JSON.parse(bodyText)
-      console.log('[API /tienda/productos/[id] PUT] Body recibido (JSON):', JSON.stringify(body, null, 2))
-      console.log('[API /tienda/productos/[id] PUT] Campos recibidos:', Object.keys(body))
-    } catch (parseError: any) {
-      console.error('[API /tienda/productos/[id] PUT] ❌ Error al parsear body:', parseError)
-      return NextResponse.json(
-        { success: false, error: 'Error al parsear el cuerpo de la petición' },
-        { status: 400 }
-      )
-    }
-    
-    // LOGS DETALLADOS DE ENTRADA
-    const token = process.env.STRAPI_API_TOKEN
-    const tieneToken = !!token
-    const tokenLength = token ? token.length : 0
-    
-    // Logs completos de diagnóstico
-    console.log('[API PUT] 🔍 DATOS DE ENTRADA:', {
-      idRecibido: id,
-      tipoDeId: typeof id,
-      idNumerico: parseInt(id),
-      esNumeroValido: !isNaN(parseInt(id)),
-      bodyRecibido: body
-    })
-    
-    // Diagnóstico completo de variables de entorno
-    const todasLasEnvVars = Object.keys(process.env)
-    const envVarsStrapi = todasLasEnvVars.filter(k => k.includes('STRAPI'))
-    const envVarsWooCommerce = todasLasEnvVars.filter(k => k.includes('WOOCOMMERCE'))
-    
-    console.log('[API PUT] 🔐 DIAGNÓSTICO COMPLETO DE VARIABLES:', {
-      tieneToken,
-      tokenLength,
-      tokenPreview: token ? `${token.substring(0, 10)}...${token.substring(token.length - 10)}` : 'NO CONFIGURADO',
-      tokenValorCompleto: token || 'undefined',
-      strapiUrl: process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl',
-      nodeEnv: process.env.NODE_ENV,
-      totalEnvVars: todasLasEnvVars.length,
-      envVarsStrapi: envVarsStrapi,
-      envVarsWooCommerce: envVarsWooCommerce,
-      todasLasEnvVars: todasLasEnvVars.slice(0, 20), // Primeras 20 para no saturar
-      // Verificar acceso directo
-      directAccess: {
-        'process.env.STRAPI_API_TOKEN': process.env.STRAPI_API_TOKEN ? 'EXISTE' : 'NO EXISTE',
-        'process.env.NEXT_PUBLIC_STRAPI_URL': process.env.NEXT_PUBLIC_STRAPI_URL || 'NO EXISTE',
-      }
-    })
-    
-    console.log('[API PUT] 📍 Endpoint que se va a llamar:', `/api/libros/${id}`)
-    console.log('[API PUT] 🌐 URL completa Strapi:', `${process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'}/api/libros/${id}?populate=*`)
-    
-    // Validar que el token esté configurado
-    if (!token) {
-      console.error('[API PUT] ❌ STRAPI_API_TOKEN NO ESTÁ CONFIGURADO')
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: 'STRAPI_API_TOKEN no está configurado. Por favor, configura la variable de entorno en Railway.',
-          debug: {
-            idBuscado: id,
-            tieneToken: false,
-            instrucciones: 'Ve a Railway → Variables → Agrega STRAPI_API_TOKEN'
-          }
-        },
-        { status: 500 }
-      )
-    }
-    
-    // PASO 2: Obtener producto directamente por ID
-    // IMPORTANTE: Si el ID es un documentId (string no numérico), necesitamos buscar en la lista
-    let productoId: number | null = null
-    let productoActual: any = null
-    
-    const esIdNumerico = !isNaN(parseInt(id)) && id.toString() === parseInt(id).toString()
-    
-    console.log('[API /tienda/productos/[id] PUT] Intentando obtener producto:', {
-      idBuscado: id,
-      esIdNumerico,
-      endpoint: `/api/libros/${id}?populate=*`
-    })
-    
-    // Si es ID numérico, intentar GET directo primero
-    if (esIdNumerico) {
-      try {
-        const directResponse = await strapiClient.get<any>(`/api/libros/${id}?populate=*`)
-        
-        console.log('[API /tienda/productos/[id] PUT] Respuesta completa del GET:', {
-          tieneData: !!directResponse.data,
-          tieneIdDirecto: !!directResponse.id,
-          keys: Object.keys(directResponse),
-          respuestaCompleta: JSON.stringify(directResponse, null, 2).substring(0, 500) + '...'
-        })
-        
-        // Manejar ambas estructuras: response.data.id o response.id
-        if (directResponse.data && directResponse.data.id) {
-          productoActual = directResponse.data
-          productoId = directResponse.data.id
-          console.log('[API /tienda/productos/[id] PUT] ✅ Producto encontrado en response.data:', {
-            id: directResponse.data.id,
-            documentId: directResponse.data.documentId,
-            nombre: directResponse.data.nombre_libro
-          })
-        } else if (directResponse.id) {
-          productoActual = directResponse
-          productoId = directResponse.id
-          console.log('[API /tienda/productos/[id] PUT] ✅ Producto encontrado en response directo:', {
-            id: directResponse.id,
-            documentId: directResponse.documentId,
-            nombre: directResponse.nombre_libro
-          })
-        } else {
-          console.error('[API /tienda/productos/[id] PUT] ❌ Respuesta no tiene estructura esperada:', {
-            respuesta: directResponse
-          })
-          return NextResponse.json(
-            { 
-              success: false, 
-              error: 'La respuesta de Strapi no tiene la estructura esperada',
-              debug: { respuesta: directResponse }
-            },
-            { status: 500 }
-          )
-        }
-      } catch (getError: any) {
-        console.error('[API /tienda/productos/[id] PUT] ❌ Error al obtener producto por ID numérico:', {
-          status: getError.status,
-          message: getError.message,
-          details: getError.details,
-        })
-        
-        // Si es 404 con ID numérico, el producto realmente no existe
-        if (getError.status === 404) {
-          return NextResponse.json(
-            { 
-              success: false, 
-              error: `Producto con ID "${id}" no encontrado en Strapi`,
-              debug: {
-                idBuscado: id,
-                status: getError.status,
-                message: getError.message,
-                endpoint: `/api/libros/${id}?populate=*`
-              }
-            },
-            { status: 404 }
-          )
-        }
-        
-        // Si es otro error, retornar error específico
-        return NextResponse.json(
-          { 
-            success: false, 
-            error: `Error al obtener producto: ${getError.message}`,
-            debug: {
-              idBuscado: id,
-              status: getError.status,
-              message: getError.message,
-            }
-          },
-          { status: getError.status || 500 }
-        )
-      }
+    const body = await request.json()
+
+    console.log('[API PUT] 🔍 Iniciando PUT para ID:', id)
+
+    // PASO 1: Obtener el producto usando filtro (Strapi v5 requiere documentId para GET individual)
+    const response = await strapiClient.get<any>(
+      `/api/libros?filters[id][$eq]=${id}&populate=*`
+    )
+
+    console.log('[API PUT] 📦 Respuesta de Strapi:', JSON.stringify(response, null, 2))
+
+    // Extraer el producto de la respuesta (manejar diferentes estructuras)
+    let producto: any
+    if (Array.isArray(response)) {
+      producto = response[0]
+    } else if (response.data && Array.isArray(response.data)) {
+      producto = response.data[0]
+    } else if (response.data) {
+      producto = response.data
     } else {
-      // Si NO es ID numérico (es documentId), buscar en lista completa
-      console.log('[API /tienda/productos/[id] PUT] ID no es numérico, buscando por documentId en lista completa...')
-      
-      try {
-        const allProducts = await strapiClient.get<any>(
-          `/api/libros?populate=*&pagination[pageSize]=1000`
-        )
-        
-        let productos: any[] = []
-        if (Array.isArray(allProducts)) {
-          productos = allProducts
-        } else if (Array.isArray(allProducts.data)) {
-          productos = allProducts.data
-        } else if (allProducts.data && Array.isArray(allProducts.data.data)) {
-          productos = allProducts.data.data
-        }
-        
-        console.log('[API /tienda/productos/[id] PUT] Buscando producto por documentId:', {
-          idBuscado: id,
-          totalProductos: productos.length,
-        })
-        
-        // Buscar por documentId o id
-        productoActual = productos.find((p: any) => 
-          p.documentId === id || p.id?.toString() === id || p.id === parseInt(id)
-        )
-        
-        if (productoActual && productoActual.id) {
-          productoId = productoActual.id
-          console.log('[API /tienda/productos/[id] PUT] ✅ Producto encontrado por documentId:', {
-            idBuscado: id,
-            idNumerico: productoId,
-            documentId: productoActual.documentId,
-            nombre: productoActual.nombre_libro
-          })
-        } else {
-          console.error('[API /tienda/productos/[id] PUT] ❌ Producto no encontrado por documentId:', {
-            idBuscado: id,
-            totalProductos: productos.length,
-            primerosIds: productos.slice(0, 3).map((p: any) => ({ id: p.id, documentId: p.documentId }))
-          })
-          return NextResponse.json(
-            { 
-              success: false, 
-              error: `Producto con ID/documentId "${id}" no encontrado en Strapi`,
-              debug: {
-                idBuscado: id,
-                totalProductos: productos.length,
-              }
-            },
-            { status: 404 }
-          )
-        }
-      } catch (listError: any) {
-        console.error('[API /tienda/productos/[id] PUT] ❌ Error al buscar en lista completa:', {
-          status: listError.status,
-          message: listError.message,
-          details: listError.details,
-        })
-        return NextResponse.json(
-          { 
-            success: false, 
-            error: `Error al buscar producto: ${listError.message}`,
-            debug: {
-              idBuscado: id,
-              status: listError.status,
-            }
-          },
-          { status: listError.status || 500 }
-        )
-      }
+      producto = response
     }
-    
-    // PASO 3: Validar que tenemos un ID numérico válido
-    if (!productoId || isNaN(Number(productoId))) {
-      console.error('[API /tienda/productos/[id] PUT] ❌ ID numérico inválido:', {
-        productoId,
-        tipo: typeof productoId,
-        productoActual
-      })
-      return NextResponse.json(
-        { success: false, error: 'El producto encontrado no tiene un ID numérico válido' },
-        { status: 500 }
-      )
+
+    if (!producto || !producto.documentId) {
+      console.error('[API PUT] ❌ Producto no encontrado o sin documentId')
+      return NextResponse.json({
+        success: false,
+        error: `Producto con ID ${id} no encontrado`
+      }, { status: 404 })
     }
-    
-    console.log('[API /tienda/productos/[id] PUT] ✅ Producto encontrado y validado:', {
-      idOriginal: id,
-      idNumerico: productoId,
-      documentId: productoActual?.documentId,
-      nombre: productoActual?.nombre_libro
+
+    console.log('[API PUT] ✅ Producto encontrado:', {
+      id: producto.id,
+      documentId: producto.documentId,
+      nombre: producto.nombre_libro
     })
+
+    // PASO 2: Preparar datos para actualizar
+    const updateData: any = { data: {} }
     
-    // PASO 4: Preparar datos para Strapi v4/v5
-    // Strapi requiere formato: { data: { campo: valor } }
-    const updateData: any = {
-      data: {}
-    }
-    
-    // Mapear campos según la estructura real de Strapi
-    // Solo incluir campos que realmente existen y que se están actualizando
     if (body.nombre_libro !== undefined) {
       updateData.data.nombre_libro = body.nombre_libro
-      console.log('[API /tienda/productos/[id] PUT] Agregando nombre_libro:', body.nombre_libro)
     }
     if (body.descripcion !== undefined) {
       updateData.data.descripcion = body.descripcion
-      console.log('[API /tienda/productos/[id] PUT] Agregando descripcion:', body.descripcion)
     }
     if (body.portada_libro !== undefined) {
-      // Para relaciones de Media en Strapi:
-      // - number: ID de la imagen existente
-      // - null: eliminar la imagen
-      // - object con id: usar solo el id
-      if (typeof body.portada_libro === 'number') {
-        updateData.data.portada_libro = body.portada_libro
-        console.log('[API /tienda/productos/[id] PUT] Agregando portada_libro (number):', body.portada_libro)
-      } else if (body.portada_libro === null) {
-        updateData.data.portada_libro = null
-        console.log('[API /tienda/productos/[id] PUT] Eliminando portada_libro (null)')
-      } else if (typeof body.portada_libro === 'object' && body.portada_libro.id) {
-        updateData.data.portada_libro = body.portada_libro.id
-        console.log('[API /tienda/productos/[id] PUT] Agregando portada_libro (object.id):', body.portada_libro.id)
-      }
+      updateData.data.portada_libro = body.portada_libro
     }
-    
-    // Validar que hay campos para actualizar
-    if (Object.keys(updateData.data).length === 0) {
-      console.error('[API /tienda/productos/[id] PUT] ❌ No hay campos para actualizar')
-      return NextResponse.json(
-        { success: false, error: 'No se proporcionaron campos para actualizar' },
-        { status: 400 }
-      )
-    }
-    
-    const endpointUsed = `/api/libros/${productoId}`
-    
-    console.log('[API /tienda/productos/[id] PUT] Datos a enviar en PUT:', {
-      idOriginal: id,
-      idNumerico: productoId,
-      endpoint: endpointUsed,
-      camposActualizados: Object.keys(updateData.data),
-      updateDataCompleto: JSON.stringify(updateData, null, 2),
-    })
-    
-    // PASO 5: Enviar actualización a Strapi
-    try {
-      const response = await strapiClient.put<any>(
-        endpointUsed,
-        updateData
-      )
-      
-      console.log('[API /tienda/productos/[id] PUT] Respuesta completa del PUT:', {
-        tieneData: !!response.data,
-        tieneIdDirecto: !!response.id,
-        keys: Object.keys(response),
-        respuestaCompleta: JSON.stringify(response, null, 2).substring(0, 1000) + '...'
-      })
-      
-      // Strapi puede devolver los datos en response.data o directamente
-      const productoActualizado = response.data || response
-      
-      console.log('[API /tienda/productos/[id] PUT] ✅ Actualización exitosa:', {
-        idOriginal: id,
-        idNumerico: productoId,
-        tieneRespuesta: !!productoActualizado,
-        respuestaKeys: productoActualizado ? Object.keys(productoActualizado).slice(0, 10) : [],
-        productoActualizado: JSON.stringify(productoActualizado, null, 2).substring(0, 500) + '...'
-      })
-      
-      return NextResponse.json({
-        success: true,
-        data: productoActualizado,
-        message: 'Producto actualizado correctamente',
-      }, { status: 200 })
-    } catch (putError: any) {
-      console.error('[API /tienda/productos/[id] PUT] ❌ Error en PUT a Strapi:', {
-        message: putError.message,
-        status: putError.status,
-        details: putError.details,
-        endpoint: endpointUsed,
-        idUsado: productoId,
-        idOriginal: id,
-        updateDataEnviado: JSON.stringify(updateData, null, 2),
-        errorCompleto: JSON.stringify(putError, null, 2).substring(0, 1000) + '...'
-      })
-      
-      // Proporcionar información útil sobre el error
-      let errorMessage = putError.message || 'Error al actualizar producto'
-      
-      if (putError.status === 400) {
-        errorMessage = `Error de validación: ${putError.details || putError.message}. Verifica que los campos existan en Strapi.`
-      } else if (putError.status === 403 || putError.status === 401) {
-        errorMessage = 'Error de permisos: El token de autenticación no tiene permisos para actualizar productos.'
-      } else if (putError.status === 404) {
-        errorMessage = `Producto con ID ${productoId} no encontrado en Strapi.`
-      } else if (putError.status === 502) {
-        errorMessage = 'Error de conexión con Strapi: El servidor rechazó la petición. Verifica el formato de los datos.'
-      }
-      
-      return NextResponse.json(
-        { 
-          success: false,
-          error: errorMessage,
-          details: putError.details,
-          debug: {
-            idOriginal: id,
-            idNumericoUsado: productoId,
-            endpoint: endpointUsed,
-            updateDataEnviado: updateData
-          },
-        },
-        { status: putError.status || 500 }
-      )
-    }
-  } catch (error: any) {
-    console.error('[API /tienda/productos/[id] PUT] ❌ Error general:', {
-      message: error.message,
-      status: error.status,
-      details: error.details,
-      stack: error.stack,
-    })
-    return NextResponse.json(
-      { 
-        success: false,
-        error: error.message || 'Error al actualizar producto',
-      },
-      { status: error.status || 500 }
+
+    console.log('[API PUT] 📤 Enviando PUT a documentId:', producto.documentId)
+    console.log('[API PUT] 📤 Datos a enviar:', JSON.stringify(updateData, null, 2))
+
+    // PASO 3: Actualizar usando documentId (requerido por Strapi v5)
+    const updateResponse = await strapiClient.put<any>(
+      `/api/libros/${producto.documentId}`,
+      updateData
     )
+
+    console.log('[API PUT] ✅ Respuesta del PUT:', JSON.stringify(updateResponse, null, 2))
+
+    return NextResponse.json({
+      success: true,
+      data: updateResponse.data || updateResponse
+    })
+
+  } catch (error: any) {
+    console.error('[API PUT] ❌ ERROR GENERAL:', error)
+    return NextResponse.json({
+      success: false,
+      error: error.message || 'Error desconocido',
+      details: error
+    }, { status: 500 })
   }
 }

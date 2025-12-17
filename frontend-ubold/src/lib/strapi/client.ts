@@ -83,11 +83,35 @@ const strapiClient = {
    */
   async get<T>(path: string, options?: RequestInit): Promise<T> {
     const url = getStrapiUrl(path)
+    const headers = getHeaders(options?.headers)
+    
+    // Logs detallados para debugging (solo en desarrollo o si hay error)
+    if (process.env.NODE_ENV !== 'production' || !STRAPI_API_TOKEN) {
+      console.log('[Strapi Client GET] Petición:', {
+        url,
+        path,
+        tieneToken: !!STRAPI_API_TOKEN,
+        tieneAuthHeader: !!headers['Authorization'],
+        headersKeys: Object.keys(headers),
+      })
+    }
+    
     const response = await fetch(url, {
       method: 'GET',
-      headers: getHeaders(options?.headers),
+      headers,
       ...options,
     })
+    
+    // Log respuesta antes de manejar errores
+    if (!response.ok) {
+      console.error('[Strapi Client GET] ❌ Error en respuesta:', {
+        url,
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        tieneToken: !!STRAPI_API_TOKEN,
+      })
+    }
     
     return handleResponse<T>(response)
   },
