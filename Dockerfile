@@ -1,20 +1,22 @@
-# Usar imagen base de Node.js 20.9.0 o superior
-FROM node:20.9.0-alpine
+# Usar imagen base de Node.js 20 (versión más reciente disponible)
+FROM node:20-alpine
 
 # Establecer directorio de trabajo
-WORKDIR /app
-
-# Copiar archivos de dependencias de frontend-ubold
-COPY frontend-ubold/package*.json ./frontend-ubold/
-
-# Cambiar al directorio frontend-ubold e instalar dependencias
 WORKDIR /app/frontend-ubold
-RUN npm ci --prefer-offline --no-audit || npm install
 
-# Copiar el resto de los archivos de frontend-ubold
+# Copiar SOLO archivos de dependencias primero (para cache de Docker)
+# Esto permite que Docker cachee esta capa si no cambian las dependencias
+COPY frontend-ubold/package*.json ./
+COPY frontend-ubold/bun.lock* ./ 2>/dev/null || true
+COPY frontend-ubold/yarn.lock* ./ 2>/dev/null || true
+
+# Instalar dependencias (esta capa se cachea si package.json no cambia)
+RUN npm ci --prefer-offline --no-audit --no-fund || npm install --prefer-offline --no-audit --no-fund
+
+# Copiar el resto de los archivos (esto invalida el cache solo cuando cambia el código)
 COPY frontend-ubold/ .
 
-# Construir la aplicación
+# Construir la aplicación (usa cache de node_modules de la capa anterior)
 RUN npm run build
 
 # Exponer el puerto
