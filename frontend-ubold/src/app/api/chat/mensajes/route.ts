@@ -47,14 +47,15 @@ export async function GET(request: NextRequest) {
     let query1 = `/api/intranet-chats?filters[remitente_id][$eq]=${remitenteIdNum}&filters[cliente_id][$eq]=${colaboradorIdNum}&sort=fecha:asc&pagination[pageSize]=1000`
     let query2 = `/api/intranet-chats?filters[remitente_id][$eq]=${colaboradorIdNum}&filters[cliente_id][$eq]=${remitenteIdNum}&sort=fecha:asc&pagination[pageSize]=1000`
     
-    // Agregar filtro de fecha si existe
+    // Agregar filtro de fecha solo a query1 (mensajes que yo envié) para polling
+    // Query2 (mensajes recibidos) NO usa filtro de fecha para asegurar que se obtengan todos
     if (ultimaFecha) {
       try {
         const fechaLimite = new Date(ultimaFecha)
         fechaLimite.setSeconds(fechaLimite.getSeconds() - 2)
         const fechaISO = encodeURIComponent(fechaLimite.toISOString())
         query1 += `&filters[fecha][$gt]=${fechaISO}`
-        query2 += `&filters[fecha][$gt]=${fechaISO}`
+        // NO agregar filtro de fecha a query2 para obtener todos los mensajes recibidos
       } catch (e) {
         // Ignorar error de fecha
       }
