@@ -2,46 +2,73 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Organize from '@/app/(admin)/(apps)/(ecommerce)/add-product/components/Organize'
-import Pricing from '@/app/(admin)/(apps)/(ecommerce)/add-product/components/Pricing'
-import ProductImage from '@/app/(admin)/(apps)/(ecommerce)/add-product/components/ProductImage'
-import ProductInformation from '@/app/(admin)/(apps)/(ecommerce)/add-product/components/ProductInformation'
+import { RelationSelector } from './components/RelationSelector'
+import ProductImage from './components/ProductImage'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { Alert, Button, Col, Container, Row } from 'react-bootstrap'
-import { LuClipboardX, LuPlus, LuSave } from 'react-icons/lu'
-import { FileType } from '@/types'
+import { Alert, Button, Card, CardBody, CardHeader, Col, Container, FormControl, FormGroup, FormLabel, FormSelect, Row } from 'react-bootstrap'
 
-const Page = () => {
+export default function AddProductPage() {
   const router = useRouter()
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-
+  
   const [formData, setFormData] = useState({
+    // === BÁSICOS ===
+    isbn_libro: '',
     nombre_libro: '',
     subtitulo_libro: '',
-    isbn_libro: '',
     descripcion: '',
+    
+    // === RELACIONES SIMPLES (documentId) ===
+    obra: '',
+    autor_relacion: '',
+    editorial: '',
+    sello: '',
+    coleccion: '',
+    
+    // === RELACIONES MÚLTIPLES (array de documentIds) ===
+    canales: [] as string[],
+    marcas: [] as string[],
+    etiquetas: [] as string[],
+    categorias_producto: [] as string[],
+    
+    // === IDs NUMÉRICOS OPCIONALES ===
+    id_autor: '',
+    id_editorial: '',
+    id_sello: '',
+    id_coleccion: '',
+    id_obra: '',
+    
+    // === INFORMACIÓN DE EDICIÓN ===
+    numero_edicion: '',
+    agno_edicion: '',
+    idioma: '',
+    tipo_libro: '',
+    estado_edicion: 'Vigente',
+    
+    // === MEDIA ===
     portada_libro: null as File | null,
   })
 
-  const handleSubmit = async (publish: boolean = false) => {
-    try {
-      setIsSubmitting(true)
-      setError(null)
-      setSuccess(false)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    setSuccess(false)
 
-      // Validar campos requeridos
+    try {
+      // Validar nombre requerido
       if (!formData.nombre_libro.trim()) {
-        setError('El nombre del producto es requerido')
-        setIsSubmitting(false)
+        setError('El nombre del libro es obligatorio')
+        setLoading(false)
         return
       }
 
       // Subir imagen primero si hay una
       let portadaLibroId: number | null = null
       if (formData.portada_libro) {
-        console.log('[Add Product] Subiendo imagen...')
+        console.log('[AddProduct] Subiendo imagen...')
         const uploadFormData = new FormData()
         uploadFormData.append('file', formData.portada_libro)
         
@@ -54,150 +81,468 @@ const Page = () => {
         
         if (uploadResult.success && uploadResult.id) {
           portadaLibroId = uploadResult.id
-          console.log('[Add Product] Imagen subida con ID:', portadaLibroId)
+          console.log('[AddProduct] Imagen subida con ID:', portadaLibroId)
         } else {
-          console.warn('[Add Product] No se pudo subir la imagen:', uploadResult.error)
-          // Continuar sin imagen si falla la subida
+          console.warn('[AddProduct] No se pudo subir la imagen:', uploadResult.error)
         }
       }
 
-      // Preparar datos para crear producto
-      const productData: any = {
-        nombre_libro: formData.nombre_libro.trim(),
+      // Preparar datos (solo enviar campos con valor)
+      const dataToSend: any = {
+        nombre_libro: formData.nombre_libro.trim()
       }
+      
+      // === CAMPOS BÁSICOS ===
+      if (formData.isbn_libro?.trim()) dataToSend.isbn_libro = formData.isbn_libro.trim()
+      if (formData.subtitulo_libro?.trim()) dataToSend.subtitulo_libro = formData.subtitulo_libro.trim()
+      if (formData.descripcion?.trim()) dataToSend.descripcion = formData.descripcion.trim()
+      if (portadaLibroId) dataToSend.portada_libro = portadaLibroId
+      
+      // === RELACIONES SIMPLES (enviar documentId si hay valor) ===
+      if (formData.obra) dataToSend.obra = formData.obra
+      if (formData.autor_relacion) dataToSend.autor_relacion = formData.autor_relacion
+      if (formData.editorial) dataToSend.editorial = formData.editorial
+      if (formData.sello) dataToSend.sello = formData.sello
+      if (formData.coleccion) dataToSend.coleccion = formData.coleccion
+      
+      // === RELACIONES MÚLTIPLES (enviar array si tiene elementos) ===
+      if (formData.canales.length > 0) dataToSend.canales = formData.canales
+      if (formData.marcas.length > 0) dataToSend.marcas = formData.marcas
+      if (formData.etiquetas.length > 0) dataToSend.etiquetas = formData.etiquetas
+      if (formData.categorias_producto.length > 0) dataToSend.categorias_producto = formData.categorias_producto
+      
+      // === IDS NUMÉRICOS ===
+      if (formData.id_autor) dataToSend.id_autor = parseInt(formData.id_autor)
+      if (formData.id_editorial) dataToSend.id_editorial = parseInt(formData.id_editorial)
+      if (formData.id_sello) dataToSend.id_sello = parseInt(formData.id_sello)
+      if (formData.id_coleccion) dataToSend.id_coleccion = parseInt(formData.id_coleccion)
+      if (formData.id_obra) dataToSend.id_obra = parseInt(formData.id_obra)
+      
+      // === EDICIÓN ===
+      if (formData.numero_edicion) dataToSend.numero_edicion = parseInt(formData.numero_edicion)
+      if (formData.agno_edicion) dataToSend.agno_edicion = parseInt(formData.agno_edicion)
+      if (formData.idioma) dataToSend.idioma = formData.idioma
+      if (formData.tipo_libro) dataToSend.tipo_libro = formData.tipo_libro
+      if (formData.estado_edicion) dataToSend.estado_edicion = formData.estado_edicion
+      
+      console.log('[AddProduct] Enviando datos:', dataToSend)
 
-      // ISBN: si está vacío, el backend generará uno automático
-      if (formData.isbn_libro.trim()) {
-        productData.isbn_libro = formData.isbn_libro.trim()
-      }
-
-      if (formData.subtitulo_libro.trim()) {
-        productData.subtitulo_libro = formData.subtitulo_libro.trim()
-      }
-
-      if (formData.descripcion.trim()) {
-        productData.descripcion = formData.descripcion.trim()
-      }
-
-      if (portadaLibroId) {
-        productData.portada_libro = portadaLibroId
-      }
-
-      console.log('[Add Product] Creando producto con datos:', productData)
-
-      // Crear producto
       const response = await fetch('/api/tienda/productos', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(productData),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dataToSend)
       })
 
-      const result = await response.json()
+      const data = await response.json()
 
-      if (!response.ok || !result.success) {
-        // Mostrar errores detallados si vienen de Strapi
-        const errorMessage = result.details?.isbn_libro 
-          ? result.error || 'Error al crear producto'
-          : result.error || 'Error al crear producto'
-        throw new Error(errorMessage)
+      if (data.success) {
+        setSuccess(true)
+        setTimeout(() => {
+          router.push('/products')
+        }, 1500)
+      } else {
+        setError(data.error || 'Error al crear producto')
       }
-
-      console.log('[Add Product] ✅ Producto creado:', result.data)
-      setSuccess(true)
-
-      // Redirigir después de 1 segundo
-      setTimeout(() => {
-        router.push('/products')
-      }, 1000)
-
     } catch (err: any) {
-      console.error('[Add Product] ❌ Error:', err)
-      setError(err.message || 'Error al crear producto')
+      console.error('[AddProduct] Error:', err)
+      setError('Error de conexión')
     } finally {
-      setIsSubmitting(false)
+      setLoading(false)
     }
   }
 
   return (
     <Container fluid>
-      <PageBreadcrumb title="Add Product" subtitle="Ecommerce" />
+      <PageBreadcrumb title="Agregar Producto" subtitle="Ecommerce" />
 
-      {error && (
-        <Alert variant="danger" dismissible onClose={() => setError(null)}>
-          <strong>Error:</strong> {error}
-        </Alert>
-      )}
+      <form onSubmit={handleSubmit}>
+        {error && (
+          <Alert variant="danger" dismissible onClose={() => setError(null)}>
+            <strong>Error:</strong> {error}
+          </Alert>
+        )}
+        
+        {success && (
+          <Alert variant="success">
+            ✅ Producto creado exitosamente. Redirigiendo...
+          </Alert>
+        )}
 
-      {success && (
-        <Alert variant="success">
-          <strong>¡Éxito!</strong> Producto creado correctamente. Redirigiendo...
-        </Alert>
-      )}
-
-      <Row className="justify-content-center">
-        <Col xxl={12}>
-          <Row>
-            <Col xxl={8}>
-              <ProductInformation 
-                nombre_libro={formData.nombre_libro}
-                subtitulo_libro={formData.subtitulo_libro}
-                isbn_libro={formData.isbn_libro}
-                descripcion={formData.descripcion}
-                onNombreChange={(value) => setFormData({ ...formData, nombre_libro: value })}
-                onSubtituloChange={(value) => setFormData({ ...formData, subtitulo_libro: value })}
-                onIsbnChange={(value) => setFormData({ ...formData, isbn_libro: value })}
-                onDescripcionChange={(value) => setFormData({ ...formData, descripcion: value })}
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* SECCIÓN 1: INFORMACIÓN BÁSICA */}
+        {/* ════════════════════════════════════════════════════════════════ */}
+        <Card className="mb-3">
+          <CardHeader>
+            <h5 className="card-title mb-0">Información Básica</h5>
+          </CardHeader>
+          <CardBody>
+            <Row>
+              <Col md={6}>
+                <FormGroup className="mb-3">
+                  <FormLabel>
+                    ISBN <span className="text-muted">(se genera automático si se deja vacío)</span>
+                  </FormLabel>
+                  <FormControl
+                    type="text"
+                    placeholder="Ejemplo: 978-3-16-148410-0"
+                    value={formData.isbn_libro}
+                    onChange={(e) => setFormData({...formData, isbn_libro: e.target.value})}
+                  />
+                </FormGroup>
+              </Col>
+              
+              <Col md={6}>
+                <FormGroup className="mb-3">
+                  <FormLabel>
+                    Nombre del Libro <span className="text-danger">*</span>
+                  </FormLabel>
+                  <FormControl
+                    type="text"
+                    required
+                    placeholder="Título del libro"
+                    value={formData.nombre_libro}
+                    onChange={(e) => setFormData({...formData, nombre_libro: e.target.value})}
+                  />
+                </FormGroup>
+              </Col>
+            </Row>
+            
+            <FormGroup className="mb-3">
+              <FormLabel>Subtítulo</FormLabel>
+              <FormControl
+                type="text"
+                placeholder="Subtítulo del libro (opcional)"
+                value={formData.subtitulo_libro}
+                onChange={(e) => setFormData({...formData, subtitulo_libro: e.target.value})}
               />
-
-              <ProductImage 
-                onImageChange={(file) => setFormData({ ...formData, portada_libro: file })}
+            </FormGroup>
+            
+            <FormGroup className="mb-3">
+              <FormLabel>Descripción</FormLabel>
+              <FormControl
+                as="textarea"
+                rows={4}
+                placeholder="Descripción del libro"
+                value={formData.descripcion}
+                onChange={(e) => setFormData({...formData, descripcion: e.target.value})}
               />
-            </Col>
+            </FormGroup>
 
-            <Col xxl={4}>
-              <Pricing />
+            <ProductImage 
+              onImageChange={(file) => setFormData({ ...formData, portada_libro: file })}
+            />
+          </CardBody>
+        </Card>
 
-              <Organize />
-            </Col>
-          </Row>
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* SECCIÓN 2: RELACIONES PRINCIPALES */}
+        {/* ════════════════════════════════════════════════════════════════ */}
+        <Card className="mb-3">
+          <CardHeader>
+            <h5 className="card-title mb-0">Relaciones</h5>
+          </CardHeader>
+          <CardBody>
+            <Row>
+              <Col md={6}>
+                <RelationSelector
+                  label="Obra"
+                  value={formData.obra}
+                  onChange={(val) => setFormData({...formData, obra: val as string})}
+                  endpoint="/api/tienda/obras"
+                  displayField="titulo"
+                />
+              </Col>
+              
+              <Col md={6}>
+                <RelationSelector
+                  label="Autor"
+                  value={formData.autor_relacion}
+                  onChange={(val) => setFormData({...formData, autor_relacion: val as string})}
+                  endpoint="/api/tienda/autores"
+                  displayField="nombre"
+                />
+              </Col>
+            </Row>
+            
+            <Row>
+              <Col md={6}>
+                <RelationSelector
+                  label="Editorial"
+                  value={formData.editorial}
+                  onChange={(val) => setFormData({...formData, editorial: val as string})}
+                  endpoint="/api/tienda/editoriales"
+                  displayField="nombre"
+                />
+              </Col>
+              
+              <Col md={6}>
+                <RelationSelector
+                  label="Sello"
+                  value={formData.sello}
+                  onChange={(val) => setFormData({...formData, sello: val as string})}
+                  endpoint="/api/tienda/sellos"
+                  displayField="nombre"
+                />
+              </Col>
+            </Row>
+            
+            <Row>
+              <Col md={6}>
+                <RelationSelector
+                  label="Colección / Serie"
+                  value={formData.coleccion}
+                  onChange={(val) => setFormData({...formData, coleccion: val as string})}
+                  endpoint="/api/tienda/colecciones"
+                  displayField="nombre"
+                />
+              </Col>
+            </Row>
+          </CardBody>
+        </Card>
 
-          <div className="mt-2 mb-4 d-flex gap-2 justify-content-center">
-            <Button 
-              variant="link" 
-              className="text-danger fw-semibold"
-              onClick={() => router.push('/products')}
-              disabled={isSubmitting}
-            >
-              <LuClipboardX className="fs-sm me-2" /> Discard
-            </Button>
-            <Button 
-              variant="soft-secondary" 
-              className="btn-soft-purple"
-              onClick={() => handleSubmit(false)}
-              disabled={isSubmitting}
-            >
-              <LuSave className="fs-sm me-2" /> Save as Draft
-            </Button>
-            <Button 
-              variant="success"
-              onClick={() => handleSubmit(true)}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>Guardando...</>
-              ) : (
-                <>
-                  <LuPlus className="fs-sm me-2" /> Publish
-                </>
-              )}
-            </Button>
-          </div>
-        </Col>
-      </Row>
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* SECCIÓN 3: CANALES DE PUBLICACIÓN */}
+        {/* ════════════════════════════════════════════════════════════════ */}
+        <Card className="mb-3">
+          <CardHeader>
+            <h5 className="card-title mb-0">Publicación</h5>
+          </CardHeader>
+          <CardBody>
+            <p className="text-muted">Selecciona en qué canales/sitios web se publicará este libro</p>
+            
+            <RelationSelector
+              label="Canales"
+              value={formData.canales}
+              onChange={(val) => setFormData({...formData, canales: val as string[]})}
+              endpoint="/api/tienda/canales"
+              multiple={true}
+              displayField="nombre"
+            />
+          </CardBody>
+        </Card>
+
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* SECCIÓN 4: CATEGORIZACIÓN */}
+        {/* ════════════════════════════════════════════════════════════════ */}
+        <Card className="mb-3">
+          <CardHeader>
+            <h5 className="card-title mb-0">Categorización</h5>
+          </CardHeader>
+          <CardBody>
+            <Row>
+              <Col md={6}>
+                <RelationSelector
+                  label="Marcas"
+                  value={formData.marcas}
+                  onChange={(val) => setFormData({...formData, marcas: val as string[]})}
+                  endpoint="/api/tienda/marcas"
+                  multiple={true}
+                  displayField="nombre"
+                />
+              </Col>
+              
+              <Col md={6}>
+                <RelationSelector
+                  label="Etiquetas"
+                  value={formData.etiquetas}
+                  onChange={(val) => setFormData({...formData, etiquetas: val as string[]})}
+                  endpoint="/api/tienda/etiquetas"
+                  multiple={true}
+                  displayField="nombre"
+                />
+              </Col>
+            </Row>
+            
+            <RelationSelector
+              label="Categorías de Producto"
+              value={formData.categorias_producto}
+              onChange={(val) => setFormData({...formData, categorias_producto: val as string[]})}
+              endpoint="/api/tienda/categorias"
+              multiple={true}
+              displayField="nombre"
+            />
+          </CardBody>
+        </Card>
+
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* SECCIÓN 5: INFORMACIÓN DE EDICIÓN */}
+        {/* ════════════════════════════════════════════════════════════════ */}
+        <Card className="mb-3">
+          <CardHeader>
+            <h5 className="card-title mb-0">Información de Edición</h5>
+          </CardHeader>
+          <CardBody>
+            <Row>
+              <Col md={4}>
+                <FormGroup className="mb-3">
+                  <FormLabel>Número de Edición</FormLabel>
+                  <FormControl
+                    type="number"
+                    placeholder="Ej: 1"
+                    value={formData.numero_edicion}
+                    onChange={(e) => setFormData({...formData, numero_edicion: e.target.value})}
+                  />
+                </FormGroup>
+              </Col>
+              
+              <Col md={4}>
+                <FormGroup className="mb-3">
+                  <FormLabel>Año de Edición</FormLabel>
+                  <FormControl
+                    type="number"
+                    placeholder="Ej: 2024"
+                    value={formData.agno_edicion}
+                    onChange={(e) => setFormData({...formData, agno_edicion: e.target.value})}
+                  />
+                </FormGroup>
+              </Col>
+              
+              <Col md={4}>
+                <FormGroup className="mb-3">
+                  <FormLabel>Estado de Edición</FormLabel>
+                  <FormSelect
+                    value={formData.estado_edicion}
+                    onChange={(e) => setFormData({...formData, estado_edicion: e.target.value})}
+                  >
+                    <option value="">Seleccionar...</option>
+                    <option value="Vigente">Vigente</option>
+                    <option value="Agotado">Agotado</option>
+                    <option value="Descatalogado">Descatalogado</option>
+                  </FormSelect>
+                </FormGroup>
+              </Col>
+            </Row>
+            
+            <Row>
+              <Col md={6}>
+                <FormGroup className="mb-3">
+                  <FormLabel>Idioma</FormLabel>
+                  <FormSelect
+                    value={formData.idioma}
+                    onChange={(e) => setFormData({...formData, idioma: e.target.value})}
+                  >
+                    <option value="">Seleccionar...</option>
+                    <option value="Español">Español</option>
+                    <option value="Inglés">Inglés</option>
+                    <option value="Francés">Francés</option>
+                    <option value="Alemán">Alemán</option>
+                    <option value="Portugués">Portugués</option>
+                    <option value="Otro">Otro</option>
+                  </FormSelect>
+                </FormGroup>
+              </Col>
+              
+              <Col md={6}>
+                <FormGroup className="mb-3">
+                  <FormLabel>Tipo de Libro</FormLabel>
+                  <FormSelect
+                    value={formData.tipo_libro}
+                    onChange={(e) => setFormData({...formData, tipo_libro: e.target.value})}
+                  >
+                    <option value="">Seleccionar...</option>
+                    <option value="Físico">Físico</option>
+                    <option value="Digital">Digital</option>
+                    <option value="Audiolibro">Audiolibro</option>
+                  </FormSelect>
+                </FormGroup>
+              </Col>
+            </Row>
+          </CardBody>
+        </Card>
+
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* SECCIÓN 6: IDs OPCIONALES */}
+        {/* ════════════════════════════════════════════════════════════════ */}
+        <Card className="mb-3">
+          <CardHeader>
+            <h5 className="card-title mb-0">
+              IDs de Integración <span className="text-muted">(Opcional)</span>
+            </h5>
+          </CardHeader>
+          <CardBody>
+            <p className="text-muted small">IDs numéricos para integración con sistemas externos</p>
+            
+            <Row>
+              <Col md={3}>
+                <FormGroup className="mb-3">
+                  <FormLabel>ID Autor</FormLabel>
+                  <FormControl
+                    type="number"
+                    value={formData.id_autor}
+                    onChange={(e) => setFormData({...formData, id_autor: e.target.value})}
+                  />
+                </FormGroup>
+              </Col>
+              
+              <Col md={3}>
+                <FormGroup className="mb-3">
+                  <FormLabel>ID Editorial</FormLabel>
+                  <FormControl
+                    type="number"
+                    value={formData.id_editorial}
+                    onChange={(e) => setFormData({...formData, id_editorial: e.target.value})}
+                  />
+                </FormGroup>
+              </Col>
+              
+              <Col md={3}>
+                <FormGroup className="mb-3">
+                  <FormLabel>ID Sello</FormLabel>
+                  <FormControl
+                    type="number"
+                    value={formData.id_sello}
+                    onChange={(e) => setFormData({...formData, id_sello: e.target.value})}
+                  />
+                </FormGroup>
+              </Col>
+              
+              <Col md={3}>
+                <FormGroup className="mb-3">
+                  <FormLabel>ID Colección</FormLabel>
+                  <FormControl
+                    type="number"
+                    value={formData.id_coleccion}
+                    onChange={(e) => setFormData({...formData, id_coleccion: e.target.value})}
+                  />
+                </FormGroup>
+              </Col>
+            </Row>
+          </CardBody>
+        </Card>
+
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* BOTONES DE ACCIÓN */}
+        {/* ════════════════════════════════════════════════════════════════ */}
+        <Row>
+          <Col xs={12}>
+            <div className="text-end mb-4">
+              <Button 
+                type="button" 
+                variant="secondary" 
+                className="me-2" 
+                onClick={() => router.back()}
+                disabled={loading}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                type="submit" 
+                variant="primary"
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Creando...
+                  </>
+                ) : (
+                  'Crear Producto'
+                )}
+              </Button>
+            </div>
+          </Col>
+        </Row>
+      </form>
     </Container>
   )
 }
-
-export default Page

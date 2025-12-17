@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Campos opcionales
+    // Campos opcionales básicos
     if (body.subtitulo_libro?.trim()) {
       productData.data.subtitulo_libro = body.subtitulo_libro.trim()
     }
@@ -143,7 +143,34 @@ export async function POST(request: NextRequest) {
       productData.data.portada_libro = body.portada_libro
     }
 
-    console.log('[API POST] 📤 Enviando a Strapi:', productData)
+    // === RELACIONES SIMPLES (documentId) ===
+    if (body.obra) productData.data.obra = body.obra
+    if (body.autor_relacion) productData.data.autor_relacion = body.autor_relacion
+    if (body.editorial) productData.data.editorial = body.editorial
+    if (body.sello) productData.data.sello = body.sello
+    if (body.coleccion) productData.data.coleccion = body.coleccion
+
+    // === RELACIONES MÚLTIPLES (array de documentIds) ===
+    if (body.canales?.length > 0) productData.data.canales = body.canales
+    if (body.marcas?.length > 0) productData.data.marcas = body.marcas
+    if (body.etiquetas?.length > 0) productData.data.etiquetas = body.etiquetas
+    if (body.categorias_producto?.length > 0) productData.data.categorias_producto = body.categorias_producto
+
+    // === IDS NUMÉRICOS ===
+    if (body.id_autor) productData.data.id_autor = body.id_autor
+    if (body.id_editorial) productData.data.id_editorial = body.id_editorial
+    if (body.id_sello) productData.data.id_sello = body.id_sello
+    if (body.id_coleccion) productData.data.id_coleccion = body.id_coleccion
+    if (body.id_obra) productData.data.id_obra = body.id_obra
+
+    // === INFORMACIÓN DE EDICIÓN ===
+    if (body.numero_edicion) productData.data.numero_edicion = body.numero_edicion
+    if (body.agno_edicion) productData.data.agno_edicion = body.agno_edicion
+    if (body.idioma) productData.data.idioma = body.idioma
+    if (body.tipo_libro) productData.data.tipo_libro = body.tipo_libro
+    if (body.estado_edicion) productData.data.estado_edicion = body.estado_edicion
+
+    console.log('[API POST] 📤 Enviando a Strapi:', JSON.stringify(productData, null, 2))
 
     // Crear en Strapi
     const response = await strapiClient.post<any>('/api/libros', productData)
