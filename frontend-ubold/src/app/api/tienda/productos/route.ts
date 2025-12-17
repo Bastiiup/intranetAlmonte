@@ -14,22 +14,11 @@ export async function GET() {
     // Endpoint correcto confirmado: /api/libros (verificado en test-strapi)
     const endpointUsed = '/api/libros'
     
-    // Populate específico para asegurar que las imágenes se traigan correctamente
-    // En Strapi v4, a veces populate=* no trae todos los campos de media
-    const populateParams = [
-      'populate[portada_libro][populate]=*',
-      'populate[PORTADA_LIBRO][populate]=*',
-      'populate[imagenes_interior][populate]=*',
-      'populate[autor_relacion][populate]=*',
-      'populate[editorial][populate]=*',
-      'populate[precios][populate]=*',
-      'populate[stocks][populate]=*',
-      'populate[STOCKS][populate]=*',
-      'populate[PRECIOS][populate]=*',
-      'pagination[pageSize]=100'
-    ].join('&')
-    
-    const response = await strapiClient.get<any>(`${endpointUsed}?${populateParams}`)
+    // Usar populate=* que funciona correctamente
+    // Solo especificar campos que realmente existen en Strapi (en minúsculas)
+    const response = await strapiClient.get<any>(
+      `${endpointUsed}?populate=*&pagination[pageSize]=100`
+    )
     
     // Log detallado para debugging
     console.log('[API /tienda/productos] Respuesta de Strapi:', {
