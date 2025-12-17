@@ -52,18 +52,21 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
   const attrs = producto.attributes || {}
   const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (producto as any)
 
-  // Obtener URL de imagen (igual que ProductosGrid)
+  // Obtener URL de imagen (portada_libro en minúsculas como en Strapi)
   const getImageUrl = (): string => {
-    const portada = data.PORTADA_LIBRO?.data || data.portada_libro?.data || data.portadaLibro?.data
+    // Intentar primero con portada_libro (minúsculas, como está en Strapi)
+    const portada = data.portada_libro?.data || data.PORTADA_LIBRO?.data || data.portadaLibro?.data
     if (!portada) return '/images/products/1.png'
     
     const url = portada.attributes?.url || portada.attributes?.URL
     if (!url) return '/images/products/1.png'
     
+    // Si la URL ya es completa, retornarla tal cual
     if (url.startsWith('http')) {
       return url
     }
     
+    // Si no, construir la URL completa con la base de Strapi
     const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
     return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
   }
