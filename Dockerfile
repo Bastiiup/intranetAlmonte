@@ -6,8 +6,6 @@ WORKDIR /app
 
 # Copiar archivos de dependencias de frontend-ubold
 COPY frontend-ubold/package*.json ./frontend-ubold/
-COPY frontend-ubold/bun.lock* ./frontend-ubold/ 2>/dev/null || true
-COPY frontend-ubold/yarn.lock* ./frontend-ubold/ 2>/dev/null || true
 
 # Cambiar al directorio frontend-ubold e instalar dependencias
 WORKDIR /app/frontend-ubold
