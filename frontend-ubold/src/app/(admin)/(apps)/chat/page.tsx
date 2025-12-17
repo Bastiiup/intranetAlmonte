@@ -44,6 +44,16 @@ const Page = () => {
   const { colaborador, persona } = useAuth()
   const currentUserId = colaborador?.id ? String(colaborador.id) : null
   
+  // Debug: Log del colaborador actual al cargar el componente
+  useEffect(() => {
+    console.log('[Chat] Colaborador actual cargado:', {
+      colaboradorId: colaborador?.id,
+      currentUserId,
+      email_login: colaborador?.email_login,
+      personaNombre: persona?.nombre_completo || persona?.nombres,
+    })
+  }, [colaborador, currentUserId, persona])
+  
   // Obtener datos del usuario actual para mostrar en mensajes
   const currentUserData = {
     id: currentUserId || '1',
@@ -321,11 +331,24 @@ const Page = () => {
 
   // Enviar mensaje
   const handleSendMessage = async () => {
-    if (!messageText.trim() || !currentContact || isSending) return
+    if (!messageText.trim() || !currentContact || isSending || !currentUserId) return
 
     const texto = messageText.trim()
     setMessageText('')
     setIsSending(true)
+
+    // Debug: Log detallado antes de enviar
+    const remitenteIdNum = parseInt(currentUserId, 10)
+    const colaboradorIdNum = parseInt(currentContact.id, 10)
+    
+    console.log('[Chat] Enviando mensaje - DEBUG:', {
+      texto: texto.substring(0, 50),
+      remitente_id: remitenteIdNum,
+      colaborador_id: colaboradorIdNum,
+      currentUserId,
+      colaboradorFromHook: colaborador?.id,
+      currentContactId: currentContact.id,
+    })
 
     try {
       const response = await fetch('/api/chat/mensajes', {
@@ -335,8 +358,8 @@ const Page = () => {
         },
         body: JSON.stringify({
           texto,
-          colaborador_id: parseInt(currentContact.id), // ID del colaborador con quien chateas
-          remitente_id: colaborador?.id || 1, // ID del colaborador autenticado (quien envía)
+          colaborador_id: colaboradorIdNum, // ID del colaborador con quien chateas
+          remitente_id: remitenteIdNum, // ID del colaborador autenticado (quien envía) - usar currentUserId directamente
         }),
       })
 
@@ -356,7 +379,7 @@ const Page = () => {
       // para que aparezca de inmediato mientras se recarga desde el servidor
       const mensajeEnviado: MessageType = {
         id: responseData.data?.id ? String(responseData.data.id) : `temp-${Date.now()}`,
-        senderId: String(colaborador?.id || 1),
+        senderId: currentUserId || '1', // usar currentUserId directamente
         text: texto,
         time: new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
       }
