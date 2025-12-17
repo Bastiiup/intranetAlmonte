@@ -229,20 +229,48 @@ const Products = ({ productos, error }: ProductsProps) => {
                   }}
                 >
                   {imageUrl ? (
-                    <Image 
-                      src={imageUrl} 
-                      alt={nombre} 
-                      fill
-                      unoptimized
-                      style={{
-                        objectFit: 'contain',
-                        padding: '12px',
-                      }}
-                      sizes="(max-width: 576px) 100vw, (max-width: 768px) 50vw, (max-width: 992px) 33vw, 25vw"
-                      onError={(e) => {
-                        console.error('[Products Grid] Error al cargar imagen:', imageUrl, e)
-                      }}
-                    />
+                    <>
+                      {/* Intentar con Image de Next.js primero */}
+                      <Image 
+                        src={imageUrl} 
+                        alt={nombre} 
+                        fill
+                        unoptimized
+                        style={{
+                          objectFit: 'contain',
+                          padding: '12px',
+                        }}
+                        sizes="(max-width: 576px) 100vw, (max-width: 768px) 50vw, (max-width: 992px) 33vw, 25vw"
+                        onError={(e) => {
+                          console.error('[Products Grid] Error con Next Image:', imageUrl, e)
+                          // Si falla Next Image, intentar con img nativo
+                          const imgElement = e.currentTarget.nextElementSibling as HTMLImageElement
+                          if (imgElement) {
+                            imgElement.style.display = 'block'
+                            e.currentTarget.style.display = 'none'
+                          }
+                        }}
+                      />
+                      {/* Fallback con img nativo */}
+                      <img
+                        src={imageUrl}
+                        alt={nombre}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'contain',
+                          padding: '12px',
+                          display: 'none',
+                        }}
+                        onError={(e) => {
+                          console.error('[Products Grid] Error también con img nativo:', imageUrl, e)
+                          e.currentTarget.style.display = 'none'
+                        }}
+                        onLoad={() => {
+                          console.log('[Products Grid] Imagen cargada con img nativo:', imageUrl)
+                        }}
+                      />
+                    </>
                   ) : (
                     <div className="text-muted d-flex flex-column align-items-center justify-content-center">
                       <small>Sin imagen</small>
