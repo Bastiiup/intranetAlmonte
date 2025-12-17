@@ -9,8 +9,19 @@ import { STRAPI_API_URL } from '@/lib/strapi/config'
 
 interface Producto {
   id: number
-  attributes: {
-    // Campos principales
+  attributes?: {
+    // Campos principales (en mayúsculas como vienen de Strapi)
+    ISBN_LIBRO?: string
+    NOMBRE_LIBRO?: string
+    SUBTITULO_LIBRO?: string
+    DESCRIPCION?: string
+    NUMERO_EDICION?: number
+    AGNO_EDICION?: number
+    IDIOMA?: string
+    TIPO_LIBRO?: string
+    ESTADO_EDICION?: string
+    COMPLETO?: boolean
+    // También soportar minúsculas por compatibilidad
     isbn_libro?: string
     nombre_libro?: string
     subtitulo_libro?: string
@@ -99,6 +110,16 @@ interface ProductosGridProps {
   error: string | null
 }
 
+// Helper para obtener un campo con múltiples variaciones de nombre
+const getField = (obj: any, ...fieldNames: string[]): any => {
+  for (const fieldName of fieldNames) {
+    if (obj[fieldName] !== undefined && obj[fieldName] !== null && obj[fieldName] !== '') {
+      return obj[fieldName]
+    }
+  }
+  return undefined
+}
+
 export default function ProductosGrid({ productos, error }: ProductosGridProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterEstado, setFilterEstado] = useState<'all' | 'published' | 'draft'>('all')
@@ -106,13 +127,14 @@ export default function ProductosGrid({ productos, error }: ProductosGridProps) 
   // Filtrar productos
   const filteredProductos = useMemo(() => {
     return productos.filter((producto) => {
-      const attrs = producto.attributes || {}
-      const nombre = (attrs.nombre_libro || '').toLowerCase()
-      const isbn = (attrs.isbn_libro || '').toLowerCase()
-      const subtitulo = (attrs.subtitulo_libro || '').toLowerCase()
-      const descripcion = (attrs.descripcion || '').toLowerCase()
-      const autor = (attrs.autor_relacion?.data?.attributes?.nombre || '').toLowerCase()
-      const editorial = (attrs.editorial?.data?.attributes?.nombre || '').toLowerCase()
+      // Los datos pueden venir directamente o en attributes
+      const data = producto.attributes || producto || {}
+      const nombre = (getField(data, 'NOMBRE_LIBRO', 'nombre_libro', 'nombreLibro') || '').toLowerCase()
+      const isbn = (getField(data, 'ISBN_LIBRO', 'isbn_libro', 'isbnLibro') || '').toLowerCase()
+      const subtitulo = (getField(data, 'SUBTITULO_LIBRO', 'subtitulo_libro', 'subtituloLibro') || '').toLowerCase()
+      const descripcion = (getField(data, 'DESCRIPCION', 'descripcion') || '').toLowerCase()
+      const autor = (data.autor_relacion?.data?.attributes?.nombre || data.autor_relacion?.data?.attributes?.NOMBRE || '').toLowerCase()
+      const editorial = (data.editorial?.data?.attributes?.nombre || data.editorial?.data?.attributes?.NOMBRE || '').toLowerCase()
       const searchLower = searchTerm.toLowerCase()
 
       // Filtro de búsqueda (buscar en múltiples campos)
@@ -126,7 +148,7 @@ export default function ProductosGrid({ productos, error }: ProductosGridProps) 
         editorial.includes(searchLower)
 
       // Filtro de estado
-      const isPublished = !!attrs.publishedAt
+      const isPublished = !!data.publishedAt
       const matchesEstado =
         filterEstado === 'all' ||
         (filterEstado === 'published' && isPublished) ||
@@ -138,10 +160,11 @@ export default function ProductosGrid({ productos, error }: ProductosGridProps) 
 
   // Obtener URL de imagen (portada_libro)
   const getImageUrl = (producto: Producto): string | null => {
-    const portada = producto.attributes?.portada_libro?.data
+    const data = producto.attributes || producto || {}
+    const portada = data.PORTADA_LIBRO?.data || data.portada_libro?.data || data.portadaLibro?.data
     if (!portada) return null
 
-    const url = portada.attributes?.url
+    const url = portada.attributes?.url || portada.attributes?.URL
     if (!url) return null
 
     // Si la URL ya es completa, retornarla tal cual
@@ -156,19 +179,22 @@ export default function ProductosGrid({ productos, error }: ProductosGridProps) 
 
   // Calcular stock total
   const getStockTotal = (producto: Producto): number => {
-    const stocks = producto.attributes?.stocks?.data || []
-    return stocks.reduce((total, stock) => {
-      return total + (stock.attributes?.cantidad || 0)
+    const data = producto.attributes || producto || {}
+    const stocks = data.STOCKS?.data || data.stocks?.data || []
+    return stocks.reduce((total: number, stock: any) => {
+      const cantidad = stock.attributes?.CANTIDAD || stock.attributes?.cantidad || 0
+      return total + (typeof cantidad === 'number' ? cantidad : 0)
     }, 0)
   }
 
   // Obtener precio mínimo
   const getPrecioMinimo = (producto: Producto): number | null => {
-    const precios = producto.attributes?.precios?.data || []
+    const data = producto.attributes || producto || {}
+    const precios = data.PRECIOS?.data || data.precios?.data || []
     if (precios.length === 0) return null
     
     const preciosNumeros = precios
-      .map((p) => p.attributes?.precio)
+      .map((p: any) => p.attributes?.PRECIO || p.attributes?.precio)
       .filter((p): p is number => typeof p === 'number' && p > 0)
     
     return preciosNumeros.length > 0 ? Math.min(...preciosNumeros) : null
@@ -248,22 +274,23 @@ export default function ProductosGrid({ productos, error }: ProductosGridProps) 
       ) : (
         <Row className="g-3">
           {filteredProductos.map((producto) => {
-            const attrs = producto.attributes || {}
-            const nombre = attrs.nombre_libro || 'Sin nombre'
-            const subtitulo = attrs.subtitulo_libro || ''
-            const isbn = attrs.isbn_libro || ''
-            const descripcion = attrs.descripcion || ''
-            const estado = attrs.publishedAt ? 'Publicado' : 'Borrador'
-            const estadoEdicion = attrs.estado_edicion || ''
-            const tipoLibro = attrs.tipo_libro || ''
-            const idioma = attrs.idioma || ''
-            const agnoEdicion = attrs.agno_edicion
-            const numeroEdicion = attrs.numero_edicion
-            const completo = attrs.completo ?? false
+            // Los datos pueden venir directamente o en attributes
+            const data = producto.attributes || producto || {}
+            const nombre = getField(data, 'NOMBRE_LIBRO', 'nombre_libro', 'nombreLibro') || 'Sin nombre'
+            const subtitulo = getField(data, 'SUBTITULO_LIBRO', 'subtitulo_libro', 'subtituloLibro') || ''
+            const isbn = getField(data, 'ISBN_LIBRO', 'isbn_libro', 'isbnLibro') || ''
+            const descripcion = getField(data, 'DESCRIPCION', 'descripcion') || ''
+            const estado = data.publishedAt ? 'Publicado' : 'Borrador'
+            const estadoEdicion = getField(data, 'ESTADO_EDICION', 'estado_edicion', 'estadoEdicion') || ''
+            const tipoLibro = getField(data, 'TIPO_LIBRO', 'tipo_libro', 'tipoLibro') || ''
+            const idioma = getField(data, 'IDIOMA', 'idioma') || ''
+            const agnoEdicion = getField(data, 'AGNO_EDICION', 'agno_edicion', 'agnoEdicion')
+            const numeroEdicion = getField(data, 'NUMERO_EDICION', 'numero_edicion', 'numeroEdicion')
+            const completo = getField(data, 'COMPLETO', 'completo') ?? false
             
-            const autor = attrs.autor_relacion?.data?.attributes?.nombre
-            const editorial = attrs.editorial?.data?.attributes?.nombre
-            const obra = attrs.obra?.data?.attributes?.nombre
+            const autor = data.autor_relacion?.data?.attributes?.nombre || data.autor_relacion?.data?.attributes?.NOMBRE
+            const editorial = data.editorial?.data?.attributes?.nombre || data.editorial?.data?.attributes?.NOMBRE
+            const obra = data.obra?.data?.attributes?.nombre || data.obra?.data?.attributes?.NOMBRE
             
             const imageUrl = getImageUrl(producto)
             const stockTotal = getStockTotal(producto)
