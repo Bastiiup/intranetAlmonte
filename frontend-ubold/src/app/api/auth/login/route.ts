@@ -29,7 +29,7 @@ export async function POST(request: Request) {
 
     // 1. Buscar Colaborador por email_login
     const colaboradorUrl = getStrapiUrl(
-      `/api/colaboradores?filters[email_login][$eq]=${encodeURIComponent(email)}&populate[persona]=*&populate[empresa]=*`
+      `/api/colaboradores?filters[email_login][$eq]=${encodeURIComponent(email)}&populate[persona]=*&populate[usuario]=*`
     )
 
     const colaboradorResponse = await fetch(colaboradorUrl, {
@@ -40,8 +40,18 @@ export async function POST(request: Request) {
     })
 
     if (!colaboradorResponse.ok) {
+      const errorText = await colaboradorResponse.text()
+      console.error('[API /auth/login] Error al buscar colaborador:', {
+        status: colaboradorResponse.status,
+        statusText: colaboradorResponse.statusText,
+        url: colaboradorUrl,
+        error: errorText,
+      })
       return NextResponse.json(
-        { error: 'Error al buscar colaborador' },
+        { 
+          error: 'Error al buscar colaborador',
+          details: errorText,
+        },
         { status: colaboradorResponse.status }
       )
     }
@@ -78,7 +88,16 @@ export async function POST(request: Request) {
       )
     }
 
-    // 4. Autenticar con Strapi (users-permissions) usando el usuario vinculado
+    // Obtener el email del usuario vinculado (puede ser un objeto o un ID)
+    const usuarioEmail = colaborador.usuario.email || colaborador.usuario.username
+    if (!usuarioEmail) {
+      return NextResponse.json(
+        { error: 'Error: el usuario vinculado no tiene email configurado' },
+        { status: 500 }
+      )
+    }
+
+    // 4. Autenticar con Strapi (users-permissions) usando el email del usuario vinculado
     const strapiAuthUrl = getStrapiUrl('/api/auth/local')
     const loginResponse = await fetch(strapiAuthUrl, {
       method: 'POST',
@@ -86,7 +105,7 @@ export async function POST(request: Request) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        identifier: email, // Strapi usa 'identifier' que puede ser email o username
+        identifier: usuarioEmail, // Usar el email del usuario de Strapi, no el email_login
         password,
       }),
     })
@@ -130,11 +149,8 @@ export async function POST(request: Request) {
         colaborador: {
           id: colaborador.id,
           email_login: colaborador.email_login,
-          rol_principal: colaborador.rol_principal,
-          rol_operativo: colaborador.rol_operativo,
           activo: colaborador.activo,
           persona: colaborador.persona,
-          empresa: colaborador.empresa,
         },
       },
       { status: 200 }
