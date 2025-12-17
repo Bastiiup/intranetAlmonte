@@ -335,17 +335,57 @@ const Page = () => {
         throw new Error('Error al enviar mensaje')
       }
 
-      // El polling automáticamente cargará el nuevo mensaje
-      // Pero también podemos forzar una recarga inmediata
+      // Forzar recarga completa de mensajes después de enviar
+      // Esto asegura que el mensaje enviado aparezca inmediatamente
+      // y que cualquier mensaje nuevo del otro colaborador también se cargue
       setTimeout(() => {
+        // Recargar todos los mensajes (no solo nuevos) para asegurar que aparezca el que acabamos de enviar
         const query = new URLSearchParams({
-          cliente_id: currentContact.id,
+          colaborador_id: currentContact.id,
+          remitente_id: currentUserId || '',
         })
-        if (lastMessageDate) {
-          query.append('ultima_fecha', lastMessageDate)
-        }
-        // El polling automáticamente cargará el nuevo mensaje, no necesitamos recargar manualmente
-      }, 200)
+        // No usar ultima_fecha para forzar recarga completa
+        fetch(`/api/chat/mensajes?${query.toString()}`)
+          .then((res) => res.json())
+          .then((data) => {
+            const mensajesData = Array.isArray(data.data) ? data.data : [data.data]
+            if (mensajesData.length > 0) {
+              // Mapear mensajes
+              const mensajesMapeados: MessageType[] = mensajesData.map((mensaje: any) => {
+                const mensajeData = mensaje.attributes || mensaje
+                const texto = mensajeData.texto || ''
+                const remitenteId = mensajeData.remitente_id || 1
+                const fecha = mensajeData.fecha ? new Date(mensajeData.fecha) : new Date(mensajeData.createdAt || Date.now())
+                
+                return {
+                  id: String(mensaje.id),
+                  senderId: String(remitenteId),
+                  text: texto,
+                  time: fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
+                }
+              })
+              
+              // Reemplazar todos los mensajes
+              setMessages(mensajesMapeados)
+              
+              // Actualizar última fecha
+              const ultimoMensaje = mensajesData[mensajesData.length - 1]
+              const ultimoMensajeData = ultimoMensaje.attributes || ultimoMensaje
+              const ultimaFecha = ultimoMensajeData?.fecha || ultimoMensajeData?.createdAt
+              if (ultimaFecha) {
+                setLastMessageDate(ultimaFecha)
+              }
+              
+              // Scroll al final
+              setTimeout(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+              }, 100)
+            }
+          })
+          .catch((err) => {
+            console.error('Error al recargar mensajes después de enviar:', err)
+          })
+      }, 500) // Esperar 500ms para que Strapi procese el mensaje
     } catch (err: any) {
       console.error('Error al enviar mensaje:', err)
       setError(err.message || 'Error al enviar mensaje')
