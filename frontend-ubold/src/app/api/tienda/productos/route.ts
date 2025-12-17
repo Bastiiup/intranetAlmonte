@@ -23,7 +23,6 @@ export async function GET() {
     // Log detallado para debugging
     console.log('[API /tienda/productos] Respuesta de Strapi:', {
       endpoint: endpointUsed,
-      populateParams,
       hasData: !!response.data,
       isArray: Array.isArray(response.data),
       count: Array.isArray(response.data) ? response.data.length : response.data ? 1 : 0,
