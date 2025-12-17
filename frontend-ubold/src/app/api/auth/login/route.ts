@@ -46,11 +46,11 @@ export async function POST(request: Request) {
       )
     }
 
-    const colaboradorData = await colaboradorResponse.json()
-    const colaboradores = Array.isArray(colaboradorData.data)
-      ? colaboradorData.data
-      : colaboradorData.data
-        ? [colaboradorData.data]
+    const colaboradorResponseData = await colaboradorResponse.json()
+    const colaboradores = Array.isArray(colaboradorResponseData.data)
+      ? colaboradorResponseData.data
+      : colaboradorResponseData.data
+        ? [colaboradorResponseData.data]
         : []
 
     if (colaboradores.length === 0) {
@@ -118,9 +118,6 @@ export async function POST(request: Request) {
       )
     }
 
-    // Ya tenemos los datos del colaborador de antes
-    const colaboradorData = colaborador
-
     return NextResponse.json(
       {
         message: 'Login exitoso',
@@ -130,15 +127,15 @@ export async function POST(request: Request) {
           email: authData.user.email,
           username: authData.user.username,
         },
-        colaborador: colaboradorData ? {
-          id: colaboradorData.id,
-          email_login: colaboradorData.email_login,
-          rol_principal: colaboradorData.rol_principal,
-          rol_operativo: colaboradorData.rol_operativo,
-          activo: colaboradorData.activo,
-          persona: colaboradorData.persona,
-          empresa: colaboradorData.empresa,
-        } : null,
+        colaborador: {
+          id: colaborador.id,
+          email_login: colaborador.email_login,
+          rol_principal: colaborador.rol_principal,
+          rol_operativo: colaborador.rol_operativo,
+          activo: colaborador.activo,
+          persona: colaborador.persona,
+          empresa: colaborador.empresa,
+        },
       },
       { status: 200 }
     )
