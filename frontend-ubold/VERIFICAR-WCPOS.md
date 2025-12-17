@@ -106,3 +106,4 @@ Si WooCommerce se sincroniza con Strapi:
 3. **Ver cómo se sincroniza** (Strapi o directo a WooCommerce)
 4. **Conectar con la intranet** según el método disponible
 
+

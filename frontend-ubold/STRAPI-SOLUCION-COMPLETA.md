@@ -120,3 +120,4 @@ Si aún no funciona, verifica el nombre exacto:
    - Si tienes otra colección que funcione, compara sus permisos
    - Aplica los mismos permisos a "Product · Libro · Edición"
 
+

@@ -23,3 +23,4 @@ export const getStrapiUrl = (path: string): string => {
   return `${STRAPI_API_URL}/${cleanPath}`
 }
 
+

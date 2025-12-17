@@ -204,3 +204,4 @@ GET /api/pedidos?sort=createdAt:desc
 - [ ] Página de test funciona (`/tienda/test-strapi`)
 - [ ] Páginas conectadas con Strapi funcionando
 
+

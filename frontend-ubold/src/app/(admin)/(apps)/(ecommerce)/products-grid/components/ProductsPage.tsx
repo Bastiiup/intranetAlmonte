@@ -1,14 +1,23 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, Col, Pagination, Row } from 'react-bootstrap'
+import { Button, Col, Pagination, Row, Alert } from 'react-bootstrap'
 import { LuChevronLeft, LuChevronRight, LuClock, LuLayoutGrid, LuList, LuMenu, LuPlus } from 'react-icons/lu'
 
-import { productData } from '@/app/(admin)/(apps)/(ecommerce)/products/data'
 import ProductFilter from './ProductFilter'
 import Products from './Products'
 
-const ProductsPage = () => {
+interface Producto {
+  id: number
+  attributes?: any
+}
+
+interface ProductsPageProps {
+  productos: Producto[]
+  error: string | null
+}
+
+const ProductsPage = ({ productos, error }: ProductsPageProps) => {
   const [isOffcanvasOpen, setIsOffcanvasOpen] = useState(false)
 
   return (
@@ -22,7 +31,7 @@ const ProductsPage = () => {
                   <LuMenu className="fs-lg" />
                 </Button>
               </div>
-              <h3 className="mb-0 fs-xl flex-grow-1">{productData.length} Products</h3>
+              <h3 className="mb-0 fs-xl flex-grow-1">{productos.length} Products</h3>
               <div className="d-flex gap-1">
                 <Button href="#" variant="primary" className="btn-primary btn-icon">
                   <LuLayoutGrid className="fs-lg" />
@@ -39,11 +48,21 @@ const ProductsPage = () => {
         </Col>
       </Row>
 
+      {error && (
+        <Row className="mb-3">
+          <Col>
+            <Alert variant="danger">
+              <strong>Error:</strong> {error}
+            </Alert>
+          </Col>
+        </Row>
+      )}
+
       <Row className="g-2">
         <ProductFilter isOffcanvasOpen={isOffcanvasOpen} setIsOffcanvasOpen={setIsOffcanvasOpen} />
 
         <Col xl={9}>
-          <Products />
+          <Products productos={productos} error={error} />
 
           <div className="d-flex justify-content-between align-items-center mb-4 mt-3">
             <span className="text-muted fst-italic">

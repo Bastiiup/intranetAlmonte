@@ -120,3 +120,4 @@ Asegúrate de que Strapi tenga configurado CORS para permitir peticiones desde:
 - Desarrollo: `http://localhost:3000`
 - Producción: `https://intranetAlmonte.moraleja.cl`
 
+

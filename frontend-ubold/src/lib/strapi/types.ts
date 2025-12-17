@@ -48,3 +48,4 @@ export function unwrapStrapiItem<T>(response: StrapiResponse<StrapiEntity<T>>): 
   return data.attributes
 }
 
+

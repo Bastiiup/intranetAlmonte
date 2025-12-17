@@ -1,64 +1,257 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { Badge, Button, Card, CardBody, CardFooter, CardTitle, Col, Row } from 'react-bootstrap'
+import { Badge, Button, Card, CardBody, CardFooter, CardTitle, Col, Row, Alert } from 'react-bootstrap'
 import { TbBasket } from 'react-icons/tb'
 
 import Rating from '@/components/Rating'
-import { productData } from '@/app/(admin)/(apps)/(ecommerce)/products/data'
 import { currency } from '@/helpers'
+import { STRAPI_API_URL } from '@/lib/strapi/config'
 
-const Products = () => {
+interface Producto {
+  id: number
+  attributes?: {
+    NOMBRE_LIBRO?: string
+    nombre_libro?: string
+    ISBN_LIBRO?: string
+    isbn_libro?: string
+    SUBTITULO_LIBRO?: string
+    subtitulo_libro?: string
+    portada_libro?: {
+      data?: {
+        attributes: {
+          url: string
+        }
+      }
+    }
+    PORTADA_LIBRO?: {
+      data?: {
+        attributes: {
+          url: string
+        }
+      }
+    }
+    precios?: {
+      data?: Array<{
+        attributes: {
+          precio?: number
+          PRECIO?: number
+        }
+      }>
+    }
+    PRECIOS?: {
+      data?: Array<{
+        attributes: {
+          precio?: number
+          PRECIO?: number
+        }
+      }>
+    }
+    stocks?: {
+      data?: Array<{
+        attributes: {
+          cantidad?: number
+          CANTIDAD?: number
+        }
+      }>
+    }
+    STOCKS?: {
+      data?: Array<{
+        attributes: {
+          cantidad?: number
+          CANTIDAD?: number
+        }
+      }>
+    }
+    autor_relacion?: {
+      data?: {
+        attributes: {
+          nombre?: string
+          NOMBRE?: string
+        }
+      }
+    }
+    editorial?: {
+      data?: {
+        attributes: {
+          nombre?: string
+          NOMBRE?: string
+        }
+      }
+    }
+    publishedAt?: string | null
+  }
+}
+
+interface ProductsProps {
+  productos: Producto[]
+  error: string | null
+}
+
+// Helper para obtener un campo con múltiples variaciones de nombre
+const getField = (obj: any, ...fieldNames: string[]): any => {
+  for (const fieldName of fieldNames) {
+    if (obj[fieldName] !== undefined && obj[fieldName] !== null && obj[fieldName] !== '') {
+      return obj[fieldName]
+    }
+  }
+  return undefined
+}
+
+const Products = ({ productos, error }: ProductsProps) => {
+  // Obtener URL de imagen (portada_libro)
+  const getImageUrl = (producto: Producto): string | null => {
+    const attrs = producto.attributes || {}
+    const portada = attrs.PORTADA_LIBRO?.data || attrs.portada_libro?.data
+    if (!portada) return null
+
+    const url = portada.attributes?.url
+    if (!url) return null
+
+    // Si la URL ya es completa, retornarla tal cual
+    if (url.startsWith('http')) {
+      return url
+    }
+
+    // Si no, construir la URL completa con la base de Strapi
+    const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
+    return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
+  }
+
+  // Calcular stock total
+  const getStockTotal = (producto: Producto): number => {
+    const attrs = producto.attributes || {}
+    const stocks = attrs.STOCKS?.data || attrs.stocks?.data || []
+    return stocks.reduce((total: number, stock: any) => {
+      const cantidad = stock.attributes?.CANTIDAD || stock.attributes?.cantidad || 0
+      return total + (typeof cantidad === 'number' ? cantidad : 0)
+    }, 0)
+  }
+
+  // Obtener precio mínimo
+  const getPrecioMinimo = (producto: Producto): number | null => {
+    const attrs = producto.attributes || {}
+    const precios = attrs.PRECIOS?.data || attrs.precios?.data || []
+    if (precios.length === 0) return null
+    
+    const preciosNumeros = precios
+      .map((p: any) => p.attributes?.PRECIO || p.attributes?.precio)
+      .filter((p: any): p is number => typeof p === 'number' && p > 0)
+    
+    return preciosNumeros.length > 0 ? Math.min(...preciosNumeros) : null
+  }
+
+  if (error) {
+    return (
+      <Alert variant="danger">
+        <strong>Error:</strong> {error}
+      </Alert>
+    )
+  }
+
+  if (productos.length === 0) {
+    return (
+      <Alert variant="info">
+        No se encontraron productos en Strapi.
+      </Alert>
+    )
+  }
+
   return (
     <Row className="row-cols-xxl-4 row-cols-lg-3 row-cols-sm-2 row-col-1 g-2">
-      {productData.map((product, index) => (
-        <Col className="col" key={product.code || index}>
-          <Card className="h-100 mb-2">
-            {product.status === 'published' && (
-              <Badge
-                bg="success"
-                className='badge-label fs-base rounded position-absolute top-0 start-0 m-3'>
-                {product.status}
-              </Badge>
-            )}
-            <CardBody className="pb-0">
-              <div className="p-3">
-                <Image height={333} width={333} src={product.image} alt={product.name} className="img-fluid" />
-              </div>
-              <CardTitle className="fs-sm lh-base mb-2">
-                <Link href={product.url || '#'} className="link-reset">
-                  {product.name}
-                </Link>
-              </CardTitle>
-              <div className="mb-2">
-                <p className="text-muted mb-0 fs-xxs">by: {product.brand}</p>
-                <p className="text-muted mb-0 fs-xxs">SKU: {product.code}</p>
-              </div>
-              <div>
-                <span className="text-warning">
-                  <Rating rating={product.rating} />
-                </span>
-                <span className="ms-1">
-                  <Link href="/reviews" className="link-reset fw-semibold">
-                    ({product.reviews})
-                  </Link>
-                </span>
-              </div>
-            </CardBody>
+      {productos.map((producto) => {
+        const attrs = producto.attributes || {}
+        const data = attrs as any
+        
+        const nombre = getField(data, 'NOMBRE_LIBRO', 'nombre_libro', 'nombreLibro', 'NOMBRE', 'nombre', 'name') || 'Sin nombre'
+        const isbn = getField(data, 'ISBN_LIBRO', 'isbn_libro', 'isbnLibro', 'ISBN', 'isbn') || ''
+        const autor = data.autor_relacion?.data?.attributes?.nombre || data.autor_relacion?.data?.attributes?.NOMBRE || ''
+        const editorial = data.editorial?.data?.attributes?.nombre || data.editorial?.data?.attributes?.NOMBRE || ''
+        const isPublished = !!attrs.publishedAt
+        
+        const imageUrl = getImageUrl(producto)
+        const stockTotal = getStockTotal(producto)
+        const precioMinimo = getPrecioMinimo(producto)
 
-            <CardFooter className="bg-transparent d-flex justify-content-between">
-              <div className="d-flex flex-column justify-content-start align-items-start gap-1">
-                <h5 className="text-success d-flex align-items-center gap-2 mb-0">
-                  {currency}{product.price.toFixed(2)}
-                </h5>
-                <small className="text-muted">Stock: {product.stock} | Sold: {product.sold}</small>
-              </div>
-              <Button size="sm" variant="primary" className="btn-icon" href="#!">
-                <TbBasket className="fs-lg" />
-              </Button>
-            </CardFooter>
-          </Card>
-        </Col>
-      ))}
+        return (
+          <Col className="col" key={producto.id}>
+            <Card className="h-100 mb-2">
+              {isPublished && (
+                <Badge
+                  bg="success"
+                  className='badge-label fs-base rounded position-absolute top-0 start-0 m-3'>
+                  Publicado
+                </Badge>
+              )}
+              <CardBody className="pb-0">
+                <div 
+                  className="p-3" 
+                  style={{ 
+                    height: '333px', 
+                    position: 'relative',
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    background: '#f8f9fa' 
+                  }}
+                >
+                  {imageUrl ? (
+                    <Image 
+                      src={imageUrl} 
+                      alt={nombre} 
+                      fill
+                      style={{
+                        objectFit: 'contain',
+                        padding: '12px',
+                      }}
+                      sizes="(max-width: 576px) 100vw, (max-width: 768px) 50vw, (max-width: 992px) 33vw, 25vw"
+                    />
+                  ) : (
+                    <div className="text-muted">Sin imagen</div>
+                  )}
+                </div>
+                <CardTitle className="fs-sm lh-base mb-2">
+                  <Link href={`/tienda/productos/${producto.id}`} className="link-reset">
+                    {nombre}
+                  </Link>
+                </CardTitle>
+                <div className="mb-2">
+                  {autor && <p className="text-muted mb-0 fs-xxs">by: {autor}</p>}
+                  {editorial && <p className="text-muted mb-0 fs-xxs">Editorial: {editorial}</p>}
+                  {isbn && <p className="text-muted mb-0 fs-xxs">ISBN: {isbn}</p>}
+                </div>
+                <div>
+                  <span className="text-warning">
+                    <Rating rating={4} />
+                  </span>
+                  <span className="ms-1">
+                    <Link href="/reviews" className="link-reset fw-semibold">
+                      (0)
+                    </Link>
+                  </span>
+                </div>
+              </CardBody>
+
+              <CardFooter className="bg-transparent d-flex justify-content-between">
+                <div className="d-flex flex-column justify-content-start align-items-start gap-1">
+                  {precioMinimo !== null ? (
+                    <h5 className="text-success d-flex align-items-center gap-2 mb-0">
+                      {currency}{precioMinimo.toFixed(2)}
+                    </h5>
+                  ) : (
+                    <h5 className="text-muted d-flex align-items-center gap-2 mb-0">
+                      Sin precio
+                    </h5>
+                  )}
+                  <small className="text-muted">Stock: {stockTotal}</small>
+                </div>
+                <Button size="sm" variant="primary" className="btn-icon" href="#!">
+                  <TbBasket className="fs-lg" />
+                </Button>
+              </CardFooter>
+            </Card>
+          </Col>
+        )
+      })}
     </Row>
   )
 }

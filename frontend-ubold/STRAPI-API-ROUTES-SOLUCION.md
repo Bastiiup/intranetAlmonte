@@ -99,3 +99,4 @@ Ahora productos y pedidos funcionan **exactamente igual que el chat**:
 
 Todos usan el mismo patrón: **API Routes como proxy** 🚀
 
+

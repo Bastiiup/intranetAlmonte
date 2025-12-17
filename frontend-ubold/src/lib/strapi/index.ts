@@ -6,3 +6,4 @@ export { default as strapiClient } from './client'
 export * from './config'
 export * from './types'
 
+

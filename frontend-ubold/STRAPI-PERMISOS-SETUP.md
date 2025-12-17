@@ -83,3 +83,4 @@ Si aún no funciona, verifica el nombre exacto:
 3. Intenta crear un nuevo API Token con permisos completos
 4. Revisa los logs de Strapi para ver si hay errores
 
+

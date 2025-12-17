@@ -8,3 +8,4 @@ export type { WooCommerceProduct, WooCommerceOrder, CartItem } from './types'
 
 export { wooCommerceClient, WOOCOMMERCE_URL, WOOCOMMERCE_CONSUMER_KEY, WOOCOMMERCE_CONSUMER_SECRET, getWooCommerceUrl }
 
+

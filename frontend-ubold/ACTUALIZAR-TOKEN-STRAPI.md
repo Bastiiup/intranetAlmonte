@@ -71,3 +71,4 @@ Después de actualizar el token:
 - Los cambios en Railway pueden tardar 1-2 minutos en aplicarse
 - Siempre verifica que el token esté correctamente configurado después de actualizarlo
 
+
