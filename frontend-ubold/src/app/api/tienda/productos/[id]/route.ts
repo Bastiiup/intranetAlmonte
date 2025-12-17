@@ -248,6 +248,10 @@ export async function PUT(
     }
     
     // LOGS DETALLADOS DE ENTRADA
+    const token = process.env.STRAPI_API_TOKEN
+    const tieneToken = !!token
+    const tokenLength = token ? token.length : 0
+    
     console.log('[API PUT] 🔍 DATOS DE ENTRADA:', {
       idRecibido: id,
       tipoDeId: typeof id,
@@ -256,8 +260,33 @@ export async function PUT(
       bodyRecibido: body
     })
     
+    console.log('[API PUT] 🔐 CONFIGURACIÓN STRAPI:', {
+      tieneToken,
+      tokenLength,
+      tokenPreview: token ? `${token.substring(0, 10)}...` : 'NO CONFIGURADO',
+      strapiUrl: process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl',
+      todasLasEnvVars: Object.keys(process.env).filter(k => k.includes('STRAPI')).join(', ')
+    })
+    
     console.log('[API PUT] 📍 Endpoint que se va a llamar:', `/api/libros/${id}`)
     console.log('[API PUT] 🌐 URL completa Strapi:', `${process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'}/api/libros/${id}?populate=*`)
+    
+    // Validar que el token esté configurado
+    if (!token) {
+      console.error('[API PUT] ❌ STRAPI_API_TOKEN NO ESTÁ CONFIGURADO')
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'STRAPI_API_TOKEN no está configurado. Por favor, configura la variable de entorno en Railway.',
+          debug: {
+            idBuscado: id,
+            tieneToken: false,
+            instrucciones: 'Ve a Railway → Variables → Agrega STRAPI_API_TOKEN'
+          }
+        },
+        { status: 500 }
+      )
+    }
     
     // PASO 2: Obtener producto directamente por ID
     // IMPORTANTE: Si el ID es un documentId (string no numérico), necesitamos buscar en la lista
