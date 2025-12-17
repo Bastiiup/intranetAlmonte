@@ -1,78 +1,135 @@
-import Link from 'next/link'
-import { Badge, Button, Col, Row } from 'react-bootstrap'
-import { TbStarFilled } from 'react-icons/tb'
+'use client'
 
-import { orderDetails, productDetails } from '../data'
+import { Badge, Col, Row } from 'react-bootstrap'
+import { format } from 'date-fns'
 
-const ProductDetails = () => {
+import EditableField from './EditableField'
+
+interface ProductDetailsProps {
+  producto: any
+}
+
+// Helper para obtener campo con múltiples variaciones
+const getField = (obj: any, ...fieldNames: string[]): any => {
+  for (const fieldName of fieldNames) {
+    if (obj[fieldName] !== undefined && obj[fieldName] !== null && obj[fieldName] !== '') {
+      return obj[fieldName]
+    }
+  }
+  return undefined
+}
+
+const ProductDetails = ({ producto }: ProductDetailsProps) => {
+  const attrs = producto.attributes || {}
+  const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (producto as any)
+
+  const nombre = getField(data, 'nombre_libro', 'NOMBRE_LIBRO', 'nombreLibro') || 'Sin nombre'
+  const isbn = getField(data, 'isbn_libro', 'ISBN_LIBRO', 'isbnLibro') || 'Sin ISBN'
+  const descripcion = getField(data, 'descripcion', 'DESCRIPCION', 'descripcion') || ''
+  const tipoLibro = getField(data, 'tipo_libro', 'TIPO_LIBRO', 'tipoLibro') || 'Sin categoría'
+  const autor = data.autor_relacion?.data?.attributes?.nombre || data.autor_relacion?.data?.attributes?.NOMBRE || 'Sin autor'
+  const editorial = data.editorial?.data?.attributes?.nombre || data.editorial?.data?.attributes?.NOMBRE || 'Sin editorial'
+  
+  // Calcular stock total
+  const stocks = data.stocks?.data || data.STOCKS?.data || []
+  const stockTotal = stocks.reduce((total: number, stock: any) => {
+    const cantidad = stock.attributes?.cantidad || stock.attributes?.CANTIDAD || 0
+    return total + (typeof cantidad === 'number' ? cantidad : 0)
+  }, 0)
+
+  // Obtener precio mínimo
+  const precios = data.precios?.data || data.PRECIOS?.data || []
+  const preciosNumeros = precios
+    .map((p: any) => p.attributes?.precio || p.attributes?.PRECIO)
+    .filter((p: any): p is number => typeof p === 'number' && p > 0)
+  const precioMinimo = preciosNumeros.length > 0 ? Math.min(...preciosNumeros) : 0
+
+  const isPublished = !!(attrs.publishedAt || producto.publishedAt)
+  const createdAt = attrs.createdAt || producto.createdAt || new Date().toISOString()
+  const createdDate = new Date(createdAt)
+
+  const handleSaveNombre = async (newValue: string) => {
+    // TODO: Implementar guardado en Strapi
+    console.log('Guardar nombre:', newValue)
+  }
+
+  const handleSaveDescripcion = async (newValue: string) => {
+    // TODO: Implementar guardado en Strapi
+    console.log('Guardar descripción:', newValue)
+  }
+
   return (
     <>
-      <div className="d-flex align-items-center justify-content-between">
-        <Badge bg="success" className="bg-success-subtle text-success px-2 py-1 fs-base rounded-pill">
-          In Stock
+      <div className="d-flex align-items-center justify-content-between mb-3">
+        <Badge 
+          bg={isPublished ? 'success' : 'secondary'} 
+          className={`${isPublished ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary'} px-2 py-1 fs-base rounded-pill`}
+        >
+          {isPublished ? 'Publicado' : 'Borrador'}
         </Badge>
-        <div className="d-inline-flex align-items-center">
-          {[...Array(5)].map((_, index) => (
-            <TbStarFilled key={index} size={16} className="text-warning" />
-          ))}
-          <span className="ms-1">
-            <Link href="/reviews" className="link-reset fw-medium">
-              (859 Reviews)
-            </Link>
-          </span>
+        <div className="text-muted">
+          Stock: <strong>{stockTotal}</strong>
         </div>
       </div>
 
       <div className="mt-3 mb-4">
-        <h4 className="fs-xl">Apple iMac 24” M3 Chip – 4.5K Retina Display</h4>
+        <EditableField
+          value={nombre}
+          onSave={handleSaveNombre}
+          label="nombre"
+          as="h4"
+          className="fs-xl"
+        />
       </div>
 
       <Row className="mb-4">
-        {productDetails.map((item, index) => (
-          <Col key={index} md={4} xl={3}>
-            <h6 className="mb-1 text-muted text-uppercase">{item.label}:</h6>
-            <p className="fw-medium mb-0">
-              {item.value} {item.smallText && <small className="text-muted">{item.smallText}</small>}
-            </p>
-          </Col>
-        ))}
+        <Col md={4} xl={3}>
+          <h6 className="mb-1 text-muted text-uppercase">ISBN:</h6>
+          <p className="fw-medium mb-0">{isbn}</p>
+        </Col>
+        <Col md={4} xl={3}>
+          <h6 className="mb-1 text-muted text-uppercase">Categoría:</h6>
+          <p className="fw-medium mb-0">{tipoLibro}</p>
+        </Col>
+        <Col md={4} xl={3}>
+          <h6 className="mb-1 text-muted text-uppercase">Stock:</h6>
+          <p className="fw-medium mb-0">{stockTotal}</p>
+        </Col>
+        <Col md={4} xl={3}>
+          <h6 className="mb-1 text-muted text-uppercase">Publicado:</h6>
+          <p className="fw-medium mb-0">
+            {format(createdDate, 'dd MMM, yyyy')}
+            <small className="text-muted ms-1">{format(createdDate, 'h:mm a')}</small>
+          </p>
+        </Col>
       </Row>
 
       <Row className="mb-4">
-        {orderDetails.map((item, index) => (
-          <Col key={index} md={4} xl={3}>
-            <h6 className="mb-1 text-muted text-uppercase">{item.label}:</h6>
-            <p className="fw-medium mb-0">{item.value}</p>
-          </Col>
-        ))}
+        <Col md={4} xl={3}>
+          <h6 className="mb-1 text-muted text-uppercase">Autor:</h6>
+          <p className="fw-medium mb-0">{autor}</p>
+        </Col>
+        <Col md={4} xl={3}>
+          <h6 className="mb-1 text-muted text-uppercase">Editorial:</h6>
+          <p className="fw-medium mb-0">{editorial}</p>
+        </Col>
       </Row>
 
-      <h3 className="text-muted d-flex align-items-center gap-2 mb-4">
-        <small className="text-decoration-line-through">$1499.00</small>
-        <span className="fw-bold text-danger">$1299.00</span>
-        <small>(13%)</small>
-      </h3>
+      {precioMinimo > 0 && (
+        <h3 className="text-muted d-flex align-items-center gap-2 mb-4">
+          <span className="fw-bold text-danger">${precioMinimo.toFixed(2)}</span>
+        </h3>
+      )}
 
-      <h5 className="text-uppercase text-muted fs-xs mb-2">Product Info:</h5>
-      <p>
-        The Apple iMac 24” with the M3 chip redefines performance and design. Featuring a stunning 4.5K Retina display, ultra-fast processing, and a sleek aluminum chassis in multiple colors, it’s perfect for creatives and professionals alike.
-      </p>
-      <p>
-        Enjoy seamless performance with macOS, optimized apps, and powerful memory — all in an all-in-one setup that fits any workspace.
-      </p>
-
-      <h6 className="mt-3 fs-base">Details: </h6>
-      <ul className="d-flex flex-column gap-1 mb-3">
-        <li>24” 4.5K Retina Display with True Tone.</li>
-        <li>Apple M3 chip with 8-core CPU and 10-core GPU.</li>
-        <li>8GB unified memory (configurable to 24GB).</li>
-        <li>512GB SSD storage (configurable up to 2TB).</li>
-        <li>Color-matched Magic Keyboard and Mouse.</li>
-      </ul>
-
-      <Button variant="link" className="p-0 fw-semibold">
-        Read More...
-      </Button>
+      <h5 className="text-uppercase text-muted fs-xs mb-2">Descripción:</h5>
+      <EditableField
+        value={descripcion}
+        onSave={handleSaveDescripcion}
+        label="descripción"
+        type="textarea"
+        placeholder="Sin descripción..."
+        as="p"
+      />
     </>
   )
 }

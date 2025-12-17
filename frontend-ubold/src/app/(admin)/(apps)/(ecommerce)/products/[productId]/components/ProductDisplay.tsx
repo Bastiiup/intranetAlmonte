@@ -1,59 +1,113 @@
 'use client'
-import clsx from 'clsx'
 import Image from 'next/image'
-import { useCallback, useMemo, useState } from 'react'
-import { Button, Card, CardBody, Carousel, CarouselItem, Col } from 'react-bootstrap'
-import { TbCircleDashedX, TbPencil } from 'react-icons/tb'
+import { useState } from 'react'
+import { Button, Card, CardBody, Col, Form } from 'react-bootstrap'
+import { TbPencil, TbCheck, TbX } from 'react-icons/tb'
 
-import product1 from '@/assets/images/products/7.png'
-import product2 from '@/assets/images/products/11.png'
-import product3 from '@/assets/images/products/12.png'
+import { STRAPI_API_URL } from '@/lib/strapi/config'
+import EditableField from './EditableField'
 
-const ProductDisplay = () => {
-  const [activeSlide, setActiveSlide] = useState(0)
+interface ProductDisplayProps {
+  producto: any
+}
 
-  const handleSlideChange = useCallback((index: number) => {
-    setActiveSlide(index)
-  }, [])
+const ProductDisplay = ({ producto }: ProductDisplayProps) => {
+  const [isEditingImage, setIsEditingImage] = useState(false)
+  const [imageUrl, setImageUrl] = useState('')
 
-  const slides = useMemo(() => [product1, product2, product3], [])
+  // Obtener URL de imagen (misma lógica que Products Grid)
+  const getImageUrl = (): string | null => {
+    const attrs = producto.attributes || {}
+    const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (producto as any)
+    
+    let portada = data.portada_libro || data.PORTADA_LIBRO || data.portadaLibro
+    if (portada?.data) {
+      portada = portada.data
+    }
+    
+    if (!portada || portada === null) {
+      return null
+    }
+
+    const url = portada.attributes?.url || portada.attributes?.URL || portada.url || portada.URL
+    if (!url) {
+      return null
+    }
+
+    if (url.startsWith('http')) {
+      return url
+    }
+
+    const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
+    return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
+  }
+
+  const currentImageUrl = getImageUrl()
+
+  const handleSaveImage = async () => {
+    // TODO: Implementar guardado de imagen en Strapi
+    console.log('Guardar imagen:', imageUrl)
+    setIsEditingImage(false)
+  }
 
   return (
     <Col xl={4}>
       <Card className="card-top-sticky border-0">
         <CardBody className="p-0">
-          <Carousel
-            activeIndex={activeSlide}
-            fade
-            className="bg-light bg-opacity-25 border border-light border-dashed rounded-3"
-            controls={false}
-            indicators={false}>
-            {slides.map((index, i) => (
-              <CarouselItem key={i} className="text-center">
-                <Image src={index} alt={`product-${i + 1}`} width={576} height={576} className="img-fluid" style={{ minWidth: '100%' }} />
-              </CarouselItem>
-            ))}
-          </Carousel>
-          <div className="carousel-indicators m-0 mt-3 d-lg-flex d-none position-static h-100 rounded gap-2">
-            {slides.map((index, i) => (
-              <button
-                type="button"
-                key={i}
-                onClick={() => handleSlideChange(i)}
-                aria-label={`Slide ${i + 1}`}
-                className={clsx('h-auto rounded bg-light-subtle border')}
-                style={{ width: 'auto !important', opacity: i === activeSlide ? 1 : 0.5, zIndex: i === activeSlide ? 1 : 0 }}>
-                <Image src={index} className="d-block avatar-xl" alt="indicator-img" />
-              </button>
-            ))}
-          </div>
-          <div className="text-center my-3">
-            <Button variant="light" className="me-1">
-              <TbPencil className="fs-lg me-1" /> Edit
-            </Button>
-            <Button variant="danger">
-              <TbCircleDashedX className="fs-lg me-1" /> Delisting
-            </Button>
+          <div className="position-relative">
+            <div
+              className="bg-light bg-opacity-25 border border-light border-dashed rounded-3"
+              style={{
+                height: '400px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+              }}
+            >
+              {isEditingImage ? (
+                <div className="p-3 w-100">
+                  <Form.Control
+                    type="text"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    placeholder="URL de la imagen"
+                    className="mb-2"
+                  />
+                  <div className="d-flex gap-2">
+                    <Button variant="success" size="sm" onClick={handleSaveImage}>
+                      <TbCheck className="me-1" /> Guardar
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => setIsEditingImage(false)}>
+                      <TbX className="me-1" /> Cancelar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {currentImageUrl ? (
+                    <Image
+                      src={currentImageUrl}
+                      alt="Product"
+                      fill
+                      style={{ objectFit: 'contain', padding: '20px' }}
+                      unoptimized
+                    />
+                  ) : (
+                    <div className="text-muted">Sin imagen</div>
+                  )}
+                  <Button
+                    variant="light"
+                    size="sm"
+                    className="position-absolute top-0 end-0 m-2"
+                    onClick={() => setIsEditingImage(true)}
+                    title="Editar imagen"
+                  >
+                    <TbPencil className="fs-sm" />
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </CardBody>
       </Card>

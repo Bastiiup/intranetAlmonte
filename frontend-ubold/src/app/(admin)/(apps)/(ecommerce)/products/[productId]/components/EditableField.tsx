@@ -1,0 +1,109 @@
+'use client'
+
+import { useState } from 'react'
+import { Button, Form } from 'react-bootstrap'
+import { TbPencil, TbCheck, TbX } from 'react-icons/tb'
+
+interface EditableFieldProps {
+  value: string
+  onSave: (newValue: string) => Promise<void> | void
+  label?: string
+  placeholder?: string
+  type?: 'text' | 'textarea' | 'number'
+  className?: string
+  as?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'p' | 'span'
+}
+
+export default function EditableField({
+  value,
+  onSave,
+  label,
+  placeholder = 'Ingresa un valor...',
+  type = 'text',
+  className = '',
+  as = 'span',
+}: EditableFieldProps) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(value)
+  const [isSaving, setIsSaving] = useState(false)
+
+  const handleSave = async () => {
+    setIsSaving(true)
+    try {
+      await onSave(editValue)
+      setIsEditing(false)
+    } catch (error) {
+      console.error('Error al guardar:', error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleCancel = () => {
+    setEditValue(value)
+    setIsEditing(false)
+  }
+
+  const Tag = as
+
+  if (isEditing) {
+    return (
+      <div className={`d-flex align-items-start gap-2 ${className}`}>
+        {type === 'textarea' ? (
+          <Form.Control
+            as="textarea"
+            rows={4}
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            placeholder={placeholder}
+            className="flex-grow-1"
+          />
+        ) : (
+          <Form.Control
+            type={type}
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            placeholder={placeholder}
+            className="flex-grow-1"
+          />
+        )}
+        <Button
+          variant="success"
+          size="sm"
+          onClick={handleSave}
+          disabled={isSaving}
+          className="btn-icon"
+        >
+          <TbCheck className="fs-lg" />
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={handleCancel}
+          disabled={isSaving}
+          className="btn-icon"
+        >
+          <TbX className="fs-lg" />
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className={`d-flex align-items-center gap-2 ${className}`}>
+      <Tag className="mb-0 flex-grow-1">
+        {value || <span className="text-muted">{placeholder}</span>}
+      </Tag>
+      <Button
+        variant="light"
+        size="sm"
+        onClick={() => setIsEditing(true)}
+        className="btn-icon"
+        title={`Editar ${label || 'campo'}`}
+      >
+        <TbPencil className="fs-sm" />
+      </Button>
+    </div>
+  )
+}
+

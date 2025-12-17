@@ -23,7 +23,11 @@ import DataTable from '@/components/table/DataTable'
 
 const columnHelper = createColumnHelper<ReviewType>()
 
-const ProductReviews = () => {
+interface ProductReviewsProps {
+  producto?: any
+}
+
+const ProductReviews = ({ producto }: ProductReviewsProps = {}) => {
   const columns = [
     columnHelper.accessor('userName', {
       header: 'Reviewer',
