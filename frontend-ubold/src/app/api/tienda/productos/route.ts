@@ -3,7 +3,7 @@
  * Esto evita exponer el token de Strapi en el cliente
  */
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 
@@ -95,6 +95,88 @@ export async function GET() {
         error: error.message || 'Error al obtener productos',
         data: [],
         meta: {},
+      },
+      { status: error.status || 500 }
+    )
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    console.log('[API /tienda/productos POST] 🎯 Iniciando creación de producto')
+    
+    const body = await request.json()
+    console.log('[API /tienda/productos POST] 📦 Body recibido:', JSON.stringify(body, null, 2))
+    
+    // Validar campos requeridos
+    if (!body.nombre_libro) {
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'El campo nombre_libro es requerido',
+        },
+        { status: 400 }
+      )
+    }
+    
+    // Preparar datos para Strapi v5
+    // Strapi requiere formato: { data: { campo: valor } }
+    const productData: any = {
+      data: {
+        nombre_libro: body.nombre_libro,
+      }
+    }
+    
+    // Campos opcionales
+    if (body.descripcion !== undefined) {
+      productData.data.descripcion = body.descripcion
+    }
+    
+    if (body.isbn_libro !== undefined) {
+      productData.data.isbn_libro = body.isbn_libro
+    }
+    
+    if (body.subtitulo_libro !== undefined) {
+      productData.data.subtitulo_libro = body.subtitulo_libro
+    }
+    
+    // Si hay imagen (ID de Media de Strapi)
+    if (body.portada_libro !== undefined && body.portada_libro !== null) {
+      productData.data.portada_libro = body.portada_libro
+    }
+    
+    console.log('[API /tienda/productos POST] 📤 Datos a enviar a Strapi:', JSON.stringify(productData, null, 2))
+    
+    // Crear producto en Strapi
+    const response = await strapiClient.post<any>(
+      '/api/libros',
+      productData
+    )
+    
+    console.log('[API /tienda/productos POST] ✅ Respuesta de Strapi:', JSON.stringify(response, null, 2))
+    
+    // Strapi puede devolver los datos en response.data o directamente
+    const productoCreado = response.data || response
+    
+    return NextResponse.json({
+      success: true,
+      data: productoCreado,
+      message: 'Producto creado correctamente',
+    }, { status: 201 })
+    
+  } catch (error: any) {
+    console.error('[API /tienda/productos POST] ❌ Error al crear producto:', {
+      message: error.message,
+      status: error.status,
+      details: error.details,
+      stack: error.stack,
+    })
+    
+    return NextResponse.json(
+      { 
+        success: false,
+        error: error.message || 'Error al crear producto',
+        details: error.details,
       },
       { status: error.status || 500 }
     )
