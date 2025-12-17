@@ -195,12 +195,57 @@ export async function POST(request: NextRequest) {
       errores: error.details?.errors
     })
     
-    // Mensaje de error más específico
+    // Si el error es por ISBN duplicado, regenerar automáticamente
+    const isDuplicateISBN = error.message?.includes('unique') || 
+                           error.details?.errors?.some((e: any) => 
+                             e.message?.includes('unique') && 
+                             e.path?.includes('isbn_libro')
+                           )
+    
+    if (isDuplicateISBN && body.isbn_libro) {
+      console.log('[API POST] 🔄 ISBN duplicado detectado, regenerando automáticamente...')
+      
+      // Regenerar ISBN único
+      const newIsbn = `AUTO-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
+      
+      // Reintentar con nuevo ISBN
+      try {
+        const retryData = { ...productData }
+        retryData.data.isbn_libro = newIsbn
+        
+        console.log('[API POST] 🔄 Reintentando con nuevo ISBN:', newIsbn)
+        
+        const retryResponse = await strapiClient.post<any>('/api/libros', retryData)
+        
+        console.log('[API POST] ✅ Producto creado exitosamente con ISBN regenerado:', {
+          id: retryResponse.data?.id || retryResponse.id,
+          documentId: retryResponse.data?.documentId || retryResponse.documentId,
+          nombre: retryResponse.data?.nombre_libro || retryResponse.nombre_libro,
+          isbn: newIsbn
+        })
+        
+        return NextResponse.json({
+          success: true,
+          data: retryResponse.data || retryResponse,
+          message: `Producto creado exitosamente. El ISBN "${body.isbn_libro}" ya existía, se generó uno nuevo automáticamente: "${newIsbn}"`,
+          isbnRegenerado: true,
+          isbnOriginal: body.isbn_libro,
+          isbnNuevo: newIsbn
+        })
+      } catch (retryError: any) {
+        console.error('[API POST] ❌ Error en reintento:', retryError)
+        return NextResponse.json({
+          success: false,
+          error: `El ISBN "${body.isbn_libro}" ya existe y no se pudo generar uno nuevo automáticamente. Intenta con otro ISBN o déjalo vacío para generar uno automático.`,
+          details: retryError.details?.errors
+        }, { status: 400 })
+      }
+    }
+    
+    // Mensaje de error más específico para otros errores
     let errorMessage = 'Error al crear el producto'
     
-    if (error.message?.includes('unique')) {
-      errorMessage = 'El ISBN ya existe. Se generará uno automático.'
-    } else if (error.details?.errors) {
+    if (error.details?.errors) {
       errorMessage = error.details.errors.map((e: any) => e.message).join(', ')
     } else if (error.message) {
       errorMessage = error.message

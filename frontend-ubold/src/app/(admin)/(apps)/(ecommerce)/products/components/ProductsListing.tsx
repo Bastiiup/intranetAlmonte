@@ -62,15 +62,15 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
       portada = portada.data
     }
     
-    // Si portada es null o undefined, usar imagen por defecto
+    // Si portada es null o undefined, retornar null (no usar imagen por defecto inexistente)
     if (!portada || portada === null) {
-      return '/images/products/1.png'
+      return null
     }
 
     // Obtener la URL - puede estar en attributes o directamente
     const url = portada.attributes?.url || portada.attributes?.URL || portada.url || portada.URL
     if (!url) {
-      return '/images/products/1.png'
+      return null
     }
     
     // Si la URL ya es completa, retornarla tal cual

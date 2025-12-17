@@ -320,7 +320,10 @@ export default function AddProductPage() {
             <h5 className="card-title mb-0">Publicación</h5>
           </CardHeader>
           <CardBody>
-            <p className="text-muted">Selecciona en qué canales/sitios web se publicará este libro</p>
+            <p className="text-muted mb-2">
+              Selecciona en qué canales/sitios web se publicará este libro. 
+              <strong className="text-primary"> Puedes seleccionar múltiples canales manteniendo presionada la tecla Ctrl (Windows) o Cmd (Mac) mientras haces clic.</strong>
+            </p>
             
             <RelationSelector
               label="Canales"
@@ -330,6 +333,14 @@ export default function AddProductPage() {
               multiple={true}
               displayField="nombre"
             />
+            
+            {formData.canales.length > 0 && (
+              <div className="mt-2">
+                <small className="text-success">
+                  ✓ {formData.canales.length} canal{formData.canales.length > 1 ? 'es' : ''} seleccionado{formData.canales.length > 1 ? 's' : ''}
+                </small>
+              </div>
+            )}
           </CardBody>
         </Card>
 
