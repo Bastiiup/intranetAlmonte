@@ -224,235 +224,107 @@ export async function PUT(
   console.log('[API /tienda/productos/[id] PUT] ===== INICIANDO PUT =====')
   
   try {
+    // PASO 1: Obtener parámetros y body
     const { id } = await params
-    console.log('[API /tienda/productos/[id] PUT] Params recibidos:', { id, tipoId: typeof id })
+    console.log('[API /tienda/productos/[id] PUT] Params recibidos:', { 
+      id, 
+      tipoId: typeof id,
+      esNumerico: !isNaN(parseInt(id))
+    })
     
     let body: any = {}
     try {
       const bodyText = await request.text()
       console.log('[API /tienda/productos/[id] PUT] Body recibido (texto):', bodyText)
       body = JSON.parse(bodyText)
-      console.log('[API /tienda/productos/[id] PUT] Body recibido (JSON):', body)
+      console.log('[API /tienda/productos/[id] PUT] Body recibido (JSON):', JSON.stringify(body, null, 2))
+      console.log('[API /tienda/productos/[id] PUT] Campos recibidos:', Object.keys(body))
     } catch (parseError: any) {
-      console.error('[API /tienda/productos/[id] PUT] Error al parsear body:', parseError)
+      console.error('[API /tienda/productos/[id] PUT] ❌ Error al parsear body:', parseError)
       return NextResponse.json(
         { success: false, error: 'Error al parsear el cuerpo de la petición' },
         { status: 400 }
       )
     }
     
-    console.log('[API /tienda/productos/[id] PUT] Iniciando actualización:', {
-      idRecibido: id,
-      tipoId: typeof id,
-      esNumerico: !isNaN(parseInt(id)),
-      camposRecibidos: Object.keys(body),
-      bodyRecibido: body,
-      urlCompleta: request.url,
-      method: request.method,
-    })
-    
-    // PASO 1: Obtener el ID numérico real del producto (Strapi requiere ID numérico para PUT)
-    // Estrategia: 
-    // 1. Intentar obtener directamente por ID numérico primero (más eficiente)
-    // 2. Si falla, buscar en lista completa (por si es documentId)
+    // PASO 2: Obtener producto directamente por ID (sin fallback)
     let productoId: number | null = null
     let productoActual: any = null
     
-    // Intentar obtener directamente por ID numérico primero
-    if (!isNaN(parseInt(id))) {
-      try {
-        console.log('[API /tienda/productos/[id] PUT] Intentando obtener producto directamente por ID:', id)
-        const directResponse = await strapiClient.get<any>(`/api/libros/${id}?populate=*`)
-        const producto = directResponse.data || directResponse
-        
-        if (producto && producto.id) {
-          productoActual = producto
-          productoId = producto.id
-          console.log('[API /tienda/productos/[id] PUT] ✅ Producto encontrado por ID directo:', {
-            idBuscado: id,
-            productoId: productoId,
-            documentId: producto.documentId,
-          })
-        }
-      } catch (directError: any) {
-        console.log('[API /tienda/productos/[id] PUT] ⚠️ No se pudo obtener por ID directo, buscando en lista:', {
-          status: directError.status,
-          message: directError.message,
-        })
-      }
-    }
+    console.log('[API /tienda/productos/[id] PUT] Intentando obtener producto directamente:', {
+      idBuscado: id,
+      endpoint: `/api/libros/${id}?populate=*`
+    })
     
-    // Si no se encontró por ID directo, buscar en lista completa
-    if (!productoActual) {
-      try {
-        console.log('[API /tienda/productos/[id] PUT] Buscando producto en lista completa...')
-        
-        const allProducts = await strapiClient.get<any>(
-          `/api/libros?populate=*&pagination[pageSize]=1000`
-        )
+    try {
+      const directResponse = await strapiClient.get<any>(`/api/libros/${id}?populate=*`)
       
-      // Strapi puede devolver los datos en diferentes estructuras:
-      // 1. { data: [...] } - formato estándar
-      // 2. { data: { data: [...] } } - formato anidado
-      // 3. [...] - array directo (menos común)
-      let productos: any[] = []
-      
-      if (Array.isArray(allProducts)) {
-        productos = allProducts
-      } else if (Array.isArray(allProducts.data)) {
-        productos = allProducts.data
-      } else if (allProducts.data && Array.isArray(allProducts.data.data)) {
-        productos = allProducts.data.data
-      } else if (allProducts.data && !Array.isArray(allProducts.data)) {
-        // Si data es un objeto único, convertirlo a array
-        productos = [allProducts.data]
-      }
-      
-      console.log('[API /tienda/productos/[id] PUT] Estructura de respuesta procesada:', {
-        esArray: Array.isArray(allProducts),
-        tieneData: !!allProducts.data,
-        dataEsArray: Array.isArray(allProducts.data),
-        totalProductos: productos.length,
-        estructura: {
-          tipo: typeof allProducts,
-          keys: Object.keys(allProducts || {}),
-          dataTipo: typeof allProducts.data,
-          dataKeys: allProducts.data ? Object.keys(allProducts.data) : [],
-        },
-        idBuscado: id,
-        primerosIds: productos.slice(0, 5).map((p: any) => ({
-          id: p.id,
-          documentId: p.documentId,
-          nombre: p.nombre_libro || 'Sin nombre',
-        })),
+      console.log('[API /tienda/productos/[id] PUT] Respuesta completa del GET:', {
+        tieneData: !!directResponse.data,
+        tieneIdDirecto: !!directResponse.id,
+        keys: Object.keys(directResponse),
+        respuestaCompleta: JSON.stringify(directResponse, null, 2).substring(0, 500) + '...'
       })
       
-      // Buscar por id numérico o documentId
-      // IMPORTANTE: Los datos pueden venir directamente o dentro de attributes
-      const idStr = id.toString()
-      const idNum = parseInt(idStr)
-      
-      console.log('[API /tienda/productos/[id] PUT] Buscando producto con:', {
-        idBuscado: id,
-        idStr,
-        idNum,
-        esNumerico: !isNaN(idNum),
-        totalProductos: productos.length,
-        primerosProductos: productos.slice(0, 3).map((p: any) => ({
-          id: p.id,
-          documentId: p.documentId,
-          idTipo: typeof p.id,
-          documentIdTipo: typeof p.documentId,
-        })),
-      })
-      
-      const productoEncontrado = productos.find((p: any) => {
-        // Los datos vienen directamente (sin attributes según la estructura que vimos)
-        const pId = p.id
-        const pDocId = p.documentId
-        
-        // Comparar de múltiples formas
-        const encontrado = (
-          pId?.toString() === idStr ||
-          pDocId?.toString() === idStr ||
-          (!isNaN(idNum) && pId === idNum) ||
-          (!isNaN(idNum) && pId?.toString() === idNum.toString())
-        )
-        
-        if (encontrado) {
-          console.log('[API /tienda/productos/[id] PUT] ✅ Coincidencia encontrada:', {
-            idBuscado: id,
-            productoId: pId,
-            documentId: pDocId,
-            productoCompleto: p,
-          })
-        }
-        
-        return encontrado
-      })
-      
-        // Si encontramos el producto, usar su ID directamente
-        if (!productoEncontrado) {
-          const idsDisponibles = productos.map((p: any) => ({
-            id: p.id,
-            documentId: p.documentId,
-            nombre: p.nombre_libro || 'Sin nombre',
-          }))
-          
-          console.error('[API /tienda/productos/[id] PUT] ❌ Producto no encontrado en lista:', {
-            idBuscado: id,
-            tipoId: typeof id,
-            esNumerico: !isNaN(parseInt(id)),
-            totalProductos: productos.length,
-            idsDisponibles: idsDisponibles.slice(0, 10),
-            muestraProductos: productos.slice(0, 3).map((p: any) => ({
-              id: p.id,
-              documentId: p.documentId,
-              keys: Object.keys(p).slice(0, 10),
-            })),
-          })
-          return NextResponse.json(
-            { 
-              success: false, 
-              error: `Producto con ID "${id}" no encontrado`,
-              debug: {
-                idBuscado: id,
-                tipoId: typeof id,
-                totalProductos: productos.length,
-                idsDisponibles: idsDisponibles.slice(0, 10),
-                mensaje: `IDs disponibles: ${idsDisponibles.map((p: any) => `id:${p.id} (${p.nombre}) o documentId:${p.documentId}`).join(', ')}`,
-              },
-            },
-            { status: 404 }
-          )
-        }
-        
-        productoActual = productoEncontrado
-        productoId = productoEncontrado.id
-        
-        console.log('[API /tienda/productos/[id] PUT] Producto encontrado en lista, usando ID:', {
-          idOriginal: id,
-          idNumerico: productoId,
-          documentId: productoEncontrado.documentId,
+      // Manejar ambas estructuras: response.data.id o response.id
+      if (directResponse.data && directResponse.data.id) {
+        productoActual = directResponse.data
+        productoId = directResponse.data.id
+        console.log('[API /tienda/productos/[id] PUT] ✅ Producto encontrado en response.data:', {
+          id: directResponse.data.id,
+          documentId: directResponse.data.documentId,
+          nombre: directResponse.data.nombre_libro
         })
-      } catch (searchError: any) {
-        console.error('[API /tienda/productos/[id] PUT] ❌ Error al buscar producto en lista:', {
-          message: searchError.message,
-          status: searchError.status,
-          details: searchError.details,
+      } else if (directResponse.id) {
+        productoActual = directResponse
+        productoId = directResponse.id
+        console.log('[API /tienda/productos/[id] PUT] ✅ Producto encontrado en response directo:', {
+          id: directResponse.id,
+          documentId: directResponse.documentId,
+          nombre: directResponse.nombre_libro
+        })
+      } else {
+        console.error('[API /tienda/productos/[id] PUT] ❌ Respuesta no tiene estructura esperada:', {
+          respuesta: directResponse
         })
         return NextResponse.json(
-          { success: false, error: `Error al buscar producto: ${searchError.message}` },
-          { status: searchError.status || 500 }
+          { 
+            success: false, 
+            error: 'La respuesta de Strapi no tiene la estructura esperada',
+            debug: { respuesta: directResponse }
+          },
+          { status: 500 }
         )
       }
-    }
-    
-    // Verificar que encontramos el producto
-    if (!productoActual || !productoId) {
-      console.error('[API /tienda/productos/[id] PUT] ❌ Producto no encontrado después de todas las búsquedas:', {
-        idBuscado: id,
-        tieneProducto: !!productoActual,
-        tieneId: !!productoId,
+    } catch (getError: any) {
+      console.error('[API /tienda/productos/[id] PUT] ❌ Error al obtener producto:', {
+        status: getError.status,
+        message: getError.message,
+        details: getError.details,
+        stack: getError.stack
       })
+      
       return NextResponse.json(
         { 
           success: false, 
           error: `Producto con ID "${id}" no encontrado en Strapi`,
           debug: {
-            idOriginal: id,
-            idNumericoUsado: productoId,
-            endpoint: `/api/libros/${productoId || id}`,
-          },
+            idBuscado: id,
+            status: getError.status,
+            message: getError.message,
+            endpoint: `/api/libros/${id}?populate=*`
+          }
         },
-        { status: 404 }
+        { status: getError.status || 404 }
       )
     }
     
-    if (!productoId || isNaN(productoId)) {
+    // PASO 3: Validar que tenemos un ID numérico válido
+    if (!productoId || isNaN(Number(productoId))) {
       console.error('[API /tienda/productos/[id] PUT] ❌ ID numérico inválido:', {
         productoId,
         tipo: typeof productoId,
+        productoActual
       })
       return NextResponse.json(
         { success: false, error: 'El producto encontrado no tiene un ID numérico válido' },
@@ -464,6 +336,7 @@ export async function PUT(
       idOriginal: id,
       idNumerico: productoId,
       documentId: productoActual?.documentId,
+      nombre: productoActual?.nombre_libro
     })
     
     // PASO 2: Preparar datos para Strapi v4/v5
