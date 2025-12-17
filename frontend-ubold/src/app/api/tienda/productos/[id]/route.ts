@@ -186,43 +186,51 @@ export async function PUT(
       updateData,
     })
     
-    // Intentar actualizar
+    // Intentar actualizar con formato estándar de Strapi
+    // Strapi espera: { data: { campo: valor } }
     let response: any
     try {
       response = await strapiClient.put<any>(
         endpointUsed,
         updateData
       )
+      
+      console.log('[API /tienda/productos/[id]] Actualización exitosa:', {
+        hasResponse: !!response,
+        hasData: !!response?.data,
+      })
     } catch (putError: any) {
       console.error('[API /tienda/productos/[id]] Error en PUT:', {
         message: putError.message,
         status: putError.status,
         details: putError.details,
-        response: putError.response,
+        endpoint: endpointUsed,
+        updateDataEnviado: JSON.stringify(updateData, null, 2),
       })
       
-      // Si falla, intentar con formato alternativo (sin data wrapper)
-      if (putError.status === 502 || putError.status === 400) {
-        console.log('[API /tienda/productos/[id]] Intentando formato alternativo...')
-        const altUpdateData: any = {}
-        
-        if (body.nombre_libro !== undefined) altUpdateData.nombre_libro = body.nombre_libro
-        if (body.descripcion !== undefined) altUpdateData.descripcion = body.descripcion
-        if (body.portada_libro !== undefined) {
-          if (typeof body.portada_libro === 'number') {
-            altUpdateData.portada_libro = body.portada_libro
-          } else if (body.portada_libro === null) {
-            altUpdateData.portada_libro = null
-          }
-        }
-        
-        response = await strapiClient.put<any>(
-          endpointUsed,
-          { data: altUpdateData }
-        )
-      } else {
-        throw putError
+      // Si el error es 502 (Bad Gateway), puede ser un problema de formato o de Strapi
+      // Intentar obtener más información del error
+      if (putError.status === 502) {
+        // El 502 generalmente indica que Strapi rechazó la petición
+        // Puede ser por formato incorrecto o campo que no existe
+        console.error('[API /tienda/productos/[id]] Error 502 - Posibles causas:', {
+          mensaje: 'Strapi rechazó la petición. Verificar:',
+          causas: [
+            '1. El campo no existe en el schema de Strapi',
+            '2. El formato de datos es incorrecto',
+            '3. El token de autenticación no tiene permisos',
+            '4. El tipo de dato no coincide con el schema',
+          ],
+          camposIntentados: Object.keys(updateData.data),
+          estructuraProducto: productoActual ? {
+            camposDisponibles: Object.keys(productoActual).filter(k => 
+              !['id', 'documentId', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'localizations'].includes(k)
+            ),
+          } : 'No se pudo obtener estructura',
+        })
       }
+      
+      throw putError
     }
     
     return NextResponse.json({
