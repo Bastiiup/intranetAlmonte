@@ -63,8 +63,14 @@ export async function GET(request: NextRequest) {
     
     // Ejecutar ambas queries en paralelo
     const [response1, response2] = await Promise.all([
-      strapiClient.get<StrapiResponse<StrapiEntity<ChatMensajeAttributes>>>(query1).catch(() => ({ data: [] } as StrapiResponse<StrapiEntity<ChatMensajeAttributes>>)),
-      strapiClient.get<StrapiResponse<StrapiEntity<ChatMensajeAttributes>>>(query2).catch(() => ({ data: [] } as StrapiResponse<StrapiEntity<ChatMensajeAttributes>>)),
+      strapiClient.get<StrapiResponse<StrapiEntity<ChatMensajeAttributes>>>(query1).catch((err) => {
+        console.error('[API /chat/mensajes] Error en query1:', err)
+        return { data: [] } as StrapiResponse<StrapiEntity<ChatMensajeAttributes>>
+      }),
+      strapiClient.get<StrapiResponse<StrapiEntity<ChatMensajeAttributes>>>(query2).catch((err) => {
+        console.error('[API /chat/mensajes] Error en query2:', err)
+        return { data: [] } as StrapiResponse<StrapiEntity<ChatMensajeAttributes>>
+      }),
     ])
     
     // Extraer datos de ambas respuestas
@@ -93,6 +99,15 @@ export async function GET(request: NextRequest) {
         }
       })
     }
+    
+    console.log('[API /chat/mensajes] Resultados:', {
+      remitenteId: remitenteIdNum,
+      colaboradorId: colaboradorIdNum,
+      query1Count: data1.length,
+      query2Count: data2.length,
+      query1Sample: data1[0] ? { id: data1[0].id, remitente_id: data1[0].remitente_id, cliente_id: data1[0].cliente_id } : null,
+      query2Sample: data2[0] ? { id: data2[0].id, remitente_id: data2[0].remitente_id, cliente_id: data2[0].cliente_id } : null,
+    })
     
     // Combinar y ordenar por fecha
     const allMessages = [...data1, ...data2].sort((a: any, b: any) => {
