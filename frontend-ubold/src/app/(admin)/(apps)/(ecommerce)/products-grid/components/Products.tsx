@@ -98,16 +98,31 @@ const getField = (obj: any, ...fieldNames: string[]): any => {
 }
 
 const Products = ({ productos, error }: ProductsProps) => {
-  // Obtener URL de imagen (portada_libro en minúsculas como en Strapi)
+  // Obtener URL de imagen (igual que ProductosGrid que funciona)
   const getImageUrl = (producto: Producto): string | null => {
     const attrs = producto.attributes || {}
     const data = attrs as any
-    // Intentar primero con portada_libro (minúsculas, como está en Strapi)
-    const portada = data.portada_libro?.data || data.PORTADA_LIBRO?.data || data.portadaLibro?.data
-    if (!portada) return null
+    // Usar el mismo orden que ProductosGrid que funciona
+    const portada = data.PORTADA_LIBRO?.data || data.portada_libro?.data || data.portadaLibro?.data
+    if (!portada) {
+      // Debug: Log para ver qué está pasando
+      if (typeof window !== 'undefined' && productos.length > 0) {
+        console.log('[Products Grid] No se encontró portada:', {
+          productoId: producto.id,
+          tieneAttributes: !!producto.attributes,
+          keysData: Object.keys(data),
+          tienePortadaLibro: !!data.portada_libro,
+          tienePORTADA_LIBRO: !!data.PORTADA_LIBRO,
+        })
+      }
+      return null
+    }
 
     const url = portada.attributes?.url || portada.attributes?.URL
-    if (!url) return null
+    if (!url) {
+      console.log('[Products Grid] Portada encontrada pero sin URL:', { portada })
+      return null
+    }
 
     // Si la URL ya es completa, retornarla tal cual
     if (url.startsWith('http')) {
@@ -116,7 +131,9 @@ const Products = ({ productos, error }: ProductsProps) => {
 
     // Si no, construir la URL completa con la base de Strapi
     const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
-    return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
+    const finalUrl = `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
+    console.log('[Products Grid] URL de imagen construida:', finalUrl)
+    return finalUrl
   }
 
   // Calcular stock total
@@ -160,13 +177,26 @@ const Products = ({ productos, error }: ProductsProps) => {
 
   return (
     <Row className="row-cols-xxl-4 row-cols-lg-3 row-cols-sm-2 row-col-1 g-2">
-      {productos.map((producto) => {
+      {productos.map((producto, index) => {
         // Los datos pueden venir en attributes o directamente (igual que ProductosGrid)
         const attrs = producto.attributes || {}
         const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (producto as any)
         
-        // Buscar nombre con múltiples variaciones (usar nombre_libro en minúsculas primero, como está en Strapi)
-        const nombre = getField(data, 'nombre_libro', 'NOMBRE_LIBRO', 'nombreLibro', 'NOMBRE', 'nombre', 'name', 'NAME') || 'Sin nombre'
+        // Debug: Log del primer producto para ver la estructura
+        if (index === 0 && typeof window !== 'undefined') {
+          console.log('[Products Grid] Primer producto estructura:', {
+            producto,
+            tieneAttributes: !!producto.attributes,
+            keysProducto: Object.keys(producto),
+            keysAttrs: producto.attributes ? Object.keys(producto.attributes) : [],
+            keysData: Object.keys(data),
+            muestraNombre: data.NOMBRE_LIBRO || data.nombre_libro || data.nombreLibro,
+            tienePortada: !!data.portada_libro || !!data.PORTADA_LIBRO,
+          })
+        }
+        
+        // Buscar nombre con múltiples variaciones (mismo orden que ProductosGrid que funciona)
+        const nombre = getField(data, 'NOMBRE_LIBRO', 'nombre_libro', 'nombreLibro', 'NOMBRE', 'nombre', 'name', 'NAME') || 'Sin nombre'
         const isbn = getField(data, 'isbn_libro', 'ISBN_LIBRO', 'isbnLibro', 'ISBN', 'isbn') || ''
         const autor = data.autor_relacion?.data?.attributes?.nombre || data.autor_relacion?.data?.attributes?.NOMBRE || ''
         const editorial = data.editorial?.data?.attributes?.nombre || data.editorial?.data?.attributes?.NOMBRE || ''
@@ -203,14 +233,23 @@ const Products = ({ productos, error }: ProductsProps) => {
                       src={imageUrl} 
                       alt={nombre} 
                       fill
+                      unoptimized
                       style={{
                         objectFit: 'contain',
                         padding: '12px',
                       }}
                       sizes="(max-width: 576px) 100vw, (max-width: 768px) 50vw, (max-width: 992px) 33vw, 25vw"
+                      onError={(e) => {
+                        console.error('[Products Grid] Error al cargar imagen:', imageUrl, e)
+                      }}
                     />
                   ) : (
-                    <div className="text-muted">Sin imagen</div>
+                    <div className="text-muted d-flex flex-column align-items-center justify-content-center">
+                      <small>Sin imagen</small>
+                      {index === 0 && typeof window !== 'undefined' && (
+                        <small className="text-danger mt-1">Debug: Ver consola</small>
+                      )}
+                    </div>
                   )}
                 </div>
                 <CardTitle className="fs-sm lh-base mb-2">
