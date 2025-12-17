@@ -1,6 +1,5 @@
 'use client'
 import ContactList from '@/app/(admin)/(apps)/chat/components/ContactList'
-// Ya no usamos currentUser de data.ts, usamos datos reales del colaborador autenticado
 import { ContactType, MessageType } from '@/app/(admin)/(apps)/chat/types'
 import SimplebarClient from '@/components/client-wrapper/SimplebarClient'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
@@ -43,31 +42,7 @@ import { useAuth } from '@/hooks/useAuth'
 const Page = () => {
   const { colaborador, persona } = useAuth()
   const currentUserId = colaborador?.id ? String(colaborador.id) : null
-  
-  // Debug: Log del colaborador actual al cargar el componente
-  useEffect(() => {
-    // También verificar localStorage directamente
-    const colaboradorFromStorage = typeof window !== 'undefined' 
-      ? localStorage.getItem('auth_colaborador') 
-      : null
-    let parsedColaborador = null
-    try {
-      parsedColaborador = colaboradorFromStorage ? JSON.parse(colaboradorFromStorage) : null
-    } catch (e) {
-      console.error('[Chat] Error al parsear colaborador de localStorage:', e)
-    }
-    
-    console.log('[Chat] Colaborador actual cargado:', {
-      colaboradorId: colaborador?.id,
-      currentUserId,
-      email_login: colaborador?.email_login,
-      personaNombre: persona?.nombre_completo || persona?.nombres,
-      colaboradorFromStorage: parsedColaborador,
-      colaboradorFromHook: colaborador,
-    })
-  }, [colaborador, currentUserId, persona])
-  
-  // Obtener datos del usuario actual para mostrar en mensajes
+
   const currentUserData = {
     id: currentUserId || '1',
     name: persona ? (persona.nombre_completo || `${persona.nombres || ''} ${persona.primer_apellido || ''}`.trim() || 'Usuario') : 'Usuario',
@@ -75,6 +50,7 @@ const Page = () => {
       ? { src: `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${persona.imagen.url}` }
       : undefined,
   }
+
   const [show, setShow] = useState(false)
   const [contacts, setContacts] = useState<ContactType[]>([])
   const [currentContact, setCurrentContact] = useState<ContactType | null>(null)
@@ -87,121 +63,61 @@ const Page = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Cargar contactos (colaboradores) desde Strapi
+  // Cargar contactos
   useEffect(() => {
     const cargarContactos = async () => {
       try {
         setIsLoading(true)
         const response = await fetch('/api/chat/colaboradores')
-        if (!response.ok) {
-          throw new Error('Error al cargar colaboradores')
-        }
+        if (!response.ok) throw new Error('Error al cargar colaboradores')
         const data = await response.json()
-        
-        // Debug: Log de la respuesta completa
-        console.log('[Chat] Datos recibidos de Strapi:', {
-          hasData: !!data.data,
-          isArray: Array.isArray(data.data),
-          count: Array.isArray(data.data) ? data.data.length : data.data ? 1 : 0,
-          sample: Array.isArray(data.data) ? data.data[0] : data.data,
-        })
-        
-        // Verificar que hay datos
+
         if (!data.data || (Array.isArray(data.data) && data.data.length === 0)) {
-          console.warn('[Chat] No se encontraron colaboradores en Strapi')
           setContacts([])
-          setError('No se encontraron colaboradores. Verifica que existan registros activos en Intranet-Colaboradores en Strapi.')
           return
         }
-        
-        // Mapear colaboradores de Strapi a ContactType
+
         const colaboradoresArray = Array.isArray(data.data) ? data.data : [data.data]
-        
-        // Debug: Ver estructura completa del primer colaborador
-        if (colaboradoresArray.length > 0) {
-          const primerColaborador = colaboradoresArray[0]
-          console.log('[Chat] Estructura completa del primer colaborador:', JSON.stringify(primerColaborador, null, 2))
-        }
-        
-        // Función auxiliar para obtener nombre completo de Persona
+
         const obtenerNombrePersona = (persona: any): string => {
           if (!persona) return ''
-          
-          if (persona.nombre_completo) {
-            return persona.nombre_completo
-          }
-          
+          if (persona.nombre_completo) return persona.nombre_completo
           const partes = []
           if (persona.nombres) partes.push(persona.nombres)
           if (persona.primer_apellido) partes.push(persona.primer_apellido)
           if (persona.segundo_apellido) partes.push(persona.segundo_apellido)
-          
           return partes.length > 0 ? partes.join(' ') : persona.rut || ''
         }
-        
-        // Función auxiliar para obtener avatar de Persona
+
         const obtenerAvatar = (persona: any): string | null => {
           if (!persona?.imagen?.url) return null
           return `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${persona.imagen.url}`
         }
-        
+
         const contactosMapeados: ContactType[] = colaboradoresArray
           .filter((colaborador: any) => {
-            // Los datos pueden venir directamente o en attributes
             const colaboradorData = colaborador.attributes || colaborador
-            
-            // Solo incluir colaboradores activos con persona relacionada
-            if (!colaborador || !colaborador.id || !colaboradorData.activo) return false
-            if (!colaboradorData.persona) return false
-            
-            const nombre = obtenerNombrePersona(colaboradorData.persona)
-            return !!nombre && nombre.trim() !== ''
+            return colaborador?.id && colaboradorData.activo && colaboradorData.persona
           })
           .map((colaborador: any) => {
-            // Los datos pueden venir directamente o en attributes
             const colaboradorData = colaborador.attributes || colaborador
             const persona = colaboradorData.persona
             const nombre = obtenerNombrePersona(persona)
-            
-            if (!nombre || nombre.trim() === '') {
-              console.error('[Chat] ERROR: Colaborador sin nombre después del filtro:', {
-                id: colaborador.id,
-                email_login: colaboradorData.email_login,
-              })
-              return null
-            }
-            
-            // Por ahora, considerar todos como offline (luego podemos implementar lógica de última actividad)
-            const isOnline = false
-            
             const avatar = obtenerAvatar(persona)
-            
-            // Debug: Log de cada colaborador mapeado
-            console.log('[Chat] Colaborador mapeado:', {
-              id: colaborador.id,
-              nombre: nombre.trim(),
-              email_login: colaboradorData.email_login,
-              rol: colaboradorData.rol,
-              isOnline,
-              tieneAvatar: !!avatar,
-            })
-            
+
             return {
               id: String(colaborador.id),
               name: nombre.trim(),
-              isOnline,
+              isOnline: false,
               avatar: avatar ? { src: avatar } : undefined,
             }
           })
-          .filter((contacto: ContactType | null) => contacto !== null) as ContactType[]
-        
-        console.log('[Chat] Total contactos mapeados:', contactosMapeados.length)
-        
+          .filter((c: ContactType | null) => c !== null) as ContactType[]
+
         setContacts(contactosMapeados)
         if (contactosMapeados.length > 0 && !currentContact) {
           setCurrentContact(contactosMapeados[0])
         }
-        setError(null)
       } catch (err: any) {
         console.error('Error al cargar contactos:', err)
         setError(err.message || 'Error al cargar contactos')
@@ -209,132 +125,84 @@ const Page = () => {
         setIsLoading(false)
       }
     }
-    
+
     cargarContactos()
   }, [])
 
-    // Cargar mensajes y configurar polling
+  // Cargar mensajes y polling
   useEffect(() => {
     if (!currentContact || !currentUserId) return
 
     const cargarMensajes = async (soloNuevos: boolean = false) => {
       try {
-        // Obtener mensajes entre el usuario actual y el contacto seleccionado
-        // Necesitamos obtener mensajes donde:
-        // - remitente_id = currentUserId Y colaborador_id = currentContact.id
-        // - O remitente_id = currentContact.id Y colaborador_id = currentUserId
         const query = new URLSearchParams({
           colaborador_id: currentContact.id,
           remitente_id: currentUserId,
         })
-        
+
         if (soloNuevos && lastMessageDate) {
-          query.append('ultima_fecha', lastMessageDate)
+          const fechaConMargen = new Date(new Date(lastMessageDate).getTime() - 2000).toISOString()
+          query.append('ultima_fecha', fechaConMargen)
         }
-        
+
         const response = await fetch(`/api/chat/mensajes?${query.toString()}`)
         if (!response.ok) {
-          // Si es 404, el content type no existe aún - no mostrar error repetitivo
-          if (response.status === 404) {
-            if (!soloNuevos) {
-              // Solo mostrar el error la primera vez, no en cada polling
-              console.warn('Content type intranet-chats no encontrado en Strapi. Asegúrate de que esté creado y Strapi reiniciado.')
-            }
+          if (response.status === 404 || response.status === 502 || response.status === 504) {
             return
-          }
-          // Si es 502 o 504, es un problema de conexión con Strapi - no lanzar error, solo loguear
-          if (response.status === 502 || response.status === 504) {
-            if (!soloNuevos) {
-              // Solo loguear la primera vez para no saturar la consola
-              console.warn('[Chat] Error de conexión con Strapi (502/504). Verifica que Strapi esté disponible.')
-            }
-            return // No lanzar error, simplemente no actualizar mensajes
           }
           throw new Error('Error al cargar mensajes')
         }
-        
+
         const data = await response.json()
-        const mensajesData = Array.isArray(data.data) ? data.data : [data.data]
-        
-        // Debug: Ver estructura del primer mensaje
-        if (mensajesData.length > 0) {
-          console.log('[Chat] Estructura del primer mensaje:', JSON.stringify(mensajesData[0], null, 2))
-        }
-        
-        // Mapear mensajes de Strapi a MessageType
-        // Los datos pueden venir directamente o en attributes
+        const mensajesData = Array.isArray(data.data) ? data.data : (data.data ? [data.data] : [])
+
+        // Mapear mensajes - los datos vienen directamente
         const mensajesMapeados: MessageType[] = mensajesData.map((mensaje: any) => {
-          // Los datos pueden venir directamente o en attributes
-          const mensajeData = mensaje.attributes || mensaje
-          const texto = mensajeData.texto || mensajeData.TEXTO || ''
-          const remitenteId = mensajeData.remitente_id || mensajeData.REMITENTE_ID || 1
-          const fecha = mensajeData.fecha ? new Date(mensajeData.fecha) : new Date(mensajeData.createdAt || Date.now())
-          
-          // Asegurar que el ID del remitente sea string para comparación consistente
-          const remitenteIdStr = String(remitenteId)
-          
-          console.log('[Chat] Mensaje mapeado:', {
-            id: mensaje.id,
-            texto,
-            remitenteId: remitenteIdStr,
-            currentUserId,
-            isFromCurrentUser: remitenteIdStr === currentUserId,
-            fecha: fecha.toISOString(),
-          })
-          
+          const texto = mensaje.texto || ''
+          const remitenteId = mensaje.remitente_id || 1
+          const fecha = mensaje.fecha ? new Date(mensaje.fecha) : new Date(mensaje.createdAt || Date.now())
+
           return {
             id: String(mensaje.id),
-            senderId: remitenteIdStr, // Asegurar que sea string
+            senderId: String(remitenteId),
             text: texto,
             time: fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
           }
         })
-        
+
         if (soloNuevos) {
-          // Agregar solo los nuevos mensajes
           setMessages((prev) => {
             const nuevosIds = new Set(mensajesMapeados.map((m) => m.id))
             const mensajesExistentes = prev.filter((m) => !nuevosIds.has(m.id))
             return [...mensajesExistentes, ...mensajesMapeados]
           })
         } else {
-          // Reemplazar todos los mensajes
           setMessages(mensajesMapeados)
         }
-        
-        // Actualizar última fecha del mensaje más reciente
+
         if (mensajesMapeados.length > 0) {
           const ultimoMensaje = mensajesData[mensajesData.length - 1]
-          const ultimoMensajeData = ultimoMensaje.attributes || ultimoMensaje
-          // Los datos pueden venir directamente o en attributes
-          const ultimaFecha = ultimoMensajeData?.fecha || ultimoMensajeData?.createdAt
+          const ultimaFecha = ultimoMensaje?.fecha || ultimoMensaje?.createdAt
           if (ultimaFecha) {
             setLastMessageDate(ultimaFecha)
           }
         }
-        
-        // Scroll al final
+
         setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
         }, 100)
       } catch (err: any) {
-        // Solo loguear errores que no sean 404, 502 o 504 (ya manejados arriba)
         if (err.status !== 404 && err.status !== 502 && err.status !== 504) {
           console.error('Error al cargar mensajes:', err)
         }
-        // Si es un error de conexión (502/504), no hacer nada más - el polling seguirá intentando
       }
     }
-    
-    // Cargar mensajes iniciales
+
     cargarMensajes(false)
-    
-    // Configurar polling cada 1 segundo
     pollingIntervalRef.current = setInterval(() => {
       cargarMensajes(true)
     }, 1000)
-    
-    // Limpiar intervalo al cambiar de contacto o desmontar
+
     return () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current)
@@ -350,133 +218,62 @@ const Page = () => {
     setMessageText('')
     setIsSending(true)
 
-    // Debug: Log detallado antes de enviar
     const remitenteIdNum = parseInt(currentUserId, 10)
     const colaboradorIdNum = parseInt(currentContact.id, 10)
-    
-    console.log('[Chat] Enviando mensaje - DEBUG:', {
-      texto: texto.substring(0, 50),
-      remitente_id: remitenteIdNum,
-      colaborador_id: colaboradorIdNum,
-      currentUserId,
-      colaboradorFromHook: colaborador?.id,
-      currentContactId: currentContact.id,
-    })
 
     try {
       const response = await fetch('/api/chat/mensajes', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           texto,
-          colaborador_id: colaboradorIdNum, // ID del colaborador con quien chateas
-          remitente_id: remitenteIdNum, // ID del colaborador autenticado (quien envía) - usar currentUserId directamente
+          colaborador_id: colaboradorIdNum,
+          remitente_id: remitenteIdNum,
         }),
       })
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        console.error('[Chat] Error al enviar mensaje:', {
-          status: response.status,
-          error: errorData,
-        })
         throw new Error(errorData.error || 'Error al enviar mensaje')
       }
 
-      const responseData = await response.json()
-      console.log('[Chat] Mensaje enviado exitosamente:', responseData)
-
-      // Agregar el mensaje enviado inmediatamente al estado local
-      // para que aparezca de inmediato mientras se recarga desde el servidor
-      const mensajeEnviado: MessageType = {
-        id: responseData.data?.id ? String(responseData.data.id) : `temp-${Date.now()}`,
-        senderId: currentUserId || '1', // usar currentUserId directamente
-        text: texto,
-        time: new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
-      }
-      
-      // Agregar el mensaje al estado inmediatamente
-      setMessages((prev) => {
-        // Evitar duplicados
-        const existe = prev.some((m) => m.id === mensajeEnviado.id || (m.text === mensajeEnviado.text && m.senderId === mensajeEnviado.senderId && Math.abs(new Date(m.time).getTime() - new Date().getTime()) < 2000))
-        if (existe) return prev
-        return [...prev, mensajeEnviado]
-      })
-
-      // Forzar recarga completa de mensajes después de enviar
-      // Esto asegura que el mensaje enviado aparezca inmediatamente
-      // y que cualquier mensaje nuevo del otro colaborador también se cargue
+      // Recargar mensajes después de enviar
       setTimeout(() => {
-        // Recargar todos los mensajes (no solo nuevos) para asegurar que aparezca el que acabamos de enviar
         const query = new URLSearchParams({
           colaborador_id: currentContact.id,
-          remitente_id: currentUserId || '',
+          remitente_id: currentUserId,
         })
-        // No usar ultima_fecha para forzar recarga completa
         fetch(`/api/chat/mensajes?${query.toString()}`)
-          .then((res) => {
-            if (!res.ok) {
-              console.error('[Chat] Error al recargar mensajes:', res.status)
-              return
-            }
-            return res.json()
-          })
+          .then((res) => res.json())
           .then((data) => {
-            if (!data) return
-            
-            const mensajesData = Array.isArray(data.data) ? data.data : [data.data]
-            console.log('[Chat] Mensajes recargados después de enviar:', mensajesData.length)
-            
-            if (mensajesData.length > 0) {
-              // Mapear mensajes
-              const mensajesMapeados: MessageType[] = mensajesData.map((mensaje: any) => {
-                const mensajeData = mensaje.attributes || mensaje
-                const texto = mensajeData.texto || ''
-                const remitenteId = mensajeData.remitente_id || 1
-                const fecha = mensajeData.fecha ? new Date(mensajeData.fecha) : new Date(mensajeData.createdAt || Date.now())
-                
-                return {
-                  id: String(mensaje.id),
-                  senderId: String(remitenteId),
-                  text: texto,
-                  time: fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
-                }
-              })
-              
-              // Reemplazar todos los mensajes
-              setMessages(mensajesMapeados)
-              
-              // Actualizar última fecha
-              const ultimoMensaje = mensajesData[mensajesData.length - 1]
-              const ultimoMensajeData = ultimoMensaje.attributes || ultimoMensaje
-              const ultimaFecha = ultimoMensajeData?.fecha || ultimoMensajeData?.createdAt
-              if (ultimaFecha) {
-                setLastMessageDate(ultimaFecha)
+            const mensajesData = Array.isArray(data.data) ? data.data : (data.data ? [data.data] : [])
+            const mensajesMapeados: MessageType[] = mensajesData.map((mensaje: any) => {
+              const texto = mensaje.texto || ''
+              const remitenteId = mensaje.remitente_id || 1
+              const fecha = mensaje.fecha ? new Date(mensaje.fecha) : new Date(mensaje.createdAt || Date.now())
+              return {
+                id: String(mensaje.id),
+                senderId: String(remitenteId),
+                text: texto,
+                time: fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
               }
-              
-              // Scroll al final
-              setTimeout(() => {
-                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-              }, 100)
-            }
+            })
+            setMessages(mensajesMapeados)
+            setTimeout(() => {
+              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+            }, 100)
           })
-          .catch((err) => {
-            console.error('[Chat] Error al recargar mensajes después de enviar:', err)
-          })
-      }, 800) // Esperar 800ms para que Strapi procese el mensaje
+          .catch(() => {})
+      }, 500)
     } catch (err: any) {
       console.error('Error al enviar mensaje:', err)
       setError(err.message || 'Error al enviar mensaje')
-      // Restaurar el texto del mensaje si falla
       setMessageText(texto)
     } finally {
       setIsSending(false)
     }
   }
 
-  // Manejar Enter para enviar
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -502,8 +299,6 @@ const Page = () => {
         <PageBreadcrumb title="Chat" subtitle="Apps" />
         <Alert variant="danger">
           <strong>Error:</strong> {error}
-          <br />
-          <small>Verifica que el content type "intranet-chats" exista en Strapi y que las variables de entorno estén configuradas.</small>
         </Alert>
       </Container>
     )
@@ -514,7 +309,7 @@ const Page = () => {
       <Container fluid>
         <PageBreadcrumb title="Chat" subtitle="Apps" />
         <Alert variant="info">
-          No hay colaboradores disponibles. Asegúrate de que existan registros activos en Intranet-Colaboradores en Strapi.
+          No hay colaboradores disponibles.
         </Alert>
       </Container>
     )
@@ -590,61 +385,62 @@ const Page = () => {
             {messages.length > 0 ? (
               <>
                 {messages.map((message) => {
-                  // Asegurar comparación consistente de IDs (ambos como strings)
                   const messageSenderId = String(message.senderId)
                   const currentUserIdStr = currentUserId ? String(currentUserId) : null
                   const isFromCurrentUser = currentUserIdStr !== null && messageSenderId === currentUserIdStr
-                  
-                  return (
-                  <Fragment key={message.id}>
-                    {currentContact && currentUserIdStr && !isFromCurrentUser && (
-                      <div className="d-flex align-items-start gap-2 my-3 chat-item">
-                        {currentContact.avatar ? (
-                          <Image 
-                            src={typeof currentContact.avatar === 'object' && 'src' in currentContact.avatar 
-                              ? currentContact.avatar.src 
-                              : (currentContact.avatar as any).src} 
-                            width={36} 
-                            height={36} 
-                            className="avatar-md rounded-circle" 
-                            alt="User" 
-                          />
-                        ) : (
-                          <span className="avatar-sm flex-shrink-0">
-                            <span className="avatar-title text-bg-primary fw-bold rounded-circle">
-                              {currentContact.name.charAt(0).toUpperCase()}
-                            </span>
-                          </span>
-                        )}
-                        <div>
-                          <div className="chat-message py-2 px-3 bg-warning-subtle rounded">{message.text}</div>
-                          <div className="text-muted d-inline-flex align-items-center gap-1 fs-xs mt-1">
-                            <TbClock /> {message.time}
-                          </div>
-                        </div>
-                      </div>
-                    )}
 
-                    {isFromCurrentUser && (
-                      <div className="d-flex align-items-start gap-2 my-3 text-end chat-item justify-content-end">
-                        <div>
-                          <div className="chat-message py-2 px-3 bg-info-subtle rounded">{message.text}</div>
-                          <div className="text-muted d-inline-flex align-items-center gap-1 fs-xs mt-1">
-                            <TbClock /> {message.time}
+                  return (
+                    <Fragment key={message.id}>
+                      {/* Mensaje del otro usuario - IZQUIERDA, AMARILLO */}
+                      {currentContact && currentUserIdStr && !isFromCurrentUser && (
+                        <div className="d-flex align-items-start gap-2 my-3 chat-item">
+                          {currentContact.avatar ? (
+                            <Image 
+                              src={typeof currentContact.avatar === 'object' && 'src' in currentContact.avatar 
+                                ? currentContact.avatar.src 
+                                : String(currentContact.avatar)} 
+                              width={36} 
+                              height={36} 
+                              className="avatar-md rounded-circle" 
+                              alt="User" 
+                            />
+                          ) : (
+                            <span className="avatar-sm flex-shrink-0">
+                              <span className="avatar-title text-bg-primary fw-bold rounded-circle">
+                                {currentContact.name.charAt(0).toUpperCase()}
+                              </span>
+                            </span>
+                          )}
+                          <div>
+                            <div className="chat-message py-2 px-3 bg-warning-subtle rounded">{message.text}</div>
+                            <div className="text-muted d-inline-flex align-items-center gap-1 fs-xs mt-1">
+                              <TbClock /> {message.time}
+                            </div>
                           </div>
                         </div>
-                        {currentUserData.avatar ? (
-                          <Image src={currentUserData.avatar.src} width={36} height={36} className="avatar-md rounded-circle" alt="User" />
-                        ) : (
-                          <span className="avatar-sm flex-shrink-0">
-                            <span className="avatar-title text-bg-primary fw-bold rounded-circle w-25 h-25">
-                              {currentUserData.name.charAt(0).toUpperCase()}
+                      )}
+
+                      {/* Mensaje del usuario actual - DERECHA, AZUL */}
+                      {isFromCurrentUser && (
+                        <div className="d-flex align-items-start gap-2 my-3 text-end chat-item justify-content-end">
+                          <div>
+                            <div className="chat-message py-2 px-3 bg-info-subtle rounded">{message.text}</div>
+                            <div className="text-muted d-inline-flex align-items-center gap-1 fs-xs mt-1">
+                              <TbClock /> {message.time}
+                            </div>
+                          </div>
+                          {currentUserData.avatar ? (
+                            <Image src={currentUserData.avatar.src} width={36} height={36} className="avatar-md rounded-circle" alt="User" />
+                          ) : (
+                            <span className="avatar-sm flex-shrink-0">
+                              <span className="avatar-title text-bg-primary fw-bold rounded-circle w-25 h-25">
+                                {currentUserData.name.charAt(0).toUpperCase()}
+                              </span>
                             </span>
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </Fragment>
+                          )}
+                        </div>
+                      )}
+                    </Fragment>
                   )
                 })}
                 <div ref={messagesEndRef} />
@@ -667,11 +463,11 @@ const Page = () => {
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  disabled={!currentContact || isSending}
+                  disabled={!currentContact || isSending || !currentUserId}
                 />
                 <LuMessageSquare className="app-search-icon text-muted" />
               </div>
-              <Button variant="primary" onClick={handleSendMessage} disabled={!currentContact || isSending || !messageText.trim()}>
+              <Button variant="primary" onClick={handleSendMessage} disabled={!currentContact || isSending || !messageText.trim() || !currentUserId}>
                 {isSending ? (
                   <>
                     <Spinner animation="border" size="sm" className="me-1" />
