@@ -129,7 +129,7 @@ const priceRangeFilterFn: FilterFn<any> = (row, columnId, value) => {
   return price >= min && price <= max
 }
 
-const columnHelper = createColumnHelper<ProductType>()
+const columnHelper = createColumnHelper<ProductTypeExtended>()
 
 const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
   // Mapear productos de Strapi al formato ProductType si están disponibles
@@ -145,7 +145,7 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
       id: 'select',
       maxSize: 45,
       size: 45,
-      header: ({ table }: { table: TableType<ProductType> }) => (
+      header: ({ table }: { table: TableType<ProductTypeExtended> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -153,7 +153,7 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
           onChange={table.getToggleAllRowsSelectedHandler()}
         />
       ),
-      cell: ({ row }: { row: TableRow<ProductType> }) => (
+      cell: ({ row }: { row: TableRow<ProductTypeExtended> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -448,7 +448,7 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
             </div>
           </CardHeader>
 
-          <DataTable<ProductType> table={table} emptyMessage="No records found" />
+          <DataTable<ProductTypeExtended> table={table} emptyMessage="No records found" />
 
           {table.getRowModel().rows.length > 0 && (
             <CardFooter className="border-0">
