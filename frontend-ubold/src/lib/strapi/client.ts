@@ -35,6 +35,16 @@ const getHeaders = (customHeaders?: HeadersInit): HeadersInit => {
   // Agregar token de autenticación si está disponible (solo en servidor)
   if (STRAPI_API_TOKEN) {
     headers['Authorization'] = `Bearer ${STRAPI_API_TOKEN}`
+    // Log solo en desarrollo o si hay problema
+    if (process.env.NODE_ENV !== 'production' || !STRAPI_API_TOKEN) {
+      console.log('[Strapi Client] Token configurado:', {
+        tieneToken: !!STRAPI_API_TOKEN,
+        tokenLength: STRAPI_API_TOKEN?.length,
+        tokenPreview: STRAPI_API_TOKEN ? `${STRAPI_API_TOKEN.substring(0, 10)}...` : 'NO CONFIGURADO'
+      })
+    }
+  } else {
+    console.warn('[Strapi Client] ⚠️ STRAPI_API_TOKEN no está disponible en getHeaders()')
   }
   
   return headers

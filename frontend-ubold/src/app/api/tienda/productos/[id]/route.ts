@@ -252,6 +252,7 @@ export async function PUT(
     const tieneToken = !!token
     const tokenLength = token ? token.length : 0
     
+    // Logs completos de diagnóstico
     console.log('[API PUT] 🔍 DATOS DE ENTRADA:', {
       idRecibido: id,
       tipoDeId: typeof id,
@@ -260,12 +261,27 @@ export async function PUT(
       bodyRecibido: body
     })
     
-    console.log('[API PUT] 🔐 CONFIGURACIÓN STRAPI:', {
+    // Diagnóstico completo de variables de entorno
+    const todasLasEnvVars = Object.keys(process.env)
+    const envVarsStrapi = todasLasEnvVars.filter(k => k.includes('STRAPI'))
+    const envVarsWooCommerce = todasLasEnvVars.filter(k => k.includes('WOOCOMMERCE'))
+    
+    console.log('[API PUT] 🔐 DIAGNÓSTICO COMPLETO DE VARIABLES:', {
       tieneToken,
       tokenLength,
-      tokenPreview: token ? `${token.substring(0, 10)}...` : 'NO CONFIGURADO',
+      tokenPreview: token ? `${token.substring(0, 10)}...${token.substring(token.length - 10)}` : 'NO CONFIGURADO',
+      tokenValorCompleto: token || 'undefined',
       strapiUrl: process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl',
-      todasLasEnvVars: Object.keys(process.env).filter(k => k.includes('STRAPI')).join(', ')
+      nodeEnv: process.env.NODE_ENV,
+      totalEnvVars: todasLasEnvVars.length,
+      envVarsStrapi: envVarsStrapi,
+      envVarsWooCommerce: envVarsWooCommerce,
+      todasLasEnvVars: todasLasEnvVars.slice(0, 20), // Primeras 20 para no saturar
+      // Verificar acceso directo
+      directAccess: {
+        'process.env.STRAPI_API_TOKEN': process.env.STRAPI_API_TOKEN ? 'EXISTE' : 'NO EXISTE',
+        'process.env.NEXT_PUBLIC_STRAPI_URL': process.env.NEXT_PUBLIC_STRAPI_URL || 'NO EXISTE',
+      }
     })
     
     console.log('[API PUT] 📍 Endpoint que se va a llamar:', `/api/libros/${id}`)
