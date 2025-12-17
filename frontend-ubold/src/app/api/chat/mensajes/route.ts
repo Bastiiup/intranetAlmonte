@@ -82,37 +82,60 @@ export async function GET(request: NextRequest) {
       query2,
     })
     
-    // Ejecutar ambas queries en paralelo
-    const [response1, response2] = await Promise.all(queries)
+    // Ejecutar ambas queries en paralelo con manejo de errores individual
+    let response1: any = { data: [] }
+    let response2: any = { data: [] }
+    
+    try {
+      response1 = await strapiClient.get<StrapiResponse<StrapiEntity<ChatMensajeAttributes>>>(query1)
+    } catch (err: any) {
+      console.error('[API /chat/mensajes] Error en Query 1:', err)
+      // Si es 404, no hay mensajes - continuar con array vacío
+      if (err.status !== 404) {
+        throw err
+      }
+    }
+    
+    try {
+      response2 = await strapiClient.get<StrapiResponse<StrapiEntity<ChatMensajeAttributes>>>(query2)
+    } catch (err: any) {
+      console.error('[API /chat/mensajes] Error en Query 2:', err)
+      // Si es 404, no hay mensajes - continuar con array vacío
+      if (err.status !== 404) {
+        throw err
+      }
+    }
     
     // Combinar los resultados de ambas queries
-    // Los datos pueden venir directamente o en un array
+    // Strapi siempre devuelve data como array, incluso si está vacío
     let data1: any[] = []
-    if (response1.data) {
+    if (response1?.data) {
       if (Array.isArray(response1.data)) {
         data1 = response1.data
-      } else {
+      } else if (response1.data) {
         data1 = [response1.data]
       }
     }
     
     let data2: any[] = []
-    if (response2.data) {
+    if (response2?.data) {
       if (Array.isArray(response2.data)) {
         data2 = response2.data
-      } else {
+      } else if (response2.data) {
         data2 = [response2.data]
       }
     }
     
     // Log detallado antes de combinar
     console.log('[API /chat/mensajes] Datos recibidos:', {
-      response1HasData: !!response1.data,
-      response1DataType: Array.isArray(response1.data) ? 'array' : typeof response1.data,
-      response1DataLength: Array.isArray(response1.data) ? response1.data.length : (response1.data ? 1 : 0),
-      response2HasData: !!response2.data,
-      response2DataType: Array.isArray(response2.data) ? 'array' : typeof response2.data,
-      response2DataLength: Array.isArray(response2.data) ? response2.data.length : (response2.data ? 1 : 0),
+      response1Complete: JSON.stringify(response1).substring(0, 200),
+      response2Complete: JSON.stringify(response2).substring(0, 200),
+      response1HasData: !!response1?.data,
+      response1DataType: Array.isArray(response1?.data) ? 'array' : typeof response1?.data,
+      response1DataLength: Array.isArray(response1?.data) ? response1.data.length : (response1?.data ? 1 : 0),
+      response2HasData: !!response2?.data,
+      response2DataType: Array.isArray(response2?.data) ? 'array' : typeof response2?.data,
+      response2DataLength: Array.isArray(response2?.data) ? response2.data.length : (response2?.data ? 1 : 0),
       data1Length: data1.length,
       data2Length: data2.length,
       sample1: data1[0],
