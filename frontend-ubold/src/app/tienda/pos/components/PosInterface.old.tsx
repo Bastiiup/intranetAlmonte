@@ -1,25 +1,31 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Card, CardBody, Button, Form, InputGroup, Alert, Badge, Spinner, Row, Col } from 'react-bootstrap'
-import { LuSearch, LuPlus, LuMinus, LuTrash2, LuShoppingCart, LuCheck, LuX, LuBarcode, LuDollarSign, LuPrinter, LuFullscreen, LuFullscreenExit } from 'react-icons/lu'
+import { LuSearch, LuPlus, LuMinus, LuTrash2, LuShoppingCart, LuCheck, LuX } from 'react-icons/lu'
 import Image from 'next/image'
-import type { WooCommerceProduct } from '@/lib/woocommerce/types'
-import { usePosCart } from '../hooks/usePosCart'
-import { usePosProducts } from '../hooks/usePosProducts'
-import { usePosOrders, type PaymentMethod } from '../hooks/usePosOrders'
-import PaymentModal from './PaymentModal'
-import CustomerSelector from './CustomerSelector'
-import DiscountInput from './DiscountInput'
-import CashRegister from './CashRegister'
-import { formatCurrencyNumber } from '../utils/calculations'
-import { printReceipt, type ReceiptData } from '../utils/receipt'
-import { isValidBarcode, normalizeBarcode } from '../utils/barcode'
-import type { Discount } from '../utils/calculations'
+import type { WooCommerceProduct, CartItem } from '@/lib/woocommerce/types'
 
 interface PosInterfaceProps {}
 
-// Componente de Producto
+// Hook personalizado para debounce
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value)
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value)
+    }, delay)
+
+    return () => {
+      clearTimeout(handler)
+    }
+  }, [value, delay])
+
+  return debouncedValue
+}
+
+// Componente de Producto optimizado
 interface ProductCardProps {
   product: WooCommerceProduct
   onAddToCart: (product: WooCommerceProduct) => void
@@ -67,6 +73,7 @@ const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
         e.currentTarget.style.boxShadow = 'none'
       }}
     >
+      {/* Imagen del producto */}
       <div 
         className="position-relative bg-light product-image-container" 
         style={{ 
@@ -85,24 +92,26 @@ const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
         )}
         
         {imageUrl ? (
-          <Image
-            src={imageUrl}
-            alt={product.name}
-            fill
-            style={{ 
-              objectFit: 'contain',
-              padding: '12px',
-              opacity: imageLoading ? 0 : 1,
-              transition: 'opacity 0.3s ease-in-out',
-            }}
-            sizes="(max-width: 576px) 50vw, (max-width: 992px) 33vw, 25vw"
-            onLoad={() => setImageLoading(false)}
-            onError={() => {
-              setImageError(true)
-              setImageLoading(false)
-            }}
-            priority={false}
-          />
+          <>
+            <Image
+              src={imageUrl}
+              alt={product.name}
+              fill
+              style={{ 
+                objectFit: 'contain',
+                padding: '12px',
+                opacity: imageLoading ? 0 : 1,
+                transition: 'opacity 0.3s ease-in-out',
+              }}
+              sizes="(max-width: 576px) 50vw, (max-width: 992px) 33vw, 25vw"
+              onLoad={() => setImageLoading(false)}
+              onError={() => {
+                setImageError(true)
+                setImageLoading(false)
+              }}
+              priority={false}
+            />
+          </>
         ) : (
           <div
             className="w-100 h-100 d-flex flex-column align-items-center justify-content-center text-muted"
@@ -120,6 +129,7 @@ const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
         )}
       </div>
 
+      {/* Información del producto */}
       <CardBody className="p-3 d-flex flex-column">
         <h6 
           className="mb-2 text-truncate flex-grow-1" 
@@ -136,12 +146,12 @@ const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
         <div className="d-flex justify-content-between align-items-center mt-auto">
           <div>
             <span className="fw-bold text-primary fs-5">
-              ${formatCurrencyNumber(price)}
+              ${price.toLocaleString('es-CL')}
             </span>
             {product.regular_price && parseFloat(product.regular_price) > price && (
               <div>
                 <small className="text-muted text-decoration-line-through">
-                  ${formatCurrencyNumber(parseFloat(product.regular_price))}
+                  ${parseFloat(product.regular_price).toLocaleString('es-CL')}
                 </small>
               </div>
             )}
@@ -160,7 +170,7 @@ const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
 
 // Componente de Item del Carrito
 interface CartItemRowProps {
-  item: any
+  item: CartItem
   onUpdateQuantity: (productId: number, quantity: number) => void
   onRemove: (productId: number) => void
 }
@@ -174,6 +184,7 @@ const CartItemRow = ({ item, onUpdateQuantity, onRemove }: CartItemRowProps) => 
   return (
     <div className="cart-item border-bottom pb-3 mb-3">
       <div className="d-flex gap-2">
+        {/* Mini imagen */}
         {imageUrl && (
           <div 
             className="flex-shrink-0"
@@ -228,134 +239,192 @@ const CartItemRow = ({ item, onUpdateQuantity, onRemove }: CartItemRowProps) => 
         </div>
         
         <div className="text-end" style={{ minWidth: '80px' }}>
-          <div className="fw-bold fs-6">${formatCurrencyNumber(item.total)}</div>
-          <small className="text-muted">${formatCurrencyNumber(price)} c/u</small>
+          <div className="fw-bold fs-6">${item.total.toLocaleString('es-CL')}</div>
+          <small className="text-muted">${price.toLocaleString('es-CL')} c/u</small>
         </div>
       </div>
     </div>
   )
 }
 
-export default function PosInterfaceNew({}: PosInterfaceProps) {
-  const [discount, setDiscount] = useState<Discount | null>(null)
-  const [selectedCustomer, setSelectedCustomer] = useState<any>(null)
-  const [showPaymentModal, setShowPaymentModal] = useState(false)
-  const [showCashRegister, setShowCashRegister] = useState(false)
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const [barcodeInput, setBarcodeInput] = useState('')
-  const barcodeInputRef = useRef<HTMLInputElement>(null)
+export default function PosInterface({}: PosInterfaceProps) {
+  const [products, setProducts] = useState<WooCommerceProduct[]>([])
+  const [cart, setCart] = useState<CartItem[]>([])
+  const [searchTerm, setSearchTerm] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [processingOrder, setProcessingOrder] = useState(false)
+  const [orderSuccess, setOrderSuccess] = useState(false)
+  const [orderId, setOrderId] = useState<number | null>(null)
+  
+  // Debounce para la búsqueda
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
-  // Hooks personalizados
-  const { cart, addToCart, updateQuantity, removeFromCart, clearCart, totals } = usePosCart(discount)
-  const { products, loading, error, searchTerm, setSearchTerm, searchByBarcode, reloadProducts } = usePosProducts()
-  const { processing, error: orderError, success, orderId, processOrder, clearError, clearSuccess } = usePosOrders()
+  // Cargar productos
+  const loadProducts = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const params = new URLSearchParams({
+        per_page: '100',
+        stock_status: 'instock',
+        ...(debouncedSearchTerm && { search: debouncedSearchTerm }),
+      })
 
-  // Atajos de teclado
+      const response = await fetch(`/api/woocommerce/products?${params}`)
+      const data = await response.json()
+
+      if (data.success) {
+        setProducts(data.data || [])
+      } else {
+        setError(data.error || 'Error al cargar productos')
+        setProducts([])
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error al conectar con WooCommerce')
+      setProducts([])
+    } finally {
+      setLoading(false)
+    }
+  }, [debouncedSearchTerm])
+
   useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      // Ctrl+F: Focus en búsqueda
-      if (e.ctrlKey && e.key === 'f') {
-        e.preventDefault()
-        barcodeInputRef.current?.focus()
-      }
-      
-      // Esc: Limpiar búsqueda
-      if (e.key === 'Escape') {
-        setSearchTerm('')
-        setBarcodeInput('')
-      }
-      
-      // Enter en búsqueda: buscar
-      if (e.key === 'Enter' && document.activeElement === barcodeInputRef.current) {
-        handleBarcodeSearch()
-      }
-    }
+    loadProducts()
+  }, [loadProducts])
 
-    window.addEventListener('keydown', handleKeyPress)
-    return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [searchTerm, barcodeInput])
+  // Agregar producto al carrito
+  const addToCart = useCallback((product: WooCommerceProduct) => {
+    if (product.stock_status !== 'instock') return
 
-  // Manejar búsqueda por código de barras
-  const handleBarcodeSearch = async () => {
-    if (!barcodeInput.trim()) return
+    setCart((prevCart) => {
+      const existingItem = prevCart.find((item) => item.product.id === product.id)
 
-    const normalized = normalizeBarcode(barcodeInput)
-    if (!isValidBarcode(normalized)) {
-      clearError()
+      if (existingItem) {
+        return prevCart.map((item) =>
+          item.product.id === product.id
+            ? {
+                ...item,
+                quantity: item.quantity + 1,
+                subtotal: parseFloat(product.price) * (item.quantity + 1),
+                total: parseFloat(product.price) * (item.quantity + 1),
+              }
+            : item
+        )
+      } else {
+        const price = parseFloat(product.price) || 0
+        return [
+          ...prevCart,
+          {
+            product,
+            quantity: 1,
+            subtotal: price,
+            total: price,
+          },
+        ]
+      }
+    })
+  }, [])
+
+  // Actualizar cantidad en carrito
+  const updateQuantity = useCallback((productId: number, quantity: number) => {
+    if (quantity <= 0) {
+      removeFromCart(productId)
       return
     }
 
-    const product = await searchByBarcode(normalized)
-    if (product) {
-      addToCart(product)
-      setBarcodeInput('')
-    }
-  }
-
-  // Procesar pedido con método de pago
-  const handleProcessOrder = async (payments: PaymentMethod[]) => {
-    const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0)
-    
-    if (totalPaid < totals.total) {
-      clearError()
-      return
-    }
-
-    const order = await processOrder(
-      cart,
-      selectedCustomer?.id,
-      payments[0], // Usar el primer método de pago
-      `Pago: ${payments.map(p => `${p.type} $${p.amount}`).join(', ')}`
+    setCart((prevCart) =>
+      prevCart.map((item) => {
+        if (item.product.id === productId) {
+          const price = parseFloat(item.product.price) || 0
+          return {
+            ...item,
+            quantity,
+            subtotal: price * quantity,
+            total: price * quantity,
+          }
+        }
+        return item
+      })
     )
+  }, [])
 
-    if (order) {
-      // Imprimir ticket
-      const receiptData: ReceiptData = {
-        orderId: order.id,
-        date: new Date().toISOString(),
-        items: cart.map(item => ({
-          name: item.product.name,
+  // Remover producto del carrito
+  const removeFromCart = useCallback((productId: number) => {
+    setCart((prevCart) => prevCart.filter((item) => item.product.id !== productId))
+  }, [])
+
+  // Calcular totales (memoizado)
+  const { subtotal, total, itemCount } = useMemo(() => {
+    const sub = cart.reduce((sum, item) => sum + item.total, 0)
+    const count = cart.reduce((sum, item) => sum + item.quantity, 0)
+    return {
+      subtotal: sub,
+      total: sub, // Puedes agregar impuestos aquí
+      itemCount: count,
+    }
+  }, [cart])
+
+  // Procesar pedido
+  const processOrder = async () => {
+    if (cart.length === 0) {
+      setError('El carrito está vacío')
+      return
+    }
+
+    setProcessingOrder(true)
+    setError(null)
+    setOrderSuccess(false)
+    setOrderId(null)
+
+    try {
+      const orderData = {
+        payment_method: 'pos',
+        payment_method_title: 'Punto de Venta',
+        set_paid: true,
+        status: 'completed',
+        line_items: cart.map((item) => ({
+          product_id: item.product.id,
           quantity: item.quantity,
-          price: parseFloat(item.product.price),
-          total: item.total,
         })),
-        subtotal: totals.subtotal,
-        discount: totals.discount,
-        tax: totals.tax,
-        total: totals.total,
-        payment: {
-          method: payments[0].type,
-          amount: totalPaid,
-          change: totalPaid - totals.total,
-        },
-        customer: selectedCustomer ? {
-          name: `${selectedCustomer.first_name} ${selectedCustomer.last_name}`,
-          email: selectedCustomer.email,
-        } : undefined,
       }
 
-      printReceipt(receiptData)
-      
-      // Limpiar carrito y recargar productos
-      clearCart()
-      setDiscount(null)
-      setSelectedCustomer(null)
-      reloadProducts()
-    }
+      const response = await fetch('/api/woocommerce/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(orderData),
+      })
 
-    setShowPaymentModal(false)
+      const data = await response.json()
+
+      if (data.success) {
+        setOrderSuccess(true)
+        setOrderId(data.data?.id || null)
+        setCart([])
+        // Recargar productos para actualizar stock
+        loadProducts()
+        setTimeout(() => {
+          setOrderSuccess(false)
+          setOrderId(null)
+        }, 5000)
+      } else {
+        setError(data.error || 'Error al procesar el pedido')
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error al conectar con WooCommerce')
+    } finally {
+      setProcessingOrder(false)
+    }
   }
 
-  // Toggle pantalla completa
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen()
-      setIsFullscreen(true)
-    } else {
-      document.exitFullscreen()
-      setIsFullscreen(false)
+  // Limpiar carrito
+  const clearCart = useCallback(() => {
+    if (cart.length === 0) return
+    if (confirm('¿Estás seguro de que deseas limpiar el carrito?')) {
+      setCart([])
     }
-  }
+  }, [cart.length])
 
   return (
     <div className="pos-interface">
@@ -379,55 +448,6 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
           margin: 0 -8px 12px -8px !important;
         }
       `}</style>
-
-      {/* Header con controles */}
-      <Card className="mb-3">
-        <CardBody>
-          <Row className="g-3 align-items-center">
-            <Col md={4}>
-              <CustomerSelector
-                selectedCustomer={selectedCustomer}
-                onSelect={setSelectedCustomer}
-              />
-            </Col>
-            <Col md={4}>
-              <InputGroup>
-                <InputGroup.Text>
-                  <LuBarcode />
-                </InputGroup.Text>
-                <Form.Control
-                  ref={barcodeInputRef}
-                  type="text"
-                  placeholder="Código de barras o SKU (Enter para buscar)"
-                  value={barcodeInput}
-                  onChange={(e) => setBarcodeInput(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      handleBarcodeSearch()
-                    }
-                  }}
-                />
-              </InputGroup>
-            </Col>
-            <Col md={4} className="d-flex gap-2">
-              <Button
-                variant="outline-primary"
-                onClick={() => setShowCashRegister(true)}
-              >
-                <LuDollarSign className="me-1" />
-                Caja
-              </Button>
-              <Button
-                variant="outline-secondary"
-                onClick={toggleFullscreen}
-              >
-                {isFullscreen ? <LuFullscreenExit /> : <LuFullscreen />}
-              </Button>
-            </Col>
-          </Row>
-        </CardBody>
-      </Card>
 
       <Row className="g-3">
         {/* Panel de Productos */}
@@ -468,25 +488,14 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
                 <Alert 
                   variant="danger" 
                   dismissible 
-                  onClose={clearError}
+                  onClose={() => setError(null)}
                   className="mb-3"
                 >
                   <strong>Error:</strong> {error}
                 </Alert>
               )}
 
-              {orderError && (
-                <Alert 
-                  variant="danger" 
-                  dismissible 
-                  onClose={clearError}
-                  className="mb-3"
-                >
-                  <strong>Error:</strong> {orderError}
-                </Alert>
-              )}
-
-              {success && (
+              {orderSuccess && (
                 <Alert variant="success" className="mb-3">
                   <LuCheck className="me-2" />
                   <strong>Pedido procesado exitosamente</strong>
@@ -512,7 +521,7 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
                 <div 
                   className="row g-3" 
                   style={{ 
-                    maxHeight: 'calc(100vh - 450px)', 
+                    maxHeight: 'calc(100vh - 350px)', 
                     overflowY: 'auto',
                     paddingRight: '8px'
                   }}
@@ -536,9 +545,9 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
                 <h5 className="mb-0">
                   <LuShoppingCart className="me-2" />
                   Carrito
-                  {totals.itemCount > 0 && (
+                  {itemCount > 0 && (
                     <Badge bg="primary" className="ms-2">
-                      {totals.itemCount}
+                      {itemCount}
                     </Badge>
                   )}
                 </h5>
@@ -546,11 +555,7 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
                   <Button 
                     variant="outline-danger" 
                     size="sm" 
-                    onClick={() => {
-                      if (confirm('¿Estás seguro de que deseas limpiar el carrito?')) {
-                        clearCart()
-                      }
-                    }}
+                    onClick={clearCart}
                   >
                     <LuTrash2 /> Limpiar
                   </Button>
@@ -567,7 +572,7 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
                 <>
                   <div 
                     style={{ 
-                      maxHeight: 'calc(100vh - 550px)', 
+                      maxHeight: 'calc(100vh - 450px)', 
                       overflowY: 'auto',
                       paddingRight: '8px'
                     }}
@@ -582,49 +587,25 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
                     ))}
                   </div>
 
-                  {/* Descuentos */}
-                  <div className="mb-3">
-                    <DiscountInput
-                      discount={discount}
-                      onDiscountChange={setDiscount}
-                      subtotal={totals.subtotal}
-                    />
-                  </div>
-
-                  {/* Totales */}
                   <div className="border-top pt-3 mt-3">
                     <div className="d-flex justify-content-between mb-2">
                       <span className="text-muted">Subtotal:</span>
-                      <span className="fw-bold">${formatCurrencyNumber(totals.subtotal)}</span>
+                      <span className="fw-bold">${subtotal.toLocaleString('es-CL')}</span>
                     </div>
-                    {totals.discount > 0 && (
-                      <div className="d-flex justify-content-between mb-2">
-                        <span className="text-muted">Descuento:</span>
-                        <span className="fw-bold text-success">
-                          -${formatCurrencyNumber(totals.discount)}
-                        </span>
-                      </div>
-                    )}
-                    {totals.tax > 0 && (
-                      <div className="d-flex justify-content-between mb-2">
-                        <span className="text-muted">IVA:</span>
-                        <span className="fw-bold">${formatCurrencyNumber(totals.tax)}</span>
-                      </div>
-                    )}
                     <div className="d-flex justify-content-between mb-3">
                       <span className="fs-5 fw-bold">Total:</span>
                       <span className="fs-5 fw-bold text-primary">
-                        ${formatCurrencyNumber(totals.total)}
+                        ${total.toLocaleString('es-CL')}
                       </span>
                     </div>
                     <Button
                       variant="primary"
                       size="lg"
                       className="w-100"
-                      onClick={() => setShowPaymentModal(true)}
-                      disabled={processing || cart.length === 0}
+                      onClick={processOrder}
+                      disabled={processingOrder || cart.length === 0}
                     >
-                      {processing ? (
+                      {processingOrder ? (
                         <>
                           <Spinner animation="border" size="sm" className="me-2" />
                           Procesando...
@@ -643,20 +624,6 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
           </Card>
         </Col>
       </Row>
-
-      {/* Modales */}
-      <PaymentModal
-        show={showPaymentModal}
-        total={totals.total}
-        onComplete={handleProcessOrder}
-        onCancel={() => setShowPaymentModal(false)}
-      />
-
-      <CashRegister
-        show={showCashRegister}
-        onClose={() => setShowCashRegister(false)}
-      />
     </div>
   )
 }
-
