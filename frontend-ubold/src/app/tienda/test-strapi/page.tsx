@@ -17,6 +17,15 @@ interface ConnectionStatus {
   statusCode?: number
 }
 
+interface TestResult {
+  endpoint: string
+  success: boolean
+  status?: number
+  error?: string
+  existe?: boolean
+  tieneDatos?: boolean
+}
+
 export default async function TestStrapiPage() {
   const status: ConnectionStatus = {
     connected: false,
@@ -25,32 +34,68 @@ export default async function TestStrapiPage() {
     tokenLength: STRAPI_API_TOKEN?.length,
   }
 
-  // Intentar hacer una petición de prueba a Strapi
+  // Intentar hacer peticiones de prueba a Strapi
+  const testResults: TestResult[] = []
+
   try {
-    // Probar con un endpoint común de Strapi
+    // Lista amplia de endpoints para probar
     const testEndpoints = [
-      '/api/pedidos?pagination[pageSize]=1',
+      // Endpoints que sabemos que funcionan (chat)
+      '/api/wo-clientes?pagination[pageSize]=1',
+      '/api/intranet-chats?pagination[pageSize]=1',
+      
+      // Endpoints de productos/libros
+      '/api/product-libro-edicion?pagination[pageSize]=1',
+      '/api/producto-libro-edicion?pagination[pageSize]=1',
+      '/api/libro-edicion?pagination[pageSize]=1',
+      '/api/producto?pagination[pageSize]=1',
       '/api/productos?pagination[pageSize]=1',
+      '/api/libro?pagination[pageSize]=1',
+      '/api/libros?pagination[pageSize]=1',
+      
+      // Endpoints de pedidos
+      '/api/ecommerce-pedidos?pagination[pageSize]=1',
+      '/api/wo-pedidos?pagination[pageSize]=1',
+      '/api/pedidos?pagination[pageSize]=1',
+      
+      // Otros
       '/api/turnos-tiendas?pagination[pageSize]=1',
     ]
 
-    let testResponse: any = null
-    let testEndpoint = ''
-
     for (const endpoint of testEndpoints) {
       try {
-        testResponse = await strapiClient.get<any>(endpoint)
-        testEndpoint = endpoint
-        status.connected = true
-        status.testEndpoint = endpoint
-        status.testResponse = testResponse
-        break
-      } catch (err: any) {
-        // Continuar con el siguiente endpoint
-        if (err.status) {
-          status.statusCode = err.status
+        const response = await strapiClient.get<any>(endpoint)
+        const tieneDatos = Array.isArray(response.data) 
+          ? response.data.length > 0 
+          : response.data !== undefined && response.data !== null
+        
+        testResults.push({
+          endpoint,
+          success: true,
+          tieneDatos,
+        })
+        
+        // Si es el primero que funciona, guardarlo como testResponse
+        if (!status.connected) {
+          status.connected = true
+          status.testEndpoint = endpoint
+          status.testResponse = response
         }
-        continue
+      } catch (err: any) {
+        const statusCode = err.status || 500
+        const existe = statusCode !== 404
+        
+        testResults.push({
+          endpoint,
+          success: false,
+          status: statusCode,
+          error: err.message || `HTTP ${statusCode}`,
+          existe,
+        })
+        
+        if (!status.statusCode) {
+          status.statusCode = statusCode
+        }
       }
     }
 
@@ -174,10 +219,93 @@ export default async function TestStrapiPage() {
                 </Alert>
               )}
 
+              {/* Resultados Detallados */}
+              {testResults.length > 0 && (
+                <div className="mb-4">
+                  <h5 className="mb-3">Resultados de Prueba por Endpoint</h5>
+                  <div className="table-responsive">
+                    <table className="table table-bordered">
+                      <thead>
+                        <tr>
+                          <th>Endpoint</th>
+                          <th>Estado</th>
+                          <th>Detalles</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {testResults.map((result, index) => (
+                          <tr key={index}>
+                            <td><code>{result.endpoint}</code></td>
+                            <td>
+                              {result.success ? (
+                                <Badge bg="success">✅ OK</Badge>
+                              ) : result.existe ? (
+                                <Badge bg="warning">⚠️ Existe (permisos?)</Badge>
+                              ) : (
+                                <Badge bg="danger">❌ No existe</Badge>
+                              )}
+                            </td>
+                            <td>
+                              {result.success ? (
+                                <small className="text-success">
+                                  Status {result.status || 200} - {result.tieneDatos ? 'Con datos' : 'Sin datos'}
+                                </small>
+                              ) : (
+                                <small className={result.existe ? 'text-warning' : 'text-danger'}>
+                                  {result.error || `Status ${result.status}`}
+                                  {result.existe && (
+                                    <>
+                                      <br />
+                                      <strong>Este endpoint existe pero puede tener problemas de permisos</strong>
+                                    </>
+                                  )}
+                                </small>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {testResults.some(r => r.success) && (
+                    <Alert variant="success" className="mt-3">
+                      <strong>✅ Endpoints que funcionan:</strong>
+                      <ul className="mb-0 mt-2">
+                        {testResults.filter(r => r.success).map((r, i) => (
+                          <li key={i}>
+                            <code>{r.endpoint}</code>
+                            {r.tieneDatos && <span className="text-success ms-2">(con datos)</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    </Alert>
+                  )}
+
+                  {testResults.some(r => r.existe && !r.success) && (
+                    <Alert variant="warning" className="mt-3">
+                      <strong>⚠️ Endpoints que existen pero tienen problemas:</strong>
+                      <ul className="mb-0 mt-2">
+                        {testResults.filter(r => r.existe && !r.success).map((r, i) => (
+                          <li key={i}>
+                            <code>{r.endpoint}</code> - {r.error} (Status: {r.status})
+                            <br />
+                            <small className="text-muted">
+                              Ve a Strapi → Settings → Users & Permissions → Roles → <strong>API Token</strong> → 
+                              Habilita permisos para esta colección
+                            </small>
+                          </li>
+                        ))}
+                      </ul>
+                    </Alert>
+                  )}
+                </div>
+              )}
+
               {/* Respuesta de Prueba */}
               {status.testResponse && (
                 <div className="mb-4">
-                  <h5 className="mb-3">Respuesta de Prueba</h5>
+                  <h5 className="mb-3">Respuesta de Prueba (Primer Endpoint Exitoso)</h5>
                   <pre className="bg-light p-3 rounded" style={{ maxHeight: '400px', overflow: 'auto', fontSize: '0.85em' }}>
                     <code>{JSON.stringify(status.testResponse, null, 2)}</code>
                   </pre>
