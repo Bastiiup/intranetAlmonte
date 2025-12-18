@@ -86,45 +86,122 @@ export async function GET(request: NextRequest) {
       ejemploCompleto = primerPrecio
     }
     
-    // También intentar obtener precios directamente
-    let preciosDirectos: any = null
-    let errorDirecto = null
+    // Buscar libros que SÍ tengan precios
+    let libroConPrecios: any = null
+    let preciosEncontrados: any[] = []
     
     try {
-      preciosDirectos = await strapiClient.get<any>('/api/precios?populate=*&pagination[pageSize]=3')
-      console.log('[Debug Precio] ✅ Endpoint /api/precios funciona')
+      console.log('[Debug Precio] Buscando libros con precios...')
+      const todosLosLibros = await strapiClient.get<any>(
+        '/api/libros?populate[precios]=*&pagination[pageSize]=50'
+      )
+      
+      let libros: any[] = []
+      if (Array.isArray(todosLosLibros)) {
+        libros = todosLosLibros
+      } else if (todosLosLibros.data && Array.isArray(todosLosLibros.data)) {
+        libros = todosLosLibros.data
+      }
+      
+      // Buscar el primer libro que tenga precios
+      for (const lib of libros) {
+        const attrs = lib?.attributes || {}
+        const preciosLib = 
+          attrs.precios?.data || 
+          attrs.PRECIOS?.data || 
+          lib.precios?.data || 
+          lib.PRECIOS?.data ||
+          attrs.precios ||
+          attrs.PRECIOS ||
+          lib.precios ||
+          lib.PRECIOS ||
+          []
+        
+        if (preciosLib.length > 0) {
+          libroConPrecios = lib
+          preciosEncontrados = preciosLib
+          console.log(`[Debug Precio] ✅ Encontrado libro con ${preciosLib.length} precios`)
+          break
+        }
+      }
     } catch (e: any) {
-      errorDirecto = e.message
-      console.log('[Debug Precio] ❌ Endpoint /api/precios falló:', errorDirecto)
+      console.log('[Debug Precio] Error al buscar libros con precios:', e.message)
+    }
+    
+    // Intentar diferentes endpoints de precios
+    const endpointsPrecios = [
+      '/api/precios',
+      '/api/precio',
+      '/api/product-precios',
+      '/api/producto-precios',
+      '/api/libro-precios'
+    ]
+    
+    const resultadosEndpoints: any = {}
+    
+    for (const endpoint of endpointsPrecios) {
+      try {
+        const response = await strapiClient.get<any>(`${endpoint}?populate=*&pagination[pageSize]=3`)
+        resultadosEndpoints[endpoint] = {
+          funciona: true,
+          data: Array.isArray(response) ? response.slice(0, 2) : (response.data?.slice(0, 2) || [])
+        }
+        console.log(`[Debug Precio] ✅ Endpoint ${endpoint} funciona`)
+      } catch (e: any) {
+        resultadosEndpoints[endpoint] = {
+          funciona: false,
+          error: e.message
+        }
+      }
+    }
+    
+    // Si encontramos un libro con precios, usar esos datos
+    let precioEjemplo = primerPrecio
+    let estructuraEjemplo = estructuraPrimerPrecio
+    let estructuraAttrsEjemplo = estructuraAttrs
+    
+    if (libroConPrecios && preciosEncontrados.length > 0) {
+      precioEjemplo = preciosEncontrados[0]
+      estructuraEjemplo = Object.keys(precioEjemplo)
+      if (precioEjemplo.attributes) {
+        estructuraAttrsEjemplo = Object.keys(precioEjemplo.attributes)
+      }
     }
     
     return NextResponse.json({
       success: true,
       populateUsado,
-      libro: {
+      libroConsultado: {
         id: libro.id,
         documentId: libro.documentId,
-        nombre: libro.attributes?.nombre_libro || libro.nombre_libro
+        nombre: libro.attributes?.nombre_libro || libro.nombre_libro,
+        tienePrecios: precios.length > 0
       },
-      precios: {
-        total: precios.length,
-        estructuraPrimerPrecio,
-        estructuraAttrs,
-        ejemploCompleto,
-        todosLosPrecios: precios.slice(0, 3), // Solo primeros 3
-        relacionConLibro: precios.length > 0 ? 'Libro tiene precios relacionados' : 'Libro no tiene precios'
+      libroConPrecios: libroConPrecios ? {
+        id: libroConPrecios.id,
+        documentId: libroConPrecios.documentId,
+        nombre: libroConPrecios.attributes?.nombre_libro || libroConPrecios.nombre_libro,
+        totalPrecios: preciosEncontrados.length
+      } : null,
+      estructuraPrecio: {
+        estructuraPrimerPrecio: estructuraEjemplo,
+        estructuraAttrs: estructuraAttrsEjemplo,
+        ejemploCompleto: precioEjemplo,
+        todosLosCampos: estructuraEjemplo.concat(estructuraAttrsEjemplo).filter((v, i, a) => a.indexOf(v) === i)
       },
-      endpointDirecto: {
-        funciona: !errorDirecto,
-        error: errorDirecto,
-        data: preciosDirectos ? (Array.isArray(preciosDirectos) ? preciosDirectos.slice(0, 2) : (preciosDirectos.data?.slice(0, 2) || [])) : null
+      endpointsPrecios: resultadosEndpoints,
+      recomendacion: {
+        puedeCrearDirecto: Object.values(resultadosEndpoints).some((r: any) => r.funciona),
+        endpointRecomendado: Object.entries(resultadosEndpoints).find(([_, r]: [string, any]) => r.funciona)?.[0] || null,
+        necesitaActualizarLibro: !Object.values(resultadosEndpoints).some((r: any) => r.funciona) && libroConPrecios === null
       },
       instrucciones: {
-        paso1: 'Revisa "precios.estructuraPrimerPrecio" para ver campos del precio',
-        paso2: 'Revisa "precios.estructuraAttrs" para ver campos dentro de attributes',
-        paso3: 'Revisa "precios.ejemploCompleto" para ver estructura completa',
-        paso4: 'Si "endpointDirecto.funciona" es true, puedes usar POST /api/precios',
-        paso5: 'Si es false, necesitas crear precios de otra forma (actualizar libro)'
+        paso1: 'Revisa "estructuraPrecio.estructuraPrimerPrecio" para ver campos del precio',
+        paso2: 'Revisa "estructuraPrecio.estructuraAttrs" para ver campos dentro de attributes',
+        paso3: 'Revisa "estructuraPrecio.ejemploCompleto" para ver estructura completa',
+        paso4: 'Revisa "endpointsPrecios" para ver qué endpoints funcionan',
+        paso5: 'Si "recomendacion.puedeCrearDirecto" es true, usa POST al endpoint recomendado',
+        paso6: 'Si es false, necesitas crear precios actualizando el libro directamente'
       }
     })
     
