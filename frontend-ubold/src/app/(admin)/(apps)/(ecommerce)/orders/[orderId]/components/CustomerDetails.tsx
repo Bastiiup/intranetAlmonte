@@ -7,14 +7,29 @@ import Link from 'next/link'
 import gbFlag from '@/assets/images/flags/gb.svg'
 import user5 from '@/assets/images/users/user-5.jpg'
 
-const CustomerDetails = () => {
+interface CustomerDetailsProps {
+  pedido: any
+}
+
+const CustomerDetails = ({ pedido }: CustomerDetailsProps) => {
+  if (!pedido || !pedido.billing) {
+    return null
+  }
+
+  const billing = pedido.billing
+  const customerName = `${billing.first_name || ''} ${billing.last_name || ''}`.trim() || 'Cliente sin nombre'
+  const email = billing.email || 'Sin email'
+  const phone = billing.phone || 'Sin teléfono'
+  const city = billing.city || ''
+  const country = billing.country || 'CL'
+  
+  // Mapear país a flag (simplificado, usar CL por defecto)
+  const countryFlag = gbFlag // Por ahora usar flag genérico
+
   return (
     <Card>
       <CardHeader className="justify-content-between border-dashed">
-        <CardTitle as="h4">Customer Details</CardTitle>
-        <Button size="sm" className="btn-default btn-icon rounded-circle">
-          <TbPencil className="fs-lg" />
-        </Button>
+        <CardTitle as="h4">Detalles del Cliente</CardTitle>
       </CardHeader>
       <CardBody>
         <div className="d-flex align-items-center mb-4">
@@ -23,12 +38,14 @@ const CustomerDetails = () => {
           </div>
           <div>
             <h5 className="mb-1 d-flex align-items-center">
-              <Link href="/users/profile" className="link-reset">
-                Sophia Carter
+              <Link href={pedido.customer_id ? `/customers` : '#'} className="link-reset">
+                {customerName}
               </Link>
-              <Image src={gbFlag} alt="UK" width={16} height={16} className="ms-2 rounded-circle" />
+              <Image src={countryFlag} alt={country} width={16} height={16} className="ms-2 rounded-circle" />
             </h5>
-            <p className="text-muted mb-0">Since 2020</p>
+            {pedido.customer_id && (
+              <p className="text-muted mb-0">ID: {pedido.customer_id}</p>
+            )}
           </div>
           <div className="ms-auto">
             <Dropdown align="end">
@@ -39,19 +56,19 @@ const CustomerDetails = () => {
               <DropdownMenu>
                 <DropdownItem>
                   <TbShare className="me-2" />
-                  Share
+                  Compartir
                 </DropdownItem>
                 <DropdownItem>
                   <TbEdit className="me-2" />
-                  Edit
+                  Editar
                 </DropdownItem>
                 <DropdownItem>
                   <TbBan className="me-2" />
-                  Block
+                  Bloquear
                 </DropdownItem>
                 <DropdownItem className="text-danger">
                   <TbTrash className="me-2" />
-                  Delete
+                  Eliminar
                 </DropdownItem>
               </DropdownMenu>
             </Dropdown>
@@ -66,8 +83,8 @@ const CustomerDetails = () => {
                 </span>
               </div>
               <h5 className="fs-base mb-0 fw-medium">
-                <Link href="" className="link-reset">
-                  sophia@designhub.com
+                <Link href={`mailto:${email}`} className="link-reset">
+                  {email}
                 </Link>
               </h5>
             </div>
@@ -80,8 +97,8 @@ const CustomerDetails = () => {
                 </span>
               </div>
               <h5 className="fs-base mb-0 fw-medium">
-                <Link href="" className="link-reset">
-                  +44 7911 123456
+                <Link href={`tel:${phone}`} className="link-reset">
+                  {phone}
                 </Link>
               </h5>
             </div>
@@ -93,7 +110,9 @@ const CustomerDetails = () => {
                   <TbMapPin />
                 </span>
               </div>
-              <h5 className="fs-base mb-0 fw-medium">London, UK</h5>
+              <h5 className="fs-base mb-0 fw-medium">
+                {city ? `${city}, ${country}` : country}
+              </h5>
             </div>
           </li>
         </ul>

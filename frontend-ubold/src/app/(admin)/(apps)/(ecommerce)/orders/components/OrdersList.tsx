@@ -16,8 +16,8 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useState, useMemo, useEffect } from 'react'
 import { Button, Card, CardFooter, CardHeader, Alert } from 'react-bootstrap'
-import { LuCalendar, LuCreditCard, LuPlus, LuSearch, LuTruck } from 'react-icons/lu'
-import { TbEdit, TbEye, TbPointFilled, TbTrash } from 'react-icons/tb'
+import { LuCalendar, LuCreditCard, LuSearch, LuTruck } from 'react-icons/lu'
+import { TbEye, TbPointFilled } from 'react-icons/tb'
 
 import { orders, OrderType } from '@/app/(admin)/(apps)/(ecommerce)/orders/data'
 import DataTable from '@/components/table/DataTable'
@@ -55,7 +55,10 @@ const defaultPaymentMethod = visa
 
 // Función para mapear pedidos de WooCommerce al formato OrderType
 const mapWooCommerceOrderToOrderType = (pedido: any): OrderType => {
-  const id = pedido.number || pedido.id?.toString() || 'N/A'
+  // Usar el ID numérico de WooCommerce para el link (necesario para la API)
+  // Pero mostrar el number en la UI si existe
+  const displayId = pedido.number || pedido.id?.toString() || 'N/A'
+  const id = pedido.id?.toString() || displayId // ID numérico para la URL
   
   // Parsear fecha
   const dateCreated = pedido.date_created ? new Date(pedido.date_created) : new Date()
@@ -96,7 +99,7 @@ const mapWooCommerceOrderToOrderType = (pedido: any): OrderType => {
                            paymentMethodTitle.toLowerCase().includes('tarjeta') ? 'card' : 'other'
   
   return {
-    id,
+    id, // ID numérico de WooCommerce para usar en la URL
     date,
     time,
     customer: {
@@ -183,13 +186,18 @@ const OrdersList = ({ pedidos, error }: OrdersListProps = {}) => {
     },
     columnHelper.accessor('id', {
       header: 'ID Pedido',
-      cell: ({ row }) => (
-        <h5 className="fs-sm mb-0 fw-medium">
-          <Link href={`/orders/${row.original.id}`} className="link-reset">
-            #{row.original.id}
-          </Link>
-        </h5>
-      ),
+      cell: ({ row }) => {
+        // El id en OrderType es el ID numérico de WooCommerce para el link
+        // Pero podemos mostrar el number si está disponible
+        const displayNumber = row.original.id
+        return (
+          <h5 className="fs-sm mb-0 fw-medium">
+            <Link href={`/orders/${row.original.id}`} className="link-reset">
+              #{displayNumber}
+            </Link>
+          </h5>
+        )
+      },
     }),
     columnHelper.accessor('date', {
       header: 'Fecha',
@@ -262,23 +270,12 @@ const OrdersList = ({ pedidos, error }: OrdersListProps = {}) => {
     {
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<OrderType> }) => (
-        <div className="d-flex  gap-1">
-          <Button variant="default" size="sm" className="btn-icon rounded-circle">
-            <TbEye className="fs-lg" />
-          </Button>
-          <Button variant="default" size="sm" className="btn-icon rounded-circle">
-            <TbEdit className="fs-lg" />
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
-            className="btn-icon rounded-circle"
-            onClick={() => {
-              toggleDeleteModal()
-              setSelectedRowIds({ [row.id]: true })
-            }}>
-            <TbTrash className="fs-lg" />
-          </Button>
+        <div className="d-flex gap-1">
+          <Link href={`/orders/${row.original.id}`}>
+            <Button variant="default" size="sm" className="btn-icon rounded-circle">
+              <TbEye className="fs-lg" />
+            </Button>
+          </Link>
         </div>
       ),
     },
@@ -447,11 +444,6 @@ const OrdersList = ({ pedidos, error }: OrdersListProps = {}) => {
               ))}
             </select>
           </div>
-        </div>
-        <div className="d-flex gap-1">
-          <Button variant="danger" className="ms-1">
-            <LuPlus className="fs-sm me-2" /> Agregar Pedido
-          </Button>
         </div>
       </CardHeader>
 
