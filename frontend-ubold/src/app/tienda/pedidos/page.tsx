@@ -20,7 +20,7 @@ export default async function PedidosPage() {
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
     const baseUrl = `${protocol}://${host}`
     
-    const response = await fetch(`${baseUrl}/api/tienda/pedidos`, {
+    const response = await fetch(`${baseUrl}/api/woocommerce/orders?per_page=100&status=any`, {
       cache: 'no-store', // Forzar fetch dinámico
     })
     
@@ -55,12 +55,10 @@ export default async function PedidosPage() {
               
               {/* Mostrar información de conexión */}
               <Alert variant="info" className="mb-3">
-                <strong>URL de Strapi:</strong> {STRAPI_API_URL}
+                <strong>Pedidos desde WooCommerce</strong>
                 <br />
                 <small className="text-muted">
-                  Endpoint usado: <code>{endpointUsed || '/api/ecommerce-pedidos'}</code>
-                  <br />
-                  <span className="text-success">✅ Usando API Route como proxy (igual que el chat)</span>
+                  <span className="text-success">✅ Obteniendo pedidos desde WooCommerce</span>
                 </small>
               </Alert>
 
@@ -70,12 +68,7 @@ export default async function PedidosPage() {
                   <strong>⚠️ Error:</strong> {error}
                   <br />
                   <small>
-                    Asegúrate de que:
-                    <ul className="mb-0 mt-2">
-                      <li>Las colecciones "ecommerce-pedidos", "wo-pedidos" o "pedidos" existen en Strapi</li>
-                      <li>El API Token está configurado en las variables de entorno</li>
-                      <li>Los permisos de la colección están habilitados en Strapi (Settings → Roles → Public → Find)</li>
-                    </ul>
+                    Verifica que las credenciales de WooCommerce estén configuradas correctamente.
                   </small>
                 </Alert>
               )}
@@ -101,62 +94,36 @@ export default async function PedidosPage() {
                         <tr>
                           <th>ID</th>
                           <th>Número de Pedido</th>
-                          <th>Fecha de Pedido</th>
+                          <th>Fecha / Cliente</th>
                           <th>Estado</th>
-                          <th>Publicación</th>
+                          <th>Total</th>
                           <th>Acciones</th>
                         </tr>
                       </thead>
                       <tbody>
                       {pedidos.map((pedido: any) => {
-                        // Obtener los campos según la estructura de Strapi
-                        // Intentar múltiples variaciones de nombres de campos
-                        const attrs = pedido.attributes || {}
+                        // Estructura de WooCommerce Order
+                        const numeroPedido = pedido.number || pedido.id
+                        const fechaPedido = pedido.date_created
+                        const estado = pedido.status || 'pending'
+                        const total = parseFloat(pedido.total || 0)
+                        const cliente = pedido.billing ? `${pedido.billing.first_name} ${pedido.billing.last_name}`.trim() : 'Sin cliente'
                         
-                        // Número de pedido - probar todas las variaciones posibles
-                        const numeroPedido = 
-                          attrs.NUMERO_PEDIDO || 
-                          attrs.numero_pedido || 
-                          attrs.numeroPedido || 
-                          attrs.numero_pedido ||
-                          attrs.numero ||
-                          attrs.order_number ||
-                          attrs.orderNumber ||
-                          pedido.id
+                        // Verificar si tiene factura
+                        const tieneFactura = pedido.meta_data?.some((m: any) => 
+                          m.key === '_factura_emitida' || 
+                          m.key === '_openfactura_folio' || 
+                          m.key === '_haulmer_folio'
+                        )
                         
-                        // Fecha de pedido - probar todas las variaciones posibles
-                        const fechaPedido = 
-                          attrs.FECHA_PEDIDO || 
-                          attrs.fecha_pedido || 
-                          attrs.fechaPedido || 
-                          attrs.fecha ||
-                          attrs.date ||
-                          attrs.order_date ||
-                          attrs.orderDate ||
-                          attrs.createdAt ||
-                          attrs.created_at
-                        
-                        // Estado - probar todas las variaciones posibles
-                        const estado = 
-                          attrs.ESTADO || 
-                          attrs.estado || 
-                          attrs.status ||
-                          attrs.ESTADO_PEDIDO ||
-                          attrs.estado_pedido ||
-                          'Sin estado'
-                        
-                        // Status de publicación
-                        const status = attrs.publishedAt ? 'Published' : (attrs.STATUS || attrs.status || 'Sin estado')
-                        
-                        // Formatear fecha si existe
+                        // Formatear fecha
                         let fechaFormateada = 'Sin fecha'
                         if (fechaPedido) {
                           try {
                             const fecha = new Date(fechaPedido)
                             fechaFormateada = fecha.toLocaleDateString('es-CL', {
-                              weekday: 'long',
                               year: 'numeric',
-                              month: 'long',
+                              month: 'short',
                               day: 'numeric',
                               hour: '2-digit',
                               minute: '2-digit'
@@ -172,34 +139,39 @@ export default async function PedidosPage() {
                             <td>
                               <strong>{numeroPedido}</strong>
                             </td>
-                            <td>{fechaFormateada}</td>
+                            <td>
+                              <div>{fechaFormateada}</div>
+                              <small className="text-muted">{cliente}</small>
+                            </td>
                             <td>
                               <span className={`badge ${
-                                estado === 'Completado' ? 'bg-success' : 
-                                estado === 'Pendiente' ? 'bg-warning' : 
-                                'bg-primary'
+                                estado === 'completed' ? 'bg-success' : 
+                                estado === 'processing' ? 'bg-info' : 
+                                estado === 'pending' ? 'bg-warning' : 
+                                'bg-secondary'
                               }`}>
                                 {estado}
                               </span>
                             </td>
                             <td>
-                              {status === 'Published' || status === 'published' ? (
-                                <span className="badge bg-success">Publicado</span>
-                              ) : (
-                                <span className="badge bg-secondary">No publicado</span>
-                              )}
+                              <strong>${total.toLocaleString('es-CL')}</strong>
                             </td>
-                          <td>
-                            <a href={`/tienda/pedidos/${pedido.id}`} className="btn btn-sm btn-primary me-1">
-                              Editar
-                            </a>
-                            <a href={`/tienda/pedidos/${pedido.id}`} className="btn btn-sm btn-outline-secondary me-1">
-                              Ver
-                            </a>
-                            <a href={`/tienda/facturas/${pedido.id}`} className="btn btn-sm btn-outline-info" title="Ver Factura">
-                              📄 Factura
-                            </a>
-                          </td>
+                            <td>
+                              <div className="d-flex gap-2">
+                                <a href={`/tienda/pedidos/${pedido.id}`} className="btn btn-sm btn-outline-secondary">
+                                  Ver
+                                </a>
+                                {tieneFactura ? (
+                                  <a href={`/tienda/facturas/${pedido.id}`} className="btn btn-sm btn-primary" title="Ver Factura">
+                                    📄 Factura
+                                  </a>
+                                ) : (
+                                  <span className="btn btn-sm btn-outline-secondary disabled" title="Sin factura">
+                                    Sin factura
+                                  </span>
+                                )}
+                              </div>
+                            </td>
                           </tr>
                         )
                       })}
@@ -213,13 +185,11 @@ export default async function PedidosPage() {
               {!error && pedidos.length === 0 && (
                 <Alert variant="secondary">
                   <p className="mb-0">
-                    No se encontraron pedidos. Esto puede significar:
+                    No se encontraron pedidos en WooCommerce.
                   </p>
-                  <ul className="mb-0 mt-2">
-                    <li>La colección está vacía en Strapi</li>
-                    <li>El nombre de la colección es diferente (revisa la URL en el mensaje de arriba)</li>
-                    <li>Los permisos no están configurados correctamente</li>
-                  </ul>
+                  <p className="mb-0 mt-2">
+                    Los pedidos se crean automáticamente desde el POS al procesar una venta.
+                  </p>
                 </Alert>
               )}
             </CardBody>

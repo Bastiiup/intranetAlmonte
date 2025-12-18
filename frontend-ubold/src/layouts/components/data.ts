@@ -216,6 +216,13 @@ export const menuItems: MenuItemType[] = [
           { key: 'tienda-pedidos-editar', label: 'Edición de pedidos', url: '/tienda/pedidos/editar' },
         ],
       },
+      {
+        key: 'tienda-facturas',
+        label: 'Facturas',
+        children: [
+          { key: 'tienda-facturas-listing', label: 'Todas las Facturas', url: '/tienda/facturas' },
+        ],
+      },
       { key: 'tienda-test', label: 'Test Strapi', url: '/tienda/test-strapi' },
     ],
   },

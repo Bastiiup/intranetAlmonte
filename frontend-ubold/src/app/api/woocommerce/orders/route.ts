@@ -10,6 +10,41 @@ import type { WooCommerceOrder } from '@/lib/woocommerce/types'
 
 export const dynamic = 'force-dynamic'
 
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams
+    const perPage = parseInt(searchParams.get('per_page') || '10')
+    const page = parseInt(searchParams.get('page') || '1')
+    const status = searchParams.get('status') || 'any'
+
+    const params: Record<string, any> = {
+      per_page: perPage,
+      page: page,
+    }
+
+    if (status !== 'any') {
+      params.status = status
+    }
+
+    const orders = await wooCommerceClient.get<WooCommerceOrder[]>('orders', params)
+
+    return NextResponse.json({
+      success: true,
+      data: orders,
+    })
+  } catch (error: any) {
+    console.error('Error al obtener pedidos de WooCommerce:', error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message || 'Error al obtener pedidos',
+        status: error.status || 500,
+      },
+      { status: error.status || 500 }
+    )
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()

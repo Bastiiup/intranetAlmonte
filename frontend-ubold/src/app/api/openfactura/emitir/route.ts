@@ -183,33 +183,85 @@ export async function POST(request: NextRequest) {
 
     // Emitir documento en Haulmer (Espacio)
     // Endpoint según documentación de Haulmer
-    const response = await openFacturaClient.post<HaulmerEmitResponse>(
-      '/api/dte/emitir',
-      documento
-    )
+    let response: any
+    try {
+      response = await openFacturaClient.post<HaulmerEmitResponse>(
+        '/api/dte/emitir',
+        documento
+      )
+    } catch (apiError: any) {
+      console.error('[Haulmer] Error en la petición a la API:', {
+        message: apiError.message,
+        status: apiError.status,
+        response: apiError.response,
+      })
+      throw new Error(`Error al comunicarse con Haulmer: ${apiError.message}`)
+    }
 
-    // La respuesta puede venir en diferentes formatos
-    const responseData = response.data || response
-    const success = response.success !== false && (responseData.folio || responseData.documento_id)
+    // La respuesta puede venir en diferentes formatos según Haulmer
+    // Intentar extraer los datos de diferentes formas
+    let responseData: any = null
+    let folio: number | string | undefined
+    let documento_id: string | undefined
+    let pdf_url: string | undefined
+    let xml_url: string | undefined
+    let timbre: string | undefined
 
-    if (success) {
+    // Intentar diferentes estructuras de respuesta
+    if (response.data) {
+      responseData = response.data
+    } else if (response.documento) {
+      responseData = response.documento
+    } else if (response.resultado) {
+      responseData = response.resultado
+    } else {
+      responseData = response
+    }
+
+    // Extraer folio de diferentes campos posibles
+    folio = responseData?.folio || responseData?.Folio || responseData?.folioRef || responseData?.FolioRef
+    documento_id = responseData?.documento_id || responseData?.documentoId || responseData?.id || responseData?.ID
+    pdf_url = responseData?.pdf_url || responseData?.pdfUrl || responseData?.pdf || responseData?.url_pdf
+    xml_url = responseData?.xml_url || responseData?.xmlUrl || responseData?.xml || responseData?.url_xml
+    timbre = responseData?.timbre || responseData?.Timbre || responseData?.timbreElectronico
+
+    // Validar que al menos tengamos folio o documento_id
+    const hasValidResponse = !!(folio || documento_id)
+
+    if (hasValidResponse) {
       console.log('[Haulmer] Documento emitido exitosamente:', {
-        folio: responseData.folio,
-        documento_id: responseData.documento_id,
+        folio,
+        documento_id,
+        pdf_url: pdf_url ? 'presente' : 'no presente',
+        responseKeys: Object.keys(responseData || {}),
       })
 
       return NextResponse.json({
         success: true,
         data: {
-          folio: responseData.folio,
-          documento_id: responseData.documento_id,
-          pdf_url: responseData.pdf_url,
-          xml_url: responseData.xml_url,
-          timbre: responseData.timbre,
+          folio,
+          documento_id,
+          pdf_url,
+          xml_url,
+          timbre,
         },
       })
     } else {
-      throw new Error(response.error || response.message || 'Error al emitir documento')
+      // Log detallado para debugging
+      console.error('[Haulmer] Respuesta inválida de Haulmer:', {
+        response,
+        responseData,
+        responseKeys: response ? Object.keys(response) : [],
+        responseDataKeys: responseData ? Object.keys(responseData) : [],
+      })
+      throw new Error(
+        responseData?.error || 
+        responseData?.mensaje || 
+        responseData?.message || 
+        response?.error || 
+        response?.message || 
+        'La respuesta de Haulmer no contiene folio ni documento_id'
+      )
     }
   } catch (error: any) {
     console.error('[Haulmer] Error al emitir documento:', {
