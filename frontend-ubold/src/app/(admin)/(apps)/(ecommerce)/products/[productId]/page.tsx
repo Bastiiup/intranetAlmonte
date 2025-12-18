@@ -7,6 +7,7 @@ import { Card, CardBody, Col, Container, Row, Alert, Spinner } from 'react-boots
 import ProductDetails from '@/app/(admin)/(apps)/(ecommerce)/products/[productId]/components/ProductDetails'
 import ProductDisplay from '@/app/(admin)/(apps)/(ecommerce)/products/[productId]/components/ProductDisplay'
 import ProductReviews from '@/app/(admin)/(apps)/(ecommerce)/products/[productId]/components/ProductReviews'
+import { ProductPricing } from '@/app/(admin)/(apps)/(ecommerce)/products/[productId]/components/ProductPricing'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 
 export default function Page() {
@@ -122,6 +123,8 @@ export default function Page() {
                 <Col xl={8}>
                   <div className="p-4">
                     <ProductDetails producto={producto} />
+
+                    <ProductPricing producto={producto} onUpdate={handleUpdate} />
 
                     <ProductReviews producto={producto} />
                   </div>

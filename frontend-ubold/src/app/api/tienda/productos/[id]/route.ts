@@ -277,7 +277,35 @@ export async function PUT(
     const updateData: any = { data: {} }
     
     if (body.nombre_libro !== undefined) updateData.data.nombre_libro = body.nombre_libro
-    if (body.descripcion !== undefined) updateData.data.descripcion = body.descripcion
+    
+    // Descripción - Rich text blocks requiere formato especial
+    if (body.descripcion !== undefined) {
+      if (typeof body.descripcion === 'string') {
+        // Si viene como string, convertir a formato blocks
+        updateData.data.descripcion = [
+          {
+            type: 'paragraph',
+            children: [
+              {
+                type: 'text',
+                text: body.descripcion
+              }
+            ]
+          }
+        ]
+      } else {
+        // Si ya viene en formato blocks, usar directamente
+        updateData.data.descripcion = body.descripcion
+      }
+      
+      console.log('[API PUT] Descripción a enviar:', {
+        tipoOriginal: typeof body.descripcion,
+        valorOriginal: body.descripcion,
+        tipoFinal: typeof updateData.data.descripcion,
+        valorFinal: JSON.stringify(updateData.data.descripcion)
+      })
+    }
+    
     if (body.portada_libro !== undefined) updateData.data.portada_libro = body.portada_libro
     
     // NOTA: precio_base NO existe en la colección "libros"
