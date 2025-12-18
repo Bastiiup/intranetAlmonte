@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button, Card, CardHeader, CardFooter, Badge } from 'react-bootstrap'
-import { LuPlus, LuSearch, LuEdit, LuTrash2, LuEye } from 'react-icons/lu'
+import { LuPlus, LuSearch, LuPencil, LuTrash2, LuEye } from 'react-icons/lu'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -262,7 +262,7 @@ const CategoriesListing = ({ categorias, error }: CategoriesListingProps) => {
                           title="Editar"
                           onClick={() => router.push(`/products/categorias/${categoria.id}/editar`)}
                         >
-                          <LuEdit className="fs-lg" />
+                          <LuPencil className="fs-lg" />
                         </Button>
                         <Button
                           variant="default"
