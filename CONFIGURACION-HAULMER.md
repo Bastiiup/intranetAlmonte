@@ -69,8 +69,21 @@ Los precios se convierten automáticamente a centavos (sin decimales) como requi
 
 ## Endpoints Utilizados
 
-- `POST /api/dte/emitir` - Emitir un documento tributario electrónico
-- `GET /api/dte/consultar` - Consultar estado de un documento
+**⚠️ IMPORTANTE:** Los endpoints exactos pueden variar según tu configuración de Haulmer. Si recibes errores 405, verifica:
+
+1. **Endpoint correcto en tu cuenta de Haulmer:**
+   - Accede a https://espacio.haulmer.com/
+   - Ve a Configuración → API
+   - Revisa la documentación de endpoints disponible
+
+2. **Endpoints comunes (pueden variar):**
+   - `POST /api/dte/emitir` - Emitir un documento tributario electrónico
+   - `POST /api/v1/dte/emitir` - Versión alternativa
+   - `GET /api/dte/consultar` - Consultar estado de un documento
+
+3. **Si usas OpenFactura (servicio de Haulmer):**
+   - El endpoint puede ser diferente
+   - Verifica en la documentación de OpenFactura
 
 ## Autenticación
 

@@ -54,7 +54,16 @@ class OpenFacturaClientImpl implements OpenFacturaClient {
       'Content-Type': 'application/json',
       'X-API-Key': this.apiKey, // Haulmer usa X-API-Key para autenticación
       'Accept': 'application/json',
+      'User-Agent': 'Intranet-Almonte/1.0',
     }
+    
+    // Log de autenticación (sin mostrar la key completa)
+    console.log('[Haulmer] Autenticación:', {
+      tieneApiKey: !!this.apiKey,
+      apiKeyLength: this.apiKey?.length || 0,
+      apiKeyPreview: this.apiKey ? `${this.apiKey.substring(0, 8)}...` : 'NO CONFIGURADA',
+      headerKeys: Object.keys(headers),
+    })
 
     const config: RequestInit = {
       method,
