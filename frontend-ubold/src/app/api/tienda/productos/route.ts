@@ -102,9 +102,11 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  // Guardar body fuera del try para poder usarlo en el catch
+  const body = await request.json()
+  const originalIsbn = body.isbn_libro && body.isbn_libro.trim() !== '' ? body.isbn_libro.trim() : null
+  
   try {
-    const body = await request.json()
-    
     console.log('[API POST] 📝 Creando producto:', body)
 
     // Validar nombre_libro obligatorio
@@ -116,9 +118,7 @@ export async function POST(request: NextRequest) {
     }
 
     // CRÍTICO: Generar ISBN único automáticamente si no viene
-    const isbn = body.isbn_libro && body.isbn_libro.trim() !== '' 
-      ? body.isbn_libro.trim()
-      : `AUTO-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
+    const isbn = originalIsbn || `AUTO-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
 
     console.log('[API POST] 📚 ISBN a usar:', isbn)
 
@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
                              e.path?.includes('isbn_libro')
                            )
     
-    if (isDuplicateISBN && body.isbn_libro) {
+    if (isDuplicateISBN && originalIsbn) {
       console.log('[API POST] 🔄 ISBN duplicado detectado, regenerando automáticamente...')
       
       // Regenerar ISBN único
@@ -227,16 +227,16 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           success: true,
           data: retryResponse.data || retryResponse,
-          message: `Producto creado exitosamente. El ISBN "${body.isbn_libro}" ya existía, se generó uno nuevo automáticamente: "${newIsbn}"`,
+          message: `Producto creado exitosamente. El ISBN "${originalIsbn}" ya existía, se generó uno nuevo automáticamente: "${newIsbn}"`,
           isbnRegenerado: true,
-          isbnOriginal: body.isbn_libro,
+          isbnOriginal: originalIsbn,
           isbnNuevo: newIsbn
         })
       } catch (retryError: any) {
         console.error('[API POST] ❌ Error en reintento:', retryError)
         return NextResponse.json({
           success: false,
-          error: `El ISBN "${body.isbn_libro}" ya existe y no se pudo generar uno nuevo automáticamente. Intenta con otro ISBN o déjalo vacío para generar uno automático.`,
+          error: `El ISBN "${originalIsbn}" ya existe y no se pudo generar uno nuevo automáticamente. Intenta con otro ISBN o déjalo vacío para generar uno automático.`,
           details: retryError.details?.errors
         }, { status: 400 })
       }
