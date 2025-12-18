@@ -2,22 +2,29 @@
  * Pruebas unitarias para openfactura/client.ts
  */
 
-import openFacturaClient from '../client'
-
 // Mock de fetch
 global.fetch = jest.fn()
 
 describe('openFacturaClient', () => {
   const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>
+  let openFacturaClient: any
 
   beforeEach(() => {
     jest.clearAllMocks()
     // Resetear variables de entorno
+    process.env.HAULMER_API_KEY = 'test-api-key'
+    process.env.HAULMER_API_URL = 'https://api.openfactura.cl'
     process.env.OPENFACTURA_API_KEY = 'test-api-key'
     process.env.OPENFACTURA_API_URL = 'https://api.openfactura.cl'
+    
+    // Re-importar el módulo para que tome las nuevas variables de entorno
+    jest.resetModules()
+    openFacturaClient = require('../client').default
   })
 
   afterEach(() => {
+    delete process.env.HAULMER_API_KEY
+    delete process.env.HAULMER_API_URL
     delete process.env.OPENFACTURA_API_KEY
     delete process.env.OPENFACTURA_API_URL
   })
@@ -32,6 +39,7 @@ describe('openFacturaClient', () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
+        headers: new Headers(),
       } as Response)
 
       const result = await openFacturaClient.post('/v1/dte/emitir', {
@@ -71,13 +79,15 @@ describe('openFacturaClient', () => {
     })
 
     it('debe lanzar error si no hay API key', async () => {
+      // Limpiar variables de entorno y re-importar
       delete process.env.OPENFACTURA_API_KEY
+      delete process.env.HAULMER_API_KEY
+      jest.resetModules()
+      const clientWithoutKey = require('../client').default
 
-      // Necesitamos recrear el cliente para que tome el cambio
-      // Por ahora, verificamos que lanza error
       await expect(
-        openFacturaClient.post('/v1/dte/emitir', {})
-      ).rejects.toThrow('OpenFactura API Key no configurada')
+        clientWithoutKey.post('/v1/dte/emitir', {})
+      ).rejects.toThrow('Haulmer API Key no configurada')
     })
   })
 
@@ -91,6 +101,7 @@ describe('openFacturaClient', () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
+        headers: new Headers(),
       } as Response)
 
       const result = await openFacturaClient.get('/v1/dte/consultar', {
@@ -112,6 +123,7 @@ describe('openFacturaClient', () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
+        headers: new Headers(),
       } as Response)
 
       const result = await openFacturaClient.get('/v1/dte/listar')

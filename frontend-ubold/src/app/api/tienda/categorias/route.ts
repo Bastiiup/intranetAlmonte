@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
+import wooCommerceClient from '@/lib/woocommerce/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,36 +85,63 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    const nombreCategoria = body.data.name || body.data.nombre
+
+    // Crear categoría en WooCommerce primero
+    console.log('[API Categorias POST] 🛒 Creando categoría en WooCommerce...')
+    
+    const wooCommerceCategoryData: any = {
+      name: nombreCategoria.trim(),
+      description: body.data.descripcion || body.data.description || '',
+    }
+
+    // Crear en WooCommerce primero
+    const wooCommerceCategory = await wooCommerceClient.post<any>('products/categories', wooCommerceCategoryData)
+    console.log('[API Categorias POST] ✅ Categoría creada en WooCommerce:', {
+      id: wooCommerceCategory.id,
+      name: wooCommerceCategory.name
+    })
+
     // Encontrar el endpoint correcto
     const categoriaEndpoint = await findCategoriaEndpoint()
-    console.log('[API Categorias POST] Usando endpoint:', categoriaEndpoint)
+    console.log('[API Categorias POST] Usando endpoint Strapi:', categoriaEndpoint)
 
-    // Preparar datos para Strapi (usar nombres del schema real: name, descripcion, imagen)
-    const categoriaData: any = {
-      data: {
-        name: body.data.name || body.data.nombre, // El schema usa 'name'
-        descripcion: body.data.descripcion || body.data.description || null,
-        // Nota: El schema no tiene 'slug' ni 'activo', se manejan automáticamente con draftAndPublish
+    // Crear en Strapi después
+    let strapiCategory = null
+    try {
+      console.log('[API Categorias POST] 📚 Creando categoría en Strapi...')
+      
+      // Preparar datos para Strapi (usar nombres del schema real: name, descripcion, imagen)
+      const categoriaData: any = {
+        data: {
+          name: nombreCategoria.trim(), // El schema usa 'name'
+          descripcion: body.data.descripcion || body.data.description || null,
+          woocommerce_id: wooCommerceCategory.id.toString(), // Guardar ID de WooCommerce
+        }
       }
+
+      // Agregar imagen si existe (el schema tiene campo 'imagen' de tipo media)
+      if (body.data.imagen) {
+        categoriaData.data.imagen = body.data.imagen
+      }
+
+      strapiCategory = await strapiClient.post<any>(categoriaEndpoint, categoriaData)
+      console.log('[API Categorias POST] ✅ Categoría creada en Strapi:', {
+        id: strapiCategory.data?.id || strapiCategory.id,
+        documentId: strapiCategory.data?.documentId
+      })
+    } catch (strapiError: any) {
+      console.error('[API Categorias POST] ⚠️ Error al crear categoría en Strapi (no crítico):', strapiError.message)
+      // No fallar si Strapi falla, la categoría ya está en WooCommerce
     }
-
-    // Agregar imagen si existe (el schema tiene campo 'imagen' de tipo media)
-    if (body.data.imagen) {
-      categoriaData.data.imagen = body.data.imagen
-    }
-
-    // Crear en Strapi
-    const response = await strapiClient.post<any>(categoriaEndpoint, categoriaData)
-
-    console.log('[API Categorias POST] ✅ Categoría creada exitosamente:', {
-      id: response.data?.id || response.id,
-      nombre: response.data?.nombre || response.data?.name
-    })
 
     return NextResponse.json({
       success: true,
-      data: response.data || response,
-      message: 'Categoría creada exitosamente'
+      data: {
+        woocommerce: wooCommerceCategory,
+        strapi: strapiCategory?.data || null,
+      },
+      message: 'Categoría creada exitosamente en WooCommerce' + (strapiCategory ? ' y Strapi' : ' (Strapi falló)')
     })
 
   } catch (error: any) {

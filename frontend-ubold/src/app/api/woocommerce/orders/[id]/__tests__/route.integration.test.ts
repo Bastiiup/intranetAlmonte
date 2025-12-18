@@ -78,13 +78,22 @@ describe('/api/woocommerce/orders/[id]', () => {
         { key: '_existing_key', value: 'existing_value' },
       ]
 
-      mockWooCommerceClient.get.mockResolvedValueOnce({
+      // Limpiar mocks anteriores
+      mockWooCommerceClient.get.mockReset()
+      
+      // Configurar mock para obtener pedido actual (para preservar meta_data)
+      mockWooCommerceClient.get.mockResolvedValue({
         id: 1,
+        status: 'completed',
+        total: '10000',
         meta_data: existingMetaData,
       } as any)
 
+      // Resultado después de actualizar
       mockWooCommerceClient.put.mockResolvedValueOnce({
         id: 1,
+        status: 'completed',
+        total: '10000',
         meta_data: [
           ...existingMetaData,
           { key: '_openfactura_folio', value: '123' },
@@ -103,6 +112,7 @@ describe('/api/woocommerce/orders/[id]', () => {
       const data = await response.json()
 
       expect(data.success).toBe(true)
+      expect(mockWooCommerceClient.get).toHaveBeenCalledWith('orders/1')
       expect(mockWooCommerceClient.put).toHaveBeenCalledWith(
         'orders/1',
         expect.objectContaining({
@@ -167,9 +177,12 @@ describe('/api/woocommerce/orders/[id]', () => {
         id: 1,
         status: 'completed',
         total: '10000',
+        meta_data: [],
       }
 
-      mockWooCommerceClient.get.mockResolvedValueOnce(mockOrder as any)
+      // Limpiar mocks anteriores y configurar nuevo mock
+      mockWooCommerceClient.get.mockReset()
+      mockWooCommerceClient.get.mockResolvedValue(mockOrder as any)
 
       const request = new NextRequest('http://localhost:3000/api/woocommerce/orders/1')
       const params = Promise.resolve({ id: '1' })
@@ -194,3 +207,4 @@ describe('/api/woocommerce/orders/[id]', () => {
     })
   })
 })
+

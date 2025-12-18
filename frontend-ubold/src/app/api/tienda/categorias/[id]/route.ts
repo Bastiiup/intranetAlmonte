@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
+import wooCommerceClient from '@/lib/woocommerce/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -182,18 +183,50 @@ export async function DELETE(
 
     // Encontrar el endpoint correcto
     const categoriaEndpoint = await findCategoriaEndpoint()
-    const endpoint = `${categoriaEndpoint}/${id}`
     
-    console.log('[API Categorias DELETE] Usando endpoint:', endpoint)
+    // Primero obtener la categoría de Strapi para obtener el woocommerce_id
+    let woocommerceId: string | null = null
+    try {
+      const categoriaResponse = await strapiClient.get<any>(`${categoriaEndpoint}?filters[id][$eq]=${id}&populate=*`)
+      let categorias: any[] = []
+      if (Array.isArray(categoriaResponse)) {
+        categorias = categoriaResponse
+      } else if (categoriaResponse.data && Array.isArray(categoriaResponse.data)) {
+        categorias = categoriaResponse.data
+      } else if (categoriaResponse.data) {
+        categorias = [categoriaResponse.data]
+      }
+      const categoriaStrapi = categorias[0]
+      woocommerceId = categoriaStrapi?.attributes?.woocommerce_id || 
+                      categoriaStrapi?.woocommerce_id ||
+                      (categoriaStrapi?.id && !isNaN(parseInt(categoriaStrapi.id)) ? categoriaStrapi.id.toString() : null)
+    } catch (error: any) {
+      console.warn('[API Categorias DELETE] ⚠️ No se pudo obtener categoría de Strapi:', error.message)
+    }
+
+    // Eliminar en WooCommerce primero si tenemos el ID
+    let wooCommerceDeleted = false
+    if (woocommerceId) {
+      try {
+        console.log('[API Categorias DELETE] 🛒 Eliminando categoría en WooCommerce:', woocommerceId)
+        await wooCommerceClient.delete<any>(`products/categories/${woocommerceId}`, true)
+        wooCommerceDeleted = true
+        console.log('[API Categorias DELETE] ✅ Categoría eliminada en WooCommerce')
+      } catch (wooError: any) {
+        console.error('[API Categorias DELETE] ⚠️ Error al eliminar en WooCommerce (no crítico):', wooError.message)
+      }
+    }
 
     // Eliminar en Strapi
-    const response = await strapiClient.delete<any>(endpoint)
+    const endpoint = `${categoriaEndpoint}/${id}`
+    console.log('[API Categorias DELETE] Usando endpoint Strapi:', endpoint)
 
-    console.log('[API Categorias DELETE] ✅ Categoría eliminada exitosamente')
+    const response = await strapiClient.delete<any>(endpoint)
+    console.log('[API Categorias DELETE] ✅ Categoría eliminada en Strapi')
 
     return NextResponse.json({
       success: true,
-      message: 'Categoría eliminada exitosamente',
+      message: 'Categoría eliminada exitosamente' + (wooCommerceDeleted ? ' en WooCommerce y Strapi' : ' en Strapi'),
       data: response
     })
 
@@ -223,9 +256,55 @@ export async function PUT(
 
     // Encontrar el endpoint correcto
     const categoriaEndpoint = await findCategoriaEndpoint()
-    const endpoint = `${categoriaEndpoint}/${id}`
     
-    console.log('[API Categorias PUT] Usando endpoint:', endpoint)
+    // Primero obtener la categoría de Strapi para obtener el woocommerce_id
+    let categoriaStrapi: any
+    try {
+      const categoriaResponse = await strapiClient.get<any>(`${categoriaEndpoint}?filters[id][$eq]=${id}&populate=*`)
+      let categorias: any[] = []
+      if (Array.isArray(categoriaResponse)) {
+        categorias = categoriaResponse
+      } else if (categoriaResponse.data && Array.isArray(categoriaResponse.data)) {
+        categorias = categoriaResponse.data
+      } else if (categoriaResponse.data) {
+        categorias = [categoriaResponse.data]
+      }
+      categoriaStrapi = categorias[0]
+    } catch (error: any) {
+      console.warn('[API Categorias PUT] ⚠️ No se pudo obtener categoría de Strapi:', error.message)
+    }
+
+    const woocommerceId = categoriaStrapi?.attributes?.woocommerce_id || 
+                          categoriaStrapi?.woocommerce_id ||
+                          (categoriaStrapi?.id && !isNaN(parseInt(categoriaStrapi.id)) ? categoriaStrapi.id : null)
+
+    // Actualizar en WooCommerce primero si tenemos el ID
+    let wooCommerceCategory = null
+    if (woocommerceId) {
+      try {
+        console.log('[API Categorias PUT] 🛒 Actualizando categoría en WooCommerce:', woocommerceId)
+        
+        const wooCommerceCategoryData: any = {}
+        if (body.data.name || body.data.nombre) {
+          wooCommerceCategoryData.name = (body.data.name || body.data.nombre).trim()
+        }
+        if (body.data.descripcion !== undefined || body.data.description !== undefined) {
+          wooCommerceCategoryData.description = body.data.descripcion || body.data.description || ''
+        }
+
+        wooCommerceCategory = await wooCommerceClient.put<any>(
+          `products/categories/${woocommerceId}`,
+          wooCommerceCategoryData
+        )
+        console.log('[API Categorias PUT] ✅ Categoría actualizada en WooCommerce')
+      } catch (wooError: any) {
+        console.error('[API Categorias PUT] ⚠️ Error al actualizar en WooCommerce (no crítico):', wooError.message)
+      }
+    }
+
+    // Actualizar en Strapi
+    const endpoint = `${categoriaEndpoint}/${id}`
+    console.log('[API Categorias PUT] Usando endpoint Strapi:', endpoint)
 
     // Preparar datos para Strapi (el schema usa 'name', no 'nombre')
     const categoriaData: any = {
@@ -239,15 +318,21 @@ export async function PUT(
     if (body.data.description !== undefined) categoriaData.data.descripcion = body.data.description
     if (body.data.imagen) categoriaData.data.imagen = body.data.imagen
 
-    // Actualizar en Strapi
-    const response = await strapiClient.put<any>(endpoint, categoriaData)
+    // Si se creó en WooCommerce y no teníamos ID, guardarlo
+    if (wooCommerceCategory && !woocommerceId) {
+      categoriaData.data.woocommerce_id = wooCommerceCategory.id.toString()
+    }
 
-    console.log('[API Categorias PUT] ✅ Categoría actualizada exitosamente')
+    const strapiResponse = await strapiClient.put<any>(endpoint, categoriaData)
+    console.log('[API Categorias PUT] ✅ Categoría actualizada en Strapi')
 
     return NextResponse.json({
       success: true,
-      data: response.data || response,
-      message: 'Categoría actualizada exitosamente'
+      data: {
+        woocommerce: wooCommerceCategory,
+        strapi: strapiResponse.data || strapiResponse,
+      },
+      message: 'Categoría actualizada exitosamente' + (wooCommerceCategory ? ' en WooCommerce y Strapi' : ' en Strapi')
     })
 
   } catch (error: any) {

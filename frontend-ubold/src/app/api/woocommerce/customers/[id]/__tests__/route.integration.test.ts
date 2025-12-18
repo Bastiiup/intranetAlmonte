@@ -83,13 +83,24 @@ describe('/api/woocommerce/customers/[id]', () => {
         { key: '_existing_key', value: 'existing_value' },
       ]
 
-      mockWooCommerceClient.get.mockResolvedValueOnce({
+      // Limpiar mocks anteriores
+      mockWooCommerceClient.get.mockReset()
+      
+      // Configurar mock para obtener cliente actual (para preservar meta_data)
+      mockWooCommerceClient.get.mockResolvedValue({
         id: 1,
+        email: 'test@example.com',
+        first_name: 'Juan',
+        last_name: 'Pérez',
         meta_data: existingMetaData,
       } as any)
 
+      // Resultado después de actualizar
       mockWooCommerceClient.put.mockResolvedValueOnce({
         id: 1,
+        email: 'test@example.com',
+        first_name: 'Juan',
+        last_name: 'Pérez',
         meta_data: [
           ...existingMetaData,
           { key: '_billing_calle', value: 'Av. Providencia' },
@@ -108,6 +119,7 @@ describe('/api/woocommerce/customers/[id]', () => {
       const data = await response.json()
 
       expect(data.success).toBe(true)
+      expect(mockWooCommerceClient.get).toHaveBeenCalledWith('customers/1')
       expect(mockWooCommerceClient.put).toHaveBeenCalledWith(
         'customers/1',
         expect.objectContaining({
@@ -142,9 +154,12 @@ describe('/api/woocommerce/customers/[id]', () => {
         email: 'test@example.com',
         first_name: 'Juan',
         last_name: 'Pérez',
+        meta_data: [],
       }
 
-      mockWooCommerceClient.get.mockResolvedValueOnce(mockCustomer as any)
+      // Limpiar mocks anteriores y configurar nuevo mock
+      mockWooCommerceClient.get.mockReset()
+      mockWooCommerceClient.get.mockResolvedValue(mockCustomer as any)
 
       const request = new NextRequest('http://localhost:3000/api/woocommerce/customers/1')
       const params = Promise.resolve({ id: '1' })
@@ -169,3 +184,4 @@ describe('/api/woocommerce/customers/[id]', () => {
     })
   })
 })
+

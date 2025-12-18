@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
+import wooCommerceClient from '@/lib/woocommerce/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,29 +50,57 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    const etiquetaEndpoint = '/api/etiquetas'
-    console.log('[API Etiquetas POST] Usando endpoint:', etiquetaEndpoint)
+    const nombreEtiqueta = body.data.name || body.data.nombre
 
-    // Preparar datos para Strapi (usar nombres del schema real: name, descripcion)
-    const etiquetaData: any = {
-      data: {
-        name: body.data.name || body.data.nombre, // El schema usa 'name'
-        descripcion: body.data.descripcion || body.data.description || null,
-      }
+    // Crear etiqueta en WooCommerce primero
+    console.log('[API Etiquetas POST] 🛒 Creando etiqueta en WooCommerce...')
+    
+    const wooCommerceTagData: any = {
+      name: nombreEtiqueta.trim(),
+      description: body.data.descripcion || body.data.description || '',
     }
 
-    // Crear en Strapi
-    const response = await strapiClient.post<any>(etiquetaEndpoint, etiquetaData)
-
-    console.log('[API Etiquetas POST] ✅ Etiqueta creada exitosamente:', {
-      id: response.data?.id || response.id,
-      nombre: response.data?.name || response.data?.nombre
+    // Crear en WooCommerce primero
+    const wooCommerceTag = await wooCommerceClient.post<any>('products/tags', wooCommerceTagData)
+    console.log('[API Etiquetas POST] ✅ Etiqueta creada en WooCommerce:', {
+      id: wooCommerceTag.id,
+      name: wooCommerceTag.name
     })
+
+    const etiquetaEndpoint = '/api/etiquetas'
+    console.log('[API Etiquetas POST] Usando endpoint Strapi:', etiquetaEndpoint)
+
+    // Crear en Strapi después
+    let strapiTag = null
+    try {
+      console.log('[API Etiquetas POST] 📚 Creando etiqueta en Strapi...')
+      
+      // Preparar datos para Strapi (usar nombres del schema real: name, descripcion)
+      const etiquetaData: any = {
+        data: {
+          name: nombreEtiqueta.trim(), // El schema usa 'name'
+          descripcion: body.data.descripcion || body.data.description || null,
+          woocommerce_id: wooCommerceTag.id.toString(), // Guardar ID de WooCommerce
+        }
+      }
+
+      strapiTag = await strapiClient.post<any>(etiquetaEndpoint, etiquetaData)
+      console.log('[API Etiquetas POST] ✅ Etiqueta creada en Strapi:', {
+        id: strapiTag.data?.id || strapiTag.id,
+        documentId: strapiTag.data?.documentId
+      })
+    } catch (strapiError: any) {
+      console.error('[API Etiquetas POST] ⚠️ Error al crear etiqueta en Strapi (no crítico):', strapiError.message)
+      // No fallar si Strapi falla, la etiqueta ya está en WooCommerce
+    }
 
     return NextResponse.json({
       success: true,
-      data: response.data || response,
-      message: 'Etiqueta creada exitosamente'
+      data: {
+        woocommerce: wooCommerceTag,
+        strapi: strapiTag?.data || null,
+      },
+      message: 'Etiqueta creada exitosamente en WooCommerce' + (strapiTag ? ' y Strapi' : ' (Strapi falló)')
     })
 
   } catch (error: any) {
