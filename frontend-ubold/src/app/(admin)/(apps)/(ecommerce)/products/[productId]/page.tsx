@@ -75,7 +75,34 @@ export default function Page() {
     setProducto((prev: any) => {
       if (!prev) return prev
       
-      // Actualizar attributes si existen
+      // Si la actualización es de portada_libro (ID de imagen), necesitamos construir el objeto completo
+      if (updates.portada_libro && typeof updates.portada_libro === 'number') {
+        const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'
+        // Crear objeto de imagen con el ID
+        const nuevaImagen = {
+          id: updates.portada_libro,
+          url: `/uploads/${updates.portada_libro}` // URL temporal, se actualizará al refrescar
+        }
+        
+        // Actualizar attributes si existen
+        if (prev.attributes) {
+          return {
+            ...prev,
+            attributes: {
+              ...prev.attributes,
+              portada_libro: nuevaImagen
+            }
+          }
+        }
+        
+        // Si no tiene attributes, actualizar directamente
+        return {
+          ...prev,
+          portada_libro: nuevaImagen
+        }
+      }
+      
+      // Para otros campos, actualizar normalmente
       if (prev.attributes) {
         return {
           ...prev,
