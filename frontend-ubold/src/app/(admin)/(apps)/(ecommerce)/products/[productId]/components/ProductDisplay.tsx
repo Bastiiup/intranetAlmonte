@@ -146,9 +146,79 @@ const ProductDisplay = ({ producto }: ProductDisplayProps) => {
 
         console.log('[ProductDisplay] Archivo subido exitosamente, imageId:', imageId)
       } else if (imageUrl.trim()) {
-        // Si es URL, necesitaríamos buscar o crear la imagen en Strapi
-        // Por ahora, solo guardamos la URL como texto (esto requeriría más lógica)
-        throw new Error('Subir por URL aún no está implementado. Por favor usa la opción de subir archivo.')
+        console.log('[ProductDisplay] Modo: Subir por URL')
+        
+        // Validar que sea una URL válida
+        try {
+          new URL(imageUrl.trim())
+        } catch {
+          throw new Error('Por favor ingresa una URL válida')
+        }
+
+        // Descargar la imagen desde la URL
+        console.log('[ProductDisplay] Descargando imagen desde URL:', imageUrl)
+        const imageResponse = await fetch(imageUrl.trim(), {
+          mode: 'cors',
+          headers: {
+            'Accept': 'image/*',
+          },
+        })
+
+        if (!imageResponse.ok) {
+          throw new Error(`Error al descargar la imagen: ${imageResponse.status} ${imageResponse.statusText}`)
+        }
+
+        // Obtener el tipo de contenido
+        const contentType = imageResponse.headers.get('content-type') || 'image/jpeg'
+        if (!contentType.startsWith('image/')) {
+          throw new Error('La URL no apunta a una imagen válida')
+        }
+
+        // Convertir la respuesta a blob y luego a File
+        const blob = await imageResponse.blob()
+        const fileName = imageUrl.split('/').pop()?.split('?')[0] || 'image.jpg'
+        const file = new File([blob], fileName, { type: contentType })
+
+        console.log('[ProductDisplay] Imagen descargada, subiendo a Strapi:', {
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+        })
+
+        // Subir archivo a Strapi
+        const formData = new FormData()
+        formData.append('file', file)
+
+        const uploadResponse = await fetch('/api/tienda/upload', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (!uploadResponse.ok) {
+          const errorData = await uploadResponse.json().catch(() => ({}))
+          throw new Error(errorData.error || `Error HTTP: ${uploadResponse.status}`)
+        }
+
+        const uploadData = await uploadResponse.json()
+
+        if (!uploadData.success) {
+          throw new Error(uploadData.error || 'Error al subir archivo')
+        }
+
+        // Obtener el ID de la imagen subida
+        if (Array.isArray(uploadData.data)) {
+          imageId = uploadData.data[0]?.id || uploadData.data[0]?.data?.id
+        } else if (uploadData.data?.id) {
+          imageId = uploadData.data.id
+        } else if (uploadData.id) {
+          imageId = uploadData.id
+        }
+
+        if (!imageId) {
+          throw new Error('No se pudo obtener el ID de la imagen subida')
+        }
+
+        console.log('[ProductDisplay] Imagen subida exitosamente desde URL, imageId:', imageId)
       }
 
       // Actualizar producto con la nueva imagen
