@@ -1,11 +1,33 @@
 'use client'
 
-import { useState } from 'react'
-import { Button, Card, CardHeader, CardFooter, Badge } from 'react-bootstrap'
-import { LuPlus, LuSearch, LuPencil, LuTrash2, LuEye } from 'react-icons/lu'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+import {
+  ColumnDef,
+  ColumnFiltersState,
+  createColumnHelper,
+  FilterFn,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  SortingState,
+  Row as TableRow,
+  Table as TableType,
+  useReactTable,
+} from '@tanstack/react-table'
 import Image from 'next/image'
+import Link from 'next/link'
+import { useState, useEffect, useMemo } from 'react'
+import { Button, Card, CardFooter, CardHeader, Col, Row, Alert } from 'react-bootstrap'
+import { LuBox, LuSearch, LuTag } from 'react-icons/lu'
+import { TbEdit, TbEye, TbLayoutGrid, TbList, TbPlus, TbTrash } from 'react-icons/tb'
+
+import DataTable from '@/components/table/DataTable'
+import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
+import TablePagination from '@/components/table/TablePagination'
+import { toPascalCase } from '@/helpers/casing'
+import { STRAPI_API_URL } from '@/lib/strapi/config'
+import { format } from 'date-fns'
+import { useRouter } from 'next/navigation'
 
 interface Categoria {
   id: number
@@ -24,277 +46,482 @@ interface Categoria {
   updatedAt?: string
 }
 
-interface CategoriesListingProps {
-  categorias: Categoria[]
-  error: string | null
+// Tipo para la tabla
+type CategoryType = {
+  id: number
+  name: string
+  slug: string
+  description: string
+  image: string | null
+  products: number
+  status: 'active' | 'inactive'
+  date: string
+  time: string
+  url: string
 }
 
-const CategoriesListing = ({ categorias, error }: CategoriesListingProps) => {
+// Helper para obtener campo con múltiples variaciones
+const getField = (obj: any, ...fieldNames: string[]): any => {
+  for (const fieldName of fieldNames) {
+    if (obj[fieldName] !== undefined && obj[fieldName] !== null && obj[fieldName] !== '') {
+      return obj[fieldName]
+    }
+  }
+  return undefined
+}
+
+// Función para mapear categorías de Strapi al formato CategoryType
+const mapStrapiCategoryToCategoryType = (categoria: any): CategoryType => {
+  // Los datos pueden venir en attributes o directamente
+  const attrs = categoria.attributes || {}
+  const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (categoria as any)
+
+  // Obtener URL de imagen
+  const getImageUrl = (): string | null => {
+    let imagen = data.imagen || data.image || data.IMAGEN || data.IMAGE
+    
+    // Si imagen tiene .data, acceder a eso
+    if (imagen?.data) {
+      imagen = Array.isArray(imagen.data) ? imagen.data[0] : imagen.data
+    }
+    
+    if (!imagen || imagen === null) {
+      return null
+    }
+
+    // Obtener la URL - puede estar en attributes o directamente
+    const url = imagen.attributes?.url || imagen.attributes?.URL || imagen.url || imagen.URL
+    if (!url) {
+      return null
+    }
+    
+    // Si la URL ya es completa, retornarla tal cual
+    if (url.startsWith('http')) {
+      return url
+    }
+    
+    // Si no, construir la URL completa con la base de Strapi
+    const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
+    return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
+  }
+
+  // Obtener nombre
+  const nombre = getField(data, 'nombre', 'name', 'NOMBRE', 'NAME') || 'Sin nombre'
+  
+  // Obtener slug
+  const slug = getField(data, 'slug', 'SLUG') || ''
+  
+  // Obtener descripción
+  const descripcion = getField(data, 'descripcion', 'description', 'DESCRIPCION', 'DESCRIPTION') || ''
+  
+  // Obtener estado
+  const activo = data.activo !== undefined ? data.activo : (data.isActive !== undefined ? data.isActive : true)
+  
+  // Contar productos
+  const productos = data.productos?.data || data.products?.data || data.productos || data.products || []
+  const productosCount = Array.isArray(productos) ? productos.length : 0
+  
+  // Obtener fechas
+  const createdAt = attrs.createdAt || (categoria as any).createdAt || new Date().toISOString()
+  const createdDate = new Date(createdAt)
+
+  const imageUrl = getImageUrl()
+  
+  return {
+    id: categoria.id || categoria.documentId || categoria.id,
+    name: nombre,
+    slug: slug,
+    description: descripcion,
+    image: imageUrl,
+    products: productosCount,
+    status: activo ? 'active' : 'inactive',
+    date: format(createdDate, 'dd MMM, yyyy'),
+    time: format(createdDate, 'h:mm a'),
+    url: `/products/categorias/${categoria.id || categoria.documentId || categoria.id}`,
+  }
+}
+
+interface CategoriesListingProps {
+  categorias?: any[]
+  error?: string | null
+}
+
+const columnHelper = createColumnHelper<CategoryType>()
+
+const CategoriesListing = ({ categorias, error }: CategoriesListingProps = {}) => {
   const router = useRouter()
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all')
-
-  // Función helper para obtener el nombre
-  const getNombre = (cat: Categoria) => cat.nombre || cat.name || 'Sin nombre'
   
-  // Función helper para obtener la descripción
-  const getDescripcion = (cat: Categoria) => cat.descripcion || cat.description || ''
-  
-  // Función helper para obtener el estado
-  const getEstado = (cat: Categoria) => {
-    if (cat.activo !== undefined) return cat.activo
-    if (cat.isActive !== undefined) return cat.isActive
-    return true // Por defecto activo
-  }
-  
-  // Función helper para obtener la imagen
-  const getImagen = (cat: Categoria) => {
-    // Intentar diferentes estructuras de datos de Strapi
-    if (cat.imagen?.data?.attributes?.url) {
-      return cat.imagen.data.attributes.url
+  // Mapear categorías de Strapi al formato CategoryType si están disponibles
+  const mappedCategories = useMemo(() => {
+    if (categorias && categorias.length > 0) {
+      console.log('[CategoriesListing] Categorías recibidas:', categorias.length)
+      const mapped = categorias.map(mapStrapiCategoryToCategoryType)
+      console.log('[CategoriesListing] Categorías mapeadas:', mapped.length)
+      return mapped
     }
-    if (cat.image?.data?.attributes?.url) {
-      return cat.image.data.attributes.url
-    }
-    if (cat.imagen?.attributes?.url) {
-      return cat.imagen.attributes.url
-    }
-    if (cat.image?.attributes?.url) {
-      return cat.image.attributes.url
-    }
-    if (cat.imagen?.url) {
-      return cat.imagen.url
-    }
-    if (cat.image?.url) {
-      return cat.image.url
-    }
-    return null
-  }
-  
-  // Función helper para construir la URL completa de la imagen
-  const getImagenUrl = (cat: Categoria) => {
-    const imagenPath = getImagen(cat)
-    if (!imagenPath) return null
-    
-    // Si ya es una URL completa, retornarla
-    if (imagenPath.startsWith('http')) {
-      return imagenPath
-    }
-    
-    // Construir URL completa con la base de Strapi
-    const strapiUrl = process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'
-    return `${strapiUrl}${imagenPath.startsWith('/') ? '' : '/'}${imagenPath}`
-  }
-  
-  // Función helper para contar productos
-  const getProductosCount = (cat: Categoria) => {
-    if (cat.productos) return Array.isArray(cat.productos) ? cat.productos.length : 0
-    if (cat.products) return Array.isArray(cat.products) ? cat.products.length : 0
-    return 0
-  }
+    console.log('[CategoriesListing] No hay categorías de Strapi')
+    return []
+  }, [categorias])
 
-  // Filtrar categorías
-  const filteredCategorias = categorias.filter((cat) => {
-    const nombre = getNombre(cat).toLowerCase()
-    const matchesSearch = nombre.includes(searchTerm.toLowerCase()) || 
-                         getDescripcion(cat).toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesStatus = filterStatus === 'all' || 
-                         (filterStatus === 'active' && getEstado(cat)) ||
-                         (filterStatus === 'inactive' && !getEstado(cat))
-    
-    return matchesSearch && matchesStatus
-  })
-
-  const handleDelete = async (id: number) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar esta categoría?')) {
-      return
-    }
-
-    try {
-      const response = await fetch(`/api/tienda/categorias/${id}`, {
-        method: 'DELETE',
-      })
-
-      if (response.ok) {
-        router.refresh()
-      } else {
-        alert('Error al eliminar la categoría')
-      }
-    } catch (error) {
-      console.error('Error al eliminar categoría:', error)
-      alert('Error al eliminar la categoría')
-    }
-  }
-
-  if (error) {
-    return (
-      <Card>
-        <CardHeader>
-          <div className="alert alert-danger mb-0">
-            <strong>Error:</strong> {error}
+  const columns: ColumnDef<CategoryType, any>[] = [
+    {
+      id: 'select',
+      maxSize: 45,
+      size: 45,
+      header: ({ table }: { table: TableType<CategoryType> }) => (
+        <input
+          type="checkbox"
+          className="form-check-input form-check-input-light fs-14"
+          checked={table.getIsAllRowsSelected()}
+          onChange={table.getToggleAllRowsSelectedHandler()}
+        />
+      ),
+      cell: ({ row }: { row: TableRow<CategoryType> }) => (
+        <input
+          type="checkbox"
+          className="form-check-input form-check-input-light fs-14"
+          checked={row.getIsSelected()}
+          onChange={row.getToggleSelectedHandler()}
+        />
+      ),
+      enableSorting: false,
+      enableColumnFilter: false,
+    },
+    columnHelper.accessor('name', {
+      header: 'Category',
+      cell: ({ row }) => {
+        const imageSrc = row.original.image
+        
+        // Si no hay imagen, mostrar placeholder
+        if (!imageSrc) {
+          return (
+            <div className="d-flex">
+              <div className="avatar-md me-3 bg-light d-flex align-items-center justify-content-center rounded">
+                <span className="text-muted fs-xs">Sin imagen</span>
+              </div>
+              <div>
+                <h5 className="mb-0">
+                  <Link href={row.original.url} className="link-reset">
+                    {row.original.name}
+                  </Link>
+                </h5>
+                <p className="text-muted mb-0 fs-xxs">Slug: {row.original.slug || 'N/A'}</p>
+              </div>
+            </div>
+          )
+        }
+        
+        return (
+          <div className="d-flex">
+            <div className="avatar-md me-3">
+              <Image 
+                src={imageSrc} 
+                alt={row.original.name || 'Category'} 
+                height={36} 
+                width={36} 
+                className="img-fluid rounded"
+                unoptimized={imageSrc.startsWith('http')}
+                onError={(e) => {
+                  console.error('[CategoriesListing] Error al cargar imagen:', imageSrc, e)
+                }}
+              />
+            </div>
+            <div>
+              <h5 className="mb-0">
+                <Link href={row.original.url} className="link-reset">
+                  {row.original.name || 'Sin nombre'}
+                </Link>
+              </h5>
+              <p className="text-muted mb-0 fs-xxs">Slug: {row.original.slug || 'N/A'}</p>
+            </div>
           </div>
-        </CardHeader>
-      </Card>
-    )
-  }
-
-  return (
-    <Card>
-      <CardHeader className="border-light justify-content-between">
-        <div className="d-flex gap-2">
-          <div className="app-search">
-            <input
-              type="search"
-              className="form-control"
-              placeholder="Buscar categoría..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <LuSearch className="app-search-icon text-muted" />
-          </div>
-          <select
-            className="form-select"
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as any)}
-            style={{ width: 'auto' }}
-          >
-            <option value="all">Todas</option>
-            <option value="active">Activas</option>
-            <option value="inactive">Inactivas</option>
-          </select>
-        </div>
-        <div className="d-flex align-items-center gap-2">
+        )
+      },
+    }),
+    columnHelper.accessor('slug', { 
+      header: 'Slug',
+      cell: ({ row }) => (
+        <code className="text-muted">{row.original.slug || 'N/A'}</code>
+      ),
+    }),
+    columnHelper.accessor('description', {
+      header: 'Description',
+      cell: ({ row }) => (
+        <p className="text-muted mb-0 small">
+          {row.original.description || 'Sin descripción'}
+        </p>
+      ),
+    }),
+    columnHelper.accessor('products', {
+      header: 'Products',
+      cell: ({ row }) => (
+        <span className="badge badge-soft-info">{row.original.products}</span>
+      ),
+    }),
+    columnHelper.accessor('status', {
+      header: 'Status',
+      filterFn: 'equalsString',
+      enableColumnFilter: true,
+      cell: ({ row }) => (
+        <span
+          className={`badge ${row.original.status === 'active' ? 'badge-soft-success' : 'badge-soft-danger'} fs-xxs`}>
+          {toPascalCase(row.original.status)}
+        </span>
+      ),
+    }),
+    columnHelper.accessor('date', {
+      header: 'Date',
+      cell: ({ row }) => (
+        <>
+          {row.original.date} <small className="text-muted">{row.original.time}</small>
+        </>
+      ),
+    }),
+    {
+      header: 'Actions',
+      cell: ({ row }: { row: TableRow<CategoryType> }) => (
+        <div className="d-flex gap-1">
+          <Link href={row.original.url}>
+            <Button variant="default" size="sm" className="btn-icon rounded-circle">
+              <TbEye className="fs-lg" />
+            </Button>
+          </Link>
           <Button
-            variant="primary"
-            onClick={() => router.push('/products/categorias/agregar')}
+            variant="default"
+            size="sm"
+            className="btn-icon rounded-circle"
+            onClick={() => router.push(`/products/categorias/${row.original.id}/editar`)}
           >
-            <LuPlus className="fs-sm me-2" /> Agregar Categoría
+            <TbEdit className="fs-lg" />
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            className="btn-icon rounded-circle"
+            onClick={() => {
+              toggleDeleteModal()
+              setSelectedRowIds({ [row.id]: true })
+            }}>
+            <TbTrash className="fs-lg" />
           </Button>
         </div>
-      </CardHeader>
+      ),
+    },
+  ]
 
-      <div className="table-responsive">
-        <table className="table table-hover align-middle mb-0">
-          <thead className="table-light">
-            <tr>
-              <th style={{ width: '50px' }}>Imagen</th>
-              <th>Nombre</th>
-              <th>Slug</th>
-              <th>Descripción</th>
-              <th>Productos</th>
-              <th>Estado</th>
-              <th style={{ width: '120px' }}>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredCategorias.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="text-center py-4">
-                  <p className="text-muted mb-0">
-                    {categorias.length === 0
-                      ? 'No hay categorías disponibles'
-                      : 'No se encontraron categorías con los filtros aplicados'}
-                  </p>
-                </td>
-              </tr>
-            ) : (
-              filteredCategorias.map((categoria) => {
-                const imagenUrl = getImagenUrl(categoria)
-                const nombre = getNombre(categoria)
-                const descripcion = getDescripcion(categoria)
-                const estado = getEstado(categoria)
-                const productosCount = getProductosCount(categoria)
+  const [data, setData] = useState<CategoryType[]>([])
+  const [globalFilter, setGlobalFilter] = useState('')
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
 
-                return (
-                  <tr key={categoria.id}>
-                    <td>
-                      {imagenUrl ? (
-                        <div className="avatar-md">
-                          <Image
-                            src={imagenUrl}
-                            alt={nombre}
-                            width={40}
-                            height={40}
-                            className="img-fluid rounded"
-                            unoptimized
-                          />
-                        </div>
-                      ) : (
-                        <div className="avatar-md bg-light d-flex align-items-center justify-content-center">
-                          <span className="text-muted small">Sin imagen</span>
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <h6 className="mb-0">{nombre}</h6>
-                    </td>
-                    <td>
-                      <code className="text-muted">{categoria.slug || 'N/A'}</code>
-                    </td>
-                    <td>
-                      <p className="text-muted mb-0 small">
-                        {descripcion || 'Sin descripción'}
-                      </p>
-                    </td>
-                    <td>
-                      <Badge bg="info">{productosCount}</Badge>
-                    </td>
-                    <td>
-                      <Badge bg={estado ? 'success' : 'secondary'}>
-                        {estado ? 'Activa' : 'Inactiva'}
-                      </Badge>
-                    </td>
-                    <td>
-                      <div className="d-flex gap-1">
-                        <Button
-                          variant="default"
-                          size="sm"
-                          className="btn-icon rounded-circle"
-                          title="Ver detalles"
-                        >
-                          <LuEye className="fs-lg" />
-                        </Button>
-                        <Button
-                          variant="default"
-                          size="sm"
-                          className="btn-icon rounded-circle"
-                          title="Editar"
-                          onClick={() => router.push(`/products/categorias/${categoria.id}/editar`)}
-                        >
-                          <LuPencil className="fs-lg" />
-                        </Button>
-                        <Button
-                          variant="default"
-                          size="sm"
-                          className="btn-icon rounded-circle text-danger"
-                          title="Eliminar"
-                          onClick={() => handleDelete(categoria.id)}
-                        >
-                          <LuTrash2 className="fs-lg" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+  const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
 
-      {filteredCategorias.length > 0 && (
-        <CardFooter className="border-0">
-          <div className="d-flex justify-content-between align-items-center">
-            <p className="text-muted mb-0">
-              Mostrando {filteredCategorias.length} de {categorias.length} categorías
-            </p>
-          </div>
-        </CardFooter>
-      )}
-    </Card>
+  // Actualizar datos cuando cambien las categorías de Strapi
+  useEffect(() => {
+    console.log('[CategoriesListing] useEffect - categorias:', categorias?.length, 'mappedCategories:', mappedCategories.length)
+    setData(mappedCategories)
+    console.log('[CategoriesListing] Datos actualizados. Total:', mappedCategories.length)
+  }, [mappedCategories, categorias])
+
+  const table = useReactTable<CategoryType>({
+    data,
+    columns,
+    state: { sorting, globalFilter, columnFilters, pagination, rowSelection: selectedRowIds },
+    onSortingChange: setSorting,
+    onGlobalFilterChange: setGlobalFilter,
+    onColumnFiltersChange: setColumnFilters,
+    onPaginationChange: setPagination,
+    onRowSelectionChange: setSelectedRowIds,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    globalFilterFn: 'includesString',
+    enableColumnFilters: true,
+    enableRowSelection: true,
+  })
+
+  const pageIndex = table.getState().pagination.pageIndex
+  const pageSize = table.getState().pagination.pageSize
+  const totalItems = table.getFilteredRowModel().rows.length
+
+  const start = pageIndex * pageSize + 1
+  const end = Math.min(start + pageSize - 1, totalItems)
+
+  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false)
+
+  const toggleDeleteModal = () => {
+    setShowDeleteModal(!showDeleteModal)
+  }
+
+  const handleDelete = async () => {
+    const selectedIds = Object.keys(selectedRowIds)
+    const idsToDelete = selectedIds.map(id => data[parseInt(id)]?.id).filter(Boolean)
+    
+    try {
+      // Eliminar cada categoría seleccionada
+      for (const categoryId of idsToDelete) {
+        const response = await fetch(`/api/tienda/categorias/${categoryId}`, {
+          method: 'DELETE',
+        })
+        if (!response.ok) {
+          throw new Error(`Error al eliminar categoría ${categoryId}`)
+        }
+      }
+      
+      // Actualizar datos localmente
+      setData((old) => old.filter((_, idx) => !selectedIds.includes(idx.toString())))
+      setSelectedRowIds({})
+      setPagination({ ...pagination, pageIndex: 0 })
+      setShowDeleteModal(false)
+      
+      // Recargar la página para reflejar cambios
+      router.refresh()
+    } catch (error) {
+      console.error('Error al eliminar categorías:', error)
+      alert('Error al eliminar las categorías seleccionadas')
+    }
+  }
+
+  // Mostrar error si existe
+  const hasError = !!error
+  const hasData = mappedCategories.length > 0
+  
+  if (hasError && !hasData) {
+    return (
+      <Row>
+        <Col xs={12}>
+          <Alert variant="warning">
+            <strong>Error al cargar categorías desde Strapi:</strong> {error}
+            <br />
+            <small className="text-muted">
+              Verifica que:
+              <ul className="mt-2 mb-0">
+                <li>STRAPI_API_TOKEN esté configurado en Railway</li>
+                <li>El servidor de Strapi esté disponible</li>
+                <li>Las variables de entorno estén correctas</li>
+              </ul>
+            </small>
+          </Alert>
+        </Col>
+      </Row>
+    )
+  }
+  
+  // Si hay error pero también hay datos, mostrar advertencia pero continuar
+  if (hasError && hasData) {
+    console.warn('[CategoriesListing] Error al cargar desde Strapi, usando datos disponibles:', error)
+  }
+
+  // Obtener categorías únicas para el filtro
+  const uniqueCategories = useMemo(() => {
+    const categories = new Set(data.map(cat => cat.name))
+    return Array.from(categories).sort()
+  }, [data])
+
+  return (
+    <Row>
+      <Col xs={12}>
+        <Card className="mb-4">
+          <CardHeader className="d-flex justify-content-between align-items-center">
+            <div className="d-flex gap-2">
+              <div className="app-search">
+                <input
+                  type="search"
+                  className="form-control"
+                  placeholder="Search category name..."
+                  value={globalFilter ?? ''}
+                  onChange={(e) => setGlobalFilter(e.target.value)}
+                />
+                <LuSearch className="app-search-icon text-muted" />
+              </div>
+
+              {Object.keys(selectedRowIds).length > 0 && (
+                <Button variant="danger" size="sm" onClick={toggleDeleteModal}>
+                  Delete
+                </Button>
+              )}
+            </div>
+
+            <div className="d-flex align-items-center gap-2">
+              <span className="me-2 fw-semibold">Filter By:</span>
+
+              <div className="app-search">
+                <select
+                  className="form-select form-control my-1 my-md-0"
+                  value={(table.getColumn('status')?.getFilterValue() as string) ?? 'All'}
+                  onChange={(e) => table.getColumn('status')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
+                  <option value="All">Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+                <LuBox className="app-search-icon text-muted" />
+              </div>
+
+              <div>
+                <select
+                  className="form-select form-control my-1 my-md-0"
+                  value={table.getState().pagination.pageSize}
+                  onChange={(e) => table.setPageSize(Number(e.target.value))}>
+                  {[5, 8, 10, 15, 20].map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="d-flex gap-1">
+              <Link passHref href="/products/categorias">
+                <Button variant="outline-primary" className="btn-icon btn-soft-primary">
+                  <TbLayoutGrid className="fs-lg" />
+                </Button>
+              </Link>
+              <Button variant="primary" className="btn-icon">
+                <TbList className="fs-lg" />
+              </Button>
+              <Link href="/products/categorias/agregar" passHref>
+                <Button variant="danger" className="ms-1">
+                  <TbPlus className="fs-sm me-2" /> Add Category
+                </Button>
+              </Link>
+            </div>
+          </CardHeader>
+
+          <DataTable<CategoryType> table={table} emptyMessage="No records found" />
+
+          {table.getRowModel().rows.length > 0 && (
+            <CardFooter className="border-0">
+              <TablePagination
+                totalItems={totalItems}
+                start={start}
+                end={end}
+                itemsName="categories"
+                showInfo
+                previousPage={table.previousPage}
+                canPreviousPage={table.getCanPreviousPage()}
+                pageCount={table.getPageCount()}
+                pageIndex={table.getState().pagination.pageIndex}
+                setPageIndex={table.setPageIndex}
+                nextPage={table.nextPage}
+                canNextPage={table.getCanNextPage()}
+              />
+            </CardFooter>
+          )}
+
+          <DeleteConfirmationModal
+            show={showDeleteModal}
+            onHide={toggleDeleteModal}
+            onConfirm={handleDelete}
+            selectedCount={Object.keys(selectedRowIds).length}
+            itemName="category"
+          />
+        </Card>
+      </Col>
+    </Row>
   )
 }
 
 export default CategoriesListing
-
