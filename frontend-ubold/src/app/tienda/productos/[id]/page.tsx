@@ -32,7 +32,8 @@ export default function EditarProductoPage({ params }: EditarProductoPageProps) 
     async function fetchProducto() {
       try {
         // Endpoint correcto confirmado: /api/libros (verificado en test-strapi)
-        const response = await strapiClient.get<any>(`/api/libros/${productoId}?populate=*`)
+        // Optimizado: solo traer campos necesarios para edición (sin populate=* para mejor rendimiento)
+        const response = await strapiClient.get<any>(`/api/libros/${productoId}`)
         
         if (response.data) {
           const prod = response.data
@@ -90,9 +91,10 @@ export default function EditarProductoPage({ params }: EditarProductoPageProps) 
       await strapiClient.put<any>(endpoint, updateData)
       
       setSuccess(true)
+      // Reducir tiempo de espera antes de redirigir para mejor UX
       setTimeout(() => {
         router.push('/tienda/productos')
-      }, 1500)
+      }, 600)
     } catch (err: any) {
       setError(err.message || 'Error al guardar el producto')
       console.error('Error al guardar producto:', err)

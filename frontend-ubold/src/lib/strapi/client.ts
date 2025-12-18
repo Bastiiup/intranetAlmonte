@@ -103,9 +103,9 @@ const strapiClient = {
       })
     }
     
-    // Crear un AbortController para timeout
+    // Crear un AbortController para timeout (15 segundos para mejor UX)
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 segundos
+    const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 segundos
     
     try {
       const response = await fetch(url, {
@@ -132,7 +132,7 @@ const strapiClient = {
     } catch (error: any) {
       clearTimeout(timeoutId)
       if (error.name === 'AbortError') {
-        const timeoutError = new Error('Timeout: La petición a Strapi tardó más de 30 segundos') as Error & { status?: number }
+        const timeoutError = new Error('Timeout: La petición a Strapi tardó más de 15 segundos') as Error & { status?: number }
         timeoutError.status = 504
         throw timeoutError
       }
@@ -149,9 +149,9 @@ const strapiClient = {
   async post<T>(path: string, data?: unknown, options?: RequestInit): Promise<T> {
     const url = getStrapiUrl(path)
     
-    // Crear un AbortController para timeout
+    // Crear un AbortController para timeout (15 segundos para mejor UX)
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 segundos
+    const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 segundos
     
     try {
       const response = await fetch(url, {
@@ -167,7 +167,7 @@ const strapiClient = {
     } catch (error: any) {
       clearTimeout(timeoutId)
       if (error.name === 'AbortError') {
-        const timeoutError = new Error('Timeout: La petición a Strapi tardó más de 30 segundos') as Error & { status?: number }
+        const timeoutError = new Error('Timeout: La petición a Strapi tardó más de 15 segundos') as Error & { status?: number }
         timeoutError.status = 504
         throw timeoutError
       }
@@ -183,14 +183,41 @@ const strapiClient = {
    */
   async put<T>(path: string, data?: unknown, options?: RequestInit): Promise<T> {
     const url = getStrapiUrl(path)
-    const response = await fetch(url, {
-      method: 'PUT',
-      headers: getHeaders(options?.headers),
-      body: data ? JSON.stringify(data) : undefined,
-      ...options,
-    })
     
-    return handleResponse<T>(response)
+    // Crear un AbortController para timeout (10 segundos para operaciones de escritura)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 segundos
+    
+    try {
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: getHeaders(options?.headers),
+        body: data ? JSON.stringify(data) : undefined,
+        signal: controller.signal,
+        ...options,
+      })
+      
+      clearTimeout(timeoutId)
+      
+      // Log respuesta antes de manejar errores
+      if (!response.ok) {
+        console.error('[Strapi Client PUT] ❌ Error en respuesta:', {
+          url,
+          status: response.status,
+          statusText: response.statusText,
+        })
+      }
+      
+      return handleResponse<T>(response)
+    } catch (error: any) {
+      clearTimeout(timeoutId)
+      if (error.name === 'AbortError') {
+        const timeoutError = new Error('Timeout: La petición a Strapi tardó más de 10 segundos') as Error & { status?: number }
+        timeoutError.status = 504
+        throw timeoutError
+      }
+      throw error
+    }
   },
 
   /**
@@ -200,13 +227,40 @@ const strapiClient = {
    */
   async delete<T>(path: string, options?: RequestInit): Promise<T> {
     const url = getStrapiUrl(path)
-    const response = await fetch(url, {
-      method: 'DELETE',
-      headers: getHeaders(options?.headers),
-      ...options,
-    })
     
-    return handleResponse<T>(response)
+    // Crear un AbortController para timeout (10 segundos para operaciones de escritura)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 segundos
+    
+    try {
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: getHeaders(options?.headers),
+        signal: controller.signal,
+        ...options,
+      })
+      
+      clearTimeout(timeoutId)
+      
+      // Log respuesta antes de manejar errores
+      if (!response.ok) {
+        console.error('[Strapi Client DELETE] ❌ Error en respuesta:', {
+          url,
+          status: response.status,
+          statusText: response.statusText,
+        })
+      }
+      
+      return handleResponse<T>(response)
+    } catch (error: any) {
+      clearTimeout(timeoutId)
+      if (error.name === 'AbortError') {
+        const timeoutError = new Error('Timeout: La petición a Strapi tardó más de 10 segundos') as Error & { status?: number }
+        timeoutError.status = 504
+        throw timeoutError
+      }
+      throw error
+    }
   },
 }
 
