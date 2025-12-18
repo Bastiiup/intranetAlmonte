@@ -1,4 +1,5 @@
 'use client'
+
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -13,27 +14,50 @@ import {
   Table as TableType,
   useReactTable,
 } from '@tanstack/react-table'
-import Image, { type StaticImageData } from 'next/image'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert } from 'react-bootstrap'
-import { LuBox, LuDollarSign, LuSearch, LuTag } from 'react-icons/lu'
+import { LuBox, LuSearch, LuTag } from 'react-icons/lu'
 import { TbEdit, TbEye, TbLayoutGrid, TbList, TbPlus, TbTrash } from 'react-icons/tb'
 
-import Rating from '@/components/Rating'
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
-import { currency } from '@/helpers'
 import { toPascalCase } from '@/helpers/casing'
-import { productData, type ProductType } from '@/app/(admin)/(apps)/(ecommerce)/products/data'
 import { STRAPI_API_URL } from '@/lib/strapi/config'
 import { format } from 'date-fns'
+import { useRouter } from 'next/navigation'
 
-// Tipo extendido para productos que pueden tener imagen como URL o StaticImageData
-type ProductTypeExtended = Omit<ProductType, 'image'> & {
-  image: StaticImageData | { src: string | null }
-  strapiId?: number
+interface Categoria {
+  id: number
+  nombre?: string
+  name?: string
+  slug?: string
+  descripcion?: string
+  description?: string
+  activo?: boolean
+  isActive?: boolean
+  imagen?: any
+  image?: any
+  productos?: any[]
+  products?: any[]
+  createdAt?: string
+  updatedAt?: string
+}
+
+// Tipo para la tabla
+type CategoryType = {
+  id: number
+  name: string
+  slug: string
+  description: string
+  image: string | null
+  products: number
+  status: 'active' | 'inactive'
+  date: string
+  time: string
+  url: string
 }
 
 // Helper para obtener campo con múltiples variaciones
@@ -46,29 +70,27 @@ const getField = (obj: any, ...fieldNames: string[]): any => {
   return undefined
 }
 
-// Función para mapear productos de Strapi al formato ProductType (igual que ProductosGrid)
-const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
-  // Los datos pueden venir en attributes o directamente (igual que ProductosGrid)
-  const attrs = producto.attributes || {}
-  const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (producto as any)
+// Función para mapear categorías de Strapi al formato CategoryType
+const mapStrapiCategoryToCategoryType = (categoria: any): CategoryType => {
+  // Los datos pueden venir en attributes o directamente
+  const attrs = categoria.attributes || {}
+  const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (categoria as any)
 
-  // Obtener URL de imagen (manejar datos directos o en attributes - igual que Products Grid)
+  // Obtener URL de imagen
   const getImageUrl = (): string | null => {
-    // Acceder a portada_libro - puede venir como objeto directo o con .data
-    let portada = data.portada_libro || data.PORTADA_LIBRO || data.portadaLibro
+    let imagen = data.imagen || data.image || data.IMAGEN || data.IMAGE
     
-    // Si portada tiene .data, acceder a eso
-    if (portada?.data) {
-      portada = portada.data
+    // Si imagen tiene .data, acceder a eso
+    if (imagen?.data) {
+      imagen = Array.isArray(imagen.data) ? imagen.data[0] : imagen.data
     }
     
-    // Si portada es null o undefined, retornar null (no usar imagen por defecto inexistente)
-    if (!portada || portada === null) {
+    if (!imagen || imagen === null) {
       return null
     }
 
     // Obtener la URL - puede estar en attributes o directamente
-    const url = portada.attributes?.url || portada.attributes?.URL || portada.url || portada.URL
+    const url = imagen.attributes?.url || imagen.attributes?.URL || imagen.url || imagen.URL
     if (!url) {
       return null
     }
@@ -83,95 +105,70 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
     return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
   }
 
-  // Calcular stock total (igual que ProductosGrid)
-  const getStockTotal = (): number => {
-    const stocks = data.STOCKS?.data || data.stocks?.data || []
-    return stocks.reduce((total: number, stock: any) => {
-      const cantidad = stock.attributes?.CANTIDAD || stock.attributes?.cantidad || 0
-      return total + (typeof cantidad === 'number' ? cantidad : 0)
-    }, 0)
-  }
-
-  // Obtener precio mínimo (igual que ProductosGrid)
-  const getPrecioMinimo = (): number => {
-    const precios = data.PRECIOS?.data || data.precios?.data || []
-    if (precios.length === 0) return 0
-    
-    const preciosNumeros = precios
-      .map((p: any) => p.attributes?.PRECIO || p.attributes?.precio)
-      .filter((p: any): p is number => typeof p === 'number' && p > 0)
-    
-    return preciosNumeros.length > 0 ? Math.min(...preciosNumeros) : 0
-  }
-
-  // Buscar nombre con múltiples variaciones (igual que ProductosGrid)
-  const nombre = getField(data, 'NOMBRE_LIBRO', 'nombre_libro', 'nombreLibro', 'NOMBRE', 'nombre', 'name', 'NAME') || 'Sin nombre'
-  const isbn = getField(data, 'ISBN_LIBRO', 'isbn_libro', 'isbnLibro', 'ISBN', 'isbn') || ''
-  const autor = data.autor_relacion?.data?.attributes?.nombre || data.autor_relacion?.data?.attributes?.NOMBRE || 'Sin autor'
-  const editorial = data.editorial?.data?.attributes?.nombre || data.editorial?.data?.attributes?.NOMBRE || 'Sin editorial'
-  const tipoLibro = getField(data, 'TIPO_LIBRO', 'tipo_libro', 'tipoLibro') || 'Sin categoría'
-  const isPublished = !!(attrs.publishedAt || (producto as any).publishedAt)
-  const createdAt = attrs.createdAt || (producto as any).createdAt || new Date().toISOString()
+  // Obtener nombre
+  const nombre = getField(data, 'nombre', 'name', 'NOMBRE', 'NAME') || 'Sin nombre'
+  
+  // Obtener slug
+  const slug = getField(data, 'slug', 'SLUG') || ''
+  
+  // Obtener descripción
+  const descripcion = getField(data, 'descripcion', 'description', 'DESCRIPCION', 'DESCRIPTION') || ''
+  
+  // Obtener estado
+  const activo = data.activo !== undefined ? data.activo : (data.isActive !== undefined ? data.isActive : true)
+  
+  // Contar productos
+  const productos = data.productos?.data || data.products?.data || data.productos || data.products || []
+  const productosCount = Array.isArray(productos) ? productos.length : 0
+  
+  // Obtener fechas
+  const createdAt = attrs.createdAt || (categoria as any).createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
 
   const imageUrl = getImageUrl()
+  
   return {
-    image: { src: imageUrl || '' },
+    id: categoria.id || categoria.documentId || categoria.id,
     name: nombre,
-    brand: autor,
-    code: isbn || `STRAPI-${producto.id}`,
-    category: tipoLibro,
-    stock: getStockTotal(),
-    price: getPrecioMinimo(),
-    sold: 0,
-    rating: 4,
-    reviews: 0,
-    status: isPublished ? 'published' : 'pending',
+    slug: slug,
+    description: descripcion,
+    image: imageUrl,
+    products: productosCount,
+    status: activo ? 'active' : 'inactive',
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
-    // Usar el ID numérico si existe, sino documentId, sino el id tal cual
-    url: `/products/${producto.id || producto.documentId || producto.id}`,
-    strapiId: producto.id,
+    url: `/products/categorias/${categoria.id || categoria.documentId || categoria.id}`,
   }
 }
 
-interface ProductsListingProps {
-  productos?: any[]
+interface CategoriesListingProps {
+  categorias?: any[]
   error?: string | null
 }
 
-const priceRangeFilterFn: FilterFn<any> = (row, columnId, value) => {
-  const price = row.getValue<number>(columnId)
-  if (!value) return true
-  if (value === '500+') return price > 500
-  const [min, max] = value.split('-').map(Number)
-  return price >= min && price <= max
-}
+const columnHelper = createColumnHelper<CategoryType>()
 
-const columnHelper = createColumnHelper<ProductTypeExtended>()
-
-const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
-  // Mapear productos de Strapi al formato ProductType si están disponibles
-  const mappedProducts = useMemo(() => {
-    if (productos && productos.length > 0) {
-      console.log('[ProductsListing] Productos recibidos:', productos.length)
-      console.log('[ProductsListing] Primer producto estructura completa:', JSON.stringify(productos[0], null, 2))
-      const mapped = productos.map(mapStrapiProductToProductType)
-      console.log('[ProductsListing] Productos mapeados:', mapped.length)
-      console.log('[ProductsListing] Primer producto mapeado:', mapped[0])
-      console.log('[ProductsListing] Imagen del primer producto:', mapped[0]?.image)
+const CategoriesListing = ({ categorias, error }: CategoriesListingProps = {}) => {
+  const router = useRouter()
+  
+  // Mapear categorías de Strapi al formato CategoryType si están disponibles
+  const mappedCategories = useMemo(() => {
+    if (categorias && categorias.length > 0) {
+      console.log('[CategoriesListing] Categorías recibidas:', categorias.length)
+      const mapped = categorias.map(mapStrapiCategoryToCategoryType)
+      console.log('[CategoriesListing] Categorías mapeadas:', mapped.length)
       return mapped
     }
-    console.log('[ProductsListing] No hay productos de Strapi, usando datos de ejemplo')
-    return productData
-  }, [productos])
+    console.log('[CategoriesListing] No hay categorías de Strapi')
+    return []
+  }, [categorias])
 
-  const columns: ColumnDef<ProductTypeExtended, any>[] = [
+  const columns: ColumnDef<CategoryType, any>[] = [
     {
       id: 'select',
       maxSize: 45,
       size: 45,
-      header: ({ table }: { table: TableType<ProductTypeExtended> }) => (
+      header: ({ table }: { table: TableType<CategoryType> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -179,7 +176,7 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
           onChange={table.getToggleAllRowsSelectedHandler()}
         />
       ),
-      cell: ({ row }: { row: TableRow<ProductTypeExtended> }) => (
+      cell: ({ row }: { row: TableRow<CategoryType> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -191,11 +188,9 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
       enableColumnFilter: false,
     },
     columnHelper.accessor('name', {
-      header: 'Product',
+      header: 'Category',
       cell: ({ row }) => {
-        const imageSrc = typeof row.original.image === 'object' && 'src' in row.original.image
-          ? row.original.image.src
-          : null
+        const imageSrc = row.original.image
         
         // Si no hay imagen, mostrar placeholder
         if (!imageSrc) {
@@ -210,7 +205,7 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
                     {row.original.name}
                   </Link>
                 </h5>
-                <p className="text-muted mb-0 fs-xxs">by: {row.original.brand}</p>
+                <p className="text-muted mb-0 fs-xxs">Slug: {row.original.slug || 'N/A'}</p>
               </div>
             </div>
           )
@@ -221,13 +216,13 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
             <div className="avatar-md me-3">
               <Image 
                 src={imageSrc} 
-                alt={row.original.name || 'Product'} 
+                alt={row.original.name || 'Category'} 
                 height={36} 
                 width={36} 
                 className="img-fluid rounded"
                 unoptimized={imageSrc.startsWith('http')}
                 onError={(e) => {
-                  console.error('[ProductsListing] Error al cargar imagen:', imageSrc, e)
+                  console.error('[CategoriesListing] Error al cargar imagen:', imageSrc, e)
                 }}
               />
             </div>
@@ -237,58 +232,42 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
                   {row.original.name || 'Sin nombre'}
                 </Link>
               </h5>
-              <p className="text-muted mb-0 fs-xxs">by: {row.original.brand || 'Sin autor'}</p>
+              <p className="text-muted mb-0 fs-xxs">Slug: {row.original.slug || 'N/A'}</p>
             </div>
           </div>
         )
       },
     }),
-    columnHelper.accessor('code', { header: 'SKU' }),
-    columnHelper.accessor('category', {
-      header: 'Categoría',
-      filterFn: 'equalsString',
-      enableColumnFilter: true,
-    }),
-    columnHelper.accessor('stock', { header: 'Stock' }),
-    columnHelper.accessor('price', {
-      header: 'Precio',
-      filterFn: priceRangeFilterFn,
-      enableColumnFilter: true,
+    columnHelper.accessor('slug', { 
+      header: 'Slug',
       cell: ({ row }) => (
-        <>
-          {currency}
-          {row.original.price}
-        </>
+        <code className="text-muted">{row.original.slug || 'N/A'}</code>
       ),
     }),
-    columnHelper.accessor('sold', { header: 'Vendidos' }),
-    columnHelper.accessor('rating', {
-      header: 'Calificación',
+    columnHelper.accessor('description', {
+      header: 'Descripción',
       cell: ({ row }) => (
-        <>
-          <Rating rating={row.original.rating} />
-          <span className="ms-1">
-            <Link href="" className="link-reset fw-semibold">
-              ({row.original.reviews})
-            </Link>
-          </span>
-        </>
+        <p className="text-muted mb-0 small">
+          {row.original.description || 'Sin descripción'}
+        </p>
+      ),
+    }),
+    columnHelper.accessor('products', {
+      header: 'Productos',
+      cell: ({ row }) => (
+        <span className="badge badge-soft-info">{row.original.products}</span>
       ),
     }),
     columnHelper.accessor('status', {
       header: 'Estado',
       filterFn: 'equalsString',
       enableColumnFilter: true,
-      cell: ({ row }) => {
-        const statusText = row.original.status === 'published' ? 'Publicado' : 
-                          row.original.status === 'pending' ? 'Pendiente' : 'Rechazado'
-        return (
-          <span
-            className={`badge ${row.original.status === 'published' ? 'badge-soft-success' : row.original.status === 'pending' ? 'badge-soft-warning' : 'badge-soft-danger'} fs-xxs`}>
-            {statusText}
-          </span>
-        )
-      },
+      cell: ({ row }) => (
+        <span
+          className={`badge ${row.original.status === 'active' ? 'badge-soft-success' : 'badge-soft-danger'} fs-xxs`}>
+          {row.original.status === 'active' ? 'Activo' : 'Inactivo'}
+        </span>
+      ),
     }),
     columnHelper.accessor('date', {
       header: 'Fecha',
@@ -300,15 +279,19 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
     }),
     {
       header: 'Acciones',
-      cell: ({ row }: { row: TableRow<ProductTypeExtended> }) => (
-        <div className="d-flex  gap-1">
+      cell: ({ row }: { row: TableRow<CategoryType> }) => (
+        <div className="d-flex gap-1">
           <Link href={row.original.url}>
             <Button variant="default" size="sm" className="btn-icon rounded-circle">
               <TbEye className="fs-lg" />
             </Button>
           </Link>
-          <Link href={`/tienda/productos/${row.original.strapiId || row.original.code}/editar`}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle">
+          <Link href={row.original.url}>
+            <Button
+              variant="default"
+              size="sm"
+              className="btn-icon rounded-circle"
+            >
               <TbEdit className="fs-lg" />
             </Button>
           </Link>
@@ -327,7 +310,7 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
     },
   ]
 
-  const [data, setData] = useState<ProductTypeExtended[]>([])
+  const [data, setData] = useState<CategoryType[]>([])
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -338,7 +321,7 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
   // Estado para el orden de columnas
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('products-column-order')
+      const saved = localStorage.getItem('categories-column-order')
       if (saved) {
         try {
           return JSON.parse(saved)
@@ -354,18 +337,18 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
   const handleColumnOrderChange = (newOrder: string[]) => {
     setColumnOrder(newOrder)
     if (typeof window !== 'undefined') {
-      localStorage.setItem('products-column-order', JSON.stringify(newOrder))
+      localStorage.setItem('categories-column-order', JSON.stringify(newOrder))
     }
   }
 
-  // Actualizar datos cuando cambien los productos de Strapi
+  // Actualizar datos cuando cambien las categorías de Strapi
   useEffect(() => {
-    console.log('[ProductsListing] useEffect - productos:', productos?.length, 'mappedProducts:', mappedProducts.length)
-    setData(mappedProducts)
-    console.log('[ProductsListing] Datos actualizados. Total:', mappedProducts.length)
-  }, [mappedProducts])
+    console.log('[CategoriesListing] useEffect - categorias:', categorias?.length, 'mappedCategories:', mappedCategories.length)
+    setData(mappedCategories)
+    console.log('[CategoriesListing] Datos actualizados. Total:', mappedCategories.length)
+  }, [mappedCategories, categorias])
 
-  const table = useReactTable<ProductTypeExtended>({
+  const table = useReactTable<CategoryType>({
     data,
     columns,
     state: { sorting, globalFilter, columnFilters, pagination, rowSelection: selectedRowIds, columnOrder },
@@ -382,9 +365,6 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
     globalFilterFn: 'includesString',
     enableColumnFilters: true,
     enableRowSelection: true,
-    filterFns: {
-      priceRange: priceRangeFilterFn,
-    },
   })
 
   const pageIndex = table.getState().pagination.pageIndex
@@ -400,25 +380,45 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
     setShowDeleteModal(!showDeleteModal)
   }
 
-  const handleDelete = () => {
-    const selectedIds = new Set(Object.keys(selectedRowIds))
-    setData((old) => old.filter((_, idx) => !selectedIds.has(idx.toString())))
-    setSelectedRowIds({})
-    setPagination({ ...pagination, pageIndex: 0 })
-    setShowDeleteModal(false)
+  const handleDelete = async () => {
+    const selectedIds = Object.keys(selectedRowIds)
+    const idsToDelete = selectedIds.map(id => data[parseInt(id)]?.id).filter(Boolean)
+    
+    try {
+      // Eliminar cada categoría seleccionada
+      for (const categoryId of idsToDelete) {
+        const response = await fetch(`/api/tienda/categorias/${categoryId}`, {
+          method: 'DELETE',
+        })
+        if (!response.ok) {
+          throw new Error(`Error al eliminar categoría ${categoryId}`)
+        }
+      }
+      
+      // Actualizar datos localmente
+      setData((old) => old.filter((_, idx) => !selectedIds.includes(idx.toString())))
+      setSelectedRowIds({})
+      setPagination({ ...pagination, pageIndex: 0 })
+      setShowDeleteModal(false)
+      
+      // Recargar la página para reflejar cambios
+      router.refresh()
+    } catch (error) {
+      console.error('Error al eliminar categorías:', error)
+      alert('Error al eliminar las categorías seleccionadas')
+    }
   }
 
-  // Mostrar error si existe, pero continuar mostrando los datos de ejemplo si hay
-  // Esto permite que la aplicación siga funcionando aunque Strapi falle
+  // Mostrar error si existe
   const hasError = !!error
-  const hasData = mappedProducts.length > 0
+  const hasData = mappedCategories.length > 0
   
   if (hasError && !hasData) {
     return (
       <Row>
         <Col xs={12}>
           <Alert variant="warning">
-            <strong>Error al cargar productos desde Strapi:</strong> {error}
+            <strong>Error al cargar categorías desde Strapi:</strong> {error}
             <br />
             <small className="text-muted">
               Verifica que:
@@ -436,11 +436,14 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
   
   // Si hay error pero también hay datos, mostrar advertencia pero continuar
   if (hasError && hasData) {
-    console.warn('[ProductsListing] Error al cargar desde Strapi, usando datos disponibles:', error)
+    console.warn('[CategoriesListing] Error al cargar desde Strapi, usando datos disponibles:', error)
   }
 
-  // Debug: mostrar información sobre los datos
-  console.log('[ProductsListing] Render - data.length:', data.length, 'mappedProducts.length:', mappedProducts.length, 'productos:', productos?.length)
+  // Obtener categorías únicas para el filtro
+  const uniqueCategories = useMemo(() => {
+    const categories = new Set(data.map(cat => cat.name))
+    return Array.from(categories).sort()
+  }, [data])
 
   return (
     <Row>
@@ -452,7 +455,7 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
                 <input
                   type="search"
                   className="form-control"
-                  placeholder="Buscar nombre de producto..."
+                  placeholder="Buscar nombre de categoría..."
                   value={globalFilter ?? ''}
                   onChange={(e) => setGlobalFilter(e.target.value)}
                 />
@@ -472,43 +475,13 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
               <div className="app-search">
                 <select
                   className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('category')?.getFilterValue() as string) ?? 'All'}
-                  onChange={(e) => table.getColumn('category')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
-                  <option value="All">Categoría</option>
-                  <option value="Electronics">Electrónica</option>
-                  <option value="Fashion">Moda</option>
-                  <option value="Home">Hogar</option>
-                  <option value="Sports">Deportes</option>
-                  <option value="Beauty">Belleza</option>
-                </select>
-                <LuTag className="app-search-icon text-muted" />
-              </div>
-
-              <div className="app-search">
-                <select
-                  className="form-select form-control my-1 my-md-0"
                   value={(table.getColumn('status')?.getFilterValue() as string) ?? 'All'}
                   onChange={(e) => table.getColumn('status')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
                   <option value="All">Estado</option>
-                  <option value="published">Publicado</option>
-                  <option value="pending">Pendiente</option>
-                  <option value="rejected">Rechazado</option>
+                  <option value="active">Activo</option>
+                  <option value="inactive">Inactivo</option>
                 </select>
                 <LuBox className="app-search-icon text-muted" />
-              </div>
-
-              <div className="app-search">
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('price')?.getFilterValue() as string) ?? ''}
-                  onChange={(e) => table.getColumn('price')?.setFilterValue(e.target.value || undefined)}>
-                  <option value="">Rango de Precio</option>
-                  <option value="0-50">$0 - $50</option>
-                  <option value="51-150">$51 - $150</option>
-                  <option value="151-500">$151 - $500</option>
-                  <option value="500+">$500+</option>
-                </select>
-                <LuDollarSign className="app-search-icon text-muted" />
               </div>
 
               <div>
@@ -516,7 +489,7 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
                   className="form-select form-control my-1 my-md-0"
                   value={table.getState().pagination.pageSize}
                   onChange={(e) => table.setPageSize(Number(e.target.value))}>
-                  {[5, 8,10, 15, 20].map((size) => (
+                  {[5, 8, 10, 15, 20].map((size) => (
                     <option key={size} value={size}>
                       {size}
                     </option>
@@ -526,7 +499,7 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
             </div>
 
             <div className="d-flex gap-1">
-              <Link passHref href="/products-grid">
+              <Link passHref href="/products/categorias">
                 <Button variant="outline-primary" className="btn-icon btn-soft-primary">
                   <TbLayoutGrid className="fs-lg" />
                 </Button>
@@ -534,15 +507,15 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
               <Button variant="primary" className="btn-icon">
                 <TbList className="fs-lg" />
               </Button>
-              <Link href="/add-product" passHref>
+              <Link href="/products/categorias/agregar" passHref>
                 <Button variant="danger" className="ms-1">
-                  <TbPlus className="fs-sm me-2" /> Agregar Producto
+                  <TbPlus className="fs-sm me-2" /> Agregar Categoría
                 </Button>
               </Link>
             </div>
           </CardHeader>
 
-          <DataTable<ProductTypeExtended>
+          <DataTable<CategoryType>
             table={table}
             emptyMessage="No se encontraron registros"
             enableColumnReordering={true}
@@ -555,7 +528,7 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
                 totalItems={totalItems}
                 start={start}
                 end={end}
-                itemsName="productos"
+                itemsName="categorías"
                 showInfo
                 previousPage={table.previousPage}
                 canPreviousPage={table.getCanPreviousPage()}
@@ -573,7 +546,7 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
             onHide={toggleDeleteModal}
             onConfirm={handleDelete}
             selectedCount={Object.keys(selectedRowIds).length}
-            itemName="product"
+            itemName="category"
           />
         </Card>
       </Col>
@@ -581,4 +554,4 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
   )
 }
 
-export default ProductsListing
+export default CategoriesListing

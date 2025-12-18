@@ -14,9 +14,9 @@ const INIT_STATE: LayoutState = {
   monochrome: false,
   orientation: 'vertical',
   sidenavColor: 'light',
-  sidenavSize: 'default',
+  sidenavSize: 'on-hover',
   sidenavUser: false,
-  topBarColor: 'dark',
+  topBarColor: 'light',
   position: 'fixed',
   width: 'fluid',
 }
@@ -32,7 +32,8 @@ const useLayoutContext = () => {
 }
 
 const LayoutProvider = ({ children }: ChildrenType) => {
-  const [settings, setSettings] = useLocalStorage<LayoutState>('__UBOLD_CONFIG__', INIT_STATE)
+  // Cambiar la clave para forzar que todos los usuarios usen los nuevos valores por defecto
+  const [settings, setSettings] = useLocalStorage<LayoutState>('__UBOLD_CONFIG_V2__', INIT_STATE)
 
   const [isCustomizerOpen, setIsCustomizerOpen] = useState(false)
 

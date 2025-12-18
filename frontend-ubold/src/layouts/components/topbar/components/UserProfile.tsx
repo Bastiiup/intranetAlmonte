@@ -7,16 +7,25 @@ import { Fragment } from 'react'
 import { Dropdown, DropdownDivider, DropdownItem, DropdownMenu, DropdownToggle } from 'react-bootstrap'
 import { TbChevronDown } from 'react-icons/tb'
 import { useAuth, getPersonaNombreCorto } from '@/hooks/useAuth'
+import { clearAuth } from '@/lib/auth'
+import { useRouter } from 'next/navigation'
 
 import user3 from '@/assets/images/users/user-3.jpg'
 
 const UserProfile = () => {
   const { persona, colaborador, loading } = useAuth()
+  const router = useRouter()
   
   const nombreUsuario = persona ? getPersonaNombreCorto(persona) : (colaborador?.email_login || 'Usuario')
   const avatarSrc = persona?.imagen?.url 
     ? `${process.env.NEXT_PUBLIC_STRAPI_URL}${persona.imagen.url}`
     : user3.src
+
+  const handleLogout = () => {
+    clearAuth()
+    router.push('/auth-1/sign-in')
+    router.refresh()
+  }
 
   return (
     <div className="topbar-item nav-user">
@@ -37,6 +46,11 @@ const UserProfile = () => {
                 </div>
               ) : item.isDivider ? (
                 <DropdownDivider />
+              ) : item.isLogout ? (
+                <DropdownItem onClick={handleLogout} className={item.class} style={{ cursor: 'pointer' }}>
+                  {item.icon && <item.icon className="me-2 fs-17 align-middle" />}
+                  <span className="align-middle">{item.label}</span>
+                </DropdownItem>
               ) : (
                 <DropdownItem as={Link} href={item.url} className={item.class}>
                   {item.icon && <item.icon className="me-2 fs-17 align-middle" />}

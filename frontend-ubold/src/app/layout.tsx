@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 
 import AppWrapper from '@/components/AppWrapper'
 
-import favicon from '@/assets/images/favicon.ico'
 import { appDescription, appTitle } from '@/helpers'
 import { ChildrenType } from '@/types'
 
@@ -31,13 +30,25 @@ import '@/assets/scss/app.scss'
 import { ibmPlexSans, inter, nunito, poppins, publicSans, roboto } from '@/helpers/fonts'
 
 
+const faviconSvg = encodeURIComponent(`
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 150">
+    <path d="M43.28,13.97c0,34.74,28.12,62.89,62.79,62.89,5.76,0,11.34-.79,16.65-2.26L106.08,13.97H43.28Z" fill="black"/>
+    <path d="M74.91,68.53l-42.93-12.18L10.36,136.65H56.83l18.08-68.12Z" fill="black"/>
+    <path d="M80.06,86.92l42.66-12.31,16.78,62.04h-46.46l-12.98-49.73Z" fill="black"/>
+  </svg>
+`)
+
 export const metadata: Metadata = {
     title: {
         default: appTitle,
         template: '%s | ' + appTitle,
     },
     description: appDescription,
-    icons: [favicon.src],
+    icons: {
+        icon: `data:image/svg+xml,${faviconSvg}`,
+        shortcut: `data:image/svg+xml,${faviconSvg}`,
+        apple: `data:image/svg+xml,${faviconSvg}`,
+    },
 }
 
 const RootLayout = ({ children }: ChildrenType) => {

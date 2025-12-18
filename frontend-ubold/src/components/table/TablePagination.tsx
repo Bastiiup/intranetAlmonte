@@ -40,7 +40,7 @@ const TablePagination = ({
       {showInfo && (
         <Col sm>
           <div className="text-muted">
-            Showing <span className="fw-semibold">{start}</span> to <span className="fw-semibold">{end}</span> of{' '}
+            Mostrando <span className="fw-semibold">{start}</span> a <span className="fw-semibold">{end}</span> de{' '}
             <span className="fw-semibold">{totalItems}</span> {itemsName}
           </div>
         </Col>
