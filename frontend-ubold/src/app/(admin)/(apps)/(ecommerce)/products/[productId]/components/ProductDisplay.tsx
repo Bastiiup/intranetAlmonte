@@ -255,15 +255,28 @@ const ProductDisplay = ({ producto, onUpdate }: ProductDisplayProps) => {
 
       console.log('[ProductDisplay] ✅ Producto actualizado con nueva imagen')
 
+      // Actualizar estado local inmediatamente con la nueva imagen
+      if (onProductoUpdate && updateData.data) {
+        // Obtener la URL de la nueva imagen desde la respuesta
+        const nuevaImagen = updateData.data.portada_libro || updateData.data.PORTADA_LIBRO
+        if (nuevaImagen) {
+          onProductoUpdate({
+            portada_libro: nuevaImagen
+          })
+        }
+      }
+
       // Resetear estados
       setIsEditingImage(false)
       setSelectedFile(null)
       setPreviewUrl(null)
       setImageUrl('')
       
-      // Refrescar datos del producto
+      // Refrescar datos del producto en segundo plano (sin bloquear UI)
       if (onUpdate) {
-        onUpdate()
+        onUpdate().catch((err) => {
+          console.error('[ProductDisplay] Error al refrescar:', err)
+        })
       } else {
         router.refresh()
       }

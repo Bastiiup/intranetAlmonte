@@ -65,8 +65,33 @@ export default function Page() {
     }
   }, [productId])
 
-  const handleUpdate = () => {
-    fetchProducto()
+  const handleUpdate = async () => {
+    // Refrescar datos del servidor sin recargar la página
+    await fetchProducto()
+  }
+  
+  // Función para actualizar producto localmente (optimistic update)
+  const updateProductoLocal = (updates: any) => {
+    setProducto((prev: any) => {
+      if (!prev) return prev
+      
+      // Actualizar attributes si existen
+      if (prev.attributes) {
+        return {
+          ...prev,
+          attributes: {
+            ...prev.attributes,
+            ...updates
+          }
+        }
+      }
+      
+      // Si no tiene attributes, actualizar directamente
+      return {
+        ...prev,
+        ...updates
+      }
+    })
   }
 
   if (loading) {
@@ -118,13 +143,24 @@ export default function Page() {
           <Card>
             <CardBody>
               <Row>
-                <ProductDisplay producto={producto} onUpdate={handleUpdate} />
+                <ProductDisplay 
+                  producto={producto} 
+                  onUpdate={handleUpdate}
+                  onProductoUpdate={updateProductoLocal}
+                />
 
                 <Col xl={8}>
                   <div className="p-4">
-                    <ProductDetails producto={producto} />
+                    <ProductDetails 
+                      producto={producto} 
+                      onUpdate={handleUpdate}
+                      onProductoUpdate={updateProductoLocal}
+                    />
 
-                    <ProductPricing producto={producto} onUpdate={handleUpdate} />
+                    <ProductPricing 
+                      producto={producto} 
+                      onUpdate={handleUpdate}
+                    />
 
                     <ProductReviews producto={producto} />
                   </div>

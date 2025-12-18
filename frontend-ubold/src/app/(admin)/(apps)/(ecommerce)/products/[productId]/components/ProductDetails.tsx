@@ -7,6 +7,7 @@ import { TbPencil, TbCheck, TbX } from 'react-icons/tb'
 interface ProductDetailsProps {
   producto: any
   onUpdate?: () => void
+  onProductoUpdate?: (updates: any) => void
 }
 
 // Helper para obtener campo con múltiples variaciones
@@ -39,7 +40,7 @@ const extractDescriptionText = (descripcion: any): string => {
   return ''
 }
 
-export function ProductDetails({ producto, onUpdate }: ProductDetailsProps) {
+export function ProductDetails({ producto, onUpdate, onProductoUpdate }: ProductDetailsProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -186,16 +187,26 @@ export function ProductDetails({ producto, onUpdate }: ProductDetailsProps) {
 
       console.log('[ProductDetails] ✅ Guardado exitoso')
 
+      // Actualizar estado local inmediatamente (optimistic update)
+      if (onProductoUpdate) {
+        onProductoUpdate(dataToSend)
+      }
+      
       setSuccess(true)
       setIsEditing(false)
       
-      // Refrescar después de un momento (reducido de 2000 a 1500ms)
+      // Refrescar desde servidor en segundo plano (sin esperar)
+      if (onUpdate) {
+        // No usar setTimeout, refrescar inmediatamente pero sin bloquear UI
+        onUpdate().catch((err) => {
+          console.error('[ProductDetails] Error al refrescar:', err)
+        })
+      }
+      
+      // Ocultar mensaje de éxito después de 2 segundos
       setTimeout(() => {
-        if (onUpdate) {
-          onUpdate()
-        }
         setSuccess(false)
-      }, 1500)
+      }, 2000)
 
     } catch (err: any) {
       console.error('[ProductDetails] Error:', err)
