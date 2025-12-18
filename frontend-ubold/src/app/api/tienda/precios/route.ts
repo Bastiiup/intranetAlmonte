@@ -154,10 +154,12 @@ export async function POST(request: NextRequest) {
     })
     
     // CRÍTICO: Preparar datos según estructura real de Strapi (todos en minúsculas)
+    // Para relaciones manyToOne en Strapi v5, podemos usar el ID numérico o documentId
+    // Intentemos primero con el ID numérico que es más común
     const precioData: any = {
       data: {
         precio_venta: parseFloat(body.precio_venta),  // REQUERIDO
-        libro: libro.documentId,                        // Relación manyToOne
+        libro: libro.id,                               // Relación manyToOne - usar ID numérico
         fecha_inicio: body.fecha_inicio,               // REQUERIDO (formato ISO)
       }
     }
