@@ -1,7 +1,7 @@
 'use client'
 import { Container, Card, CardBody, Alert, Button, Form, Row, Col, Badge } from 'react-bootstrap'
 import { useRouter } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { LuPencil, LuSettings2 } from 'react-icons/lu'
 import { TbStarFilled } from 'react-icons/tb'
@@ -25,7 +25,7 @@ export default function EditarProductoPage({ params }: EditarProductoPageProps) 
   const [success, setSuccess] = useState(false)
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null)
   const [newImageFile, setNewImageFile] = useState<File | null>(null)
-  const fileInputRef = useState<HTMLInputElement | null>(null)[0]
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   
   const [formData, setFormData] = useState({
     nombre: '',
@@ -386,9 +386,7 @@ export default function EditarProductoPage({ params }: EditarProductoPageProps) 
                     accept="image/*"
                     onChange={handleImageSelect}
                     style={{ display: 'none' }}
-                    ref={(el) => {
-                      if (el) (fileInputRef as any).current = el
-                    }}
+                    ref={fileInputRef}
                   />
 
                   {/* Botones de acción */}
@@ -397,8 +395,7 @@ export default function EditarProductoPage({ params }: EditarProductoPageProps) 
                       variant="light" 
                       size="sm"
                       onClick={() => {
-                        const input = (fileInputRef as any).current
-                        if (input) input.click()
+                        fileInputRef.current?.click()
                       }}
                       disabled={uploadingImage}
                     >
