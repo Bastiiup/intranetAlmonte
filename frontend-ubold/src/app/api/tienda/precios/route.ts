@@ -237,73 +237,84 @@ export async function POST(request: NextRequest) {
       // Primero intentar crear el precio directamente
       let nuevoPrecioId: number | null = null
       
+      // Intentar crear el precio directamente en Strapi
+      console.log('[API Precios POST] Intentando crear precio directamente en Strapi...')
+      console.log('[API Precios POST] Datos a enviar:', JSON.stringify(precioData, null, 2))
+      
+      let precioCreado: any
       try {
-        console.log('[API Precios POST] Intentando crear precio directamente en Strapi...')
-        const precioCreado = await strapiClient.post<any>('/api/precios', precioData)
+        precioCreado = await strapiClient.post<any>('/api/precios', precioData)
         
         // Extraer ID del precio creado
         if (precioCreado.data) {
           nuevoPrecioId = precioCreado.data.id || precioCreado.data.documentId
         } else if (precioCreado.id) {
           nuevoPrecioId = precioCreado.id
+        } else if (precioCreado.documentId) {
+          nuevoPrecioId = precioCreado.documentId
         }
         
         console.log('[API Precios POST] ✅ Precio creado directamente, ID:', nuevoPrecioId)
       } catch (errorDirecto: any) {
-        console.log('[API Precios POST] ⚠️ No se pudo crear precio directamente:', errorDirecto.message)
-        
-        // Si falla, usar método alternativo: crear precio como objeto y agregarlo al libro
-        // Strapi puede crear relaciones anidadas
-        console.log('[API Precios POST] Usando método alternativo: crear precio anidado en libro')
-        
-        const precioAnidado: any = {
-          precio_venta: parseFloat(body.precio_venta),
-          libro: libro.documentId,
-          fecha_inicio: body.fecha_inicio,
-          activo: body.activo !== undefined ? Boolean(body.activo) : true
-        }
-        
-        // Agregar campos opcionales
-        if (body.precio_costo !== undefined && body.precio_costo !== null && body.precio_costo !== '') {
-          precioAnidado.precio_costo = parseFloat(body.precio_costo)
-        }
-        if (body.fecha_fin) {
-          precioAnidado.fecha_fin = body.fecha_fin
-        }
-        
-        // Actualizar libro agregando el nuevo precio
-        const updateData = {
-          data: {
-            precios: [...idsPreciosExistentes, precioAnidado]
-          }
-        }
-        
-        console.log('[API Precios POST] Actualizando libro con nuevo precio anidado...')
-        const libroActualizado = await strapiClient.put<any>(
-          `/api/libros/${libro.documentId}`,
-          updateData
-        )
-        
-        console.log('[API Precios POST] ✅ Libro actualizado con nuevo precio')
-        
-        return NextResponse.json({
-          success: true,
-          data: libroActualizado.data || libroActualizado,
-          metodo: 'precio_anidado_en_libro',
-          mensaje: 'Precio creado actualizando el libro directamente'
+        console.error('[API Precios POST] ❌ Error al crear precio directamente:', {
+          status: errorDirecto.status,
+          message: errorDirecto.message,
+          details: errorDirecto.details
         })
+        
+        // Si es 404, el endpoint no existe
+        if (errorDirecto.status === 404) {
+          return NextResponse.json({
+            success: false,
+            error: 'El endpoint /api/precios no existe en Strapi',
+            ayuda: 'Necesitas habilitar el endpoint en Strapi. Ve a Settings → Users & Permissions → Roles → Public/Authenticated → Permissions → Precio → Marca "create"'
+          }, { status: 400 })
+        }
+        
+        // Si es 405, el método no está permitido
+        if (errorDirecto.status === 405) {
+          return NextResponse.json({
+            success: false,
+            error: 'El método POST no está permitido para /api/precios',
+            ayuda: 'Ve a Strapi → Settings → Users & Permissions → Roles → Public/Authenticated → Permissions → Precio → Marca "create"'
+          }, { status: 400 })
+        }
+        
+        // Si es 403, no hay permisos
+        if (errorDirecto.status === 403) {
+          return NextResponse.json({
+            success: false,
+            error: 'No tienes permisos para crear precios',
+            ayuda: 'Ve a Strapi → Settings → Users & Permissions → Roles → Public/Authenticated → Permissions → Precio → Marca "create"'
+          }, { status: 403 })
+        }
+        
+        // Otro error
+        throw errorDirecto
       }
       
-      // Si se creó directamente, actualizar el libro para relacionarlo
-      if (nuevoPrecioId) {
-        console.log('[API Precios POST] Relacionando precio con libro...')
-        
-        const updateData = {
-          data: {
-            precios: [...idsPreciosExistentes, nuevoPrecioId]
+      // Si se creó el precio, relacionarlo con el libro
+      if (!nuevoPrecioId) {
+        throw new Error('No se pudo obtener el ID del precio creado')
+      }
+      
+      console.log('[API Precios POST] Relacionando precio con libro...')
+      console.log('[API Precios POST] IDs de precios existentes:', idsPreciosExistentes)
+      console.log('[API Precios POST] Nuevo precio ID:', nuevoPrecioId)
+      
+      // Actualizar el libro para agregar el nuevo precio a la relación
+      // En Strapi v5, para relaciones oneToMany, usamos un array de IDs o documentIds
+      const updateData = {
+        data: {
+          precios: {
+            set: [...idsPreciosExistentes, nuevoPrecioId]
           }
         }
-        
+      }
+      
+      console.log('[API Precios POST] Datos para actualizar libro:', JSON.stringify(updateData, null, 2))
+      
+      try {
         await strapiClient.put<any>(
           `/api/libros/${libro.documentId}`,
           updateData
@@ -313,13 +324,23 @@ export async function POST(request: NextRequest) {
         
         return NextResponse.json({
           success: true,
-          data: { id: nuevoPrecioId },
+          data: precioCreado.data || precioCreado,
           metodo: 'precio_directo_y_relacionado',
-          mensaje: 'Precio creado y relacionado con el libro'
+          mensaje: 'Precio creado y relacionado con el libro exitosamente'
+        })
+      } catch (errorRelacion: any) {
+        console.error('[API Precios POST] ⚠️ Error al relacionar precio con libro:', errorRelacion)
+        
+        // El precio se creó pero no se pudo relacionar
+        // Devolver éxito parcial con advertencia
+        return NextResponse.json({
+          success: true,
+          data: precioCreado.data || precioCreado,
+          advertencia: 'Precio creado pero no se pudo relacionar automáticamente con el libro',
+          errorRelacion: errorRelacion.message,
+          ayuda: 'Puedes relacionar el precio manualmente desde Strapi o intentar nuevamente'
         })
       }
-      
-      throw new Error('No se pudo crear el precio')
       
     } catch (strapiError: any) {
       console.error('[API Precios POST] ❌ Error de Strapi:', strapiError)
