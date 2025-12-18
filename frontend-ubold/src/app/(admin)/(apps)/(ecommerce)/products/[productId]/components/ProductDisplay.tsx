@@ -9,7 +9,7 @@ import { STRAPI_API_URL } from '@/lib/strapi/config'
 
 interface ProductDisplayProps {
   producto: any
-  onUpdate?: () => void
+  onUpdate?: () => Promise<void> | void
   onProductoUpdate?: (updates: any) => void
 }
 
