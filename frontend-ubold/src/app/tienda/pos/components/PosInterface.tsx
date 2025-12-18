@@ -15,6 +15,7 @@ import DiscountInput from './DiscountInput'
 import CashRegister from './CashRegister'
 import RecentOrders from './RecentOrders'
 import QuickStats from './QuickStats'
+import PosToast from './PosToast'
 import { formatCurrencyNumber } from '../utils/calculations'
 import { printReceipt, type ReceiptData } from '../utils/receipt'
 import { isValidBarcode, normalizeBarcode } from '../utils/barcode'
@@ -342,7 +343,7 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
   const { cart, addToCart, updateQuantity, removeFromCart, clearCart, totals } = usePosCart(discount)
   const { products, loading, error, searchTerm, setSearchTerm, searchByBarcode, reloadProducts } = usePosProducts()
   const { processing, error: orderError, success, orderId, processOrder, clearError, clearSuccess } = usePosOrders()
-  const { showSuccess, showError, showWarning, showInfo, ToastComponent } = usePosToast()
+  const { toast, showSuccess, showError, showWarning, showInfo, hideToast } = usePosToast()
 
   // Cargar historial de búsquedas desde localStorage
   useEffect(() => {
@@ -621,7 +622,7 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
 
   return (
     <div className="pos-interface">
-      <ToastComponent />
+      <PosToast toast={toast} onClose={hideToast} />
       <style jsx global>{`
         .pos-interface .product-card {
           transition: all 0.2s ease-in-out;

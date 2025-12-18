@@ -5,14 +5,10 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import ToastContainer from 'react-bootstrap/ToastContainer'
-import Toast from 'react-bootstrap/Toast'
-import ToastHeader from 'react-bootstrap/ToastHeader'
-import ToastBody from 'react-bootstrap/ToastBody'
 
 export type ToastVariant = 'success' | 'danger' | 'warning' | 'info' | 'primary'
 
-interface ToastState {
+export interface ToastState {
   show: boolean
   title: string
   message: string
@@ -61,33 +57,13 @@ export function usePosToast() {
     showToast(message, 'info', title)
   }, [showToast])
 
-  const ToastComponent = () => {
-    return (
-      <ToastContainer className="p-3 position-fixed" position="top-end" style={{ zIndex: 9999 }}>
-        <Toast
-          onClose={hideToast}
-          show={toast.show}
-          delay={3000}
-          autohide
-          bg={toast.variant}
-          className="text-white"
-        >
-          <ToastHeader className={`bg-${toast.variant} text-white`}>
-            <strong className="me-auto">{toast.title}</strong>
-          </ToastHeader>
-          <ToastBody>{toast.message}</ToastBody>
-        </Toast>
-      </ToastContainer>
-    )
-  }
-
   return {
+    toast,
     showToast,
     showSuccess,
     showError,
     showWarning,
     showInfo,
     hideToast,
-    ToastComponent,
   }
 }
