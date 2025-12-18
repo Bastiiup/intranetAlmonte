@@ -138,7 +138,7 @@ const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
             </div>
             <div>
               <h5 className="mb-0">
-                <Link href={row.original.url} className="link-reset">
+                <Link href={`/products/etiquetas/${row.original.id}`} className="link-reset">
                   {row.original.name || 'Sin nombre'}
                 </Link>
               </h5>
@@ -184,19 +184,20 @@ const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
       header: 'Actions',
       cell: ({ row }: { row: TableRow<TagType> }) => (
         <div className="d-flex gap-1">
-          <Link href={row.original.url}>
+          <Link href={`/products/etiquetas/${row.original.id}`}>
             <Button variant="default" size="sm" className="btn-icon rounded-circle">
               <TbEye className="fs-lg" />
             </Button>
           </Link>
-          <Button
-            variant="default"
-            size="sm"
-            className="btn-icon rounded-circle"
-            onClick={() => router.push(`/products/etiquetas/${row.original.id}/editar`)}
-          >
-            <TbEdit className="fs-lg" />
-          </Button>
+          <Link href={`/products/etiquetas/${row.original.id}`}>
+            <Button
+              variant="default"
+              size="sm"
+              className="btn-icon rounded-circle"
+            >
+              <TbEdit className="fs-lg" />
+            </Button>
+          </Link>
           <Button
             variant="default"
             size="sm"

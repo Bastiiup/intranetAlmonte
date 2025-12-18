@@ -3,6 +3,96 @@ import strapiClient from '@/lib/strapi/client'
 
 export const dynamic = 'force-dynamic'
 
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    
+    console.log('[API /tienda/etiquetas/[id] GET] Obteniendo etiqueta:', {
+      id,
+      esNumerico: !isNaN(parseInt(id)),
+      endpoint: `/api/etiquetas/${id}`,
+    })
+    
+    // Intentar obtener la etiqueta directamente
+    if (!isNaN(parseInt(id))) {
+      try {
+        console.log('[API /tienda/etiquetas/[id] GET] 🔍 Buscando con filtro:', {
+          idBuscado: id,
+          endpoint: `/api/etiquetas?filters[id][$eq]=${id}&populate=*`
+        })
+        
+        const filteredResponse = await strapiClient.get<any>(
+          `/api/etiquetas?filters[id][$eq]=${id}&populate=*`
+        )
+        
+        // Extraer etiqueta de la respuesta filtrada
+        let etiqueta: any
+        if (Array.isArray(filteredResponse)) {
+          etiqueta = filteredResponse[0]
+        } else if (filteredResponse.data && Array.isArray(filteredResponse.data)) {
+          etiqueta = filteredResponse.data[0]
+        } else if (filteredResponse.data) {
+          etiqueta = filteredResponse.data
+        } else {
+          etiqueta = filteredResponse
+        }
+        
+        if (etiqueta) {
+          console.log('[API /tienda/etiquetas/[id] GET] ✅ Etiqueta encontrada con filtro')
+          return NextResponse.json({
+            success: true,
+            data: etiqueta
+          })
+        }
+      } catch (filterError: any) {
+        console.log('[API /tienda/etiquetas/[id] GET] Filtro falló, intentando endpoint directo:', filterError.message)
+      }
+    }
+    
+    // Intentar endpoint directo
+    try {
+      const response = await strapiClient.get<any>(`/api/etiquetas/${id}?populate=*`)
+      
+      let etiqueta: any
+      if (response.data) {
+        etiqueta = response.data
+      } else {
+        etiqueta = response
+      }
+      
+      console.log('[API /tienda/etiquetas/[id] GET] ✅ Etiqueta encontrada')
+      return NextResponse.json({
+        success: true,
+        data: etiqueta
+      })
+    } catch (directError: any) {
+      console.error('[API /tienda/etiquetas/[id] GET] ❌ Error al obtener etiqueta:', {
+        id,
+        error: directError.message,
+        status: directError.status,
+      })
+      
+      return NextResponse.json({
+        success: false,
+        error: directError.message || 'Etiqueta no encontrada',
+      }, { status: directError.status || 404 })
+    }
+  } catch (error: any) {
+    console.error('[API /tienda/etiquetas/[id] GET] ❌ Error general:', {
+      error: error.message,
+      stack: error.stack,
+    })
+    
+    return NextResponse.json({
+      success: false,
+      error: error.message || 'Error al obtener etiqueta',
+    }, { status: 500 })
+  }
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
