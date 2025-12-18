@@ -238,7 +238,14 @@ export async function POST(request: NextRequest) {
         // NO incluir "libro" aquí - Strapi lo maneja automáticamente
       }
       
+      // Verificar explícitamente que NO tiene campo libro y eliminarlo si existe
+      if ('libro' in nuevoPrecioObjeto) {
+        console.error('[API Precios POST] 🚨 ADVERTENCIA: Objeto tiene campo libro, eliminándolo...')
+        delete (nuevoPrecioObjeto as any).libro
+      }
+      
       console.log('[API Precios POST] Objeto precio a crear (sin campo libro):', JSON.stringify(nuevoPrecioObjeto, null, 2))
+      console.log('[API Precios POST] Verificando que objeto precio NO tiene campo libro:', !('libro' in nuevoPrecioObjeto))
       
       // Intentar actualizar el libro agregando el nuevo precio
       // Método 1: Usar solo "create" para crear el nuevo precio (sin connect)
@@ -252,7 +259,6 @@ export async function POST(request: NextRequest) {
       
       console.log('[API Precios POST] Intentando método 1: create (solo crear nuevo)')
       console.log('[API Precios POST] Datos:', JSON.stringify(updateData1, null, 2))
-      console.log('[API Precios POST] Verificando que objeto precio NO tiene campo libro:', !('libro' in nuevoPrecioObjeto))
       
       try {
         const libroActualizado1 = await strapiClient.put<any>(
