@@ -180,16 +180,125 @@ export async function POST(request: NextRequest) {
     
     console.log('[API Precios POST] 📤 Datos finales:', JSON.stringify(precioData, null, 2))
     
-    // Intentar crear en Strapi
+    // MÉTODO ALTERNATIVO: Como el endpoint /api/precios no existe,
+    // vamos a crear el precio actualizando el libro directamente
+    // Esto funciona porque Strapi permite crear relaciones anidadas
+    
     try {
-      const response = await strapiClient.post<any>('/api/precios', precioData)
+      console.log('[API Precios POST] Intentando método alternativo: actualizar libro con nuevo precio')
       
-      console.log('[API Precios POST] ✅ Precio creado')
+      // Obtener precios actuales del libro
+      const libroConPrecios = await strapiClient.get<any>(
+        `/api/libros?filters[id][$eq]=${body.libroId}&populate[precios]=*`
+      )
       
-      return NextResponse.json({
-        success: true,
-        data: response.data || response
-      })
+      let libroActual: any
+      if (Array.isArray(libroConPrecios)) {
+        libroActual = libroConPrecios[0]
+      } else if (libroConPrecios.data && Array.isArray(libroConPrecios.data)) {
+        libroActual = libroConPrecios.data[0]
+      } else if (libroConPrecios.data) {
+        libroActual = libroConPrecios.data
+      } else {
+        libroActual = libroConPrecios
+      }
+      
+      // Obtener IDs de precios existentes
+      const attrs = libroActual?.attributes || {}
+      const preciosExistentes = 
+        attrs.precios?.data || 
+        libroActual.precios?.data ||
+        attrs.precios ||
+        libroActual.precios ||
+        []
+      
+      const idsPreciosExistentes = preciosExistentes
+        .map((p: any) => p.id || p.documentId)
+        .filter((id: any) => id !== undefined && id !== null)
+      
+      console.log('[API Precios POST] Precios existentes:', idsPreciosExistentes.length)
+      
+      // Crear nuevo precio usando el endpoint de Strapi directamente
+      // Primero intentar crear el precio directamente
+      let nuevoPrecioId: number | null = null
+      
+      try {
+        console.log('[API Precios POST] Intentando crear precio directamente en Strapi...')
+        const precioCreado = await strapiClient.post<any>('/api/precios', precioData)
+        
+        // Extraer ID del precio creado
+        if (precioCreado.data) {
+          nuevoPrecioId = precioCreado.data.id || precioCreado.data.documentId
+        } else if (precioCreado.id) {
+          nuevoPrecioId = precioCreado.id
+        }
+        
+        console.log('[API Precios POST] ✅ Precio creado directamente, ID:', nuevoPrecioId)
+      } catch (errorDirecto: any) {
+        console.log('[API Precios POST] ⚠️ No se pudo crear precio directamente:', errorDirecto.message)
+        
+        // Si falla, usar método alternativo: crear precio como objeto y agregarlo al libro
+        // Strapi puede crear relaciones anidadas
+        console.log('[API Precios POST] Usando método alternativo: crear precio anidado en libro')
+        
+        const precioAnidado = {
+          precio: parseFloat(body.monto),
+          libro: libro.documentId
+        }
+        
+        // Agregar otros campos si existen
+        if (body.canal) precioAnidado.canal = body.canal
+        if (body.moneda) precioAnidado.moneda = body.moneda
+        
+        // Actualizar libro agregando el nuevo precio
+        const updateData = {
+          data: {
+            precios: [...idsPreciosExistentes, precioAnidado]
+          }
+        }
+        
+        console.log('[API Precios POST] Actualizando libro con nuevo precio anidado...')
+        const libroActualizado = await strapiClient.put<any>(
+          `/api/libros/${libro.documentId}`,
+          updateData
+        )
+        
+        console.log('[API Precios POST] ✅ Libro actualizado con nuevo precio')
+        
+        return NextResponse.json({
+          success: true,
+          data: libroActualizado.data || libroActualizado,
+          metodo: 'precio_anidado_en_libro',
+          mensaje: 'Precio creado actualizando el libro directamente'
+        })
+      }
+      
+      // Si se creó directamente, actualizar el libro para relacionarlo
+      if (nuevoPrecioId) {
+        console.log('[API Precios POST] Relacionando precio con libro...')
+        
+        const updateData = {
+          data: {
+            precios: [...idsPreciosExistentes, nuevoPrecioId]
+          }
+        }
+        
+        await strapiClient.put<any>(
+          `/api/libros/${libro.documentId}`,
+          updateData
+        )
+        
+        console.log('[API Precios POST] ✅ Precio relacionado con libro')
+        
+        return NextResponse.json({
+          success: true,
+          data: { id: nuevoPrecioId },
+          metodo: 'precio_directo_y_relacionado',
+          mensaje: 'Precio creado y relacionado con el libro'
+        })
+      }
+      
+      throw new Error('No se pudo crear el precio')
       
     } catch (strapiError: any) {
       console.error('[API Precios POST] ❌ Error de Strapi:', strapiError)
@@ -198,8 +307,18 @@ export async function POST(request: NextRequest) {
       if (strapiError.status === 405) {
         return NextResponse.json({
           success: false,
-          error: 'La colección "precios" no acepta creación directa. Necesitas configurar los permisos en Strapi o usar otro método.',
-          ayuda: 'Ve a Strapi → Settings → Users & Permissions → Roles → Public/Authenticated → Permissions → Precio → Marca "create"'
+          error: 'La colección "precios" no acepta creación directa. Necesitas configurar los permisos en Strapi.',
+          ayuda: 'Ve a Strapi → Settings → Users & Permissions → Roles → Public/Authenticated → Permissions → Precio → Marca "create"',
+          alternativa: 'O usa el método alternativo de actualizar el libro directamente'
+        }, { status: 400 })
+      }
+      
+      // Si es 404, el endpoint no existe
+      if (strapiError.status === 404) {
+        return NextResponse.json({
+          success: false,
+          error: 'El endpoint /api/precios no existe en Strapi. Necesitas crear precios de otra forma.',
+          ayuda: 'Los precios se deben crear actualizando el libro directamente o habilitando el endpoint en Strapi'
         }, { status: 400 })
       }
       
