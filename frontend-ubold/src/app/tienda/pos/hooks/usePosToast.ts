@@ -2,6 +2,8 @@
  * Hook para mostrar notificaciones Toast en el POS
  */
 
+'use client'
+
 import { useState, useCallback } from 'react'
 import { ToastContainer, Toast } from 'react-bootstrap'
 

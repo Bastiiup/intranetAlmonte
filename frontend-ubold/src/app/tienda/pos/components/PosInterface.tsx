@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Card, CardBody, Button, Form, InputGroup, Alert, Badge, Spinner, Row, Col } from 'react-bootstrap'
-import { useRef } from 'react'
 import { LuSearch, LuPlus, LuMinus, LuTrash2, LuShoppingCart, LuCheck, LuX, LuBarcode, LuDollarSign, LuMaximize, LuMinimize, LuHistory } from 'react-icons/lu'
 import Image from 'next/image'
 import type { WooCommerceProduct } from '@/lib/woocommerce/types'
