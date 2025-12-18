@@ -68,24 +68,36 @@ export async function GET(request: NextRequest) {
       colaboradorId: colaboradorIdNum,
     })
     
-    // Ejecutar ambas queries en paralelo
+    // Ejecutar ambas queries en paralelo con retry en caso de 502
+    const ejecutarQueryConRetry = async (query: string, nombre: string, maxRetries = 2) => {
+      for (let intento = 0; intento <= maxRetries; intento++) {
+        try {
+          const response = await strapiClient.get<StrapiResponse<StrapiEntity<ChatMensajeAttributes>>>(query)
+          if (intento > 0) {
+            console.log(`[API /chat/mensajes] ${nombre} exitoso en intento ${intento + 1}`)
+          }
+          return response
+        } catch (err: any) {
+          if (err.status === 502 && intento < maxRetries) {
+            console.warn(`[API /chat/mensajes] ${nombre} falló con 502, reintentando... (intento ${intento + 1}/${maxRetries})`)
+            await new Promise(resolve => setTimeout(resolve, 1000 * (intento + 1))) // Esperar 1s, 2s, etc.
+            continue
+          }
+          console.error(`[API /chat/mensajes] Error en ${nombre}:`, {
+            message: err.message,
+            status: err.status,
+            url: query,
+            intento: intento + 1,
+          })
+          return { data: [] } as StrapiResponse<StrapiEntity<ChatMensajeAttributes>>
+        }
+      }
+      return { data: [] } as StrapiResponse<StrapiEntity<ChatMensajeAttributes>>
+    }
+
     const [response1, response2] = await Promise.all([
-      strapiClient.get<StrapiResponse<StrapiEntity<ChatMensajeAttributes>>>(query1).catch((err) => {
-        console.error('[API /chat/mensajes] Error en query1:', {
-          message: err.message,
-          status: err.status,
-          url: query1,
-        })
-        return { data: [] } as StrapiResponse<StrapiEntity<ChatMensajeAttributes>>
-      }),
-      strapiClient.get<StrapiResponse<StrapiEntity<ChatMensajeAttributes>>>(query2).catch((err) => {
-        console.error('[API /chat/mensajes] Error en query2:', {
-          message: err.message,
-          status: err.status,
-          url: query2,
-        })
-        return { data: [] } as StrapiResponse<StrapiEntity<ChatMensajeAttributes>>
-      }),
+      ejecutarQueryConRetry(query1, 'query1'),
+      ejecutarQueryConRetry(query2, 'query2'),
     ])
     
     console.log('[API /chat/mensajes] Respuestas raw de Strapi:', {
