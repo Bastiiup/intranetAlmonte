@@ -241,18 +241,18 @@ export async function POST(request: NextRequest) {
       console.log('[API Precios POST] Objeto precio a crear (sin campo libro):', JSON.stringify(nuevoPrecioObjeto, null, 2))
       
       // Intentar actualizar el libro agregando el nuevo precio
-      // Método 1: Usar "connect" con un array que incluye el nuevo objeto
+      // Método 1: Usar solo "create" para crear el nuevo precio (sin connect)
       const updateData1 = {
         data: {
           precios: {
-            connect: [...idsPreciosExistentes],
             create: [nuevoPrecioObjeto]
           }
         }
       }
       
-      console.log('[API Precios POST] Intentando método 1: connect + create')
+      console.log('[API Precios POST] Intentando método 1: create (solo crear nuevo)')
       console.log('[API Precios POST] Datos:', JSON.stringify(updateData1, null, 2))
+      console.log('[API Precios POST] Verificando que objeto precio NO tiene campo libro:', !('libro' in nuevoPrecioObjeto))
       
       try {
         const libroActualizado1 = await strapiClient.put<any>(
