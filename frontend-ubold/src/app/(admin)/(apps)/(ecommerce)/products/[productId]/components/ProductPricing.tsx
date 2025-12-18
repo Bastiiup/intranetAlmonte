@@ -14,10 +14,6 @@ export function ProductPricing({ producto, onUpdate }: ProductPricingProps) {
   const [loading, setLoading] = useState(true)
   const [isAddingPrice, setIsAddingPrice] = useState(false)
   const [precioVenta, setPrecioVenta] = useState('')
-  const [precioCosto, setPrecioCosto] = useState('')
-  const [fechaInicio, setFechaInicio] = useState('')
-  const [fechaFin, setFechaFin] = useState('')
-  const [activo, setActivo] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -54,12 +50,7 @@ export function ProductPricing({ producto, onUpdate }: ProductPricingProps) {
     const precioVentaNumero = parseFloat(precioVenta)
     
     if (!precioVenta || isNaN(precioVentaNumero) || precioVentaNumero <= 0) {
-      setError('El precio de venta es requerido y debe ser mayor a 0')
-      return
-    }
-
-    if (!fechaInicio) {
-      setError('La fecha de inicio es requerida')
+      setError('Ingresa un precio válido mayor a 0')
       return
     }
 
@@ -67,22 +58,24 @@ export function ProductPricing({ producto, onUpdate }: ProductPricingProps) {
       setError(null)
       setSaving(true)
       
-      // Preparar fecha_inicio en formato ISO (requerido)
-      const fechaInicioISO = fechaInicio ? new Date(fechaInicio).toISOString() : new Date().toISOString()
+      // Usar fecha actual automáticamente
+      const fechaActual = new Date().toISOString()
       
-      // Payload simplificado: solo precio_venta, fecha_inicio, activo
-      // Los demás campos siempre como null (no se muestran en el formulario)
+      // Payload simplificado: solo precio_venta con fecha automática
       const payload: any = {
         precio_venta: precioVentaNumero,
         libroId: productId,
-        fecha_inicio: fechaInicioISO,
-        activo: true, // Siempre activo por defecto
-        precio_costo: null, // Siempre null
-        fecha_fin: null // Siempre null
+        fecha_inicio: fechaActual,
+        activo: true,
+        precio_costo: null,
+        fecha_fin: null
       }
       
-      console.log('[ProductPricing] Enviando:', payload)
-      console.log('[ProductPricing] Keys:', Object.keys(payload))
+      console.log('[ProductPricing] Creando precio:', {
+        precio: precioVentaNumero,
+        libro: productId,
+        fecha: fechaActual
+      })
       
       const response = await fetch('/api/tienda/precios', {
         method: 'POST',
@@ -103,10 +96,6 @@ export function ProductPricing({ producto, onUpdate }: ProductPricingProps) {
         
         // Resetear formulario
         setPrecioVenta('')
-        setPrecioCosto('')
-        setFechaInicio('')
-        setFechaFin('')
-        setActivo(true)
         setIsAddingPrice(false)
         
         // Actualizar lista de precios inmediatamente (optimistic update)
@@ -208,46 +197,31 @@ export function ProductPricing({ producto, onUpdate }: ProductPricingProps) {
           </Alert>
         )}
 
-        {/* Form para agregar precio - Solo precio final y fecha inicio */}
+        {/* Form para agregar precio - Solo precio */}
         {isAddingPrice && (
-          <div className="border rounded p-3 mb-3">
-            <h6 className="mb-3">Nuevo Precio</h6>
+          <div className="border rounded p-3 mb-3 bg-light">
+            <h6 className="mb-3">Agregar Nuevo Precio</h6>
             
-            <div className="row">
-              <div className="col-md-6 mb-3">
-                <label className="form-label">
-                  Precio Final <span className="text-danger">*</span>
-                </label>
-                <div className="input-group">
-                  <span className="input-group-text">$</span>
-                  <input
-                    type="number"
-                    className="form-control"
-                    placeholder="0.00"
-                    value={precioVenta}
-                    onChange={(e) => setPrecioVenta(e.target.value)}
-                    step="0.01"
-                    min="0"
-                    disabled={saving}
-                    required
-                    autoFocus
-                  />
-                </div>
-              </div>
-              
-              <div className="col-md-6 mb-3">
-                <label className="form-label">
-                  Fecha de Inicio <span className="text-danger">*</span>
-                </label>
+            <div className="mb-3">
+              <label className="form-label">Precio de Venta</label>
+              <div className="input-group">
+                <span className="input-group-text">$</span>
                 <input
-                  type="datetime-local"
+                  type="number"
                   className="form-control"
-                  value={fechaInicio}
-                  onChange={(e) => setFechaInicio(e.target.value)}
+                  placeholder="Ingresa el precio"
+                  value={precioVenta}
+                  onChange={(e) => setPrecioVenta(e.target.value)}
+                  step="0.01"
+                  min="0"
                   disabled={saving}
-                  required
+                  autoFocus
                 />
               </div>
+              <small className="text-muted">
+                <i className="mdi mdi-information-outline me-1"></i>
+                La fecha se asignará automáticamente
+              </small>
             </div>
             
             <div className="d-flex gap-2">
@@ -255,7 +229,8 @@ export function ProductPricing({ producto, onUpdate }: ProductPricingProps) {
                 variant="success"
                 size="sm"
                 onClick={handleAddPrice}
-                disabled={saving || !precioVenta || !fechaInicio}
+                disabled={saving || !precioVenta}
+                className="flex-grow-1"
               >
                 {saving ? (
                   <>
@@ -265,7 +240,7 @@ export function ProductPricing({ producto, onUpdate }: ProductPricingProps) {
                 ) : (
                   <>
                     <TbCheck className="me-1" />
-                    Guardar
+                    Guardar Precio
                   </>
                 )}
               </Button>
@@ -275,10 +250,6 @@ export function ProductPricing({ producto, onUpdate }: ProductPricingProps) {
                 onClick={() => {
                   setIsAddingPrice(false)
                   setPrecioVenta('')
-                  setPrecioCosto('')
-                  setFechaInicio('')
-                  setFechaFin('')
-                  setActivo(true)
                   setError(null)
                 }}
                 disabled={saving}
