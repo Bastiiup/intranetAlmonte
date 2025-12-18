@@ -164,8 +164,9 @@ export async function DELETE(
 
     const etiquetaEndpoint = '/api/etiquetas'
     
-    // Primero obtener la etiqueta de Strapi para obtener el woocommerce_id
+    // Primero obtener la etiqueta de Strapi para obtener el documentId y woocommerce_id
     let woocommerceId: string | null = null
+    let documentId: string | null = null
     try {
       const etiquetaResponse = await strapiClient.get<any>(`${etiquetaEndpoint}?filters[id][$eq]=${id}&populate=*`)
       let etiquetas: any[] = []
@@ -177,11 +178,26 @@ export async function DELETE(
         etiquetas = [etiquetaResponse.data]
       }
       const etiquetaStrapi = etiquetas[0]
+      documentId = etiquetaStrapi?.documentId || etiquetaStrapi?.data?.documentId || id
       woocommerceId = etiquetaStrapi?.attributes?.woocommerce_id || 
-                      etiquetaStrapi?.woocommerce_id ||
-                      (etiquetaStrapi?.id && !isNaN(parseInt(etiquetaStrapi.id)) ? etiquetaStrapi.id.toString() : null)
+                      etiquetaStrapi?.woocommerce_id
     } catch (error: any) {
       console.warn('[API Etiquetas DELETE] ⚠️ No se pudo obtener etiqueta de Strapi:', error.message)
+      documentId = id
+    }
+
+    // Si no tenemos woocommerce_id, buscar por slug (documentId) en WooCommerce
+    if (!woocommerceId && documentId) {
+      try {
+        console.log('[API Etiquetas DELETE] 🔍 Buscando etiqueta en WooCommerce por slug:', documentId)
+        const wcTags = await wooCommerceClient.get<any[]>('products/tags', { slug: documentId.toString() })
+        if (wcTags && wcTags.length > 0) {
+          woocommerceId = wcTags[0].id.toString()
+          console.log('[API Etiquetas DELETE] ✅ Etiqueta encontrada en WooCommerce por slug:', woocommerceId)
+        }
+      } catch (searchError: any) {
+        console.warn('[API Etiquetas DELETE] ⚠️ No se pudo buscar por slug en WooCommerce:', searchError.message)
+      }
     }
 
     // Eliminar en WooCommerce primero si tenemos el ID
@@ -236,8 +252,9 @@ export async function PUT(
 
     const etiquetaEndpoint = '/api/etiquetas'
     
-    // Primero obtener la etiqueta de Strapi para obtener el woocommerce_id
+    // Primero obtener la etiqueta de Strapi para obtener el documentId y woocommerce_id
     let etiquetaStrapi: any
+    let documentId: string | null = null
     try {
       const etiquetaResponse = await strapiClient.get<any>(`${etiquetaEndpoint}?filters[id][$eq]=${id}&populate=*`)
       let etiquetas: any[] = []
@@ -249,13 +266,32 @@ export async function PUT(
         etiquetas = [etiquetaResponse.data]
       }
       etiquetaStrapi = etiquetas[0]
+      documentId = etiquetaStrapi?.documentId || etiquetaStrapi?.data?.documentId || id
     } catch (error: any) {
       console.warn('[API Etiquetas PUT] ⚠️ No se pudo obtener etiqueta de Strapi:', error.message)
+      documentId = id // Usar el id como fallback
     }
 
-    const woocommerceId = etiquetaStrapi?.attributes?.woocommerce_id || 
-                          etiquetaStrapi?.woocommerce_id ||
-                          (etiquetaStrapi?.id && !isNaN(parseInt(etiquetaStrapi.id)) ? etiquetaStrapi.id : null)
+    // Buscar en WooCommerce por slug (documentId) o por woocommerce_id
+    let woocommerceId: string | null = null
+    const woocommerceIdFromStrapi = etiquetaStrapi?.attributes?.woocommerce_id || 
+                                     etiquetaStrapi?.woocommerce_id
+    
+    if (woocommerceIdFromStrapi) {
+      woocommerceId = woocommerceIdFromStrapi.toString()
+    } else if (documentId) {
+      // Buscar por slug (documentId) en WooCommerce
+      try {
+        console.log('[API Etiquetas PUT] 🔍 Buscando etiqueta en WooCommerce por slug:', documentId)
+        const wcTags = await wooCommerceClient.get<any[]>('products/tags', { slug: documentId.toString() })
+        if (wcTags && wcTags.length > 0) {
+          woocommerceId = wcTags[0].id.toString()
+          console.log('[API Etiquetas PUT] ✅ Etiqueta encontrada en WooCommerce por slug:', woocommerceId)
+        }
+      } catch (searchError: any) {
+        console.warn('[API Etiquetas PUT] ⚠️ No se pudo buscar por slug en WooCommerce:', searchError.message)
+      }
+    }
 
     // Actualizar en WooCommerce primero si tenemos el ID
     let wooCommerceTag = null

@@ -37,3 +37,4 @@ test.describe('Chat API', () => {
     expect(body.error).toContain('números válidos')
   })
 })
+

@@ -184,8 +184,9 @@ export async function DELETE(
     // Encontrar el endpoint correcto
     const categoriaEndpoint = await findCategoriaEndpoint()
     
-    // Primero obtener la categoría de Strapi para obtener el woocommerce_id
+    // Primero obtener la categoría de Strapi para obtener el documentId y woocommerce_id
     let woocommerceId: string | null = null
+    let documentId: string | null = null
     try {
       const categoriaResponse = await strapiClient.get<any>(`${categoriaEndpoint}?filters[id][$eq]=${id}&populate=*`)
       let categorias: any[] = []
@@ -197,11 +198,26 @@ export async function DELETE(
         categorias = [categoriaResponse.data]
       }
       const categoriaStrapi = categorias[0]
+      documentId = categoriaStrapi?.documentId || categoriaStrapi?.data?.documentId || id
       woocommerceId = categoriaStrapi?.attributes?.woocommerce_id || 
-                      categoriaStrapi?.woocommerce_id ||
-                      (categoriaStrapi?.id && !isNaN(parseInt(categoriaStrapi.id)) ? categoriaStrapi.id.toString() : null)
+                      categoriaStrapi?.woocommerce_id
     } catch (error: any) {
       console.warn('[API Categorias DELETE] ⚠️ No se pudo obtener categoría de Strapi:', error.message)
+      documentId = id
+    }
+
+    // Si no tenemos woocommerce_id, buscar por slug (documentId) en WooCommerce
+    if (!woocommerceId && documentId) {
+      try {
+        console.log('[API Categorias DELETE] 🔍 Buscando categoría en WooCommerce por slug:', documentId)
+        const wcCategories = await wooCommerceClient.get<any[]>('products/categories', { slug: documentId.toString() })
+        if (wcCategories && wcCategories.length > 0) {
+          woocommerceId = wcCategories[0].id.toString()
+          console.log('[API Categorias DELETE] ✅ Categoría encontrada en WooCommerce por slug:', woocommerceId)
+        }
+      } catch (searchError: any) {
+        console.warn('[API Categorias DELETE] ⚠️ No se pudo buscar por slug en WooCommerce:', searchError.message)
+      }
     }
 
     // Eliminar en WooCommerce primero si tenemos el ID
@@ -257,8 +273,9 @@ export async function PUT(
     // Encontrar el endpoint correcto
     const categoriaEndpoint = await findCategoriaEndpoint()
     
-    // Primero obtener la categoría de Strapi para obtener el woocommerce_id
+    // Primero obtener la categoría de Strapi para obtener el documentId y woocommerce_id
     let categoriaStrapi: any
+    let documentId: string | null = null
     try {
       const categoriaResponse = await strapiClient.get<any>(`${categoriaEndpoint}?filters[id][$eq]=${id}&populate=*`)
       let categorias: any[] = []
@@ -270,13 +287,32 @@ export async function PUT(
         categorias = [categoriaResponse.data]
       }
       categoriaStrapi = categorias[0]
+      documentId = categoriaStrapi?.documentId || categoriaStrapi?.data?.documentId || id
     } catch (error: any) {
       console.warn('[API Categorias PUT] ⚠️ No se pudo obtener categoría de Strapi:', error.message)
+      documentId = id // Usar el id como fallback
     }
 
-    const woocommerceId = categoriaStrapi?.attributes?.woocommerce_id || 
-                          categoriaStrapi?.woocommerce_id ||
-                          (categoriaStrapi?.id && !isNaN(parseInt(categoriaStrapi.id)) ? categoriaStrapi.id : null)
+    // Buscar en WooCommerce por slug (documentId) o por woocommerce_id
+    let woocommerceId: string | null = null
+    const woocommerceIdFromStrapi = categoriaStrapi?.attributes?.woocommerce_id || 
+                                    categoriaStrapi?.woocommerce_id
+    
+    if (woocommerceIdFromStrapi) {
+      woocommerceId = woocommerceIdFromStrapi.toString()
+    } else if (documentId) {
+      // Buscar por slug (documentId) en WooCommerce
+      try {
+        console.log('[API Categorias PUT] 🔍 Buscando categoría en WooCommerce por slug:', documentId)
+        const wcCategories = await wooCommerceClient.get<any[]>('products/categories', { slug: documentId.toString() })
+        if (wcCategories && wcCategories.length > 0) {
+          woocommerceId = wcCategories[0].id.toString()
+          console.log('[API Categorias PUT] ✅ Categoría encontrada en WooCommerce por slug:', woocommerceId)
+        }
+      } catch (searchError: any) {
+        console.warn('[API Categorias PUT] ⚠️ No se pudo buscar por slug en WooCommerce:', searchError.message)
+      }
+    }
 
     // Actualizar en WooCommerce primero si tenemos el ID
     let wooCommerceCategory = null

@@ -14,8 +14,8 @@ import {
 } from '@tanstack/react-table'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useState } from 'react'
-import { Button, Card, CardFooter, CardHeader } from 'react-bootstrap'
+import { useState, useMemo, useEffect } from 'react'
+import { Button, Card, CardFooter, CardHeader, Alert } from 'react-bootstrap'
 import { LuCalendar, LuCreditCard, LuPlus, LuSearch, LuTruck } from 'react-icons/lu'
 import { TbEdit, TbEye, TbPointFilled, TbTrash } from 'react-icons/tb'
 
@@ -24,7 +24,101 @@ import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
 import { currency } from '@/helpers'
-import { toPascalCase } from '@/helpers/casing'
+
+// Función para traducir estados al español
+const translatePaymentStatus = (status: string): string => {
+  const translations: Record<string, string> = {
+    paid: 'Pagado',
+    pending: 'Pendiente',
+    failed: 'Fallido',
+    refunded: 'Reembolsado',
+  }
+  return translations[status] || status
+}
+
+const translateOrderStatus = (status: string): string => {
+  const translations: Record<string, string> = {
+    delivered: 'Entregado',
+    processing: 'Procesando',
+    cancelled: 'Cancelado',
+    shipped: 'Enviado',
+  }
+  return translations[status] || status
+}
+import { format } from 'date-fns'
+import user1 from '@/assets/images/users/user-1.jpg'
+import visa from '@/assets/images/cards/visa.svg'
+
+// Avatar y método de pago por defecto
+const defaultAvatar = user1
+const defaultPaymentMethod = visa
+
+// Función para mapear pedidos de WooCommerce al formato OrderType
+const mapWooCommerceOrderToOrderType = (pedido: any): OrderType => {
+  const id = pedido.number || pedido.id?.toString() || 'N/A'
+  
+  // Parsear fecha
+  const dateCreated = pedido.date_created ? new Date(pedido.date_created) : new Date()
+  const date = format(dateCreated, 'dd MMM, yyyy')
+  const time = format(dateCreated, 'h:mm a')
+  
+  // Información del cliente
+  const customerName = `${pedido.billing?.first_name || ''} ${pedido.billing?.last_name || ''}`.trim() || 'Cliente sin nombre'
+  const customerEmail = pedido.billing?.email || 'Sin email'
+  
+  // Monto
+  const amount = parseFloat(pedido.total || '0')
+  
+  // Estado de pago (mapear estados de WooCommerce)
+  let paymentStatus: 'paid' | 'pending' | 'failed' | 'refunded' = 'pending'
+  if (pedido.date_paid) {
+    paymentStatus = 'paid'
+  } else if (pedido.status === 'refunded' || pedido.status === 'cancelled') {
+    paymentStatus = pedido.status === 'refunded' ? 'refunded' : 'failed'
+  }
+  
+  // Estado del pedido (mapear estados de WooCommerce)
+  let orderStatus: 'delivered' | 'processing' | 'cancelled' | 'shipped' = 'processing'
+  const wcStatus = pedido.status?.toLowerCase() || ''
+  if (wcStatus === 'completed' || wcStatus === 'delivered') {
+    orderStatus = 'delivered'
+  } else if (wcStatus === 'shipped' || wcStatus === 'on-hold') {
+    orderStatus = 'shipped'
+  } else if (wcStatus === 'cancelled' || wcStatus === 'refunded') {
+    orderStatus = 'cancelled'
+  } else {
+    orderStatus = 'processing'
+  }
+  
+  // Método de pago
+  const paymentMethodTitle = pedido.payment_method_title || pedido.payment_method || 'Otro'
+  const paymentMethodType = paymentMethodTitle.toLowerCase().includes('card') || 
+                           paymentMethodTitle.toLowerCase().includes('tarjeta') ? 'card' : 'other'
+  
+  return {
+    id,
+    date,
+    time,
+    customer: {
+      name: customerName,
+      avatar: defaultAvatar,
+      email: customerEmail,
+    },
+    amount,
+    paymentStatus,
+    orderStatus,
+    paymentMethod: {
+      type: paymentMethodType,
+      image: defaultPaymentMethod,
+      ...(paymentMethodType === 'card' && { cardNumber: 'xxxx 0000' }),
+    },
+  }
+}
+
+interface OrdersListProps {
+  pedidos?: any[]
+  error?: string | null
+}
 
 const columnHelper = createColumnHelper<OrderType>()
 
@@ -64,7 +158,7 @@ const dateRangeFilterFn: FilterFn<any> = (row, columnId, selectedRange) => {
   }
 }
 
-const OrdersList = () => {
+const OrdersList = ({ pedidos, error }: OrdersListProps = {}) => {
   const columns = [
     {
       id: 'select',
@@ -88,17 +182,17 @@ const OrdersList = () => {
       enableColumnFilter: false,
     },
     columnHelper.accessor('id', {
-      header: 'Order ID',
+      header: 'ID Pedido',
       cell: ({ row }) => (
         <h5 className="fs-sm mb-0 fw-medium">
-          <Link href="" className="link-reset">
+          <Link href={`/orders/${row.original.id}`} className="link-reset">
             #{row.original.id}
           </Link>
         </h5>
       ),
     }),
     columnHelper.accessor('date', {
-      header: 'Date',
+      header: 'Fecha',
       filterFn: dateRangeFilterFn,
       enableColumnFilter: true,
       cell: ({ row }) => (
@@ -108,7 +202,7 @@ const OrdersList = () => {
       ),
     }),
     columnHelper.accessor('customer', {
-      header: 'Customer',
+      header: 'Cliente',
       cell: ({ row }) => (
         <div className="d-flex justify-content-start align-items-center gap-2">
           <div className="avatar avatar-sm">
@@ -122,7 +216,7 @@ const OrdersList = () => {
       ),
     }),
     columnHelper.accessor('amount', {
-      header: 'Amount',
+      header: 'Monto',
       cell: ({ row }) => (
         <>
           {currency}
@@ -131,29 +225,29 @@ const OrdersList = () => {
       ),
     }),
     columnHelper.accessor('paymentStatus', {
-      header: 'Payment Status',
+      header: 'Estado de Pago',
       filterFn: 'equalsString',
       enableColumnFilter: true,
       cell: ({ row }) => (
         <span
           className={`fw-semibold text-${row.original.paymentStatus === 'paid' ? 'success' : row.original.paymentStatus === 'pending' ? 'warning' : 'danger'}`}>
-          <TbPointFilled className="fs-sm" /> {toPascalCase(row.original.paymentStatus)}
+          <TbPointFilled className="fs-sm" /> {translatePaymentStatus(row.original.paymentStatus)}
         </span>
       ),
     }),
     columnHelper.accessor('orderStatus', {
-      header: 'Order Status',
+      header: 'Estado del Pedido',
       filterFn: 'equalsString',
       enableColumnFilter: true,
       cell: ({ row }) => (
         <span
           className={`badge fs-xxs badge-soft-${row.original.orderStatus === 'cancelled' ? 'danger' : row.original.orderStatus === 'processing' ? 'warning' : 'success'}`}>
-          {toPascalCase(row.original.orderStatus)}
+          {translateOrderStatus(row.original.orderStatus)}
         </span>
       ),
     }),
     columnHelper.accessor('paymentMethod', {
-      header: 'Payment Method',
+      header: 'Método de Pago',
       cell: ({ row }) => (
         <>
           <Image src={row.original.paymentMethod.image} alt="" className="me-2" height={28} width={28} />{' '}
@@ -166,7 +260,7 @@ const OrdersList = () => {
       ),
     }),
     {
-      header: 'Actions',
+      header: 'Acciones',
       cell: ({ row }: { row: TableRow<OrderType> }) => (
         <div className="d-flex  gap-1">
           <Button variant="default" size="sm" className="btn-icon rounded-circle">
@@ -190,13 +284,28 @@ const OrdersList = () => {
     },
   ]
 
-  const [data, setData] = useState<OrderType[]>(() => [...orders])
+  // Mapear pedidos de WooCommerce al formato OrderType si están disponibles
+  const mappedOrders = useMemo(() => {
+    if (pedidos && pedidos.length > 0) {
+      console.log('[OrdersList] Pedidos recibidos:', pedidos.length)
+      return pedidos.map(mapWooCommerceOrderToOrderType)
+    }
+    console.log('[OrdersList] No hay pedidos de WooCommerce, usando datos de ejemplo')
+    return orders
+  }, [pedidos])
+
+  const [data, setData] = useState<OrderType[]>(() => mappedOrders)
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
 
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
+
+  // Actualizar datos cuando cambien los pedidos de WooCommerce
+  useEffect(() => {
+    setData(mappedOrders)
+  }, [mappedOrders])
 
   const table = useReactTable({
     data,
@@ -240,6 +349,27 @@ const OrdersList = () => {
     setShowDeleteModal(false)
   }
 
+  // Si hay error, mostrarlo
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <Alert variant="danger">
+            <strong>Error al cargar pedidos desde WooCommerce:</strong> {error}
+            <br />
+            <small>
+              Verifica que:
+              <ul className="mb-0 mt-2">
+                <li>WOOCOMMERCE_CONSUMER_KEY y WOOCOMMERCE_CONSUMER_SECRET estén configurados</li>
+                <li>El servidor de WooCommerce esté disponible</li>
+              </ul>
+            </small>
+          </Alert>
+        </CardHeader>
+      </Card>
+    )
+  }
+
   return (
     <Card>
       <CardHeader className="border-light justify-content-between">
@@ -248,7 +378,7 @@ const OrdersList = () => {
             <input
               type="search"
               className="form-control"
-              placeholder="Search order..."
+              placeholder="Buscar pedido..."
               value={globalFilter ?? ''}
               onChange={(e) => setGlobalFilter(e.target.value)}
             />
@@ -268,11 +398,11 @@ const OrdersList = () => {
               className="form-select form-control my-1 my-md-0"
               value={(table.getColumn('paymentStatus')?.getFilterValue() as string) ?? 'All'}
               onChange={(e) => table.getColumn('paymentStatus')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
-              <option value="All">Payment Status</option>
-              <option value="paid">Paid</option>
-              <option value="pending">Pending</option>
-              <option value="failed">Failed</option>
-              <option value="refunded">Refunded</option>
+              <option value="All">Estado de Pago</option>
+              <option value="paid">Pagado</option>
+              <option value="pending">Pendiente</option>
+              <option value="failed">Fallido</option>
+              <option value="refunded">Reembolsado</option>
             </select>
             <LuCreditCard className="app-search-icon text-muted" />
           </div>
@@ -282,11 +412,11 @@ const OrdersList = () => {
               className="form-select form-control my-1 my-md-0"
               value={(table.getColumn('orderStatus')?.getFilterValue() as string) ?? 'All'}
               onChange={(e) => table.getColumn('orderStatus')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
-              <option value="All">Delivery Status</option>
-              <option value="processing">Processing</option>
-              <option value="shipped">Shipped</option>
-              <option value="delivered">Delivered</option>
-              <option value="cancelled">Cancelled</option>
+              <option value="All">Estado de Entrega</option>
+              <option value="processing">Procesando</option>
+              <option value="shipped">Enviado</option>
+              <option value="delivered">Entregado</option>
+              <option value="cancelled">Cancelado</option>
             </select>
             <LuTruck className="app-search-icon text-muted" />
           </div>
@@ -296,11 +426,11 @@ const OrdersList = () => {
               className="form-select form-control my-1 my-md-0"
               value={(table.getColumn('date')?.getFilterValue() as string) ?? ''}
               onChange={(e) => table.getColumn('date')?.setFilterValue(e.target.value || undefined)}>
-              <option value="All">Date Range</option>
-              <option value="Today">Today</option>
-              <option value="Last 7 Days">Last 7 Days</option>
-              <option value="Last 30 Days">Last 30 Days</option>
-              <option value="This Year">This Year</option>
+              <option value="All">Rango de Fechas</option>
+              <option value="Today">Hoy</option>
+              <option value="Last 7 Days">Últimos 7 Días</option>
+              <option value="Last 30 Days">Últimos 30 Días</option>
+              <option value="This Year">Este Año</option>
             </select>
             <LuCalendar className="app-search-icon text-muted" />
           </div>
@@ -320,7 +450,7 @@ const OrdersList = () => {
         </div>
         <div className="d-flex gap-1">
           <Button variant="danger" className="ms-1">
-            <LuPlus className="fs-sm me-2" /> Add Order
+            <LuPlus className="fs-sm me-2" /> Agregar Pedido
           </Button>
         </div>
       </CardHeader>

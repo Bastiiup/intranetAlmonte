@@ -13,8 +13,8 @@ import {
 } from '@tanstack/react-table'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useState } from 'react'
-import { Button, Card, CardFooter, CardHeader, Dropdown, DropdownItem, DropdownMenu, DropdownToggle } from 'react-bootstrap'
+import { useState, useMemo, useEffect } from 'react'
+import { Button, Card, CardFooter, CardHeader, Dropdown, DropdownItem, DropdownMenu, DropdownToggle, Alert } from 'react-bootstrap'
 import { LuDownload, LuPlus, LuSearch } from 'react-icons/lu'
 import { TbChevronDown, TbEdit, TbEye, TbTrash } from 'react-icons/tb'
 
@@ -23,10 +23,57 @@ import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
 import { currency } from '@/helpers'
+import { format } from 'date-fns'
+import user1 from '@/assets/images/users/user-1.jpg'
+import usFlag from '@/assets/images/flags/us.svg'
+
+// Avatar por defecto
+const defaultAvatar = user1
+const defaultCountryFlag = usFlag
+
+// Función para mapear clientes de WooCommerce al formato CustomerType
+const mapWooCommerceCustomerToCustomerType = (cliente: any): CustomerType => {
+  const name = `${cliente.first_name || ''} ${cliente.last_name || ''}`.trim() || 'Sin nombre'
+  const email = cliente.email || 'Sin email'
+  const phone = cliente.billing?.phone || cliente.phone || 'Sin teléfono'
+  const country = cliente.billing?.country || 'CL'
+  
+  // Mapear país a nombre completo y flag (simplificado, usar CL por defecto)
+  const countryName = country === 'CL' ? 'Chile' : country
+  
+  // Parsear fecha de creación
+  const dateCreated = cliente.date_created ? new Date(cliente.date_created) : new Date()
+  const joinedDate = format(dateCreated, 'dd MMM, yyyy')
+  const joinedTime = format(dateCreated, 'h:mm a')
+  
+  // Obtener orders_count y total_spent de WooCommerce
+  const orders = cliente.orders_count || 0
+  const totalSpends = parseFloat(cliente.total_spent || '0')
+
+  return {
+    name,
+    email,
+    avatar: defaultAvatar,
+    phone,
+    country: countryName,
+    countryFlag: defaultCountryFlag,
+    joined: {
+      date: joinedDate,
+      time: joinedTime,
+    },
+    orders,
+    totalSpends,
+  }
+}
+
+interface CustomersCardProps {
+  clientes?: any[]
+  error?: string | null
+}
 
 const columnHelper = createColumnHelper<CustomerType>()
 
-const CustomersCard = () => {
+const CustomersCard = ({ clientes, error }: CustomersCardProps = {}) => {
   const columns = [
     {
       id: 'select',
@@ -50,7 +97,7 @@ const CustomersCard = () => {
       enableColumnFilter: false,
     },
     columnHelper.accessor('name', {
-      header: 'Client Name',
+      header: 'Nombre del Cliente',
       cell: ({ row }) => (
         <div className="d-flex align-items-center gap-2">
           <div className="avatar avatar-sm">
@@ -67,9 +114,9 @@ const CustomersCard = () => {
       ),
     }),
     columnHelper.accessor('email', { header: 'Email' }),
-    columnHelper.accessor('phone', { header: 'Phone' }),
+    columnHelper.accessor('phone', { header: 'Teléfono' }),
     columnHelper.accessor('country', {
-      header: 'Date',
+      header: 'País',
       cell: ({ row }) => (
         <>
           <Image src={row.original.countryFlag.src} alt="" className="rounded-circle me-1" height={16} width={16} /> {row.original.country}
@@ -77,16 +124,16 @@ const CustomersCard = () => {
       ),
     }),
     columnHelper.accessor('joined.date', {
-      header: 'Date',
+      header: 'Fecha de Registro',
       cell: ({ row }) => (
         <>
           {row.original.joined.date} <small className="text-muted">{row.original.joined.time}</small>
         </>
       ),
     }),
-    columnHelper.accessor('orders', { header: 'Orders' }),
+    columnHelper.accessor('orders', { header: 'Pedidos' }),
     columnHelper.accessor('totalSpends', {
-      header: 'Total Spends',
+      header: 'Total Gastado',
       cell: ({ row }) => (
         <>
           {currency}
@@ -95,7 +142,7 @@ const CustomersCard = () => {
       ),
     }),
     {
-      header: 'Actions',
+      header: 'Acciones',
       cell: ({ row }: { row: TableRow<CustomerType> }) => (
         <div className="d-flex  gap-1">
           <Button variant="default" size="sm" className="btn-icon rounded-circle">
@@ -119,12 +166,27 @@ const CustomersCard = () => {
     },
   ]
 
-  const [data, setData] = useState<CustomerType[]>(() => [...customers])
+  // Mapear clientes de WooCommerce al formato CustomerType si están disponibles
+  const mappedCustomers = useMemo(() => {
+    if (clientes && clientes.length > 0) {
+      console.log('[CustomersCard] Clientes recibidos:', clientes.length)
+      return clientes.map(mapWooCommerceCustomerToCustomerType)
+    }
+    console.log('[CustomersCard] No hay clientes de WooCommerce, usando datos de ejemplo')
+    return customers
+  }, [clientes])
+
+  const [data, setData] = useState<CustomerType[]>(() => mappedCustomers)
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
 
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
+
+  // Actualizar datos cuando cambien los clientes de WooCommerce
+  useEffect(() => {
+    setData(mappedCustomers)
+  }, [mappedCustomers])
 
   const table = useReactTable({
     data,
@@ -164,6 +226,27 @@ const CustomersCard = () => {
     setShowDeleteModal(false)
   }
 
+  // Si hay error, mostrarlo
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <Alert variant="danger">
+            <strong>Error al cargar clientes desde WooCommerce:</strong> {error}
+            <br />
+            <small>
+              Verifica que:
+              <ul className="mb-0 mt-2">
+                <li>WOOCOMMERCE_CONSUMER_KEY y WOOCOMMERCE_CONSUMER_SECRET estén configurados</li>
+                <li>El servidor de WooCommerce esté disponible</li>
+              </ul>
+            </small>
+          </Alert>
+        </CardHeader>
+      </Card>
+    )
+  }
+
   return (
     <Card>
       <CardHeader className="border-light d-flex align-items-center justify-content-between flex-wrap gap-2">
@@ -172,7 +255,7 @@ const CustomersCard = () => {
             <input
               type="search"
               className="form-control"
-              placeholder="Search customer..."
+              placeholder="Buscar cliente..."
               value={globalFilter ?? ''}
               onChange={(e) => setGlobalFilter(e.target.value)}
             />
@@ -210,7 +293,7 @@ const CustomersCard = () => {
           </Dropdown>
 
           <Button variant="primary">
-            <LuPlus className="fs-sm me-1" /> Add Customer
+            <LuPlus className="fs-sm me-1" /> Agregar Cliente
           </Button>
         </div>
       </CardHeader>

@@ -143,13 +143,13 @@ export const menuItems: MenuItemType[] = [
       { key: 'categories', label: 'Categories', url: '/categories' },
       {
         key: 'orders',
-        label: 'Orders',
+        label: 'Pedidos',
         children: [
-          { key: 'orders-list', label: 'Orders', url: '/orders' },
-          { key: 'order-details', label: 'Order Details', url: '/orders/1' },
+          { key: 'orders-list', label: 'Pedidos', url: '/orders' },
+          { key: 'order-details', label: 'Detalles del Pedido', url: '/orders/1' },
         ],
       },
-      { key: 'customers', label: 'Customers', url: '/customers' },
+      { key: 'customers', label: 'Clientes', url: '/customers' },
       {
         key: 'sellers',
         label: 'Sellers',
@@ -255,13 +255,13 @@ export const horizontalMenuItems: MenuItemType[] = [
           { key: 'categories', label: 'Categories', url: '/categories' },
           {
             key: 'orders',
-            label: 'Orders',
+            label: 'Pedidos',
             children: [
-              { key: 'orders-list', label: 'Orders', url: '/orders' },
-              { key: 'order-details', label: 'Order Details', url: '/orders/1' },
+              { key: 'orders-list', label: 'Pedidos', url: '/orders' },
+              { key: 'order-details', label: 'Detalles del Pedido', url: '/orders/1' },
             ],
           },
-          { key: 'customers', label: 'Customers', url: '/customers' },
+          { key: 'customers', label: 'Clientes', url: '/customers' },
           {
             key: 'sellers',
             label: 'Sellers',

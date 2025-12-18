@@ -16,3 +16,4 @@ test.describe('Health Check', () => {
     expect(body).toHaveProperty('timestamp')
   })
 })
+
