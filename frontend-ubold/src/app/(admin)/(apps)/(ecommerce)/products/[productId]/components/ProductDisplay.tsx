@@ -256,15 +256,12 @@ const ProductDisplay = ({ producto, onUpdate, onProductoUpdate }: ProductDisplay
 
       console.log('[ProductDisplay] ✅ Producto actualizado con nueva imagen')
 
-      // Actualizar estado local inmediatamente con la nueva imagen
-      if (onProductoUpdate && updateData.data) {
-        // Obtener la URL de la nueva imagen desde la respuesta
-        const nuevaImagen = updateData.data.portada_libro || updateData.data.PORTADA_LIBRO
-        if (nuevaImagen) {
-          onProductoUpdate({
-            portada_libro: nuevaImagen
-          })
-        }
+      // Actualizar estado local inmediatamente con la nueva imagen (optimistic update)
+      if (onProductoUpdate) {
+        // Actualizar con el ID de la imagen
+        onProductoUpdate({
+          portada_libro: imageId
+        })
       }
 
       // Resetear estados
