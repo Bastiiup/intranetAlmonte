@@ -256,14 +256,20 @@ export async function POST(request: NextRequest) {
         // Strapi puede crear relaciones anidadas
         console.log('[API Precios POST] Usando método alternativo: crear precio anidado en libro')
         
-        const precioAnidado = {
-          precio: parseFloat(body.monto),
-          libro: libro.documentId
+        const precioAnidado: any = {
+          precio_venta: parseFloat(body.precio_venta),
+          libro: libro.documentId,
+          fecha_inicio: body.fecha_inicio,
+          activo: body.activo !== undefined ? Boolean(body.activo) : true
         }
         
-        // Agregar otros campos si existen
-        if (body.canal) precioAnidado.canal = body.canal
-        if (body.moneda) precioAnidado.moneda = body.moneda
+        // Agregar campos opcionales
+        if (body.precio_costo !== undefined && body.precio_costo !== null && body.precio_costo !== '') {
+          precioAnidado.precio_costo = parseFloat(body.precio_costo)
+        }
+        if (body.fecha_fin) {
+          precioAnidado.fecha_fin = body.fecha_fin
+        }
         
         // Actualizar libro agregando el nuevo precio
         const updateData = {
