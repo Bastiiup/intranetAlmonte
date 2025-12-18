@@ -197,10 +197,13 @@ export function ProductDetails({ producto, onUpdate, onProductoUpdate }: Product
       
       // Refrescar desde servidor en segundo plano (sin esperar)
       if (onUpdate) {
-        // No usar setTimeout, refrescar inmediatamente pero sin bloquear UI
-        onUpdate().catch((err) => {
-          console.error('[ProductDetails] Error al refrescar:', err)
-        })
+        // onUpdate puede ser async o sync, manejarlo apropiadamente
+        const updateResult = onUpdate()
+        if (updateResult && typeof updateResult.catch === 'function') {
+          updateResult.catch((err: any) => {
+            console.error('[ProductDetails] Error al refrescar:', err)
+          })
+        }
       }
       
       // Ocultar mensaje de éxito después de 2 segundos

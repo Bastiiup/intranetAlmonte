@@ -67,7 +67,11 @@ export default function Page() {
 
   const handleUpdate = async () => {
     // Refrescar datos del servidor sin recargar la página
-    await fetchProducto()
+    try {
+      await fetchProducto()
+    } catch (error) {
+      console.error('[Product Details Page] Error al refrescar:', error)
+    }
   }
   
   // Función para actualizar producto localmente (optimistic update)

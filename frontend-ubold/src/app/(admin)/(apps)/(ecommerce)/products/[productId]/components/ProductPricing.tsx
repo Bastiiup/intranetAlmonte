@@ -6,7 +6,7 @@ import { TbPlus, TbCheck, TbX } from 'react-icons/tb'
 
 interface ProductPricingProps {
   producto: any
-  onUpdate?: () => void
+  onUpdate?: () => Promise<void> | void
 }
 
 export function ProductPricing({ producto, onUpdate }: ProductPricingProps) {
@@ -117,9 +117,12 @@ export function ProductPricing({ producto, onUpdate }: ProductPricingProps) {
         })
         
         if (onUpdate) {
-          onUpdate().catch((err) => {
-            console.error('[ProductPricing] Error al refrescar producto:', err)
-          })
+          const updateResult = onUpdate()
+          if (updateResult && typeof updateResult.catch === 'function') {
+            updateResult.catch((err: any) => {
+              console.error('[ProductPricing] Error al refrescar producto:', err)
+            })
+          }
         }
       } else {
         // Mostrar ayuda si es problema de permisos

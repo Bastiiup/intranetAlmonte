@@ -272,9 +272,12 @@ const ProductDisplay = ({ producto, onUpdate, onProductoUpdate }: ProductDisplay
       
       // Refrescar datos del producto en segundo plano (sin bloquear UI)
       if (onUpdate) {
-        onUpdate().catch((err) => {
-          console.error('[ProductDisplay] Error al refrescar:', err)
-        })
+        const updateResult = onUpdate()
+        if (updateResult && typeof updateResult.catch === 'function') {
+          updateResult.catch((err: any) => {
+            console.error('[ProductDisplay] Error al refrescar:', err)
+          })
+        }
       } else {
         router.refresh()
       }
