@@ -1,13 +1,10 @@
 'use client'
 import Logo from '@/components/Logo'
 import { useLayoutContext } from '@/context/useLayoutContext'
-import LanguageDropdown from '@/layouts/components/topbar/components/LanguageDropdown'
 import MegaMenu from '@/layouts/components/topbar/components/MegaMenu'
-import MessageDropdown from '@/layouts/components/topbar/components/MessageDropdown'
 import ThemeToggler from '@/layouts/components/topbar/components/ThemeToggler'
 import UserProfile from '@/layouts/components/topbar/components/UserProfile'
-import { Container, FormControl } from 'react-bootstrap'
-import { LuSearch } from 'react-icons/lu'
+import { Container } from 'react-bootstrap'
 import { TbMenu4 } from 'react-icons/tb'
 
 import ApplicationMenu from '@/layouts/components/topbar/components/ApplicationMenu'
@@ -63,15 +60,6 @@ const Topbar = () => {
         </div>
 
         <div className="d-flex align-items-center gap-2">
-          <div className="app-search d-none d-xl-flex me-2">
-            <FormControl type="search" className="topbar-search rounded-pill" name="search" placeholder="Quick Search..." />
-            <LuSearch className="app-search-icon text-muted" />
-          </div>
-
-          <LanguageDropdown />
-
-          <MessageDropdown />
-
           <ApplicationMenu />
 
           <ThemeToggler />
