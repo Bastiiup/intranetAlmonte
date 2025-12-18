@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 
 import AppWrapper from '@/components/AppWrapper'
 
-import favicon from '@/assets/images/favicon.ico'
 import { appDescription, appTitle } from '@/helpers'
 import { ChildrenType } from '@/types'
 
@@ -37,7 +36,11 @@ export const metadata: Metadata = {
         template: '%s | ' + appTitle,
     },
     description: appDescription,
-    icons: [favicon.src],
+    icons: {
+        icon: '/favicon.ico',
+        shortcut: '/favicon.ico',
+        apple: '/favicon.ico',
+    },
 }
 
 const RootLayout = ({ children }: ChildrenType) => {
