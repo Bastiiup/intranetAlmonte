@@ -194,10 +194,32 @@ export async function POST(request: NextRequest) {
     // Si llegamos aquí, ningún endpoint funcionó con POST directo
     console.error('[API Precios POST] ❌ NINGÚN ENDPOINT ACEPTA POST DIRECTAMENTE')
     console.error('[API Precios POST] Último error:', ultimoError)
+    
+    // Devolver error claro al usuario
+    return NextResponse.json({
+      success: false,
+      error: 'No se puede crear precios desde la API - Strapi no lo permite',
+      mensaje: 'SOLUCIÓN: Necesitas crear un endpoint personalizado en Strapi',
+      detalles: {
+        endpoints_probados: POSIBLES_ENDPOINTS,
+        todos_devolvieron_405: true,
+        que_hacer: [
+          '1. Ve al panel de administración de Strapi',
+          '2. Busca la colección "Product · Precio"',
+          '3. Verifica el API ID exacto de la colección',
+          '4. Opción A: Habilita permisos de CREATE para la colección',
+          '5. Opción B: Crea un endpoint personalizado en Strapi que permita crear precios',
+          '6. Opción C: Crea los precios manualmente desde el panel de Strapi'
+        ]
+      }
+    }, { status: 405 })
+    
+    /* CÓDIGO DE MÉTODOS ALTERNATIVOS COMENTADO - NO FUNCIONAN
     console.log('[API Precios POST] 🔄 Intentando método alternativo: crear precio actualizando libro...')
     
     // MÉTODO ALTERNATIVO: Crear el precio como objeto y agregarlo al libro directamente
     // En Strapi v5, algunas relaciones oneToMany se crean actualizando el objeto padre
+    /* COMENTADO - NO FUNCIONA
     try {
       // Obtener precios actuales del libro usando el ID numérico
       const libroConPrecios = await strapiClient.get<any>(
@@ -371,6 +393,7 @@ export async function POST(request: NextRequest) {
         endpoints_probados: POSIBLES_ENDPOINTS
       }, { status: 500 })
     }
+    FIN CÓDIGO COMENTADO */
     
   } catch (error: any) {
     console.error('[API Precios POST] ❌ ERROR GENERAL:', error)
