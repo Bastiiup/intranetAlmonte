@@ -199,9 +199,9 @@ export async function POST(request: NextRequest) {
     // MÉTODO ALTERNATIVO: Crear el precio como objeto y agregarlo al libro directamente
     // En Strapi v5, algunas relaciones oneToMany se crean actualizando el objeto padre
     try {
-      // Obtener precios actuales del libro
+      // Obtener precios actuales del libro usando el ID numérico
       const libroConPrecios = await strapiClient.get<any>(
-        `/api/libros/${libro.documentId}?populate[precios]=*`
+        `/api/libros/${libro.id}?populate[precios]=*`
       )
       
       let libroActual: any
@@ -286,7 +286,7 @@ export async function POST(request: NextRequest) {
         
         try {
           const libroActualizado2 = await strapiClient.put<any>(
-            `/api/libros/${libro.documentId}`,
+            `/api/libros/${libro.id}`,
             updateData2
           )
           
