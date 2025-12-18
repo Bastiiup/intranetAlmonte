@@ -140,11 +140,17 @@ export async function POST(request: NextRequest) {
       ...(metaData.length > 0 && { meta_data: metaData }),
     }
 
+    // Crear cliente en WooCommerce
     const customer = await wooCommerceClient.post<any>('customers', customerData)
+    console.log('[API POST] ✅ Cliente creado en WooCommerce:', {
+      id: customer.id,
+      email: customer.email
+    })
 
     return NextResponse.json({
       success: true,
       data: customer,
+      message: 'Cliente creado exitosamente en WooCommerce'
     })
   } catch (error: any) {
     console.error('Error al crear cliente en WooCommerce:', error)

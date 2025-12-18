@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
+import wooCommerceClient from '@/lib/woocommerce/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 
 export const dynamic = 'force-dynamic'
@@ -122,69 +123,41 @@ export async function POST(request: NextRequest) {
 
     console.log('[API POST] 📚 ISBN a usar:', isbn)
 
-    // Preparar datos para Strapi (formato: { data: { campos } })
-    const productData: any = {
-      data: {
-        isbn_libro: isbn,
-        nombre_libro: body.nombre_libro.trim()
-      }
+    // Crear producto en WooCommerce
+    console.log('[API POST] 🛒 Creando producto en WooCommerce...')
+    
+    const wooCommerceProductData: any = {
+      name: body.nombre_libro.trim(),
+      type: 'simple',
+      status: 'publish',
+      sku: isbn, // Usar ISBN como SKU
+      regular_price: body.precio?.toString() || '0',
+      description: body.descripcion?.trim() || '',
+      short_description: body.subtitulo_libro?.trim() || '',
+      manage_stock: body.manage_stock !== undefined ? body.manage_stock : true,
+      stock_quantity: body.stock_quantity || 0,
+      stock_status: body.stock_quantity > 0 ? 'instock' : 'outofstock',
     }
 
-    // Campos opcionales básicos
-    if (body.subtitulo_libro?.trim()) {
-      productData.data.subtitulo_libro = body.subtitulo_libro.trim()
-    }
-    
-    if (body.descripcion?.trim()) {
-      productData.data.descripcion = body.descripcion.trim()
-    }
-    
+    // Agregar imagen si existe
     if (body.portada_libro) {
-      productData.data.portada_libro = body.portada_libro
+      wooCommerceProductData.images = [{
+        src: body.portada_libro
+      }]
     }
 
-    // === RELACIONES SIMPLES (documentId) ===
-    if (body.obra) productData.data.obra = body.obra
-    if (body.autor_relacion) productData.data.autor_relacion = body.autor_relacion
-    if (body.editorial) productData.data.editorial = body.editorial
-    if (body.sello) productData.data.sello = body.sello
-    if (body.coleccion) productData.data.coleccion = body.coleccion
-
-    // === RELACIONES MÚLTIPLES (array de documentIds) ===
-    if (body.canales?.length > 0) productData.data.canales = body.canales
-    if (body.marcas?.length > 0) productData.data.marcas = body.marcas
-    if (body.etiquetas?.length > 0) productData.data.etiquetas = body.etiquetas
-    if (body.categorias_producto?.length > 0) productData.data.categorias_producto = body.categorias_producto
-
-    // === IDS NUMÉRICOS ===
-    if (body.id_autor) productData.data.id_autor = body.id_autor
-    if (body.id_editorial) productData.data.id_editorial = body.id_editorial
-    if (body.id_sello) productData.data.id_sello = body.id_sello
-    if (body.id_coleccion) productData.data.id_coleccion = body.id_coleccion
-    if (body.id_obra) productData.data.id_obra = body.id_obra
-
-    // === INFORMACIÓN DE EDICIÓN ===
-    if (body.numero_edicion) productData.data.numero_edicion = body.numero_edicion
-    if (body.agno_edicion) productData.data.agno_edicion = body.agno_edicion
-    if (body.idioma) productData.data.idioma = body.idioma
-    if (body.tipo_libro) productData.data.tipo_libro = body.tipo_libro
-    if (body.estado_edicion) productData.data.estado_edicion = body.estado_edicion
-
-    console.log('[API POST] 📤 Enviando a Strapi:', JSON.stringify(productData, null, 2))
-
-    // Crear en Strapi
-    const response = await strapiClient.post<any>('/api/libros', productData)
-
-    console.log('[API POST] ✅ Producto creado exitosamente:', {
-      id: response.data?.id || response.id,
-      documentId: response.data?.documentId || response.documentId,
-      nombre: response.data?.nombre_libro || response.nombre_libro
+    // Crear en WooCommerce
+    const wooCommerceProduct = await wooCommerceClient.post<any>('products', wooCommerceProductData)
+    console.log('[API POST] ✅ Producto creado en WooCommerce:', {
+      id: wooCommerceProduct.id,
+      sku: wooCommerceProduct.sku,
+      name: wooCommerceProduct.name
     })
 
     return NextResponse.json({
       success: true,
-      data: response.data || response,
-      message: 'Producto creado exitosamente'
+      data: wooCommerceProduct,
+      message: 'Producto creado exitosamente en WooCommerce'
     })
 
   } catch (error: any) {
@@ -192,70 +165,54 @@ export async function POST(request: NextRequest) {
       message: error.message,
       status: error.status,
       details: error.details,
-      errores: error.details?.errors
     })
     
-    // Si el error es por ISBN duplicado, regenerar automáticamente
-    const isDuplicateISBN = error.message?.includes('unique') || 
-                           error.details?.errors?.some((e: any) => 
-                             e.message?.includes('unique') && 
-                             e.path?.includes('isbn_libro')
-                           )
+    // Si el error es por SKU duplicado en WooCommerce, regenerar automáticamente
+    const isDuplicateSKU = error.message?.toLowerCase().includes('sku') || 
+                          error.message?.toLowerCase().includes('duplicate') ||
+                          error.message?.toLowerCase().includes('already exists')
     
-    if (isDuplicateISBN && originalIsbn) {
-      console.log('[API POST] 🔄 ISBN duplicado detectado, regenerando automáticamente...')
+    if (isDuplicateSKU && originalIsbn) {
+      console.log('[API POST] 🔄 SKU/ISBN duplicado detectado en WooCommerce, regenerando automáticamente...')
       
       // Regenerar ISBN único
       const newIsbn = `AUTO-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
       
-      // Reintentar con nuevo ISBN - reconstruir productData desde body
+      // Reintentar con nuevo ISBN
       try {
-        const retryData: any = {
-          data: {
-            isbn_libro: newIsbn,
-            nombre_libro: body.nombre_libro.trim()
-          }
+        const retryWooCommerceData: any = {
+          name: body.nombre_libro.trim(),
+          type: 'simple',
+          status: 'publish',
+          sku: newIsbn,
+          regular_price: body.precio?.toString() || '0',
+          description: body.descripcion?.trim() || '',
+          short_description: body.subtitulo_libro?.trim() || '',
+          manage_stock: body.manage_stock !== undefined ? body.manage_stock : true,
+          stock_quantity: body.stock_quantity || 0,
+          stock_status: body.stock_quantity > 0 ? 'instock' : 'outofstock',
         }
-        
-        // Reconstruir todos los campos opcionales
-        if (body.subtitulo_libro?.trim()) retryData.data.subtitulo_libro = body.subtitulo_libro.trim()
-        if (body.descripcion?.trim()) retryData.data.descripcion = body.descripcion.trim()
-        if (body.portada_libro) retryData.data.portada_libro = body.portada_libro
-        if (body.obra) retryData.data.obra = body.obra
-        if (body.autor_relacion) retryData.data.autor_relacion = body.autor_relacion
-        if (body.editorial) retryData.data.editorial = body.editorial
-        if (body.sello) retryData.data.sello = body.sello
-        if (body.coleccion) retryData.data.coleccion = body.coleccion
-        if (body.canales?.length > 0) retryData.data.canales = body.canales
-        if (body.marcas?.length > 0) retryData.data.marcas = body.marcas
-        if (body.etiquetas?.length > 0) retryData.data.etiquetas = body.etiquetas
-        if (body.categorias_producto?.length > 0) retryData.data.categorias_producto = body.categorias_producto
-        if (body.id_autor) retryData.data.id_autor = body.id_autor
-        if (body.id_editorial) retryData.data.id_editorial = body.id_editorial
-        if (body.id_sello) retryData.data.id_sello = body.id_sello
-        if (body.id_coleccion) retryData.data.id_coleccion = body.id_coleccion
-        if (body.id_obra) retryData.data.id_obra = body.id_obra
-        if (body.numero_edicion) retryData.data.numero_edicion = body.numero_edicion
-        if (body.agno_edicion) retryData.data.agno_edicion = body.agno_edicion
-        if (body.idioma) retryData.data.idioma = body.idioma
-        if (body.tipo_libro) retryData.data.tipo_libro = body.tipo_libro
-        if (body.estado_edicion) retryData.data.estado_edicion = body.estado_edicion
+
+        if (body.portada_libro) {
+          retryWooCommerceData.images = [{
+            src: body.portada_libro
+          }]
+        }
         
         console.log('[API POST] 🔄 Reintentando con nuevo ISBN:', newIsbn)
         
-        const retryResponse = await strapiClient.post<any>('/api/libros', retryData)
+        const retryResponse = await wooCommerceClient.post<any>('products', retryWooCommerceData)
         
         console.log('[API POST] ✅ Producto creado exitosamente con ISBN regenerado:', {
-          id: retryResponse.data?.id || retryResponse.id,
-          documentId: retryResponse.data?.documentId || retryResponse.documentId,
-          nombre: retryResponse.data?.nombre_libro || retryResponse.nombre_libro,
-          isbn: newIsbn
+          id: retryResponse.id,
+          sku: retryResponse.sku,
+          name: retryResponse.name
         })
         
         return NextResponse.json({
           success: true,
-          data: retryResponse.data || retryResponse,
-          message: `Producto creado exitosamente. El ISBN "${originalIsbn}" ya existía, se generó uno nuevo automáticamente: "${newIsbn}"`,
+          data: retryResponse,
+          message: `Producto creado exitosamente. El ISBN "${originalIsbn}" ya existía en WooCommerce, se generó uno nuevo automáticamente: "${newIsbn}"`,
           isbnRegenerado: true,
           isbnOriginal: originalIsbn,
           isbnNuevo: newIsbn
@@ -264,25 +221,23 @@ export async function POST(request: NextRequest) {
         console.error('[API POST] ❌ Error en reintento:', retryError)
         return NextResponse.json({
           success: false,
-          error: `El ISBN "${originalIsbn}" ya existe y no se pudo generar uno nuevo automáticamente. Intenta con otro ISBN o déjalo vacío para generar uno automático.`,
-          details: retryError.details?.errors
+          error: `El ISBN "${originalIsbn}" ya existe en WooCommerce y no se pudo generar uno nuevo automáticamente. Intenta con otro ISBN o déjalo vacío para generar uno automático.`,
+          details: retryError.message
         }, { status: 400 })
       }
     }
     
     // Mensaje de error más específico para otros errores
-    let errorMessage = 'Error al crear el producto'
+    let errorMessage = 'Error al crear el producto en WooCommerce'
     
-    if (error.details?.errors) {
-      errorMessage = error.details.errors.map((e: any) => e.message).join(', ')
-    } else if (error.message) {
+    if (error.message) {
       errorMessage = error.message
     }
     
     return NextResponse.json({
       success: false,
       error: errorMessage,
-      details: error.details?.errors
+      details: error.details
     }, { status: error.status || 500 })
   }
 }

@@ -66,10 +66,16 @@ export async function POST(request: NextRequest) {
 
     // Crear pedido en WooCommerce
     const order = await wooCommerceClient.post<WooCommerceOrder>('orders', orderData)
+    console.log('[API POST] ✅ Pedido creado en WooCommerce:', {
+      id: order.id,
+      status: order.status,
+      total: order.total
+    })
 
     return NextResponse.json({
       success: true,
       data: order,
+      message: 'Pedido creado exitosamente en WooCommerce'
     })
   } catch (error: any) {
     console.error('Error al crear pedido en WooCommerce:', error)
