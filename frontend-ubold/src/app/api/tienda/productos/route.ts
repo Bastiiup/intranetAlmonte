@@ -208,10 +208,38 @@ export async function POST(request: NextRequest) {
       // Regenerar ISBN único
       const newIsbn = `AUTO-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
       
-      // Reintentar con nuevo ISBN
+      // Reintentar con nuevo ISBN - reconstruir productData desde body
       try {
-        const retryData = { ...productData }
-        retryData.data.isbn_libro = newIsbn
+        const retryData: any = {
+          data: {
+            isbn_libro: newIsbn,
+            nombre_libro: body.nombre_libro.trim()
+          }
+        }
+        
+        // Reconstruir todos los campos opcionales
+        if (body.subtitulo_libro?.trim()) retryData.data.subtitulo_libro = body.subtitulo_libro.trim()
+        if (body.descripcion?.trim()) retryData.data.descripcion = body.descripcion.trim()
+        if (body.portada_libro) retryData.data.portada_libro = body.portada_libro
+        if (body.obra) retryData.data.obra = body.obra
+        if (body.autor_relacion) retryData.data.autor_relacion = body.autor_relacion
+        if (body.editorial) retryData.data.editorial = body.editorial
+        if (body.sello) retryData.data.sello = body.sello
+        if (body.coleccion) retryData.data.coleccion = body.coleccion
+        if (body.canales?.length > 0) retryData.data.canales = body.canales
+        if (body.marcas?.length > 0) retryData.data.marcas = body.marcas
+        if (body.etiquetas?.length > 0) retryData.data.etiquetas = body.etiquetas
+        if (body.categorias_producto?.length > 0) retryData.data.categorias_producto = body.categorias_producto
+        if (body.id_autor) retryData.data.id_autor = body.id_autor
+        if (body.id_editorial) retryData.data.id_editorial = body.id_editorial
+        if (body.id_sello) retryData.data.id_sello = body.id_sello
+        if (body.id_coleccion) retryData.data.id_coleccion = body.id_coleccion
+        if (body.id_obra) retryData.data.id_obra = body.id_obra
+        if (body.numero_edicion) retryData.data.numero_edicion = body.numero_edicion
+        if (body.agno_edicion) retryData.data.agno_edicion = body.agno_edicion
+        if (body.idioma) retryData.data.idioma = body.idioma
+        if (body.tipo_libro) retryData.data.tipo_libro = body.tipo_libro
+        if (body.estado_edicion) retryData.data.estado_edicion = body.estado_edicion
         
         console.log('[API POST] 🔄 Reintentando con nuevo ISBN:', newIsbn)
         
