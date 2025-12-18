@@ -68,13 +68,37 @@ class OpenFacturaClientImpl implements OpenFacturaClient {
     try {
       const response = await fetch(url.toString(), config)
       
+      // Log detallado para debugging
+      console.log('[Haulmer] Request:', {
+        method,
+        url: url.toString(),
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+      })
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(
+        // Intentar obtener el cuerpo del error
+        let errorData: any = {}
+        try {
+          const text = await response.text()
+          if (text) {
+            errorData = JSON.parse(text)
+          }
+        } catch {
+          // Si no es JSON, usar el texto como mensaje
+          errorData = { message: response.statusText }
+        }
+        
+        const errorMessage = 
           errorData.message || 
           errorData.error || 
+          errorData.detail ||
           `Error ${response.status}: ${response.statusText}`
-        )
+        
+        const error = new Error(errorMessage) as Error & { status?: number }
+        error.status = response.status
+        throw error
       }
 
       const result = await response.json()
@@ -83,7 +107,9 @@ class OpenFacturaClientImpl implements OpenFacturaClient {
       console.error('[Haulmer] Error en request:', {
         method,
         endpoint,
+        url: url.toString(),
         error: error.message,
+        status: error.status,
       })
       throw error
     }

@@ -182,20 +182,54 @@ export async function POST(request: NextRequest) {
     })
 
     // Emitir documento en Haulmer (Espacio)
-    // Endpoint según documentación de Haulmer
+    // Intentar diferentes endpoints posibles según la documentación de Haulmer
     let response: any
-    try {
-      response = await openFacturaClient.post<HaulmerEmitResponse>(
-        '/api/dte/emitir',
-        documento
-      )
-    } catch (apiError: any) {
-      console.error('[Haulmer] Error en la petición a la API:', {
-        message: apiError.message,
-        status: apiError.status,
-        response: apiError.response,
+    let lastError: any = null
+    
+    // Lista de endpoints posibles a probar
+    const possibleEndpoints = [
+      '/api/dte/emitir',
+      '/api/v1/dte/emitir',
+      '/dte/emitir',
+      '/api/documentos/emitir',
+      '/api/emitir',
+    ]
+    
+    for (const endpoint of possibleEndpoints) {
+      try {
+        console.log('[Haulmer] Intentando endpoint:', endpoint)
+        response = await openFacturaClient.post<HaulmerEmitResponse>(
+          endpoint,
+          documento
+        )
+        console.log('[Haulmer] ✅ Endpoint exitoso:', endpoint)
+        break // Si funciona, salir del loop
+      } catch (apiError: any) {
+        lastError = apiError
+        console.warn('[Haulmer] ❌ Endpoint falló:', endpoint, {
+          message: apiError.message,
+          status: apiError.status,
+        })
+        // Si es un error 405, continuar probando otros endpoints
+        if (apiError.message?.includes('405') || apiError.status === 405) {
+          continue
+        }
+        // Si es otro error, lanzarlo inmediatamente
+        throw new Error(`Error al comunicarse con Haulmer (${endpoint}): ${apiError.message}`)
+      }
+    }
+    
+    // Si ningún endpoint funcionó, lanzar el último error
+    if (!response && lastError) {
+      console.error('[Haulmer] Todos los endpoints fallaron. Último error:', {
+        message: lastError.message,
+        status: lastError.status,
+        endpointsProbados: possibleEndpoints,
       })
-      throw new Error(`Error al comunicarse con Haulmer: ${apiError.message}`)
+      throw new Error(
+        `No se pudo conectar con Haulmer. Endpoints probados: ${possibleEndpoints.join(', ')}. ` +
+        `Último error: ${lastError.message}`
+      )
     }
 
     // La respuesta puede venir en diferentes formatos según Haulmer
