@@ -30,7 +30,6 @@ type MarcaType = {
   id: number
   name: string
   descripcion: string
-  website: string
   status: 'active' | 'inactive'
   date: string
   time: string
@@ -52,9 +51,8 @@ const mapStrapiMarcaToMarcaType = (marca: any): MarcaType => {
   const attrs = marca.attributes || {}
   const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (marca as any)
 
-  const nombre = getField(data, 'nombre', 'nombre_marca', 'nombreMarca', 'NOMBRE_MARCA', 'NAME') || 'Sin nombre'
+  const nombre = getField(data, 'name', 'nombre', 'nombre_marca', 'nombreMarca', 'NOMBRE_MARCA', 'NAME') || 'Sin nombre'
   const descripcion = getField(data, 'descripcion', 'description', 'DESCRIPCION') || ''
-  const website = getField(data, 'website', 'website', 'WEBSITE') || ''
   
   const isPublished = !!(attrs.publishedAt || (marca as any).publishedAt)
   
@@ -65,7 +63,6 @@ const mapStrapiMarcaToMarcaType = (marca: any): MarcaType => {
     id: marca.id || marca.documentId || marca.id,
     name: nombre,
     descripcion: descripcion,
-    website: website,
     status: isPublished ? 'active' : 'inactive',
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
@@ -147,18 +144,6 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
       header: 'DESCRIPCIÓN',
       cell: ({ row }) => (
         <span className="text-muted">{row.original.descripcion || '-'}</span>
-      ),
-    }),
-    columnHelper.accessor('website', {
-      header: 'WEBSITE',
-      cell: ({ row }) => (
-        row.original.website ? (
-          <a href={row.original.website} target="_blank" rel="noopener noreferrer" className="text-primary">
-            {row.original.website}
-          </a>
-        ) : (
-          <span className="text-muted">-</span>
-        )
       ),
     }),
     columnHelper.accessor('status', {
