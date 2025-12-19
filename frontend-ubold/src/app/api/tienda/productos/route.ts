@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
       name: wooCommerceProduct.name
     })
 
-    // Crear en Strapi después
+    // Crear en Strapi después (no bloqueante - si falla, no afecta la respuesta)
     let strapiProduct = null
     try {
       console.log('[API POST] 📚 Creando producto en Strapi...')
@@ -208,7 +208,13 @@ export async function POST(request: NextRequest) {
         strapiProductData.data.portada_libro = typeof body.portada_libro === 'number' ? body.portada_libro : parseInt(body.portada_libro, 10)
       }
 
-      strapiProduct = await strapiClient.post<any>('/api/libros', strapiProductData)
+      // Usar Promise.race con timeout para evitar que se quede colgado
+      const strapiPromise = strapiClient.post<any>('/api/libros', strapiProductData)
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout: Strapi tardó más de 20 segundos')), 20000)
+      )
+      
+      strapiProduct = await Promise.race([strapiPromise, timeoutPromise]) as any
       console.log('[API POST] ✅ Producto creado en Strapi:', {
         id: strapiProduct.data?.id,
         documentId: strapiProduct.data?.documentId
@@ -216,6 +222,7 @@ export async function POST(request: NextRequest) {
     } catch (strapiError: any) {
       console.error('[API POST] ⚠️ Error al crear producto en Strapi (no crítico):', strapiError.message)
       // No fallar si Strapi falla, el producto ya está en WooCommerce
+      // Continuar con la respuesta exitosa
     }
 
     return NextResponse.json({
@@ -294,7 +301,7 @@ export async function POST(request: NextRequest) {
           name: retryResponse.name
         })
 
-        // Crear en Strapi después
+        // Crear en Strapi después (no bloqueante - si falla, no afecta la respuesta)
         let strapiProduct = null
         try {
           console.log('[API POST] 📚 Creando producto en Strapi con ISBN regenerado...')
@@ -318,13 +325,20 @@ export async function POST(request: NextRequest) {
             strapiProductData.data.portada_libro = typeof body.portada_libro === 'number' ? body.portada_libro : parseInt(body.portada_libro, 10)
           }
 
-          strapiProduct = await strapiClient.post<any>('/api/libros', strapiProductData)
+          // Usar Promise.race con timeout para evitar que se quede colgado
+          const strapiPromise = strapiClient.post<any>('/api/libros', strapiProductData)
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout: Strapi tardó más de 20 segundos')), 20000)
+          )
+          
+          strapiProduct = await Promise.race([strapiPromise, timeoutPromise]) as any
           console.log('[API POST] ✅ Producto creado en Strapi:', {
             id: strapiProduct.data?.id,
             documentId: strapiProduct.data?.documentId
           })
         } catch (strapiError: any) {
           console.error('[API POST] ⚠️ Error al crear producto en Strapi (no crítico):', strapiError.message)
+          // Continuar con la respuesta exitosa aunque Strapi falle
         }
         
         return NextResponse.json({

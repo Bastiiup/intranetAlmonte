@@ -325,16 +325,33 @@ const wooCommerceClient = {
 
   async post<T>(path: string, data: any): Promise<T> {
     const url = getWooCommerceUrl(path)
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': getAuthHeader(),
-      },
-      body: JSON.stringify(data),
-    })
-
-    return handleResponse<T>(response)
+    
+    // Agregar timeout para evitar que se quede colgado
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 segundos
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': getAuthHeader(),
+        },
+        body: JSON.stringify(data),
+        signal: controller.signal,
+      })
+      
+      clearTimeout(timeoutId)
+      return handleResponse<T>(response)
+    } catch (error: any) {
+      clearTimeout(timeoutId)
+      if (error.name === 'AbortError') {
+        const timeoutError = new Error('Timeout: La petición a WooCommerce tardó más de 30 segundos') as Error & { status?: number }
+        timeoutError.status = 504
+        throw timeoutError
+      }
+      throw error
+    }
   },
 
   async put<T>(path: string, data: any): Promise<T> {

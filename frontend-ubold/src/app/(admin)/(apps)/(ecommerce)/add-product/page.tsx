@@ -12,6 +12,7 @@ export default function AddProductPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [responseData, setResponseData] = useState<any>(null)
   
   const [formData, setFormData] = useState({
     // === BÁSICOS ===
@@ -153,23 +154,22 @@ export default function AddProductPage() {
       }
 
       const data = await response.json()
+      setResponseData(data) // Guardar datos de respuesta para mostrar en UI
 
       if (data.success) {
-        // Mostrar mensaje especial si se regeneró el ISBN
+        setSuccess(true)
+        setError(null)
+        
+        // Mostrar mensaje especial si se regeneró el ISBN (sin alert bloqueante)
         if (data.isbnRegenerado) {
-          setSuccess(true)
-          setError(null)
-          // Mostrar mensaje informativo sobre el ISBN regenerado
-          alert(`✅ Producto creado exitosamente.\n\nEl ISBN "${data.isbnOriginal}" ya existía, se generó uno nuevo automáticamente: "${data.isbnNuevo}"`)
-        } else {
-          setSuccess(true)
-          setError(null)
+          // El mensaje se mostrará en el Alert de éxito
+          console.log(`[AddProduct] ISBN regenerado: "${data.isbnOriginal}" → "${data.isbnNuevo}"`)
         }
         
-        // Redirigir después de un breve delay
+        // Redirigir después de un breve delay (reducido para mejor UX)
         setTimeout(() => {
           router.push('/products')
-        }, 1500)
+        }, 1000)
       } else {
         setError(data.error || 'Error al crear producto')
         setSuccess(false)
@@ -199,6 +199,14 @@ export default function AddProductPage() {
         {success && (
           <Alert variant="success">
             ✅ Producto creado exitosamente. Redirigiendo...
+            {responseData?.isbnRegenerado && (
+              <>
+                <br />
+                <small className="text-muted">
+                  <strong>Nota:</strong> El ISBN "{responseData.isbnOriginal}" ya existía, se generó uno nuevo automáticamente: "{responseData.isbnNuevo}"
+                </small>
+              </>
+            )}
             <br />
             <small className="text-muted">Si no se redirige automáticamente, <a href="/products" className="alert-link">haz clic aquí</a>.</small>
           </Alert>
