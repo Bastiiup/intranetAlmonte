@@ -333,12 +333,14 @@ export async function PUT(
     const endpoint = `${obraEndpoint}/${id}`
     console.log('[API Obras PUT] Usando endpoint Strapi:', endpoint)
 
+    // El schema de Strapi para obras usa 'nombre', no 'name'
     const obraData: any = {
       data: {}
     }
 
-    if (body.data.name) obraData.data.name = body.data.name
-    if (body.data.nombre) obraData.data.name = body.data.nombre
+    // Aceptar tanto 'name' como 'nombre' del formulario, pero guardar como 'nombre' en Strapi
+    if (body.data.name) obraData.data.nombre = body.data.name
+    if (body.data.nombre) obraData.data.nombre = body.data.nombre
     if (body.data.descripcion !== undefined) obraData.data.descripcion = body.data.descripcion
     if (body.data.description !== undefined) obraData.data.descripcion = body.data.description
 

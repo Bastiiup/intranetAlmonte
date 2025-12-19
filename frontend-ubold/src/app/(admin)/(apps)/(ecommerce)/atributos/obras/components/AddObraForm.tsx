@@ -69,15 +69,13 @@ const AddObraForm = () => {
         throw new Error('El slug debe tener menos de 28 caracteres')
       }
 
-      // Preparar datos para Strapi (usar nombres del schema real)
+      // Preparar datos para Strapi (el schema usa 'nombre', no 'name')
       const obraData: any = {
         data: {
-          name: formData.nombre.trim(),
-          slug: formData.slug || generateSlug(formData.nombre),
+          nombre: formData.nombre.trim(), // El schema de Strapi usa 'nombre'
           descripcion: null, // No hay campo de descripción en el formulario de atributo
-          tipo: formData.tipo,
-          ordenPredeterminado: formData.ordenPredeterminado,
-          activarArchivo: formData.activarArchivo,
+          // Los campos tipo, ordenPredeterminado y activarArchivo son solo para WooCommerce,
+          // no se guardan en Strapi
         },
       }
 

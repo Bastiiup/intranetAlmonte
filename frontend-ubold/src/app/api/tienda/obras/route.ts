@@ -87,13 +87,13 @@ export async function POST(request: NextRequest) {
     // Crear en Strapi PRIMERO para obtener el documentId
     console.log('[API Obras POST] 📚 Creando obra en Strapi primero...')
     
-    // Usar el slug del formulario si viene, sino generar uno desde el nombre
+    // Generar slug para WooCommerce desde el nombre (Strapi no tiene campo slug)
     const slug = body.data.slug || nombreObra.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 27)
     
+    // El schema de Strapi para obras usa 'nombre', no 'name', y no tiene campo 'slug'
     const obraData: any = {
       data: {
-        name: nombreObra.trim(),
-        slug: slug,
+        nombre: nombreObra.trim(), // El schema usa 'nombre'
         descripcion: body.data.descripcion || body.data.description || null,
       }
     }

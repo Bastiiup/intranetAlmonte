@@ -113,7 +113,7 @@ const ObraDetails = ({ obra: initialObra, obraId, error: initialError }: ObraDet
       const url = `/api/tienda/obras/${obId}`
       const body = JSON.stringify({
         data: {
-          name: formData.nombre,
+          nombre: formData.nombre, // El schema de Strapi usa 'nombre'
           descripcion: formData.descripcion || null,
         },
       })
