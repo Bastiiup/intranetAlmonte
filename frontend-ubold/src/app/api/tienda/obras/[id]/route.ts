@@ -349,7 +349,7 @@ export async function PUT(
       obraData.data.woocommerce_id = wooCommerceTerm.id.toString()
     }
 
-    const strapiResponse = await strapiClient.put<any>(endpoint, obraData)
+    const strapiResponse = await strapiClient.put<any>(strapiEndpoint, obraData)
     console.log('[API Obras PUT] ✅ Obra actualizada en Strapi')
 
     return NextResponse.json({
