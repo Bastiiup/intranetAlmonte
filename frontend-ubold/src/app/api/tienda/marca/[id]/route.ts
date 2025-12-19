@@ -327,15 +327,15 @@ export async function PUT(
     const strapiEndpoint = documentId ? `${marcaEndpoint}/${documentId}` : `${marcaEndpoint}/${id}`
     console.log('[API Marca PUT] Usando endpoint Strapi:', strapiEndpoint, { documentId, id })
 
-    // El schema de Strapi para marca usa: nombre_marca* (Text), descripcion, website, logo
+    // El schema de Strapi para marca usa: nombre* (Text), descripcion, website, logo
     const marcaData: any = {
       data: {}
     }
 
-    // Aceptar diferentes formatos del formulario pero guardar según schema real
-    if (body.data.nombre_marca) marcaData.data.nombre_marca = body.data.nombre_marca.trim()
-    if (body.data.nombreMarca) marcaData.data.nombre_marca = body.data.nombreMarca.trim()
-    if (body.data.nombre) marcaData.data.nombre_marca = body.data.nombre.trim()
+    // Aceptar diferentes formatos del formulario pero guardar según schema real (usar 'nombre')
+    if (body.data.nombre_marca) marcaData.data.nombre = body.data.nombre_marca.trim()
+    if (body.data.nombreMarca) marcaData.data.nombre = body.data.nombreMarca.trim()
+    if (body.data.nombre) marcaData.data.nombre = body.data.nombre.trim()
     
     if (body.data.descripcion !== undefined) marcaData.data.descripcion = body.data.descripcion?.trim() || null
     if (body.data.description !== undefined) marcaData.data.descripcion = body.data.description?.trim() || null

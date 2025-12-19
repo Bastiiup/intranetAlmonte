@@ -89,10 +89,10 @@ export async function POST(request: NextRequest) {
     // El documentId se usará como slug en WooCommerce para hacer el match
     console.log('[API Marca POST] 📚 Creando marca en Strapi primero...')
     
-    // El schema de Strapi para marca (asumiendo estructura similar a sello)
+    // El schema de Strapi para marca usa: nombre* (Text), descripcion, website, logo
     const marcaData: any = {
       data: {
-        nombre_marca: nombreMarca.trim(),
+        nombre: nombreMarca.trim(),
         descripcion: body.data.descripcion || null,
         website: body.data.website || null,
       }

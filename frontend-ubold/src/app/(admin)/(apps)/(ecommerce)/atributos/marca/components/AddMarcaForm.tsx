@@ -11,7 +11,7 @@ const AddMarcaForm = () => {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [formData, setFormData] = useState({
-    nombre_marca: '',
+    nombre: '',
     descripcion: '',
     website: '',
     logo: null as File | null,
@@ -24,13 +24,13 @@ const AddMarcaForm = () => {
     setSuccess(false)
 
     try {
-      if (!formData.nombre_marca.trim()) {
+      if (!formData.nombre.trim()) {
         throw new Error('El nombre de la marca es obligatorio')
       }
 
       const marcaData: any = {
         data: {
-          nombre_marca: formData.nombre_marca.trim(),
+          nombre: formData.nombre.trim(),
           descripcion: formData.descripcion.trim() || null,
           website: formData.website.trim() || null,
         },
@@ -124,9 +124,9 @@ const AddMarcaForm = () => {
                 <FormControl
                   type="text"
                   placeholder="Ej: Marca Ejemplo"
-                  value={formData.nombre_marca}
+                  value={formData.nombre}
                   onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, nombre_marca: e.target.value }))
+                    setFormData((prev) => ({ ...prev, nombre: e.target.value }))
                   }
                   required
                 />

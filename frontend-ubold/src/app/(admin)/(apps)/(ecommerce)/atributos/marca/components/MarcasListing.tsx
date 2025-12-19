@@ -52,7 +52,7 @@ const mapStrapiMarcaToMarcaType = (marca: any): MarcaType => {
   const attrs = marca.attributes || {}
   const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (marca as any)
 
-  const nombre = getField(data, 'nombre_marca', 'nombreMarca', 'nombre', 'NOMBRE_MARCA', 'NAME') || 'Sin nombre'
+  const nombre = getField(data, 'nombre', 'nombre_marca', 'nombreMarca', 'NOMBRE_MARCA', 'NAME') || 'Sin nombre'
   const descripcion = getField(data, 'descripcion', 'description', 'DESCRIPCION') || ''
   const website = getField(data, 'website', 'website', 'WEBSITE') || ''
   

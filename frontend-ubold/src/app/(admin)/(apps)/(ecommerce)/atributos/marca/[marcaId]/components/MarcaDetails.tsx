@@ -48,7 +48,7 @@ const MarcaDetails = ({ marca: initialMarca, marcaId, error: initialError }: Mar
   const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (marca as any)
 
   const [formData, setFormData] = useState({
-    nombre_marca: getField(data, 'nombre_marca', 'nombreMarca', 'nombre', 'NOMBRE_MARCA', 'NAME') || '',
+    nombre: getField(data, 'nombre', 'nombre_marca', 'nombreMarca', 'NOMBRE_MARCA', 'NAME') || '',
     descripcion: getField(data, 'descripcion', 'description', 'DESCRIPCION') || '',
     website: getField(data, 'website', 'website', 'WEBSITE') || '',
     logo: null as File | null,
@@ -61,7 +61,7 @@ const MarcaDetails = ({ marca: initialMarca, marcaId, error: initialError }: Mar
       const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (marca as any)
       
       setFormData({
-        nombre_marca: getField(data, 'nombre_marca', 'nombreMarca', 'nombre', 'NOMBRE_MARCA', 'NAME') || '',
+        nombre: getField(data, 'nombre', 'nombre_marca', 'nombreMarca', 'NOMBRE_MARCA', 'NAME') || '',
         descripcion: getField(data, 'descripcion', 'description', 'DESCRIPCION') || '',
         website: getField(data, 'website', 'website', 'WEBSITE') || '',
         logo: null,
@@ -126,7 +126,7 @@ const MarcaDetails = ({ marca: initialMarca, marcaId, error: initialError }: Mar
       const url = `/api/tienda/marca/${mId}`
       const body = JSON.stringify({
         data: {
-          nombre_marca: formData.nombre_marca.trim(),
+          nombre: formData.nombre.trim(),
           descripcion: formData.descripcion.trim() || null,
           website: formData.website.trim() || null,
           logo: logoId || null,
@@ -203,9 +203,9 @@ const MarcaDetails = ({ marca: initialMarca, marcaId, error: initialError }: Mar
                   <FormControl
                     type="text"
                     placeholder="Ej: Marca Ejemplo"
-                    value={formData.nombre_marca}
+                    value={formData.nombre}
                     onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, nombre_marca: e.target.value }))
+                      setFormData((prev) => ({ ...prev, nombre: e.target.value }))
                     }
                     required
                   />
