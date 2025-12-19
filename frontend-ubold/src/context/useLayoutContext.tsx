@@ -87,12 +87,17 @@ const LayoutProvider = ({ children }: ChildrenType) => {
   useEffect(() => {
     // CRÍTICO: Asegurar que la sidebar siempre esté visible
     // Si el tamaño es 'offcanvas', cambiarlo automáticamente a un modo visible
-    let effectiveSidenavSize: 'default' | 'compact' | 'condensed' | 'on-hover' | 'on-hover-active' = settings.sidenavSize
+    let effectiveSidenavSize: 'default' | 'compact' | 'condensed' | 'on-hover' | 'on-hover-active'
+    
     if (settings.sidenavSize === 'offcanvas') {
       const width = window.innerWidth
       effectiveSidenavSize = width <= 1140 ? 'condensed' : 'default'
       // Actualizar el estado si era offcanvas
       updateSettings({ sidenavSize: effectiveSidenavSize })
+    } else {
+      // Si no es 'offcanvas', usar el valor directamente
+      // TypeScript sabe que en este punto settings.sidenavSize no puede ser 'offcanvas'
+      effectiveSidenavSize = settings.sidenavSize as 'default' | 'compact' | 'condensed' | 'on-hover' | 'on-hover-active'
     }
     
     toggleAttribute('data-skin', settings.skin)
