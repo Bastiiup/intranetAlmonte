@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { ShipitWebhook } from '@/lib/shipit/types'
 import wooCommerceClient from '@/lib/woocommerce/client'
+import type { WooCommerceOrder } from '@/lib/woocommerce/types'
 import { mapShipitStatusToWooCommerce } from '@/lib/shipit/utils'
 
 export const dynamic = 'force-dynamic'
@@ -57,9 +58,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Obtener pedido de WooCommerce
-    let order
+    let order: WooCommerceOrder
     try {
-      order = await wooCommerceClient.get(`orders/${orderId}`)
+      order = await wooCommerceClient.get<WooCommerceOrder>(`orders/${orderId}`)
     } catch (error: any) {
       if (error.status === 404) {
         console.warn('[Webhook] Pedido no encontrado:', orderId)
