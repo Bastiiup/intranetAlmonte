@@ -123,8 +123,6 @@ export const communeMap: Record<string, number> = {
   'CATEMU': 51,
   'LLAY LLAY': 51,
   'PANQUEHUE': 51,
-  'PUCON': 51,
-  'PUCÓN': 51,
 
   // Región de O'Higgins
   'RANCAGUA': 61,
