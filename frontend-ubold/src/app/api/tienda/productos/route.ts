@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
           subtitulo_libro: body.subtitulo_libro?.trim() || '',
           // NO incluir precio aquí - Strapi no tiene campo precio directo, usa relación precios
           // NO incluir stock_quantity aquí - Strapi no tiene campo stock_quantity directo, usa relación stocks
-          woocommerce_id: wooCommerceProduct.id.toString(), // Guardar ID de WooCommerce
+          // NO incluir woocommerce_id aquí - Strapi no tiene este campo en el esquema
         }
       }
 
@@ -307,7 +307,7 @@ export async function POST(request: NextRequest) {
               subtitulo_libro: body.subtitulo_libro?.trim() || '',
               // NO incluir precio - Strapi no tiene campo precio directo
               // NO incluir stock_quantity - Strapi no tiene campo stock_quantity directo
-              woocommerce_id: retryResponse.id.toString(),
+              // NO incluir woocommerce_id - Strapi no tiene este campo en el esquema
             }
           }
 

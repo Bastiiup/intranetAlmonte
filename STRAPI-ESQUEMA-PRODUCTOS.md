@@ -8,6 +8,7 @@ Los siguientes campos **NO deben enviarse** al crear/actualizar productos en Str
 
 - ❌ `precio` - Los precios se manejan mediante la relación `precios` (colección separada)
 - ❌ `stock_quantity` - El stock se maneja mediante la relación `stocks` o `STOCKS` (colección separada)
+- ❌ `woocommerce_id` - Este campo no existe en el esquema de Strapi
 
 ## ✅ Campos válidos en Strapi
 
@@ -34,7 +35,7 @@ Los siguientes campos **NO deben enviarse** al crear/actualizar productos en Str
 - `stocks` o `STOCKS` (relation, multiple) - Stock del producto (colección `stocks`)
 
 ### Campos de metadatos
-- `woocommerce_id` (string) - ID del producto en WooCommerce (para sincronización)
+- ⚠️ `woocommerce_id` - Este campo NO existe en el esquema actual de Strapi. Si necesitas guardar el ID de WooCommerce, deberás agregarlo al esquema en el proyecto de Strapi.
 
 ### Campos numéricos opcionales
 - `id_autor` (number) - ID numérico del autor

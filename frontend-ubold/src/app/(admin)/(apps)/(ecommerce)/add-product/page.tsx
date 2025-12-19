@@ -146,6 +146,12 @@ export default function AddProductPage() {
         body: JSON.stringify(dataToSend)
       })
 
+      // Verificar que la respuesta sea exitosa
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Error al crear producto' }))
+        throw new Error(errorData.error || `Error ${response.status}: ${response.statusText}`)
+      }
+
       const data = await response.json()
 
       if (data.success) {
@@ -157,16 +163,21 @@ export default function AddProductPage() {
           alert(`✅ Producto creado exitosamente.\n\nEl ISBN "${data.isbnOriginal}" ya existía, se generó uno nuevo automáticamente: "${data.isbnNuevo}"`)
         } else {
           setSuccess(true)
+          setError(null)
         }
+        
+        // Redirigir después de un breve delay
         setTimeout(() => {
           router.push('/products')
         }, 1500)
       } else {
         setError(data.error || 'Error al crear producto')
+        setSuccess(false)
       }
     } catch (err: any) {
       console.error('[AddProduct] Error:', err)
-      setError('Error de conexión')
+      setError(err.message || 'Error de conexión al crear producto')
+      setSuccess(false)
     } finally {
       setLoading(false)
     }
@@ -180,12 +191,16 @@ export default function AddProductPage() {
         {error && (
           <Alert variant="danger" dismissible onClose={() => setError(null)}>
             <strong>Error:</strong> {error}
+            <br />
+            <small className="text-muted">Puedes cerrar esta página y volver a la lista de productos.</small>
           </Alert>
         )}
         
         {success && (
           <Alert variant="success">
             ✅ Producto creado exitosamente. Redirigiendo...
+            <br />
+            <small className="text-muted">Si no se redirige automáticamente, <a href="/products" className="alert-link">haz clic aquí</a>.</small>
           </Alert>
         )}
 
