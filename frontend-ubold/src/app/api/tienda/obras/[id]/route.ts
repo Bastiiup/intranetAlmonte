@@ -219,11 +219,11 @@ export async function DELETE(
       }
     }
 
-    // Eliminar en Strapi
-    const endpoint = `${obraEndpoint}/${id}`
-    console.log('[API Obras DELETE] Usando endpoint Strapi:', endpoint)
+    // Eliminar en Strapi usando documentId si está disponible
+    const strapiEndpoint = documentId ? `${obraEndpoint}/${documentId}` : `${obraEndpoint}/${id}`
+    console.log('[API Obras DELETE] Usando endpoint Strapi:', strapiEndpoint, { documentId, id })
 
-    const response = await strapiClient.delete<any>(endpoint)
+    const response = await strapiClient.delete<any>(strapiEndpoint)
     console.log('[API Obras DELETE] ✅ Obra eliminada en Strapi')
 
     return NextResponse.json({
@@ -329,9 +329,9 @@ export async function PUT(
       }
     }
 
-    // Actualizar en Strapi
-    const endpoint = `${obraEndpoint}/${id}`
-    console.log('[API Obras PUT] Usando endpoint Strapi:', endpoint)
+    // Actualizar en Strapi usando documentId si está disponible
+    const strapiEndpoint = documentId ? `${obraEndpoint}/${documentId}` : `${obraEndpoint}/${id}`
+    console.log('[API Obras PUT] Usando endpoint Strapi:', strapiEndpoint, { documentId, id })
 
     // El schema de Strapi para obras usa 'nombre', no 'name'
     const obraData: any = {

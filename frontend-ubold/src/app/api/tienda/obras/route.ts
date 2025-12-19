@@ -85,10 +85,8 @@ export async function POST(request: NextRequest) {
     console.log('[API Obras POST] Usando endpoint Strapi:', obraEndpoint)
 
     // Crear en Strapi PRIMERO para obtener el documentId
+    // El documentId se usará como slug en WooCommerce para hacer el match
     console.log('[API Obras POST] 📚 Creando obra en Strapi primero...')
-    
-    // Generar slug para WooCommerce desde el nombre (Strapi no tiene campo slug)
-    const slug = body.data.slug || nombreObra.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 27)
     
     // El schema de Strapi para obras usa 'nombre', no 'name', y no tiene campo 'slug'
     const obraData: any = {
@@ -127,15 +125,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Crear término del atributo en WooCommerce usando el documentId como slug
+    // IMPORTANTE: Siempre usar documentId como slug para poder hacer match después
     console.log('[API Obras POST] 🛒 Creando término en WooCommerce con slug=documentId...')
-    
-    // Usar el slug del formulario para WooCommerce también
-    const wooSlug = slug || documentId.toString()
     
     const wooCommerceTermData: any = {
       name: nombreObra.trim(),
       description: body.data.descripcion || body.data.description || '',
-      slug: wooSlug, // Usar slug del formulario o documentId como fallback
+      slug: documentId.toString(), // SIEMPRE usar documentId como slug para el match
     }
 
     // Crear término en WooCommerce
