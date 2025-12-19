@@ -134,15 +134,24 @@ export async function POST(request: NextRequest) {
     // Crear término en WooCommerce
     let wooCommerceTerm = null
     try {
-      wooCommerceTerm = await wooCommerceClient.post<any>(
+      const wooResponse = await wooCommerceClient.post<any>(
         `products/attributes/${attributeId}/terms`,
         wooCommerceTermData
       )
+      
+      // La respuesta puede venir directamente o dentro de .data
+      wooCommerceTerm = wooResponse?.data || wooResponse
+      
       console.log('[API Obras POST] ✅ Término creado en WooCommerce:', {
-        id: wooCommerceTerm.id,
-        name: wooCommerceTerm.name,
-        slug: wooCommerceTerm.slug
+        id: wooCommerceTerm?.id,
+        name: wooCommerceTerm?.name,
+        slug: wooCommerceTerm?.slug,
+        response: wooResponse
       })
+
+      if (!wooCommerceTerm || !wooCommerceTerm.id) {
+        throw new Error('La respuesta de WooCommerce no contiene un término válido')
+      }
 
       // Actualizar Strapi con el woocommerce_id
       const updateData = {
