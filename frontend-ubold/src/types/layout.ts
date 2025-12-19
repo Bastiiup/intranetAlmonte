@@ -56,4 +56,5 @@ export type MenuItemType = {
   isDisabled?: boolean
   isSpecial?: boolean
   children?: MenuItemType[]
+  roles?: Array<'super_admin' | 'encargado_adquisiciones' | 'supervisor' | 'soporte'>
 }

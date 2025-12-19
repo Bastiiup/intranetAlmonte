@@ -344,6 +344,11 @@ export async function PUT(
       updateData.data.estado_edicion = body.estado_edicion
     }
 
+    // Estado de publicación
+    if (body.estado_publicacion !== undefined && body.estado_publicacion !== '') {
+      updateData.data.estado_publicacion = body.estado_publicacion
+    }
+
     // Relaciones simples
     if (body.obra) updateData.data.obra = body.obra
     if (body.autor_relacion) updateData.data.autor_relacion = body.autor_relacion
