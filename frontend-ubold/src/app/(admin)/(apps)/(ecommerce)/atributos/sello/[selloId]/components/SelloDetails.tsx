@@ -49,7 +49,7 @@ const SelloDetails = ({ sello: initialSello, selloId, error: initialError }: Sel
   const attrs = sello.attributes || {}
   const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (sello as any)
 
-  // Obtener relaciones existentes
+  // Obtener relaciones existentes con sus datos
   const getRelationIds = (relation: any): string[] => {
     if (!relation) return []
     if (Array.isArray(relation.data)) {
@@ -63,6 +63,26 @@ const SelloDetails = ({ sello: initialSello, selloId, error: initialError }: Sel
     }
     return []
   }
+
+  // Obtener datos de relaciones para mostrar nombres
+  const getRelationData = (relation: any): any[] => {
+    if (!relation) return []
+    if (Array.isArray(relation.data)) {
+      return relation.data
+    }
+    if (relation.data) {
+      return [relation.data]
+    }
+    if (Array.isArray(relation)) {
+      return relation
+    }
+    return []
+  }
+
+  // Obtener datos de relaciones del sello
+  const editorialData = getRelationData(data.editorial)
+  const librosData = getRelationData(data.libros)
+  const coleccionesData = getRelationData(data.colecciones)
 
   // Inicializar formData con los valores del sello según schema real
   const [formData, setFormData] = useState({
@@ -330,17 +350,45 @@ const SelloDetails = ({ sello: initialSello, selloId, error: initialError }: Sel
                     displayField="nombre_editorial"
                   />
                   {formData.editorial && (
-                    <div className="mt-2">
-                      <Badge bg="success" className="me-2">Published</Badge>
-                      <span className="text-muted small">{formData.editorial}</span>
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="ms-2 p-0"
-                        onClick={() => setFormData((prev) => ({ ...prev, editorial: '' }))}
-                      >
-                        ✕
-                      </Button>
+                    <div className="mt-2 d-flex align-items-center gap-2 flex-wrap">
+                      {editorialData.length > 0 ? (
+                        editorialData.map((editorial: any, idx: number) => {
+                          const editorialId = editorial.documentId || editorial.id
+                          const editorialName = editorial.attributes?.nombre_editorial || 
+                                               editorial.nombre_editorial || 
+                                               editorial.nombre || 
+                                               editorialId
+                          const isPublished = !!(editorial.attributes?.publishedAt || editorial.publishedAt)
+                          return (
+                            <div key={idx} className="d-flex align-items-center gap-1">
+                              <Badge bg={isPublished ? 'success' : 'secondary'}>{isPublished ? 'Published' : 'Draft'}</Badge>
+                              <span className="text-muted small">{editorialName}</span>
+                              <span className="text-muted small">({editorialId})</span>
+                              <Button
+                                variant="link"
+                                size="sm"
+                                className="p-0 ms-1"
+                                onClick={() => setFormData((prev) => ({ ...prev, editorial: '' }))}
+                              >
+                                ✕
+                              </Button>
+                            </div>
+                          )
+                        })
+                      ) : (
+                        <div className="d-flex align-items-center gap-1">
+                          <Badge bg="success">Published</Badge>
+                          <span className="text-muted small">{formData.editorial}</span>
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="p-0 ms-1"
+                            onClick={() => setFormData((prev) => ({ ...prev, editorial: '' }))}
+                          >
+                            ✕
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </FormGroup>
@@ -358,25 +406,60 @@ const SelloDetails = ({ sello: initialSello, selloId, error: initialError }: Sel
                     displayField="titulo"
                   />
                   {formData.libros.length > 0 && (
-                    <div className="mt-2">
-                      {formData.libros.map((libroId, idx) => (
-                        <Badge key={idx} bg="info" className="me-2 mb-1">
-                          {libroId}
-                          <Button
-                            variant="link"
-                            size="sm"
-                            className="ms-1 p-0 text-white"
-                            onClick={() => {
-                              setFormData((prev) => ({
-                                ...prev,
-                                libros: prev.libros.filter((id) => id !== libroId),
-                              }))
-                            }}
-                          >
-                            ✕
-                          </Button>
-                        </Badge>
-                      ))}
+                    <div className="mt-2 d-flex flex-wrap gap-2">
+                      {librosData.length > 0 ? (
+                        librosData.map((libro: any, idx: number) => {
+                          const libroId = libro.documentId || libro.id
+                          const libroTitulo = libro.attributes?.titulo || 
+                                            libro.titulo || 
+                                            libro.attributes?.nombre ||
+                                            libro.nombre ||
+                                            libroId
+                          const isPublished = !!(libro.attributes?.publishedAt || libro.publishedAt)
+                          const isModified = !!(libro.attributes?.updatedAt && libro.attributes?.updatedAt !== libro.attributes?.createdAt)
+                          return (
+                            <div key={idx} className="d-flex align-items-center gap-1">
+                              <Badge bg={isModified ? 'warning' : isPublished ? 'success' : 'secondary'}>
+                                {isModified ? 'Modified' : isPublished ? 'Published' : 'Draft'}
+                              </Badge>
+                              <span className="text-muted small">{libroTitulo}</span>
+                              <span className="text-muted small">({libroId})</span>
+                              <Button
+                                variant="link"
+                                size="sm"
+                                className="p-0 ms-1"
+                                onClick={() => {
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    libros: prev.libros.filter((id) => id !== libroId),
+                                  }))
+                                }}
+                              >
+                                ✕
+                              </Button>
+                            </div>
+                          )
+                        })
+                      ) : (
+                        formData.libros.map((libroId, idx) => (
+                          <Badge key={idx} bg="info" className="d-flex align-items-center gap-1">
+                            {libroId}
+                            <Button
+                              variant="link"
+                              size="sm"
+                              className="p-0 text-white"
+                              onClick={() => {
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  libros: prev.libros.filter((id) => id !== libroId),
+                                }))
+                              }}
+                            >
+                              ✕
+                            </Button>
+                          </Badge>
+                        ))
+                      )}
                     </div>
                   )}
                 </FormGroup>
@@ -394,25 +477,59 @@ const SelloDetails = ({ sello: initialSello, selloId, error: initialError }: Sel
                     displayField="nombre"
                   />
                   {formData.colecciones.length > 0 && (
-                    <div className="mt-2">
-                      {formData.colecciones.map((coleccionId, idx) => (
-                        <Badge key={idx} bg="success" className="me-2 mb-1">
-                          {coleccionId}
-                          <Button
-                            variant="link"
-                            size="sm"
-                            className="ms-1 p-0 text-white"
-                            onClick={() => {
-                              setFormData((prev) => ({
-                                ...prev,
-                                colecciones: prev.colecciones.filter((id) => id !== coleccionId),
-                              }))
-                            }}
-                          >
-                            ✕
-                          </Button>
-                        </Badge>
-                      ))}
+                    <div className="mt-2 d-flex flex-wrap gap-2">
+                      {coleccionesData.length > 0 ? (
+                        coleccionesData.map((coleccion: any, idx: number) => {
+                          const coleccionId = coleccion.documentId || coleccion.id
+                          const coleccionNombre = coleccion.attributes?.nombre || 
+                                                 coleccion.nombre || 
+                                                 coleccion.attributes?.titulo ||
+                                                 coleccion.titulo ||
+                                                 coleccionId
+                          const isPublished = !!(coleccion.attributes?.publishedAt || coleccion.publishedAt)
+                          return (
+                            <div key={idx} className="d-flex align-items-center gap-1">
+                              <Badge bg={isPublished ? 'success' : 'secondary'}>
+                                {isPublished ? 'Published' : 'Draft'}
+                              </Badge>
+                              <span className="text-muted small">{coleccionNombre}</span>
+                              <span className="text-muted small">({coleccionId})</span>
+                              <Button
+                                variant="link"
+                                size="sm"
+                                className="p-0 ms-1"
+                                onClick={() => {
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    colecciones: prev.colecciones.filter((id) => id !== coleccionId),
+                                  }))
+                                }}
+                              >
+                                ✕
+                              </Button>
+                            </div>
+                          )
+                        })
+                      ) : (
+                        formData.colecciones.map((coleccionId, idx) => (
+                          <Badge key={idx} bg="success" className="d-flex align-items-center gap-1">
+                            {coleccionId}
+                            <Button
+                              variant="link"
+                              size="sm"
+                              className="p-0 text-white"
+                              onClick={() => {
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  colecciones: prev.colecciones.filter((id) => id !== coleccionId),
+                                }))
+                              }}
+                            >
+                              ✕
+                            </Button>
+                          </Badge>
+                        ))
+                      )}
                       <Button
                         variant="link"
                         size="sm"
