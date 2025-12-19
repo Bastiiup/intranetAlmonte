@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import wooCommerceClient from '@/lib/woocommerce/client'
+import { STRAPI_API_URL } from '@/lib/strapi/config'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 
 export const dynamic = 'force-dynamic'
@@ -140,10 +141,52 @@ export async function POST(request: NextRequest) {
     }
 
     // Agregar imagen si existe
+    // body.portada_libro puede ser un ID de Strapi (número) o una URL (string)
     if (body.portada_libro) {
-      wooCommerceProductData.images = [{
-        src: body.portada_libro
-      }]
+      let imageUrl: string = ''
+      
+      // Si es un número (ID de Strapi), obtener la URL desde Strapi
+      if (typeof body.portada_libro === 'number' || (typeof body.portada_libro === 'string' && /^\d+$/.test(body.portada_libro))) {
+        try {
+          const imageId = typeof body.portada_libro === 'number' ? body.portada_libro : parseInt(body.portada_libro, 10)
+          console.log('[API POST] 📷 Obteniendo URL de imagen desde Strapi, ID:', imageId)
+          
+          const strapiImageResponse = await strapiClient.get<any>(`upload/files/${imageId}`)
+          
+          if (strapiImageResponse?.url) {
+            // Construir URL completa
+            const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
+            imageUrl = strapiImageResponse.url.startsWith('http') 
+              ? strapiImageResponse.url 
+              : `${baseUrl}${strapiImageResponse.url.startsWith('/') ? '' : '/'}${strapiImageResponse.url}`
+            console.log('[API POST] ✅ URL de imagen obtenida desde Strapi:', imageUrl)
+          } else {
+            console.warn('[API POST] ⚠️ No se pudo obtener URL de imagen desde Strapi, construyendo URL por defecto')
+            // Si no se puede obtener la URL, intentar construirla
+            const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
+            imageUrl = `${baseUrl}/api/upload/files/${imageId}`
+          }
+        } catch (imageError: any) {
+          console.error('[API POST] ⚠️ Error al obtener URL de imagen desde Strapi:', imageError.message)
+          // Si falla, intentar construir URL por defecto
+          const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
+          const imageId = typeof body.portada_libro === 'number' ? body.portada_libro : parseInt(body.portada_libro, 10)
+          imageUrl = `${baseUrl}/api/upload/files/${imageId}`
+        }
+      } else {
+        // Si ya es una URL, usarla directamente
+        imageUrl = String(body.portada_libro)
+      }
+      
+      // WooCommerce requiere que src sea una URL completa válida
+      if (imageUrl && imageUrl.startsWith('http')) {
+        wooCommerceProductData.images = [{
+          src: imageUrl
+        }]
+        console.log('[API POST] 📷 Imagen agregada a producto WooCommerce:', imageUrl)
+      } else {
+        console.warn('[API POST] ⚠️ URL de imagen no válida, omitiendo imagen:', imageUrl)
+      }
     }
 
     // Crear en WooCommerce primero
@@ -228,10 +271,38 @@ export async function POST(request: NextRequest) {
           stock_status: body.stock_quantity > 0 ? 'instock' : 'outofstock',
         }
 
+        // Agregar imagen si existe (misma lógica que arriba)
         if (body.portada_libro) {
-          retryWooCommerceData.images = [{
-            src: body.portada_libro
-          }]
+          let imageUrl: string = ''
+          
+          if (typeof body.portada_libro === 'number' || (typeof body.portada_libro === 'string' && /^\d+$/.test(body.portada_libro))) {
+            try {
+              const imageId = typeof body.portada_libro === 'number' ? body.portada_libro : parseInt(body.portada_libro, 10)
+              const strapiImageResponse = await strapiClient.get<any>(`upload/files/${imageId}`)
+              
+              if (strapiImageResponse?.url) {
+                const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
+                imageUrl = strapiImageResponse.url.startsWith('http') 
+                  ? strapiImageResponse.url 
+                  : `${baseUrl}${strapiImageResponse.url.startsWith('/') ? '' : '/'}${strapiImageResponse.url}`
+              } else {
+                const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
+                imageUrl = `${baseUrl}/api/upload/files/${imageId}`
+              }
+            } catch (imageError: any) {
+              const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
+              const imageId = typeof body.portada_libro === 'number' ? body.portada_libro : parseInt(body.portada_libro, 10)
+              imageUrl = `${baseUrl}/api/upload/files/${imageId}`
+            }
+          } else {
+            imageUrl = String(body.portada_libro)
+          }
+          
+          if (imageUrl && imageUrl.startsWith('http')) {
+            retryWooCommerceData.images = [{
+              src: imageUrl
+            }]
+          }
         }
         
         console.log('[API POST] 🔄 Reintentando con nuevo ISBN:', newIsbn)
