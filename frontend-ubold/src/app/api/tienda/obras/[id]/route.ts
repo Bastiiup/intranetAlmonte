@@ -164,8 +164,7 @@ export async function DELETE(
 
     const obraEndpoint = '/api/obras'
     
-    // Primero obtener la obra de Strapi para obtener el documentId y woocommerce_id
-    let woocommerceId: string | null = null
+    // Primero obtener la obra de Strapi para obtener el documentId
     let documentId: string | null = null
     try {
       const obraResponse = await strapiClient.get<any>(`${obraEndpoint}?filters[id][$eq]=${id}&populate=*`)
@@ -179,8 +178,6 @@ export async function DELETE(
       }
       const obraStrapi = obras[0]
       documentId = obraStrapi?.documentId || obraStrapi?.data?.documentId || id
-      woocommerceId = obraStrapi?.attributes?.woocommerce_id || 
-                      obraStrapi?.woocommerce_id
     } catch (error: any) {
       console.warn('[API Obras DELETE] ⚠️ No se pudo obtener obra de Strapi:', error.message)
       documentId = id
@@ -189,8 +186,9 @@ export async function DELETE(
     // Obtener el ID del atributo
     const attributeId = await getObraAttributeId()
 
-    // Si no tenemos woocommerce_id, buscar por slug (documentId) en WooCommerce
-    if (!woocommerceId && documentId && attributeId) {
+    // Buscar en WooCommerce por slug (documentId) - no guardamos woocommerce_id en Strapi
+    let woocommerceId: string | null = null
+    if (documentId && attributeId) {
       try {
         console.log('[API Obras DELETE] 🔍 Buscando término en WooCommerce por slug:', documentId)
         const wcTerms = await wooCommerceClient.get<any[]>(
@@ -281,14 +279,9 @@ export async function PUT(
     // Obtener el ID del atributo
     const attributeId = await getObraAttributeId()
 
-    // Buscar en WooCommerce por slug (documentId) o por woocommerce_id
+    // Buscar en WooCommerce por slug (documentId) - no guardamos woocommerce_id en Strapi
     let woocommerceId: string | null = null
-    const woocommerceIdFromStrapi = obraStrapi?.attributes?.woocommerce_id || 
-                                    obraStrapi?.woocommerce_id
-    
-    if (woocommerceIdFromStrapi) {
-      woocommerceId = woocommerceIdFromStrapi.toString()
-    } else if (documentId && attributeId) {
+    if (documentId && attributeId) {
       // Buscar por slug (documentId) en WooCommerce
       try {
         console.log('[API Obras PUT] 🔍 Buscando término en WooCommerce por slug:', documentId)
