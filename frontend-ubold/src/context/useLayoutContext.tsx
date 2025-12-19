@@ -14,7 +14,7 @@ const INIT_STATE: LayoutState = {
   monochrome: false,
   orientation: 'vertical',
   sidenavColor: 'light',
-  sidenavSize: 'on-hover',
+  sidenavSize: 'default', // Cambiar a 'default' para que el sidebar esté siempre visible por defecto
   sidenavUser: false,
   topBarColor: 'light',
   position: 'fixed',
@@ -102,16 +102,36 @@ const LayoutProvider = ({ children }: ChildrenType) => {
       const width = window.innerWidth
 
       if (settings.orientation === 'vertical') {
+        // En pantallas pequeñas, usar 'condensed' para mantener sidebar visible pero compacto
+        // Esto permite navegar sin tener que usar el botón atrás
         if (width <= 767.98) {
-          updateSettings({ sidenavSize: 'offcanvas' })
-        } else if (width <= 1140 && settings.sidenavSize !== 'offcanvas') {
-          updateSettings({ sidenavSize: settings.sidenavSize === 'on-hover' ? 'condensed' : 'condensed' })
+          // Solo usar 'offcanvas' si el usuario explícitamente lo configuró
+          // De lo contrario, usar 'condensed' para mantener el sidebar visible
+          if (settings.sidenavSize !== 'offcanvas' && settings.sidenavSize !== 'default') {
+            updateSettings({ sidenavSize: 'condensed' })
+          }
+          // Si está en 'offcanvas', mantenerlo pero el botón siempre lo mostrará
+        } else if (width <= 1140) {
+          // En pantallas medianas, usar 'condensed' para optimizar espacio
+          if (settings.sidenavSize === 'offcanvas') {
+            // Si estaba en offcanvas, cambiar a condensed para mantenerlo visible
+            updateSettings({ sidenavSize: 'condensed' })
+          } else if (settings.sidenavSize === 'on-hover') {
+            updateSettings({ sidenavSize: 'condensed' })
+          }
         } else {
-          updateSettings({ sidenavSize: settings.sidenavSize })
+          // En pantallas grandes, mantener el tamaño configurado
+          // Si estaba en 'offcanvas', cambiar a 'default' para mantenerlo visible
+          if (settings.sidenavSize === 'offcanvas') {
+            updateSettings({ sidenavSize: 'default' })
+          }
         }
       } else if (settings.orientation === 'horizontal') {
         if (width < 992) {
-          updateSettings({ sidenavSize: 'offcanvas' })
+          // Similar para horizontal: mantener visible en modo condensed
+          if (settings.sidenavSize !== 'offcanvas') {
+            updateSettings({ sidenavSize: 'condensed' })
+          }
         } else {
           updateSettings({ sidenavSize: 'default' })
         }

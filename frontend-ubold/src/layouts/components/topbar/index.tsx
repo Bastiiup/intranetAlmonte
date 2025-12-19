@@ -17,8 +17,15 @@ const Topbar = () => {
     const currentSize = html.getAttribute('data-sidenav-size')
 
     if (currentSize === 'offcanvas') {
-      html.classList.toggle('sidebar-enable')
-      showBackdrop()
+      // Si está en offcanvas, siempre mostrar el sidebar al hacer clic
+      // Esto asegura que el usuario pueda navegar sin usar el botón atrás
+      if (!html.classList.contains('sidebar-enable')) {
+        html.classList.add('sidebar-enable')
+        showBackdrop()
+      } else {
+        html.classList.remove('sidebar-enable')
+        hideBackdrop()
+      }
     } else if (sidenavSize=== 'compact') {
       updateSettings({sidenavSize:currentSize === 'compact' ? 'condensed' : 'compact'})
     } else {
