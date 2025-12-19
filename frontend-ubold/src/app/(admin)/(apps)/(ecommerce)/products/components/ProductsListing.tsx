@@ -34,6 +34,7 @@ import { format } from 'date-fns'
 type ProductTypeExtended = Omit<ProductType, 'image'> & {
   image: StaticImageData | { src: string | null }
   strapiId?: number
+  estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
 }
 
 // Helper para obtener campo con múltiples variaciones
@@ -114,6 +115,9 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
   const createdAt = attrs.createdAt || (producto as any).createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
 
+  // Obtener estado_publicacion
+  const estadoPublicacion = getField(data, 'estado_publicacion', 'ESTADO_PUBLICACION', 'estadoPublicacion') || 'Pendiente'
+
   const imageUrl = getImageUrl()
   return {
     image: { src: imageUrl || '' },
@@ -132,6 +136,7 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
     // Usar el ID numérico si existe, sino documentId, sino el id tal cual
     url: `/products/${producto.id || producto.documentId || producto.id}`,
     strapiId: producto.id,
+    estadoPublicacion: estadoPublicacion as 'Publicado' | 'Pendiente' | 'Borrador',
   }
 }
 
@@ -286,6 +291,22 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
           <span
             className={`badge ${row.original.status === 'published' ? 'badge-soft-success' : row.original.status === 'pending' ? 'badge-soft-warning' : 'badge-soft-danger'} fs-xxs`}>
             {statusText}
+          </span>
+        )
+      },
+    }),
+    columnHelper.accessor('estadoPublicacion', {
+      header: 'Estado Publicación',
+      filterFn: 'equalsString',
+      enableColumnFilter: true,
+      cell: ({ row }) => {
+        const estado = row.original.estadoPublicacion || 'Pendiente'
+        const badgeClass = estado === 'Publicado' ? 'badge-soft-success' :
+                          estado === 'Pendiente' ? 'badge-soft-warning' :
+                          'badge-soft-secondary'
+        return (
+          <span className={`badge ${badgeClass} fs-xxs`}>
+            {estado}
           </span>
         )
       },
@@ -493,6 +514,19 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
                   <option value="published">Publicado</option>
                   <option value="pending">Pendiente</option>
                   <option value="rejected">Rechazado</option>
+                </select>
+                <LuBox className="app-search-icon text-muted" />
+              </div>
+
+              <div className="app-search">
+                <select
+                  className="form-select form-control my-1 my-md-0"
+                  value={(table.getColumn('estadoPublicacion')?.getFilterValue() as string) ?? 'All'}
+                  onChange={(e) => table.getColumn('estadoPublicacion')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
+                  <option value="All">Estado Publicación</option>
+                  <option value="Publicado">Publicado</option>
+                  <option value="Pendiente">Pendiente</option>
+                  <option value="Borrador">Borrador</option>
                 </select>
                 <LuBox className="app-search-icon text-muted" />
               </div>
