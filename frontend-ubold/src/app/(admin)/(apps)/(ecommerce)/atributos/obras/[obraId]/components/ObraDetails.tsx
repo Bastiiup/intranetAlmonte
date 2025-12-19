@@ -72,9 +72,12 @@ const ObraDetails = ({ obra: initialObra, obraId, error: initialError }: ObraDet
   // Obtener el ID correcto
   const obId = obra.id?.toString() || obra.documentId || obraId
   
-  // Contar productos (si hay relación)
-  const productos = data.productos?.data || data.products?.data || data.productos || data.products || []
-  const productosCount = Array.isArray(productos) ? productos.length : 0
+  // Contar productos (ediciones y materiales según schema)
+  const ediciones = data.ediciones?.data || data.ediciones || []
+  const materiales = data.materiales?.data || data.materiales || []
+  const productosCount = Array.isArray(ediciones) ? ediciones.length : 0
+  const materialesCount = Array.isArray(materiales) ? materiales.length : 0
+  const totalCount = productosCount + materialesCount
 
   const isPublished = !!(attrs.publishedAt || obra.publishedAt)
   const createdAt = attrs.createdAt || obra.createdAt || new Date().toISOString()
@@ -115,8 +118,9 @@ const ObraDetails = ({ obra: initialObra, obraId, error: initialError }: ObraDet
       const url = `/api/tienda/obras/${obId}`
       const body = JSON.stringify({
         data: {
-          nombre: formData.nombre, // El schema de Strapi usa 'nombre'
-          descripcion: formData.descripcion || null,
+          codigo_obra: formData.codigo_obra.trim(),
+          nombre_obra: formData.nombre_obra.trim(),
+          descripcion: formData.descripcion.trim() || null,
         },
       })
       
@@ -187,19 +191,39 @@ const ObraDetails = ({ obra: initialObra, obraId, error: initialError }: ObraDet
               <Col md={12}>
                 <FormGroup>
                   <FormLabel>
-                    Nombre de la Obra <span className="text-danger">*</span>
+                    Código de la Obra <span className="text-danger">*</span>
                   </FormLabel>
                   <FormControl
                     type="text"
-                    placeholder="Ej: Primera Edición, Segunda Edición"
-                    value={formData.nombre}
+                    placeholder="Ej: OBRA-001, ISBN-123456"
+                    value={formData.codigo_obra}
                     onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, nombre: e.target.value }))
+                      setFormData((prev) => ({ ...prev, codigo_obra: e.target.value }))
                     }
                     required
                   />
                   <small className="text-muted">
-                    Nombre de la obra que se mostrará en los productos
+                    Código único identificador de la obra (requerido).
+                  </small>
+                </FormGroup>
+              </Col>
+
+              <Col md={12}>
+                <FormGroup>
+                  <FormLabel>
+                    Nombre de la Obra <span className="text-danger">*</span>
+                  </FormLabel>
+                  <FormControl
+                    type="text"
+                    placeholder="Ej: Matemáticas 1, Lenguaje y Comunicación"
+                    value={formData.nombre_obra}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, nombre_obra: e.target.value }))
+                    }
+                    required
+                  />
+                  <small className="text-muted">
+                    Nombre completo de la obra (requerido).
                   </small>
                 </FormGroup>
               </Col>
@@ -209,15 +233,15 @@ const ObraDetails = ({ obra: initialObra, obraId, error: initialError }: ObraDet
                   <FormLabel>Descripción</FormLabel>
                   <FormControl
                     as="textarea"
-                    rows={3}
-                    placeholder="Descripción de la obra..."
+                    rows={4}
+                    placeholder="Descripción detallada de la obra..."
                     value={formData.descripcion}
                     onChange={(e) =>
                       setFormData((prev) => ({ ...prev, descripcion: e.target.value }))
                     }
                   />
                   <small className="text-muted">
-                    Opcional. Descripción de la obra
+                    Opcional. Descripción de la obra.
                   </small>
                 </FormGroup>
               </Col>
