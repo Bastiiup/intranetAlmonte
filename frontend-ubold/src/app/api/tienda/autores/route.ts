@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       autorData.data.foto = body.data.foto
     }
 
-    const response = await strapiClient.post('/api/autores', autorData)
+    const response = await strapiClient.post('/api/autores', autorData) as any
     
     console.log('[API Autores POST] ✅ Autor creado en Strapi:', response.id || response.documentId)
     
