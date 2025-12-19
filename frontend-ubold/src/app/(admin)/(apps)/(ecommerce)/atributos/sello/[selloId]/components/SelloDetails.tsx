@@ -79,10 +79,14 @@ const SelloDetails = ({ sello: initialSello, selloId, error: initialError }: Sel
     return []
   }
 
-  // Obtener datos de relaciones del sello
-  const editorialData = getRelationData(data.editorial)
-  const librosData = getRelationData(data.libros)
-  const coleccionesData = getRelationData(data.colecciones)
+  // Obtener datos de relaciones del sello (usar attrs si están disponibles)
+  const editorialRelation = attrs.editorial || data.editorial
+  const librosRelation = attrs.libros || data.libros
+  const coleccionesRelation = attrs.colecciones || data.colecciones
+  
+  const editorialData = getRelationData(editorialRelation)
+  const librosData = getRelationData(librosRelation)
+  const coleccionesData = getRelationData(coleccionesRelation)
 
   // Inicializar formData con los valores del sello según schema real
   const [formData, setFormData] = useState({
@@ -108,9 +112,12 @@ const SelloDetails = ({ sello: initialSello, selloId, error: initialError }: Sel
         nombre_sello: getField(data, 'nombre_sello', 'nombreSello', 'nombre', 'NOMBRE_SELLO', 'NAME') || '',
         acronimo: getField(data, 'acronimo', 'acronimo', 'ACRONIMO') || '',
         website: getField(data, 'website', 'website', 'WEBSITE') || '',
-        editorial: data.editorial?.data?.documentId || data.editorial?.data?.id || data.editorial?.documentId || data.editorial?.id || '',
-        libros: getRelationIds(data.libros),
-        colecciones: getRelationIds(data.colecciones),
+        editorial: (attrs.editorial || data.editorial)?.data?.documentId || 
+                   (attrs.editorial || data.editorial)?.data?.id || 
+                   (attrs.editorial || data.editorial)?.documentId || 
+                   (attrs.editorial || data.editorial)?.id || '',
+        libros: getRelationIds(attrs.libros || data.libros),
+        colecciones: getRelationIds(attrs.colecciones || data.colecciones),
         logo: null,
         logoUrl: data.logo?.data?.attributes?.url || data.logo?.url || null,
       })
