@@ -165,14 +165,9 @@ export async function POST(request: NextRequest) {
         throw new Error('La respuesta de WooCommerce no contiene un término válido')
       }
 
-      // Actualizar Strapi con el woocommerce_id
-      const updateData = {
-        data: {
-          woocommerce_id: wooCommerceTerm.id.toString()
-        }
-      }
-      await strapiClient.put<any>(`${obraEndpoint}/${documentId}`, updateData)
-      console.log('[API Obras POST] ✅ woocommerce_id guardado en Strapi')
+      // No guardamos woocommerce_id en Strapi porque no existe en el schema
+      // El match se hace usando documentId como slug en WooCommerce
+      console.log('[API Obras POST] ✅ Término creado en WooCommerce, match por documentId:', documentId)
     } catch (wooError: any) {
       // Manejar caso especial: término ya existe en WooCommerce
       if (wooError.code === 'term_exists' && wooError.details?.data?.resource_id) {
@@ -188,14 +183,9 @@ export async function POST(request: NextRequest) {
             slug: wooCommerceTerm.slug
           })
 
-          // Actualizar Strapi con el woocommerce_id del término existente
-          const updateData = {
-            data: {
-              woocommerce_id: wooCommerceTerm.id.toString()
-            }
-          }
-          await strapiClient.put<any>(`${obraEndpoint}/${documentId}`, updateData)
-          console.log('[API Obras POST] ✅ woocommerce_id de término existente guardado en Strapi')
+          // No guardamos woocommerce_id en Strapi porque no existe en el schema
+          // El match se hace usando documentId como slug en WooCommerce
+          console.log('[API Obras POST] ✅ Término existente encontrado en WooCommerce, match por documentId:', documentId)
         } catch (getError: any) {
           console.error('[API Obras POST] ❌ Error al obtener término existente de WooCommerce:', getError.message)
           // Si falla al obtener el término existente, eliminar de Strapi

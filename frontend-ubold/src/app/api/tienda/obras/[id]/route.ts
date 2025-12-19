@@ -349,10 +349,8 @@ export async function PUT(
     if (body.data.descripcion !== undefined) obraData.data.descripcion = body.data.descripcion || null
     if (body.data.description !== undefined) obraData.data.descripcion = body.data.description || null
 
-    // Si se creó en WooCommerce y no teníamos ID, guardarlo
-    if (wooCommerceTerm && !woocommerceId) {
-      obraData.data.woocommerce_id = wooCommerceTerm.id.toString()
-    }
+    // No guardamos woocommerce_id en Strapi porque no existe en el schema
+    // El match se hace usando documentId como slug en WooCommerce
 
     const strapiResponse = await strapiClient.put<any>(strapiEndpoint, obraData)
     console.log('[API Obras PUT] ✅ Obra actualizada en Strapi')
