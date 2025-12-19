@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Card, CardBody, CardHeader, CardTitle, Button, Badge, Alert, Spinner } from 'react-bootstrap'
-import { LuTruck, LuRefreshCw, LuExternalLink, LuCheckCircle, LuXCircle, LuAlertCircle } from 'react-icons/lu'
+import { LuTruck, LuRefreshCw, LuExternalLink } from 'react-icons/lu'
 import { getShipitIdFromOrder, getShipitTrackingFromOrder } from '@/lib/shipit/utils'
 
 interface ShipitInfoProps {
