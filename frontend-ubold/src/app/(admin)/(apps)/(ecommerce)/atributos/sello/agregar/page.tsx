@@ -1,13 +1,12 @@
 import { Container } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import AddTipoLibroForm from '../components/AddTipoLibroForm'
+import AddSelloForm from '../components/AddSelloForm'
 
 export default function Page() {
   return (
     <Container fluid>
-      <PageBreadcrumb title="Agregar Tipo de Libro" subtitle="Ecommerce" />
-      <AddTipoLibroForm />
+      <PageBreadcrumb title="Agregar Sello" subtitle="Ecommerce" />
+      <AddSelloForm />
     </Container>
   )
 }
-

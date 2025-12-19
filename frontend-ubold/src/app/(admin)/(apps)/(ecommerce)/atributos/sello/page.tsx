@@ -3,17 +3,17 @@ import { headers } from 'next/headers'
 import type { Metadata } from 'next'
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import TipoLibroListing from './components/TipoLibroListing'
+import SellosListing from './components/SellosListing'
 
 // Forzar renderizado dinámico
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Todos los Tipos de Libro',
+  title: 'Todos los Sellos',
 }
 
 export default async function Page() {
-  let tipoLibros: any[] = []
+  let sellos: any[] = []
   let error: string | null = null
 
   try {
@@ -23,29 +23,28 @@ export default async function Page() {
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
     const baseUrl = `${protocol}://${host}`
     
-    const response = await fetch(`${baseUrl}/api/tienda/tipo-libro`, {
+    const response = await fetch(`${baseUrl}/api/tienda/sello`, {
       cache: 'no-store', // Forzar fetch dinámico
     })
     
     const data = await response.json()
     
     if (data.success && data.data) {
-      tipoLibros = Array.isArray(data.data) ? data.data : [data.data]
-      console.log('[Tipo Libro Page] Tipos de libro obtenidos:', tipoLibros.length)
+      sellos = Array.isArray(data.data) ? data.data : [data.data]
+      console.log('[Sellos Page] Sellos obtenidos:', sellos.length)
     } else {
-      error = data.error || 'Error al obtener tipos de libro'
-      console.error('[Tipo Libro Page] Error en respuesta:', data)
+      error = data.error || 'Error al obtener sellos'
+      console.error('[Sellos Page] Error en respuesta:', data)
     }
   } catch (err: any) {
     error = err.message || 'Error al conectar con la API'
-    console.error('[Tipo Libro Page] Error al obtener tipos de libro:', err)
+    console.error('[Sellos Page] Error al obtener sellos:', err)
   }
 
   return (
     <Container fluid>
-      <PageBreadcrumb title="Todos los Tipos de Libro" subtitle="Ecommerce" />
-      <TipoLibroListing tipoLibros={tipoLibros} error={error} />
+      <PageBreadcrumb title="Todos los Sellos" subtitle="Ecommerce" />
+      <SellosListing sellos={sellos} error={error} />
     </Container>
   )
 }
-

@@ -144,8 +144,8 @@ export const menuItems: MenuItemType[] = [
             children: [
               { key: 'all-obras', label: 'Todas las Obras', url: '/atributos/obras' },
               { key: 'add-obra', label: 'Agregar Obra', url: '/atributos/obras/agregar' },
-              { key: 'all-tipo-libro', label: 'Todos los Tipos de Libro', url: '/atributos/tipo-libro' },
-              { key: 'add-tipo-libro', label: 'Agregar Tipo de Libro', url: '/atributos/tipo-libro/agregar' },
+              { key: 'all-sellos', label: 'Todos los Sellos', url: '/atributos/sello' },
+              { key: 'add-sello', label: 'Agregar Sello', url: '/atributos/sello/agregar' },
             ],
           },
           { key: 'product-requests', label: 'Solicitudes de Productos', url: '/products/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },

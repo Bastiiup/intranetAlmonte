@@ -6,9 +6,9 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { LuSave, LuX } from 'react-icons/lu'
 
-interface TipoLibroDetailsProps {
-  tipoLibro: any
-  tipoLibroId: string
+interface SelloDetailsProps {
+  sello: any
+  selloId: string
   error?: string | null
 }
 
@@ -22,22 +22,22 @@ const getField = (obj: any, ...fieldNames: string[]): any => {
   return undefined
 }
 
-const TipoLibroDetails = ({ tipoLibro: initialTipoLibro, tipoLibroId, error: initialError }: TipoLibroDetailsProps) => {
+const SelloDetails = ({ sello: initialSello, selloId, error: initialError }: SelloDetailsProps) => {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(initialError || null)
   const [success, setSuccess] = useState(false)
-  const [tipoLibro, setTipoLibro] = useState(initialTipoLibro)
+  const [sello, setSello] = useState(initialSello)
   
-  if (!tipoLibro && !initialError) {
+  if (!sello && !initialError) {
     return (
       <Alert variant="warning">
-        <strong>Cargando...</strong> Obteniendo información del tipo de libro.
+        <strong>Cargando...</strong> Obteniendo información del sello.
       </Alert>
     )
   }
 
-  if (initialError && !tipoLibro) {
+  if (initialError && !sello) {
     return (
       <Alert variant="danger">
         <strong>Error:</strong> {initialError}
@@ -45,62 +45,62 @@ const TipoLibroDetails = ({ tipoLibro: initialTipoLibro, tipoLibroId, error: ini
     )
   }
   
-  const attrs = tipoLibro.attributes || {}
-  const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (tipoLibro as any)
+  const attrs = sello.attributes || {}
+  const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (sello as any)
 
-  // Inicializar formData con los valores del tipo de libro según schema real
+  // Inicializar formData con los valores del sello según schema real
   const [formData, setFormData] = useState({
-    codigo_tipo_libro: getField(data, 'codigo_tipo_libro', 'codigoTipoLibro', 'codigo', 'CODIGO_TIPO_LIBRO') || '',
-    nombre_tipo_libro: getField(data, 'nombre_tipo_libro', 'nombreTipoLibro', 'nombre', 'NOMBRE_TIPO_LIBRO', 'NAME') || '',
+    codigo_sello: getField(data, 'codigo_sello', 'codigoSello', 'codigo', 'CODIGO_SELLO') || '',
+    nombre_sello: getField(data, 'nombre_sello', 'nombreSello', 'nombre', 'NOMBRE_SELLO', 'NAME') || '',
     descripcion: getField(data, 'descripcion', 'description', 'DESCRIPCION', 'DESCRIPTION') || '',
   })
 
-  // Actualizar formData cuando cambie el tipo de libro
+  // Actualizar formData cuando cambie el sello
   useEffect(() => {
-    if (tipoLibro) {
-      const attrs = tipoLibro.attributes || {}
-      const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (tipoLibro as any)
+    if (sello) {
+      const attrs = sello.attributes || {}
+      const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (sello as any)
       
       setFormData({
-        codigo_tipo_libro: getField(data, 'codigo_tipo_libro', 'codigoTipoLibro', 'codigo', 'CODIGO_TIPO_LIBRO') || '',
-        nombre_tipo_libro: getField(data, 'nombre_tipo_libro', 'nombreTipoLibro', 'nombre', 'NOMBRE_TIPO_LIBRO', 'NAME') || '',
+        codigo_sello: getField(data, 'codigo_sello', 'codigoSello', 'codigo', 'CODIGO_SELLO') || '',
+        nombre_sello: getField(data, 'nombre_sello', 'nombreSello', 'nombre', 'NOMBRE_SELLO', 'NAME') || '',
         descripcion: getField(data, 'descripcion', 'description', 'DESCRIPCION', 'DESCRIPTION') || '',
       })
     }
-  }, [tipoLibro])
+  }, [sello])
 
   // Obtener el ID correcto
-  const tlId = tipoLibro.id?.toString() || tipoLibro.documentId || tipoLibroId
+  const sId = sello.id?.toString() || sello.documentId || selloId
   
   // Contar productos asociados (si hay relación)
   const productos = data.productos?.data || data.products?.data || data.productos || data.products || []
   const productosCount = Array.isArray(productos) ? productos.length : 0
 
-  const isPublished = !!(attrs.publishedAt || tipoLibro.publishedAt)
-  const createdAt = attrs.createdAt || tipoLibro.createdAt || new Date().toISOString()
+  const isPublished = !!(attrs.publishedAt || sello.publishedAt)
+  const createdAt = attrs.createdAt || sello.createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
-  const updatedAt = attrs.updatedAt || tipoLibro.updatedAt || new Date().toISOString()
+  const updatedAt = attrs.updatedAt || sello.updatedAt || new Date().toISOString()
   const updatedDate = new Date(updatedAt)
   
-  // Validar que tipoLibro existe
-  if (!tipoLibro) {
+  // Validar que sello existe
+  if (!sello) {
     return (
       <Alert variant="warning">
-        <strong>Error:</strong> No se pudo cargar la información del tipo de libro.
+        <strong>Error:</strong> No se pudo cargar la información del sello.
       </Alert>
     )
   }
 
   // Validar que tenemos un ID válido
-  if (!tlId || tlId === 'unknown') {
-    console.error('[TipoLibroDetails] No se pudo obtener un ID válido del tipo de libro:', {
-      id: tipoLibro.id,
-      documentId: tipoLibro.documentId,
-      tipoLibro: tipoLibro,
+  if (!sId || sId === 'unknown') {
+    console.error('[SelloDetails] No se pudo obtener un ID válido del sello:', {
+      id: sello.id,
+      documentId: sello.documentId,
+      sello: sello,
     })
     return (
       <Alert variant="danger">
-        <strong>Error:</strong> No se pudo obtener el ID del tipo de libro.
+        <strong>Error:</strong> No se pudo obtener el ID del sello.
       </Alert>
     )
   }
@@ -112,11 +112,11 @@ const TipoLibroDetails = ({ tipoLibro: initialTipoLibro, tipoLibroId, error: ini
     setSuccess(false)
 
     try {
-      const url = `/api/tienda/tipo-libro/${tlId}`
+      const url = `/api/tienda/sello/${sId}`
       const body = JSON.stringify({
         data: {
-          codigo_tipo_libro: formData.codigo_tipo_libro.trim(),
-          nombre_tipo_libro: formData.nombre_tipo_libro.trim(),
+          codigo_sello: formData.codigo_sello.trim(),
+          nombre_sello: formData.nombre_sello.trim(),
           descripcion: formData.descripcion.trim() || null,
         },
       })
@@ -145,7 +145,7 @@ const TipoLibroDetails = ({ tipoLibro: initialTipoLibro, tipoLibroId, error: ini
       
       // Actualizar el estado local con los datos actualizados de la respuesta
       if (result.data) {
-        setTipoLibro(result.data.strapi || result.data)
+        setSello(result.data.strapi || result.data)
       }
       
       // Ocultar el mensaje de éxito después de 2 segundos
@@ -155,8 +155,8 @@ const TipoLibroDetails = ({ tipoLibro: initialTipoLibro, tipoLibroId, error: ini
     } catch (err: any) {
       const errorMessage = err.message || 'Error al guardar cambios'
       setError(errorMessage)
-      console.error('[TipoLibroDetails] Error al guardar:', {
-        tlId,
+      console.error('[SelloDetails] Error al guardar:', {
+        sId,
         error: errorMessage,
         err,
       })
@@ -169,7 +169,7 @@ const TipoLibroDetails = ({ tipoLibro: initialTipoLibro, tipoLibroId, error: ini
     <div>
       <Card>
         <CardHeader>
-          <h5 className="mb-0">Editar Tipo de Libro</h5>
+          <h5 className="mb-0">Editar Sello</h5>
         </CardHeader>
         <CardBody>
           {error && (
@@ -188,19 +188,19 @@ const TipoLibroDetails = ({ tipoLibro: initialTipoLibro, tipoLibroId, error: ini
               <Col md={12}>
                 <FormGroup>
                   <FormLabel>
-                    Código del Tipo de Libro <span className="text-danger">*</span>
+                    Código del Sello <span className="text-danger">*</span>
                   </FormLabel>
                   <FormControl
                     type="text"
-                    placeholder="Ej: TIPO-001, TEXT-001"
-                    value={formData.codigo_tipo_libro}
+                    placeholder="Ej: SELLO-001, SELLO-002"
+                    value={formData.codigo_sello}
                     onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, codigo_tipo_libro: e.target.value }))
+                      setFormData((prev) => ({ ...prev, codigo_sello: e.target.value }))
                     }
                     required
                   />
                   <small className="text-muted">
-                    Código único identificador del tipo de libro (requerido).
+                    Código único identificador del sello (requerido).
                   </small>
                 </FormGroup>
               </Col>
@@ -208,19 +208,19 @@ const TipoLibroDetails = ({ tipoLibro: initialTipoLibro, tipoLibroId, error: ini
               <Col md={12}>
                 <FormGroup>
                   <FormLabel>
-                    Nombre del Tipo de Libro <span className="text-danger">*</span>
+                    Nombre del Sello <span className="text-danger">*</span>
                   </FormLabel>
                   <FormControl
                     type="text"
-                    placeholder="Ej: Texto del Estudiante, Guía del Profesor"
-                    value={formData.nombre_tipo_libro}
+                    placeholder="Ej: Sello Editorial, Sello Académico"
+                    value={formData.nombre_sello}
                     onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, nombre_tipo_libro: e.target.value }))
+                      setFormData((prev) => ({ ...prev, nombre_sello: e.target.value }))
                     }
                     required
                   />
                   <small className="text-muted">
-                    Nombre completo del tipo de libro (requerido).
+                    Nombre completo del sello (requerido).
                   </small>
                 </FormGroup>
               </Col>
@@ -231,14 +231,14 @@ const TipoLibroDetails = ({ tipoLibro: initialTipoLibro, tipoLibroId, error: ini
                   <FormControl
                     as="textarea"
                     rows={4}
-                    placeholder="Descripción detallada del tipo de libro..."
+                    placeholder="Descripción detallada del sello..."
                     value={formData.descripcion}
                     onChange={(e) =>
                       setFormData((prev) => ({ ...prev, descripcion: e.target.value }))
                     }
                   />
                   <small className="text-muted">
-                    Opcional. Descripción del tipo de libro.
+                    Opcional. Descripción del sello.
                   </small>
                 </FormGroup>
               </Col>
@@ -322,5 +322,5 @@ const TipoLibroDetails = ({ tipoLibro: initialTipoLibro, tipoLibroId, error: ini
   )
 }
 
-export default TipoLibroDetails
+export default SelloDetails
 

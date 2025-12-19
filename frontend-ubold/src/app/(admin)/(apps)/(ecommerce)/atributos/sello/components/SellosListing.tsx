@@ -26,7 +26,7 @@ import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 
 // Tipo para la tabla
-type TipoLibroType = {
+type SelloType = {
   id: number
   name: string
   description: string
@@ -47,69 +47,69 @@ const getField = (obj: any, ...fieldNames: string[]): any => {
   return undefined
 }
 
-// Función para mapear tipos de libro de Strapi al formato TipoLibroType
-const mapStrapiTipoLibroToTipoLibroType = (tipoLibro: any): TipoLibroType => {
+// Función para mapear sellos de Strapi al formato SelloType
+const mapStrapiSelloToSelloType = (sello: any): SelloType => {
   // Los datos pueden venir en attributes o directamente
-  const attrs = tipoLibro.attributes || {}
-  const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (tipoLibro as any)
+  const attrs = sello.attributes || {}
+  const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (sello as any)
 
-  // Obtener nombre_tipo_libro (schema real de Strapi)
-  const nombre = getField(data, 'nombre_tipo_libro', 'nombreTipoLibro', 'nombre', 'NOMBRE_TIPO_LIBRO', 'NAME') || 'Sin nombre'
+  // Obtener nombre_sello (schema real de Strapi)
+  const nombre = getField(data, 'nombre_sello', 'nombreSello', 'nombre', 'NOMBRE_SELLO', 'NAME') || 'Sin nombre'
   
   // Obtener descripción
   const descripcion = getField(data, 'descripcion', 'description', 'DESCRIPCION', 'DESCRIPTION') || ''
   
   // Obtener estado (usa publishedAt para determinar si está publicado)
-  const isPublished = !!(attrs.publishedAt || (tipoLibro as any).publishedAt)
+  const isPublished = !!(attrs.publishedAt || (sello as any).publishedAt)
   
   // Contar productos asociados (si hay relación)
   const productos = data.productos?.data || data.products?.data || data.productos || data.products || []
   const productosCount = Array.isArray(productos) ? productos.length : 0
   
   // Obtener fechas
-  const createdAt = attrs.createdAt || (tipoLibro as any).createdAt || new Date().toISOString()
+  const createdAt = attrs.createdAt || (sello as any).createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
   
   return {
-    id: tipoLibro.id || tipoLibro.documentId || tipoLibro.id,
+    id: sello.id || sello.documentId || sello.id,
     name: nombre,
     description: descripcion,
     products: productosCount,
     status: isPublished ? 'active' : 'inactive',
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
-    url: `/atributos/tipo-libro/${tipoLibro.id || tipoLibro.documentId || tipoLibro.id}`,
+    url: `/atributos/sello/${sello.id || sello.documentId || sello.id}`,
   }
 }
 
-interface TipoLibroListingProps {
-  tipoLibros?: any[]
+interface SellosListingProps {
+  sellos?: any[]
   error?: string | null
 }
 
-const columnHelper = createColumnHelper<TipoLibroType>()
+const columnHelper = createColumnHelper<SelloType>()
 
-const TipoLibroListing = ({ tipoLibros, error }: TipoLibroListingProps = {}) => {
+const SellosListing = ({ sellos, error }: SellosListingProps = {}) => {
   const router = useRouter()
   
-  // Mapear tipos de libro de Strapi al formato TipoLibroType si están disponibles
-  const mappedTipoLibros = useMemo(() => {
-    if (tipoLibros && tipoLibros.length > 0) {
-      console.log('[TipoLibroListing] Tipos de libro recibidos:', tipoLibros.length)
-      const mapped = tipoLibros.map(mapStrapiTipoLibroToTipoLibroType)
-      console.log('[TipoLibroListing] Tipos de libro mapeados:', mapped.length)
+  // Mapear sellos de Strapi al formato SelloType si están disponibles
+  const mappedSellos = useMemo(() => {
+    if (sellos && sellos.length > 0) {
+      console.log('[SellosListing] Sellos recibidos:', sellos.length)
+      const mapped = sellos.map(mapStrapiSelloToSelloType)
+      console.log('[SellosListing] Sellos mapeados:', mapped.length)
       return mapped
     }
-    console.log('[TipoLibroListing] No hay tipos de libro de Strapi')
+    console.log('[SellosListing] No hay sellos de Strapi')
     return []
-  }, [tipoLibros])
+  }, [sellos])
 
-  const columns: ColumnDef<TipoLibroType, any>[] = [
+  const columns: ColumnDef<SelloType, any>[] = [
     {
       id: 'select',
       maxSize: 45,
       size: 45,
-      header: ({ table }: { table: TableType<TipoLibroType> }) => (
+      header: ({ table }: { table: TableType<SelloType> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -117,7 +117,7 @@ const TipoLibroListing = ({ tipoLibros, error }: TipoLibroListingProps = {}) => 
           onChange={table.getToggleAllRowsSelectedHandler()}
         />
       ),
-      cell: ({ row }: { row: TableRow<TipoLibroType> }) => (
+      cell: ({ row }: { row: TableRow<SelloType> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -129,16 +129,16 @@ const TipoLibroListing = ({ tipoLibros, error }: TipoLibroListingProps = {}) => 
       enableColumnFilter: false,
     },
     columnHelper.accessor('name', {
-      header: 'Tipo de Libro',
+      header: 'Sello',
       cell: ({ row }) => {
         return (
           <div className="d-flex">
             <div className="avatar-md me-3 bg-light d-flex align-items-center justify-content-center rounded">
-              <span className="text-muted fs-xs">📖</span>
+              <span className="text-muted fs-xs">🏷️</span>
             </div>
             <div>
               <h5 className="mb-0">
-                <Link href={`/atributos/tipo-libro/${row.original.id}`} className="link-reset">
+                <Link href={`/atributos/sello/${row.original.id}`} className="link-reset">
                   {row.original.name || 'Sin nombre'}
                 </Link>
               </h5>
@@ -182,14 +182,14 @@ const TipoLibroListing = ({ tipoLibros, error }: TipoLibroListingProps = {}) => 
     }),
     {
       header: 'Acciones',
-      cell: ({ row }: { row: TableRow<TipoLibroType> }) => (
+      cell: ({ row }: { row: TableRow<SelloType> }) => (
         <div className="d-flex gap-1">
-          <Link href={`/atributos/tipo-libro/${row.original.id}`}>
+          <Link href={`/atributos/sello/${row.original.id}`}>
             <Button variant="default" size="sm" className="btn-icon rounded-circle">
               <TbEye className="fs-lg" />
             </Button>
           </Link>
-          <Link href={`/atributos/tipo-libro/${row.original.id}`}>
+          <Link href={`/atributos/sello/${row.original.id}`}>
             <Button
               variant="default"
               size="sm"
@@ -213,7 +213,7 @@ const TipoLibroListing = ({ tipoLibros, error }: TipoLibroListingProps = {}) => 
     },
   ]
 
-  const [data, setData] = useState<TipoLibroType[]>([])
+  const [data, setData] = useState<SelloType[]>([])
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -224,7 +224,7 @@ const TipoLibroListing = ({ tipoLibros, error }: TipoLibroListingProps = {}) => 
   // Estado para el orden de columnas
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('tipo-libro-column-order')
+      const saved = localStorage.getItem('sellos-column-order')
       if (saved) {
         try {
           return JSON.parse(saved)
@@ -240,18 +240,18 @@ const TipoLibroListing = ({ tipoLibros, error }: TipoLibroListingProps = {}) => 
   const handleColumnOrderChange = (newOrder: string[]) => {
     setColumnOrder(newOrder)
     if (typeof window !== 'undefined') {
-      localStorage.setItem('tipo-libro-column-order', JSON.stringify(newOrder))
+      localStorage.setItem('sellos-column-order', JSON.stringify(newOrder))
     }
   }
 
-  // Actualizar datos cuando cambien los tipos de libro de Strapi
+  // Actualizar datos cuando cambien los sellos de Strapi
   useEffect(() => {
-    console.log('[TipoLibroListing] useEffect - tipoLibros:', tipoLibros?.length, 'mappedTipoLibros:', mappedTipoLibros.length)
-    setData(mappedTipoLibros)
-    console.log('[TipoLibroListing] Datos actualizados. Total:', mappedTipoLibros.length)
-  }, [mappedTipoLibros, tipoLibros])
+    console.log('[SellosListing] useEffect - sellos:', sellos?.length, 'mappedSellos:', mappedSellos.length)
+    setData(mappedSellos)
+    console.log('[SellosListing] Datos actualizados. Total:', mappedSellos.length)
+  }, [mappedSellos, sellos])
 
-  const table = useReactTable<TipoLibroType>({
+  const table = useReactTable<SelloType>({
     data,
     columns,
     state: { sorting, globalFilter, columnFilters, pagination, rowSelection: selectedRowIds, columnOrder },
@@ -288,13 +288,13 @@ const TipoLibroListing = ({ tipoLibros, error }: TipoLibroListingProps = {}) => 
     const idsToDelete = selectedIds.map(id => data[parseInt(id)]?.id).filter(Boolean)
     
     try {
-      // Eliminar cada tipo de libro seleccionado
-      for (const tipoLibroId of idsToDelete) {
-        const response = await fetch(`/api/tienda/tipo-libro/${tipoLibroId}`, {
+      // Eliminar cada sello seleccionado
+      for (const selloId of idsToDelete) {
+        const response = await fetch(`/api/tienda/sello/${selloId}`, {
           method: 'DELETE',
         })
         if (!response.ok) {
-          throw new Error(`Error al eliminar tipo de libro ${tipoLibroId}`)
+          throw new Error(`Error al eliminar sello ${selloId}`)
         }
       }
       
@@ -307,21 +307,21 @@ const TipoLibroListing = ({ tipoLibros, error }: TipoLibroListingProps = {}) => 
       // Recargar la página para reflejar cambios
       router.refresh()
     } catch (error) {
-      console.error('Error al eliminar tipos de libro:', error)
-      alert('Error al eliminar los tipos de libro seleccionados')
+      console.error('Error al eliminar sellos:', error)
+      alert('Error al eliminar los sellos seleccionados')
     }
   }
 
   // Mostrar error si existe
   const hasError = !!error
-  const hasData = mappedTipoLibros.length > 0
+  const hasData = mappedSellos.length > 0
   
   if (hasError && !hasData) {
     return (
       <Row>
         <Col xs={12}>
           <Alert variant="warning">
-            <strong>Error al cargar tipos de libro desde Strapi:</strong> {error}
+            <strong>Error al cargar sellos desde Strapi:</strong> {error}
             <br />
             <small className="text-muted">
               Verifica que:
@@ -339,7 +339,7 @@ const TipoLibroListing = ({ tipoLibros, error }: TipoLibroListingProps = {}) => 
   
   // Si hay error pero también hay datos, mostrar advertencia pero continuar
   if (hasError && hasData) {
-    console.warn('[TipoLibroListing] Error al cargar desde Strapi, usando datos disponibles:', error)
+    console.warn('[SellosListing] Error al cargar desde Strapi, usando datos disponibles:', error)
   }
 
   return (
@@ -352,7 +352,7 @@ const TipoLibroListing = ({ tipoLibros, error }: TipoLibroListingProps = {}) => 
                 <input
                   type="search"
                   className="form-control"
-                  placeholder="Buscar tipo de libro..."
+                  placeholder="Buscar sello..."
                   value={globalFilter ?? ''}
                   onChange={(e) => setGlobalFilter(e.target.value)}
                 />
@@ -396,7 +396,7 @@ const TipoLibroListing = ({ tipoLibros, error }: TipoLibroListingProps = {}) => 
             </div>
 
             <div className="d-flex gap-1">
-              <Link passHref href="/atributos/tipo-libro">
+              <Link passHref href="/atributos/sello">
                 <Button variant="outline-primary" className="btn-icon btn-soft-primary">
                   <TbLayoutGrid className="fs-lg" />
                 </Button>
@@ -404,15 +404,15 @@ const TipoLibroListing = ({ tipoLibros, error }: TipoLibroListingProps = {}) => 
               <Button variant="primary" className="btn-icon">
                 <TbList className="fs-lg" />
               </Button>
-              <Link href="/atributos/tipo-libro/agregar" passHref>
+              <Link href="/atributos/sello/agregar" passHref>
                 <Button variant="danger" className="ms-1">
-                  <TbPlus className="fs-sm me-2" /> Agregar Tipo de Libro
+                  <TbPlus className="fs-sm me-2" /> Agregar Sello
                 </Button>
               </Link>
             </div>
           </CardHeader>
 
-          <DataTable<TipoLibroType>
+          <DataTable<SelloType>
             table={table}
             emptyMessage="No se encontraron registros"
             enableColumnReordering={true}
@@ -425,7 +425,7 @@ const TipoLibroListing = ({ tipoLibros, error }: TipoLibroListingProps = {}) => 
                 totalItems={totalItems}
                 start={start}
                 end={end}
-                itemsName="tipos de libro"
+                itemsName="sellos"
                 showInfo
                 previousPage={table.previousPage}
                 canPreviousPage={table.getCanPreviousPage()}
@@ -443,7 +443,7 @@ const TipoLibroListing = ({ tipoLibros, error }: TipoLibroListingProps = {}) => 
             onHide={toggleDeleteModal}
             onConfirm={handleDelete}
             selectedCount={Object.keys(selectedRowIds).length}
-            itemName="tipo de libro"
+            itemName="sello"
           />
         </Card>
       </Col>
@@ -451,5 +451,5 @@ const TipoLibroListing = ({ tipoLibros, error }: TipoLibroListingProps = {}) => 
   )
 }
 
-export default TipoLibroListing
+export default SellosListing
 

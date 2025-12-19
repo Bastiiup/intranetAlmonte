@@ -5,14 +5,14 @@ import { useRouter } from 'next/navigation'
 import { Card, CardHeader, CardBody, Form, Button, Row, Col, FormGroup, FormLabel, FormControl, Alert } from 'react-bootstrap'
 import { LuSave, LuX } from 'react-icons/lu'
 
-const AddTipoLibroForm = () => {
+const AddSelloForm = () => {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [formData, setFormData] = useState({
-    codigo_tipo_libro: '',
-    nombre_tipo_libro: '',
+    codigo_sello: '',
+    nombre_sello: '',
     descripcion: '',
   })
 
@@ -24,53 +24,53 @@ const AddTipoLibroForm = () => {
 
     try {
       // Validaciones
-      if (!formData.codigo_tipo_libro.trim()) {
-        throw new Error('El código del tipo de libro es obligatorio')
+      if (!formData.codigo_sello.trim()) {
+        throw new Error('El código del sello es obligatorio')
       }
 
-      if (!formData.nombre_tipo_libro.trim()) {
-        throw new Error('El nombre del tipo de libro es obligatorio')
+      if (!formData.nombre_sello.trim()) {
+        throw new Error('El nombre del sello es obligatorio')
       }
 
       // Preparar datos para Strapi según schema real
-      const tipoLibroData: any = {
+      const selloData: any = {
         data: {
-          codigo_tipo_libro: formData.codigo_tipo_libro.trim(),
-          nombre_tipo_libro: formData.nombre_tipo_libro.trim(),
+          codigo_sello: formData.codigo_sello.trim(),
+          nombre_sello: formData.nombre_sello.trim(),
           descripcion: formData.descripcion.trim() || null,
         },
       }
 
-      console.log('[AddTipoLibroForm] Enviando datos:', tipoLibroData)
+      console.log('[AddSelloForm] Enviando datos:', selloData)
 
-      // Crear el tipo de libro
-      const response = await fetch('/api/tienda/tipo-libro', {
+      // Crear el sello
+      const response = await fetch('/api/tienda/sello', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(tipoLibroData),
+        body: JSON.stringify(selloData),
       })
 
       const result = await response.json()
 
-      console.log('[AddTipoLibroForm] Respuesta:', { response: response.status, result })
+      console.log('[AddSelloForm] Respuesta:', { response: response.status, result })
 
       if (!response.ok) {
-        throw new Error(result.error || 'Error al crear el tipo de libro')
+        throw new Error(result.error || 'Error al crear el sello')
       }
 
       if (!result.success) {
-        throw new Error(result.error || 'Error al crear el tipo de libro')
+        throw new Error(result.error || 'Error al crear el sello')
       }
 
       setSuccess(true)
       setTimeout(() => {
-        router.push('/atributos/tipo-libro')
+        router.push('/atributos/sello')
       }, 1500)
     } catch (err: any) {
-      console.error('[AddTipoLibroForm] Error al crear tipo de libro:', err)
-      setError(err.message || 'Error al crear el tipo de libro')
+      console.error('[AddSelloForm] Error al crear sello:', err)
+      setError(err.message || 'Error al crear el sello')
     } finally {
       setLoading(false)
     }
@@ -79,9 +79,9 @@ const AddTipoLibroForm = () => {
   return (
     <Card>
       <CardHeader>
-        <h5 className="mb-0">Agregar Nuevo Tipo de Libro</h5>
+        <h5 className="mb-0">Agregar Nuevo Sello</h5>
         <p className="text-muted mb-0 mt-2 small">
-          Completa los campos requeridos para crear un nuevo tipo de libro en el sistema.
+          Completa los campos requeridos para crear un nuevo sello en el sistema.
         </p>
       </CardHeader>
       <CardBody>
@@ -92,7 +92,7 @@ const AddTipoLibroForm = () => {
         )}
         {success && (
           <Alert variant="success">
-            ¡Tipo de libro creado exitosamente! Redirigiendo...
+            ¡Sello creado exitosamente! Redirigiendo...
           </Alert>
         )}
 
@@ -101,19 +101,19 @@ const AddTipoLibroForm = () => {
             <Col md={12}>
               <FormGroup>
                 <FormLabel>
-                  Código del Tipo de Libro <span className="text-danger">*</span>
+                  Código del Sello <span className="text-danger">*</span>
                 </FormLabel>
                 <FormControl
                   type="text"
-                  placeholder="Ej: TIPO-001, TEXT-001"
-                  value={formData.codigo_tipo_libro}
+                  placeholder="Ej: SELLO-001, SELLO-002"
+                  value={formData.codigo_sello}
                   onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, codigo_tipo_libro: e.target.value }))
+                    setFormData((prev) => ({ ...prev, codigo_sello: e.target.value }))
                   }
                   required
                 />
                 <small className="text-muted">
-                  Código único identificador del tipo de libro (requerido).
+                  Código único identificador del sello (requerido).
                 </small>
               </FormGroup>
             </Col>
@@ -121,19 +121,19 @@ const AddTipoLibroForm = () => {
             <Col md={12}>
               <FormGroup>
                 <FormLabel>
-                  Nombre del Tipo de Libro <span className="text-danger">*</span>
+                  Nombre del Sello <span className="text-danger">*</span>
                 </FormLabel>
                 <FormControl
                   type="text"
-                  placeholder="Ej: Texto del Estudiante, Guía del Profesor"
-                  value={formData.nombre_tipo_libro}
+                  placeholder="Ej: Sello Editorial, Sello Académico"
+                  value={formData.nombre_sello}
                   onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, nombre_tipo_libro: e.target.value }))
+                    setFormData((prev) => ({ ...prev, nombre_sello: e.target.value }))
                   }
                   required
                 />
                 <small className="text-muted">
-                  Nombre completo del tipo de libro (requerido).
+                  Nombre completo del sello (requerido).
                 </small>
               </FormGroup>
             </Col>
@@ -144,14 +144,14 @@ const AddTipoLibroForm = () => {
                 <FormControl
                   as="textarea"
                   rows={4}
-                  placeholder="Descripción detallada del tipo de libro..."
+                  placeholder="Descripción detallada del sello..."
                   value={formData.descripcion}
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, descripcion: e.target.value }))
                   }
                 />
                 <small className="text-muted">
-                  Descripción opcional del tipo de libro.
+                  Descripción opcional del sello.
                 </small>
               </FormGroup>
             </Col>
@@ -164,7 +164,7 @@ const AddTipoLibroForm = () => {
               disabled={loading}
             >
               <LuSave className="fs-sm me-2" />
-              {loading ? 'Guardando...' : 'Guardar Tipo de Libro'}
+              {loading ? 'Guardando...' : 'Guardar Sello'}
             </Button>
             <Button
               type="button"
@@ -181,5 +181,4 @@ const AddTipoLibroForm = () => {
   )
 }
 
-export default AddTipoLibroForm
-
+export default AddSelloForm
