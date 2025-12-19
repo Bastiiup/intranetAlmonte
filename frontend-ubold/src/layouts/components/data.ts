@@ -142,6 +142,8 @@ export const menuItems: MenuItemType[] = [
             key: 'atributos',
             label: 'Atributos',
             children: [
+              { key: 'all-autores', label: 'Todos los Autores', url: '/products/atributos/autores' },
+              { key: 'add-autor', label: 'Agregar Autor', url: '/products/atributos/autores/agregar' },
               { key: 'all-obras', label: 'Todas las Obras', url: '/atributos/obras' },
               { key: 'add-obra', label: 'Agregar Obra', url: '/atributos/obras/agregar' },
               { key: 'all-sellos', label: 'Todos los Sellos', url: '/atributos/sello' },
@@ -265,6 +267,8 @@ export const horizontalMenuItems: MenuItemType[] = [
                 key: 'atributos',
                 label: 'Atributos',
                 children: [
+                  { key: 'all-autores', label: 'Todos los Autores', url: '/products/atributos/autores' },
+                  { key: 'add-autor', label: 'Agregar Autor', url: '/products/atributos/autores/agregar' },
                   { key: 'all-obras', label: 'Todas las Obras', url: '/atributos/obras' },
                   { key: 'add-obra', label: 'Agregar Obra', url: '/atributos/obras/agregar' },
                   { key: 'all-tipo-libro', label: 'Todos los Tipos de Libro', url: '/atributos/tipo-libro' },
