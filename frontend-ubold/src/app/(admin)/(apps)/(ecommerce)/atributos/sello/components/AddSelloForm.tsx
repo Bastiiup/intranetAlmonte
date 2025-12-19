@@ -286,7 +286,8 @@ const AddSelloForm = () => {
                         type="file"
                         accept="image/*"
                         onChange={(e) => {
-                          const file = e.target.files?.[0]
+                          const target = e.target as HTMLInputElement
+                          const file = target.files?.[0]
                           if (file) {
                             setFormData((prev) => ({ ...prev, logo: file }))
                           }
