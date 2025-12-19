@@ -67,6 +67,7 @@ export default function AddProductPage() {
 
       // Subir imagen primero si hay una
       let portadaLibroId: number | null = null
+      let portadaLibroUrl: string | null = null
       if (formData.portada_libro) {
         console.log('[AddProduct] Subiendo imagen...')
         const uploadFormData = new FormData()
@@ -79,9 +80,15 @@ export default function AddProductPage() {
         
         const uploadResult = await uploadResponse.json()
         
-        if (uploadResult.success && uploadResult.id) {
-          portadaLibroId = uploadResult.id
-          console.log('[AddProduct] Imagen subida con ID:', portadaLibroId)
+        if (uploadResult.success) {
+          if (uploadResult.id) {
+            portadaLibroId = uploadResult.id
+            console.log('[AddProduct] Imagen subida con ID:', portadaLibroId)
+          }
+          if (uploadResult.url) {
+            portadaLibroUrl = uploadResult.url
+            console.log('[AddProduct] URL de imagen obtenida:', portadaLibroUrl)
+          }
         } else {
           console.warn('[AddProduct] No se pudo subir la imagen:', uploadResult.error)
         }
@@ -96,7 +103,13 @@ export default function AddProductPage() {
       if (formData.isbn_libro?.trim()) dataToSend.isbn_libro = formData.isbn_libro.trim()
       if (formData.subtitulo_libro?.trim()) dataToSend.subtitulo_libro = formData.subtitulo_libro.trim()
       if (formData.descripcion?.trim()) dataToSend.descripcion = formData.descripcion.trim()
-      if (portadaLibroId) dataToSend.portada_libro = portadaLibroId
+      // Enviar URL de imagen si está disponible (para WooCommerce), o ID para Strapi
+      if (portadaLibroUrl) {
+        dataToSend.portada_libro = portadaLibroUrl  // URL completa para WooCommerce
+        dataToSend.portada_libro_id = portadaLibroId  // ID para Strapi
+      } else if (portadaLibroId) {
+        dataToSend.portada_libro = portadaLibroId  // Fallback: solo ID
+      }
       
       // === RELACIONES SIMPLES (enviar documentId si hay valor) ===
       if (formData.obra) dataToSend.obra = formData.obra

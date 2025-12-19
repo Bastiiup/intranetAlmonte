@@ -141,40 +141,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Agregar imagen si existe
-    // body.portada_libro puede ser un ID de Strapi (número) o una URL (string)
+    // body.portada_libro puede ser una URL (string) o un ID (número/string numérico)
+    // body.portada_libro_id es el ID de Strapi para usar en Strapi
     if (body.portada_libro) {
       let imageUrl: string = ''
       
-      // Si es un número (ID de Strapi), obtener la URL desde Strapi
-      if (typeof body.portada_libro === 'number' || (typeof body.portada_libro === 'string' && /^\d+$/.test(body.portada_libro))) {
-        try {
-          const imageId = typeof body.portada_libro === 'number' ? body.portada_libro : parseInt(body.portada_libro, 10)
-          console.log('[API POST] 📷 Obteniendo URL de imagen desde Strapi, ID:', imageId)
-          
-          const strapiImageResponse = await strapiClient.get<any>(`upload/files/${imageId}`)
-          
-          if (strapiImageResponse?.url) {
-            // Construir URL completa
-            const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
-            imageUrl = strapiImageResponse.url.startsWith('http') 
-              ? strapiImageResponse.url 
-              : `${baseUrl}${strapiImageResponse.url.startsWith('/') ? '' : '/'}${strapiImageResponse.url}`
-            console.log('[API POST] ✅ URL de imagen obtenida desde Strapi:', imageUrl)
-          } else {
-            console.warn('[API POST] ⚠️ No se pudo obtener URL de imagen desde Strapi, construyendo URL por defecto')
-            // Si no se puede obtener la URL, intentar construirla
-            const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
-            imageUrl = `${baseUrl}/api/upload/files/${imageId}`
-          }
-        } catch (imageError: any) {
-          console.error('[API POST] ⚠️ Error al obtener URL de imagen desde Strapi:', imageError.message)
-          // Si falla, intentar construir URL por defecto
-          const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
-          const imageId = typeof body.portada_libro === 'number' ? body.portada_libro : parseInt(body.portada_libro, 10)
-          imageUrl = `${baseUrl}/api/upload/files/${imageId}`
-        }
+      // Si es una URL completa (empieza con http), usarla directamente
+      if (typeof body.portada_libro === 'string' && body.portada_libro.startsWith('http')) {
+        imageUrl = body.portada_libro
+        console.log('[API POST] ✅ Usando URL de imagen proporcionada:', imageUrl)
+      } 
+      // Si es un número o string numérico (ID), construir URL directamente
+      // No intentamos obtener desde Strapi porque el endpoint requiere autenticación especial
+      else if (typeof body.portada_libro === 'number' || (typeof body.portada_libro === 'string' && /^\d+$/.test(body.portada_libro))) {
+        const imageId = typeof body.portada_libro === 'number' ? body.portada_libro : parseInt(body.portada_libro, 10)
+        const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
+        // Construir URL estándar de Strapi para archivos subidos
+        imageUrl = `${baseUrl}/uploads/${imageId}`
+        console.log('[API POST] 📷 Construyendo URL de imagen desde ID:', imageUrl)
       } else {
-        // Si ya es una URL, usarla directamente
+        // Si no es URL ni ID, intentar usarlo como URL
         imageUrl = String(body.portada_libro)
       }
       
@@ -208,15 +194,18 @@ export async function POST(request: NextRequest) {
           isbn_libro: isbn,
           descripcion: body.descripcion?.trim() || '',
           subtitulo_libro: body.subtitulo_libro?.trim() || '',
-          precio: body.precio || 0,
+          // NO incluir precio aquí - Strapi no tiene campo precio directo, usa relación precios
           stock_quantity: body.stock_quantity || 0,
           woocommerce_id: wooCommerceProduct.id.toString(), // Guardar ID de WooCommerce
         }
       }
 
-      // Agregar imagen si existe
-      if (body.portada_libro) {
-        strapiProductData.data.portada_libro = body.portada_libro
+      // Agregar imagen si existe - usar ID de Strapi si está disponible, sino el valor original
+      if (body.portada_libro_id) {
+        strapiProductData.data.portada_libro = body.portada_libro_id
+      } else if (body.portada_libro && (typeof body.portada_libro === 'number' || /^\d+$/.test(String(body.portada_libro)))) {
+        // Si portada_libro es un ID numérico, usarlo para Strapi
+        strapiProductData.data.portada_libro = typeof body.portada_libro === 'number' ? body.portada_libro : parseInt(body.portada_libro, 10)
       }
 
       strapiProduct = await strapiClient.post<any>('/api/libros', strapiProductData)
@@ -271,29 +260,19 @@ export async function POST(request: NextRequest) {
           stock_status: body.stock_quantity > 0 ? 'instock' : 'outofstock',
         }
 
-        // Agregar imagen si existe (misma lógica que arriba)
+        // Agregar imagen si existe (misma lógica simplificada que arriba)
         if (body.portada_libro) {
           let imageUrl: string = ''
           
-          if (typeof body.portada_libro === 'number' || (typeof body.portada_libro === 'string' && /^\d+$/.test(body.portada_libro))) {
-            try {
-              const imageId = typeof body.portada_libro === 'number' ? body.portada_libro : parseInt(body.portada_libro, 10)
-              const strapiImageResponse = await strapiClient.get<any>(`upload/files/${imageId}`)
-              
-              if (strapiImageResponse?.url) {
-                const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
-                imageUrl = strapiImageResponse.url.startsWith('http') 
-                  ? strapiImageResponse.url 
-                  : `${baseUrl}${strapiImageResponse.url.startsWith('/') ? '' : '/'}${strapiImageResponse.url}`
-              } else {
-                const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
-                imageUrl = `${baseUrl}/api/upload/files/${imageId}`
-              }
-            } catch (imageError: any) {
-              const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
-              const imageId = typeof body.portada_libro === 'number' ? body.portada_libro : parseInt(body.portada_libro, 10)
-              imageUrl = `${baseUrl}/api/upload/files/${imageId}`
-            }
+          // Si es una URL completa, usarla directamente
+          if (typeof body.portada_libro === 'string' && body.portada_libro.startsWith('http')) {
+            imageUrl = body.portada_libro
+          } 
+          // Si es un ID, construir URL directamente
+          else if (typeof body.portada_libro === 'number' || (typeof body.portada_libro === 'string' && /^\d+$/.test(body.portada_libro))) {
+            const imageId = typeof body.portada_libro === 'number' ? body.portada_libro : parseInt(body.portada_libro, 10)
+            const baseUrl = STRAPI_API_URL.replace(/\/$/, '')
+            imageUrl = `${baseUrl}/uploads/${imageId}`
           } else {
             imageUrl = String(body.portada_libro)
           }
@@ -326,14 +305,17 @@ export async function POST(request: NextRequest) {
               isbn_libro: newIsbn,
               descripcion: body.descripcion?.trim() || '',
               subtitulo_libro: body.subtitulo_libro?.trim() || '',
-              precio: body.precio || 0,
+              // NO incluir precio - Strapi no tiene campo precio directo
               stock_quantity: body.stock_quantity || 0,
               woocommerce_id: retryResponse.id.toString(),
             }
           }
 
-          if (body.portada_libro) {
-            strapiProductData.data.portada_libro = body.portada_libro
+          // Agregar imagen si existe - usar ID de Strapi si está disponible
+          if (body.portada_libro_id) {
+            strapiProductData.data.portada_libro = body.portada_libro_id
+          } else if (body.portada_libro && (typeof body.portada_libro === 'number' || /^\d+$/.test(String(body.portada_libro)))) {
+            strapiProductData.data.portada_libro = typeof body.portada_libro === 'number' ? body.portada_libro : parseInt(body.portada_libro, 10)
           }
 
           strapiProduct = await strapiClient.post<any>('/api/libros', strapiProductData)
