@@ -28,8 +28,10 @@ import { useRouter } from 'next/navigation'
 // Tipo para la tabla
 type SelloType = {
   id: number
+  id_sello: number
   name: string
-  description: string
+  acronimo: string
+  editorial: string
   products: number
   status: 'active' | 'inactive'
   date: string
@@ -53,18 +55,31 @@ const mapStrapiSelloToSelloType = (sello: any): SelloType => {
   const attrs = sello.attributes || {}
   const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (sello as any)
 
+  // Obtener id_sello (schema real de Strapi - Number)
+  const idSello = getField(data, 'id_sello', 'idSello', 'ID_SELLO') || 0
+  
   // Obtener nombre_sello (schema real de Strapi)
   const nombre = getField(data, 'nombre_sello', 'nombreSello', 'nombre', 'NOMBRE_SELLO', 'NAME') || 'Sin nombre'
   
-  // Obtener descripción
-  const descripcion = getField(data, 'descripcion', 'description', 'DESCRIPCION', 'DESCRIPTION') || ''
+  // Obtener acronimo
+  const acronimo = getField(data, 'acronimo', 'acronimo', 'ACRONIMO') || ''
+  
+  // Obtener editorial (relation)
+  const editorial = data.editorial?.data?.attributes?.nombre || 
+                     data.editorial?.data?.nombre ||
+                     data.editorial?.nombre ||
+                     data.editorial?.id ||
+                     '-'
   
   // Obtener estado (usa publishedAt para determinar si está publicado)
   const isPublished = !!(attrs.publishedAt || (sello as any).publishedAt)
   
-  // Contar productos asociados (si hay relación)
-  const productos = data.productos?.data || data.products?.data || data.productos || data.products || []
-  const productosCount = Array.isArray(productos) ? productos.length : 0
+  // Contar productos asociados (libros según schema)
+  const libros = data.libros?.data || data.libros || []
+  const colecciones = data.colecciones?.data || data.colecciones || []
+  const librosCount = Array.isArray(libros) ? libros.length : 0
+  const coleccionesCount = Array.isArray(colecciones) ? colecciones.length : 0
+  const productosCount = librosCount + coleccionesCount
   
   // Obtener fechas
   const createdAt = attrs.createdAt || (sello as any).createdAt || new Date().toISOString()
@@ -72,8 +87,10 @@ const mapStrapiSelloToSelloType = (sello: any): SelloType => {
   
   return {
     id: sello.id || sello.documentId || sello.id,
+    id_sello: typeof idSello === 'string' ? parseInt(idSello) : idSello,
     name: nombre,
-    description: descripcion,
+    acronimo: acronimo,
+    editorial: typeof editorial === 'string' ? editorial : '-',
     products: productosCount,
     status: isPublished ? 'active' : 'inactive',
     date: format(createdDate, 'dd MMM, yyyy'),
@@ -128,8 +145,20 @@ const SellosListing = ({ sellos, error }: SellosListingProps = {}) => {
       enableSorting: false,
       enableColumnFilter: false,
     },
+    columnHelper.accessor('id', {
+      header: 'ID',
+      cell: ({ row }) => (
+        <span className="text-muted">{row.original.id}</span>
+      ),
+    }),
+    columnHelper.accessor('id_sello', {
+      header: 'ID_SELLO',
+      cell: ({ row }) => (
+        <span className="fw-semibold">{row.original.id_sello?.toLocaleString() || '-'}</span>
+      ),
+    }),
     columnHelper.accessor('name', {
-      header: 'Sello',
+      header: 'NOMBRE_SELLO',
       cell: ({ row }) => {
         return (
           <div className="d-flex">
@@ -147,37 +176,21 @@ const SellosListing = ({ sellos, error }: SellosListingProps = {}) => {
         )
       },
     }),
-    columnHelper.accessor('description', {
-      header: 'Descripción',
+    columnHelper.accessor('editorial', {
+      header: 'EDITORIAL',
       cell: ({ row }) => (
-        <p className="text-muted mb-0 small">
-          {row.original.description || 'Sin descripción'}
-        </p>
-      ),
-    }),
-    columnHelper.accessor('products', {
-      header: 'Productos',
-      cell: ({ row }) => (
-        <span className="badge badge-soft-info">{row.original.products}</span>
+        <span className="text-muted">{row.original.editorial || '-'}</span>
       ),
     }),
     columnHelper.accessor('status', {
-      header: 'Estado',
+      header: 'STATUS',
       filterFn: 'equalsString',
       enableColumnFilter: true,
       cell: ({ row }) => (
         <span
           className={`badge ${row.original.status === 'active' ? 'badge-soft-success' : 'badge-soft-danger'} fs-xxs`}>
-          {row.original.status === 'active' ? 'Activo' : 'Inactivo'}
+          {row.original.status === 'active' ? 'Published' : 'Draft'}
         </span>
-      ),
-    }),
-    columnHelper.accessor('date', {
-      header: 'Fecha',
-      cell: ({ row }) => (
-        <>
-          {row.original.date} <small className="text-muted">{row.original.time}</small>
-        </>
       ),
     }),
     {

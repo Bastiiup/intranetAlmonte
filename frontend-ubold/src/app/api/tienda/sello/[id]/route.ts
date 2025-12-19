@@ -328,22 +328,27 @@ export async function PUT(
     const strapiEndpoint = documentId ? `${selloEndpoint}/${documentId}` : `${selloEndpoint}/${id}`
     console.log('[API Sello PUT] Usando endpoint Strapi:', strapiEndpoint, { documentId, id })
 
-    // El schema de Strapi para sello usa: codigo_sello*, nombre_sello*, descripcion
+    // El schema de Strapi para sello usa: id_sello* (Number), nombre_sello* (Text), acronimo, logo, website, editorial
     const selloData: any = {
       data: {}
     }
 
     // Aceptar diferentes formatos del formulario pero guardar según schema real
-    if (body.data.codigo_sello) selloData.data.codigo_sello = body.data.codigo_sello.trim()
-    if (body.data.codigoSello) selloData.data.codigo_sello = body.data.codigoSello.trim()
-    if (body.data.codigo) selloData.data.codigo_sello = body.data.codigo.trim()
+    if (body.data.id_sello !== undefined) {
+      selloData.data.id_sello = typeof body.data.id_sello === 'string' ? parseInt(body.data.id_sello) : body.data.id_sello
+    }
+    if (body.data.idSello !== undefined) {
+      selloData.data.id_sello = typeof body.data.idSello === 'string' ? parseInt(body.data.idSello) : body.data.idSello
+    }
     
     if (body.data.nombre_sello) selloData.data.nombre_sello = body.data.nombre_sello.trim()
     if (body.data.nombreSello) selloData.data.nombre_sello = body.data.nombreSello.trim()
     if (body.data.nombre) selloData.data.nombre_sello = body.data.nombre.trim()
     
-    if (body.data.descripcion !== undefined) selloData.data.descripcion = body.data.descripcion || null
-    if (body.data.description !== undefined) selloData.data.descripcion = body.data.description || null
+    if (body.data.acronimo !== undefined) selloData.data.acronimo = body.data.acronimo?.trim() || null
+    if (body.data.website !== undefined) selloData.data.website = body.data.website?.trim() || null
+    if (body.data.editorial !== undefined) selloData.data.editorial = body.data.editorial || null
+    if (body.data.logo !== undefined) selloData.data.logo = body.data.logo || null
 
     // No guardamos woocommerce_id en Strapi porque no existe en el schema
     // El match se hace usando documentId como slug en WooCommerce

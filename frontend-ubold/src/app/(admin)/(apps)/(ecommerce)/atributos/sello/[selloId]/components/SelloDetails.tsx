@@ -50,9 +50,11 @@ const SelloDetails = ({ sello: initialSello, selloId, error: initialError }: Sel
 
   // Inicializar formData con los valores del sello según schema real
   const [formData, setFormData] = useState({
-    codigo_sello: getField(data, 'codigo_sello', 'codigoSello', 'codigo', 'CODIGO_SELLO') || '',
+    id_sello: getField(data, 'id_sello', 'idSello', 'ID_SELLO')?.toString() || '',
     nombre_sello: getField(data, 'nombre_sello', 'nombreSello', 'nombre', 'NOMBRE_SELLO', 'NAME') || '',
-    descripcion: getField(data, 'descripcion', 'description', 'DESCRIPCION', 'DESCRIPTION') || '',
+    acronimo: getField(data, 'acronimo', 'acronimo', 'ACRONIMO') || '',
+    website: getField(data, 'website', 'website', 'WEBSITE') || '',
+    editorial: data.editorial?.data?.id || data.editorial?.id || '',
   })
 
   // Actualizar formData cuando cambie el sello
@@ -62,9 +64,11 @@ const SelloDetails = ({ sello: initialSello, selloId, error: initialError }: Sel
       const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (sello as any)
       
       setFormData({
-        codigo_sello: getField(data, 'codigo_sello', 'codigoSello', 'codigo', 'CODIGO_SELLO') || '',
+        id_sello: getField(data, 'id_sello', 'idSello', 'ID_SELLO')?.toString() || '',
         nombre_sello: getField(data, 'nombre_sello', 'nombreSello', 'nombre', 'NOMBRE_SELLO', 'NAME') || '',
-        descripcion: getField(data, 'descripcion', 'description', 'DESCRIPCION', 'DESCRIPTION') || '',
+        acronimo: getField(data, 'acronimo', 'acronimo', 'ACRONIMO') || '',
+        website: getField(data, 'website', 'website', 'WEBSITE') || '',
+        editorial: data.editorial?.data?.id || data.editorial?.id || '',
       })
     }
   }, [sello])
@@ -72,9 +76,12 @@ const SelloDetails = ({ sello: initialSello, selloId, error: initialError }: Sel
   // Obtener el ID correcto
   const sId = sello.id?.toString() || sello.documentId || selloId
   
-  // Contar productos asociados (si hay relación)
-  const productos = data.productos?.data || data.products?.data || data.productos || data.products || []
-  const productosCount = Array.isArray(productos) ? productos.length : 0
+  // Contar productos asociados (libros y colecciones según schema)
+  const libros = data.libros?.data || data.libros || []
+  const colecciones = data.colecciones?.data || data.colecciones || []
+  const librosCount = Array.isArray(libros) ? libros.length : 0
+  const coleccionesCount = Array.isArray(colecciones) ? colecciones.length : 0
+  const productosCount = librosCount + coleccionesCount
 
   const isPublished = !!(attrs.publishedAt || sello.publishedAt)
   const createdAt = attrs.createdAt || sello.createdAt || new Date().toISOString()
@@ -115,9 +122,11 @@ const SelloDetails = ({ sello: initialSello, selloId, error: initialError }: Sel
       const url = `/api/tienda/sello/${sId}`
       const body = JSON.stringify({
         data: {
-          codigo_sello: formData.codigo_sello.trim(),
+          id_sello: parseInt(formData.id_sello),
           nombre_sello: formData.nombre_sello.trim(),
-          descripcion: formData.descripcion.trim() || null,
+          acronimo: formData.acronimo.trim() || null,
+          website: formData.website.trim() || null,
+          editorial: formData.editorial || null,
         },
       })
       
@@ -185,34 +194,34 @@ const SelloDetails = ({ sello: initialSello, selloId, error: initialError }: Sel
 
           <Form onSubmit={handleSubmit}>
             <Row className="g-3">
-              <Col md={12}>
+              <Col md={6}>
                 <FormGroup>
                   <FormLabel>
-                    Código del Sello <span className="text-danger">*</span>
+                    ID del Sello <span className="text-danger">*</span>
                   </FormLabel>
                   <FormControl
-                    type="text"
-                    placeholder="Ej: SELLO-001, SELLO-002"
-                    value={formData.codigo_sello}
+                    type="number"
+                    placeholder="Ej: 1, 2, 1000"
+                    value={formData.id_sello}
                     onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, codigo_sello: e.target.value }))
+                      setFormData((prev) => ({ ...prev, id_sello: e.target.value }))
                     }
                     required
                   />
                   <small className="text-muted">
-                    Código único identificador del sello (requerido).
+                    ID numérico único del sello (requerido).
                   </small>
                 </FormGroup>
               </Col>
 
-              <Col md={12}>
+              <Col md={6}>
                 <FormGroup>
                   <FormLabel>
                     Nombre del Sello <span className="text-danger">*</span>
                   </FormLabel>
                   <FormControl
                     type="text"
-                    placeholder="Ej: Sello Editorial, Sello Académico"
+                    placeholder="Ej: Sello Editorial Planeta"
                     value={formData.nombre_sello}
                     onChange={(e) =>
                       setFormData((prev) => ({ ...prev, nombre_sello: e.target.value }))
@@ -225,20 +234,36 @@ const SelloDetails = ({ sello: initialSello, selloId, error: initialError }: Sel
                 </FormGroup>
               </Col>
 
-              <Col md={12}>
+              <Col md={6}>
                 <FormGroup>
-                  <FormLabel>Descripción</FormLabel>
+                  <FormLabel>Acrónimo</FormLabel>
                   <FormControl
-                    as="textarea"
-                    rows={4}
-                    placeholder="Descripción detallada del sello..."
-                    value={formData.descripcion}
+                    type="text"
+                    placeholder="Ej: SEP, SEPL"
+                    value={formData.acronimo}
                     onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, descripcion: e.target.value }))
+                      setFormData((prev) => ({ ...prev, acronimo: e.target.value }))
                     }
                   />
                   <small className="text-muted">
-                    Opcional. Descripción del sello.
+                    Acrónimo opcional del sello.
+                  </small>
+                </FormGroup>
+              </Col>
+
+              <Col md={6}>
+                <FormGroup>
+                  <FormLabel>Website</FormLabel>
+                  <FormControl
+                    type="url"
+                    placeholder="https://ejemplo.com"
+                    value={formData.website}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, website: e.target.value }))
+                    }
+                  />
+                  <small className="text-muted">
+                    URL del sitio web del sello (opcional).
                   </small>
                 </FormGroup>
               </Col>
