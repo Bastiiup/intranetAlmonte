@@ -826,12 +826,7 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
                       {row.getVisibleCells().map((cell) => (
                         <td key={cell.id}>
                           {typeof cell.column.columnDef.cell === 'function'
-                            ? cell.column.columnDef.cell({
-                                cell: cell,
-                                row: row,
-                                table: table,
-                                column: cell.column,
-                              })
+                            ? cell.column.columnDef.cell(cell.getContext())
                             : cell.getValue() as React.ReactNode}
                         </td>
                       ))}
