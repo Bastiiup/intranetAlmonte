@@ -1,38 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
-import wooCommerceClient from '@/lib/woocommerce/client'
 
 export const dynamic = 'force-dynamic'
-
-// Función helper para obtener el ID del atributo "pa_marca" en WooCommerce
-async function getMarcaAttributeId(): Promise<number | null> {
-  try {
-    // Buscar atributo por slug "pa_marca" o "marca"
-    const attributes = await wooCommerceClient.get<any[]>('products/attributes', { slug: 'pa_marca' })
-    
-    if (attributes && attributes.length > 0) {
-      return attributes[0].id
-    }
-    
-    // Si no se encuentra por slug, buscar por nombre
-    const allAttributes = await wooCommerceClient.get<any[]>('products/attributes')
-    const marcaAttribute = allAttributes.find((attr: any) => 
-      attr.slug === 'pa_marca' || 
-      attr.slug === 'marca' ||
-      attr.name?.toLowerCase().includes('marca')
-    )
-    
-    if (marcaAttribute) {
-      return marcaAttribute.id
-    }
-    
-    console.warn('[API Marca] ⚠️ No se encontró el atributo "pa_marca" en WooCommerce')
-    return null
-  } catch (error: any) {
-    console.error('[API Marca] ❌ Error al obtener ID del atributo:', error.message)
-    return null
-  }
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -72,149 +41,51 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     console.log('[API Marca POST] 📝 Creando marca:', body)
 
-    // Validar campos obligatorios según schema de Strapi
-    // Asumiendo schema similar a sello: nombre_marca* (Text)
-    if (!body.data?.nombre_marca && !body.data?.nombreMarca && !body.data?.nombre) {
+    // Validar campos obligatorios según schema de Strapi (usa "name", no "nombre_marca")
+    if (!body.data?.name && !body.data?.nombre_marca && !body.data?.nombreMarca && !body.data?.nombre) {
       return NextResponse.json({
         success: false,
         error: 'El nombre de la marca es obligatorio'
       }, { status: 400 })
     }
 
-    const nombreMarca = body.data.nombre_marca || body.data.nombreMarca || body.data.nombre
+    const nombreMarca = body.data.name || body.data.nombre_marca || body.data.nombreMarca || body.data.nombre
     const marcaEndpoint = '/api/marcas'
-    console.log('[API Marca POST] Usando endpoint Strapi:', marcaEndpoint)
-
-    // Crear en Strapi PRIMERO para obtener el documentId
-    // El documentId se usará como slug en WooCommerce para hacer el match
-    console.log('[API Marca POST] 📚 Creando marca en Strapi primero...')
     
-    // El schema de Strapi para marca (asumiendo estructura similar a sello)
+    const estadoPublicacion = 'pendiente' // Siempre pendiente al crear
+    
+    console.log('[API Marca POST] 📚 Creando marca en Strapi...')
+    console.log('[API Marca POST] Estado de publicación:', estadoPublicacion, '(siempre pendiente al crear)')
+    
+    // El schema de Strapi para marca usa: name* (Text), descripcion (Text), imagen (Media)
     const marcaData: any = {
       data: {
-        nombre_marca: nombreMarca.trim(),
+        name: nombreMarca.trim(),
         descripcion: body.data.descripcion || null,
-        website: body.data.website || null,
+        estado_publicacion: estadoPublicacion, // Siempre "pendiente" al crear (minúscula para Strapi)
       }
     }
 
-    // Manejar relaciones según tipo (si existen en el schema)
-    if (body.data.logo) {
-      marcaData.data.logo = body.data.logo
+    // Manejar imagen (media)
+    if (body.data.imagen) {
+      marcaData.data.imagen = body.data.imagen
     }
 
     const strapiMarca = await strapiClient.post<any>(marcaEndpoint, marcaData)
-    const documentId = strapiMarca.data?.documentId || strapiMarca.documentId
-    
-    if (!documentId) {
-      throw new Error('No se pudo obtener el documentId de Strapi')
-    }
     
     console.log('[API Marca POST] ✅ Marca creada en Strapi:', {
       id: strapiMarca.data?.id || strapiMarca.id,
-      documentId: documentId
+      documentId: strapiMarca.data?.documentId || strapiMarca.documentId
     })
-
-    // Obtener el ID del atributo "pa_marca" en WooCommerce
-    const attributeId = await getMarcaAttributeId()
-    
-    if (!attributeId) {
-      console.warn('[API Marca POST] ⚠️ No se pudo obtener el ID del atributo, eliminando de Strapi')
-      try {
-        await strapiClient.delete<any>(`${marcaEndpoint}/${documentId}`)
-      } catch (deleteError: any) {
-        console.error('[API Marca POST] ⚠️ Error al eliminar de Strapi:', deleteError.message)
-      }
-      return NextResponse.json({
-        success: false,
-        error: 'No se encontró el atributo "pa_marca" en WooCommerce. Verifica que el atributo esté configurado.'
-      }, { status: 400 })
-    }
-
-    // Crear término del atributo en WooCommerce usando el documentId como slug
-    // IMPORTANTE: Siempre usar documentId como slug para poder hacer match después
-    console.log('[API Marca POST] 🛒 Creando término en WooCommerce con slug=documentId...')
-    
-    const wooCommerceTermData: any = {
-      name: nombreMarca.trim(),
-      description: body.data.descripcion || body.data.description || '',
-      slug: documentId.toString(), // SIEMPRE usar documentId como slug para el match
-    }
-
-    // Crear término en WooCommerce
-    let wooCommerceTerm = null
-    try {
-      const wooResponse = await wooCommerceClient.post<any>(
-        `products/attributes/${attributeId}/terms`,
-        wooCommerceTermData
-      )
-      
-      // La respuesta puede venir directamente o dentro de .data
-      wooCommerceTerm = wooResponse?.data || wooResponse
-      
-      console.log('[API Marca POST] ✅ Término creado en WooCommerce:', {
-        id: wooCommerceTerm?.id,
-        name: wooCommerceTerm?.name,
-        slug: wooCommerceTerm?.slug,
-        response: wooResponse
-      })
-
-      if (!wooCommerceTerm || !wooCommerceTerm.id) {
-        throw new Error('La respuesta de WooCommerce no contiene un término válido')
-      }
-
-      // No guardamos woocommerce_id en Strapi porque no existe en el schema
-      // El match se hace usando documentId como slug en WooCommerce
-      console.log('[API Marca POST] ✅ Término creado en WooCommerce, match por documentId:', documentId)
-    } catch (wooError: any) {
-      // Manejar caso especial: término ya existe en WooCommerce
-      if (wooError.code === 'term_exists' && wooError.details?.data?.resource_id) {
-        const existingTermId = wooError.details.data.resource_id
-        console.log('[API Marca POST] 🔄 Término ya existe en WooCommerce, obteniendo término existente:', existingTermId)
-        
-        try {
-          // Obtener el término existente de WooCommerce
-          wooCommerceTerm = await wooCommerceClient.get<any>(`products/attributes/${attributeId}/terms/${existingTermId}`)
-          console.log('[API Marca POST] ✅ Término existente obtenido de WooCommerce:', {
-            id: wooCommerceTerm.id,
-            name: wooCommerceTerm.name,
-            slug: wooCommerceTerm.slug
-          })
-
-          // No guardamos woocommerce_id en Strapi porque no existe en el schema
-          // El match se hace usando documentId como slug en WooCommerce
-          console.log('[API Marca POST] ✅ Término existente encontrado en WooCommerce, match por documentId:', documentId)
-        } catch (getError: any) {
-          console.error('[API Marca POST] ❌ Error al obtener término existente de WooCommerce:', getError.message)
-          // Si falla al obtener el término existente, eliminar de Strapi
-          try {
-            await strapiClient.delete<any>(`${marcaEndpoint}/${documentId}`)
-            console.log('[API Marca POST] 🗑️ Marca eliminada de Strapi debido a error al obtener término existente')
-          } catch (deleteError: any) {
-            console.error('[API Marca POST] ⚠️ Error al eliminar de Strapi:', deleteError.message)
-          }
-          throw getError
-        }
-      } else {
-        // Para otros errores, eliminar de Strapi para mantener consistencia
-        console.error('[API Marca POST] ⚠️ Error al crear término en WooCommerce:', wooError.message)
-        try {
-          await strapiClient.delete<any>(`${marcaEndpoint}/${documentId}`)
-          console.log('[API Marca POST] 🗑️ Marca eliminada de Strapi debido a error en WooCommerce')
-        } catch (deleteError: any) {
-          console.error('[API Marca POST] ⚠️ Error al eliminar de Strapi:', deleteError.message)
-        }
-        throw wooError
-      }
-    }
+    console.log('[API Marca POST] Estado: ⏸️ Solo guardado en Strapi (pendiente), no se publica en WordPress')
+    console.log('[API Marca POST] Para publicar, cambiar el estado desde la página de Solicitudes')
 
     return NextResponse.json({
       success: true,
       data: {
-        woocommerce: wooCommerceTerm,
         strapi: strapiMarca.data || strapiMarca,
       },
-      message: 'Marca creada exitosamente en Strapi y WooCommerce'
+      message: 'Marca creada en Strapi con estado "pendiente". Para publicar en WordPress, cambia el estado desde Solicitudes.'
     })
 
   } catch (error: any) {
