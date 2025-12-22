@@ -175,9 +175,11 @@ export async function DELETE(
       }
       const cuponStrapi = cupones[0]
       documentId = cuponStrapi?.documentId || cuponStrapi?.data?.documentId || id
-      // Aceptar tanto camelCase como snake_case para compatibilidad
-      wooId = cuponStrapi?.woo_id || cuponStrapi?.wooId || cuponStrapi?.data?.woo_id || cuponStrapi?.data?.wooId || null
-      originPlatform = cuponStrapi?.origin_platform || cuponStrapi?.originPlatform || cuponStrapi?.data?.origin_platform || cuponStrapi?.data?.originPlatform || 'woo_moraleja'
+      // woo_id y origin_platform no existen en el schema de Strapi
+      // Se obtienen desde external_ids si existe, o se usa el valor por defecto
+      const externalIds = cuponStrapi?.external_ids || cuponStrapi?.data?.external_ids || cuponStrapi?.externalIds || cuponStrapi?.data?.externalIds || {}
+      wooId = externalIds?.wooCommerce?.id || null
+      originPlatform = externalIds?.origin_platform || 'woo_moraleja'
     } catch (error: any) {
       console.warn('[API Cupones DELETE] ⚠️ No se pudo obtener cupón de Strapi:', error.message)
       documentId = id
@@ -264,7 +266,9 @@ export async function PUT(
       }
       cuponStrapi = cupones[0]
       documentId = cuponStrapi?.documentId || cuponStrapi?.data?.documentId || id
-      wooId = cuponStrapi?.wooId || cuponStrapi?.data?.wooId || null
+      // woo_id no existe en el schema de Strapi, obtener desde external_ids si existe
+      const externalIds = cuponStrapi?.external_ids || cuponStrapi?.data?.external_ids || cuponStrapi?.externalIds || cuponStrapi?.data?.externalIds || {}
+      wooId = externalIds?.wooCommerce?.id || null
       originPlatform = body.data.origin_platform || body.data.originPlatform || cuponStrapi?.origin_platform || cuponStrapi?.originPlatform || cuponStrapi?.data?.origin_platform || cuponStrapi?.data?.originPlatform || 'woo_moraleja'
     } catch (error: any) {
       console.warn('[API Cupones PUT] ⚠️ No se pudo obtener cupón de Strapi:', error.message)
@@ -354,29 +358,8 @@ export async function PUT(
     if (body.data.uso_limite !== undefined) cuponData.data.uso_limite = body.data.uso_limite ? parseInt(body.data.uso_limite) : null
     if (body.data.fecha_caducidad !== undefined) cuponData.data.fecha_caducidad = body.data.fecha_caducidad || null
     
-    // origin_platform no existe como campo directo, guardarlo en external_ids
-    const platformToSave = body.data.origin_platform || body.data.originPlatform || originPlatform
-    
-    // Si se actualizó en WooCommerce o hay que actualizar origin_platform, actualizar external_ids
-    if (wooCommerceCupon || platformToSave) {
-      cuponData.data.external_ids = {
-        wooCommerce: wooCommerceCupon ? {
-          id: wooCommerceCupon.id,
-          code: wooCommerceCupon.code,
-        } : undefined,
-        origin_platform: platformToSave,
-      }
-      
-      // Limpiar undefined
-      if (!cuponData.data.external_ids.wooCommerce) {
-        delete cuponData.data.external_ids.wooCommerce
-      }
-    }
-    
-    // Actualizar raw_woo_data si se actualizó en WooCommerce
-    if (wooCommerceCupon) {
-      cuponData.data.raw_woo_data = wooCommerceCupon
-    }
+    // No actualizar campos que no existen en el schema de Strapi (woo_id, raw_woo_data, external_ids, origin_platform)
+    // Estos datos se manejan en la lógica de la aplicación
 
     const strapiResponse = await strapiClient.put<any>(strapiEndpoint, cuponData)
     console.log('[API Cupones PUT] ✅ Cupón actualizado en Strapi')

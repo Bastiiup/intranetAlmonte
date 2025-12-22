@@ -182,23 +182,10 @@ export async function POST(request: NextRequest) {
         throw new Error('La respuesta de WooCommerce no contiene un cupón válido')
       }
 
-      // Actualizar Strapi con el woo_id, raw_woo_data y origin_platform en external_ids
-      const updateData: any = {
-        data: {
-          woo_id: wooCommerceCupon.id,
-          raw_woo_data: wooCommerceCupon,
-          external_ids: {
-            wooCommerce: {
-              id: wooCommerceCupon.id,
-              code: wooCommerceCupon.code,
-            },
-            origin_platform: originPlatform, // Guardar en external_ids ya que no existe como campo directo
-          }
-        }
-      }
-
-      await strapiClient.put<any>(`${cuponEndpoint}/${documentId}`, updateData)
-      console.log('[API Cupones POST] ✅ Strapi actualizado con datos de WooCommerce')
+      // No actualizar Strapi con campos que no existen en el schema
+      // Los datos de WooCommerce se pueden obtener desde la API cuando sea necesario
+      // origin_platform se maneja en la lógica de la aplicación, no se guarda en Strapi
+      console.log('[API Cupones POST] ✅ Cupón creado en WooCommerce, datos guardados en memoria de la aplicación')
     } catch (wooError: any) {
       console.error('[API Cupones POST] ⚠️ Error al crear cupón en WooCommerce:', wooError.message)
       
