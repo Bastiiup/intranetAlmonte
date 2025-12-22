@@ -134,10 +134,11 @@ export const menuItems: MenuItemType[] = [
           { key: 'product-grid', label: 'Product Grid', url: '/products-grid' },
           { key: 'product-details', label: 'Product Details', url: '/products/1' },
           { key: 'add-product', label: 'Add Product', url: '/add-product' },
-          { key: 'all-categories', label: 'Todas las Categorías', url: '/products/categorias' },
-          { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' },
-          { key: 'all-tags', label: 'Todas las Etiquetas', url: '/products/etiquetas' },
-          { key: 'add-tag', label: 'Agregar Etiqueta', url: '/products/etiquetas/agregar' },
+          // Nota: Las páginas de categorías y etiquetas fueron movidas a /atributos
+          // { key: 'all-categories', label: 'Todas las Categorías', url: '/products/categorias' },
+          // { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' },
+          // { key: 'all-tags', label: 'Todas las Etiquetas', url: '/products/etiquetas' },
+          // { key: 'add-tag', label: 'Agregar Etiqueta', url: '/products/etiquetas/agregar' },
           {
             key: 'atributos',
             label: 'Atributos',
@@ -267,10 +268,11 @@ export const horizontalMenuItems: MenuItemType[] = [
               { key: 'product-grid', label: 'Product Grid', url: '/products-grid' },
               { key: 'product-details', label: 'Product Details', url: '/products/1' },
               { key: 'add-product', label: 'Add Product', url: '/add-product' },
-              { key: 'all-categories', label: 'Todas las Categorías', url: '/products/categorias' },
-              { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' },
-              { key: 'all-tags', label: 'Todas las Etiquetas', url: '/products/etiquetas' },
-              { key: 'add-tag', label: 'Agregar Etiqueta', url: '/products/etiquetas/agregar' },
+              // Nota: Las páginas de categorías y etiquetas fueron movidas a /atributos
+              // { key: 'all-categories', label: 'Todas las Categorías', url: '/products/categorias' },
+              // { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' },
+              // { key: 'all-tags', label: 'Todas las Etiquetas', url: '/products/etiquetas' },
+              // { key: 'add-tag', label: 'Agregar Etiqueta', url: '/products/etiquetas/agregar' },
               {
                 key: 'atributos',
                 label: 'Atributos',
