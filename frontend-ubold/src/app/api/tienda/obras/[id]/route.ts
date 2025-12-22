@@ -1,35 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
-import wooCommerceClient from '@/lib/woocommerce/client'
 
 export const dynamic = 'force-dynamic'
-
-// Función helper para obtener el ID del atributo "pa_obra" en WooCommerce
-async function getObraAttributeId(): Promise<number | null> {
-  try {
-    const attributes = await wooCommerceClient.get<any[]>('products/attributes', { slug: 'pa_obra' })
-    
-    if (attributes && attributes.length > 0) {
-      return attributes[0].id
-    }
-    
-    const allAttributes = await wooCommerceClient.get<any[]>('products/attributes')
-    const obraAttribute = allAttributes.find((attr: any) => 
-      attr.slug === 'pa_obra' || 
-      attr.slug === 'obra' ||
-      attr.name?.toLowerCase() === 'obra'
-    )
-    
-    if (obraAttribute) {
-      return obraAttribute.id
-    }
-    
-    return null
-  } catch (error: any) {
-    console.error('[API Obras] ❌ Error al obtener ID del atributo:', error.message)
-    return null
-  }
-}
 
 export async function GET(
   request: Request,
@@ -256,7 +228,7 @@ export async function PUT(
 
     const obraEndpoint = '/api/obras'
     
-    // Primero obtener la obra de Strapi para obtener el documentId y woocommerce_id
+    // Obtener la obra de Strapi para obtener el documentId
     let obraStrapi: any
     let documentId: string | null = null
     try {
@@ -276,50 +248,11 @@ export async function PUT(
       documentId = id
     }
 
-    // Obtener el ID del atributo
-    const attributeId = await getObraAttributeId()
-
-    // Buscar en WooCommerce por slug (documentId) - no guardamos woocommerce_id en Strapi
-    let woocommerceId: string | null = null
-    if (documentId && attributeId) {
-      // Buscar por slug (documentId) en WooCommerce
-      try {
-        console.log('[API Obras PUT] 🔍 Buscando término en WooCommerce por slug:', documentId)
-        const wcTerms = await wooCommerceClient.get<any[]>(
-          `products/attributes/${attributeId}/terms`,
-          { slug: documentId.toString() }
-        )
-        if (wcTerms && wcTerms.length > 0) {
-          woocommerceId = wcTerms[0].id.toString()
-          console.log('[API Obras PUT] ✅ Término encontrado en WooCommerce por slug:', woocommerceId)
-        }
-      } catch (searchError: any) {
-        console.warn('[API Obras PUT] ⚠️ No se pudo buscar por slug en WooCommerce:', searchError.message)
-      }
-    }
-
-    // Actualizar en WooCommerce primero si tenemos el ID
-    let wooCommerceTerm = null
-    if (woocommerceId && attributeId) {
-      try {
-        console.log('[API Obras PUT] 🛒 Actualizando término en WooCommerce:', woocommerceId)
-        
-        const wooCommerceTermData: any = {}
-        if (body.data.name || body.data.nombre) {
-          wooCommerceTermData.name = (body.data.name || body.data.nombre).trim()
-        }
-        if (body.data.descripcion !== undefined || body.data.description !== undefined) {
-          wooCommerceTermData.description = body.data.descripcion || body.data.description || ''
-        }
-
-        wooCommerceTerm = await wooCommerceClient.put<any>(
-          `products/attributes/${attributeId}/terms/${woocommerceId}`,
-          wooCommerceTermData
-        )
-        console.log('[API Obras PUT] ✅ Término actualizado en WooCommerce')
-      } catch (wooError: any) {
-        console.error('[API Obras PUT] ⚠️ Error al actualizar en WooCommerce (no crítico):', wooError.message)
-      }
+    if (!obraStrapi) {
+      return NextResponse.json({
+        success: false,
+        error: 'Obra no encontrada'
+      }, { status: 404 })
     }
 
     // Actualizar en Strapi usando documentId si está disponible
@@ -342,8 +275,15 @@ export async function PUT(
     if (body.data.descripcion !== undefined) obraData.data.descripcion = body.data.descripcion || null
     if (body.data.description !== undefined) obraData.data.descripcion = body.data.description || null
 
-    // No guardamos woocommerce_id en Strapi porque no existe en el schema
-    // El match se hace usando documentId como slug en WooCommerce
+    // Estado de publicación - IMPORTANTE: Strapi espera valores en minúsculas
+    if (body.data.estado_publicacion !== undefined) {
+      // Normalizar a minúsculas para Strapi: "pendiente", "publicado", "borrador"
+      const estadoNormalizado = typeof body.data.estado_publicacion === 'string' 
+        ? body.data.estado_publicacion.toLowerCase() 
+        : body.data.estado_publicacion
+      obraData.data.estado_publicacion = estadoNormalizado
+      console.log('[API Obras PUT] 📝 Estado de publicación actualizado:', estadoNormalizado)
+    }
 
     const strapiResponse = await strapiClient.put<any>(strapiEndpoint, obraData)
     console.log('[API Obras PUT] ✅ Obra actualizada en Strapi')
@@ -351,10 +291,9 @@ export async function PUT(
     return NextResponse.json({
       success: true,
       data: {
-        woocommerce: wooCommerceTerm,
         strapi: strapiResponse.data || strapiResponse,
       },
-      message: 'Obra actualizada exitosamente' + (wooCommerceTerm ? ' en WooCommerce y Strapi' : ' en Strapi')
+      message: 'Obra actualizada exitosamente en Strapi'
     })
 
   } catch (error: any) {

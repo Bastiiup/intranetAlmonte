@@ -1,38 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
-import wooCommerceClient from '@/lib/woocommerce/client'
 
 export const dynamic = 'force-dynamic'
-
-// Función helper para obtener el ID del atributo "pa_obra" en WooCommerce
-async function getObraAttributeId(): Promise<number | null> {
-  try {
-    // Buscar atributo por slug "pa_obra" o "obra"
-    const attributes = await wooCommerceClient.get<any[]>('products/attributes', { slug: 'pa_obra' })
-    
-    if (attributes && attributes.length > 0) {
-      return attributes[0].id
-    }
-    
-    // Si no se encuentra por slug, buscar por nombre
-    const allAttributes = await wooCommerceClient.get<any[]>('products/attributes')
-    const obraAttribute = allAttributes.find((attr: any) => 
-      attr.slug === 'pa_obra' || 
-      attr.slug === 'obra' ||
-      attr.name?.toLowerCase() === 'obra'
-    )
-    
-    if (obraAttribute) {
-      return obraAttribute.id
-    }
-    
-    console.warn('[API Obras] ⚠️ No se encontró el atributo "pa_obra" en WooCommerce')
-    return null
-  } catch (error: any) {
-    console.error('[API Obras] ❌ Error al obtener ID del atributo:', error.message)
-    return null
-  }
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -96,12 +65,22 @@ export async function POST(request: NextRequest) {
     // El documentId se usará como slug en WooCommerce para hacer el match
     console.log('[API Obras POST] 📚 Creando obra en Strapi primero...')
     
-    // El schema de Strapi para obras usa: codigo_obra*, nombre_obra*, descripcion
+    // IMPORTANTE: Al crear, siempre se guarda con estado_publicacion = "pendiente" (minúscula)
+    // El estado solo se puede cambiar desde la página de Solicitudes
+    // Solo se publica en WordPress si estado_publicacion === "publicado" (se maneja en lifecycles de Strapi)
+    const estadoPublicacion = 'pendiente'
+    
+    console.log('[API Obras POST] 📚 Creando obra en Strapi...')
+    console.log('[API Obras POST] Estado de publicación:', estadoPublicacion, '(siempre pendiente al crear)')
+    console.log('[API Obras POST] ⏸️ No se crea en WooCommerce al crear - se sincronizará cuando estado_publicacion = "publicado"')
+    
+    // El schema de Strapi para obras usa: codigo_obra*, nombre_obra*, descripcion, estado_publicacion
     const obraData: any = {
       data: {
         codigo_obra: codigoObra.trim(),
         nombre_obra: nombreObra.trim(),
         descripcion: body.data.descripcion || body.data.description || null,
+        estado_publicacion: estadoPublicacion, // Siempre "pendiente" al crear (minúscula para Strapi)
       }
     }
 
@@ -116,107 +95,15 @@ export async function POST(request: NextRequest) {
       id: strapiObra.data?.id || strapiObra.id,
       documentId: documentId
     })
-
-    // Obtener el ID del atributo "pa_obra" en WooCommerce
-    const attributeId = await getObraAttributeId()
-    
-    if (!attributeId) {
-      console.warn('[API Obras POST] ⚠️ No se pudo obtener el ID del atributo, eliminando de Strapi')
-      try {
-        await strapiClient.delete<any>(`${obraEndpoint}/${documentId}`)
-      } catch (deleteError: any) {
-        console.error('[API Obras POST] ⚠️ Error al eliminar de Strapi:', deleteError.message)
-      }
-      return NextResponse.json({
-        success: false,
-        error: 'No se encontró el atributo "pa_obra" en WooCommerce. Verifica que el atributo esté configurado.'
-      }, { status: 400 })
-    }
-
-    // Crear término del atributo en WooCommerce usando el documentId como slug
-    // IMPORTANTE: Siempre usar documentId como slug para poder hacer match después
-    console.log('[API Obras POST] 🛒 Creando término en WooCommerce con slug=documentId...')
-    
-    const wooCommerceTermData: any = {
-      name: nombreObra.trim(), // Usar nombre_obra para WooCommerce
-      description: body.data.descripcion || body.data.description || '',
-      slug: documentId.toString(), // SIEMPRE usar documentId como slug para el match
-    }
-
-    // Crear término en WooCommerce
-    let wooCommerceTerm = null
-    try {
-      const wooResponse = await wooCommerceClient.post<any>(
-        `products/attributes/${attributeId}/terms`,
-        wooCommerceTermData
-      )
-      
-      // La respuesta puede venir directamente o dentro de .data
-      wooCommerceTerm = wooResponse?.data || wooResponse
-      
-      console.log('[API Obras POST] ✅ Término creado en WooCommerce:', {
-        id: wooCommerceTerm?.id,
-        name: wooCommerceTerm?.name,
-        slug: wooCommerceTerm?.slug,
-        response: wooResponse
-      })
-
-      if (!wooCommerceTerm || !wooCommerceTerm.id) {
-        throw new Error('La respuesta de WooCommerce no contiene un término válido')
-      }
-
-      // No guardamos woocommerce_id en Strapi porque no existe en el schema
-      // El match se hace usando documentId como slug en WooCommerce
-      console.log('[API Obras POST] ✅ Término creado en WooCommerce, match por documentId:', documentId)
-    } catch (wooError: any) {
-      // Manejar caso especial: término ya existe en WooCommerce
-      if (wooError.code === 'term_exists' && wooError.details?.data?.resource_id) {
-        const existingTermId = wooError.details.data.resource_id
-        console.log('[API Obras POST] 🔄 Término ya existe en WooCommerce, obteniendo término existente:', existingTermId)
-        
-        try {
-          // Obtener el término existente de WooCommerce
-          wooCommerceTerm = await wooCommerceClient.get<any>(`products/attributes/${attributeId}/terms/${existingTermId}`)
-          console.log('[API Obras POST] ✅ Término existente obtenido de WooCommerce:', {
-            id: wooCommerceTerm.id,
-            name: wooCommerceTerm.name,
-            slug: wooCommerceTerm.slug
-          })
-
-          // No guardamos woocommerce_id en Strapi porque no existe en el schema
-          // El match se hace usando documentId como slug en WooCommerce
-          console.log('[API Obras POST] ✅ Término existente encontrado en WooCommerce, match por documentId:', documentId)
-        } catch (getError: any) {
-          console.error('[API Obras POST] ❌ Error al obtener término existente de WooCommerce:', getError.message)
-          // Si falla al obtener el término existente, eliminar de Strapi
-          try {
-            await strapiClient.delete<any>(`${obraEndpoint}/${documentId}`)
-            console.log('[API Obras POST] 🗑️ Obra eliminada de Strapi debido a error al obtener término existente')
-          } catch (deleteError: any) {
-            console.error('[API Obras POST] ⚠️ Error al eliminar de Strapi:', deleteError.message)
-          }
-          throw getError
-        }
-      } else {
-        // Para otros errores, eliminar de Strapi para mantener consistencia
-        console.error('[API Obras POST] ⚠️ Error al crear término en WooCommerce (no crítico):', wooError.message)
-        try {
-          await strapiClient.delete<any>(`${obraEndpoint}/${documentId}`)
-          console.log('[API Obras POST] 🗑️ Obra eliminada de Strapi debido a error en WooCommerce')
-        } catch (deleteError: any) {
-          console.error('[API Obras POST] ⚠️ Error al eliminar de Strapi:', deleteError.message)
-        }
-        throw wooError
-      }
-    }
+    console.log('[API Obras POST] Estado: ⏸️ Solo guardado en Strapi (pendiente), no se publica en WordPress')
+    console.log('[API Obras POST] Para publicar, cambiar el estado desde la página de Solicitudes')
 
     return NextResponse.json({
       success: true,
       data: {
-        woocommerce: wooCommerceTerm,
         strapi: strapiObra.data || strapiObra,
       },
-      message: 'Obra creada exitosamente en Strapi y WooCommerce'
+      message: 'Obra creada en Strapi con estado "pendiente". Para publicar en WordPress, cambia el estado desde Solicitudes.'
     })
 
   } catch (error: any) {
