@@ -175,8 +175,9 @@ export async function DELETE(
       }
       const cuponStrapi = cupones[0]
       documentId = cuponStrapi?.documentId || cuponStrapi?.data?.documentId || id
-      wooId = cuponStrapi?.wooId || cuponStrapi?.data?.wooId || null
-      originPlatform = cuponStrapi?.originPlatform || cuponStrapi?.data?.originPlatform || 'woo_moraleja'
+      // Aceptar tanto camelCase como snake_case para compatibilidad
+      wooId = cuponStrapi?.woo_id || cuponStrapi?.wooId || cuponStrapi?.data?.woo_id || cuponStrapi?.data?.wooId || null
+      originPlatform = cuponStrapi?.origin_platform || cuponStrapi?.originPlatform || cuponStrapi?.data?.origin_platform || cuponStrapi?.data?.originPlatform || 'woo_moraleja'
     } catch (error: any) {
       console.warn('[API Cupones DELETE] ⚠️ No se pudo obtener cupón de Strapi:', error.message)
       documentId = id
@@ -264,18 +265,19 @@ export async function PUT(
       cuponStrapi = cupones[0]
       documentId = cuponStrapi?.documentId || cuponStrapi?.data?.documentId || id
       wooId = cuponStrapi?.wooId || cuponStrapi?.data?.wooId || null
-      originPlatform = body.data.originPlatform || cuponStrapi?.originPlatform || cuponStrapi?.data?.originPlatform || 'woo_moraleja'
+      originPlatform = body.data.origin_platform || body.data.originPlatform || cuponStrapi?.origin_platform || cuponStrapi?.originPlatform || cuponStrapi?.data?.origin_platform || cuponStrapi?.data?.originPlatform || 'woo_moraleja'
     } catch (error: any) {
       console.warn('[API Cupones PUT] ⚠️ No se pudo obtener cupón de Strapi:', error.message)
       documentId = id
     }
 
-    // Validar originPlatform
+    // Validar origin_platform (aceptar tanto originPlatform como origin_platform)
     const validPlatforms = ['woo_moraleja', 'woo_escolar', 'otros']
-    if (body.data.originPlatform && !validPlatforms.includes(body.data.originPlatform)) {
+    const platformToValidate = body.data.origin_platform || body.data.originPlatform
+    if (platformToValidate && !validPlatforms.includes(platformToValidate)) {
       return NextResponse.json({
         success: false,
-        error: `originPlatform debe ser uno de: ${validPlatforms.join(', ')}`
+        error: `origin_platform debe ser uno de: ${validPlatforms.join(', ')}`
       }, { status: 400 })
     }
 
@@ -351,12 +353,17 @@ export async function PUT(
     if (body.data.producto_ids !== undefined) cuponData.data.producto_ids = body.data.producto_ids || null
     if (body.data.uso_limite !== undefined) cuponData.data.uso_limite = body.data.uso_limite ? parseInt(body.data.uso_limite) : null
     if (body.data.fecha_caducidad !== undefined) cuponData.data.fecha_caducidad = body.data.fecha_caducidad || null
-    if (body.data.originPlatform !== undefined) cuponData.data.originPlatform = body.data.originPlatform
+    // Aceptar tanto originPlatform como origin_platform para compatibilidad
+    if (body.data.origin_platform !== undefined) {
+      cuponData.data.origin_platform = body.data.origin_platform
+    } else if (body.data.originPlatform !== undefined) {
+      cuponData.data.origin_platform = body.data.originPlatform
+    }
 
-    // Si se actualizó en WooCommerce, actualizar rawWooData
+    // Si se actualizó en WooCommerce, actualizar raw_woo_data (usar snake_case para Strapi)
     if (wooCommerceCupon) {
-      cuponData.data.rawWooData = wooCommerceCupon
-      cuponData.data.externalIds = {
+      cuponData.data.raw_woo_data = wooCommerceCupon
+      cuponData.data.external_ids = {
         wooCommerce: {
           id: wooCommerceCupon.id,
           code: wooCommerceCupon.code,

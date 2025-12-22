@@ -82,13 +82,13 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Validar originPlatform
+    // Validar origin_platform (aceptar tanto originPlatform como origin_platform para compatibilidad)
     const validPlatforms = ['woo_moraleja', 'woo_escolar', 'otros']
-    const originPlatform = body.data.originPlatform || 'woo_moraleja'
+    const originPlatform = body.data.origin_platform || body.data.originPlatform || 'woo_moraleja'
     if (!validPlatforms.includes(originPlatform)) {
       return NextResponse.json({
         success: false,
-        error: `originPlatform debe ser uno de: ${validPlatforms.join(', ')}`
+        error: `origin_platform debe ser uno de: ${validPlatforms.join(', ')}`
       }, { status: 400 })
     }
 
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
           : null,
         uso_limite: body.data.uso_limite ? parseInt(body.data.uso_limite) : null,
         fecha_caducidad: body.data.fecha_caducidad || null,
-        originPlatform: originPlatform,
+        origin_platform: originPlatform,
       }
     }
 
@@ -181,12 +181,12 @@ export async function POST(request: NextRequest) {
         throw new Error('La respuesta de WooCommerce no contiene un cupón válido')
       }
 
-      // Actualizar Strapi con el wooId y rawWooData
+      // Actualizar Strapi con el woo_id y raw_woo_data (usar snake_case para Strapi)
       const updateData: any = {
         data: {
-          wooId: wooCommerceCupon.id,
-          rawWooData: wooCommerceCupon,
-          externalIds: {
+          woo_id: wooCommerceCupon.id,
+          raw_woo_data: wooCommerceCupon,
+          external_ids: {
             wooCommerce: {
               id: wooCommerceCupon.id,
               code: wooCommerceCupon.code,

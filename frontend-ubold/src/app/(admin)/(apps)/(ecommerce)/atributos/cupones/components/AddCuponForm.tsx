@@ -47,7 +47,7 @@ const AddCuponForm = () => {
             producto_ids: formData.producto_ids.length > 0 ? formData.producto_ids : null,
             uso_limite: formData.uso_limite ? parseInt(formData.uso_limite) : null,
             fecha_caducidad: formData.fecha_caducidad || null,
-            originPlatform: 'woo_moraleja',
+            origin_platform: 'woo_moraleja',
           },
         }
 
@@ -61,32 +61,37 @@ const AddCuponForm = () => {
             producto_ids: formData.producto_ids.length > 0 ? formData.producto_ids : null,
             uso_limite: formData.uso_limite ? parseInt(formData.uso_limite) : null,
             fecha_caducidad: formData.fecha_caducidad || null,
-            originPlatform: 'woo_escolar',
+            origin_platform: 'woo_escolar',
           },
         }
 
         console.log('[AddCuponForm] Creando cupones en ambas plataformas:', { moraleja: cuponDataMoraleja, escolar: cuponDataEscolar })
 
-        // Crear ambos cupones
-        const [responseMoraleja, responseEscolar] = await Promise.all([
-          fetch('/api/tienda/cupones', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(cuponDataMoraleja),
-          }),
-          fetch('/api/tienda/cupones', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(cuponDataEscolar),
-          }),
-        ])
+        // Crear cupones secuencialmente para evitar errores 502 y códigos duplicados
+        // Primero crear en Moraleja
+        const responseMoraleja = await fetch('/api/tienda/cupones', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cuponDataMoraleja),
+        })
 
         const resultMoraleja = await responseMoraleja.json()
-        const resultEscolar = await responseEscolar.json()
 
         if (!responseMoraleja.ok || !resultMoraleja.success) {
           throw new Error(resultMoraleja.error || 'Error al crear el cupón en Moraleja')
         }
+
+        // Esperar un poco antes de crear el segundo para evitar sobrecarga
+        await new Promise(resolve => setTimeout(resolve, 500))
+
+        // Luego crear en Escolar
+        const responseEscolar = await fetch('/api/tienda/cupones', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cuponDataEscolar),
+        })
+
+        const resultEscolar = await responseEscolar.json()
 
         if (!responseEscolar.ok || !resultEscolar.success) {
           throw new Error(resultEscolar.error || 'Error al crear el cupón en Escolar')
@@ -107,7 +112,7 @@ const AddCuponForm = () => {
             producto_ids: formData.producto_ids.length > 0 ? formData.producto_ids : null,
             uso_limite: formData.uso_limite ? parseInt(formData.uso_limite) : null,
             fecha_caducidad: formData.fecha_caducidad || null,
-            originPlatform: formData.originPlatform,
+            origin_platform: formData.originPlatform,
           },
         }
 
