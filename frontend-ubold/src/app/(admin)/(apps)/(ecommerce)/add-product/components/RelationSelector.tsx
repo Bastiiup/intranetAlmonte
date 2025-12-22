@@ -58,11 +58,45 @@ const RelationSelector = memo(function RelationSelector({
     try {
       setLoading(true)
       setError(null)
-      const res = await fetch(endpoint)
+      
+      // Para productos, cargar todos sin límite de paginación
+      const isProductosEndpoint = endpoint.includes('/productos')
+      const fetchUrl = isProductosEndpoint 
+        ? `${endpoint}?pagination[pageSize]=1000` 
+        : endpoint
+      
+      const res = await fetch(fetchUrl)
       const data = await res.json()
       
       if (data.success) {
-        const items = data.data || []
+        let items = data.data || []
+        
+        // Si hay paginación y hay más páginas, cargar todas
+        if (isProductosEndpoint && data.meta?.pagination) {
+          const pagination = data.meta.pagination
+          const totalPages = pagination.pageCount || 1
+          
+          if (totalPages > 1) {
+            console.log(`[RelationSelector] ${label} - Cargando ${totalPages} páginas...`)
+            const allItems = [...items]
+            
+            // Cargar las páginas restantes
+            for (let page = 2; page <= totalPages; page++) {
+              try {
+                const pageRes = await fetch(`${endpoint}?pagination[pageSize]=1000&pagination[page]=${page}`)
+                const pageData = await pageRes.json()
+                if (pageData.success && pageData.data) {
+                  allItems.push(...pageData.data)
+                }
+              } catch (pageErr) {
+                console.warn(`[RelationSelector] Error al cargar página ${page}:`, pageErr)
+              }
+            }
+            
+            items = allItems
+          }
+        }
+        
         console.log(`[RelationSelector] ${label} - Items recibidos:`, items.length)
         
         // LOG para ver campos disponibles del primer item
@@ -96,17 +130,28 @@ const RelationSelector = memo(function RelationSelector({
     const attrs = option.attributes || {}
     const data = (attrs && Object.keys(attrs).length > 0) ? attrs : option
     
-    return data[displayField] || 
-           option[displayField] ||
-           data.nombre || 
-           option.nombre || 
-           data.titulo ||
-           option.titulo || 
-           data.name ||
-           option.name ||
-           data.title ||
-           option.title ||
-           `Item ${option.id || option.documentId || data.id || data.documentId}`
+    // Obtener el ID del producto
+    const productId = option.id || option.documentId || data.id || data.documentId
+    
+    // Intentar obtener el nombre/título del producto
+    const nombre = data[displayField] || 
+                   option[displayField] ||
+                   data.nombre || 
+                   option.nombre || 
+                   data.titulo ||
+                   option.titulo || 
+                   data.name ||
+                   option.name ||
+                   data.title ||
+                   option.title ||
+                   null
+    
+    // Si hay nombre, mostrar "Nombre (ID)", si no solo "Item ID"
+    if (nombre) {
+      return `${nombre} (${productId})`
+    }
+    
+    return `Item ${productId}`
   }
 
   return (
