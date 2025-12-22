@@ -37,18 +37,7 @@ const nextConfig: NextConfig = {
   // Optimizaciones experimentales
   experimental: {
     optimizePackageImports: ['@tanstack/react-table', 'react-bootstrap', 'date-fns'],
-    // Habilitar build cache para builds más rápidos
-    turbo: {
-      rules: {
-        '*.svg': {
-          loaders: ['@svgr/webpack'],
-          as: '*.js',
-        },
-      },
-    },
   },
-  // Optimizaciones de build
-  swcMinify: true, // Usar SWC para minificación (más rápido que Terser)
 };
 
 export default nextConfig;
