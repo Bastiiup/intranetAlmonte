@@ -13,11 +13,10 @@ import {
   Table as TableType,
   useReactTable,
 } from '@tanstack/react-table'
-import Link from 'next/link'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert } from 'react-bootstrap'
 import { LuDollarSign, LuSearch, LuUser } from 'react-icons/lu'
-import { TbEdit, TbEye, TbList, TbPlus, TbTrash } from 'react-icons/tb'
+import { TbList, TbTrash } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
@@ -149,9 +148,7 @@ const ClientsListing = ({ clientes, error }: ClientsListingProps = {}) => {
           </div>
           <div>
             <h5 className="mb-0">
-              <Link href={`/clientes/${row.original.id}`} className="link-reset">
-                {row.original.nombre || 'Sin nombre'}
-              </Link>
+              {row.original.nombre || 'Sin nombre'}
             </h5>
             <p className="text-muted mb-0 fs-xxs">{row.original.correo_electronico}</p>
           </div>
@@ -216,16 +213,6 @@ const ClientsListing = ({ clientes, error }: ClientsListingProps = {}) => {
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<ClienteType> }) => (
         <div className="d-flex gap-1">
-          <Link href={`/clientes/${row.original.id}`}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle">
-              <TbEye className="fs-lg" />
-            </Button>
-          </Link>
-          <Link href={`/clientes/${row.original.id}`}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle">
-              <TbEdit className="fs-lg" />
-            </Button>
-          </Link>
           <Button
             variant="default"
             size="sm"
@@ -414,11 +401,6 @@ const ClientsListing = ({ clientes, error }: ClientsListingProps = {}) => {
               <Button variant="primary" className="btn-icon">
                 <TbList className="fs-lg" />
               </Button>
-              <Link href="/clientes/agregar" passHref>
-                <Button variant="danger" className="ms-1">
-                  <TbPlus className="fs-sm me-2" /> Agregar Cliente
-                </Button>
-              </Link>
             </div>
           </CardHeader>
 
