@@ -35,6 +35,7 @@ type ObraType = {
   date: string
   time: string
   url: string
+  estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
 }
 
 // Helper para obtener campo con múltiples variaciones
@@ -62,6 +63,13 @@ const mapStrapiObraToObraType = (obra: any): ObraType => {
   // Obtener estado (usa publishedAt para determinar si está publicado)
   const isPublished = !!(attrs.publishedAt || (obra as any).publishedAt)
   
+  // Obtener estado_publicacion (Strapi devuelve en minúsculas: "pendiente", "publicado", "borrador")
+  const estadoPublicacionRaw = getField(data, 'estado_publicacion', 'ESTADO_PUBLICACION', 'estadoPublicacion') || 'pendiente'
+  // Normalizar y capitalizar para mostrar (pero Strapi espera minúsculas)
+  const estadoPublicacion = typeof estadoPublicacionRaw === 'string' 
+    ? estadoPublicacionRaw.toLowerCase() 
+    : estadoPublicacionRaw
+  
   // Contar productos (si hay relación)
   const productos = data.productos?.data || data.products?.data || data.productos || data.products || []
   const productosCount = Array.isArray(productos) ? productos.length : 0
@@ -79,6 +87,9 @@ const mapStrapiObraToObraType = (obra: any): ObraType => {
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
     url: `/products/atributos/obras/${obra.id || obra.documentId || obra.id}`, // URL actualizada
+    estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
+                       estadoPublicacion === 'borrador' ? 'Borrador' : 
+                       'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
   }
 }
 
@@ -377,6 +388,19 @@ const ObrasListing = ({ obras, error }: ObrasListingProps = {}) => {
                   <option value="All">Estado</option>
                   <option value="active">Activo</option>
                   <option value="inactive">Inactivo</option>
+                </select>
+                <LuBox className="app-search-icon text-muted" />
+              </div>
+
+              <div className="app-search">
+                <select
+                  className="form-select form-control my-1 my-md-0"
+                  value={(table.getColumn('estadoPublicacion')?.getFilterValue() as string) ?? 'All'}
+                  onChange={(e) => table.getColumn('estadoPublicacion')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
+                  <option value="All">Estado Publicación</option>
+                  <option value="Publicado">Publicado</option>
+                  <option value="Pendiente">Pendiente</option>
+                  <option value="Borrador">Borrador</option>
                 </select>
                 <LuBox className="app-search-icon text-muted" />
               </div>
