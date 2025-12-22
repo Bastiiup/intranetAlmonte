@@ -203,72 +203,8 @@ export async function PUT(
 
     const etiquetaEndpoint = '/api/etiquetas'
     
-    // Primero obtener la etiqueta de Strapi para obtener el documentId y woocommerce_id
-    let etiquetaStrapi: any
-    let documentId: string | null = null
-    try {
-      const etiquetaResponse = await strapiClient.get<any>(`${etiquetaEndpoint}?filters[id][$eq]=${id}&populate=*`)
-      let etiquetas: any[] = []
-      if (Array.isArray(etiquetaResponse)) {
-        etiquetas = etiquetaResponse
-      } else if (etiquetaResponse.data && Array.isArray(etiquetaResponse.data)) {
-        etiquetas = etiquetaResponse.data
-      } else if (etiquetaResponse.data) {
-        etiquetas = [etiquetaResponse.data]
-      }
-      etiquetaStrapi = etiquetas[0]
-      documentId = etiquetaStrapi?.documentId || etiquetaStrapi?.data?.documentId || id
-    } catch (error: any) {
-      console.warn('[API Etiquetas PUT] ⚠️ No se pudo obtener etiqueta de Strapi:', error.message)
-      documentId = id // Usar el id como fallback
-    }
-
-    // Buscar en WooCommerce por slug (documentId) o por woocommerce_id
-    let woocommerceId: string | null = null
-    const woocommerceIdFromStrapi = etiquetaStrapi?.attributes?.woocommerce_id || 
-                                     etiquetaStrapi?.woocommerce_id
-    
-    if (woocommerceIdFromStrapi) {
-      woocommerceId = woocommerceIdFromStrapi.toString()
-    } else if (documentId) {
-      // Buscar por slug (documentId) en WooCommerce
-      try {
-        console.log('[API Etiquetas PUT] 🔍 Buscando etiqueta en WooCommerce por slug:', documentId)
-        const wcTags = await wooCommerceClient.get<any[]>('products/tags', { slug: documentId.toString() })
-        if (wcTags && wcTags.length > 0) {
-          woocommerceId = wcTags[0].id.toString()
-          console.log('[API Etiquetas PUT] ✅ Etiqueta encontrada en WooCommerce por slug:', woocommerceId)
-        }
-      } catch (searchError: any) {
-        console.warn('[API Etiquetas PUT] ⚠️ No se pudo buscar por slug en WooCommerce:', searchError.message)
-      }
-    }
-
-    // Actualizar en WooCommerce primero si tenemos el ID
-    let wooCommerceTag = null
-    if (woocommerceId) {
-      try {
-        console.log('[API Etiquetas PUT] 🛒 Actualizando etiqueta en WooCommerce:', woocommerceId)
-        
-        const wooCommerceTagData: any = {}
-        if (body.data.name || body.data.nombre) {
-          wooCommerceTagData.name = (body.data.name || body.data.nombre).trim()
-        }
-        if (body.data.descripcion !== undefined || body.data.description !== undefined) {
-          wooCommerceTagData.description = body.data.descripcion || body.data.description || ''
-        }
-
-        wooCommerceTag = await wooCommerceClient.put<any>(
-          `products/tags/${woocommerceId}`,
-          wooCommerceTagData
-        )
-        console.log('[API Etiquetas PUT] ✅ Etiqueta actualizada en WooCommerce')
-      } catch (wooError: any) {
-        console.error('[API Etiquetas PUT] ⚠️ Error al actualizar en WooCommerce (no crítico):', wooError.message)
-      }
-    }
-
     // Actualizar en Strapi
+    // La sincronización con WooCommerce se maneja automáticamente en los lifecycles de Strapi
     const endpoint = `${etiquetaEndpoint}/${id}`
     console.log('[API Etiquetas PUT] Usando endpoint Strapi:', endpoint)
 
