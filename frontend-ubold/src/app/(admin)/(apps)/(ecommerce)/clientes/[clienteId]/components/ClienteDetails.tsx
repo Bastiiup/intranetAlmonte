@@ -334,19 +334,16 @@ const ClienteDetails = ({ cliente: initialCliente, clienteId }: ClienteDetailsPr
                 <label className="form-label text-muted">Fecha de Registro</label>
                 <div>
                   <span className="text-dark">
-                    {formData.fecha_registro ? (
-                      <>
-                        {format(new Date(formData.fecha_registro), 'dd MMM, yyyy')}{' '}
-                        <small className="text-muted">
-                          {format(new Date(formData.fecha_registro), 'h:mm a')}
-                        </small>
-                      </>
-                    ) : (
-                      <>
-                        {format(createdDate, 'dd MMM, yyyy')}{' '}
-                        <small className="text-muted">{format(createdDate, 'h:mm a')}</small>
-                      </>
-                    )}
+                    {(() => {
+                      const fechaRegistro = getField(data, 'fecha_registro', 'FECHA_REGISTRO', 'fechaRegistro')
+                      const fecha = fechaRegistro ? new Date(fechaRegistro) : createdDate
+                      return (
+                        <>
+                          {format(fecha, 'dd MMM, yyyy')}{' '}
+                          <small className="text-muted">{format(fecha, 'h:mm a')}</small>
+                        </>
+                      )
+                    })()}
                   </span>
                 </div>
               </div>
@@ -357,11 +354,14 @@ const ClienteDetails = ({ cliente: initialCliente, clienteId }: ClienteDetailsPr
                 <label className="form-label text-muted">Última Actividad</label>
                 <div>
                   <span className="text-dark">
-                    {formData.ultima_actividad ? (
-                      format(new Date(formData.ultima_actividad), 'dd MMM, yyyy')
-                    ) : (
-                      'N/A'
-                    )}
+                    {(() => {
+                      const ultimaActividad = getField(data, 'ultima_actividad', 'ULTIMA_ACTIVIDAD', 'ultimaActividad')
+                      return ultimaActividad ? (
+                        format(new Date(ultimaActividad), 'dd MMM, yyyy')
+                      ) : (
+                        'N/A'
+                      )
+                    })()}
                   </span>
                 </div>
               </div>
