@@ -349,6 +349,7 @@ const ProductRequestsListing = ({ solicitudes, error }: ProductRequestsListingPr
       console.log('[ProductRequestsListing] Aprobando solicitud:', pendingId)
       const response = await fetch(`/api/tienda/productos/${pendingId}`, {
         method: 'PUT',
+        credentials: 'include', // Incluir cookies
         headers: {
           'Content-Type': 'application/json',
         },
@@ -383,6 +384,7 @@ const ProductRequestsListing = ({ solicitudes, error }: ProductRequestsListingPr
       console.log('[ProductRequestsListing] Rechazando solicitud:', pendingId)
       const response = await fetch(`/api/tienda/productos/${pendingId}`, {
         method: 'PUT',
+        credentials: 'include', // Incluir cookies
         headers: {
           'Content-Type': 'application/json',
         },
@@ -419,6 +421,7 @@ const ProductRequestsListing = ({ solicitudes, error }: ProductRequestsListingPr
       for (const solicitudId of idsToDelete) {
         const response = await fetch(`/api/tienda/productos/${solicitudId}`, {
           method: 'DELETE',
+          credentials: 'include', // Incluir cookies
         })
         if (!response.ok) {
           throw new Error(`Error al eliminar solicitud ${solicitudId}`)

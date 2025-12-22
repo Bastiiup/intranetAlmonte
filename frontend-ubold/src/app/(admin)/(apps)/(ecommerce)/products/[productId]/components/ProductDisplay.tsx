@@ -182,6 +182,7 @@ const ProductDisplay = ({ producto, onUpdate, onProductoUpdate }: ProductDisplay
 
         const response = await fetch('/api/tienda/upload-url', {
           method: 'POST',
+          credentials: 'include', // Incluir cookies
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: imageUrl })
         })
@@ -225,6 +226,7 @@ const ProductDisplay = ({ producto, onUpdate, onProductoUpdate }: ProductDisplay
         console.log('[Upload] Subiendo archivo...')
         const response = await fetch('/api/tienda/upload', {
           method: 'POST',
+          credentials: 'include', // Incluir cookies
           body: formData
         })
 
@@ -242,6 +244,7 @@ const ProductDisplay = ({ producto, onUpdate, onProductoUpdate }: ProductDisplay
       // Actualizar producto con nueva imagen
       const updateResponse = await fetch(`/api/tienda/productos/${productId}`, {
         method: 'PUT',
+        credentials: 'include', // Incluir cookies
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           portada_libro: imageId
