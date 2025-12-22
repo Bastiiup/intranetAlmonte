@@ -5,6 +5,7 @@ import {
   ColumnFiltersState,
   createColumnHelper,
   getCoreRowModel,
+  getExpandedRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
@@ -14,12 +15,11 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import Link from 'next/link'
-import { useState, useEffect, useMemo } from 'react'
-import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge } from 'react-bootstrap'
+import React, { useState, useEffect, useMemo } from 'react'
+import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge, FormControl, FormLabel, FormGroup } from 'react-bootstrap'
 import { LuSearch } from 'react-icons/lu'
-import { TbEdit, TbEye, TbList, TbPlus, TbTrash } from 'react-icons/tb'
+import { TbChevronDown, TbChevronRight, TbList, TbPlus, TbTrash } from 'react-icons/tb'
 
-import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
 import { format } from 'date-fns'
@@ -42,6 +42,8 @@ type PedidoType = {
   date: string
   time: string
   url: string
+  // Datos completos del pedido original para la vista expandida
+  rawData?: any
 }
 
 // Helper para obtener campo con múltiples variaciones
@@ -92,6 +94,7 @@ const mapStrapiPedidoToPedidoType = (pedido: any): PedidoType => {
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
     url: `/atributos/pedidos/${pedido.id || pedido.documentId || pedido.id}`,
+    rawData: pedido, // Guardar datos completos para la vista expandida
   }
 }
 
@@ -118,6 +121,29 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
 
   const columns: ColumnDef<PedidoType, any>[] = [
     {
+      id: 'expander',
+      maxSize: 45,
+      size: 45,
+      header: () => null,
+      cell: ({ row }: { row: TableRow<PedidoType> }) => (
+        <Button
+          variant="link"
+          size="sm"
+          className="p-0"
+          onClick={() => row.toggleExpanded()}
+          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          {row.getIsExpanded() ? (
+            <TbChevronDown className="fs-lg" />
+          ) : (
+            <TbChevronRight className="fs-lg" />
+          )}
+        </Button>
+      ),
+      enableSorting: false,
+      enableColumnFilter: false,
+    },
+    {
       id: 'select',
       maxSize: 45,
       size: 45,
@@ -141,18 +167,18 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
       enableColumnFilter: false,
     },
     columnHelper.accessor('numero_pedido', {
-      header: 'Número de Pedido',
+      header: 'Pedido',
       cell: ({ row }) => {
         return (
-          <div className="d-flex">
+          <div className="d-flex align-items-center">
             <div className="avatar-md me-3 bg-light d-flex align-items-center justify-center rounded">
               <span className="text-muted fs-xs">📦</span>
             </div>
             <div>
               <h5 className="mb-0">
-                <Link href={`/atributos/pedidos/${row.original.id}`} className="link-reset">
-                  {row.original.numero_pedido || 'Sin número'}
-                </Link>
+                <span className="link-reset" style={{ cursor: 'pointer' }} onClick={() => row.toggleExpanded()}>
+                  #{row.original.numero_pedido || 'Sin número'}
+                </span>
               </h5>
             </div>
           </div>
@@ -253,20 +279,6 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<PedidoType> }) => (
         <div className="d-flex gap-1">
-          <Link href={`/atributos/pedidos/${row.original.id}`}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle">
-              <TbEye className="fs-lg" />
-            </Button>
-          </Link>
-          <Link href={`/atributos/pedidos/${row.original.id}`}>
-            <Button
-              variant="default"
-              size="sm"
-              className="btn-icon rounded-circle"
-            >
-              <TbEdit className="fs-lg" />
-            </Button>
-          </Link>
           <Button
             variant="default"
             size="sm"
@@ -287,8 +299,10 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
+  const [updatingStates, setUpdatingStates] = useState<Record<string, boolean>>({})
 
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
@@ -320,14 +334,24 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
   const table = useReactTable<PedidoType>({
     data,
     columns,
-    state: { sorting, globalFilter, columnFilters, pagination, rowSelection: selectedRowIds, columnOrder },
+    state: { 
+      sorting, 
+      globalFilter, 
+      columnFilters, 
+      pagination, 
+      rowSelection: selectedRowIds, 
+      columnOrder,
+      expanded,
+    },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     onColumnFiltersChange: setColumnFilters,
     onPaginationChange: setPagination,
     onRowSelectionChange: setSelectedRowIds,
     onColumnOrderChange: setColumnOrder,
+    onExpandedChange: setExpanded,
     getCoreRowModel: getCoreRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -386,6 +410,288 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
       console.error('Error al eliminar pedidos:', error)
       alert(`Error al eliminar los pedidos seleccionados: ${error.message || 'Error desconocido'}`)
     }
+  }
+
+  const handleEstadoChange = async (pedidoId: number, nuevoEstado: string) => {
+    setUpdatingStates((prev) => ({ ...prev, [pedidoId]: true }))
+    
+    try {
+      const response = await fetch(`/api/tienda/pedidos/${pedidoId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          data: {
+            estado: nuevoEstado,
+          },
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Error al actualizar el estado')
+      }
+
+      // Actualizar el estado en los datos locales
+      setData((old) =>
+        old.map((pedido) =>
+          pedido.id === pedidoId ? { ...pedido, estado: nuevoEstado } : pedido
+        )
+      )
+
+      // Recargar para obtener datos actualizados
+      router.refresh()
+    } catch (error: any) {
+      console.error('Error al actualizar estado:', error)
+      alert(`Error al actualizar el estado: ${error.message || 'Error desconocido'}`)
+    } finally {
+      setUpdatingStates((prev) => ({ ...prev, [pedidoId]: false }))
+    }
+  }
+
+  // Componente para renderizar los detalles expandidos
+  const renderExpandedContent = (row: TableRow<PedidoType>) => {
+    const pedido = row.original
+    const rawData = pedido.rawData
+    const attrs = rawData?.attributes || {}
+    const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (rawData || {})
+
+    const cliente = getField(data, 'cliente', 'CLIENTE')
+    const items = getField(data, 'items', 'ITEMS') || []
+    const billing = getField(data, 'billing', 'BILLING') || {}
+    const shipping = getField(data, 'shipping', 'SHIPPING') || {}
+    const metodoPago = getField(data, 'metodo_pago', 'metodoPago', 'METODO_PAGO') || ''
+    const metodoPagoTitulo = getField(data, 'metodo_pago_titulo', 'metodoPagoTitulo', 'METODO_PAGO_TITULO') || ''
+    const notaCliente = getField(data, 'nota_cliente', 'notaCliente', 'NOTA_CLIENTE') || ''
+
+    return (
+      <div className="p-4 bg-light border-top">
+        <Row className="g-4">
+          <Col md={4}>
+            <Card>
+              <CardHeader>
+                <h6 className="mb-0">General</h6>
+              </CardHeader>
+              <CardBody>
+                <div className="mb-3">
+                  <FormLabel className="fw-semibold">Fecha de creación</FormLabel>
+                  <div className="d-flex align-items-center gap-2">
+                    <FormControl
+                      type="date"
+                      value={pedido.fecha_pedido ? new Date(pedido.fecha_pedido).toISOString().split('T')[0] : ''}
+                      disabled
+                      size="sm"
+                    />
+                    {pedido.fecha_pedido && (
+                      <span className="text-muted">
+                        @ {format(new Date(pedido.fecha_pedido), 'HH:mm')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <FormLabel className="fw-semibold">Estado</FormLabel>
+                  <FormControl
+                    as="select"
+                    value={pedido.estado}
+                    onChange={(e) => handleEstadoChange(pedido.id, e.target.value)}
+                    disabled={updatingStates[pedido.id]}
+                    size="sm"
+                  >
+                    <option value="pendiente">Pendiente</option>
+                    <option value="procesando">Procesando</option>
+                    <option value="en_espera">En Espera</option>
+                    <option value="completado">Completado</option>
+                    <option value="cancelado">Cancelado</option>
+                    <option value="reembolsado">Reembolsado</option>
+                    <option value="fallido">Fallido</option>
+                  </FormControl>
+                  {updatingStates[pedido.id] && (
+                    <small className="text-muted d-block mt-1">Actualizando...</small>
+                  )}
+                </div>
+                <div>
+                  <FormLabel className="fw-semibold">Cliente</FormLabel>
+                  <div className="text-muted">
+                    {cliente ? (typeof cliente === 'object' ? cliente.nombre || 'Cliente' : cliente) : 'Sin cliente'}
+                  </div>
+                </div>
+              </CardBody>
+            </Card>
+          </Col>
+
+          <Col md={4}>
+            <Card>
+              <CardHeader>
+                <h6 className="mb-0">Facturación</h6>
+              </CardHeader>
+              <CardBody>
+                {billing && typeof billing === 'object' ? (
+                  <>
+                    <div className="mb-2">
+                      <strong>Nombre:</strong> {billing.first_name || ''} {billing.last_name || ''}
+                    </div>
+                    <div className="mb-2">
+                      <strong>Dirección:</strong> {billing.address_1 || ''}
+                      {billing.address_2 && <>, {billing.address_2}</>}
+                    </div>
+                    <div className="mb-2">
+                      {billing.city && <>{billing.city}, </>}
+                      {billing.state && <>{billing.state}, </>}
+                      {billing.postcode && <>{billing.postcode}</>}
+                    </div>
+                    {billing.email && (
+                      <div className="mb-2">
+                        <strong>Email:</strong> <a href={`mailto:${billing.email}`}>{billing.email}</a>
+                      </div>
+                    )}
+                    {billing.phone && (
+                      <div>
+                        <strong>Teléfono:</strong> <a href={`tel:${billing.phone}`}>{billing.phone}</a>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-muted">Sin información de facturación</span>
+                )}
+              </CardBody>
+            </Card>
+          </Col>
+
+          <Col md={4}>
+            <Card>
+              <CardHeader>
+                <h6 className="mb-0">Envío</h6>
+              </CardHeader>
+              <CardBody>
+                {shipping && typeof shipping === 'object' ? (
+                  <>
+                    <div className="mb-2">
+                      <strong>Nombre:</strong> {shipping.first_name || ''} {shipping.last_name || ''}
+                    </div>
+                    <div className="mb-2">
+                      <strong>Dirección:</strong> {shipping.address_1 || ''}
+                      {shipping.address_2 && <>, {shipping.address_2}</>}
+                    </div>
+                    <div className="mb-2">
+                      {shipping.city && <>{shipping.city}, </>}
+                      {shipping.state && <>{shipping.state}, </>}
+                      {shipping.postcode && <>{shipping.postcode}</>}
+                    </div>
+                  </>
+                ) : (
+                  <span className="text-muted">Sin información de envío</span>
+                )}
+                {notaCliente && (
+                  <div className="mt-3 pt-3 border-top">
+                    <strong>Nota del cliente:</strong>
+                    <div className="text-muted small">{notaCliente}</div>
+                  </div>
+                )}
+              </CardBody>
+            </Card>
+          </Col>
+
+          <Col md={12}>
+            <Card>
+              <CardHeader>
+                <h6 className="mb-0">Artículos</h6>
+              </CardHeader>
+              <CardBody>
+                {items && items.length > 0 ? (
+                  <table className="table table-sm">
+                    <thead>
+                      <tr>
+                        <th>Artículo</th>
+                        <th>Precio</th>
+                        <th>Cantidad</th>
+                        <th>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((item: any, index: number) => (
+                        <tr key={index}>
+                          <td>
+                            <div className="d-flex align-items-center">
+                              <div className="me-2">
+                                <span className="text-muted">📦</span>
+                              </div>
+                              <div>
+                                <div className="fw-semibold">{item.nombre || 'Producto'}</div>
+                                {item.sku && <small className="text-muted">SKU: {item.sku}</small>}
+                              </div>
+                            </div>
+                          </td>
+                          <td>${(item.precio_unitario || 0).toLocaleString()}</td>
+                          <td>x {item.cantidad || 1}</td>
+                          <td className="fw-semibold">${(item.total || 0).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <span className="text-muted">No hay artículos en este pedido</span>
+                )}
+              </CardBody>
+            </Card>
+          </Col>
+
+          <Col md={12}>
+            <Card>
+              <CardBody>
+                <Row>
+                  <Col md={6}>
+                    <div className="d-flex justify-content-between mb-2">
+                      <span>Subtotal de artículos:</span>
+                      <strong>${(pedido.subtotal || 0).toLocaleString()} {pedido.moneda}</strong>
+                    </div>
+                    {pedido.impuestos && pedido.impuestos > 0 && (
+                      <div className="d-flex justify-content-between mb-2">
+                        <span>Impuestos:</span>
+                        <strong>${pedido.impuestos.toLocaleString()} {pedido.moneda}</strong>
+                      </div>
+                    )}
+                    {pedido.envio && pedido.envio > 0 && (
+                      <div className="d-flex justify-content-between mb-2">
+                        <span>Envío:</span>
+                        <strong>${pedido.envio.toLocaleString()} {pedido.moneda}</strong>
+                      </div>
+                    )}
+                    {pedido.descuento && pedido.descuento > 0 && (
+                      <div className="d-flex justify-content-between mb-2">
+                        <span>Descuento:</span>
+                        <strong>-${pedido.descuento.toLocaleString()} {pedido.moneda}</strong>
+                      </div>
+                    )}
+                    <hr />
+                    <div className="d-flex justify-content-between">
+                      <strong>Total del pedido:</strong>
+                      <strong className="fs-5">${(pedido.total || 0).toLocaleString()} {pedido.moneda}</strong>
+                    </div>
+                  </Col>
+                  <Col md={6}>
+                    <div className="mb-2">
+                      <strong>Método de pago:</strong> {metodoPagoTitulo || metodoPago || 'No especificado'}
+                    </div>
+                    <div className="mb-2">
+                      <strong>Origen:</strong> <Badge bg="info">{pedido.origen || 'woocommerce'}</Badge>
+                    </div>
+                    <div>
+                      <strong>Plataforma:</strong>{' '}
+                      <Badge bg={pedido.originPlatform === 'woo_moraleja' ? 'info' : pedido.originPlatform === 'woo_escolar' ? 'primary' : 'secondary'}>
+                        {pedido.originPlatform.replace('woo_', 'WooCommerce ').replace('_', ' ').toUpperCase()}
+                      </Badge>
+                    </div>
+                  </Col>
+                </Row>
+              </CardBody>
+            </Card>
+          </Col>
+        </Row>
+      </div>
+    )
   }
 
   const hasError = !!error
@@ -476,12 +782,78 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
             </div>
           </CardHeader>
 
-          <DataTable<PedidoType>
-            table={table}
-            emptyMessage="No se encontraron pedidos"
-            enableColumnReordering={true}
-            onColumnOrderChange={handleColumnOrderChange}
-          />
+          <div className="table-responsive">
+            <table className="table table-hover mb-0">
+              <thead>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <tr key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <th
+                        key={header.id}
+                        style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}
+                        className={header.column.getCanSort() ? 'cursor-pointer' : ''}
+                        onClick={header.column.getToggleSortingHandler()}
+                      >
+                        {header.isPlaceholder ? null : (
+                          <div className="d-flex align-items-center">
+                            {header.column.getCanSort() && (
+                              <span className="me-1">
+                                {{
+                                  asc: '↑',
+                                  desc: '↓',
+                                }[header.column.getIsSorted() as string] ?? '↕'}
+                              </span>
+                            )}
+                            {typeof header.column.columnDef.header === 'function'
+                              ? header.column.columnDef.header({
+                                  header: header,
+                                  table: table,
+                                  column: header.column,
+                                })
+                              : header.column.columnDef.header}
+                          </div>
+                        )}
+                      </th>
+                    ))}
+                  </tr>
+                ))}
+              </thead>
+              <tbody>
+                {table.getRowModel().rows.map((row) => (
+                  <>
+                    <tr key={row.id} className={row.getIsSelected() ? 'table-active' : ''}>
+                      {row.getVisibleCells().map((cell) => (
+                        <td key={cell.id}>
+                          {typeof cell.column.columnDef.cell === 'function'
+                            ? cell.column.columnDef.cell({
+                                cell: cell,
+                                row: row,
+                                table: table,
+                                column: cell.column,
+                              })
+                            : cell.getValue() as React.ReactNode}
+                        </td>
+                      ))}
+                    </tr>
+                    {row.getIsExpanded() && (
+                      <tr key={`${row.id}-expanded`}>
+                        <td colSpan={row.getVisibleCells().length}>
+                          {renderExpandedContent(row)}
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                ))}
+                {table.getRowModel().rows.length === 0 && (
+                  <tr>
+                    <td colSpan={table.getAllColumns().length} className="text-center py-5">
+                      <div className="text-muted">No se encontraron pedidos</div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
 
           {table.getRowModel().rows.length > 0 && (
             <CardFooter className="border-0">
