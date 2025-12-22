@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
-import wooCommerceClient from '@/lib/woocommerce/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,107 +57,35 @@ export async function POST(request: NextRequest) {
     // Crear en Strapi PRIMERO para obtener el documentId
     console.log('[API Etiquetas POST] 📚 Creando etiqueta en Strapi primero...')
     
+    const estadoPublicacion = 'pendiente' // Siempre pendiente al crear
+    
+    console.log('[API Etiquetas POST] 📚 Creando etiqueta en Strapi...')
+    console.log('[API Etiquetas POST] Estado de publicación:', estadoPublicacion, '(siempre pendiente al crear)')
+    
     // Preparar datos para Strapi (usar nombres del schema real: name, descripcion)
     const etiquetaData: any = {
       data: {
         name: nombreEtiqueta.trim(), // El schema usa 'name'
         descripcion: body.data.descripcion || body.data.description || null,
+        estado_publicacion: estadoPublicacion, // Siempre "pendiente" al crear (minúscula para Strapi)
       }
     }
 
     const strapiTag = await strapiClient.post<any>(etiquetaEndpoint, etiquetaData)
-    const documentId = strapiTag.data?.documentId || strapiTag.documentId
-    
-    if (!documentId) {
-      throw new Error('No se pudo obtener el documentId de Strapi')
-    }
     
     console.log('[API Etiquetas POST] ✅ Etiqueta creada en Strapi:', {
       id: strapiTag.data?.id || strapiTag.id,
-      documentId: documentId
+      documentId: strapiTag.data?.documentId || strapiTag.documentId
     })
-
-    // Crear etiqueta en WooCommerce usando el documentId como slug
-    console.log('[API Etiquetas POST] 🛒 Creando etiqueta en WooCommerce con slug=documentId...')
-    
-    const wooCommerceTagData: any = {
-      name: nombreEtiqueta.trim(),
-      description: body.data.descripcion || body.data.description || '',
-      slug: documentId.toString(), // Usar documentId como slug para el match
-    }
-
-    // Crear en WooCommerce
-    let wooCommerceTag = null
-    try {
-      wooCommerceTag = await wooCommerceClient.post<any>('products/tags', wooCommerceTagData)
-      console.log('[API Etiquetas POST] ✅ Etiqueta creada en WooCommerce:', {
-        id: wooCommerceTag.id,
-        name: wooCommerceTag.name,
-        slug: wooCommerceTag.slug
-      })
-
-      // Actualizar Strapi con el woocommerce_id
-      const updateData = {
-        data: {
-          woocommerce_id: wooCommerceTag.id.toString()
-        }
-      }
-      await strapiClient.put<any>(`${etiquetaEndpoint}/${documentId}`, updateData)
-      console.log('[API Etiquetas POST] ✅ woocommerce_id guardado en Strapi')
-    } catch (wooError: any) {
-      // Manejar caso especial: etiqueta ya existe en WooCommerce
-      if (wooError.code === 'term_exists' && wooError.details?.data?.resource_id) {
-        const existingTagId = wooError.details.data.resource_id
-        console.log('[API Etiquetas POST] 🔄 Etiqueta ya existe en WooCommerce, obteniendo etiqueta existente:', existingTagId)
-        
-        try {
-          // Obtener la etiqueta existente de WooCommerce
-          wooCommerceTag = await wooCommerceClient.get<any>(`products/tags/${existingTagId}`)
-          console.log('[API Etiquetas POST] ✅ Etiqueta existente obtenida de WooCommerce:', {
-            id: wooCommerceTag.id,
-            name: wooCommerceTag.name,
-            slug: wooCommerceTag.slug
-          })
-
-          // Actualizar Strapi con el woocommerce_id de la etiqueta existente
-          const updateData = {
-            data: {
-              woocommerce_id: wooCommerceTag.id.toString()
-            }
-          }
-          await strapiClient.put<any>(`${etiquetaEndpoint}/${documentId}`, updateData)
-          console.log('[API Etiquetas POST] ✅ woocommerce_id de etiqueta existente guardado en Strapi')
-        } catch (getError: any) {
-          console.error('[API Etiquetas POST] ❌ Error al obtener etiqueta existente de WooCommerce:', getError.message)
-          // Si falla al obtener la etiqueta existente, eliminar de Strapi
-          try {
-            await strapiClient.delete<any>(`${etiquetaEndpoint}/${documentId}`)
-            console.log('[API Etiquetas POST] 🗑️ Etiqueta eliminada de Strapi debido a error al obtener etiqueta existente')
-          } catch (deleteError: any) {
-            console.error('[API Etiquetas POST] ⚠️ Error al eliminar de Strapi:', deleteError.message)
-          }
-          throw getError
-        }
-      } else {
-        // Para otros errores, eliminar de Strapi para mantener consistencia
-        console.error('[API Etiquetas POST] ⚠️ Error al crear etiqueta en WooCommerce (no crítico):', wooError.message)
-        try {
-          await strapiClient.delete<any>(`${etiquetaEndpoint}/${documentId}`)
-          console.log('[API Etiquetas POST] 🗑️ Etiqueta eliminada de Strapi debido a error en WooCommerce')
-        } catch (deleteError: any) {
-          console.error('[API Etiquetas POST] ⚠️ Error al eliminar de Strapi:', deleteError.message)
-        }
-        throw wooError
-      }
-    }
+    console.log('[API Etiquetas POST] Estado: ⏸️ Solo guardado en Strapi (pendiente), no se publica en WordPress')
+    console.log('[API Etiquetas POST] Para publicar, cambiar el estado desde la página de Solicitudes')
 
     return NextResponse.json({
       success: true,
       data: {
-        woocommerce: wooCommerceTag,
         strapi: strapiTag.data || strapiTag,
       },
-      message: 'Etiqueta creada exitosamente en Strapi y WooCommerce'
+      message: 'Etiqueta creada en Strapi con estado "pendiente". Para publicar en WordPress, cambia el estado desde Solicitudes.'
     })
 
   } catch (error: any) {

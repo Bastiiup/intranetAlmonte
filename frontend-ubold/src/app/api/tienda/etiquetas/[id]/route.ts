@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
-import wooCommerceClient from '@/lib/woocommerce/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -164,56 +163,8 @@ export async function DELETE(
 
     const etiquetaEndpoint = '/api/etiquetas'
     
-    // Primero obtener la etiqueta de Strapi para obtener el documentId y woocommerce_id
-    let woocommerceId: string | null = null
-    let documentId: string | null = null
-    try {
-      const etiquetaResponse = await strapiClient.get<any>(`${etiquetaEndpoint}?filters[id][$eq]=${id}&populate=*`)
-      let etiquetas: any[] = []
-      if (Array.isArray(etiquetaResponse)) {
-        etiquetas = etiquetaResponse
-      } else if (etiquetaResponse.data && Array.isArray(etiquetaResponse.data)) {
-        etiquetas = etiquetaResponse.data
-      } else if (etiquetaResponse.data) {
-        etiquetas = [etiquetaResponse.data]
-      }
-      const etiquetaStrapi = etiquetas[0]
-      documentId = etiquetaStrapi?.documentId || etiquetaStrapi?.data?.documentId || id
-      woocommerceId = etiquetaStrapi?.attributes?.woocommerce_id || 
-                      etiquetaStrapi?.woocommerce_id
-    } catch (error: any) {
-      console.warn('[API Etiquetas DELETE] ⚠️ No se pudo obtener etiqueta de Strapi:', error.message)
-      documentId = id
-    }
-
-    // Si no tenemos woocommerce_id, buscar por slug (documentId) en WooCommerce
-    if (!woocommerceId && documentId) {
-      try {
-        console.log('[API Etiquetas DELETE] 🔍 Buscando etiqueta en WooCommerce por slug:', documentId)
-        const wcTags = await wooCommerceClient.get<any[]>('products/tags', { slug: documentId.toString() })
-        if (wcTags && wcTags.length > 0) {
-          woocommerceId = wcTags[0].id.toString()
-          console.log('[API Etiquetas DELETE] ✅ Etiqueta encontrada en WooCommerce por slug:', woocommerceId)
-        }
-      } catch (searchError: any) {
-        console.warn('[API Etiquetas DELETE] ⚠️ No se pudo buscar por slug en WooCommerce:', searchError.message)
-      }
-    }
-
-    // Eliminar en WooCommerce primero si tenemos el ID
-    let wooCommerceDeleted = false
-    if (woocommerceId) {
-      try {
-        console.log('[API Etiquetas DELETE] 🛒 Eliminando etiqueta en WooCommerce:', woocommerceId)
-        await wooCommerceClient.delete<any>(`products/tags/${woocommerceId}`, true)
-        wooCommerceDeleted = true
-        console.log('[API Etiquetas DELETE] ✅ Etiqueta eliminada en WooCommerce')
-      } catch (wooError: any) {
-        console.error('[API Etiquetas DELETE] ⚠️ Error al eliminar en WooCommerce (no crítico):', wooError.message)
-      }
-    }
-
     // Eliminar en Strapi
+    // La eliminación en WordPress se maneja automáticamente en los lifecycles de Strapi
     const endpoint = `${etiquetaEndpoint}/${id}`
     console.log('[API Etiquetas DELETE] Usando endpoint Strapi:', endpoint)
 
@@ -222,7 +173,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: 'Etiqueta eliminada exitosamente' + (wooCommerceDeleted ? ' en WooCommerce y Strapi' : ' en Strapi'),
+      message: 'Etiqueta eliminada exitosamente en Strapi',
       data: response
     })
 
@@ -326,15 +277,23 @@ export async function PUT(
       data: {}
     }
 
-    if (body.data.name) etiquetaData.data.name = body.data.name
-    if (body.data.nombre) etiquetaData.data.name = body.data.nombre
-    if (body.data.descripcion !== undefined) etiquetaData.data.descripcion = body.data.descripcion
-    if (body.data.description !== undefined) etiquetaData.data.descripcion = body.data.description
+    if (body.data.name) etiquetaData.data.name = body.data.name.trim()
+    if (body.data.nombre) etiquetaData.data.name = body.data.nombre.trim()
+    if (body.data.descripcion !== undefined) etiquetaData.data.descripcion = body.data.descripcion?.trim() || null
+    if (body.data.description !== undefined) etiquetaData.data.descripcion = body.data.description?.trim() || null
 
-    // Si se creó en WooCommerce y no teníamos ID, guardarlo
-    if (wooCommerceTag && !woocommerceId) {
-      etiquetaData.data.woocommerce_id = wooCommerceTag.id.toString()
+    // Estado de publicación - IMPORTANTE: Strapi espera valores en minúsculas
+    if (body.data.estado_publicacion !== undefined) {
+      // Normalizar a minúsculas para Strapi: "pendiente", "publicado", "borrador"
+      const estadoNormalizado = typeof body.data.estado_publicacion === 'string' 
+        ? body.data.estado_publicacion.toLowerCase() 
+        : body.data.estado_publicacion
+      etiquetaData.data.estado_publicacion = estadoNormalizado
+      console.log('[API Etiquetas PUT] 📝 Estado de publicación actualizado:', estadoNormalizado)
     }
+
+    // La sincronización con WooCommerce se maneja automáticamente en los lifecycles de Strapi
+    // No necesitamos actualizar WooCommerce directamente aquí
 
     const strapiResponse = await strapiClient.put<any>(endpoint, etiquetaData)
     console.log('[API Etiquetas PUT] ✅ Etiqueta actualizada en Strapi')
@@ -342,10 +301,9 @@ export async function PUT(
     return NextResponse.json({
       success: true,
       data: {
-        woocommerce: wooCommerceTag,
         strapi: strapiResponse.data || strapiResponse,
       },
-      message: 'Etiqueta actualizada exitosamente' + (wooCommerceTag ? ' en WooCommerce y Strapi' : ' en Strapi')
+      message: 'Etiqueta actualizada exitosamente en Strapi'
     })
 
   } catch (error: any) {

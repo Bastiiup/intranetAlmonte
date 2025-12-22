@@ -139,6 +139,7 @@ export const menuItems: MenuItemType[] = [
           { key: 'categoria-requests', label: 'Solicitudes de Categorías', url: '/products/categorias/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
           { key: 'all-tags', label: 'Todas las Etiquetas', url: '/products/etiquetas' },
           { key: 'add-tag', label: 'Agregar Etiqueta', url: '/products/etiquetas/agregar' },
+          { key: 'etiqueta-requests', label: 'Solicitudes de Etiquetas', url: '/products/etiquetas/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
           {
             key: 'atributos',
             label: 'Atributos',
@@ -274,6 +275,7 @@ export const horizontalMenuItems: MenuItemType[] = [
               { key: 'categoria-requests', label: 'Solicitudes de Categorías', url: '/products/categorias/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
               { key: 'all-tags', label: 'Todas las Etiquetas', url: '/products/etiquetas' },
               { key: 'add-tag', label: 'Agregar Etiqueta', url: '/products/etiquetas/agregar' },
+              { key: 'etiqueta-requests', label: 'Solicitudes de Etiquetas', url: '/products/etiquetas/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
               {
                 key: 'atributos',
                 label: 'Atributos',
