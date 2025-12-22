@@ -75,7 +75,10 @@ const CuponDetails = ({ cupon: initialCupon, cuponId, error: initialError }: Cup
         producto_ids: (getField(data, 'producto_ids', 'productoIds', 'PRODUCTO_IDS') || []) as string[],
         uso_limite: getField(data, 'uso_limite', 'usoLimite', 'USO_LIMITE')?.toString() || '',
         fecha_caducidad: getField(data, 'fecha_caducidad', 'fechaCaducidad', 'FECHA_CADUCIDAD') || '',
-        originPlatform: getField(data, 'originPlatform', 'origin_platform', 'ORIGIN_PLATFORM') || 'woo_moraleja',
+        originPlatform: (() => {
+          const externalIds = getField(data, 'external_ids', 'externalIds', 'EXTERNAL_IDS') || {}
+          return externalIds.origin_platform || getField(data, 'originPlatform', 'origin_platform', 'ORIGIN_PLATFORM') || 'woo_moraleja'
+        })(),
       })
     }
   }, [cupon])

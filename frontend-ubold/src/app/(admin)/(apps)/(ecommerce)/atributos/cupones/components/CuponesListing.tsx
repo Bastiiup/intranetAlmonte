@@ -62,7 +62,9 @@ const mapStrapiCuponToCuponType = (cupon: any): CuponType => {
   const descripcion = getField(data, 'descripcion', 'DESCRIPCION', 'DESCRIPTION') || ''
   const usoLimite = getField(data, 'uso_limite', 'usoLimite', 'USO_LIMITE')
   const fechaCaducidad = getField(data, 'fecha_caducidad', 'fechaCaducidad', 'FECHA_CADUCIDAD')
-  const originPlatform = getField(data, 'originPlatform', 'origin_platform', 'ORIGIN_PLATFORM') || 'woo_moraleja'
+  // origin_platform se guarda en external_ids ya que no existe como campo directo en Strapi
+  const externalIds = getField(data, 'external_ids', 'externalIds', 'EXTERNAL_IDS') || {}
+  const originPlatform = externalIds.origin_platform || getField(data, 'originPlatform', 'origin_platform', 'ORIGIN_PLATFORM') || 'woo_moraleja'
   
   // Determinar estado
   let status: 'active' | 'expired' | 'inactive' = 'active'

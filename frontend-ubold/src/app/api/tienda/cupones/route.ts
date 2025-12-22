@@ -99,6 +99,8 @@ export async function POST(request: NextRequest) {
     // Crear en Strapi PRIMERO para obtener el documentId
     console.log('[API Cupones POST] 📚 Creando cupón en Strapi primero...')
     
+    // Crear cupón en Strapi sin origin_platform (no existe en el schema)
+    // Lo guardaremos en external_ids después
     const cuponData: any = {
       data: {
         codigo: codigo,
@@ -110,7 +112,6 @@ export async function POST(request: NextRequest) {
           : null,
         uso_limite: body.data.uso_limite ? parseInt(body.data.uso_limite) : null,
         fecha_caducidad: body.data.fecha_caducidad || null,
-        origin_platform: originPlatform,
       }
     }
 
@@ -181,7 +182,7 @@ export async function POST(request: NextRequest) {
         throw new Error('La respuesta de WooCommerce no contiene un cupón válido')
       }
 
-      // Actualizar Strapi con el woo_id y raw_woo_data (usar snake_case para Strapi)
+      // Actualizar Strapi con el woo_id, raw_woo_data y origin_platform en external_ids
       const updateData: any = {
         data: {
           woo_id: wooCommerceCupon.id,
@@ -190,7 +191,8 @@ export async function POST(request: NextRequest) {
             wooCommerce: {
               id: wooCommerceCupon.id,
               code: wooCommerceCupon.code,
-            }
+            },
+            origin_platform: originPlatform, // Guardar en external_ids ya que no existe como campo directo
           }
         }
       }

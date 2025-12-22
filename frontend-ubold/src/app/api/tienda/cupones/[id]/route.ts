@@ -353,22 +353,29 @@ export async function PUT(
     if (body.data.producto_ids !== undefined) cuponData.data.producto_ids = body.data.producto_ids || null
     if (body.data.uso_limite !== undefined) cuponData.data.uso_limite = body.data.uso_limite ? parseInt(body.data.uso_limite) : null
     if (body.data.fecha_caducidad !== undefined) cuponData.data.fecha_caducidad = body.data.fecha_caducidad || null
-    // Aceptar tanto originPlatform como origin_platform para compatibilidad
-    if (body.data.origin_platform !== undefined) {
-      cuponData.data.origin_platform = body.data.origin_platform
-    } else if (body.data.originPlatform !== undefined) {
-      cuponData.data.origin_platform = body.data.originPlatform
-    }
-
-    // Si se actualizó en WooCommerce, actualizar raw_woo_data (usar snake_case para Strapi)
-    if (wooCommerceCupon) {
-      cuponData.data.raw_woo_data = wooCommerceCupon
+    
+    // origin_platform no existe como campo directo, guardarlo en external_ids
+    const platformToSave = body.data.origin_platform || body.data.originPlatform || originPlatform
+    
+    // Si se actualizó en WooCommerce o hay que actualizar origin_platform, actualizar external_ids
+    if (wooCommerceCupon || platformToSave) {
       cuponData.data.external_ids = {
-        wooCommerce: {
+        wooCommerce: wooCommerceCupon ? {
           id: wooCommerceCupon.id,
           code: wooCommerceCupon.code,
-        }
+        } : undefined,
+        origin_platform: platformToSave,
       }
+      
+      // Limpiar undefined
+      if (!cuponData.data.external_ids.wooCommerce) {
+        delete cuponData.data.external_ids.wooCommerce
+      }
+    }
+    
+    // Actualizar raw_woo_data si se actualizó en WooCommerce
+    if (wooCommerceCupon) {
+      cuponData.data.raw_woo_data = wooCommerceCupon
     }
 
     const strapiResponse = await strapiClient.put<any>(strapiEndpoint, cuponData)
