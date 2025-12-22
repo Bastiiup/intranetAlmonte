@@ -31,14 +31,22 @@ const ClienteDetails = ({ cliente: initialCliente, clienteId }: ClienteDetailsPr
   const attrs = cliente.attributes || {}
   const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (cliente as any)
 
-  // Inicializar formData con los valores del cliente (solo campos válidos en el schema)
+  // Obtener woocommerce_id y email para buscar en WooCommerce
+  const woocommerceId = getField(data, 'woocommerce_id', 'WOCOMMERCE_ID') || null
+  const emailCliente = getField(data, 'correo_electronico', 'CORREO_ELECTRONICO', 'email', 'EMAIL') || ''
+  const nombreCompleto = getField(data, 'nombre', 'NOMBRE', 'name', 'NAME') || ''
+  
+  // Parsear nombre en first_name y last_name
+  const nombrePartes = nombreCompleto.trim().split(/\s+/)
+  const first_name = nombrePartes[0] || ''
+  const last_name = nombrePartes.slice(1).join(' ') || ''
+
+  // Inicializar formData con formato simple (igual que el modal del POS)
   const [formData, setFormData] = useState({
-    nombre: getField(data, 'nombre', 'NOMBRE', 'name', 'NAME') || '',
-    correo_electronico: getField(data, 'correo_electronico', 'CORREO_ELECTRONICO', 'email', 'EMAIL') || '',
-    pedidos: (typeof data.pedidos === 'number' ? data.pedidos : (typeof data.pedidos === 'string' ? parseInt(data.pedidos) : 0)) || 0,
-    gasto_total: (typeof data.gasto_total === 'number' ? data.gasto_total : (typeof data.gasto_total === 'string' ? parseFloat(data.gasto_total) : 0)) || 0,
-    fecha_registro: getField(data, 'fecha_registro', 'FECHA_REGISTRO', 'fechaRegistro') || attrs.createdAt || cliente.createdAt || '',
-    ultima_actividad: getField(data, 'ultima_actividad', 'ULTIMA_ACTIVIDAD', 'ultimaActividad') || '',
+    email: emailCliente,
+    first_name: first_name,
+    last_name: last_name,
+    phone: '',
   })
 
   // Actualizar formData cuando cambie el cliente
@@ -46,13 +54,17 @@ const ClienteDetails = ({ cliente: initialCliente, clienteId }: ClienteDetailsPr
     const attrs = cliente.attributes || {}
     const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (cliente as any)
     
+    const email = getField(data, 'correo_electronico', 'CORREO_ELECTRONICO', 'email', 'EMAIL') || ''
+    const nombre = getField(data, 'nombre', 'NOMBRE', 'name', 'NAME') || ''
+    const nombrePartes = nombre.trim().split(/\s+/)
+    const first = nombrePartes[0] || ''
+    const last = nombrePartes.slice(1).join(' ') || ''
+    
     setFormData({
-      nombre: getField(data, 'nombre', 'NOMBRE', 'name', 'NAME') || '',
-      correo_electronico: getField(data, 'correo_electronico', 'CORREO_ELECTRONICO', 'email', 'EMAIL') || '',
-      pedidos: (typeof data.pedidos === 'number' ? data.pedidos : (typeof data.pedidos === 'string' ? parseInt(data.pedidos) : 0)) || 0,
-      gasto_total: (typeof data.gasto_total === 'number' ? data.gasto_total : (typeof data.gasto_total === 'string' ? parseFloat(data.gasto_total) : 0)) || 0,
-      fecha_registro: getField(data, 'fecha_registro', 'FECHA_REGISTRO', 'fechaRegistro') || attrs.createdAt || cliente.createdAt || '',
-      ultima_actividad: getField(data, 'ultima_actividad', 'ULTIMA_ACTIVIDAD', 'ultimaActividad') || '',
+      email: email,
+      first_name: first,
+      last_name: last,
+      phone: '',
     })
   }, [cliente])
 
@@ -95,88 +107,83 @@ const ClienteDetails = ({ cliente: initialCliente, clienteId }: ClienteDetailsPr
     setSuccess(false)
 
     try {
-      console.log('[ClienteDetails] ===== INICIANDO GUARDADO =====')
-      console.log('[ClienteDetails] Datos del cliente:', {
-        id: cliente.id,
-        documentId: cliente.documentId,
-        cliId,
-        formData,
-      })
-
-      // Validar nombre y correo obligatorios
-      if (!formData.nombre.trim()) {
-        throw new Error('El nombre del cliente es obligatorio')
+      // Validar campos (igual que el modal del POS)
+      if (!formData.email.trim()) {
+        throw new Error('El correo electrónico es obligatorio')
       }
 
-      if (!formData.correo_electronico.trim()) {
-        throw new Error('El correo electrónico del cliente es obligatorio')
+      if (!formData.first_name.trim()) {
+        throw new Error('El nombre es obligatorio')
       }
 
-      // Validar formato de email básico
+      // Validar formato de email
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      if (!emailRegex.test(formData.correo_electronico.trim())) {
+      if (!emailRegex.test(formData.email.trim())) {
         throw new Error('El correo electrónico no tiene un formato válido')
       }
 
-      const url = `/api/tienda/clientes/${cliId}`
-      const body = JSON.stringify({
-        data: {
-          nombre: formData.nombre.trim(),
-          correo_electronico: formData.correo_electronico.trim(),
-          pedidos: parseInt(formData.pedidos.toString()) || 0,
-          gasto_total: parseFloat(formData.gasto_total.toString()) || 0,
-          fecha_registro: formData.fecha_registro || null,
-          ultima_actividad: formData.ultima_actividad || null,
-        },
-      })
+      // Buscar cliente en WooCommerce por woocommerce_id o email
+      let customerId: number | null = null
       
-      console.log('[ClienteDetails] Enviando petición PUT:', {
-        url,
-        cliId,
-        body,
-      })
-      
-      const response = await fetch(url, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: body,
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        const errorMessage = errorData.error || `Error HTTP: ${response.status}`
-        throw new Error(errorMessage)
+      if (woocommerceId) {
+        customerId = parseInt(woocommerceId.toString())
+      } else {
+        // Buscar por email en WooCommerce
+        try {
+          const searchResponse = await fetch(`/api/woocommerce/customers?search=${encodeURIComponent(formData.email)}&per_page=1`)
+          const searchData = await searchResponse.json()
+          if (searchData.success && searchData.data && searchData.data.length > 0) {
+            customerId = searchData.data[0].id
+          }
+        } catch (searchErr) {
+          console.warn('[ClienteDetails] No se pudo buscar cliente en WooCommerce:', searchErr)
+        }
       }
 
-      const result = await response.json()
+      // Preparar datos en formato simple (igual que el modal del POS)
+      const updateData = {
+        email: formData.email.trim(),
+        first_name: formData.first_name.trim(),
+        last_name: formData.last_name.trim() || '',
+        phone: formData.phone.trim() || '',
+      }
+
+      let response: Response
+      let result: any
+
+      if (customerId) {
+        // Actualizar cliente existente en WooCommerce
+        response = await fetch(`/api/woocommerce/customers/${customerId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updateData),
+        })
+        result = await response.json()
+      } else {
+        // Crear nuevo cliente en WooCommerce si no existe
+        response = await fetch('/api/woocommerce/customers', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updateData),
+        })
+        result = await response.json()
+      }
 
       if (!result.success) {
         throw new Error(result.error || 'Error al guardar cambios')
       }
 
-      console.log('[ClienteDetails] ✅ Cambios guardados exitosamente:', result)
+      console.log('[ClienteDetails] ✅ Cambios guardados exitosamente')
       setSuccess(true)
-      
-      // Actualizar el estado local con los datos actualizados de la respuesta
-      if (result.data) {
-        setCliente(result.data)
-        const updatedData = result.data.attributes || result.data
-        
-        setFormData({
-          nombre: getField(updatedData, 'nombre', 'NOMBRE', 'name', 'NAME') || formData.nombre,
-          correo_electronico: getField(updatedData, 'correo_electronico', 'CORREO_ELECTRONICO', 'email', 'EMAIL') || formData.correo_electronico,
-          pedidos: (typeof updatedData.pedidos === 'number' ? updatedData.pedidos : (typeof updatedData.pedidos === 'string' ? parseInt(updatedData.pedidos) : 0)) || formData.pedidos,
-          gasto_total: (typeof updatedData.gasto_total === 'number' ? updatedData.gasto_total : (typeof updatedData.gasto_total === 'string' ? parseFloat(updatedData.gasto_total) : 0)) || formData.gasto_total,
-          fecha_registro: getField(updatedData, 'fecha_registro', 'FECHA_REGISTRO', 'fechaRegistro') || formData.fecha_registro,
-          ultima_actividad: getField(updatedData, 'ultima_actividad', 'ULTIMA_ACTIVIDAD', 'ultimaActividad') || formData.ultima_actividad,
-        })
-      }
       
       // Ocultar el mensaje de éxito después de 2 segundos
       setTimeout(() => {
         setSuccess(false)
+        router.refresh() // Refrescar la página para cargar datos actualizados
       }, 2000)
     } catch (err: any) {
       const errorMessage = err.message || 'Error al guardar cambios'
@@ -214,14 +221,14 @@ const ClienteDetails = ({ cliente: initialCliente, clienteId }: ClienteDetailsPr
               <Col md={6}>
                 <FormGroup>
                   <FormLabel>
-                    Nombre <span className="text-danger">*</span>
+                    Email <span className="text-danger">*</span>
                   </FormLabel>
                   <FormControl
-                    type="text"
-                    placeholder="Ej: Juan Pérez"
-                    value={formData.nombre}
+                    type="email"
+                    placeholder="Ej: juan.perez@ejemplo.com"
+                    value={formData.email}
                     onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, nombre: e.target.value }))
+                      setFormData((prev) => ({ ...prev, email: e.target.value }))
                     }
                     required
                   />
@@ -230,14 +237,14 @@ const ClienteDetails = ({ cliente: initialCliente, clienteId }: ClienteDetailsPr
               <Col md={6}>
                 <FormGroup>
                   <FormLabel>
-                    Correo Electrónico <span className="text-danger">*</span>
+                    Nombre <span className="text-danger">*</span>
                   </FormLabel>
                   <FormControl
-                    type="email"
-                    placeholder="Ej: juan.perez@ejemplo.com"
-                    value={formData.correo_electronico}
+                    type="text"
+                    placeholder="Ej: Juan"
+                    value={formData.first_name}
                     onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, correo_electronico: e.target.value }))
+                      setFormData((prev) => ({ ...prev, first_name: e.target.value }))
                     }
                     required
                   />
@@ -246,33 +253,28 @@ const ClienteDetails = ({ cliente: initialCliente, clienteId }: ClienteDetailsPr
 
               <Col md={6}>
                 <FormGroup>
-                  <FormLabel>Pedidos</FormLabel>
+                  <FormLabel>Apellido</FormLabel>
                   <FormControl
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={formData.pedidos}
+                    type="text"
+                    placeholder="Ej: Pérez"
+                    value={formData.last_name}
                     onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, pedidos: parseInt(e.target.value) || 0 }))
+                      setFormData((prev) => ({ ...prev, last_name: e.target.value }))
                     }
                   />
-                  <small className="text-muted">Número total de pedidos realizados</small>
                 </FormGroup>
               </Col>
               <Col md={6}>
                 <FormGroup>
-                  <FormLabel>Total Gastado</FormLabel>
+                  <FormLabel>Teléfono</FormLabel>
                   <FormControl
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={formData.gasto_total}
+                    type="tel"
+                    placeholder="Ej: +56912345678"
+                    value={formData.phone}
                     onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, gasto_total: parseFloat(e.target.value) || 0 }))
+                      setFormData((prev) => ({ ...prev, phone: e.target.value }))
                     }
                   />
-                  <small className="text-muted">Total acumulado de compras</small>
                 </FormGroup>
               </Col>
             </Row>

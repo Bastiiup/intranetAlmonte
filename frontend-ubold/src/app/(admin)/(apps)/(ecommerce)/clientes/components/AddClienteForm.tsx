@@ -11,17 +11,10 @@ const AddClienteForm = () => {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [formData, setFormData] = useState({
-    // Campos de Persona
-    rut: '',
-    nombres: '',
-    primer_apellido: '',
-    segundo_apellido: '',
-    nombre_completo: '',
     email: '',
-    telefono: '',
-    // Campos de WO-Clientes
-    pedidos: '0',
-    gasto_total: '0',
+    first_name: '',
+    last_name: '',
+    phone: '',
   })
 
   const handleFieldChange = (field: string, value: any) => {
@@ -38,13 +31,13 @@ const AddClienteForm = () => {
     setSuccess(false)
 
     try {
-      // Validar campos obligatorios de Persona
-      if (!formData.nombre_completo.trim()) {
-        throw new Error('El nombre completo es obligatorio')
-      }
-
+      // Validar campos requeridos (igual que el modal del POS)
       if (!formData.email.trim()) {
         throw new Error('El correo electrónico es obligatorio')
+      }
+
+      if (!formData.first_name.trim()) {
+        throw new Error('El nombre es obligatorio')
       }
 
       // Validar formato de email básico
@@ -53,57 +46,21 @@ const AddClienteForm = () => {
         throw new Error('El correo electrónico no tiene un formato válido')
       }
 
-      // Construir nombre completo si no está lleno pero sí los campos individuales
-      let nombreCompletoFinal = formData.nombre_completo.trim()
-      if (!nombreCompletoFinal && (formData.nombres.trim() || formData.primer_apellido.trim())) {
-        const partes = []
-        if (formData.nombres.trim()) partes.push(formData.nombres.trim())
-        if (formData.primer_apellido.trim()) partes.push(formData.primer_apellido.trim())
-        if (formData.segundo_apellido.trim()) partes.push(formData.segundo_apellido.trim())
-        nombreCompletoFinal = partes.join(' ')
+      // Preparar datos en el mismo formato que el modal del POS
+      const customerData = {
+        email: formData.email.trim(),
+        first_name: formData.first_name.trim(),
+        last_name: formData.last_name.trim() || '',
+        phone: formData.phone.trim() || '',
       }
 
-      if (!nombreCompletoFinal) {
-        throw new Error('Debe proporcionar el nombre completo o los nombres y apellidos')
-      }
-
-      // Preparar datos con estructura de Persona primero
-      const clienteData: any = {
-        data: {
-          // Datos de Persona
-          persona: {
-            rut: formData.rut.trim() || null,
-            nombres: formData.nombres.trim() || null,
-            primer_apellido: formData.primer_apellido.trim() || null,
-            segundo_apellido: formData.segundo_apellido.trim() || null,
-            nombre_completo: nombreCompletoFinal,
-            emails: [
-              {
-                email: formData.email.trim(),
-                tipo: 'principal',
-              }
-            ],
-            telefonos: formData.telefono.trim() ? [
-              {
-                numero: formData.telefono.trim(),
-                tipo: 'principal',
-              }
-            ] : [],
-          },
-          // Datos de WO-Clientes
-          pedidos: parseInt(formData.pedidos) || 0,
-          gasto_total: parseFloat(formData.gasto_total) || 0,
-          fecha_registro: new Date().toISOString(),
-        },
-      }
-
-      // Crear el cliente (que primero creará Persona y luego WO-Clientes)
-      const response = await fetch('/api/tienda/clientes', {
+      // Crear el cliente usando la misma API que el POS
+      const response = await fetch('/api/woocommerce/customers', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(clienteData),
+        body: JSON.stringify(customerData),
       })
 
       const result = await response.json()
@@ -144,77 +101,11 @@ const AddClienteForm = () => {
             )}
 
             <Form onSubmit={handleSubmit}>
-              <h5 className="mb-3">Datos de Persona</h5>
               <Row>
                 <Col md={6}>
                   <FormGroup className="mb-3">
                     <FormLabel>
-                      Nombre Completo <span className="text-danger">*</span>
-                    </FormLabel>
-                    <FormControl
-                      type="text"
-                      placeholder="Ej: Juan Pérez González"
-                      value={formData.nombre_completo}
-                      onChange={(e) => handleFieldChange('nombre_completo', e.target.value)}
-                      required
-                    />
-                    <small className="text-muted">O complete los campos individuales abajo</small>
-                  </FormGroup>
-                </Col>
-                <Col md={6}>
-                  <FormGroup className="mb-3">
-                    <FormLabel>RUT</FormLabel>
-                    <FormControl
-                      type="text"
-                      placeholder="Ej: 12345678-9"
-                      value={formData.rut}
-                      onChange={(e) => handleFieldChange('rut', e.target.value)}
-                    />
-                  </FormGroup>
-                </Col>
-              </Row>
-
-              <Row>
-                <Col md={4}>
-                  <FormGroup className="mb-3">
-                    <FormLabel>Nombres</FormLabel>
-                    <FormControl
-                      type="text"
-                      placeholder="Ej: Juan"
-                      value={formData.nombres}
-                      onChange={(e) => handleFieldChange('nombres', e.target.value)}
-                    />
-                  </FormGroup>
-                </Col>
-                <Col md={4}>
-                  <FormGroup className="mb-3">
-                    <FormLabel>Primer Apellido</FormLabel>
-                    <FormControl
-                      type="text"
-                      placeholder="Ej: Pérez"
-                      value={formData.primer_apellido}
-                      onChange={(e) => handleFieldChange('primer_apellido', e.target.value)}
-                    />
-                  </FormGroup>
-                </Col>
-                <Col md={4}>
-                  <FormGroup className="mb-3">
-                    <FormLabel>Segundo Apellido</FormLabel>
-                    <FormControl
-                      type="text"
-                      placeholder="Ej: González"
-                      value={formData.segundo_apellido}
-                      onChange={(e) => handleFieldChange('segundo_apellido', e.target.value)}
-                    />
-                  </FormGroup>
-                </Col>
-              </Row>
-
-              <Row>
-                <Col md={6}>
-                  <FormGroup className="mb-3">
-                    <FormLabel>
-                      Correo Electrónico <span className="text-danger">*</span>
+                      Email <span className="text-danger">*</span>
                     </FormLabel>
                     <FormControl
                       type="email"
@@ -227,45 +118,41 @@ const AddClienteForm = () => {
                 </Col>
                 <Col md={6}>
                   <FormGroup className="mb-3">
-                    <FormLabel>Teléfono</FormLabel>
+                    <FormLabel>
+                      Nombre <span className="text-danger">*</span>
+                    </FormLabel>
                     <FormControl
                       type="text"
-                      placeholder="Ej: +56912345678"
-                      value={formData.telefono}
-                      onChange={(e) => handleFieldChange('telefono', e.target.value)}
+                      placeholder="Ej: Juan"
+                      value={formData.first_name}
+                      onChange={(e) => handleFieldChange('first_name', e.target.value)}
+                      required
                     />
                   </FormGroup>
                 </Col>
               </Row>
 
-              <hr className="my-4" />
-              <h5 className="mb-3">Datos de Cliente (WO-Clientes)</h5>
               <Row>
                 <Col md={6}>
                   <FormGroup className="mb-3">
-                    <FormLabel>Pedidos</FormLabel>
+                    <FormLabel>Apellido</FormLabel>
                     <FormControl
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={formData.pedidos}
-                      onChange={(e) => handleFieldChange('pedidos', e.target.value)}
+                      type="text"
+                      placeholder="Ej: Pérez"
+                      value={formData.last_name}
+                      onChange={(e) => handleFieldChange('last_name', e.target.value)}
                     />
-                    <small className="text-muted">Número total de pedidos realizados</small>
                   </FormGroup>
                 </Col>
                 <Col md={6}>
                   <FormGroup className="mb-3">
-                    <FormLabel>Total Gastado</FormLabel>
+                    <FormLabel>Teléfono</FormLabel>
                     <FormControl
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={formData.gasto_total}
-                      onChange={(e) => handleFieldChange('gasto_total', e.target.value)}
+                      type="tel"
+                      placeholder="Ej: +56912345678"
+                      value={formData.phone}
+                      onChange={(e) => handleFieldChange('phone', e.target.value)}
                     />
-                    <small className="text-muted">Total acumulado de compras</small>
                   </FormGroup>
                 </Col>
               </Row>
