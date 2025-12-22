@@ -271,6 +271,7 @@ export const horizontalMenuItems: MenuItemType[] = [
               { key: 'add-product', label: 'Add Product', url: '/add-product' },
               { key: 'all-categories', label: 'Todas las Categorías', url: '/products/categorias' },
               { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' },
+              { key: 'categoria-requests', label: 'Solicitudes de Categorías', url: '/products/categorias/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
               { key: 'all-tags', label: 'Todas las Etiquetas', url: '/products/etiquetas' },
               { key: 'add-tag', label: 'Agregar Etiqueta', url: '/products/etiquetas/agregar' },
               {
