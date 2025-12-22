@@ -15,7 +15,8 @@ const AddColeccionForm = () => {
     id_coleccion: '',
     editorial: '',
     sello: '',
-    estado_publicacion: 'Pendiente',
+    // NOTA: estado_publicacion no se permite cambiar aquí, siempre será "pendiente" al crear
+    // Solo se puede cambiar desde la página de Solicitudes
   })
 
   const handleFieldChange = (field: string, value: any) => {
@@ -44,7 +45,8 @@ const AddColeccionForm = () => {
           id_coleccion: formData.id_coleccion ? parseInt(formData.id_coleccion) : null,
           editorial: formData.editorial || null,
           sello: formData.sello || null,
-          estado_publicacion: formData.estado_publicacion,
+          // estado_publicacion siempre será "pendiente" al crear (se envía en el backend)
+          // Solo se puede cambiar desde la página de Solicitudes
         },
       }
 
@@ -120,23 +122,6 @@ const AddColeccionForm = () => {
                       onChange={(e) => handleFieldChange('id_coleccion', e.target.value)}
                     />
                     <small className="text-muted">Opcional</small>
-                  </FormGroup>
-                </Col>
-              </Row>
-
-              <Row>
-                <Col md={6}>
-                  <FormGroup className="mb-3">
-                    <FormLabel>Estado de Publicación</FormLabel>
-                    <FormControl
-                      as="select"
-                      value={formData.estado_publicacion}
-                      onChange={(e) => handleFieldChange('estado_publicacion', e.target.value)}
-                    >
-                      <option value="Publicado">Publicado</option>
-                      <option value="Pendiente">Pendiente</option>
-                      <option value="Borrador">Borrador</option>
-                    </FormControl>
                   </FormGroup>
                 </Col>
               </Row>

@@ -147,6 +147,7 @@ export const menuItems: MenuItemType[] = [
               { key: 'autor-requests', label: 'Solicitudes de Autores', url: '/products/atributos/autores/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
               { key: 'all-colecciones', label: 'Todas las Colecciones', url: '/products/atributos/colecciones' },
               { key: 'add-coleccion', label: 'Agregar Colección', url: '/products/atributos/colecciones/agregar' },
+              { key: 'coleccion-requests', label: 'Solicitudes de Colecciones', url: '/products/atributos/colecciones/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
               { key: 'all-obras', label: 'Todas las Obras', url: '/atributos/obras' },
               { key: 'add-obra', label: 'Agregar Obra', url: '/atributos/obras/agregar' },
               { key: 'all-sellos', label: 'Todos los Sellos', url: '/atributos/sello' },

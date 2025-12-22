@@ -4,7 +4,6 @@ import {
   ColumnDef,
   ColumnFiltersState,
   createColumnHelper,
-  FilterFn,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -18,16 +17,17 @@ import Link from 'next/link'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert } from 'react-bootstrap'
 import { LuBox, LuSearch, LuTag } from 'react-icons/lu'
-import { TbEdit, TbEye, TbLayoutGrid, TbList, TbPlus, TbTrash } from 'react-icons/tb'
+import { TbEdit, TbEye, TbList, TbTrash, TbCheck } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
+import ChangeStatusModal from '@/components/table/ChangeStatusModal'
 import TablePagination from '@/components/table/TablePagination'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 
-// Tipo para la tabla
-type ColeccionType = {
+// Tipo extendido para colecciones con estado_publicacion
+type ColeccionTypeExtended = {
   id: number
   name: string
   idColeccion: number | null
@@ -38,7 +38,9 @@ type ColeccionType = {
   date: string
   time: string
   url: string
+  strapiId?: number
   estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
+  coleccionOriginal?: any
 }
 
 // Helper para obtener campo con múltiples variaciones
@@ -51,9 +53,8 @@ const getField = (obj: any, ...fieldNames: string[]): any => {
   return undefined
 }
 
-// Función para mapear colecciones de Strapi al formato ColeccionType
-const mapStrapiColeccionToColeccionType = (coleccion: any): ColeccionType => {
-  // Los datos pueden venir en attributes o directamente
+// Función para mapear colecciones de Strapi al formato ColeccionTypeExtended
+const mapStrapiColeccionToColeccionType = (coleccion: any): ColeccionTypeExtended => {
   const attrs = coleccion.attributes || {}
   const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (coleccion as any)
 
@@ -100,40 +101,44 @@ const mapStrapiColeccionToColeccionType = (coleccion: any): ColeccionType => {
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
     url: `/products/atributos/colecciones/${coleccion.id || coleccion.documentId || coleccion.id}`,
+    strapiId: coleccion.id,
     estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
                        estadoPublicacion === 'borrador' ? 'Borrador' : 
                        'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
+    coleccionOriginal: coleccion,
   }
 }
 
-interface ColeccionesListingProps {
+interface ColeccionRequestsListingProps {
   colecciones?: any[]
   error?: string | null
 }
 
-const columnHelper = createColumnHelper<ColeccionType>()
+const columnHelper = createColumnHelper<ColeccionTypeExtended>()
 
-const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}) => {
+const ColeccionRequestsListing = ({ colecciones, error }: ColeccionRequestsListingProps = {}) => {
   const router = useRouter()
   
-  // Mapear colecciones de Strapi al formato ColeccionType si están disponibles
   const mappedColecciones = useMemo(() => {
     if (colecciones && colecciones.length > 0) {
-      console.log('[ColeccionesListing] Colecciones recibidas:', colecciones.length)
+      console.log('[ColeccionRequestsListing] Colecciones recibidas:', colecciones.length)
       const mapped = colecciones.map(mapStrapiColeccionToColeccionType)
-      console.log('[ColeccionesListing] Colecciones mapeadas:', mapped.length)
+      console.log('[ColeccionRequestsListing] Colecciones mapeadas:', mapped.length)
       return mapped
     }
-    console.log('[ColeccionesListing] No hay colecciones de Strapi')
     return []
   }, [colecciones])
 
-  const columns: ColumnDef<ColeccionType, any>[] = [
+  // Estado para el modal de cambio de estado
+  const [showChangeStatusModal, setShowChangeStatusModal] = useState(false)
+  const [selectedColeccion, setSelectedColeccion] = useState<ColeccionTypeExtended | null>(null)
+
+  const columns: ColumnDef<ColeccionTypeExtended, any>[] = [
     {
       id: 'select',
       maxSize: 45,
       size: 45,
-      header: ({ table }: { table: TableType<ColeccionType> }) => (
+      header: ({ table }: { table: TableType<ColeccionTypeExtended> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -141,7 +146,7 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
           onChange={table.getToggleAllRowsSelectedHandler()}
         />
       ),
-      cell: ({ row }: { row: TableRow<ColeccionType> }) => (
+      cell: ({ row }: { row: TableRow<ColeccionTypeExtended> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -155,15 +160,13 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
     columnHelper.accessor('name', {
       header: 'Colección',
       cell: ({ row }) => (
-        <div className="d-flex">
-          <div>
-            <h5 className="mb-0">
-              <Link href={row.original.url} className="link-reset">
-                {row.original.name || 'Sin nombre'}
-              </Link>
-            </h5>
-            <p className="text-muted mb-0 fs-xxs">ID: {row.original.idColeccion || 'N/A'}</p>
-          </div>
+        <div>
+          <h5 className="mb-0">
+            <Link href={row.original.url} className="link-reset">
+              {row.original.name || 'Sin nombre'}
+            </Link>
+          </h5>
+          <p className="text-muted mb-0 fs-xxs">ID: {row.original.idColeccion || 'N/A'}</p>
         </div>
       ),
     }),
@@ -176,13 +179,13 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
     columnHelper.accessor('editorial', {
       header: 'Editorial',
       cell: ({ row }) => (
-        <span className="text-muted">{row.original.editorial || 'N/A'}</span>
+        <span>{row.original.editorial || 'N/A'}</span>
       ),
     }),
     columnHelper.accessor('sello', {
       header: 'Sello',
       cell: ({ row }) => (
-        <span className="text-muted">{row.original.sello || 'N/A'}</span>
+        <span>{row.original.sello || 'N/A'}</span>
       ),
     }),
     columnHelper.accessor('libros', {
@@ -207,17 +210,6 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
         )
       },
     }),
-    columnHelper.accessor('status', {
-      header: 'Estado',
-      filterFn: 'equalsString',
-      enableColumnFilter: true,
-      cell: ({ row }) => (
-        <span
-          className={`badge ${row.original.status === 'active' ? 'badge-soft-success' : 'badge-soft-danger'} fs-xxs`}>
-          {row.original.status === 'active' ? 'Activo' : 'Inactivo'}
-        </span>
-      ),
-    }),
     columnHelper.accessor('date', {
       header: 'Fecha',
       cell: ({ row }) => (
@@ -228,19 +220,15 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
     }),
     {
       header: 'Acciones',
-      cell: ({ row }: { row: TableRow<ColeccionType> }) => (
+      cell: ({ row }: { row: TableRow<ColeccionTypeExtended> }) => (
         <div className="d-flex gap-1">
           <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle">
+            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver">
               <TbEye className="fs-lg" />
             </Button>
           </Link>
           <Link href={row.original.url}>
-            <Button
-              variant="default"
-              size="sm"
-              className="btn-icon rounded-circle"
-            >
+            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Editar">
               <TbEdit className="fs-lg" />
             </Button>
           </Link>
@@ -248,6 +236,18 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
             variant="default"
             size="sm"
             className="btn-icon rounded-circle"
+            title="Cambiar Estado"
+            onClick={() => {
+              setSelectedColeccion(row.original)
+              setShowChangeStatusModal(true)
+            }}>
+            <TbCheck className="fs-lg" />
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            className="btn-icon rounded-circle"
+            title="Eliminar"
             onClick={() => {
               toggleDeleteModal()
               setSelectedRowIds({ [row.id]: true })
@@ -259,18 +259,17 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
     },
   ]
 
-  const [data, setData] = useState<ColeccionType[]>([])
+  const [data, setData] = useState<ColeccionTypeExtended[]>([])
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
-
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
 
   // Estado para el orden de columnas
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('colecciones-column-order')
+      const saved = localStorage.getItem('coleccion-requests-column-order')
       if (saved) {
         try {
           return JSON.parse(saved)
@@ -286,18 +285,15 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
   const handleColumnOrderChange = (newOrder: string[]) => {
     setColumnOrder(newOrder)
     if (typeof window !== 'undefined') {
-      localStorage.setItem('colecciones-column-order', JSON.stringify(newOrder))
+      localStorage.setItem('coleccion-requests-column-order', JSON.stringify(newOrder))
     }
   }
 
-  // Actualizar datos cuando cambien las colecciones de Strapi
   useEffect(() => {
-    console.log('[ColeccionesListing] useEffect - colecciones:', colecciones?.length, 'mappedColecciones:', mappedColecciones.length)
     setData(mappedColecciones)
-    console.log('[ColeccionesListing] Datos actualizados. Total:', mappedColecciones.length)
-  }, [mappedColecciones, colecciones])
+  }, [mappedColecciones])
 
-  const table = useReactTable<ColeccionType>({
+  const table = useReactTable<ColeccionTypeExtended>({
     data,
     columns,
     state: { sorting, globalFilter, columnFilters, pagination, rowSelection: selectedRowIds, columnOrder },
@@ -319,7 +315,6 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
   const pageIndex = table.getState().pagination.pageIndex
   const pageSize = table.getState().pagination.pageSize
   const totalItems = table.getFilteredRowModel().rows.length
-
   const start = pageIndex * pageSize + 1
   const end = Math.min(start + pageSize - 1, totalItems)
 
@@ -334,7 +329,6 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
     const idsToDelete = selectedIds.map(id => data[parseInt(id)]?.id).filter(Boolean)
     
     try {
-      // Eliminar cada colección seleccionada
       for (const coleccionId of idsToDelete) {
         const response = await fetch(`/api/tienda/colecciones/${coleccionId}`, {
           method: 'DELETE',
@@ -344,13 +338,11 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
         }
       }
       
-      // Actualizar datos localmente
       setData((old) => old.filter((_, idx) => !selectedIds.includes(idx.toString())))
       setSelectedRowIds({})
       setPagination({ ...pagination, pageIndex: 0 })
       setShowDeleteModal(false)
       
-      // Recargar la página para reflejar cambios
       router.refresh()
     } catch (error) {
       console.error('Error al eliminar colecciones:', error)
@@ -358,7 +350,42 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
     }
   }
 
-  // Mostrar error si existe
+  const handleStatusChange = async (newStatus: string) => {
+    if (!selectedColeccion?.strapiId) return
+
+    // IMPORTANTE: Strapi espera valores en minúsculas: "pendiente", "publicado", "borrador"
+    const newStatusLower = newStatus.toLowerCase()
+
+    try {
+      const response = await fetch(`/api/tienda/colecciones/${selectedColeccion.strapiId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ data: { estado_publicacion: newStatusLower } }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Error al actualizar el estado de la colección')
+      }
+
+      // Actualizar el estado local (capitalizar para mostrar)
+      const estadoMostrar = newStatusLower === 'publicado' ? 'Publicado' : 
+                           newStatusLower === 'borrador' ? 'Borrador' : 
+                           'Pendiente'
+      setData((prevData) =>
+        prevData.map((c) =>
+          c.strapiId === selectedColeccion.strapiId ? { ...c, estadoPublicacion: estadoMostrar as any } : c
+        )
+      )
+      console.log(`[ColeccionRequestsListing] Estado de colección ${selectedColeccion.strapiId} actualizado a ${newStatus}`)
+    } catch (err: any) {
+      console.error('[ColeccionRequestsListing] Error al cambiar estado:', err)
+      alert(`Error al cambiar estado: ${err.message}`)
+    }
+  }
+
   const hasError = !!error
   const hasData = mappedColecciones.length > 0
   
@@ -368,24 +395,10 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
         <Col xs={12}>
           <Alert variant="warning">
             <strong>Error al cargar colecciones desde Strapi:</strong> {error}
-            <br />
-            <small className="text-muted">
-              Verifica que:
-              <ul className="mt-2 mb-0">
-                <li>STRAPI_API_TOKEN esté configurado en Railway</li>
-                <li>El servidor de Strapi esté disponible</li>
-                <li>Las variables de entorno estén correctas</li>
-              </ul>
-            </small>
           </Alert>
         </Col>
       </Row>
     )
-  }
-  
-  // Si hay error pero también hay datos, mostrar advertencia pero continuar
-  if (hasError && hasData) {
-    console.warn('[ColeccionesListing] Error al cargar desde Strapi, usando datos disponibles:', error)
   }
 
   return (
@@ -443,23 +456,13 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
             </div>
 
             <div className="d-flex gap-1">
-              <Link passHref href="/products/atributos/colecciones">
-                <Button variant="outline-primary" className="btn-icon btn-soft-primary">
-                  <TbLayoutGrid className="fs-lg" />
-                </Button>
-              </Link>
               <Button variant="primary" className="btn-icon">
                 <TbList className="fs-lg" />
               </Button>
-              <Link href="/products/atributos/colecciones/agregar" passHref>
-                <Button variant="danger" className="ms-1">
-                  <TbPlus className="fs-sm me-2" /> Agregar Colección
-                </Button>
-              </Link>
             </div>
           </CardHeader>
 
-          <DataTable<ColeccionType>
+          <DataTable<ColeccionTypeExtended>
             table={table}
             emptyMessage="No se encontraron registros"
             enableColumnReordering={true}
@@ -492,11 +495,24 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
             selectedCount={Object.keys(selectedRowIds).length}
             itemName="colección"
           />
+
+          {selectedColeccion && (
+            <ChangeStatusModal
+              show={showChangeStatusModal}
+              onHide={() => {
+                setShowChangeStatusModal(false)
+                setSelectedColeccion(null)
+              }}
+              onConfirm={handleStatusChange}
+              currentStatus={selectedColeccion.estadoPublicacion || 'Pendiente'}
+              productName={selectedColeccion.name || 'Colección'}
+            />
+          )}
         </Card>
       </Col>
     </Row>
   )
 }
 
-export default ColeccionesListing
+export default ColeccionRequestsListing
 

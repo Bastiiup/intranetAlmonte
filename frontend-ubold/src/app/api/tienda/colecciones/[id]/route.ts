@@ -147,8 +147,14 @@ export async function PUT(
     if (body.data.sello !== undefined) {
       updateData.data.sello = body.data.sello
     }
+    // Estado de publicación - IMPORTANTE: Strapi espera valores en minúsculas
     if (body.data.estado_publicacion !== undefined) {
-      updateData.data.estado_publicacion = body.data.estado_publicacion
+      // Normalizar a minúsculas para Strapi: "pendiente", "publicado", "borrador"
+      const estadoNormalizado = typeof body.data.estado_publicacion === 'string' 
+        ? body.data.estado_publicacion.toLowerCase() 
+        : body.data.estado_publicacion
+      updateData.data.estado_publicacion = estadoNormalizado
+      console.log('[API Colecciones PUT] 📝 Estado de publicación actualizado:', estadoNormalizado)
     }
 
     const response = await strapiClient.put(`/api/colecciones/${coleccionDocumentId}`, updateData)
