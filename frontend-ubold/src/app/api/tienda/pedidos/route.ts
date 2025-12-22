@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic'
 function getWooCommerceClientForPlatform(platform: string) {
   // Por ahora usamos el cliente por defecto
   // TODO: Implementar lógica para seleccionar cliente según platform (woo_moraleja, woo_escolar)
+  // Si hay variables de entorno separadas, crear clientes diferentes aquí
   return wooCommerceClient
 }
 
@@ -28,6 +29,7 @@ function mapEstado(wooStatus: string): string {
 
 // Función helper para mapear estado de Strapi a estado de WooCommerce
 function mapWooStatus(strapiStatus: string): string {
+  const statusLower = strapiStatus.toLowerCase().trim()
   const mapping: Record<string, string> = {
     'pendiente': 'pending',
     'procesando': 'processing',
@@ -36,9 +38,23 @@ function mapWooStatus(strapiStatus: string): string {
     'cancelado': 'cancelled',
     'reembolsado': 'refunded',
     'fallido': 'failed',
+    // También aceptar estados en inglés directamente (por si acaso)
+    'pending': 'pending',
+    'processing': 'processing',
+    'on-hold': 'on-hold',
+    'completed': 'completed',
+    'cancelled': 'cancelled',
+    'refunded': 'refunded',
+    'failed': 'failed',
   }
   
-  return mapping[strapiStatus.toLowerCase()] || 'pending'
+  const mapeado = mapping[statusLower]
+  if (!mapeado) {
+    console.warn('[mapWooStatus] Estado no reconocido:', strapiStatus, 'usando pending por defecto')
+    return 'pending'
+  }
+  
+  return mapeado
 }
 
 export async function GET(request: NextRequest) {

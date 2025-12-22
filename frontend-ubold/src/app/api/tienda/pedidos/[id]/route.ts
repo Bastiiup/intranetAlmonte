@@ -6,6 +6,9 @@ export const dynamic = 'force-dynamic'
 
 // Función helper para obtener el cliente de WooCommerce según la plataforma
 function getWooCommerceClientForPlatform(platform: string) {
+  // Por ahora usamos el cliente por defecto
+  // TODO: Implementar lógica para seleccionar cliente según platform (woo_moraleja, woo_escolar)
+  // Si hay variables de entorno separadas, crear clientes diferentes aquí
   return wooCommerceClient
 }
 
@@ -26,6 +29,7 @@ function mapEstado(wooStatus: string): string {
 
 // Función helper para mapear estado de Strapi a estado de WooCommerce
 function mapWooStatus(strapiStatus: string): string {
+  const statusLower = strapiStatus.toLowerCase().trim()
   const mapping: Record<string, string> = {
     'pendiente': 'pending',
     'procesando': 'processing',
@@ -34,9 +38,23 @@ function mapWooStatus(strapiStatus: string): string {
     'cancelado': 'cancelled',
     'reembolsado': 'refunded',
     'fallido': 'failed',
+    // También aceptar estados en inglés directamente (por si acaso)
+    'pending': 'pending',
+    'processing': 'processing',
+    'on-hold': 'on-hold',
+    'completed': 'completed',
+    'cancelled': 'cancelled',
+    'refunded': 'refunded',
+    'failed': 'failed',
   }
   
-  return mapping[strapiStatus.toLowerCase()] || 'pending'
+  const mapeado = mapping[statusLower]
+  if (!mapeado) {
+    console.warn('[mapWooStatus] Estado no reconocido:', strapiStatus, 'usando pending por defecto')
+    return 'pending'
+  }
+  
+  return mapeado
 }
 
 export async function GET(
@@ -310,7 +328,12 @@ export async function PUT(
         const wooCommercePedidoData: any = {}
         
         if (body.data.estado !== undefined) {
-          wooCommercePedidoData.status = mapWooStatus(body.data.estado)
+          const estadoMapeado = mapWooStatus(body.data.estado)
+          console.log('[API Pedidos PUT] Mapeando estado:', { 
+            original: body.data.estado, 
+            mapeado: estadoMapeado 
+          })
+          wooCommercePedidoData.status = estadoMapeado
         }
         if (body.data.items !== undefined) {
           wooCommercePedidoData.line_items = (body.data.items || []).map((item: any) => ({
@@ -346,7 +369,20 @@ export async function PUT(
         )
         console.log('[API Pedidos PUT] ✅ Pedido actualizado en WooCommerce')
       } catch (wooError: any) {
-        console.error('[API Pedidos PUT] ⚠️ Error al actualizar en WooCommerce (no crítico):', wooError.message)
+        console.error('[API Pedidos PUT] ⚠️ Error al actualizar en WooCommerce:', {
+          message: wooError.message,
+          status: wooError.status,
+          details: wooError.details,
+          estadoEnviado: wooCommercePedidoData.status,
+          estadoOriginal: body.data.estado,
+        })
+        // Si el error es crítico (validación de estado), lanzarlo para que se muestre al usuario
+        if (wooError.message && (wooError.message.includes('status must be one of') || wooError.message.includes('estado must be one of'))) {
+          const estadoMapeado = mapWooStatus(body.data.estado)
+          throw new Error(`Error al actualizar el estado: El estado "${body.data.estado}" (mapeado a "${estadoMapeado}") no es válido en WooCommerce. Estados válidos: pending, processing, on-hold, completed, cancelled, refunded, failed`)
+        }
+        // Para otros errores, lanzar el error para que se muestre al usuario
+        throw new Error(`Error al actualizar pedido en WooCommerce: ${wooError.message || 'Error desconocido'}`)
       }
     }
 
