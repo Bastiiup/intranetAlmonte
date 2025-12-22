@@ -19,6 +19,7 @@ const AddAutorForm = () => {
     foto: null as File | null,
     website: '',
     pais: '',
+    estado_publicacion: 'Pendiente' as 'Publicado' | 'Pendiente' | 'Borrador',
   })
 
   const handleFieldChange = (field: string, value: any) => {
@@ -82,6 +83,7 @@ const AddAutorForm = () => {
           tipo_autor: formData.tipo_autor,
           website: formData.website.trim() || null,
           pais: formData.pais || null,
+          estado_publicacion: formData.estado_publicacion, // IMPORTANTE: Controla si se publica en WordPress
         },
       }
 
@@ -224,6 +226,28 @@ const AddAutorForm = () => {
                       value={formData.website}
                       onChange={(e) => handleFieldChange('website', e.target.value)}
                     />
+                  </FormGroup>
+                </Col>
+              </Row>
+
+              <Row>
+                <Col md={6}>
+                  <FormGroup className="mb-3">
+                    <FormLabel>Estado de Publicación</FormLabel>
+                    <FormControl
+                      as="select"
+                      value={formData.estado_publicacion}
+                      onChange={(e) => handleFieldChange('estado_publicacion', e.target.value)}
+                    >
+                      <option value="Pendiente">Pendiente (No se publica en WordPress)</option>
+                      <option value="Publicado">Publicado (Se publica en WordPress - Escolar y Moraleja)</option>
+                      <option value="Borrador">Borrador (No se publica en WordPress)</option>
+                    </FormControl>
+                    <small className="text-muted">
+                      {formData.estado_publicacion === 'Publicado' 
+                        ? '✅ Este autor se publicará automáticamente en WordPress (Escolar y Moraleja)'
+                        : '⏸️ Este autor solo se guardará en Strapi, no se publicará en WordPress'}
+                    </small>
                   </FormGroup>
                 </Col>
               </Row>

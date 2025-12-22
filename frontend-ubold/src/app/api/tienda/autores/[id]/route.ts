@@ -130,6 +130,10 @@ export async function PUT(
     const autorDocumentId = autor.documentId || autor.data?.documentId || autor.id?.toString() || id
     console.log('[API Autores PUT] Usando documentId para actualizar:', autorDocumentId)
 
+    // Obtener estado_publicacion actual del autor antes de actualizar
+    const estadoActual = autor.attributes?.estado_publicacion || autor.estado_publicacion || 'Pendiente'
+    const nuevoEstado = body.data.estado_publicacion !== undefined ? body.data.estado_publicacion : estadoActual
+
     // Preparar datos de actualización
     const updateData: any = {
       data: {},
@@ -163,13 +167,28 @@ export async function PUT(
       updateData.data.estado_publicacion = body.data.estado_publicacion
     }
 
+    console.log('[API Autores PUT] Estado actual:', estadoActual, '→ Nuevo estado:', nuevoEstado)
+
     const response = await strapiClient.put(`/api/autores/${autorDocumentId}`, updateData)
     
+    // IMPORTANTE: 
+    // - Si nuevoEstado = "Publicado" → Strapi debería publicarlo y sincronizarlo con WordPress (ambos: escolar y moraleja)
+    // - Si nuevoEstado = "Pendiente" o "Borrador" → Solo se actualiza en Strapi, NO se publica en WordPress
+    // La sincronización con WordPress se maneja en los lifecycles de Strapi basándose en estado_publicacion
+    
     console.log('[API Autores PUT] ✅ Autor actualizado:', autorDocumentId)
+    console.log('[API Autores PUT]', nuevoEstado === 'Publicado' 
+      ? '✅ Se publicará en WordPress (si está configurado en Strapi)' 
+      : '⏸️ Solo actualizado en Strapi, no se publica en WordPress')
     
     return NextResponse.json({
       success: true,
-      data: response
+      data: response,
+      message: nuevoEstado === 'Publicado' && estadoActual !== 'Publicado'
+        ? 'Autor actualizado y se publicará en WordPress'
+        : nuevoEstado !== 'Publicado' && estadoActual === 'Publicado'
+        ? 'Autor actualizado (ya no se publica en WordPress)'
+        : 'Autor actualizado'
     })
   } catch (error: any) {
     console.error('[API Autores PUT] ❌ Error:', error.message)
