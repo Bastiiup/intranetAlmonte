@@ -17,7 +17,7 @@ import {
 } from '@tanstack/react-table'
 import Link from 'next/link'
 import React, { useState, useEffect, useMemo } from 'react'
-import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge, FormControl, FormLabel, FormGroup } from 'react-bootstrap'
+import { Button, Card, CardBody, CardFooter, CardHeader, Col, Row, Alert, Badge, FormControl, FormLabel, FormGroup } from 'react-bootstrap'
 import { LuSearch } from 'react-icons/lu'
 import { TbChevronDown, TbChevronRight, TbList, TbPlus, TbTrash } from 'react-icons/tb'
 
