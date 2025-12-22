@@ -1,0 +1,131 @@
+/**
+ * Template Name: UBold - Admin & Dashboard Template
+ * By (Author): Coderthemes
+ * Module/App (File Name): App CSS File
+*/
+
+
+// Core files
+@import "bootstrap/scss/functions";
+@import "bootstrap/scss/variables";
+
+@import "variables";
+@import "variables-dark"; // Necesario para que maps.scss tenga las variables dark definidas
+
+// Bootstrap - Importación directa de componentes para evitar problemas de resolución de rutas
+@import "bootstrap/scss/maps";
+@import "bootstrap/scss/mixins";
+@import "bootstrap/scss/utilities";
+@import "bootstrap/scss/root";
+@import "bootstrap/scss/reboot";
+@import "bootstrap/scss/type";
+@import "bootstrap/scss/images";
+@import "bootstrap/scss/containers";
+@import "bootstrap/scss/grid";
+@import "bootstrap/scss/tables";
+@import "bootstrap/scss/forms";
+@import "bootstrap/scss/buttons";
+@import "bootstrap/scss/transitions";
+@import "bootstrap/scss/dropdown";
+@import "bootstrap/scss/button-group";
+@import "bootstrap/scss/nav";
+@import "bootstrap/scss/navbar";
+@import "bootstrap/scss/card";
+@import "bootstrap/scss/accordion";
+@import "bootstrap/scss/breadcrumb";
+@import "bootstrap/scss/pagination";
+@import "bootstrap/scss/badge";
+@import "bootstrap/scss/alert";
+@import "bootstrap/scss/progress";
+@import "bootstrap/scss/list-group";
+@import "bootstrap/scss/close";
+@import "bootstrap/scss/toasts";
+@import "bootstrap/scss/modal";
+@import "bootstrap/scss/tooltip";
+@import "bootstrap/scss/popover";
+@import "bootstrap/scss/carousel";
+@import "bootstrap/scss/spinners";
+@import "bootstrap/scss/offcanvas";
+@import "bootstrap/scss/placeholders";
+@import "bootstrap/scss/helpers";
+@import "bootstrap/scss/utilities/api";
+
+@import "config/root";
+@import "config/theme-default"; // Default Theme
+@import "config/theme-saas";
+@import "config/theme-modern";
+@import "config/theme-material";
+@import "config/theme-minimal";
+@import "config/theme-flat";
+
+// Structure
+@import "structure/topbar";
+@import "structure/sidenav";
+@import "structure/horizontal";
+@import "structure/layout";
+@import "structure/footer";
+
+// Components
+@import "components/background";
+@import "components/accordions";
+@import "components/alert";
+@import "components/avatar";
+@import "components/breadcrumb";
+@import "components/buttons";
+@import "components/badge";
+@import "components/card";
+@import "components/dropdown";
+@import "components/forms";
+@import "components/modal";
+@import "components/nav";
+@import "components/pagination";
+@import "components/popover";
+@import "components/print";
+@import "components/progress";
+@import "components/reboot";
+@import "components/tables";
+@import "components/tooltip";
+@import "components/preloader";
+@import "components/widgets";
+@import "components/list-group";
+
+
+// Pages
+@import "pages/authentication";
+@import "pages/chat";
+@import "pages/email";
+@import "pages/error";
+@import "pages/kanban-board";
+@import "pages/landing";
+@import "pages/outlook";
+@import "pages/sitemap";
+@import "pages/timeline";
+
+
+// Plugins
+@import "plugins/apexcharts";
+@import "plugins/calendar";
+@import "plugins/choice";
+@import "plugins/colorpicker";
+@import "plugins/datatables";
+@import "plugins/daterangepicker";
+@import "plugins/dropzone";
+@import "plugins/filepond";
+@import "plugins/flatpickr";
+@import "plugins/jvectormap";
+@import "plugins/noui-rangeslider";
+@import "plugins/pass-bar";
+@import "plugins/prismjs";
+@import "plugins/quill-editor";
+@import "plugins/select2";
+@import "plugins/simplebar";
+@import "plugins/sortablejs";
+@import "plugins/summernote";
+@import "plugins/sweetalert2";
+@import "plugins/touchpin";
+@import "plugins/tour";
+@import "plugins/treeview";
+@import "plugins/typehead";
+@import "plugins/wizard";
+@import "plugins/react-select";
+@import "plugins/react-slider";

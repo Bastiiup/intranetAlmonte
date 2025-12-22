@@ -1,0 +1,25 @@
+# Archivos que Railway no necesita para el build
+node_modules
+.next
+out
+dist
+build
+.git
+.vscode
+.idea
+*.log
+*.tsbuildinfo
+.env*.local
+.DS_Store
+coverage
+.nyc_output
+*.md
+!README.md
+.cache
+tmp
+temp
+
+# Dockerfiles - Forzar uso de NIXPACKS
+Dockerfile
+Dockerfile.*
+.dockerignore
