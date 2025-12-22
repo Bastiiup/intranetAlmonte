@@ -222,34 +222,61 @@ export async function POST(request: NextRequest) {
       }
 
       // Enviar a ambos WordPress
+      console.log('[API POST] 🚀 Iniciando envío a ambos WordPress...')
       wordPressResults = await enviarClienteABothWordPress({
         email: body.email.trim(),
         first_name: body.first_name.trim(),
         last_name: body.last_name?.trim() || '',
       })
       
-      // Obtener el cliente creado del primer WordPress (escolar)
+      // Log detallado de resultados
+      console.log('[API POST] 📊 Resultados de WordPress:', {
+        escolar: {
+          success: wordPressResults.escolar.success,
+          created: wordPressResults.escolar.created,
+          error: wordPressResults.escolar.error,
+          hasData: !!wordPressResults.escolar.data,
+        },
+        moraleja: {
+          success: wordPressResults.moraleja.success,
+          created: wordPressResults.moraleja.created,
+          error: wordPressResults.moraleja.error,
+          hasData: !!wordPressResults.moraleja.data,
+        },
+      })
+      
+      // Obtener el cliente creado del primer WordPress exitoso
       if (wordPressResults.escolar.success && wordPressResults.escolar.data) {
         customer = wordPressResults.escolar.data
+        console.log('[API POST] ✅ Usando cliente de Librería Escolar:', customer.id)
       } else if (wordPressResults.moraleja.success && wordPressResults.moraleja.data) {
         customer = wordPressResults.moraleja.data
+        console.log('[API POST] ✅ Usando cliente de Editorial Moraleja:', customer.id)
       } else {
-        // Si ambos fallaron, intentar crear en el WordPress principal
+        // Si ambos fallaron, intentar crear en el WordPress principal como fallback
+        console.log('[API POST] ⚠️ Ambos WordPress fallaron, intentando WordPress principal como fallback...')
         try {
           customer = await wooCommerceClient.post<any>('customers', customerData)
-          console.log('[API POST] ✅ Cliente creado en WordPress principal:', {
+          console.log('[API POST] ✅ Cliente creado en WordPress principal (fallback):', {
             id: customer.id,
             email: customer.email
           })
         } catch (wpError: any) {
-          console.error('[API POST] ⚠️ Error al crear en WordPress principal:', wpError.message)
+          console.error('[API POST] ❌ Error al crear en WordPress principal (fallback):', wpError.message)
         }
       }
       
-      console.log('[API POST] ✅ Cliente enviado a WordPress:', {
-        escolar: wordPressResults.escolar.success,
-        moraleja: wordPressResults.moraleja.success,
-      })
+      // Validar que al menos uno haya funcionado
+      if (!wordPressResults.escolar.success && !wordPressResults.moraleja.success) {
+        console.error('[API POST] ⚠️ ADVERTENCIA: No se pudo crear el cliente en ninguno de los WordPress')
+        console.error('[API POST] Error Escolar:', wordPressResults.escolar.error)
+        console.error('[API POST] Error Moraleja:', wordPressResults.moraleja.error)
+      } else {
+        console.log('[API POST] ✅ Cliente procesado en WordPress:', {
+          escolar: wordPressResults.escolar.success ? '✅' : '❌',
+          moraleja: wordPressResults.moraleja.success ? '✅' : '❌',
+        })
+      }
     } catch (wpError: any) {
       console.error('[API POST] ⚠️ Error al enviar a WordPress (no crítico):', wpError.message)
       // Continuar aunque falle WordPress
