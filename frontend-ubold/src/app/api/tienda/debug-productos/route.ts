@@ -9,6 +9,14 @@ import strapiClient from '@/lib/strapi/client'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
+  // Proteger endpoint de debug en producción
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { error: 'Este endpoint está deshabilitado en producción' },
+      { status: 403 }
+    )
+  }
+  
   try {
     console.log('[DEBUG /tienda/debug-productos] Obteniendo todos los productos...')
     

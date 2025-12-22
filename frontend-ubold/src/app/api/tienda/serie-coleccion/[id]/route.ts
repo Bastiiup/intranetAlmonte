@@ -56,6 +56,22 @@ export async function GET(
 ) {
   try {
     const { id } = await params
+    
+    // Validar que el ID no sea una palabra reservada
+    const reservedWords = ['productos', 'categorias', 'etiquetas', 'pedidos', 'facturas', 'marcas', 'autores', 'obras', 'sellos']
+    if (reservedWords.includes(id.toLowerCase())) {
+      console.warn('[API /tienda/serie-coleccion/[id] GET] ⚠️ Intento de acceso a ruta reservada:', id)
+      return NextResponse.json(
+        { 
+          success: false,
+          error: `Ruta no válida. La ruta /api/tienda/serie-coleccion/${id} no existe. Use /api/tienda/${id} en su lugar.`,
+          data: null,
+          hint: `Si está buscando ${id}, use el endpoint: /api/tienda/${id}`,
+        },
+        { status: 404 }
+      )
+    }
+    
     const serieColeccionEndpoint = await getSerieColeccionEndpoint()
     
     // Intentar obtener por documentId primero
@@ -108,6 +124,16 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
+    
+    // Validar que el ID no sea una palabra reservada
+    const reservedWords = ['productos', 'categorias', 'etiquetas', 'pedidos', 'facturas', 'marcas', 'autores', 'obras', 'sellos']
+    if (reservedWords.includes(id.toLowerCase())) {
+      return NextResponse.json(
+        { success: false, error: `Ruta no válida. Use /api/tienda/${id} en su lugar.` },
+        { status: 404 }
+      )
+    }
+    
     const body = await request.json()
     console.log('[API SerieColeccion PUT] 📝 Actualizando serie-coleccion:', id, body)
 
@@ -243,6 +269,16 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
+    
+    // Validar que el ID no sea una palabra reservada
+    const reservedWords = ['productos', 'categorias', 'etiquetas', 'pedidos', 'facturas', 'marcas', 'autores', 'obras', 'sellos']
+    if (reservedWords.includes(id.toLowerCase())) {
+      return NextResponse.json(
+        { success: false, error: `Ruta no válida. Use /api/tienda/${id} en su lugar.` },
+        { status: 404 }
+      )
+    }
+    
     console.log('[API SerieColeccion DELETE] 🗑️ Eliminando serie-coleccion:', id)
 
     const serieColeccionEndpoint = await getSerieColeccionEndpoint()

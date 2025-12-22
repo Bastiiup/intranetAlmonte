@@ -38,6 +38,21 @@ export async function GET(
   try {
     const { id } = await params
     
+    // Validar que el ID no sea una palabra reservada
+    const reservedWords = ['productos', 'categorias', 'etiquetas', 'pedidos', 'facturas', 'marcas', 'autores', 'sellos', 'serie-coleccion']
+    if (reservedWords.includes(id.toLowerCase())) {
+      console.warn('[API /tienda/obras/[id] GET] ⚠️ Intento de acceso a ruta reservada:', id)
+      return NextResponse.json(
+        { 
+          success: false,
+          error: `Ruta no válida. La ruta /api/tienda/obras/${id} no existe. Use /api/tienda/${id} en su lugar.`,
+          data: null,
+          hint: `Si está buscando ${id}, use el endpoint: /api/tienda/${id}`,
+        },
+        { status: 404 }
+      )
+    }
+    
     console.log('[API /tienda/obras/[id] GET] Obteniendo obra:', {
       id,
       esNumerico: !isNaN(parseInt(id)),
@@ -160,6 +175,16 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
+    
+    // Validar que el ID no sea una palabra reservada
+    const reservedWords = ['productos', 'categorias', 'etiquetas', 'pedidos', 'facturas', 'marcas', 'autores', 'sellos', 'serie-coleccion']
+    if (reservedWords.includes(id.toLowerCase())) {
+      return NextResponse.json(
+        { success: false, error: `Ruta no válida. Use /api/tienda/${id} en su lugar.` },
+        { status: 404 }
+      )
+    }
+    
     console.log('[API Obras DELETE] 🗑️ Eliminando obra:', id)
 
     const obraEndpoint = '/api/obras'
@@ -251,6 +276,16 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
+    
+    // Validar que el ID no sea una palabra reservada
+    const reservedWords = ['productos', 'categorias', 'etiquetas', 'pedidos', 'facturas', 'marcas', 'autores', 'sellos', 'serie-coleccion']
+    if (reservedWords.includes(id.toLowerCase())) {
+      return NextResponse.json(
+        { success: false, error: `Ruta no válida. Use /api/tienda/${id} en su lugar.` },
+        { status: 404 }
+      )
+    }
+    
     const body = await request.json()
     console.log('[API Obras PUT] ✏️ Actualizando obra:', id, body)
 

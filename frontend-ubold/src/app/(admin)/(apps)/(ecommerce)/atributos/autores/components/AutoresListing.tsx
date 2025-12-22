@@ -368,6 +368,7 @@ const AutoresListing = ({ autores, error }: AutoresListingProps = {}) => {
       for (const autorId of idsToDelete) {
         const response = await fetch(`/api/tienda/autores/${autorId}`, {
           method: 'DELETE',
+          credentials: 'include', // Incluir cookies
         })
         if (!response.ok) {
           throw new Error(`Error al eliminar autor ${autorId}`)

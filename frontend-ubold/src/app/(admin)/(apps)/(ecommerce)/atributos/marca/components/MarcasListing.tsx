@@ -265,6 +265,7 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
       for (const marcaId of idsToDelete) {
         const response = await fetch(`/api/tienda/marca/${marcaId}`, {
           method: 'DELETE',
+          credentials: 'include', // Incluir cookies
         })
         if (!response.ok) {
           throw new Error(`Error al eliminar marca ${marcaId}`)

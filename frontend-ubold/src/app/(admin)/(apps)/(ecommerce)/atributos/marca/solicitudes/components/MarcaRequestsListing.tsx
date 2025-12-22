@@ -300,6 +300,7 @@ const MarcaRequestsListing = ({ solicitudes, error }: MarcaRequestsListingProps 
     try {
       const response = await fetch(`/api/tienda/marca/${pendingId}`, {
         method: 'PUT',
+        credentials: 'include', // Incluir cookies
         headers: {
           'Content-Type': 'application/json',
         },
@@ -332,6 +333,7 @@ const MarcaRequestsListing = ({ solicitudes, error }: MarcaRequestsListingProps 
     try {
       const response = await fetch(`/api/tienda/marca/${pendingId}`, {
         method: 'PUT',
+        credentials: 'include', // Incluir cookies
         headers: {
           'Content-Type': 'application/json',
         },
@@ -366,6 +368,7 @@ const MarcaRequestsListing = ({ solicitudes, error }: MarcaRequestsListingProps 
       for (const solicitudId of idsToDelete) {
         const response = await fetch(`/api/tienda/marca/${solicitudId}`, {
           method: 'DELETE',
+          credentials: 'include', // Incluir cookies
         })
         if (!response.ok) {
           throw new Error(`Error al eliminar solicitud ${solicitudId}`)

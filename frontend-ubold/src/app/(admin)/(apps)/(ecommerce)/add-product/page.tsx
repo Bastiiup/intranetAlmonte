@@ -107,6 +107,7 @@ export default function AddProductPage() {
         
         const uploadResponse = await fetch('/api/tienda/upload', {
           method: 'POST',
+          credentials: 'include', // Incluir cookies
           body: uploadFormData,
         })
         
@@ -213,6 +214,7 @@ export default function AddProductPage() {
 
       const response = await fetch('/api/tienda/productos', {
         method: 'POST',
+        credentials: 'include', // Incluir cookies
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dataToSend)
       })

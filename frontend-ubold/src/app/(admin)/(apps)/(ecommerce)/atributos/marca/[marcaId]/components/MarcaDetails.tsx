@@ -107,6 +107,7 @@ const MarcaDetails = ({ marca: initialMarca, marcaId, error: initialError }: Mar
           
           const uploadResponse = await fetch('/api/tienda/upload', {
             method: 'POST',
+            credentials: 'include', // Incluir cookies
             body: formDataImagen,
           })
           
@@ -132,6 +133,7 @@ const MarcaDetails = ({ marca: initialMarca, marcaId, error: initialError }: Mar
       
       const response = await fetch(url, {
         method: 'PUT',
+        credentials: 'include', // Incluir cookies
         headers: {
           'Content-Type': 'application/json',
         },

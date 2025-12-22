@@ -18,6 +18,7 @@ export default async function Page({ params }: { params: Promise<{ selloId: stri
     
     const response = await fetch(`${baseUrl}/api/tienda/sello/${selloId}`, {
       cache: 'no-store',
+      credentials: 'include', // Incluir cookies
     })
     
     const data = await response.json()

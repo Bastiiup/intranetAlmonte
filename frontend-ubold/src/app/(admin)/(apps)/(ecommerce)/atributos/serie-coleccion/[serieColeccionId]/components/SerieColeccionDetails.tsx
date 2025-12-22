@@ -176,6 +176,7 @@ const SerieColeccionDetails = ({ serieColeccion: initialSerieColeccion, serieCol
       
       const response = await fetch(url, {
         method: 'PUT',
+        credentials: 'include', // Incluir cookies
         headers: {
           'Content-Type': 'application/json',
         },

@@ -57,6 +57,7 @@ const AddSerieColeccionForm = () => {
       // Crear la serie-coleccion
       const response = await fetch('/api/tienda/serie-coleccion', {
         method: 'POST',
+        credentials: 'include', // Incluir cookies
         headers: {
           'Content-Type': 'application/json',
         },

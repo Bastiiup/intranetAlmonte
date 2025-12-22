@@ -319,6 +319,7 @@ const SerieColeccionesListing = ({ serieColecciones, error }: SerieColeccionesLi
       for (const serieColeccionId of idsToDelete) {
         const response = await fetch(`/api/tienda/serie-coleccion/${serieColeccionId}`, {
           method: 'DELETE',
+          credentials: 'include', // Incluir cookies
         })
         if (!response.ok) {
           throw new Error(`Error al eliminar serie/colección ${serieColeccionId}`)

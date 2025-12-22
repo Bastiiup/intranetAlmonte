@@ -177,6 +177,7 @@ export default function EditarProductoPage({ params }: EditarProductoPageProps) 
       
       const response = await fetch('/api/tienda/upload', {
         method: 'POST',
+        credentials: 'include', // Incluir cookies
         body: formData,
       })
       

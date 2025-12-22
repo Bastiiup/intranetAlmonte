@@ -374,6 +374,7 @@ const AutorRequestsListing = ({ solicitudes, error }: AutorRequestsListingProps 
       console.log('[AutorRequestsListing] Aprobando solicitud:', pendingId)
       const response = await fetch(`/api/tienda/autores/${pendingId}`, {
         method: 'PUT',
+        credentials: 'include', // Incluir cookies
         headers: {
           'Content-Type': 'application/json',
         },
@@ -407,6 +408,7 @@ const AutorRequestsListing = ({ solicitudes, error }: AutorRequestsListingProps 
       console.log('[AutorRequestsListing] Rechazando solicitud:', pendingId)
       const response = await fetch(`/api/tienda/autores/${pendingId}`, {
         method: 'PUT',
+        credentials: 'include', // Incluir cookies
         headers: {
           'Content-Type': 'application/json',
         },
@@ -441,6 +443,7 @@ const AutorRequestsListing = ({ solicitudes, error }: AutorRequestsListingProps 
       for (const solicitudId of idsToDelete) {
         const response = await fetch(`/api/tienda/autores/${solicitudId}`, {
           method: 'DELETE',
+          credentials: 'include', // Incluir cookies
         })
         if (!response.ok) {
           throw new Error(`Error al eliminar solicitud ${solicitudId}`)

@@ -18,6 +18,7 @@ export default async function Page({ params }: { params: Promise<{ serieColeccio
     
     const response = await fetch(`${baseUrl}/api/tienda/serie-coleccion/${serieColeccionId}`, {
       cache: 'no-store',
+      credentials: 'include', // Incluir cookies
     })
     
     const data = await response.json()

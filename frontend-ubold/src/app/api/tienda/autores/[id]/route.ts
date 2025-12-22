@@ -9,6 +9,22 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
+    
+    // Validar que el ID no sea una palabra reservada
+    const reservedWords = ['productos', 'categorias', 'etiquetas', 'pedidos', 'facturas', 'marcas', 'obras', 'sellos', 'serie-coleccion']
+    if (reservedWords.includes(id.toLowerCase())) {
+      console.warn('[API /tienda/autores/[id] PUT] ⚠️ Intento de acceso a ruta reservada:', id)
+      return NextResponse.json(
+        { 
+          success: false,
+          error: `Ruta no válida. La ruta /api/tienda/autores/${id} no existe. Use /api/tienda/${id} en su lugar.`,
+          data: null,
+          hint: `Si está buscando ${id}, use el endpoint: /api/tienda/${id}`,
+        },
+        { status: 404 }
+      )
+    }
+    
     const body = await request.json()
     console.log('[API Autores PUT] ✏️ Actualizando autor:', id, body)
 

@@ -38,6 +38,21 @@ export async function GET(
   try {
     const { id } = await params
     
+    // Validar que el ID no sea una palabra reservada
+    const reservedWords = ['productos', 'categorias', 'etiquetas', 'pedidos', 'facturas', 'marcas', 'autores', 'obras', 'serie-coleccion']
+    if (reservedWords.includes(id.toLowerCase())) {
+      console.warn('[API /tienda/sello/[id] GET] ⚠️ Intento de acceso a ruta reservada:', id)
+      return NextResponse.json(
+        { 
+          success: false,
+          error: `Ruta no válida. La ruta /api/tienda/sello/${id} no existe. Use /api/tienda/${id} en su lugar.`,
+          data: null,
+          hint: `Si está buscando ${id}, use el endpoint: /api/tienda/${id}`,
+        },
+        { status: 404 }
+      )
+    }
+    
     console.log('[API /tienda/sello/[id] GET] Obteniendo sello:', {
       id,
       esNumerico: !isNaN(parseInt(id)),
@@ -162,6 +177,16 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
+    
+    // Validar que el ID no sea una palabra reservada
+    const reservedWords = ['productos', 'categorias', 'etiquetas', 'pedidos', 'facturas', 'marcas', 'autores', 'obras', 'serie-coleccion']
+    if (reservedWords.includes(id.toLowerCase())) {
+      return NextResponse.json(
+        { success: false, error: `Ruta no válida. Use /api/tienda/${id} en su lugar.` },
+        { status: 404 }
+      )
+    }
+    
     console.log('[API Sello DELETE] 🗑️ Eliminando sello:', id)
 
     const selloEndpoint = '/api/sellos'
@@ -253,6 +278,16 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
+    
+    // Validar que el ID no sea una palabra reservada
+    const reservedWords = ['productos', 'categorias', 'etiquetas', 'pedidos', 'facturas', 'marcas', 'autores', 'obras', 'serie-coleccion']
+    if (reservedWords.includes(id.toLowerCase())) {
+      return NextResponse.json(
+        { success: false, error: `Ruta no válida. Use /api/tienda/${id} en su lugar.` },
+        { status: 404 }
+      )
+    }
+    
     const body = await request.json()
     console.log('[API Sello PUT] ✏️ Actualizando sello:', id, body)
 

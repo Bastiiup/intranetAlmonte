@@ -62,6 +62,7 @@ const AddMarcaForm = () => {
 
       const response = await fetch('/api/tienda/marca', {
         method: 'POST',
+        credentials: 'include', // Incluir cookies
         headers: {
           'Content-Type': 'application/json',
         },

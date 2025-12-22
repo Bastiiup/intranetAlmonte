@@ -38,6 +38,21 @@ export async function GET(
   try {
     const { id } = await params
     
+    // Validar que el ID no sea una palabra reservada
+    const reservedWords = ['productos', 'categorias', 'etiquetas', 'pedidos', 'facturas', 'obras', 'autores', 'sellos', 'serie-coleccion']
+    if (reservedWords.includes(id.toLowerCase())) {
+      console.warn('[API /tienda/marca/[id] GET] ⚠️ Intento de acceso a ruta reservada:', id)
+      return NextResponse.json(
+        { 
+          success: false,
+          error: `Ruta no válida. La ruta /api/tienda/marca/${id} no existe. Use /api/tienda/${id} en su lugar.`,
+          data: null,
+          hint: `Si está buscando ${id}, use el endpoint: /api/tienda/${id}`,
+        },
+        { status: 404 }
+      )
+    }
+    
     console.log('[API /tienda/marca/[id] GET] Obteniendo marca:', {
       id,
       esNumerico: !isNaN(parseInt(id)),
@@ -162,6 +177,16 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
+    
+    // Validar que el ID no sea una palabra reservada
+    const reservedWords = ['productos', 'categorias', 'etiquetas', 'pedidos', 'facturas', 'obras', 'autores', 'sellos', 'serie-coleccion']
+    if (reservedWords.includes(id.toLowerCase())) {
+      return NextResponse.json(
+        { success: false, error: `Ruta no válida. Use /api/tienda/${id} en su lugar.` },
+        { status: 404 }
+      )
+    }
+    
     console.log('[API Marca DELETE] 🗑️ Eliminando marca:', id)
 
     const marcaEndpoint = '/api/marcas'
@@ -253,6 +278,16 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
+    
+    // Validar que el ID no sea una palabra reservada
+    const reservedWords = ['productos', 'categorias', 'etiquetas', 'pedidos', 'facturas', 'obras', 'autores', 'sellos', 'serie-coleccion']
+    if (reservedWords.includes(id.toLowerCase())) {
+      return NextResponse.json(
+        { success: false, error: `Ruta no válida. Use /api/tienda/${id} en su lugar.` },
+        { status: 404 }
+      )
+    }
+    
     const body = await request.json()
     console.log('[API Marca PUT] ✏️ Actualizando marca:', id, body)
 
