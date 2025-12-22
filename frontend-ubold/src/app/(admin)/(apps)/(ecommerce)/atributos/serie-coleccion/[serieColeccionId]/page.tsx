@@ -1,13 +1,13 @@
 import { Container } from 'react-bootstrap'
 import { headers } from 'next/headers'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import ObraDetails from './components/ObraDetails'
+import SerieColeccionDetails from './components/SerieColeccionDetails'
 
 export const dynamic = 'force-dynamic'
 
-export default async function Page({ params }: { params: Promise<{ obraId: string }> }) {
-  const { obraId } = await params
-  let obra: any = null
+export default async function Page({ params }: { params: Promise<{ serieColeccionId: string }> }) {
+  const { serieColeccionId } = await params
+  let serieColeccion: any = null
   let error: string | null = null
 
   try {
@@ -16,16 +16,16 @@ export default async function Page({ params }: { params: Promise<{ obraId: strin
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
     const baseUrl = `${protocol}://${host}`
     
-    const response = await fetch(`${baseUrl}/api/tienda/obras/${obraId}`, {
+    const response = await fetch(`${baseUrl}/api/tienda/serie-coleccion/${serieColeccionId}`, {
       cache: 'no-store',
     })
     
     const data = await response.json()
     
     if (data.success && data.data) {
-      obra = data.data
+      serieColeccion = data.data
     } else {
-      error = data.error || 'Error al obtener la obra'
+      error = data.error || 'Error al obtener la serie/colección'
     }
   } catch (err: any) {
     error = err.message || 'Error al conectar con la API'
@@ -33,11 +33,9 @@ export default async function Page({ params }: { params: Promise<{ obraId: strin
 
   return (
     <Container fluid>
-      <PageBreadcrumb title="Detalles de la Obra" subtitle="Ecommerce" />
-      <ObraDetails obra={obra} obraId={obraId} error={error} />
+      <PageBreadcrumb title="Detalles de Serie/Colección" subtitle="Ecommerce" />
+      <SerieColeccionDetails serieColeccion={serieColeccion} serieColeccionId={serieColeccionId} error={error} />
     </Container>
   )
 }
-
-
 

@@ -26,10 +26,13 @@ import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 
 // Tipo para la tabla
-type MarcaType = {
+type SerieColeccionType = {
   id: number
+  id_coleccion: number
   name: string
-  descripcion: string
+  editorial: string
+  sello: string
+  products: number
   status: 'active' | 'inactive'
   date: string
   time: string
@@ -46,57 +49,86 @@ const getField = (obj: any, ...fieldNames: string[]): any => {
   return undefined
 }
 
-// Función para mapear marcas de Strapi al formato MarcaType
-const mapStrapiMarcaToMarcaType = (marca: any): MarcaType => {
-  const attrs = marca.attributes || {}
-  const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (marca as any)
+// Función para mapear serie-colecciones de Strapi al formato SerieColeccionType
+const mapStrapiSerieColeccionToSerieColeccionType = (serieColeccion: any): SerieColeccionType => {
+  const attrs = serieColeccion.attributes || {}
+  const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (serieColeccion as any)
 
-  const nombre = getField(data, 'name', 'nombre', 'nombre_marca', 'nombreMarca', 'NOMBRE_MARCA', 'NAME') || 'Sin nombre'
-  const descripcion = getField(data, 'descripcion', 'description', 'DESCRIPCION') || ''
+  // Obtener id_coleccion (schema real de Strapi - Number)
+  const idColeccion = getField(data, 'id_coleccion', 'idColeccion', 'ID_COLECCION') || 0
   
-  const isPublished = !!(attrs.publishedAt || (marca as any).publishedAt)
+  // Obtener nombre_coleccion (schema real de Strapi)
+  const nombre = getField(data, 'nombre_coleccion', 'nombreColeccion', 'nombre', 'NOMBRE_COLECCION', 'NAME') || 'Sin nombre'
   
-  const createdAt = attrs.createdAt || (marca as any).createdAt || new Date().toISOString()
+  // Obtener editorial (relation manyToOne)
+  const editorial = data.editorial?.data?.attributes?.nombre || 
+                     data.editorial?.data?.nombre ||
+                     data.editorial?.nombre ||
+                     data.editorial?.id ||
+                     '-'
+  
+  // Obtener sello (relation manyToOne)
+  const sello = data.sello?.data?.attributes?.nombre_sello || 
+                data.sello?.data?.attributes?.nombre ||
+                data.sello?.data?.nombre_sello ||
+                data.sello?.data?.nombre ||
+                data.sello?.nombre_sello ||
+                data.sello?.nombre ||
+                data.sello?.id ||
+                '-'
+  
+  // Obtener estado (usa publishedAt para determinar si está publicado)
+  const isPublished = !!(attrs.publishedAt || (serieColeccion as any).publishedAt)
+  
+  // Contar productos asociados (libros según schema)
+  const libros = data.libros?.data || data.libros || []
+  const librosCount = Array.isArray(libros) ? libros.length : 0
+  
+  // Obtener fechas
+  const createdAt = attrs.createdAt || (serieColeccion as any).createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
   
   return {
-    id: marca.id || marca.documentId || marca.id,
+    id: serieColeccion.id || serieColeccion.documentId || serieColeccion.id,
+    id_coleccion: typeof idColeccion === 'string' ? parseInt(idColeccion) : idColeccion,
     name: nombre,
-    descripcion: descripcion,
+    editorial: typeof editorial === 'string' ? editorial : '-',
+    sello: typeof sello === 'string' ? sello : '-',
+    products: librosCount,
     status: isPublished ? 'active' : 'inactive',
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
-    url: `/atributos/marca/${marca.id || marca.documentId || marca.id}`,
+    url: `/atributos/serie-coleccion/${serieColeccion.id || serieColeccion.documentId || serieColeccion.id}`,
   }
 }
 
-interface MarcasListingProps {
-  marcas?: any[]
+interface SerieColeccionesListingProps {
+  serieColecciones?: any[]
   error?: string | null
 }
 
-const columnHelper = createColumnHelper<MarcaType>()
+const columnHelper = createColumnHelper<SerieColeccionType>()
 
-const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
+const SerieColeccionesListing = ({ serieColecciones, error }: SerieColeccionesListingProps = {}) => {
   const router = useRouter()
   
-  const mappedMarcas = useMemo(() => {
-    if (marcas && marcas.length > 0) {
-      console.log('[MarcasListing] Marcas recibidas:', marcas.length)
-      const mapped = marcas.map(mapStrapiMarcaToMarcaType)
-      console.log('[MarcasListing] Marcas mapeadas:', mapped.length)
+  const mappedSerieColecciones = useMemo(() => {
+    if (serieColecciones && serieColecciones.length > 0) {
+      console.log('[SerieColeccionesListing] Serie-colecciones recibidas:', serieColecciones.length)
+      const mapped = serieColecciones.map(mapStrapiSerieColeccionToSerieColeccionType)
+      console.log('[SerieColeccionesListing] Serie-colecciones mapeadas:', mapped.length)
       return mapped
     }
-    console.log('[MarcasListing] No hay marcas de Strapi')
+    console.log('[SerieColeccionesListing] No hay serie-colecciones de Strapi')
     return []
-  }, [marcas])
+  }, [serieColecciones])
 
-  const columns: ColumnDef<MarcaType, any>[] = [
+  const columns: ColumnDef<SerieColeccionType, any>[] = [
     {
       id: 'select',
       maxSize: 45,
       size: 45,
-      header: ({ table }: { table: TableType<MarcaType> }) => (
+      header: ({ table }: { table: TableType<SerieColeccionType> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -104,7 +136,7 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
           onChange={table.getToggleAllRowsSelectedHandler()}
         />
       ),
-      cell: ({ row }: { row: TableRow<MarcaType> }) => (
+      cell: ({ row }: { row: TableRow<SerieColeccionType> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -121,17 +153,23 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
         <span className="text-muted">{row.original.id}</span>
       ),
     }),
+    columnHelper.accessor('id_coleccion', {
+      header: 'ID_COLECCIÓN',
+      cell: ({ row }) => (
+        <span className="fw-semibold">{row.original.id_coleccion?.toLocaleString() || '-'}</span>
+      ),
+    }),
     columnHelper.accessor('name', {
-      header: 'NOMBRE_MARCA',
+      header: 'NOMBRE_COLECCIÓN',
       cell: ({ row }) => {
         return (
           <div className="d-flex">
             <div className="avatar-md me-3 bg-light d-flex align-items-center justify-content-center rounded">
-              <span className="text-muted fs-xs">🏷️</span>
+              <span className="text-muted fs-xs">📚</span>
             </div>
             <div>
               <h5 className="mb-0">
-                <Link href={`/atributos/marca/${row.original.id}`} className="link-reset">
+                <Link href={`/atributos/serie-coleccion/${row.original.id}`} className="link-reset">
                   {row.original.name || 'Sin nombre'}
                 </Link>
               </h5>
@@ -140,10 +178,22 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
         )
       },
     }),
-    columnHelper.accessor('descripcion', {
-      header: 'DESCRIPCIÓN',
+    columnHelper.accessor('editorial', {
+      header: 'EDITORIAL',
       cell: ({ row }) => (
-        <span className="text-muted">{row.original.descripcion || '-'}</span>
+        <span className="text-muted">{row.original.editorial || '-'}</span>
+      ),
+    }),
+    columnHelper.accessor('sello', {
+      header: 'SELLO',
+      cell: ({ row }) => (
+        <span className="text-muted">{row.original.sello || '-'}</span>
+      ),
+    }),
+    columnHelper.accessor('products', {
+      header: 'LIBROS',
+      cell: ({ row }) => (
+        <span className="badge badge-soft-info">{row.original.products || 0}</span>
       ),
     }),
     columnHelper.accessor('status', {
@@ -159,14 +209,14 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
     }),
     {
       header: 'Acciones',
-      cell: ({ row }: { row: TableRow<MarcaType> }) => (
+      cell: ({ row }: { row: TableRow<SerieColeccionType> }) => (
         <div className="d-flex gap-1">
-          <Link href={`/atributos/marca/${row.original.id}`}>
+          <Link href={`/atributos/serie-coleccion/${row.original.id}`}>
             <Button variant="default" size="sm" className="btn-icon rounded-circle">
               <TbEye className="fs-lg" />
             </Button>
           </Link>
-          <Link href={`/atributos/marca/${row.original.id}`}>
+          <Link href={`/atributos/serie-coleccion/${row.original.id}`}>
             <Button
               variant="default"
               size="sm"
@@ -190,7 +240,7 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
     },
   ]
 
-  const [data, setData] = useState<MarcaType[]>([])
+  const [data, setData] = useState<SerieColeccionType[]>([])
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -198,9 +248,10 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
 
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
 
+  // Estado para el orden de columnas
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('marcas-column-order')
+      const saved = localStorage.getItem('serie-colecciones-column-order')
       if (saved) {
         try {
           return JSON.parse(saved)
@@ -212,20 +263,22 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
     return []
   })
 
+  // Guardar orden de columnas en localStorage
   const handleColumnOrderChange = (newOrder: string[]) => {
     setColumnOrder(newOrder)
     if (typeof window !== 'undefined') {
-      localStorage.setItem('marcas-column-order', JSON.stringify(newOrder))
+      localStorage.setItem('serie-colecciones-column-order', JSON.stringify(newOrder))
     }
   }
 
+  // Actualizar datos cuando cambien las serie-colecciones de Strapi
   useEffect(() => {
-    console.log('[MarcasListing] useEffect - marcas:', marcas?.length, 'mappedMarcas:', mappedMarcas.length)
-    setData(mappedMarcas)
-    console.log('[MarcasListing] Datos actualizados. Total:', mappedMarcas.length)
-  }, [mappedMarcas, marcas])
+    console.log('[SerieColeccionesListing] useEffect - serieColecciones:', serieColecciones?.length, 'mappedSerieColecciones:', mappedSerieColecciones.length)
+    setData(mappedSerieColecciones)
+    console.log('[SerieColeccionesListing] Datos actualizados. Total:', mappedSerieColecciones.length)
+  }, [mappedSerieColecciones, serieColecciones])
 
-  const table = useReactTable<MarcaType>({
+  const table = useReactTable<SerieColeccionType>({
     data,
     columns,
     state: { sorting, globalFilter, columnFilters, pagination, rowSelection: selectedRowIds, columnOrder },
@@ -262,36 +315,40 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
     const idsToDelete = selectedIds.map(id => data[parseInt(id)]?.id).filter(Boolean)
     
     try {
-      for (const marcaId of idsToDelete) {
-        const response = await fetch(`/api/tienda/marca/${marcaId}`, {
+      // Eliminar cada serie-coleccion seleccionada
+      for (const serieColeccionId of idsToDelete) {
+        const response = await fetch(`/api/tienda/serie-coleccion/${serieColeccionId}`, {
           method: 'DELETE',
         })
         if (!response.ok) {
-          throw new Error(`Error al eliminar marca ${marcaId}`)
+          throw new Error(`Error al eliminar serie/colección ${serieColeccionId}`)
         }
       }
       
+      // Actualizar datos localmente
       setData((old) => old.filter((_, idx) => !selectedIds.includes(idx.toString())))
       setSelectedRowIds({})
       setPagination({ ...pagination, pageIndex: 0 })
       setShowDeleteModal(false)
       
+      // Recargar la página para reflejar cambios
       router.refresh()
     } catch (error) {
-      console.error('Error al eliminar marcas:', error)
-      alert('Error al eliminar las marcas seleccionadas')
+      console.error('Error al eliminar serie-colecciones:', error)
+      alert('Error al eliminar las series/colecciones seleccionadas')
     }
   }
 
+  // Mostrar error si existe
   const hasError = !!error
-  const hasData = mappedMarcas.length > 0
+  const hasData = mappedSerieColecciones.length > 0
   
   if (hasError && !hasData) {
     return (
       <Row>
         <Col xs={12}>
           <Alert variant="warning">
-            <strong>Error al cargar marcas desde Strapi:</strong> {error}
+            <strong>Error al cargar series/colecciones desde Strapi:</strong> {error}
             <br />
             <small className="text-muted">
               Verifica que:
@@ -307,8 +364,9 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
     )
   }
   
+  // Si hay error pero también hay datos, mostrar advertencia pero continuar
   if (hasError && hasData) {
-    console.warn('[MarcasListing] Error al cargar desde Strapi, usando datos disponibles:', error)
+    console.warn('[SerieColeccionesListing] Error al cargar desde Strapi, usando datos disponibles:', error)
   }
 
   return (
@@ -321,7 +379,7 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
                 <input
                   type="search"
                   className="form-control"
-                  placeholder="Buscar marca..."
+                  placeholder="Buscar serie/colección..."
                   value={globalFilter ?? ''}
                   onChange={(e) => setGlobalFilter(e.target.value)}
                 />
@@ -365,7 +423,7 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
             </div>
 
             <div className="d-flex gap-1">
-              <Link passHref href="/atributos/marca">
+              <Link passHref href="/atributos/serie-coleccion">
                 <Button variant="outline-primary" className="btn-icon btn-soft-primary">
                   <TbLayoutGrid className="fs-lg" />
                 </Button>
@@ -373,15 +431,15 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
               <Button variant="primary" className="btn-icon">
                 <TbList className="fs-lg" />
               </Button>
-              <Link href="/atributos/marca/agregar" passHref>
+              <Link href="/atributos/serie-coleccion/agregar" passHref>
                 <Button variant="danger" className="ms-1">
-                  <TbPlus className="fs-sm me-2" /> Agregar Marca
+                  <TbPlus className="fs-sm me-2" /> Agregar Serie/Colección
                 </Button>
               </Link>
             </div>
           </CardHeader>
 
-          <DataTable<MarcaType>
+          <DataTable<SerieColeccionType>
             table={table}
             emptyMessage="No se encontraron registros"
             enableColumnReordering={true}
@@ -394,7 +452,7 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
                 totalItems={totalItems}
                 start={start}
                 end={end}
-                itemsName="marcas"
+                itemsName="series/colecciones"
                 showInfo
                 previousPage={table.previousPage}
                 canPreviousPage={table.getCanPreviousPage()}
@@ -412,7 +470,7 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
             onHide={toggleDeleteModal}
             onConfirm={handleDelete}
             selectedCount={Object.keys(selectedRowIds).length}
-            itemName="marca"
+            itemName="serie/colección"
           />
         </Card>
       </Col>
@@ -420,5 +478,5 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
   )
 }
 
-export default MarcasListing
+export default SerieColeccionesListing
 

@@ -301,3 +301,5 @@ const ObraDetails = ({ obra: initialObra, obraId, error: initialError }: ObraDet
 
 export default ObraDetails
 
+
+

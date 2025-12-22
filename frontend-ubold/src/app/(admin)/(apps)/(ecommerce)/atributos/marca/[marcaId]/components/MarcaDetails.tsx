@@ -48,11 +48,10 @@ const MarcaDetails = ({ marca: initialMarca, marcaId, error: initialError }: Mar
   const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (marca as any)
 
   const [formData, setFormData] = useState({
-    nombre_marca: getField(data, 'nombre_marca', 'nombreMarca', 'nombre', 'NOMBRE_MARCA', 'NAME') || '',
+    name: getField(data, 'name', 'nombre', 'nombre_marca', 'nombreMarca', 'NOMBRE_MARCA', 'NAME') || '',
     descripcion: getField(data, 'descripcion', 'description', 'DESCRIPCION') || '',
-    website: getField(data, 'website', 'website', 'WEBSITE') || '',
-    logo: null as File | null,
-    logoUrl: data.logo?.data?.attributes?.url || data.logo?.url || null,
+    imagen: null as File | null,
+    imagenUrl: data.imagen?.data?.attributes?.url || data.imagen?.url || null,
   })
 
   useEffect(() => {
@@ -61,11 +60,10 @@ const MarcaDetails = ({ marca: initialMarca, marcaId, error: initialError }: Mar
       const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (marca as any)
       
       setFormData({
-        nombre_marca: getField(data, 'nombre_marca', 'nombreMarca', 'nombre', 'NOMBRE_MARCA', 'NAME') || '',
+        name: getField(data, 'name', 'nombre', 'nombre_marca', 'nombreMarca', 'NOMBRE_MARCA', 'NAME') || '',
         descripcion: getField(data, 'descripcion', 'description', 'DESCRIPCION') || '',
-        website: getField(data, 'website', 'website', 'WEBSITE') || '',
-        logo: null,
-        logoUrl: data.logo?.data?.attributes?.url || data.logo?.url || null,
+        imagen: null,
+        imagenUrl: data.imagen?.data?.attributes?.url || data.imagen?.url || null,
       })
     }
   }, [marca])
@@ -101,35 +99,34 @@ const MarcaDetails = ({ marca: initialMarca, marcaId, error: initialError }: Mar
     setSuccess(false)
 
     try {
-      let logoId = null
-      if (formData.logo) {
+      let imagenId = null
+      if (formData.imagen) {
         try {
-          const formDataLogo = new FormData()
-          formDataLogo.append('file', formData.logo)
+          const formDataImagen = new FormData()
+          formDataImagen.append('file', formData.imagen)
           
           const uploadResponse = await fetch('/api/tienda/upload', {
             method: 'POST',
-            body: formDataLogo,
+            body: formDataImagen,
           })
           
           const uploadResult = await uploadResponse.json()
           if (uploadResult.success && uploadResult.data && uploadResult.data.length > 0) {
-            logoId = uploadResult.data[0].id
+            imagenId = uploadResult.data[0].id
           } else if (uploadResult.success && uploadResult.data?.id) {
-            logoId = uploadResult.data.id
+            imagenId = uploadResult.data.id
           }
         } catch (uploadError: any) {
-          console.warn('[MarcaDetails] Error al subir logo:', uploadError.message)
+          console.warn('[MarcaDetails] Error al subir imagen:', uploadError.message)
         }
       }
 
       const url = `/api/tienda/marca/${mId}`
       const body = JSON.stringify({
         data: {
-          nombre_marca: formData.nombre_marca.trim(),
+          name: formData.name.trim(),
           descripcion: formData.descripcion.trim() || null,
-          website: formData.website.trim() || null,
-          logo: logoId || null,
+          imagen: imagenId || null,
         },
       })
       
@@ -203,9 +200,9 @@ const MarcaDetails = ({ marca: initialMarca, marcaId, error: initialError }: Mar
                   <FormControl
                     type="text"
                     placeholder="Ej: Marca Ejemplo"
-                    value={formData.nombre_marca}
+                    value={formData.name}
                     onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, nombre_marca: e.target.value }))
+                      setFormData((prev) => ({ ...prev, name: e.target.value }))
                     }
                     required
                   />
@@ -235,29 +232,12 @@ const MarcaDetails = ({ marca: initialMarca, marcaId, error: initialError }: Mar
 
               <Col md={12}>
                 <FormGroup>
-                  <FormLabel>Website</FormLabel>
-                  <FormControl
-                    type="url"
-                    placeholder="https://ejemplo.com"
-                    value={formData.website}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, website: e.target.value }))
-                    }
-                  />
-                  <small className="text-muted">
-                    URL del sitio web de la marca (opcional).
-                  </small>
-                </FormGroup>
-              </Col>
-
-              <Col md={12}>
-                <FormGroup>
-                  <FormLabel>Logo</FormLabel>
+                  <FormLabel>Imagen</FormLabel>
                   <div className="border rounded p-3 text-center" style={{ minHeight: '150px', backgroundColor: '#f8f9fa' }}>
-                    {formData.logoUrl || formData.logo ? (
+                    {formData.imagenUrl || formData.imagen ? (
                       <div>
                         <img
-                          src={formData.logo ? URL.createObjectURL(formData.logo) : formData.logoUrl || ''}
+                          src={formData.imagen ? URL.createObjectURL(formData.imagen) : formData.imagenUrl || ''}
                           alt="Preview"
                           style={{ maxHeight: '120px', maxWidth: '100%' }}
                           className="mb-2"
@@ -266,7 +246,7 @@ const MarcaDetails = ({ marca: initialMarca, marcaId, error: initialError }: Mar
                           <Button
                             variant="link"
                             size="sm"
-                            onClick={() => setFormData((prev) => ({ ...prev, logo: null, logoUrl: null }))}
+                            onClick={() => setFormData((prev) => ({ ...prev, imagen: null, imagenUrl: null }))}
                           >
                             Eliminar
                           </Button>
@@ -285,17 +265,17 @@ const MarcaDetails = ({ marca: initialMarca, marcaId, error: initialError }: Mar
                             const target = e.target as HTMLInputElement
                             const file = target.files?.[0]
                             if (file) {
-                              setFormData((prev) => ({ ...prev, logo: file }))
+                              setFormData((prev) => ({ ...prev, imagen: file }))
                             }
                           }}
                           className="mt-2"
                           style={{ display: 'none' }}
-                          id="logo-upload-edit"
+                          id="imagen-upload-edit"
                         />
                         <Button
                           variant="outline-primary"
                           size="sm"
-                          onClick={() => document.getElementById('logo-upload-edit')?.click()}
+                          onClick={() => document.getElementById('imagen-upload-edit')?.click()}
                           className="mt-2"
                         >
                           Seleccionar archivo
@@ -304,7 +284,7 @@ const MarcaDetails = ({ marca: initialMarca, marcaId, error: initialError }: Mar
                     )}
                   </div>
                   <small className="text-muted">
-                    Logo de la marca (opcional). Formatos: JPG, PNG, GIF.
+                    Imagen de la marca (opcional). Formatos: JPG, PNG, GIF.
                   </small>
                 </FormGroup>
               </Col>

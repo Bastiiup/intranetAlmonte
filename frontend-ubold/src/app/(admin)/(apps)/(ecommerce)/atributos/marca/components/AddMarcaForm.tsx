@@ -11,10 +11,9 @@ const AddMarcaForm = () => {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [formData, setFormData] = useState({
-    nombre_marca: '',
+    name: '',
     descripcion: '',
-    website: '',
-    logo: null as File | null,
+    imagen: null as File | null,
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -24,41 +23,40 @@ const AddMarcaForm = () => {
     setSuccess(false)
 
     try {
-      if (!formData.nombre_marca.trim()) {
+      if (!formData.name.trim()) {
         throw new Error('El nombre de la marca es obligatorio')
       }
 
       const marcaData: any = {
         data: {
-          nombre_marca: formData.nombre_marca.trim(),
+          name: formData.name.trim(),
           descripcion: formData.descripcion.trim() || null,
-          website: formData.website.trim() || null,
         },
       }
 
       console.log('[AddMarcaForm] Enviando datos:', marcaData)
 
-      let logoId = null
-      if (formData.logo) {
+      let imagenId = null
+      if (formData.imagen) {
         try {
-          const formDataLogo = new FormData()
-          formDataLogo.append('file', formData.logo)
+          const formDataImagen = new FormData()
+          formDataImagen.append('file', formData.imagen)
           
           const uploadResponse = await fetch('/api/tienda/upload', {
             method: 'POST',
-            body: formDataLogo,
+            body: formDataImagen,
           })
           
           const uploadResult = await uploadResponse.json()
           if (uploadResult.success && uploadResult.data && uploadResult.data.length > 0) {
-            logoId = uploadResult.data[0].id
-            marcaData.data.logo = logoId
+            imagenId = uploadResult.data[0].id
+            marcaData.data.imagen = imagenId
           } else if (uploadResult.success && uploadResult.data?.id) {
-            logoId = uploadResult.data.id
-            marcaData.data.logo = logoId
+            imagenId = uploadResult.data.id
+            marcaData.data.imagen = imagenId
           }
         } catch (uploadError: any) {
-          console.warn('[AddMarcaForm] Error al subir logo:', uploadError.message)
+          console.warn('[AddMarcaForm] Error al subir imagen:', uploadError.message)
         }
       }
 
@@ -124,9 +122,9 @@ const AddMarcaForm = () => {
                 <FormControl
                   type="text"
                   placeholder="Ej: Marca Ejemplo"
-                  value={formData.nombre_marca}
+                  value={formData.name}
                   onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, nombre_marca: e.target.value }))
+                    setFormData((prev) => ({ ...prev, name: e.target.value }))
                   }
                   required
                 />
@@ -156,29 +154,12 @@ const AddMarcaForm = () => {
 
             <Col md={12}>
               <FormGroup>
-                <FormLabel>Website</FormLabel>
-                <FormControl
-                  type="url"
-                  placeholder="https://ejemplo.com"
-                  value={formData.website}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, website: e.target.value }))
-                  }
-                />
-                <small className="text-muted">
-                  URL del sitio web de la marca (opcional).
-                </small>
-              </FormGroup>
-            </Col>
-
-            <Col md={12}>
-              <FormGroup>
-                <FormLabel>Logo</FormLabel>
+                <FormLabel>Imagen</FormLabel>
                 <div className="border rounded p-3 text-center" style={{ minHeight: '150px', backgroundColor: '#f8f9fa' }}>
-                  {formData.logo ? (
+                  {formData.imagen ? (
                     <div>
                       <img 
-                        src={URL.createObjectURL(formData.logo)} 
+                        src={URL.createObjectURL(formData.imagen)} 
                         alt="Preview" 
                         style={{ maxHeight: '120px', maxWidth: '100%' }}
                         className="mb-2"
@@ -187,7 +168,7 @@ const AddMarcaForm = () => {
                         <Button
                           variant="link"
                           size="sm"
-                          onClick={() => setFormData((prev) => ({ ...prev, logo: null }))}
+                          onClick={() => setFormData((prev) => ({ ...prev, imagen: null }))}
                         >
                           Eliminar
                         </Button>
@@ -206,17 +187,17 @@ const AddMarcaForm = () => {
                           const target = e.target as HTMLInputElement
                           const file = target.files?.[0]
                           if (file) {
-                            setFormData((prev) => ({ ...prev, logo: file }))
+                            setFormData((prev) => ({ ...prev, imagen: file }))
                           }
                         }}
                         className="mt-2"
                         style={{ display: 'none' }}
-                        id="logo-upload"
+                        id="imagen-upload"
                       />
                       <Button
                         variant="outline-primary"
                         size="sm"
-                        onClick={() => document.getElementById('logo-upload')?.click()}
+                        onClick={() => document.getElementById('imagen-upload')?.click()}
                         className="mt-2"
                       >
                         Seleccionar archivo
@@ -225,7 +206,7 @@ const AddMarcaForm = () => {
                   )}
                 </div>
                 <small className="text-muted">
-                  Logo de la marca (opcional). Formatos: JPG, PNG, GIF.
+                  Imagen de la marca (opcional). Formatos: JPG, PNG, GIF.
                 </small>
               </FormGroup>
             </Col>

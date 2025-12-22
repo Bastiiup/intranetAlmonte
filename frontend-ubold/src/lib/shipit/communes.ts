@@ -571,3 +571,5 @@ export function getAllCommuneNames(): string[] {
     (key, index, self) => self.indexOf(key) === index
   )
 }
+
+
