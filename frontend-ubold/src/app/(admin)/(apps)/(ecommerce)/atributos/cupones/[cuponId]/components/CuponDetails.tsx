@@ -5,7 +5,7 @@ import { format } from 'date-fns'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { LuSave, LuX } from 'react-icons/lu'
-import RelationSelector from '@/app/(admin)/(apps)/(ecommerce)/add-product/components/RelationSelector'
+import { RelationSelector } from '@/app/(admin)/(apps)/(ecommerce)/add-product/components/RelationSelector'
 
 interface CuponDetailsProps {
   cupon: any
