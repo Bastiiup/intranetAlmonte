@@ -4,6 +4,7 @@ import {
   ColumnDef,
   ColumnFiltersState,
   createColumnHelper,
+  ExpandedState,
   getCoreRowModel,
   getExpandedRowModel,
   getFilteredRowModel,
@@ -299,7 +300,7 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [expanded, setExpanded] = useState<ExpandedState>({})
 
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
   const [updatingStates, setUpdatingStates] = useState<Record<string, boolean>>({})
