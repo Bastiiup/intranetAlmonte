@@ -117,79 +117,91 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     console.log('[API Clientes POST] 📝 Creando cliente:', body)
 
-    // Validar nombre y correo obligatorios
-    if (!body.data?.nombre || !body.data?.nombre.trim()) {
+    // Validar datos de Persona (obligatorios)
+    const personaData = body.data?.persona
+    if (!personaData?.nombre_completo || !personaData.nombre_completo.trim()) {
       return NextResponse.json({
         success: false,
-        error: 'El nombre del cliente es obligatorio'
+        error: 'El nombre completo de la persona es obligatorio'
       }, { status: 400 })
     }
 
-    if (!body.data?.correo_electronico || !body.data?.correo_electronico.trim()) {
+    if (!personaData?.emails || !Array.isArray(personaData.emails) || personaData.emails.length === 0) {
       return NextResponse.json({
         success: false,
-        error: 'El correo electrónico del cliente es obligatorio'
+        error: 'El correo electrónico es obligatorio'
       }, { status: 400 })
     }
 
-    // Crear en Strapi
-    console.log('[API Clientes POST] 📚 Creando cliente en Strapi...')
-    
-    // Solo incluir campos válidos en el schema de WO-Clientes
-    const clienteData: any = {
+    const emailPrincipal = personaData.emails.find((e: any) => e.tipo === 'principal') || personaData.emails[0]
+    if (!emailPrincipal?.email || !emailPrincipal.email.trim()) {
+      return NextResponse.json({
+        success: false,
+        error: 'El correo electrónico es obligatorio'
+      }, { status: 400 })
+    }
+
+    // 1. Crear Persona primero (Strapi)
+    console.log('[API Clientes POST] 📚 Creando Persona en Strapi...')
+    const personaCreateData: any = {
       data: {
-        nombre: body.data.nombre.trim(),
-        correo_electronico: body.data.correo_electronico.trim(),
+        rut: personaData.rut?.trim() || null,
+        nombres: personaData.nombres?.trim() || null,
+        primer_apellido: personaData.primer_apellido?.trim() || null,
+        segundo_apellido: personaData.segundo_apellido?.trim() || null,
+        nombre_completo: personaData.nombre_completo.trim(),
+        emails: personaData.emails.map((e: any) => ({
+          email: e.email.trim(),
+          tipo: e.tipo || 'principal',
+        })),
+        telefonos: personaData.telefonos && Array.isArray(personaData.telefonos) && personaData.telefonos.length > 0
+          ? personaData.telefonos.map((t: any) => ({
+              numero: t.numero.trim(),
+              tipo: t.tipo || 'principal',
+            }))
+          : [],
+      },
+    }
+
+    const personaResponse = await strapiClient.post('/api/personas', personaCreateData) as any
+    const personaId = personaResponse.data?.id || personaResponse.data?.documentId || personaResponse.id || personaResponse.documentId
+    console.log('[API Clientes POST] ✅ Persona creada en Strapi:', personaId)
+
+    // 2. Crear WO-Clientes con relación a Persona
+    console.log('[API Clientes POST] 📦 Creando WO-Clientes en Strapi...')
+    
+    // Construir nombre para WO-Clientes desde Persona
+    const nombreCliente = personaData.nombre_completo.trim()
+    
+    const woClienteData: any = {
+      data: {
+        nombre: nombreCliente,
+        correo_electronico: emailPrincipal.email.trim(),
         pedidos: body.data.pedidos ? parseInt(body.data.pedidos) || 0 : 0,
         gasto_total: body.data.gasto_total ? parseFloat(body.data.gasto_total) || 0 : 0,
         fecha_registro: body.data.fecha_registro || new Date().toISOString(),
+        persona: personaId, // Relación con Persona
       },
     }
     
-    // Solo agregar ultima_actividad si está definida
     if (body.data.ultima_actividad) {
-      clienteData.data.ultima_actividad = body.data.ultima_actividad
+      woClienteData.data.ultima_actividad = body.data.ultima_actividad
     }
 
-    // 1. Crear en WO-Clientes (Strapi)
-    const woClienteResponse = await strapiClient.post('/api/wo-clientes', clienteData) as any
+    const woClienteResponse = await strapiClient.post('/api/wo-clientes', woClienteData) as any
     console.log('[API Clientes POST] ✅ Cliente creado en WO-Clientes:', woClienteResponse.id || woClienteResponse.documentId || woClienteResponse.data?.id || woClienteResponse.data?.documentId)
     
-    // 2. Parsear nombre para Persona
-    const nombreParseado = parseNombreCompleto(body.data.nombre.trim())
-    
-    // 3. Crear en Persona (Strapi)
-    let personaResponse: any = null
-    try {
-      const personaData: any = {
-        data: {
-          nombre_completo: body.data.nombre.trim(),
-          nombres: nombreParseado.nombres || null,
-          primer_apellido: nombreParseado.primer_apellido || null,
-          segundo_apellido: nombreParseado.segundo_apellido || null,
-          emails: [
-            {
-              email: body.data.correo_electronico.trim(),
-              tipo: 'principal',
-            }
-          ],
-        },
-      }
-      
-      personaResponse = await strapiClient.post('/api/personas', personaData) as any
-      console.log('[API Clientes POST] ✅ Persona creada en Strapi:', personaResponse.id || personaResponse.documentId || personaResponse.data?.id || personaResponse.data?.documentId)
-    } catch (personaError: any) {
-      console.error('[API Clientes POST] ⚠️ Error al crear Persona (no crítico):', personaError.message)
-      // No fallar si Persona falla, el cliente ya está en WO-Clientes
-    }
-    
-    // 4. Enviar a ambos WordPress
+    // 3. Enviar a ambos WordPress
     let wordPressResults: any = null
     try {
+      // Usar nombres de Persona para WordPress
+      const nombresWordPress = personaData.nombres?.trim() || personaData.nombre_completo.trim()
+      const apellidoWordPress = personaData.primer_apellido?.trim() || ''
+      
       wordPressResults = await enviarClienteABothWordPress({
-        email: body.data.correo_electronico.trim(),
-        first_name: nombreParseado.nombres || body.data.nombre.trim(),
-        last_name: nombreParseado.primer_apellido || '',
+        email: emailPrincipal.email.trim(),
+        first_name: nombresWordPress,
+        last_name: apellidoWordPress,
       })
       console.log('[API Clientes POST] ✅ Cliente enviado a WordPress:', {
         escolar: wordPressResults.escolar.success,
@@ -203,7 +215,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: woClienteResponse,
-      persona: personaResponse || null,
+      persona: personaResponse,
       wordpress: wordPressResults || null,
     })
   } catch (error: any) {
