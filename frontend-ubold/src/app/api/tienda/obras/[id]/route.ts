@@ -155,41 +155,8 @@ export async function DELETE(
       documentId = id
     }
 
-    // Obtener el ID del atributo
-    const attributeId = await getObraAttributeId()
-
-    // Buscar en WooCommerce por slug (documentId) - no guardamos woocommerce_id en Strapi
-    let woocommerceId: string | null = null
-    if (documentId && attributeId) {
-      try {
-        console.log('[API Obras DELETE] 🔍 Buscando término en WooCommerce por slug:', documentId)
-        const wcTerms = await wooCommerceClient.get<any[]>(
-          `products/attributes/${attributeId}/terms`,
-          { slug: documentId.toString() }
-        )
-        if (wcTerms && wcTerms.length > 0) {
-          woocommerceId = wcTerms[0].id.toString()
-          console.log('[API Obras DELETE] ✅ Término encontrado en WooCommerce por slug:', woocommerceId)
-        }
-      } catch (searchError: any) {
-        console.warn('[API Obras DELETE] ⚠️ No se pudo buscar por slug en WooCommerce:', searchError.message)
-      }
-    }
-
-    // Eliminar en WooCommerce primero si tenemos el ID
-    let wooCommerceDeleted = false
-    if (woocommerceId && attributeId) {
-      try {
-        console.log('[API Obras DELETE] 🛒 Eliminando término en WooCommerce:', woocommerceId)
-        await wooCommerceClient.delete<any>(`products/attributes/${attributeId}/terms/${woocommerceId}`, true)
-        wooCommerceDeleted = true
-        console.log('[API Obras DELETE] ✅ Término eliminado en WooCommerce')
-      } catch (wooError: any) {
-        console.error('[API Obras DELETE] ⚠️ Error al eliminar en WooCommerce (no crítico):', wooError.message)
-      }
-    }
-
     // Eliminar en Strapi usando documentId si está disponible
+    // La eliminación en WordPress se maneja automáticamente en los lifecycles de Strapi
     const strapiEndpoint = documentId ? `${obraEndpoint}/${documentId}` : `${obraEndpoint}/${id}`
     console.log('[API Obras DELETE] Usando endpoint Strapi:', strapiEndpoint, { documentId, id })
 
@@ -198,7 +165,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: 'Obra eliminada exitosamente' + (wooCommerceDeleted ? ' en WooCommerce y Strapi' : ' en Strapi'),
+      message: 'Obra eliminada exitosamente en Strapi',
       data: response
     })
 
