@@ -48,9 +48,14 @@ const ProductInventory = ({ products: propsProducts }: ProductInventoryProps) =>
   const columns = [
     columnHelper.accessor('name', {
       cell: ({ row }) => {
-        const imageSrc = typeof row.original.image === 'string' 
-          ? row.original.image 
-          : row.original.image?.src || '/images/placeholder-product.png'
+        let imageSrc = '/images/placeholder-product.png'
+        if (row.original.image) {
+          if (typeof row.original.image === 'string') {
+            imageSrc = row.original.image
+          } else if (typeof row.original.image === 'object' && 'src' in row.original.image) {
+            imageSrc = row.original.image.src
+          }
+        }
         return (
           <div className="d-flex align-items-center">
             <Image src={imageSrc} className="avatar-sm rounded-circle me-2" alt={row.original.name} />

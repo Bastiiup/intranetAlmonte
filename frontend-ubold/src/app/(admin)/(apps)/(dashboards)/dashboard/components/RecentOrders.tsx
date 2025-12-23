@@ -47,9 +47,14 @@ const RecentOrders = ({ orders: propsOrders }: RecentOrdersProps) => {
   const columns = [
     columnHelper.accessor('userName', {
       cell: ({ row }) => {
-        const imageSrc = typeof row.original.userImage === 'string'
-          ? row.original.userImage
-          : row.original.userImage?.src || `https://ui-avatars.com/api/?name=${encodeURIComponent(row.original.userName)}&background=random&size=128`
+        let imageSrc = `https://ui-avatars.com/api/?name=${encodeURIComponent(row.original.userName)}&background=random&size=128`
+        if (row.original.userImage) {
+          if (typeof row.original.userImage === 'string') {
+            imageSrc = row.original.userImage
+          } else if (typeof row.original.userImage === 'object' && 'src' in row.original.userImage) {
+            imageSrc = row.original.userImage.src
+          }
+        }
         return (
           <div className="d-flex align-items-center">
             <Image src={imageSrc} className="avatar-sm rounded-circle me-2" alt={row.original.userName} />
