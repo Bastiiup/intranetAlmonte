@@ -294,20 +294,8 @@ export async function POST(request: NextRequest) {
       // Continuar aunque falle WordPress
     }
 
-    // 4. Actualizar WO-Clientes con woocommerce_id si se creó en WordPress
-    if (customer?.id && strapiClientData) {
-      try {
-        const strapiClienteId = strapiClientData.data?.documentId || strapiClientData.data?.id || strapiClientData.documentId || strapiClientData.id
-        await strapiClient.put(`/api/wo-clientes/${strapiClienteId}`, {
-          data: {
-            woocommerce_id: customer.id.toString(),
-          }
-        })
-        console.log('[API POST] ✅ WO-Clientes actualizado con woocommerce_id:', customer.id)
-      } catch (updateError: any) {
-        console.error('[API POST] ⚠️ Error al actualizar woocommerce_id (no crítico):', updateError.message)
-      }
-    }
+    // Nota: woocommerce_id no existe en el schema de WO-Clientes, por lo que no se guarda
+    // Se buscará por correo_electronico cuando sea necesario
 
     // Construir mensaje de respuesta
     const partesMensaje: string[] = []
