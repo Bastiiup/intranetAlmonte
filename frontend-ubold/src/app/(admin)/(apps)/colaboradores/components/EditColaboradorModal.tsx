@@ -12,14 +12,16 @@ const ROLES = [
 ]
 
 interface ColaboradorType {
-  id: number | string
-  email_login: string
+  id?: number | string
+  documentId?: string
+  email_login?: string
   rol?: string
   rol_principal?: string
   rol_operativo?: string
-  activo: boolean
+  activo?: boolean
   persona?: any
   usuario?: any
+  attributes?: any
 }
 
 interface EditColaboradorModalProps {
@@ -43,7 +45,7 @@ const EditColaboradorModal = ({ show, onHide, colaborador, onSuccess }: EditCola
   // Cargar datos del colaborador cuando se abre el modal
   useEffect(() => {
     if (colaborador) {
-      const attrs = colaborador.attributes || {}
+      const attrs = (colaborador as any).attributes || {}
       const data = (attrs && Object.keys(attrs).length > 0) ? attrs : colaborador
 
       setFormData({
