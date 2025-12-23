@@ -17,25 +17,29 @@ import Link from 'next/link'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert } from 'react-bootstrap'
 import { LuBox, LuSearch } from 'react-icons/lu'
-import { TbEdit, TbEye, TbLayoutGrid, TbList, TbPlus, TbTrash } from 'react-icons/tb'
+import { TbEdit, TbEye, TbList, TbTrash, TbCheck } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
+import ChangeStatusModal from '@/components/table/ChangeStatusModal'
 import TablePagination from '@/components/table/TablePagination'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 
-// Tipo para la tabla
-type TagType = {
+// Tipo extendido para obras con estado_publicacion
+type ObraTypeExtended = {
   id: number
-  name: string
-  description: string
-  products: number
+  nombre: string
+  codigoObra: string | null
+  descripcion: string | null
+  productos: number
   status: 'active' | 'inactive'
   date: string
   time: string
   url: string
+  strapiId?: number
   estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
+  obraOriginal?: any
 }
 
 // Helper para obtener campo con múltiples variaciones
@@ -48,20 +52,26 @@ const getField = (obj: any, ...fieldNames: string[]): any => {
   return undefined
 }
 
-// Función para mapear etiquetas de Strapi al formato TagType
-const mapStrapiTagToTagType = (etiqueta: any): TagType => {
-  // Los datos pueden venir en attributes o directamente
-  const attrs = etiqueta.attributes || {}
-  const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (etiqueta as any)
+// Función para mapear obras de Strapi al formato ObraTypeExtended
+const mapStrapiObraToObraType = (obra: any): ObraTypeExtended => {
+  const attrs = obra.attributes || {}
+  const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (obra as any)
 
-  // Obtener nombre
-  const nombre = getField(data, 'name', 'nombre', 'NOMBRE', 'NAME') || 'Sin nombre'
+  // Obtener nombre_obra (schema usa nombre_obra, no name)
+  const nombreObra = getField(data, 'nombre_obra', 'nombreObra', 'NOMBRE_OBRA') || 'Sin nombre'
+  
+  // Obtener código_obra
+  const codigoObra = getField(data, 'codigo_obra', 'codigoObra', 'CODIGO_OBRA') || null
   
   // Obtener descripción
-  const descripcion = getField(data, 'descripcion', 'description', 'DESCRIPCION', 'DESCRIPTION') || ''
+  const descripcion = getField(data, 'descripcion', 'description', 'DESCRIPCION', 'DESCRIPTION') || null
   
-  // Obtener estado (usa publishedAt para determinar si está publicado)
-  const isPublished = !!(attrs.publishedAt || (etiqueta as any).publishedAt)
+  // Contar productos (ediciones relacionadas)
+  const productos = data.ediciones?.data || data.productos?.data || data.productos || []
+  const productosCount = Array.isArray(productos) ? productos.length : 0
+  
+  // Obtener estado (publishedAt indica si está publicado)
+  const isPublished = !!(attrs.publishedAt || obra.publishedAt)
   
   // Obtener estado_publicacion (Strapi devuelve en minúsculas: "pendiente", "publicado", "borrador")
   const estadoPublicacionRaw = getField(data, 'estado_publicacion', 'ESTADO_PUBLICACION', 'estadoPublicacion') || 'pendiente'
@@ -70,57 +80,58 @@ const mapStrapiTagToTagType = (etiqueta: any): TagType => {
     ? estadoPublicacionRaw.toLowerCase() 
     : estadoPublicacionRaw
   
-  // Contar productos (si hay relación)
-  const productos = data.productos?.data || data.products?.data || data.productos || data.products || []
-  const productosCount = Array.isArray(productos) ? productos.length : 0
-  
   // Obtener fechas
-  const createdAt = attrs.createdAt || (etiqueta as any).createdAt || new Date().toISOString()
+  const createdAt = attrs.createdAt || (obra as any).createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
   
   return {
-    id: etiqueta.id || etiqueta.documentId || etiqueta.id,
-    name: nombre,
-    description: descripcion,
-    products: productosCount,
+    id: obra.id || obra.documentId || obra.id,
+    nombre: nombreObra,
+    codigoObra: codigoObra,
+    descripcion: descripcion,
+    productos: productosCount,
     status: isPublished ? 'active' : 'inactive',
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
-    url: `/products/etiquetas/${etiqueta.id || etiqueta.documentId || etiqueta.id}`, // URL para edición
+    url: `/products/atributos/obras/${obra.id || obra.documentId || obra.id}`,
+    strapiId: obra.id,
     estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
                        estadoPublicacion === 'borrador' ? 'Borrador' : 
                        'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
+    obraOriginal: obra,
   }
 }
 
-interface TagsListingProps {
-  etiquetas?: any[]
+interface ObraRequestsListingProps {
+  obras?: any[]
   error?: string | null
 }
 
-const columnHelper = createColumnHelper<TagType>()
+const columnHelper = createColumnHelper<ObraTypeExtended>()
 
-const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
+const ObraRequestsListing = ({ obras, error }: ObraRequestsListingProps = {}) => {
   const router = useRouter()
   
-  // Mapear etiquetas de Strapi al formato TagType si están disponibles
-  const mappedTags = useMemo(() => {
-    if (etiquetas && etiquetas.length > 0) {
-      console.log('[TagsListing] Etiquetas recibidas:', etiquetas.length)
-      const mapped = etiquetas.map(mapStrapiTagToTagType)
-      console.log('[TagsListing] Etiquetas mapeadas:', mapped.length)
+  const mappedObras = useMemo(() => {
+    if (obras && obras.length > 0) {
+      console.log('[ObraRequestsListing] Obras recibidas:', obras.length)
+      const mapped = obras.map(mapStrapiObraToObraType)
+      console.log('[ObraRequestsListing] Obras mapeadas:', mapped.length)
       return mapped
     }
-    console.log('[TagsListing] No hay etiquetas de Strapi')
     return []
-  }, [etiquetas])
+  }, [obras])
 
-  const columns: ColumnDef<TagType, any>[] = [
+  // Estado para el modal de cambio de estado
+  const [showChangeStatusModal, setShowChangeStatusModal] = useState(false)
+  const [selectedObra, setSelectedObra] = useState<ObraTypeExtended | null>(null)
+
+  const columns: ColumnDef<ObraTypeExtended, any>[] = [
     {
       id: 'select',
       maxSize: 45,
       size: 45,
-      header: ({ table }: { table: TableType<TagType> }) => (
+      header: ({ table }: { table: TableType<ObraTypeExtended> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -128,7 +139,7 @@ const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
           onChange={table.getToggleAllRowsSelectedHandler()}
         />
       ),
-      cell: ({ row }: { row: TableRow<TagType> }) => (
+      cell: ({ row }: { row: TableRow<ObraTypeExtended> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -139,48 +150,39 @@ const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
       enableSorting: false,
       enableColumnFilter: false,
     },
-    columnHelper.accessor('name', {
-      header: 'Tag',
-      cell: ({ row }) => {
-        return (
-          <div className="d-flex">
-            <div className="avatar-md me-3 bg-light d-flex align-items-center justify-content-center rounded">
-              <span className="text-muted fs-xs">#</span>
-            </div>
-            <div>
-              <h5 className="mb-0">
-                <Link href={`/products/etiquetas/${row.original.id}`} className="link-reset">
-                  {row.original.name || 'Sin nombre'}
-                </Link>
-              </h5>
-            </div>
-          </div>
-        )
-      },
+    columnHelper.accessor('nombre', {
+      header: 'Obra',
+      cell: ({ row }) => (
+        <div>
+          <h5 className="mb-0">
+            <Link href={row.original.url} className="link-reset">
+              {row.original.nombre || 'Sin nombre'}
+            </Link>
+          </h5>
+          {row.original.codigoObra && (
+            <p className="text-muted mb-0 fs-xxs">Código: {row.original.codigoObra}</p>
+          )}
+        </div>
+      ),
     }),
-    columnHelper.accessor('description', {
+    columnHelper.accessor('codigoObra', { 
+      header: 'Código',
+      cell: ({ row }) => (
+        <code className="text-muted">{row.original.codigoObra || 'N/A'}</code>
+      ),
+    }),
+    columnHelper.accessor('descripcion', {
       header: 'Descripción',
       cell: ({ row }) => (
-        <p className="text-muted mb-0 small">
-          {row.original.description || 'Sin descripción'}
-        </p>
+        <span className="text-muted small">
+          {row.original.descripcion ? (row.original.descripcion.length > 50 ? `${row.original.descripcion.substring(0, 50)}...` : row.original.descripcion) : 'N/A'}
+        </span>
       ),
     }),
-    columnHelper.accessor('products', {
+    columnHelper.accessor('productos', {
       header: 'Productos',
       cell: ({ row }) => (
-        <span className="badge badge-soft-info">{row.original.products}</span>
-      ),
-    }),
-    columnHelper.accessor('status', {
-      header: 'Estado',
-      filterFn: 'equalsString',
-      enableColumnFilter: true,
-      cell: ({ row }) => (
-        <span
-          className={`badge ${row.original.status === 'active' ? 'badge-soft-success' : 'badge-soft-danger'} fs-xxs`}>
-          {row.original.status === 'active' ? 'Activo' : 'Inactivo'}
-        </span>
+        <span className="badge badge-soft-info">{row.original.productos}</span>
       ),
     }),
     columnHelper.accessor('estadoPublicacion', {
@@ -209,19 +211,15 @@ const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
     }),
     {
       header: 'Acciones',
-      cell: ({ row }: { row: TableRow<TagType> }) => (
+      cell: ({ row }: { row: TableRow<ObraTypeExtended> }) => (
         <div className="d-flex gap-1">
-          <Link href={`/products/etiquetas/${row.original.id}`}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle">
+          <Link href={row.original.url}>
+            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver">
               <TbEye className="fs-lg" />
             </Button>
           </Link>
-          <Link href={`/products/etiquetas/${row.original.id}`}>
-            <Button
-              variant="default"
-              size="sm"
-              className="btn-icon rounded-circle"
-            >
+          <Link href={row.original.url}>
+            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Editar">
               <TbEdit className="fs-lg" />
             </Button>
           </Link>
@@ -229,6 +227,18 @@ const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
             variant="default"
             size="sm"
             className="btn-icon rounded-circle"
+            title="Cambiar Estado"
+            onClick={() => {
+              setSelectedObra(row.original)
+              setShowChangeStatusModal(true)
+            }}>
+            <TbCheck className="fs-lg" />
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            className="btn-icon rounded-circle"
+            title="Eliminar"
             onClick={() => {
               toggleDeleteModal()
               setSelectedRowIds({ [row.id]: true })
@@ -240,18 +250,17 @@ const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
     },
   ]
 
-  const [data, setData] = useState<TagType[]>([])
+  const [data, setData] = useState<ObraTypeExtended[]>([])
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
-
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
 
   // Estado para el orden de columnas
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('tags-column-order')
+      const saved = localStorage.getItem('obra-requests-column-order')
       if (saved) {
         try {
           return JSON.parse(saved)
@@ -267,18 +276,15 @@ const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
   const handleColumnOrderChange = (newOrder: string[]) => {
     setColumnOrder(newOrder)
     if (typeof window !== 'undefined') {
-      localStorage.setItem('tags-column-order', JSON.stringify(newOrder))
+      localStorage.setItem('obra-requests-column-order', JSON.stringify(newOrder))
     }
   }
 
-  // Actualizar datos cuando cambien las etiquetas de Strapi
   useEffect(() => {
-    console.log('[TagsListing] useEffect - etiquetas:', etiquetas?.length, 'mappedTags:', mappedTags.length)
-    setData(mappedTags)
-    console.log('[TagsListing] Datos actualizados. Total:', mappedTags.length)
-  }, [mappedTags, etiquetas])
+    setData(mappedObras)
+  }, [mappedObras])
 
-  const table = useReactTable<TagType>({
+  const table = useReactTable<ObraTypeExtended>({
     data,
     columns,
     state: { sorting, globalFilter, columnFilters, pagination, rowSelection: selectedRowIds, columnOrder },
@@ -300,7 +306,6 @@ const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
   const pageIndex = table.getState().pagination.pageIndex
   const pageSize = table.getState().pagination.pageSize
   const totalItems = table.getFilteredRowModel().rows.length
-
   const start = pageIndex * pageSize + 1
   const end = Math.min(start + pageSize - 1, totalItems)
 
@@ -315,58 +320,76 @@ const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
     const idsToDelete = selectedIds.map(id => data[parseInt(id)]?.id).filter(Boolean)
     
     try {
-      // Eliminar cada etiqueta seleccionada
-      for (const tagId of idsToDelete) {
-        const response = await fetch(`/api/tienda/etiquetas/${tagId}`, {
+      for (const obraId of idsToDelete) {
+        const response = await fetch(`/api/tienda/obras/${obraId}`, {
           method: 'DELETE',
         })
         if (!response.ok) {
-          throw new Error(`Error al eliminar etiqueta ${tagId}`)
+          throw new Error(`Error al eliminar obra ${obraId}`)
         }
       }
       
-      // Actualizar datos localmente
       setData((old) => old.filter((_, idx) => !selectedIds.includes(idx.toString())))
       setSelectedRowIds({})
       setPagination({ ...pagination, pageIndex: 0 })
       setShowDeleteModal(false)
       
-      // Recargar la página para reflejar cambios
       router.refresh()
     } catch (error) {
-      console.error('Error al eliminar etiquetas:', error)
-      alert('Error al eliminar las etiquetas seleccionadas')
+      console.error('Error al eliminar obras:', error)
+      alert('Error al eliminar las obras seleccionadas')
     }
   }
 
-  // Mostrar error si existe
+  const handleStatusChange = async (newStatus: string) => {
+    if (!selectedObra?.strapiId) return
+
+    // IMPORTANTE: Strapi espera valores en minúsculas: "pendiente", "publicado", "borrador"
+    const newStatusLower = newStatus.toLowerCase()
+
+    try {
+      const response = await fetch(`/api/tienda/obras/${selectedObra.strapiId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ data: { estado_publicacion: newStatusLower } }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Error al actualizar el estado de la obra')
+      }
+
+      // Actualizar el estado local (capitalizar para mostrar)
+      const estadoMostrar = newStatusLower === 'publicado' ? 'Publicado' : 
+                           newStatusLower === 'borrador' ? 'Borrador' : 
+                           'Pendiente'
+      setData((prevData) =>
+        prevData.map((o) =>
+          o.strapiId === selectedObra.strapiId ? { ...o, estadoPublicacion: estadoMostrar as any } : o
+        )
+      )
+      console.log(`[ObraRequestsListing] Estado de obra ${selectedObra.strapiId} actualizado a ${newStatus}`)
+    } catch (err: any) {
+      console.error('[ObraRequestsListing] Error al cambiar estado:', err)
+      alert(`Error al cambiar estado: ${err.message}`)
+    }
+  }
+
   const hasError = !!error
-  const hasData = mappedTags.length > 0
+  const hasData = mappedObras.length > 0
   
   if (hasError && !hasData) {
     return (
       <Row>
         <Col xs={12}>
           <Alert variant="warning">
-            <strong>Error al cargar etiquetas desde Strapi:</strong> {error}
-            <br />
-            <small className="text-muted">
-              Verifica que:
-              <ul className="mt-2 mb-0">
-                <li>STRAPI_API_TOKEN esté configurado en Railway</li>
-                <li>El servidor de Strapi esté disponible</li>
-                <li>Las variables de entorno estén correctas</li>
-              </ul>
-            </small>
+            <strong>Error al cargar obras desde Strapi:</strong> {error}
           </Alert>
         </Col>
       </Row>
     )
-  }
-  
-  // Si hay error pero también hay datos, mostrar advertencia pero continuar
-  if (hasError && hasData) {
-    console.warn('[TagsListing] Error al cargar desde Strapi, usando datos disponibles:', error)
   }
 
   return (
@@ -379,7 +402,7 @@ const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
                 <input
                   type="search"
                   className="form-control"
-                  placeholder="Buscar nombre de etiqueta..."
+                  placeholder="Buscar nombre de obra..."
                   value={globalFilter ?? ''}
                   onChange={(e) => setGlobalFilter(e.target.value)}
                 />
@@ -395,18 +418,6 @@ const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
 
             <div className="d-flex align-items-center gap-2">
               <span className="me-2 fw-semibold">Filtrar por:</span>
-
-              <div className="app-search">
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('status')?.getFilterValue() as string) ?? 'All'}
-                  onChange={(e) => table.getColumn('status')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
-                  <option value="All">Estado</option>
-                  <option value="active">Activo</option>
-                  <option value="inactive">Inactivo</option>
-                </select>
-                <LuBox className="app-search-icon text-muted" />
-              </div>
 
               <div className="app-search">
                 <select
@@ -436,23 +447,13 @@ const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
             </div>
 
             <div className="d-flex gap-1">
-              <Link passHref href="/products/etiquetas">
-                <Button variant="outline-primary" className="btn-icon btn-soft-primary">
-                  <TbLayoutGrid className="fs-lg" />
-                </Button>
-              </Link>
               <Button variant="primary" className="btn-icon">
                 <TbList className="fs-lg" />
               </Button>
-              <Link href="/products/etiquetas/agregar" passHref>
-                <Button variant="danger" className="ms-1">
-                  <TbPlus className="fs-sm me-2" /> Agregar Etiqueta
-                </Button>
-              </Link>
             </div>
           </CardHeader>
 
-          <DataTable<TagType>
+          <DataTable<ObraTypeExtended>
             table={table}
             emptyMessage="No se encontraron registros"
             enableColumnReordering={true}
@@ -465,7 +466,7 @@ const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
                 totalItems={totalItems}
                 start={start}
                 end={end}
-                itemsName="etiquetas"
+                itemsName="obras"
                 showInfo
                 previousPage={table.previousPage}
                 canPreviousPage={table.getCanPreviousPage()}
@@ -483,13 +484,26 @@ const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
             onHide={toggleDeleteModal}
             onConfirm={handleDelete}
             selectedCount={Object.keys(selectedRowIds).length}
-            itemName="tag"
+            itemName="obra"
           />
+
+          {selectedObra && (
+            <ChangeStatusModal
+              show={showChangeStatusModal}
+              onHide={() => {
+                setShowChangeStatusModal(false)
+                setSelectedObra(null)
+              }}
+              onConfirm={handleStatusChange}
+              currentStatus={selectedObra.estadoPublicacion || 'Pendiente'}
+              productName={selectedObra.nombre || 'Obra'}
+            />
+          )}
         </Card>
       </Col>
     </Row>
   )
 }
 
-export default TagsListing
+export default ObraRequestsListing
 

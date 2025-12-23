@@ -11,14 +11,17 @@ const AddObraForm = () => {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [formData, setFormData] = useState({
-    nombre: '',
+    codigo_obra: '',
+    nombre_obra: '',
     descripcion: '',
+    // NOTA: estado_publicacion no se permite cambiar aquí, siempre será "pendiente" al crear
+    // Solo se puede cambiar desde la página de Solicitudes
   })
 
-  const handleNombreChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFieldChange = (field: string, value: any) => {
     setFormData((prev) => ({
       ...prev,
-      nombre: e.target.value,
+      [field]: value,
     }))
   }
 
@@ -29,11 +32,22 @@ const AddObraForm = () => {
     setSuccess(false)
 
     try {
-      // Preparar datos para Strapi (usar nombres del schema real)
+      // Validar campos obligatorios
+      if (!formData.codigo_obra.trim()) {
+        throw new Error('El código de la obra es obligatorio')
+      }
+      if (!formData.nombre_obra.trim()) {
+        throw new Error('El nombre de la obra es obligatorio')
+      }
+
+      // Preparar datos para Strapi (usar nombres del schema real: codigo_obra, nombre_obra)
       const obraData: any = {
         data: {
-          name: formData.nombre, // El schema usa 'name', no 'nombre'
-          descripcion: formData.descripcion || null,
+          codigo_obra: formData.codigo_obra.trim(),
+          nombre_obra: formData.nombre_obra.trim(),
+          descripcion: formData.descripcion?.trim() || null,
+          // estado_publicacion siempre será "pendiente" al crear (se envía en el backend)
+          // Solo se puede cambiar desde la página de Solicitudes
         },
       }
 
@@ -91,7 +105,24 @@ const AddObraForm = () => {
 
         <Form onSubmit={handleSubmit}>
           <Row className="g-3">
-            <Col md={12}>
+            <Col md={6}>
+              <FormGroup>
+                <FormLabel>
+                  Código de la Obra <span className="text-danger">*</span>
+                </FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="Ej: OBRA001"
+                  value={formData.codigo_obra}
+                  onChange={(e) => handleFieldChange('codigo_obra', e.target.value)}
+                  required
+                />
+                <small className="text-muted">
+                  Código único de identificación
+                </small>
+              </FormGroup>
+            </Col>
+            <Col md={6}>
               <FormGroup>
                 <FormLabel>
                   Nombre de la Obra <span className="text-danger">*</span>
@@ -99,13 +130,10 @@ const AddObraForm = () => {
                 <FormControl
                   type="text"
                   placeholder="Ej: Primera Edición, Segunda Edición"
-                  value={formData.nombre}
-                  onChange={handleNombreChange}
+                  value={formData.nombre_obra}
+                  onChange={(e) => handleFieldChange('nombre_obra', e.target.value)}
                   required
                 />
-                <small className="text-muted">
-                  El slug se generará automáticamente desde el nombre en Strapi
-                </small>
               </FormGroup>
             </Col>
 
@@ -117,9 +145,7 @@ const AddObraForm = () => {
                   rows={3}
                   placeholder="Descripción de la obra..."
                   value={formData.descripcion}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, descripcion: e.target.value }))
-                  }
+                  onChange={(e) => handleFieldChange('descripcion', e.target.value)}
                 />
               </FormGroup>
             </Col>

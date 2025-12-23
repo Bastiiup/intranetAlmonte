@@ -104,8 +104,12 @@ const mapStrapiAutorToAutorType = (autor: any): AutorType => {
   // Obtener estado (publishedAt indica si está publicado)
   const isPublished = !!(attrs.publishedAt || autor.publishedAt)
   
-  // Obtener estado_publicacion
-  const estadoPublicacion = getField(data, 'estado_publicacion', 'ESTADO_PUBLICACION', 'estadoPublicacion') || 'Pendiente'
+  // Obtener estado_publicacion (Strapi devuelve en minúsculas: "pendiente", "publicado", "borrador")
+  const estadoPublicacionRaw = getField(data, 'estado_publicacion', 'ESTADO_PUBLICACION', 'estadoPublicacion') || 'pendiente'
+  // Normalizar y capitalizar para mostrar (pero Strapi espera minúsculas)
+  const estadoPublicacion = typeof estadoPublicacionRaw === 'string' 
+    ? estadoPublicacionRaw.toLowerCase() 
+    : estadoPublicacionRaw
   
   // Obtener fechas
   const createdAt = attrs.createdAt || (autor as any).createdAt || new Date().toISOString()
@@ -124,7 +128,9 @@ const mapStrapiAutorToAutorType = (autor: any): AutorType => {
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
     url: `/products/atributos/autores/${autor.id || autor.documentId || autor.id}`,
-    estadoPublicacion: estadoPublicacion as 'Publicado' | 'Pendiente' | 'Borrador',
+    estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
+                       estadoPublicacion === 'borrador' ? 'Borrador' : 
+                       'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
   }
 }
 
@@ -473,7 +479,10 @@ const AutoresListing = ({ autores, error }: AutoresListingProps = {}) => {
                 <select
                   className="form-select form-control my-1 my-md-0"
                   value={(table.getColumn('estadoPublicacion')?.getFilterValue() as string) ?? 'All'}
-                  onChange={(e) => table.getColumn('estadoPublicacion')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
+                  onChange={(e) => {
+                    const value = e.target.value === 'All' ? undefined : e.target.value
+                    table.getColumn('estadoPublicacion')?.setFilterValue(value)
+                  }}>
                   <option value="All">Estado Publicación</option>
                   <option value="Publicado">Publicado</option>
                   <option value="Pendiente">Pendiente</option>

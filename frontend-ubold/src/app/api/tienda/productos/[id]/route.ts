@@ -344,9 +344,14 @@ export async function PUT(
       updateData.data.estado_edicion = body.estado_edicion
     }
 
-    // Estado de publicación
+    // Estado de publicación - IMPORTANTE: Strapi espera valores en minúsculas
     if (body.estado_publicacion !== undefined && body.estado_publicacion !== '') {
-      updateData.data.estado_publicacion = body.estado_publicacion
+      // Normalizar a minúsculas para Strapi: "pendiente", "publicado", "borrador"
+      const estadoNormalizado = typeof body.estado_publicacion === 'string' 
+        ? body.estado_publicacion.toLowerCase() 
+        : body.estado_publicacion
+      updateData.data.estado_publicacion = estadoNormalizado
+      console.log('[API PUT] 📝 Estado de publicación actualizado:', estadoNormalizado)
     }
 
     // Relaciones simples

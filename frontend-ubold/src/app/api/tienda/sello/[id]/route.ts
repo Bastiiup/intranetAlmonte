@@ -1,35 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
-import wooCommerceClient from '@/lib/woocommerce/client'
 
 export const dynamic = 'force-dynamic'
-
-// Función helper para obtener el ID del atributo "pa_sello" en WooCommerce
-async function getSelloAttributeId(): Promise<number | null> {
-  try {
-    const attributes = await wooCommerceClient.get<any[]>('products/attributes', { slug: 'pa_sello' })
-    
-    if (attributes && attributes.length > 0) {
-      return attributes[0].id
-    }
-    
-    const allAttributes = await wooCommerceClient.get<any[]>('products/attributes')
-    const selloAttribute = allAttributes.find((attr: any) => 
-      attr.slug === 'pa_sello' || 
-      attr.slug === 'sello' ||
-      attr.name?.toLowerCase().includes('sello')
-    )
-    
-    if (selloAttribute) {
-      return selloAttribute.id
-    }
-    
-    return null
-  } catch (error: any) {
-    console.error('[API Sello] ❌ Error al obtener ID del atributo:', error.message)
-    return null
-  }
-}
 
 export async function GET(
   request: Request,
@@ -185,41 +157,8 @@ export async function DELETE(
       documentId = id
     }
 
-    // Obtener el ID del atributo
-    const attributeId = await getSelloAttributeId()
-
-    // Buscar en WooCommerce por slug (documentId) - no guardamos woocommerce_id en Strapi
-    let woocommerceId: string | null = null
-    if (documentId && attributeId) {
-      try {
-        console.log('[API Sello DELETE] 🔍 Buscando término en WooCommerce por slug:', documentId)
-        const wcTerms = await wooCommerceClient.get<any[]>(
-          `products/attributes/${attributeId}/terms`,
-          { slug: documentId.toString() }
-        )
-        if (wcTerms && wcTerms.length > 0) {
-          woocommerceId = wcTerms[0].id.toString()
-          console.log('[API Sello DELETE] ✅ Término encontrado en WooCommerce por slug:', woocommerceId)
-        }
-      } catch (searchError: any) {
-        console.warn('[API Sello DELETE] ⚠️ No se pudo buscar por slug en WooCommerce:', searchError.message)
-      }
-    }
-
-    // Eliminar en WooCommerce primero si tenemos el ID
-    let wooCommerceDeleted = false
-    if (woocommerceId && attributeId) {
-      try {
-        console.log('[API Sello DELETE] 🛒 Eliminando término en WooCommerce:', woocommerceId)
-        await wooCommerceClient.delete<any>(`products/attributes/${attributeId}/terms/${woocommerceId}`, true)
-        wooCommerceDeleted = true
-        console.log('[API Sello DELETE] ✅ Término eliminado en WooCommerce')
-      } catch (wooError: any) {
-        console.error('[API Sello DELETE] ⚠️ Error al eliminar en WooCommerce (no crítico):', wooError.message)
-      }
-    }
-
     // Eliminar en Strapi usando documentId si está disponible
+    // La eliminación en WordPress se maneja automáticamente en los lifecycles de Strapi
     const strapiEndpoint = documentId ? `${selloEndpoint}/${documentId}` : `${selloEndpoint}/${id}`
     console.log('[API Sello DELETE] Usando endpoint Strapi:', strapiEndpoint, { documentId, id })
 
@@ -228,7 +167,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: 'Sello eliminado exitosamente' + (wooCommerceDeleted ? ' en WooCommerce y Strapi' : ' en Strapi'),
+      message: 'Sello eliminado exitosamente en Strapi',
       data: response
     })
 
@@ -278,51 +217,8 @@ export async function PUT(
       documentId = id
     }
 
-    // Obtener el ID del atributo
-    const attributeId = await getSelloAttributeId()
-
-    // Buscar en WooCommerce por slug (documentId) - no guardamos woocommerce_id en Strapi
-    let woocommerceId: string | null = null
-    if (documentId && attributeId) {
-      // Buscar por slug (documentId) en WooCommerce
-      try {
-        console.log('[API Sello PUT] 🔍 Buscando término en WooCommerce por slug:', documentId)
-        const wcTerms = await wooCommerceClient.get<any[]>(
-          `products/attributes/${attributeId}/terms`,
-          { slug: documentId.toString() }
-        )
-        if (wcTerms && wcTerms.length > 0) {
-          woocommerceId = wcTerms[0].id.toString()
-          console.log('[API Sello PUT] ✅ Término encontrado en WooCommerce por slug:', woocommerceId)
-        }
-      } catch (searchError: any) {
-        console.warn('[API Sello PUT] ⚠️ No se pudo buscar por slug en WooCommerce:', searchError.message)
-      }
-    }
-
-    // Actualizar en WooCommerce primero si tenemos el ID
-    let wooCommerceTerm = null
-    if (woocommerceId && attributeId) {
-      try {
-        console.log('[API Sello PUT] 🛒 Actualizando término en WooCommerce:', woocommerceId)
-        
-        const wooCommerceTermData: any = {}
-        if (body.data.nombre_sello || body.data.nombreSello || body.data.nombre) {
-          wooCommerceTermData.name = (body.data.nombre_sello || body.data.nombreSello || body.data.nombre).trim()
-        }
-        if (body.data.descripcion !== undefined || body.data.description !== undefined) {
-          wooCommerceTermData.description = body.data.descripcion || body.data.description || ''
-        }
-
-        wooCommerceTerm = await wooCommerceClient.put<any>(
-          `products/attributes/${attributeId}/terms/${woocommerceId}`,
-          wooCommerceTermData
-        )
-        console.log('[API Sello PUT] ✅ Término actualizado en WooCommerce')
-      } catch (wooError: any) {
-        console.error('[API Sello PUT] ⚠️ Error al actualizar en WooCommerce (no crítico):', wooError.message)
-      }
-    }
+    // La sincronización con WooCommerce se maneja automáticamente en los lifecycles de Strapi
+    // No necesitamos actualizar WooCommerce directamente aquí
 
     // Actualizar en Strapi usando documentId si está disponible
     const strapiEndpoint = documentId ? `${selloEndpoint}/${documentId}` : `${selloEndpoint}/${id}`
@@ -368,8 +264,19 @@ export async function PUT(
       selloData.data.logo = body.data.logo || null
     }
 
+    // Estado de publicación - IMPORTANTE: Strapi espera valores en minúsculas
+    if (body.data.estado_publicacion !== undefined) {
+      // Normalizar a minúsculas para Strapi: "pendiente", "publicado", "borrador"
+      const estadoNormalizado = typeof body.data.estado_publicacion === 'string' 
+        ? body.data.estado_publicacion.toLowerCase() 
+        : body.data.estado_publicacion
+      selloData.data.estado_publicacion = estadoNormalizado
+      console.log('[API Sello PUT] 📝 Estado de publicación actualizado:', estadoNormalizado)
+    }
+
     // No guardamos woocommerce_id en Strapi porque no existe en el schema
     // El match se hace usando documentId como slug en WooCommerce
+    // La sincronización con WooCommerce se maneja automáticamente en los lifecycles de Strapi
 
     const strapiResponse = await strapiClient.put<any>(strapiEndpoint, selloData)
     console.log('[API Sello PUT] ✅ Sello actualizado en Strapi')
@@ -377,10 +284,9 @@ export async function PUT(
     return NextResponse.json({
       success: true,
       data: {
-        woocommerce: wooCommerceTerm,
         strapi: strapiResponse.data || strapiResponse,
       },
-      message: 'Sello actualizado exitosamente' + (wooCommerceTerm ? ' en WooCommerce y Strapi' : ' en Strapi')
+      message: 'Sello actualizado exitosamente en Strapi'
     })
 
   } catch (error: any) {

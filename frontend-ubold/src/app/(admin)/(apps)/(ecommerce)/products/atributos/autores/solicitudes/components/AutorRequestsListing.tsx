@@ -96,8 +96,12 @@ const mapStrapiAutorToAutorType = (autor: any): AutorTypeExtended => {
   const createdAt = attrs.createdAt || (autor as any).createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
 
-  // Obtener estado_publicacion
-  const estadoPublicacion = getField(data, 'estado_publicacion', 'ESTADO_PUBLICACION', 'estadoPublicacion') || 'Pendiente'
+  // Obtener estado_publicacion (Strapi devuelve en minúsculas: "pendiente", "publicado", "borrador")
+  const estadoPublicacionRaw = getField(data, 'estado_publicacion', 'ESTADO_PUBLICACION', 'estadoPublicacion') || 'pendiente'
+  // Normalizar y capitalizar para mostrar (pero Strapi espera minúsculas)
+  const estadoPublicacion = typeof estadoPublicacionRaw === 'string' 
+    ? estadoPublicacionRaw.toLowerCase() 
+    : estadoPublicacionRaw
 
   const fotoUrl = getFotoUrl()
   
@@ -113,7 +117,9 @@ const mapStrapiAutorToAutorType = (autor: any): AutorTypeExtended => {
     time: format(createdDate, 'h:mm a'),
     url: `/products/atributos/autores/${autor.id || autor.documentId || autor.id}`,
     strapiId: autor.id,
-    estadoPublicacion: estadoPublicacion as 'Publicado' | 'Pendiente' | 'Borrador',
+    estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
+                       estadoPublicacion === 'borrador' ? 'Borrador' : 
+                       'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
     autorOriginal: autor,
   }
 }
@@ -392,13 +398,16 @@ const AutorRequestsListing = ({ autores, error }: AutorRequestsListingProps = {}
   const handleStatusChange = async (newStatus: string) => {
     if (!selectedAutor?.strapiId) return
 
+    // IMPORTANTE: Strapi espera valores en minúsculas: "pendiente", "publicado", "borrador"
+    const newStatusLower = newStatus.toLowerCase()
+
     try {
       const response = await fetch(`/api/tienda/autores/${selectedAutor.strapiId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ data: { estado_publicacion: newStatus } }),
+        body: JSON.stringify({ data: { estado_publicacion: newStatusLower } }),
       })
 
       if (!response.ok) {
@@ -406,10 +415,13 @@ const AutorRequestsListing = ({ autores, error }: AutorRequestsListingProps = {}
         throw new Error(errorData.error || 'Error al actualizar el estado del autor')
       }
 
-      // Actualizar el estado local del autor
+      // Actualizar el estado local del autor (capitalizar para mostrar)
+      const estadoMostrar = newStatusLower === 'publicado' ? 'Publicado' : 
+                           newStatusLower === 'borrador' ? 'Borrador' : 
+                           'Pendiente'
       setData((prevData) =>
         prevData.map((a) =>
-          a.strapiId === selectedAutor.strapiId ? { ...a, estadoPublicacion: newStatus as any } : a
+          a.strapiId === selectedAutor.strapiId ? { ...a, estadoPublicacion: estadoMostrar as any } : a
         )
       )
       console.log(`[AutorRequestsListing] Estado de autor ${selectedAutor.strapiId} actualizado a ${newStatus}`)

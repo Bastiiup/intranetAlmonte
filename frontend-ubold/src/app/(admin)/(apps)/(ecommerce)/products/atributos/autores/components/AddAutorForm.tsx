@@ -19,6 +19,8 @@ const AddAutorForm = () => {
     foto: null as File | null,
     website: '',
     pais: '',
+    // NOTA: estado_publicacion no se permite cambiar aquí, siempre será "pendiente" al crear
+    // Solo se puede cambiar desde la página de Solicitudes
   })
 
   const handleFieldChange = (field: string, value: any) => {
@@ -82,6 +84,8 @@ const AddAutorForm = () => {
           tipo_autor: formData.tipo_autor,
           website: formData.website.trim() || null,
           pais: formData.pais || null,
+          // estado_publicacion siempre será "pendiente" al crear (se envía en el backend)
+          // Solo se puede cambiar desde la página de Solicitudes
         },
       }
 
@@ -227,6 +231,7 @@ const AddAutorForm = () => {
                   </FormGroup>
                 </Col>
               </Row>
+
 
               <Row>
                 <Col md={12}>

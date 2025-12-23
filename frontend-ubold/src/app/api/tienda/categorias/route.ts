@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
-import wooCommerceClient from '@/lib/woocommerce/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -94,11 +93,17 @@ export async function POST(request: NextRequest) {
     // Crear en Strapi PRIMERO para obtener el documentId
     console.log('[API Categorias POST] 📚 Creando categoría en Strapi primero...')
     
+    const estadoPublicacion = 'pendiente' // Siempre pendiente al crear
+    
+    console.log('[API Categorias POST] 📚 Creando categoría en Strapi...')
+    console.log('[API Categorias POST] Estado de publicación:', estadoPublicacion, '(siempre pendiente al crear)')
+    
     // Preparar datos para Strapi (usar nombres del schema real: name, descripcion, imagen)
     const categoriaData: any = {
       data: {
         name: nombreCategoria.trim(), // El schema usa 'name'
         descripcion: body.data.descripcion || body.data.description || null,
+        estado_publicacion: estadoPublicacion, // Siempre "pendiente" al crear (minúscula para Strapi)
       }
     }
 
@@ -108,98 +113,20 @@ export async function POST(request: NextRequest) {
     }
 
     const strapiCategory = await strapiClient.post<any>(categoriaEndpoint, categoriaData)
-    const documentId = strapiCategory.data?.documentId || strapiCategory.documentId
-    
-    if (!documentId) {
-      throw new Error('No se pudo obtener el documentId de Strapi')
-    }
     
     console.log('[API Categorias POST] ✅ Categoría creada en Strapi:', {
       id: strapiCategory.data?.id || strapiCategory.id,
-      documentId: documentId
+      documentId: strapiCategory.data?.documentId || strapiCategory.documentId
     })
-
-    // Crear categoría en WooCommerce usando el documentId como slug
-    console.log('[API Categorias POST] 🛒 Creando categoría en WooCommerce con slug=documentId...')
-    
-    const wooCommerceCategoryData: any = {
-      name: nombreCategoria.trim(),
-      description: body.data.descripcion || body.data.description || '',
-      slug: documentId.toString(), // Usar documentId como slug para el match
-    }
-
-    // Crear en WooCommerce
-    let wooCommerceCategory = null
-    try {
-      wooCommerceCategory = await wooCommerceClient.post<any>('products/categories', wooCommerceCategoryData)
-      console.log('[API Categorias POST] ✅ Categoría creada en WooCommerce:', {
-        id: wooCommerceCategory.id,
-        name: wooCommerceCategory.name,
-        slug: wooCommerceCategory.slug
-      })
-
-      // Actualizar Strapi con el woocommerce_id
-      const updateData = {
-        data: {
-          woocommerce_id: wooCommerceCategory.id.toString()
-        }
-      }
-      await strapiClient.put<any>(`${categoriaEndpoint}/${documentId}`, updateData)
-      console.log('[API Categorias POST] ✅ woocommerce_id guardado en Strapi')
-    } catch (wooError: any) {
-      // Manejar caso especial: categoría ya existe en WooCommerce
-      if (wooError.code === 'term_exists' && wooError.details?.data?.resource_id) {
-        const existingCategoryId = wooError.details.data.resource_id
-        console.log('[API Categorias POST] 🔄 Categoría ya existe en WooCommerce, obteniendo categoría existente:', existingCategoryId)
-        
-        try {
-          // Obtener la categoría existente de WooCommerce
-          wooCommerceCategory = await wooCommerceClient.get<any>(`products/categories/${existingCategoryId}`)
-          console.log('[API Categorias POST] ✅ Categoría existente obtenida de WooCommerce:', {
-            id: wooCommerceCategory.id,
-            name: wooCommerceCategory.name,
-            slug: wooCommerceCategory.slug
-          })
-
-          // Actualizar Strapi con el woocommerce_id de la categoría existente
-          const updateData = {
-            data: {
-              woocommerce_id: wooCommerceCategory.id.toString()
-            }
-          }
-          await strapiClient.put<any>(`${categoriaEndpoint}/${documentId}`, updateData)
-          console.log('[API Categorias POST] ✅ woocommerce_id de categoría existente guardado en Strapi')
-        } catch (getError: any) {
-          console.error('[API Categorias POST] ❌ Error al obtener categoría existente de WooCommerce:', getError.message)
-          // Si falla al obtener la categoría existente, eliminar de Strapi
-          try {
-            await strapiClient.delete<any>(`${categoriaEndpoint}/${documentId}`)
-            console.log('[API Categorias POST] 🗑️ Categoría eliminada de Strapi debido a error al obtener categoría existente')
-          } catch (deleteError: any) {
-            console.error('[API Categorias POST] ⚠️ Error al eliminar de Strapi:', deleteError.message)
-          }
-          throw getError
-        }
-      } else {
-        // Para otros errores, eliminar de Strapi para mantener consistencia
-        console.error('[API Categorias POST] ⚠️ Error al crear categoría en WooCommerce (no crítico):', wooError.message)
-        try {
-          await strapiClient.delete<any>(`${categoriaEndpoint}/${documentId}`)
-          console.log('[API Categorias POST] 🗑️ Categoría eliminada de Strapi debido a error en WooCommerce')
-        } catch (deleteError: any) {
-          console.error('[API Categorias POST] ⚠️ Error al eliminar de Strapi:', deleteError.message)
-        }
-        throw wooError
-      }
-    }
+    console.log('[API Categorias POST] Estado: ⏸️ Solo guardado en Strapi (pendiente), no se publica en WordPress')
+    console.log('[API Categorias POST] Para publicar, cambiar el estado desde la página de Solicitudes')
 
     return NextResponse.json({
       success: true,
       data: {
-        woocommerce: wooCommerceCategory,
         strapi: strapiCategory.data || strapiCategory,
       },
-      message: 'Categoría creada exitosamente en Strapi y WooCommerce'
+      message: 'Categoría creada en Strapi con estado "pendiente". Para publicar en WordPress, cambia el estado desde Solicitudes.'
     })
 
   } catch (error: any) {

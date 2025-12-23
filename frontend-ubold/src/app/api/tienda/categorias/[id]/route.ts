@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
-import wooCommerceClient from '@/lib/woocommerce/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -199,41 +198,13 @@ export async function DELETE(
       }
       const categoriaStrapi = categorias[0]
       documentId = categoriaStrapi?.documentId || categoriaStrapi?.data?.documentId || id
-      woocommerceId = categoriaStrapi?.attributes?.woocommerce_id || 
-                      categoriaStrapi?.woocommerce_id
     } catch (error: any) {
       console.warn('[API Categorias DELETE] ⚠️ No se pudo obtener categoría de Strapi:', error.message)
       documentId = id
     }
 
-    // Si no tenemos woocommerce_id, buscar por slug (documentId) en WooCommerce
-    if (!woocommerceId && documentId) {
-      try {
-        console.log('[API Categorias DELETE] 🔍 Buscando categoría en WooCommerce por slug:', documentId)
-        const wcCategories = await wooCommerceClient.get<any[]>('products/categories', { slug: documentId.toString() })
-        if (wcCategories && wcCategories.length > 0) {
-          woocommerceId = wcCategories[0].id.toString()
-          console.log('[API Categorias DELETE] ✅ Categoría encontrada en WooCommerce por slug:', woocommerceId)
-        }
-      } catch (searchError: any) {
-        console.warn('[API Categorias DELETE] ⚠️ No se pudo buscar por slug en WooCommerce:', searchError.message)
-      }
-    }
-
-    // Eliminar en WooCommerce primero si tenemos el ID
-    let wooCommerceDeleted = false
-    if (woocommerceId) {
-      try {
-        console.log('[API Categorias DELETE] 🛒 Eliminando categoría en WooCommerce:', woocommerceId)
-        await wooCommerceClient.delete<any>(`products/categories/${woocommerceId}`, true)
-        wooCommerceDeleted = true
-        console.log('[API Categorias DELETE] ✅ Categoría eliminada en WooCommerce')
-      } catch (wooError: any) {
-        console.error('[API Categorias DELETE] ⚠️ Error al eliminar en WooCommerce (no crítico):', wooError.message)
-      }
-    }
-
     // Eliminar en Strapi
+    // La eliminación en WordPress se maneja automáticamente en los lifecycles de Strapi
     const endpoint = `${categoriaEndpoint}/${id}`
     console.log('[API Categorias DELETE] Usando endpoint Strapi:', endpoint)
 
@@ -242,7 +213,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: 'Categoría eliminada exitosamente' + (wooCommerceDeleted ? ' en WooCommerce y Strapi' : ' en Strapi'),
+      message: 'Categoría eliminada exitosamente en Strapi',
       data: response
     })
 
@@ -273,7 +244,7 @@ export async function PUT(
     // Encontrar el endpoint correcto
     const categoriaEndpoint = await findCategoriaEndpoint()
     
-    // Primero obtener la categoría de Strapi para obtener el documentId y woocommerce_id
+    // Primero obtener la categoría de Strapi para obtener el documentId
     let categoriaStrapi: any
     let documentId: string | null = null
     try {
@@ -293,52 +264,8 @@ export async function PUT(
       documentId = id // Usar el id como fallback
     }
 
-    // Buscar en WooCommerce por slug (documentId) o por woocommerce_id
-    let woocommerceId: string | null = null
-    const woocommerceIdFromStrapi = categoriaStrapi?.attributes?.woocommerce_id || 
-                                    categoriaStrapi?.woocommerce_id
-    
-    if (woocommerceIdFromStrapi) {
-      woocommerceId = woocommerceIdFromStrapi.toString()
-    } else if (documentId) {
-      // Buscar por slug (documentId) en WooCommerce
-      try {
-        console.log('[API Categorias PUT] 🔍 Buscando categoría en WooCommerce por slug:', documentId)
-        const wcCategories = await wooCommerceClient.get<any[]>('products/categories', { slug: documentId.toString() })
-        if (wcCategories && wcCategories.length > 0) {
-          woocommerceId = wcCategories[0].id.toString()
-          console.log('[API Categorias PUT] ✅ Categoría encontrada en WooCommerce por slug:', woocommerceId)
-        }
-      } catch (searchError: any) {
-        console.warn('[API Categorias PUT] ⚠️ No se pudo buscar por slug en WooCommerce:', searchError.message)
-      }
-    }
-
-    // Actualizar en WooCommerce primero si tenemos el ID
-    let wooCommerceCategory = null
-    if (woocommerceId) {
-      try {
-        console.log('[API Categorias PUT] 🛒 Actualizando categoría en WooCommerce:', woocommerceId)
-        
-        const wooCommerceCategoryData: any = {}
-        if (body.data.name || body.data.nombre) {
-          wooCommerceCategoryData.name = (body.data.name || body.data.nombre).trim()
-        }
-        if (body.data.descripcion !== undefined || body.data.description !== undefined) {
-          wooCommerceCategoryData.description = body.data.descripcion || body.data.description || ''
-        }
-
-        wooCommerceCategory = await wooCommerceClient.put<any>(
-          `products/categories/${woocommerceId}`,
-          wooCommerceCategoryData
-        )
-        console.log('[API Categorias PUT] ✅ Categoría actualizada en WooCommerce')
-      } catch (wooError: any) {
-        console.error('[API Categorias PUT] ⚠️ Error al actualizar en WooCommerce (no crítico):', wooError.message)
-      }
-    }
-
     // Actualizar en Strapi
+    // La sincronización con WooCommerce se maneja automáticamente en los lifecycles de Strapi
     const endpoint = `${categoriaEndpoint}/${id}`
     console.log('[API Categorias PUT] Usando endpoint Strapi:', endpoint)
 
@@ -348,16 +275,24 @@ export async function PUT(
     }
 
     // El schema de Strapi usa 'name', no 'nombre'
-    if (body.data.name) categoriaData.data.name = body.data.name
-    if (body.data.nombre) categoriaData.data.name = body.data.nombre
-    if (body.data.descripcion !== undefined) categoriaData.data.descripcion = body.data.descripcion
-    if (body.data.description !== undefined) categoriaData.data.descripcion = body.data.description
-    if (body.data.imagen) categoriaData.data.imagen = body.data.imagen
+    if (body.data.name) categoriaData.data.name = body.data.name.trim()
+    if (body.data.nombre) categoriaData.data.name = body.data.nombre.trim()
+    if (body.data.descripcion !== undefined) categoriaData.data.descripcion = body.data.descripcion?.trim() || null
+    if (body.data.description !== undefined) categoriaData.data.descripcion = body.data.description?.trim() || null
+    if (body.data.imagen !== undefined) categoriaData.data.imagen = body.data.imagen || null
 
-    // Si se creó en WooCommerce y no teníamos ID, guardarlo
-    if (wooCommerceCategory && !woocommerceId) {
-      categoriaData.data.woocommerce_id = wooCommerceCategory.id.toString()
+    // Estado de publicación - IMPORTANTE: Strapi espera valores en minúsculas
+    if (body.data.estado_publicacion !== undefined) {
+      // Normalizar a minúsculas para Strapi: "pendiente", "publicado", "borrador"
+      const estadoNormalizado = typeof body.data.estado_publicacion === 'string' 
+        ? body.data.estado_publicacion.toLowerCase() 
+        : body.data.estado_publicacion
+      categoriaData.data.estado_publicacion = estadoNormalizado
+      console.log('[API Categorias PUT] 📝 Estado de publicación actualizado:', estadoNormalizado)
     }
+
+    // La sincronización con WooCommerce se maneja automáticamente en los lifecycles de Strapi
+    // No necesitamos actualizar WooCommerce directamente aquí
 
     const strapiResponse = await strapiClient.put<any>(endpoint, categoriaData)
     console.log('[API Categorias PUT] ✅ Categoría actualizada en Strapi')
@@ -365,10 +300,9 @@ export async function PUT(
     return NextResponse.json({
       success: true,
       data: {
-        woocommerce: wooCommerceCategory,
         strapi: strapiResponse.data || strapiResponse,
       },
-      message: 'Categoría actualizada exitosamente' + (wooCommerceCategory ? ' en WooCommerce y Strapi' : ' en Strapi')
+      message: 'Categoría actualizada exitosamente en Strapi'
     })
 
   } catch (error: any) {

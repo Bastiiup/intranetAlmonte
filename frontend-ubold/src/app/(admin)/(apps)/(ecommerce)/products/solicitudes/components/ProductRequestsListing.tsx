@@ -100,8 +100,12 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
   const createdAt = attrs.createdAt || (producto as any).createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
 
-  // Obtener estado_publicacion
-  const estadoPublicacion = getField(data, 'estado_publicacion', 'ESTADO_PUBLICACION', 'estadoPublicacion') || 'Pendiente'
+  // Obtener estado_publicacion (Strapi devuelve en minúsculas: "pendiente", "publicado", "borrador")
+  const estadoPublicacionRaw = getField(data, 'estado_publicacion', 'ESTADO_PUBLICACION', 'estadoPublicacion') || 'pendiente'
+  // Normalizar y capitalizar para mostrar (pero Strapi espera minúsculas)
+  const estadoPublicacion = typeof estadoPublicacionRaw === 'string' 
+    ? estadoPublicacionRaw.toLowerCase() 
+    : estadoPublicacionRaw
 
   const imageUrl = getImageUrl()
   return {
@@ -120,7 +124,9 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
     time: format(createdDate, 'h:mm a'),
     url: `/products/${producto.id || producto.documentId || producto.id}`,
     strapiId: producto.id,
-    estadoPublicacion: estadoPublicacion as 'Publicado' | 'Pendiente' | 'Borrador',
+    estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
+                       estadoPublicacion === 'borrador' ? 'Borrador' : 
+                       'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
     productoOriginal: producto, // Guardar producto original para actualizar
   }
 }
@@ -426,6 +432,9 @@ const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProp
       throw new Error('Producto no válido')
     }
 
+    // IMPORTANTE: Strapi espera valores en minúsculas: "pendiente", "publicado", "borrador"
+    const newStatusLower = newStatus.toLowerCase()
+
     try {
       const response = await fetch(`/api/tienda/productos/${selectedProduct.strapiId}`, {
         method: 'PUT',
@@ -433,7 +442,7 @@ const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProp
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          estado_publicacion: newStatus,
+          estado_publicacion: newStatusLower, // Enviar en minúsculas
         }),
       })
 
@@ -442,10 +451,13 @@ const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProp
         throw new Error(error.error || 'Error al actualizar el estado')
       }
 
-      // Actualizar el estado local
+      // Actualizar el estado local (capitalizar para mostrar)
+      const estadoMostrar = newStatusLower === 'publicado' ? 'Publicado' : 
+                           newStatusLower === 'borrador' ? 'Borrador' : 
+                           'Pendiente'
       setData((old) => old.map((p) => {
         if (p.strapiId === selectedProduct.strapiId) {
-          return { ...p, estadoPublicacion: newStatus as 'Publicado' | 'Pendiente' | 'Borrador' }
+          return { ...p, estadoPublicacion: estadoMostrar as 'Publicado' | 'Pendiente' | 'Borrador' }
         }
         return p
       }))
