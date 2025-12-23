@@ -180,7 +180,8 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
             <Col md={6}>
               <FormGroup className="mb-3">
                 <FormLabel>Rol</FormLabel>
-                <FormSelect
+                <FormControl
+                  as="select"
                   value={formData.rol}
                   onChange={(e) => handleFieldChange('rol', e.target.value)}
                   disabled={loading}
@@ -191,7 +192,7 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
                       {rol}
                     </option>
                   ))}
-                </FormSelect>
+                </FormControl>
               </FormGroup>
             </Col>
 

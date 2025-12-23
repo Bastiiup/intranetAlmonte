@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Button, Form, FormGroup, FormLabel, FormControl, FormSelect, FormCheck, Alert } from 'react-bootstrap'
+import { Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Button, Form, FormGroup, FormLabel, FormControl, FormCheck, Alert } from 'react-bootstrap'
 import { LuSave } from 'react-icons/lu'
 
 const ROLES = [
@@ -148,7 +148,8 @@ const EditColaboradorModal = ({ show, onHide, colaborador, onSuccess }: EditCola
 
           <FormGroup className="mb-3">
             <FormLabel>Rol</FormLabel>
-            <FormSelect
+            <FormControl
+              as="select"
               value={formData.rol}
               onChange={(e) => handleFieldChange('rol', e.target.value)}
               disabled={loading}
@@ -159,7 +160,7 @@ const EditColaboradorModal = ({ show, onHide, colaborador, onSuccess }: EditCola
                   {rol}
                 </option>
               ))}
-            </FormSelect>
+            </FormControl>
           </FormGroup>
 
           <FormGroup className="mb-3">

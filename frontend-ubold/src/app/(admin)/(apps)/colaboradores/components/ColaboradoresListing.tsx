@@ -10,7 +10,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { useState, useEffect, useMemo } from 'react'
-import { Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Col, Row, Alert, Badge, FormSelect, FormControl, InputGroup } from 'react-bootstrap'
+import { Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Col, Row, Alert, Badge, FormControl, InputGroup } from 'react-bootstrap'
 import { TbEdit, TbPlus, TbTrash, TbSearch, TbRefresh } from 'react-icons/tb'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -289,21 +289,21 @@ const ColaboradoresListing = ({ colaboradores: propsColaboradores, error: propsE
               </InputGroup>
             </Col>
             <Col md={3}>
-              <FormSelect value={filterActivo} onChange={(e) => setFilterActivo(e.target.value)}>
+              <FormControl as="select" value={filterActivo} onChange={(e) => setFilterActivo(e.target.value)}>
                 <option value="all">Todos los estados</option>
                 <option value="true">Activos</option>
                 <option value="false">Inactivos</option>
-              </FormSelect>
+              </FormControl>
             </Col>
             <Col md={3}>
-              <FormSelect value={filterRol} onChange={(e) => setFilterRol(e.target.value)}>
+              <FormControl as="select" value={filterRol} onChange={(e) => setFilterRol(e.target.value)}>
                 <option value="all">Todos los roles</option>
                 {rolesUnicos.map((rol) => (
                   <option key={rol} value={rol}>
                     {rol}
                   </option>
                 ))}
-              </FormSelect>
+              </FormControl>
             </Col>
           </Row>
 
