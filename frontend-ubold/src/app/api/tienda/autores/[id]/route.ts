@@ -208,10 +208,11 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    console.log('[API Autores DELETE] Eliminando autor:', id)
+    console.log('[API Autores DELETE] 🗑️ Eliminando autor:', id)
 
-    // Buscar el autor primero para obtener el ID correcto
+    // Buscar el autor primero para obtener el ID correcto y verificar estado_publicacion
     let autor: any = null
+    let estadoPublicacion: string | null = null
     
     try {
       const response = await strapiClient.get<any>(`/api/autores?filters[id][$eq]=${id}&populate=*`)
@@ -248,17 +249,35 @@ export async function DELETE(
       }, { status: 404 })
     }
 
+    // Obtener estado_publicacion del autor
+    const attrs = autor.attributes || {}
+    const data = (attrs && Object.keys(attrs).length > 0) ? attrs : autor
+    estadoPublicacion = data.estado_publicacion || data.estadoPublicacion || null
+    
+    console.log('[API Autores DELETE] Estado de publicación:', estadoPublicacion)
+    
+    // Normalizar estado a minúsculas para comparación
+    if (estadoPublicacion) {
+      estadoPublicacion = estadoPublicacion.toLowerCase()
+    }
+
     // En Strapi v4, usar documentId (string) para eliminar, no el id numérico
     const autorDocumentId = autor.documentId || autor.data?.documentId || autor.id?.toString() || id
     console.log('[API Autores DELETE] Usando documentId para eliminar:', autorDocumentId)
 
     await strapiClient.delete(`/api/autores/${autorDocumentId}`)
     
-    console.log('[API Autores DELETE] ✅ Autor eliminado:', autorDocumentId)
+    if (estadoPublicacion === 'publicado') {
+      console.log('[API Autores DELETE] ✅ Autor eliminado en Strapi. El lifecycle eliminará de WooCommerce si estaba publicado.')
+    } else {
+      console.log('[API Autores DELETE] ✅ Autor eliminado en Strapi (solo Strapi, no estaba publicada en WooCommerce)')
+    }
     
     return NextResponse.json({
       success: true,
-      message: 'Autor eliminado exitosamente'
+      message: estadoPublicacion === 'publicado' 
+        ? 'Autor eliminado exitosamente en Strapi. El lifecycle eliminará de WooCommerce.' 
+        : 'Autor eliminado exitosamente en Strapi'
     })
   } catch (error: any) {
     console.error('[API Autores DELETE] ❌ Error:', error.message)
