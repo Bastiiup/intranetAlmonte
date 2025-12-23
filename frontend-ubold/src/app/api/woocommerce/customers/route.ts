@@ -8,8 +8,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import wooCommerceClient from '@/lib/woocommerce/client'
-import strapiClient from '@/lib/strapi/client'
 import { buildWooCommerceAddress, createAddressMetaData, type DetailedAddress } from '@/lib/woocommerce/address-utils'
+import { enviarClienteABothWordPress } from '@/lib/clientes/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -130,68 +130,108 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Crear cliente en WooCommerce
-    const customerData: any = {
-      email: body.email,
-      first_name: body.first_name,
-      last_name: body.last_name || '',
-      username: body.email.split('@')[0] + '_' + Date.now(),
-      password: body.password || `temp_${Date.now()}`,
-      ...(Object.keys(billingData).length > 0 && { billing: billingData }),
-      ...(Object.keys(shippingData).length > 0 && { shipping: shippingData }),
-      ...(metaData.length > 0 && { meta_data: metaData }),
-    }
-
-    // Crear cliente en WooCommerce primero
-    const customer = await wooCommerceClient.post<any>('customers', customerData)
-    console.log('[API POST] ✅ Cliente creado en WooCommerce:', {
-      id: customer.id,
-      email: customer.email
-    })
-
-    // Crear en Strapi después
-    let strapiClientData = null
+    // Crear cliente en WordPress (ambos)
+    let wordPressResults: any = null
+    let customer: any = null
     try {
-      console.log('[API POST] 📚 Creando cliente en Strapi...')
+      console.log('[API POST] 🛒 Creando cliente en WordPress...')
       
-      const strapiCustomerData: any = {
-        data: {
-          nombre: `${body.first_name} ${body.last_name || ''}`.trim(),
-          correo_electronico: body.email,
-          woocommerce_id: customer.id.toString(), // Guardar ID de WooCommerce
-        }
+      // Preparar datos para WordPress
+      const customerData: any = {
+        email: body.email,
+        first_name: body.first_name,
+        last_name: body.last_name || '',
+        username: body.email.split('@')[0] + '_' + Date.now(),
+        password: body.password || `temp_${Date.now()}`,
+        ...(Object.keys(billingData).length > 0 && { billing: billingData }),
+        ...(Object.keys(shippingData).length > 0 && { shipping: shippingData }),
+        ...(metaData.length > 0 && { meta_data: metaData }),
       }
 
-      // Agregar teléfono si existe
-      if (billingData.phone) {
-        strapiCustomerData.data.telefono = billingData.phone
-      }
-
-      // Agregar dirección si existe
-      if (billingData.address_1) {
-        strapiCustomerData.data.direccion = billingData.address_1
-        if (billingData.address_2) {
-          strapiCustomerData.data.direccion += `, ${billingData.address_2}`
-        }
-      }
-
-      strapiClientData = await strapiClient.post<any>('/api/wo-clientes', strapiCustomerData)
-      console.log('[API POST] ✅ Cliente creado en Strapi:', {
-        id: strapiClientData.data?.id,
-        documentId: strapiClientData.data?.documentId
+      // Enviar a ambos WordPress
+      console.log('[API POST] 🚀 Iniciando envío a ambos WordPress...')
+      wordPressResults = await enviarClienteABothWordPress({
+        email: body.email.trim(),
+        first_name: body.first_name.trim(),
+        last_name: body.last_name?.trim() || '',
       })
-    } catch (strapiError: any) {
-      console.error('[API POST] ⚠️ Error al crear cliente en Strapi (no crítico):', strapiError.message)
-      // No fallar si Strapi falla, el cliente ya está en WooCommerce
+      
+      // Log detallado de resultados
+      console.log('[API POST] 📊 Resultados de WordPress:', {
+        escolar: {
+          success: wordPressResults.escolar.success,
+          created: wordPressResults.escolar.created,
+          error: wordPressResults.escolar.error,
+          hasData: !!wordPressResults.escolar.data,
+        },
+        moraleja: {
+          success: wordPressResults.moraleja.success,
+          created: wordPressResults.moraleja.created,
+          error: wordPressResults.moraleja.error,
+          hasData: !!wordPressResults.moraleja.data,
+        },
+      })
+      
+      // Obtener el cliente creado del primer WordPress exitoso
+      if (wordPressResults.escolar.success && wordPressResults.escolar.data) {
+        customer = wordPressResults.escolar.data
+        console.log('[API POST] ✅ Usando cliente de Librería Escolar:', customer.id)
+      } else if (wordPressResults.moraleja.success && wordPressResults.moraleja.data) {
+        customer = wordPressResults.moraleja.data
+        console.log('[API POST] ✅ Usando cliente de Editorial Moraleja:', customer.id)
+      } else {
+        // Si ambos fallaron, intentar crear en el WordPress principal como fallback
+        console.log('[API POST] ⚠️ Ambos WordPress fallaron, intentando WordPress principal como fallback...')
+        try {
+          customer = await wooCommerceClient.post<any>('customers', customerData)
+          console.log('[API POST] ✅ Cliente creado en WordPress principal (fallback):', {
+            id: customer.id,
+            email: customer.email
+          })
+        } catch (wpError: any) {
+          console.error('[API POST] ❌ Error al crear en WordPress principal (fallback):', wpError.message)
+        }
+      }
+      
+      // Validar que al menos uno haya funcionado
+      if (!wordPressResults.escolar.success && !wordPressResults.moraleja.success) {
+        console.error('[API POST] ⚠️ ADVERTENCIA: No se pudo crear el cliente en ninguno de los WordPress')
+        console.error('[API POST] Error Escolar:', wordPressResults.escolar.error)
+        console.error('[API POST] Error Moraleja:', wordPressResults.moraleja.error)
+      } else {
+        console.log('[API POST] ✅ Cliente procesado en WordPress:', {
+          escolar: wordPressResults.escolar.success ? '✅' : '❌',
+          moraleja: wordPressResults.moraleja.success ? '✅' : '❌',
+        })
+      }
+    } catch (wpError: any) {
+      console.error('[API POST] ⚠️ Error al enviar a WordPress (no crítico):', wpError.message)
+      // Continuar aunque falle WordPress
     }
+
+    // Nota: Strapi se actualizará automáticamente desde WordPress, no es necesario hacerlo manualmente aquí
+
+    // Construir mensaje de respuesta
+    const partesMensaje: string[] = []
+    if (wordPressResults?.escolar?.success || wordPressResults?.moraleja?.success) {
+      partesMensaje.push('WordPress')
+    }
+    
+    const mensaje = partesMensaje.length > 0 
+      ? `Cliente creado exitosamente en: ${partesMensaje.join(', ')}`
+      : 'Error al crear cliente en WordPress'
+    
+    console.log('[API POST] 📋 Resumen final:', {
+      wordpress: (wordPressResults?.escolar?.success || wordPressResults?.moraleja?.success) ? '✅' : '❌',
+    })
 
     return NextResponse.json({
       success: true,
       data: {
-        woocommerce: customer,
-        strapi: strapiClientData?.data || null,
+        woocommerce: customer || null,
+        wordpress: wordPressResults || null,
       },
-      message: 'Cliente creado exitosamente en WooCommerce' + (strapiClientData ? ' y Strapi' : ' (Strapi falló)')
+      message: mensaje
     })
   } catch (error: any) {
     console.error('Error al crear cliente en WooCommerce:', error)

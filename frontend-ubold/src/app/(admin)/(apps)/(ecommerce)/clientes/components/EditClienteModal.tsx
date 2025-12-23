@@ -1,0 +1,210 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { Modal, Button, Form, Alert, Spinner } from 'react-bootstrap'
+
+interface Cliente {
+  id: number
+  woocommerce_id?: number | string
+  nombre: string
+  correo_electronico: string
+  telefono?: string
+}
+
+interface EditClienteModalProps {
+  show: boolean
+  onHide: () => void
+  cliente: Cliente | null
+  onSave: () => void
+}
+
+const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalProps) => {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [formData, setFormData] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+  })
+
+  // Cargar datos del cliente cuando se abre el modal
+  useEffect(() => {
+    if (cliente && show) {
+      // Parsear nombre completo en nombre y apellido
+      const nombreCompleto = cliente.nombre || ''
+      const partes = nombreCompleto.trim().split(' ')
+      const firstName = partes[0] || ''
+      const lastName = partes.slice(1).join(' ') || ''
+
+      setFormData({
+        first_name: firstName,
+        last_name: lastName,
+        email: cliente.correo_electronico || '',
+        phone: cliente.telefono || '',
+      })
+      setError(null)
+    }
+  }, [cliente, show])
+
+  const handleFieldChange = (field: string, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+
+    try {
+      // Validar campos obligatorios
+      if (!formData.first_name.trim()) {
+        throw new Error('El nombre del cliente es obligatorio')
+      }
+      if (!formData.email.trim()) {
+        throw new Error('El correo electrónico es obligatorio')
+      }
+
+      // Validar formato de email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(formData.email.trim())) {
+        throw new Error('El correo electrónico no tiene un formato válido')
+      }
+
+      // Usar email como identificador (la API buscará por email si no es un ID numérico)
+      const clienteIdentifier = cliente?.woocommerce_id || cliente?.correo_electronico || formData.email.trim()
+      if (!clienteIdentifier) {
+        throw new Error('No se puede editar: el cliente no tiene email ni ID de WooCommerce')
+      }
+
+      // Preparar datos para la API
+      const updateData: any = {
+        email: formData.email.trim(),
+        first_name: formData.first_name.trim(),
+        last_name: formData.last_name.trim() || '',
+      }
+
+      // Agregar teléfono si existe
+      if (formData.phone.trim()) {
+        updateData.billing = {
+          phone: formData.phone.trim(),
+        }
+      }
+
+      // Actualizar el cliente (usar email como identificador si no hay woocommerce_id)
+      const identifier = typeof clienteIdentifier === 'number' || typeof clienteIdentifier === 'string' && !clienteIdentifier.includes('@')
+        ? clienteIdentifier.toString()
+        : formData.email.trim()
+      
+      const response = await fetch(`/api/woocommerce/customers/${identifier}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Error al actualizar el cliente')
+      }
+
+      // Llamar callback para refrescar la lista
+      onSave()
+      onHide()
+    } catch (err: any) {
+      console.error('Error al actualizar cliente:', err)
+      setError(err.message || 'Error al actualizar el cliente')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (!cliente) return null
+
+  return (
+    <Modal show={show} onHide={onHide} size="lg">
+      <Modal.Header closeButton>
+        <Modal.Title>Editar Cliente</Modal.Title>
+      </Modal.Header>
+      <Modal.Body>
+        {error && (
+          <Alert variant="danger" dismissible onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
+
+        <Form onSubmit={handleSubmit}>
+          <Form.Group className="mb-3">
+            <Form.Label>
+              Nombre <span className="text-danger">*</span>
+            </Form.Label>
+            <Form.Control
+              type="text"
+              placeholder="Ej: Juan"
+              value={formData.first_name}
+              onChange={(e) => handleFieldChange('first_name', e.target.value)}
+              required
+            />
+          </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label>Apellido</Form.Label>
+            <Form.Control
+              type="text"
+              placeholder="Ej: Pérez"
+              value={formData.last_name}
+              onChange={(e) => handleFieldChange('last_name', e.target.value)}
+            />
+          </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label>
+              Correo Electrónico <span className="text-danger">*</span>
+            </Form.Label>
+            <Form.Control
+              type="email"
+              placeholder="Ej: juan.perez@ejemplo.com"
+              value={formData.email}
+              onChange={(e) => handleFieldChange('email', e.target.value)}
+              required
+            />
+          </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label>Teléfono</Form.Label>
+            <Form.Control
+              type="tel"
+              placeholder="Ej: +56 9 1234 5678"
+              value={formData.phone}
+              onChange={(e) => handleFieldChange('phone', e.target.value)}
+            />
+          </Form.Group>
+
+          <div className="d-flex gap-2 justify-content-end">
+            <Button variant="secondary" onClick={onHide} disabled={loading}>
+              Cancelar
+            </Button>
+            <Button variant="primary" type="submit" disabled={loading}>
+              {loading ? (
+                <>
+                  <Spinner animation="border" size="sm" className="me-2" />
+                  Guardando...
+                </>
+              ) : (
+                'Guardar Cambios'
+              )}
+            </Button>
+          </div>
+        </Form>
+      </Modal.Body>
+    </Modal>
+  )
+}
+
+export default EditClienteModal
+

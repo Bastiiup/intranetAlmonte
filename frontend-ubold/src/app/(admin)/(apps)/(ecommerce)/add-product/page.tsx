@@ -257,7 +257,7 @@ export default function AddProductPage() {
     <Container fluid>
       <PageBreadcrumb title="Agregar Producto" subtitle="Ecommerce" />
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         {error && (
           <Alert variant="danger" dismissible onClose={() => setError(null)}>
             <strong>Error:</strong> {error}
