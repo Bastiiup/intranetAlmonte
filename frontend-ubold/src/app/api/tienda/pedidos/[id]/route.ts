@@ -496,15 +496,6 @@ export async function PUT(
       throw strapiError
     }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        woocommerce: wooCommercePedido,
-        strapi: strapiResponse.data || strapiResponse,
-      },
-      message: 'Pedido actualizado exitosamente' + (wooCommercePedido ? ' en WooCommerce y Strapi' : ' en Strapi')
-    })
-
   } catch (error: any) {
     console.error('[API Pedidos PUT] ❌ ERROR al actualizar pedido:', {
       message: error.message,
