@@ -349,20 +349,55 @@ export async function DELETE(
     let wooId: number | null = null
     let originPlatform: string = 'woo_moraleja'
     
-    try {
-      const pedidoResponse = await strapiClient.get<any>(
-        `${pedidoEndpoint}?filters[id][$eq]=${id}&populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
-      )
-      let pedidos: any[] = []
-      if (Array.isArray(pedidoResponse)) {
-        pedidos = pedidoResponse
-      } else if (pedidoResponse.data && Array.isArray(pedidoResponse.data)) {
-        pedidos = pedidoResponse.data
-      } else if (pedidoResponse.data) {
-        pedidos = [pedidoResponse.data]
+    // Intentar obtener el pedido - si el ID parece ser un documentId (string), usar endpoint directo
+    // Si es numérico, intentar con filtro primero
+    const isDocumentId = typeof id === 'string' && !/^\d+$/.test(id)
+    
+    if (isDocumentId) {
+      // Si es documentId, usar endpoint directo
+      try {
+        const directResponse = await strapiClient.get<any>(
+          `${pedidoEndpoint}/${id}?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+        )
+        const pedidoStrapi = directResponse.data || directResponse
+        documentId = pedidoStrapi?.documentId || pedidoStrapi?.id || id
+        const attrs = pedidoStrapi?.attributes || {}
+        const data = (attrs && Object.keys(attrs).length > 0) ? attrs : pedidoStrapi
+        wooId = data?.wooId || pedidoStrapi?.wooId || null
+        originPlatform = data?.originPlatform || pedidoStrapi?.originPlatform || 'woo_moraleja'
+      } catch (directError: any) {
+        console.warn('[API Pedidos DELETE] ⚠️ Error al obtener pedido con endpoint directo:', directError.message)
       }
-      const pedidoStrapi = pedidos[0]
-      documentId = pedidoStrapi?.documentId || pedidoStrapi?.data?.documentId || id
+    } else {
+      // Si es numérico, intentar con filtro
+      try {
+        const pedidoResponse = await strapiClient.get<any>(
+          `${pedidoEndpoint}?filters[documentId][$eq]=${id}&populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+        )
+        let pedidos: any[] = []
+        if (Array.isArray(pedidoResponse)) {
+          pedidos = pedidoResponse
+        } else if (pedidoResponse.data && Array.isArray(pedidoResponse.data)) {
+          pedidos = pedidoResponse.data
+        } else if (pedidoResponse.data) {
+          pedidos = [pedidoResponse.data]
+        }
+        const pedidoStrapi = pedidos[0]
+        if (pedidoStrapi) {
+          documentId = pedidoStrapi?.documentId || pedidoStrapi?.id || id
+          const attrs = pedidoStrapi?.attributes || {}
+          const data = (attrs && Object.keys(attrs).length > 0) ? attrs : pedidoStrapi
+          wooId = data?.wooId || pedidoStrapi?.wooId || null
+          originPlatform = data?.originPlatform || pedidoStrapi?.originPlatform || 'woo_moraleja'
+        }
+      } catch (filterError: any) {
+        console.warn('[API Pedidos DELETE] ⚠️ Error al obtener pedido con filtro:', filterError.message)
+      }
+    }
+    
+    // Si aún no tenemos documentId, usar el id recibido
+    if (!documentId) {
+      documentId = id
       // Leer campos usando camelCase como en el schema de Strapi
       const attrs = pedidoStrapi?.attributes || {}
       const data = (attrs && Object.keys(attrs).length > 0) ? attrs : pedidoStrapi
@@ -442,20 +477,47 @@ export async function PUT(
     let wooId: number | null = null
     let originPlatform: string = 'woo_moraleja'
     
-    try {
-      const pedidoResponse = await strapiClient.get<any>(
-        `${pedidoEndpoint}?filters[id][$eq]=${id}&populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
-      )
-      let pedidos: any[] = []
-      if (Array.isArray(pedidoResponse)) {
-        pedidos = pedidoResponse
-      } else if (pedidoResponse.data && Array.isArray(pedidoResponse.data)) {
-        pedidos = pedidoResponse.data
-      } else if (pedidoResponse.data) {
-        pedidos = [pedidoResponse.data]
+    // Intentar obtener el pedido - si el ID parece ser un documentId (string), usar endpoint directo
+    // Si es numérico, intentar con filtro primero
+    const isDocumentId = typeof id === 'string' && !/^\d+$/.test(id)
+    
+    if (isDocumentId) {
+      // Si es documentId, usar endpoint directo
+      try {
+        const directResponse = await strapiClient.get<any>(
+          `${pedidoEndpoint}/${id}?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+        )
+        cuponStrapi = directResponse.data || directResponse
+        documentId = cuponStrapi?.documentId || cuponStrapi?.id || id
+      } catch (directError: any) {
+        console.warn('[API Pedidos PUT] ⚠️ Error al obtener pedido con endpoint directo:', directError.message)
       }
-      cuponStrapi = pedidos[0]
-      documentId = cuponStrapi?.documentId || cuponStrapi?.data?.documentId || id
+    } else {
+      // Si es numérico, intentar con filtro
+      try {
+        const pedidoResponse = await strapiClient.get<any>(
+          `${pedidoEndpoint}?filters[documentId][$eq]=${id}&populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+        )
+        let pedidos: any[] = []
+        if (Array.isArray(pedidoResponse)) {
+          pedidos = pedidoResponse
+        } else if (pedidoResponse.data && Array.isArray(pedidoResponse.data)) {
+          pedidos = pedidoResponse.data
+        } else if (pedidoResponse.data) {
+          pedidos = [pedidoResponse.data]
+        }
+        cuponStrapi = pedidos[0]
+        if (cuponStrapi) {
+          documentId = cuponStrapi?.documentId || cuponStrapi?.id || id
+        }
+      } catch (filterError: any) {
+        console.warn('[API Pedidos PUT] ⚠️ Error al obtener pedido con filtro:', filterError.message)
+      }
+    }
+    
+    // Si aún no tenemos documentId, usar el id recibido
+    if (!documentId) {
+      documentId = id
       // Leer campos usando camelCase como en el schema de Strapi
       const attrs = cuponStrapi?.attributes || {}
       const data = (attrs && Object.keys(attrs).length > 0) ? attrs : cuponStrapi

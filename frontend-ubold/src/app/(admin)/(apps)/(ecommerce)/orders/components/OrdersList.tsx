@@ -17,13 +17,83 @@ import Link from 'next/link'
 import { useState, useMemo, useEffect } from 'react'
 import { Button, Card, CardFooter, CardHeader, Alert } from 'react-bootstrap'
 import { LuCalendar, LuCreditCard, LuSearch, LuTruck } from 'react-icons/lu'
-import { TbEye, TbPointFilled } from 'react-icons/tb'
+import { TbEye, TbEyeOff, TbPointFilled } from 'react-icons/tb'
+import { useRouter } from 'next/navigation'
 
 import { orders, OrderType } from '@/app/(admin)/(apps)/(ecommerce)/orders/data'
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
 import { currency } from '@/helpers'
+
+// Componente para acciones de pedido
+const OrderActions = ({ row, basePath }: { row: TableRow<OrderType>, basePath: string }) => {
+  const [isHiding, setIsHiding] = useState(false)
+  const router = useRouter()
+  
+  const handleHide = async () => {
+    if (!confirm('¿Estás seguro de que deseas ocultar este pedido?')) {
+      return
+    }
+    
+    setIsHiding(true)
+    try {
+      const pedidoId = row.original.id
+      // Obtener el documentId si está disponible
+      const documentId = (row.original as any)._strapiDocumentId || pedidoId
+      
+      const response = await fetch(`/api/tienda/pedidos/${documentId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          data: {
+            publishedAt: null, // Despublicar para ocultar
+          },
+        }),
+      })
+      
+      const result = await response.json()
+      
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Error al ocultar el pedido')
+      }
+      
+      // Recargar la página para actualizar la lista
+      router.refresh()
+    } catch (err: any) {
+      console.error('Error al ocultar pedido:', err)
+      alert(`Error al ocultar el pedido: ${err.message || 'Error desconocido'}`)
+    } finally {
+      setIsHiding(false)
+    }
+  }
+  
+  return (
+    <div className="d-flex gap-1">
+      <Link href={`${basePath}/${row.original.id}`}>
+        <Button variant="default" size="sm" className="btn-icon rounded-circle">
+          <TbEye className="fs-lg" />
+        </Button>
+      </Link>
+      <Button 
+        variant="outline-secondary" 
+        size="sm" 
+        className="btn-icon rounded-circle"
+        onClick={handleHide}
+        disabled={isHiding}
+        title="Ocultar pedido"
+      >
+        {isHiding ? (
+          <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" />
+        ) : (
+          <TbEyeOff className="fs-lg" />
+        )}
+      </Button>
+    </div>
+  )
+}
 
 // Función para traducir estados al español
 const translatePaymentStatus = (status: string): string => {
@@ -188,9 +258,8 @@ const OrdersList = ({ pedidos, error, basePath = '/orders' }: OrdersListProps = 
     columnHelper.accessor('id', {
       header: 'ID Pedido',
       cell: ({ row }) => {
-        // El id en OrderType es el ID numérico de WooCommerce para el link
-        // Pero podemos mostrar el number si está disponible
-        const displayNumber = row.original.id
+        // Mostrar el número de pedido (displayId o number) en lugar del ID interno
+        const displayNumber = (row.original as any).displayId || row.original.number || row.original.id
         return (
           <h5 className="fs-sm mb-0 fw-medium">
             <Link href={`${basePath}/${row.original.id}`} className="link-reset">
@@ -271,13 +340,7 @@ const OrdersList = ({ pedidos, error, basePath = '/orders' }: OrdersListProps = 
     {
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<OrderType> }) => (
-        <div className="d-flex gap-1">
-          <Link href={`${basePath}/${row.original.id}`}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle">
-              <TbEye className="fs-lg" />
-            </Button>
-          </Link>
-        </div>
+        <OrderActions row={row} basePath={basePath} />
       ),
     },
   ]

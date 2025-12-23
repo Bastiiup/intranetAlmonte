@@ -47,6 +47,7 @@ export default async function Page() {
         return {
           id: documentId, // Usar documentId de Strapi para el link (necesario para la API)
           number: pedidoData.numero_pedido || pedidoData.wooId || documentId,
+          displayId: pedidoData.numero_pedido || pedidoData.wooId || documentId, // ID para mostrar en la tabla
           date_created: pedidoData.fecha_pedido || new Date().toISOString(),
           status: estado, // Estados en inglés: pending, processing, completed, cancelled, etc.
           total: String(pedidoData.total || 0),
@@ -59,6 +60,7 @@ export default async function Page() {
           payment_method_title: pedidoData.metodo_pago_titulo || '',
           date_paid: estado === 'completed' ? pedidoData.fecha_pedido : null,
           line_items: pedidoData.items || [],
+          _strapiDocumentId: documentId, // Guardar documentId para referencia
           ...pedidoData.rawWooData, // Incluir datos originales de WooCommerce si existen
         }
       })
