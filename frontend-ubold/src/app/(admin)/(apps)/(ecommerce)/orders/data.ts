@@ -35,6 +35,8 @@ export type OrderStatisticsType = {
 
 export type OrderType = {
   id: string
+  number?: string // Número de pedido para mostrar
+  displayId?: string // ID para mostrar en la tabla
   date: string
   time: string
   customer: {
@@ -53,6 +55,7 @@ export type OrderType = {
     upiId?: string
     cardNumber?: string
   }
+  _strapiDocumentId?: string // DocumentId de Strapi para referencia interna
 }
 
 export const orderStats: OrderStatisticsType[] = [
