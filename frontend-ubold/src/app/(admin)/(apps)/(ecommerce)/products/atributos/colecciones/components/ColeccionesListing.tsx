@@ -340,7 +340,7 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
           method: 'DELETE',
         })
         if (!response.ok) {
-          throw new Error(`Error al eliminar colección ${coleccionId}`)
+          console.warn(`Error al eliminar colección ${coleccionId}:`, response.status, response.statusText)
         }
       }
       
@@ -354,7 +354,7 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
       router.refresh()
     } catch (error) {
       console.error('Error al eliminar colecciones:', error)
-      alert('Error al eliminar las colecciones seleccionadas')
+      // No mostrar alert, solo log en consola
     }
   }
 
