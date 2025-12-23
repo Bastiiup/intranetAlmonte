@@ -54,6 +54,44 @@ function normalizeOrigen(origen: string | null | undefined): string | null {
   return mapping[origenLower] || 'web' // Por defecto 'web' si no se reconoce
 }
 
+// Función helper para normalizar metodo_pago a valores válidos de Strapi
+function normalizeMetodoPago(metodoPago: string | null | undefined): string | null {
+  if (!metodoPago) return null
+  
+  const metodoLower = String(metodoPago).toLowerCase().trim()
+  const valoresValidos = ['bacs', 'cheque', 'cod', 'paypal', 'stripe', 'transferencia', 'otro']
+  
+  // Si ya es válido, devolverlo
+  if (valoresValidos.includes(metodoLower)) {
+    return metodoLower
+  }
+  
+  // Mapear variantes comunes
+  const mapping: Record<string, string> = {
+    'tarjeta': 'stripe', // tarjeta → stripe (más común)
+    'tarjeta de crédito': 'stripe',
+    'tarjeta de debito': 'stripe',
+    'credit card': 'stripe',
+    'debit card': 'stripe',
+    'card': 'stripe',
+    'transferencia bancaria': 'transferencia',
+    'transfer': 'transferencia',
+    'bank transfer': 'transferencia',
+    'bacs': 'bacs',
+    'cheque': 'cheque',
+    'check': 'cheque',
+    'cod': 'cod',
+    'cash on delivery': 'cod',
+    'contra entrega': 'cod',
+    'paypal': 'paypal',
+    'stripe': 'stripe',
+    'otro': 'otro',
+    'other': 'otro',
+  }
+  
+  return mapping[metodoLower] || 'bacs' // Por defecto 'bacs' si no se reconoce
+}
+
 // Función helper para mapear estado de español (frontend) a inglés (Strapi/WooCommerce)
 // Esta función SIEMPRE debe devolver un valor en inglés válido para Strapi
 function mapWooStatus(strapiStatus: string): string {
@@ -454,6 +492,15 @@ export async function PUT(
             pedidoData.data.origen = origenNormalizado
           }
         }
+        
+        // Si el pedido tiene metodo_pago inválido, corregirlo
+        if (pedidoDataCompleto?.metodo_pago) {
+          const metodoPagoNormalizado = normalizeMetodoPago(pedidoDataCompleto.metodo_pago)
+          if (metodoPagoNormalizado && metodoPagoNormalizado !== pedidoDataCompleto.metodo_pago) {
+            console.log(`[API Pedidos PUT] 🔧 Corrigiendo metodo_pago inválido: "${pedidoDataCompleto.metodo_pago}" → "${metodoPagoNormalizado}"`)
+            pedidoData.data.metodo_pago = metodoPagoNormalizado
+          }
+        }
       } catch (error) {
         console.warn('[API Pedidos PUT] ⚠️ No se pudo verificar valores inválidos del pedido:', error)
       }
@@ -513,7 +560,10 @@ export async function PUT(
     }
     if (body.data.billing !== undefined) pedidoData.data.billing = body.data.billing || null
     if (body.data.shipping !== undefined) pedidoData.data.shipping = body.data.shipping || null
-    if (body.data.metodo_pago !== undefined) pedidoData.data.metodo_pago = body.data.metodo_pago || null
+    // CORRECCIÓN: Normalizar metodo_pago a valores válidos de Strapi
+    if (body.data.metodo_pago !== undefined) {
+      pedidoData.data.metodo_pago = normalizeMetodoPago(body.data.metodo_pago)
+    }
     if (body.data.metodo_pago_titulo !== undefined) pedidoData.data.metodo_pago_titulo = body.data.metodo_pago_titulo || null
     if (body.data.nota_cliente !== undefined) pedidoData.data.nota_cliente = body.data.nota_cliente || null
     
