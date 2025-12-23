@@ -12,7 +12,6 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import Image from 'next/image'
-import Link from 'next/link'
 import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button, Card, CardFooter, CardHeader, Dropdown, DropdownItem, DropdownMenu, DropdownToggle, Alert, Modal } from 'react-bootstrap'
@@ -61,6 +60,9 @@ const mapWooCommerceCustomerToCustomerType = (cliente: any): ExtendedCustomerTyp
   const orders = cliente.orders_count || 0
   const totalSpends = parseFloat(cliente.total_spent || '0')
 
+  // Extraer teléfono real (sin el texto "Sin teléfono")
+  const telefonoReal = phone === 'Sin teléfono' ? '' : phone
+
   return {
     name,
     email,
@@ -77,7 +79,7 @@ const mapWooCommerceCustomerToCustomerType = (cliente: any): ExtendedCustomerTyp
     id: cliente.id,
     woocommerce_id: cliente.id,
     correo_electronico: email,
-    telefono: phone,
+    telefono: telefonoReal,
   }
 }
 
@@ -125,9 +127,7 @@ const CustomersCard = ({ clientes, error }: CustomersCardProps = {}) => {
           </div>
           <div>
             <h5 className="mb-0">
-              <Link href="/users/profile" className="link-reset">
-                {row.original.name}
-              </Link>
+              {row.original.name}
             </h5>
           </div>
         </div>
@@ -410,7 +410,7 @@ const CustomersCard = ({ clientes, error }: CustomersCardProps = {}) => {
             woocommerce_id: selectedCliente.woocommerce_id,
             nombre: selectedCliente.name,
             correo_electronico: selectedCliente.correo_electronico || selectedCliente.email,
-            telefono: selectedCliente.telefono || selectedCliente.phone,
+            telefono: selectedCliente.telefono || (selectedCliente.phone && selectedCliente.phone !== 'Sin teléfono' ? selectedCliente.phone : ''),
           }}
           onSave={handleEditSave}
         />
