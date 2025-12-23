@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Button, Form, FormGroup, FormLabel, FormControl, FormSelect, FormCheck, Alert } from 'react-bootstrap'
-import { TbSave } from 'react-icons/tb'
+import { LuSave } from 'react-icons/lu'
 
 const ROLES = [
   'super_admin',
@@ -202,7 +202,7 @@ const EditColaboradorModal = ({ show, onHide, colaborador, onSuccess }: EditCola
             Cancelar
           </Button>
           <Button variant="primary" type="submit" disabled={loading}>
-            <TbSave className="me-1" />
+            <LuSave className="me-1" />
             {loading ? 'Guardando...' : 'Guardar Cambios'}
           </Button>
         </ModalFooter>

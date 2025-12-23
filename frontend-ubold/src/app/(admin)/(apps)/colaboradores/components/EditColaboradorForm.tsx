@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardHeader, CardBody, Form, Button, Row, Col, FormGroup, FormLabel, FormControl, Alert, FormCheck } from 'react-bootstrap'
-import { TbSave, TbX } from 'react-icons/tb'
+import { LuSave, LuX } from 'react-icons/lu'
 
 const ROLES = [
   'super_admin',
@@ -243,10 +243,10 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
               onClick={() => router.back()}
               disabled={loading}
             >
-              <TbX className="me-1" /> Cancelar
+              <LuX className="me-1" /> Cancelar
             </Button>
             <Button variant="primary" type="submit" disabled={loading}>
-              <TbSave className="me-1" />
+              <LuSave className="me-1" />
               {loading ? 'Guardando...' : 'Guardar Cambios'}
             </Button>
           </div>
