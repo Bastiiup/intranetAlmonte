@@ -321,3 +321,5 @@ const strapiClient = {
 
 export default strapiClient
 
+
+

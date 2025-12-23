@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import { requireAuth } from '@/lib/auth/middleware'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,11 @@ interface ColaboradorAttributes {
   usuario?: any
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  // Verificar autenticación
+  const authError = await requireAuth(request)
+  if (authError) return authError
+
   try {
     const { searchParams } = new URL(request.url)
     const email = searchParams.get('email')

@@ -179,6 +179,7 @@ const SelloDetails = ({ sello: initialSello, selloId, error: initialError }: Sel
           
           const uploadResponse = await fetch('/api/tienda/upload', {
             method: 'POST',
+            credentials: 'include', // Incluir cookies
             body: formDataLogo,
           })
           
@@ -210,6 +211,7 @@ const SelloDetails = ({ sello: initialSello, selloId, error: initialError }: Sel
       
       const response = await fetch(url, {
         method: 'PUT',
+        credentials: 'include', // Incluir cookies
         headers: {
           'Content-Type': 'application/json',
         },

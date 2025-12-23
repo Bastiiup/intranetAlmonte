@@ -1,16 +1,11 @@
 import { Container } from 'react-bootstrap'
 import { headers } from 'next/headers'
-import type { Metadata } from 'next'
 
 import ProductsListing from '@/app/(admin)/(apps)/(ecommerce)/products/components/ProductsListing'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 
 // Forzar renderizado dinámico
 export const dynamic = 'force-dynamic'
-
-export const metadata: Metadata = {
-  title: 'Todos los Productos',
-}
 
 export default async function Page() {
   let productos: any[] = []
@@ -49,7 +44,7 @@ export default async function Page() {
 
   return (
     <Container fluid>
-      <PageBreadcrumb title="Todos los Productos" subtitle="Ecommerce" />
+      <PageBreadcrumb title="Products" subtitle="Ecommerce" />
       <ProductsListing productos={productos} error={error} />
     </Container>
   )

@@ -73,15 +73,15 @@ export async function POST(request: NextRequest) {
     console.log('[API Marca POST] 📝 Creando marca:', body)
 
     // Validar campos obligatorios según schema de Strapi
-    // Asumiendo schema similar a sello: nombre_marca* (Text)
-    if (!body.data?.nombre_marca && !body.data?.nombreMarca && !body.data?.nombre) {
+    // Schema real: name* (Text), descripcion, imagen, marca_padre, marcas_hijas, externalIds
+    if (!body.data?.name && !body.data?.nombre_marca && !body.data?.nombreMarca && !body.data?.nombre) {
       return NextResponse.json({
         success: false,
         error: 'El nombre de la marca es obligatorio'
       }, { status: 400 })
     }
 
-    const nombreMarca = body.data.nombre_marca || body.data.nombreMarca || body.data.nombre
+    const nombreMarca = body.data.name || body.data.nombre_marca || body.data.nombreMarca || body.data.nombre
     const marcaEndpoint = '/api/marcas'
     console.log('[API Marca POST] Usando endpoint Strapi:', marcaEndpoint)
 
@@ -89,18 +89,27 @@ export async function POST(request: NextRequest) {
     // El documentId se usará como slug en WooCommerce para hacer el match
     console.log('[API Marca POST] 📚 Creando marca en Strapi primero...')
     
-    // El schema de Strapi para marca (asumiendo estructura similar a sello)
+    // El schema de Strapi para marca usa: name* (Text), descripcion, imagen, marca_padre, marcas_hijas, externalIds
     const marcaData: any = {
       data: {
-        nombre_marca: nombreMarca.trim(),
+        name: nombreMarca.trim(),
         descripcion: body.data.descripcion || null,
-        website: body.data.website || null,
       }
     }
 
-    // Manejar relaciones según tipo (si existen en el schema)
-    if (body.data.logo) {
-      marcaData.data.logo = body.data.logo
+    // Manejar marca_padre (manyToOne relation)
+    if (body.data.marca_padre) {
+      marcaData.data.marca_padre = body.data.marca_padre
+    }
+
+    // Manejar marcas_hijas (oneToMany relation)
+    if (body.data.marcas_hijas && body.data.marcas_hijas.length > 0) {
+      marcaData.data.marcas_hijas = body.data.marcas_hijas
+    }
+
+    // Manejar imagen (Media)
+    if (body.data.imagen) {
+      marcaData.data.imagen = body.data.imagen
     }
 
     const strapiMarca = await strapiClient.post<any>(marcaEndpoint, marcaData)

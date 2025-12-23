@@ -31,6 +31,7 @@ export default function Page() {
       
       const response = await fetch(`/api/tienda/productos/${productId}`, {
         cache: 'no-store',
+        credentials: 'include', // Incluir cookies
       })
       
       const data = await response.json()

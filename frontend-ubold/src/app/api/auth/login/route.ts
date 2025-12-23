@@ -56,7 +56,8 @@ export async function POST(request: Request) {
 
     const data = await loginResponse.json()
 
-    return NextResponse.json(
+    // Crear respuesta con cookies establecidas en el servidor
+    const response = NextResponse.json(
       {
         message: 'Login exitoso',
         jwt: data.jwt,
@@ -65,6 +66,49 @@ export async function POST(request: Request) {
       },
       { status: 200 }
     )
+
+    // Establecer cookies en el servidor para que el middleware las detecte
+    if (data.jwt) {
+      response.cookies.set('auth_token', data.jwt, {
+        httpOnly: false, // Necesario para que el cliente también pueda leerlo
+        secure: process.env.NODE_ENV === 'production', // HTTPS en producción
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 7, // 7 días
+      })
+    }
+
+    if (data.colaborador) {
+      // El middleware busca 'colaboradorData', así que usamos ese nombre
+      response.cookies.set('colaboradorData', JSON.stringify(data.colaborador), {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 7, // 7 días
+      })
+      
+      // También establecer 'colaborador' para compatibilidad con el código existente
+      response.cookies.set('colaborador', JSON.stringify(data.colaborador), {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 7,
+      })
+    }
+
+    if (data.usuario) {
+      response.cookies.set('user', JSON.stringify(data.usuario), {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 7,
+      })
+    }
+
+    return response
   } catch (error: any) {
     console.error('[API /auth/login] Error:', {
       message: error.message,

@@ -30,7 +30,9 @@ export function ProductPricing({ producto, onUpdate }: ProductPricingProps) {
       setLoading(true)
       setError(null)
       
-      const response = await fetch(`/api/tienda/precios?libro=${productId}`)
+      const response = await fetch(`/api/tienda/precios?libro=${productId}`, {
+        credentials: 'include', // Incluir cookies
+      })
       const data = await response.json()
       
       if (data.success) {
@@ -79,6 +81,7 @@ export function ProductPricing({ producto, onUpdate }: ProductPricingProps) {
       
       const response = await fetch('/api/tienda/precios', {
         method: 'POST',
+        credentials: 'include', // Incluir cookies
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })

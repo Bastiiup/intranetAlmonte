@@ -167,6 +167,7 @@ export function usePosOrders() {
       // Usar el endpoint de tienda/pedidos que sincroniza con WooCommerce y Strapi
       const response = await fetch('/api/tienda/pedidos', {
         method: 'POST',
+        credentials: 'include', // Incluir cookies
         headers: {
           'Content-Type': 'application/json',
         },

@@ -175,6 +175,7 @@ export function ProductDetails({ producto, onUpdate, onProductoUpdate }: Product
       // UNA SOLA llamada al API
       const response = await fetch(`/api/tienda/productos/${productId}`, {
         method: 'PUT',
+        credentials: 'include', // Incluir cookies
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dataToSend)
       })

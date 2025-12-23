@@ -38,6 +38,21 @@ export async function GET(
   try {
     const { id } = await params
     
+    // Validar que el ID no sea una palabra reservada
+    const reservedWords = ['productos', 'categorias', 'etiquetas', 'pedidos', 'facturas', 'obras', 'autores', 'sellos', 'serie-coleccion']
+    if (reservedWords.includes(id.toLowerCase())) {
+      console.warn('[API /tienda/marca/[id] GET] ⚠️ Intento de acceso a ruta reservada:', id)
+      return NextResponse.json(
+        { 
+          success: false,
+          error: `Ruta no válida. La ruta /api/tienda/marca/${id} no existe. Use /api/tienda/${id} en su lugar.`,
+          data: null,
+          hint: `Si está buscando ${id}, use el endpoint: /api/tienda/${id}`,
+        },
+        { status: 404 }
+      )
+    }
+    
     console.log('[API /tienda/marca/[id] GET] Obteniendo marca:', {
       id,
       esNumerico: !isNaN(parseInt(id)),
@@ -162,6 +177,16 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
+    
+    // Validar que el ID no sea una palabra reservada
+    const reservedWords = ['productos', 'categorias', 'etiquetas', 'pedidos', 'facturas', 'obras', 'autores', 'sellos', 'serie-coleccion']
+    if (reservedWords.includes(id.toLowerCase())) {
+      return NextResponse.json(
+        { success: false, error: `Ruta no válida. Use /api/tienda/${id} en su lugar.` },
+        { status: 404 }
+      )
+    }
+    
     console.log('[API Marca DELETE] 🗑️ Eliminando marca:', id)
 
     const marcaEndpoint = '/api/marcas'
@@ -253,6 +278,16 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
+    
+    // Validar que el ID no sea una palabra reservada
+    const reservedWords = ['productos', 'categorias', 'etiquetas', 'pedidos', 'facturas', 'obras', 'autores', 'sellos', 'serie-coleccion']
+    if (reservedWords.includes(id.toLowerCase())) {
+      return NextResponse.json(
+        { success: false, error: `Ruta no válida. Use /api/tienda/${id} en su lugar.` },
+        { status: 404 }
+      )
+    }
+    
     const body = await request.json()
     console.log('[API Marca PUT] ✏️ Actualizando marca:', id, body)
 
@@ -306,8 +341,8 @@ export async function PUT(
         console.log('[API Marca PUT] 🛒 Actualizando término en WooCommerce:', woocommerceId)
         
         const wooCommerceTermData: any = {}
-        if (body.data.nombre_marca || body.data.nombreMarca || body.data.nombre) {
-          wooCommerceTermData.name = (body.data.nombre_marca || body.data.nombreMarca || body.data.nombre).trim()
+        if (body.data.name || body.data.nombre_marca || body.data.nombreMarca || body.data.nombre) {
+          wooCommerceTermData.name = (body.data.name || body.data.nombre_marca || body.data.nombreMarca || body.data.nombre).trim()
         }
         if (body.data.descripcion !== undefined || body.data.description !== undefined) {
           wooCommerceTermData.description = body.data.descripcion || body.data.description || ''
@@ -327,24 +362,44 @@ export async function PUT(
     const strapiEndpoint = documentId ? `${marcaEndpoint}/${documentId}` : `${marcaEndpoint}/${id}`
     console.log('[API Marca PUT] Usando endpoint Strapi:', strapiEndpoint, { documentId, id })
 
-    // El schema de Strapi para marca usa: nombre_marca* (Text), descripcion, website, logo
+    // El schema de Strapi para marca usa: name* (Text), descripcion, imagen, marca_padre, marcas_hijas, externalIds
     const marcaData: any = {
       data: {}
     }
 
-    // Aceptar diferentes formatos del formulario pero guardar según schema real
-    if (body.data.nombre_marca) marcaData.data.nombre_marca = body.data.nombre_marca.trim()
-    if (body.data.nombreMarca) marcaData.data.nombre_marca = body.data.nombreMarca.trim()
-    if (body.data.nombre) marcaData.data.nombre_marca = body.data.nombre.trim()
+    // Aceptar diferentes formatos del formulario pero guardar según schema real (usar 'name')
+    if (body.data.name) marcaData.data.name = body.data.name.trim()
+    if (body.data.nombre_marca) marcaData.data.name = body.data.nombre_marca.trim()
+    if (body.data.nombreMarca) marcaData.data.name = body.data.nombreMarca.trim()
+    if (body.data.nombre) marcaData.data.name = body.data.nombre.trim()
     
     if (body.data.descripcion !== undefined) marcaData.data.descripcion = body.data.descripcion?.trim() || null
     if (body.data.description !== undefined) marcaData.data.descripcion = body.data.description?.trim() || null
-    
-    if (body.data.website !== undefined) marcaData.data.website = body.data.website?.trim() || null
 
-    // Media: solo el ID (o null para eliminar)
+    // Media: solo el ID (o null para eliminar) - usar 'imagen' según schema
+    if (body.data.imagen !== undefined) {
+      marcaData.data.imagen = body.data.imagen || null
+    }
     if (body.data.logo !== undefined) {
-      marcaData.data.logo = body.data.logo || null
+      marcaData.data.imagen = body.data.logo || null
+    }
+
+    // Manejar marca_padre (manyToOne relation)
+    if (body.data.marca_padre !== undefined) {
+      marcaData.data.marca_padre = body.data.marca_padre || null
+    }
+
+    // Manejar marcas_hijas (oneToMany relation)
+    if (body.data.marcas_hijas !== undefined) {
+      marcaData.data.marcas_hijas = body.data.marcas_hijas && body.data.marcas_hijas.length > 0 ? body.data.marcas_hijas : []
+    }
+
+    // Estado de publicación
+    if (body.estado_publicacion !== undefined && body.estado_publicacion !== '') {
+      marcaData.data.estado_publicacion = body.estado_publicacion
+    }
+    if (body.data?.estado_publicacion !== undefined && body.data.estado_publicacion !== '') {
+      marcaData.data.estado_publicacion = body.data.estado_publicacion
     }
 
     // No guardamos woocommerce_id en Strapi porque no existe en el schema

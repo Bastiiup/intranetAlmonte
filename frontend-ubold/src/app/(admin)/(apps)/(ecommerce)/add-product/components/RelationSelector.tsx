@@ -65,7 +65,12 @@ const RelationSelector = memo(function RelationSelector({
         ? `${endpoint}?pagination[pageSize]=1000` 
         : endpoint
       
-      const res = await fetch(fetchUrl)
+      const res = await fetch(fetchUrl, {
+        credentials: 'include', // Incluir cookies en la petición
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
       const data = await res.json()
       
       if (data.success) {
@@ -83,7 +88,12 @@ const RelationSelector = memo(function RelationSelector({
             // Cargar las páginas restantes
             for (let page = 2; page <= totalPages; page++) {
               try {
-                const pageRes = await fetch(`${endpoint}?pagination[pageSize]=1000&pagination[page]=${page}`)
+                const pageRes = await fetch(`${endpoint}?pagination[pageSize]=1000&pagination[page]=${page}`, {
+                  credentials: 'include', // Incluir cookies en la petición
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                })
                 const pageData = await pageRes.json()
                 if (pageData.success && pageData.data) {
                   allItems.push(...pageData.data)

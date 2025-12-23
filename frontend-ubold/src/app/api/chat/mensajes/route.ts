@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getChatMessages, sendChatMessage } from '@/lib/api/chat/services'
 import { validateGetMessagesParams, validateSendMessageParams } from '@/lib/api/chat/validators'
+import { requireAuth } from '@/lib/auth/middleware'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,10 @@ export const dynamic = 'force-dynamic'
  * GET - Obtener mensajes entre dos colaboradores (bidireccional)
  */
 export async function GET(request: NextRequest) {
+  // Verificar autenticación
+  const authError = await requireAuth(request)
+  if (authError) return authError
+
   try {
     const searchParams = request.nextUrl.searchParams
     const colaboradorId = searchParams.get('colaborador_id')
@@ -49,6 +54,10 @@ export async function GET(request: NextRequest) {
  * POST - Enviar un nuevo mensaje
  */
 export async function POST(request: NextRequest) {
+  // Verificar autenticación
+  const authError = await requireAuth(request)
+  if (authError) return authError
+
   try {
     const body = await request.json()
     const { texto, colaborador_id, remitente_id } = body

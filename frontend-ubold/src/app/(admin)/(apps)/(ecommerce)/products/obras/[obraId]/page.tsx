@@ -18,6 +18,7 @@ export default async function Page({ params }: { params: Promise<{ obraId: strin
     
     const response = await fetch(`${baseUrl}/api/tienda/obras/${obraId}`, {
       cache: 'no-store',
+      credentials: 'include', // Incluir cookies
     })
     
     const data = await response.json()
@@ -38,4 +39,6 @@ export default async function Page({ params }: { params: Promise<{ obraId: strin
     </Container>
   )
 }
+
+
 

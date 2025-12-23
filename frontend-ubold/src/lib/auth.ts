@@ -1,161 +1,147 @@
 /**
- * Utilidades para manejo de autenticación
- * 
- * Almacena el JWT token en cookies (para middleware) y localStorage (para compatibilidad)
- * y proporciona funciones para login, logout y verificación de sesión
+ * Utilidades de autenticación
+ * Maneja el almacenamiento y recuperación de datos de autenticación
+ * usando tanto cookies (para SSR) como localStorage (para migración)
  */
 
-const AUTH_TOKEN_KEY = 'auth_token'
-const AUTH_USER_KEY = 'auth_user'
-const AUTH_COLABORADOR_KEY = 'auth_colaborador'
-
-// Nombres de cookies (mismo nombre para compatibilidad)
-const AUTH_TOKEN_COOKIE = 'auth_token'
-const AUTH_USER_COOKIE = 'auth_user'
-const AUTH_COLABORADOR_COOKIE = 'auth_colaborador'
-
-// Duración de cookies: 30 días (mismo que "mantener sesión")
-const COOKIE_MAX_AGE = 30 * 24 * 60 * 60 // 30 días en segundos
-
-export interface AuthUser {
-  id: number
-  email: string
-  username: string
-}
-
-export interface AuthColaborador {
-  id: number
-  email_login: string
-  rol?: 'super_admin' | 'encargado_adquisiciones' | 'supervisor' | 'soporte'
-  activo: boolean
-  persona?: any
-  empresa?: any
-  [key: string]: any
-}
-
-export interface AuthResponse {
-  jwt: string
-  usuario: AuthUser
-  colaborador?: AuthColaborador | null
-}
-
 /**
- * Establece una cookie de forma segura
- */
-function setCookie(name: string, value: string, maxAge: number = COOKIE_MAX_AGE): void {
-  if (typeof document === 'undefined') return
-  // Usar SameSite=Strict y Secure en producción para mejor seguridad
-  const isProduction = process.env.NODE_ENV === 'production'
-  const secure = isProduction ? '; Secure' : ''
-  const sameSite = '; SameSite=Strict'
-  document.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}${secure}${sameSite}`
-}
-
-/**
- * Elimina una cookie
- */
-function deleteCookie(name: string): void {
-  if (typeof document === 'undefined') return
-  document.cookie = `${name}=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`
-}
-
-/**
- * Lee una cookie
+ * Obtiene el valor de una cookie por nombre
  */
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null
-  const nameEQ = name + '='
-  const ca = document.cookie.split(';')
-  for (let i = 0; i < ca.length; i++) {
-    let c = ca[i]
-    while (c.charAt(0) === ' ') c = c.substring(1, c.length)
-    if (c.indexOf(nameEQ) === 0) {
-      return decodeURIComponent(c.substring(nameEQ.length, c.length))
-    }
+  
+  const value = `; ${document.cookie}`
+  const parts = value.split(`; ${name}=`)
+  if (parts.length === 2) {
+    return decodeURIComponent(parts.pop()?.split(';').shift() || '')
   }
   return null
 }
 
 /**
- * Guarda los datos de autenticación en cookies Y localStorage (compatibilidad)
+ * Establece una cookie
  */
-export function setAuth(authData: AuthResponse): void {
-  if (typeof window === 'undefined') return
+function setCookie(name: string, value: string, days: number = 7) {
+  if (typeof document === 'undefined') return
+  
+  const expires = new Date()
+  expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000)
+  
+  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires.toUTCString()}; path=/; SameSite=Lax`
+}
 
-  // Guardar en localStorage (mantener compatibilidad con código existente)
-  localStorage.setItem(AUTH_TOKEN_KEY, authData.jwt)
-  localStorage.setItem(AUTH_USER_KEY, JSON.stringify(authData.usuario))
-  if (authData.colaborador) {
-    localStorage.setItem(AUTH_COLABORADOR_KEY, JSON.stringify(authData.colaborador))
-  }
+/**
+ * Elimina una cookie
+ */
+function deleteCookie(name: string) {
+  if (typeof document === 'undefined') return
+  
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
+}
 
-  // Guardar en cookies (para middleware)
-  setCookie(AUTH_TOKEN_COOKIE, authData.jwt)
-  setCookie(AUTH_USER_COOKIE, JSON.stringify(authData.usuario))
-  if (authData.colaborador) {
-    setCookie(AUTH_COLABORADOR_COOKIE, JSON.stringify(authData.colaborador))
+/**
+ * Obtiene un valor del localStorage (con fallback a cookies)
+ */
+function getStorageItem(key: string): string | null {
+  if (typeof window === 'undefined') return null
+  
+  try {
+    // Primero intentar localStorage
+    const value = localStorage.getItem(key)
+    if (value) return value
+    
+    // Fallback a cookies
+    return getCookie(key)
+  } catch {
+    // Si localStorage falla (modo incógnito), usar cookies
+    return getCookie(key)
   }
 }
 
 /**
- * Obtiene el JWT token almacenado (intenta cookies primero, luego localStorage para compatibilidad)
+ * Establece un valor en localStorage y cookies
+ */
+function setStorageItem(key: string, value: string) {
+  if (typeof window === 'undefined') return
+  
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // Si localStorage falla, solo usar cookies
+  }
+  
+  setCookie(key, value)
+}
+
+/**
+ * Elimina un valor de localStorage y cookies
+ */
+function removeStorageItem(key: string) {
+  if (typeof window === 'undefined') return
+  
+  try {
+    localStorage.removeItem(key)
+  } catch {
+    // Ignorar errores
+  }
+  
+  deleteCookie(key)
+}
+
+/**
+ * Sincroniza datos del localStorage a cookies para migración transparente
+ * Esto permite que los datos de autenticación almacenados en localStorage
+ * se migren automáticamente a cookies para compatibilidad con SSR
+ */
+export function syncLocalStorageToCookies() {
+  // Solo ejecutar en el cliente
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    // Lista de claves del localStorage que queremos sincronizar a cookies
+    const keysToSync = [
+      'auth_token',
+      'authToken',
+      'token',
+      'user',
+      'userData',
+      'colaborador',
+      'colaboradorData',
+    ]
+
+    keysToSync.forEach((key) => {
+      const value = localStorage.getItem(key)
+      if (value) {
+        // Crear cookie con el mismo valor
+        // Expira en 7 días por defecto
+        const expires = new Date()
+        expires.setTime(expires.getTime() + 7 * 24 * 60 * 60 * 1000)
+        
+        document.cookie = `${key}=${encodeURIComponent(value)}; expires=${expires.toUTCString()}; path=/; SameSite=Lax`
+      }
+    })
+  } catch (error) {
+    // Silenciar errores de localStorage/cookies (puede fallar en modo incógnito)
+    console.warn('[auth] Error al sincronizar localStorage a cookies:', error)
+  }
+}
+
+/**
+ * Obtiene el token de autenticación
  */
 export function getAuthToken(): string | null {
-  if (typeof window === 'undefined') return null
-  
-  // Intentar leer de cookies primero (para middleware)
-  const cookieToken = getCookie(AUTH_TOKEN_COOKIE)
-  if (cookieToken) return cookieToken
-  
-  // Fallback a localStorage (compatibilidad con código existente)
-  return localStorage.getItem(AUTH_TOKEN_KEY)
+  return getStorageItem('auth_token') || getStorageItem('authToken') || getStorageItem('token')
 }
 
 /**
- * Obtiene los datos del usuario autenticado (intenta cookies primero, luego localStorage)
+ * Obtiene los datos del colaborador autenticado
  */
-export function getAuthUser(): AuthUser | null {
-  if (typeof window === 'undefined') return null
-  
-  // Intentar leer de cookies primero
-  const cookieUser = getCookie(AUTH_USER_COOKIE)
-  if (cookieUser) {
-    try {
-      return JSON.parse(cookieUser)
-    } catch {
-      // Si falla, continuar con localStorage
-    }
-  }
-  
-  // Fallback a localStorage
-  const userStr = localStorage.getItem(AUTH_USER_KEY)
-  if (!userStr) return null
-  try {
-    return JSON.parse(userStr)
-  } catch {
-    return null
-  }
-}
-
-/**
- * Obtiene los datos del colaborador vinculado (intenta cookies primero, luego localStorage)
- */
-export function getAuthColaborador(): AuthColaborador | null {
-  if (typeof window === 'undefined') return null
-  
-  // Intentar leer de cookies primero
-  const cookieColab = getCookie(AUTH_COLABORADOR_COOKIE)
-  if (cookieColab) {
-    try {
-      return JSON.parse(cookieColab)
-    } catch {
-      // Si falla, continuar con localStorage
-    }
-  }
-  
-  // Fallback a localStorage
-  const colaboradorStr = localStorage.getItem(AUTH_COLABORADOR_KEY)
+export function getAuthColaborador(): any | null {
+  const colaboradorStr = getStorageItem('colaborador') || getStorageItem('colaboradorData')
   if (!colaboradorStr) return null
+  
   try {
     return JSON.parse(colaboradorStr)
   } catch {
@@ -164,60 +150,26 @@ export function getAuthColaborador(): AuthColaborador | null {
 }
 
 /**
- * Verifica si hay una sesión activa (busca en cookies y localStorage)
+ * Obtiene los datos del usuario autenticado (alias de getAuthColaborador)
  */
-export function isAuthenticated(): boolean {
-  return getAuthToken() !== null
-}
-
-/**
- * Sincroniza datos de localStorage a cookies (útil para migración)
- * Si hay datos en localStorage pero no en cookies, los copia a cookies
- */
-export function syncLocalStorageToCookies(): void {
-  if (typeof window === 'undefined') return
-  
-  // Verificar si ya hay cookies
-  const existingCookieToken = getCookie(AUTH_TOKEN_COOKIE)
-  if (existingCookieToken) return // Ya hay cookies, no hacer nada
-  
-  // Si no hay cookies pero hay localStorage, sincronizar
-  const token = localStorage.getItem(AUTH_TOKEN_KEY)
-  const userStr = localStorage.getItem(AUTH_USER_KEY)
-  const colaboradorStr = localStorage.getItem(AUTH_COLABORADOR_KEY)
-  
-  if (token) {
-    setCookie(AUTH_TOKEN_COOKIE, token)
-    if (userStr) {
-      setCookie(AUTH_USER_COOKIE, userStr)
-    }
-    if (colaboradorStr) {
-      setCookie(AUTH_COLABORADOR_COOKIE, colaboradorStr)
+export function getAuthUser(): any | null {
+  const userStr = getStorageItem('user') || getStorageItem('userData')
+  if (userStr) {
+    try {
+      return JSON.parse(userStr)
+    } catch {
+      return null
     }
   }
+  
+  // Fallback a colaborador
+  return getAuthColaborador()
 }
 
 /**
- * Limpia los datos de autenticación (logout) - elimina cookies y localStorage
+ * Inicia sesión con email y contraseña
  */
-export function clearAuth(): void {
-  if (typeof window === 'undefined') return
-  
-  // Limpiar localStorage
-  localStorage.removeItem(AUTH_TOKEN_KEY)
-  localStorage.removeItem(AUTH_USER_KEY)
-  localStorage.removeItem(AUTH_COLABORADOR_KEY)
-  
-  // Limpiar cookies
-  deleteCookie(AUTH_TOKEN_COOKIE)
-  deleteCookie(AUTH_USER_COOKIE)
-  deleteCookie(AUTH_COLABORADOR_COOKIE)
-}
-
-/**
- * Realiza login con email y contraseña
- */
-export async function login(email: string, password: string): Promise<AuthResponse> {
+export async function login(email: string, password: string): Promise<void> {
   const response = await fetch('/api/auth/login', {
     method: 'POST',
     headers: {
@@ -227,15 +179,45 @@ export async function login(email: string, password: string): Promise<AuthRespon
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Error desconocido' }))
-    throw new Error(error.error || 'Error al iniciar sesión')
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || errorData.message || 'Error al iniciar sesión')
   }
 
   const data = await response.json()
-  setAuth(data)
-  return data
+
+  // Guardar token
+  if (data.jwt) {
+    setStorageItem('auth_token', data.jwt)
+  }
+
+  // Guardar colaborador (en ambas claves para compatibilidad)
+  if (data.colaborador) {
+    const colaboradorStr = JSON.stringify(data.colaborador)
+    setStorageItem('colaborador', colaboradorStr)
+    setStorageItem('colaboradorData', colaboradorStr) // El middleware busca esta clave
+  }
+
+  // Guardar usuario (si existe)
+  if (data.usuario) {
+    setStorageItem('user', JSON.stringify(data.usuario))
+  }
 }
 
-// La función de registro ha sido eliminada
-// Ahora las cuentas se crean desde el admin de Strapi por el jefe
+/**
+ * Limpia todos los datos de autenticación
+ */
+export function clearAuth(): void {
+  const keysToRemove = [
+    'auth_token',
+    'authToken',
+    'token',
+    'user',
+    'userData',
+    'colaborador',
+    'colaboradorData',
+  ]
 
+  keysToRemove.forEach((key) => {
+    removeStorageItem(key)
+  })
+}

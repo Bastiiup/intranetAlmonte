@@ -1,9 +1,9 @@
 'use client'
+
 import {
   ColumnDef,
   ColumnFiltersState,
   createColumnHelper,
-  FilterFn,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -13,29 +13,34 @@ import {
   Table as TableType,
   useReactTable,
 } from '@tanstack/react-table'
-import Image, { type StaticImageData } from 'next/image'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useState, useEffect, useMemo } from 'react'
-import { Button, Card, CardFooter, CardHeader, Col, Row, Alert } from 'react-bootstrap'
-import { LuBox, LuDollarSign, LuSearch, LuTag } from 'react-icons/lu'
-import { TbEdit, TbEye, TbList, TbTrash, TbCheck } from 'react-icons/tb'
+import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge } from 'react-bootstrap'
+import { LuBox, LuSearch } from 'react-icons/lu'
+import { TbCheck, TbEdit, TbEye, TbList, TbPlus, TbTrash, TbX } from 'react-icons/tb'
 
-import Rating from '@/components/Rating'
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
-import ChangeStatusModal from '@/components/table/ChangeStatusModal'
+import ConfirmStatusModal from '@/components/table/ConfirmStatusModal'
 import TablePagination from '@/components/table/TablePagination'
-import { currency } from '@/helpers'
-import { productData, type ProductType } from '@/app/(admin)/(apps)/(ecommerce)/products/data'
 import { STRAPI_API_URL } from '@/lib/strapi/config'
 import { format } from 'date-fns'
+import { useRouter } from 'next/navigation'
 
-// Tipo extendido para productos con estado_publicacion
-type ProductTypeExtended = Omit<ProductType, 'image'> & {
-  image: StaticImageData | { src: string | null }
+// Tipo para solicitudes de productos
+type ProductRequestType = {
+  id: number
+  name: string
+  code: string
+  brand: string
+  category: string
+  image: { src: string | null }
+  estado: 'pendiente' | 'aprobada' | 'rechazada'
+  fecha_solicitud: string
+  time: string
+  url: string
   strapiId?: number
-  estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
-  productoOriginal?: any // Guardar el producto original de Strapi
 }
 
 // Helper para obtener campo con múltiples variaciones
@@ -48,10 +53,10 @@ const getField = (obj: any, ...fieldNames: string[]): any => {
   return undefined
 }
 
-// Función para mapear productos de Strapi al formato ProductType
-const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
-  const attrs = producto.attributes || {}
-  const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (producto as any)
+// Función para mapear solicitudes de Strapi al formato ProductRequestType
+const mapStrapiSolicitudToRequestType = (solicitud: any): ProductRequestType => {
+  const attrs = solicitud.attributes || {}
+  const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (solicitud as any)
 
   // Obtener URL de imagen
   const getImageUrl = (): string | null => {
@@ -73,95 +78,62 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
     return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
   }
 
-  // Calcular stock total
-  const getStockTotal = (): number => {
-    const stocks = data.STOCKS?.data || data.stocks?.data || []
-    return stocks.reduce((total: number, stock: any) => {
-      const cantidad = stock.attributes?.CANTIDAD || stock.attributes?.cantidad || 0
-      return total + (typeof cantidad === 'number' ? cantidad : 0)
-    }, 0)
-  }
-
-  // Obtener precio mínimo
-  const getPrecioMinimo = (): number => {
-    const precios = data.PRECIOS?.data || data.precios?.data || []
-    if (precios.length === 0) return 0
-    const preciosNumeros = precios
-      .map((p: any) => p.attributes?.PRECIO || p.attributes?.precio)
-      .filter((p: any): p is number => typeof p === 'number' && p > 0)
-    return preciosNumeros.length > 0 ? Math.min(...preciosNumeros) : 0
-  }
-
   const nombre = getField(data, 'NOMBRE_LIBRO', 'nombre_libro', 'nombreLibro', 'NOMBRE', 'nombre', 'name', 'NAME') || 'Sin nombre'
   const isbn = getField(data, 'ISBN_LIBRO', 'isbn_libro', 'isbnLibro', 'ISBN', 'isbn') || ''
   const autor = data.autor_relacion?.data?.attributes?.nombre || data.autor_relacion?.data?.attributes?.NOMBRE || 'Sin autor'
   const tipoLibro = getField(data, 'TIPO_LIBRO', 'tipo_libro', 'tipoLibro') || 'Sin categoría'
-  const isPublished = !!(attrs.publishedAt || (producto as any).publishedAt)
-  const createdAt = attrs.createdAt || (producto as any).createdAt || new Date().toISOString()
+  
+  // Leer estado_publicacion: 'pendiente' -> 'pendiente', 'publicado' -> 'aprobada'
+  const estadoPublicacion = getField(data, 'estado_publicacion', 'estadoPublicacion', 'ESTADO_PUBLICACION') || 'pendiente'
+  const estado = estadoPublicacion === 'publicado' ? 'aprobada' : estadoPublicacion === 'pendiente' ? 'pendiente' : 'pendiente'
+  
+  const createdAt = attrs.createdAt || (solicitud as any).createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
-
-  // Obtener estado_publicacion
-  const estadoPublicacion = getField(data, 'estado_publicacion', 'ESTADO_PUBLICACION', 'estadoPublicacion') || 'Pendiente'
-
   const imageUrl = getImageUrl()
+
   return {
-    image: { src: imageUrl || '' },
+    id: solicitud.id || solicitud.documentId || solicitud.id,
     name: nombre,
+    code: isbn || `STRAPI-${solicitud.id}`,
     brand: autor,
-    code: isbn || `STRAPI-${producto.id}`,
     category: tipoLibro,
-    stock: getStockTotal(),
-    price: getPrecioMinimo(),
-    sold: 0,
-    rating: 4,
-    reviews: 0,
-    status: isPublished ? 'published' : 'pending',
-    date: format(createdDate, 'dd MMM, yyyy'),
+    image: { src: imageUrl || '' },
+    estado: estado as 'pendiente' | 'aprobada' | 'rechazada',
+    fecha_solicitud: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
-    url: `/products/${producto.id || producto.documentId || producto.id}`,
-    strapiId: producto.id,
-    estadoPublicacion: estadoPublicacion as 'Publicado' | 'Pendiente' | 'Borrador',
-    productoOriginal: producto, // Guardar producto original para actualizar
+    url: `/products/${solicitud.id || solicitud.documentId || solicitud.id}`,
+    strapiId: solicitud.id,
   }
 }
 
 interface ProductRequestsListingProps {
-  productos?: any[]
+  solicitudes?: any[]
   error?: string | null
 }
 
-const priceRangeFilterFn: FilterFn<any> = (row, columnId, value) => {
-  const price = row.getValue<number>(columnId)
-  if (!value) return true
-  if (value === '500+') return price > 500
-  const [min, max] = value.split('-').map(Number)
-  return price >= min && price <= max
-}
+const columnHelper = createColumnHelper<ProductRequestType>()
 
-const columnHelper = createColumnHelper<ProductTypeExtended>()
-
-const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProps = {}) => {
-  const mappedProducts = useMemo(() => {
-    if (productos && productos.length > 0) {
-      console.log('[ProductRequestsListing] Productos recibidos:', productos.length)
-      const mapped = productos.map(mapStrapiProductToProductType)
-      console.log('[ProductRequestsListing] Productos mapeados:', mapped.length)
+const ProductRequestsListing = ({ solicitudes, error }: ProductRequestsListingProps = {}) => {
+  const router = useRouter()
+  
+  // Mapear solicitudes de Strapi al formato ProductRequestType si están disponibles
+  const mappedSolicitudes = useMemo(() => {
+    if (solicitudes && solicitudes.length > 0) {
+      console.log('[ProductRequestsListing] Solicitudes recibidas:', solicitudes.length)
+      const mapped = solicitudes.map(mapStrapiSolicitudToRequestType)
+      console.log('[ProductRequestsListing] Solicitudes mapeadas:', mapped.length)
       return mapped
     }
-    console.log('[ProductRequestsListing] No hay productos de Strapi, usando datos de ejemplo')
-    return productData.map((p) => ({ ...p, estadoPublicacion: 'Pendiente' as const }))
-  }, [productos])
+    console.log('[ProductRequestsListing] No hay solicitudes de Strapi')
+    return []
+  }, [solicitudes])
 
-  // Estado para el modal de cambio de estado
-  const [showChangeStatusModal, setShowChangeStatusModal] = useState(false)
-  const [selectedProduct, setSelectedProduct] = useState<ProductTypeExtended | null>(null)
-
-  const columns: ColumnDef<ProductTypeExtended, any>[] = [
+  const columns: ColumnDef<ProductRequestType, any>[] = [
     {
       id: 'select',
       maxSize: 45,
       size: 45,
-      header: ({ table }: { table: TableType<ProductTypeExtended> }) => (
+      header: ({ table }: { table: TableType<ProductRequestType> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -169,7 +141,7 @@ const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProp
           onChange={table.getToggleAllRowsSelectedHandler()}
         />
       ),
-      cell: ({ row }: { row: TableRow<ProductTypeExtended> }) => (
+      cell: ({ row }: { row: TableRow<ProductRequestType> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -181,17 +153,15 @@ const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProp
       enableColumnFilter: false,
     },
     columnHelper.accessor('name', {
-      header: 'Product',
+      header: 'Producto',
       cell: ({ row }) => {
-        const imageSrc = typeof row.original.image === 'object' && 'src' in row.original.image
-          ? row.original.image.src
-          : null
+        const imageSrc = row.original.image?.src
         
         if (!imageSrc) {
           return (
             <div className="d-flex">
               <div className="avatar-md me-3 bg-light d-flex align-items-center justify-content-center rounded">
-                <span className="text-muted fs-xs">Sin imagen</span>
+                <span className="text-muted fs-xs">📦</span>
               </div>
               <div>
                 <h5 className="mb-0">
@@ -235,101 +205,71 @@ const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProp
       filterFn: 'equalsString',
       enableColumnFilter: true,
     }),
-    columnHelper.accessor('stock', { header: 'Stock' }),
-    columnHelper.accessor('price', {
-      header: 'Precio',
-      filterFn: priceRangeFilterFn,
-      enableColumnFilter: true,
-      cell: ({ row }) => (
-        <>
-          {currency}
-          {row.original.price}
-        </>
-      ),
-    }),
-    columnHelper.accessor('sold', { header: 'Vendidos' }),
-    columnHelper.accessor('rating', {
-      header: 'Calificación',
-      cell: ({ row }) => (
-        <>
-          <Rating rating={row.original.rating} />
-          <span className="ms-1">
-            <Link href="" className="link-reset fw-semibold">
-              ({row.original.reviews})
-            </Link>
-          </span>
-        </>
-      ),
-    }),
-    columnHelper.accessor('estadoPublicacion', {
-      header: 'Estado Publicación',
-      filterFn: 'equalsString',
-      enableColumnFilter: true,
-      cell: ({ row }) => {
-        const estado = row.original.estadoPublicacion || 'Pendiente'
-        const badgeClass = estado === 'Publicado' ? 'badge-soft-success' :
-                          estado === 'Pendiente' ? 'badge-soft-warning' :
-                          'badge-soft-secondary'
-        return (
-          <span className={`badge ${badgeClass} fs-xxs`}>
-            {estado}
-          </span>
-        )
-      },
-    }),
-    columnHelper.accessor('status', {
+    columnHelper.accessor('estado', {
       header: 'Estado',
       filterFn: 'equalsString',
       enableColumnFilter: true,
       cell: ({ row }) => {
-        const statusText = row.original.status === 'published' ? 'Publicado' : 
-                          row.original.status === 'pending' ? 'Pendiente' : 'Rechazado'
+        const estadoColors: Record<string, string> = {
+          pendiente: 'warning',
+          aprobada: 'success',
+          rechazada: 'danger',
+        }
+        const estadoLabels: Record<string, string> = {
+          pendiente: 'Pendiente',
+          aprobada: 'Aprobada',
+          rechazada: 'Rechazada',
+        }
         return (
-          <span
-            className={`badge ${row.original.status === 'published' ? 'badge-soft-success' : row.original.status === 'pending' ? 'badge-soft-warning' : 'badge-soft-danger'} fs-xxs`}>
-            {statusText}
-          </span>
+          <Badge bg={estadoColors[row.original.estado] || 'secondary'} className="fs-xxs">
+            {estadoLabels[row.original.estado] || row.original.estado}
+          </Badge>
         )
       },
     }),
-    columnHelper.accessor('date', {
-      header: 'Fecha',
+    columnHelper.accessor('fecha_solicitud', {
+      header: 'Fecha de Solicitud',
       cell: ({ row }) => (
         <>
-          {row.original.date} <small className="text-muted">{row.original.time}</small>
+          {row.original.fecha_solicitud} <small className="text-muted">{row.original.time}</small>
         </>
       ),
     }),
     {
       header: 'Acciones',
-      cell: ({ row }: { row: TableRow<ProductTypeExtended> }) => (
+      cell: ({ row }: { row: TableRow<ProductRequestType> }) => (
         <div className="d-flex gap-1">
           <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver">
+            <Button variant="default" size="sm" className="btn-icon rounded-circle">
               <TbEye className="fs-lg" />
             </Button>
           </Link>
-          <Link href={`/products/${row.original.strapiId || row.original.code}`}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Editar">
-              <TbEdit className="fs-lg" />
-            </Button>
-          </Link>
+          {row.original.estado === 'pendiente' && (
+            <>
+              <Button
+                variant="success"
+                size="sm"
+                className="btn-icon rounded-circle"
+                onClick={() => handleApproveClick(row.original.id)}
+                title="Aprobar"
+              >
+                <TbCheck className="fs-lg" />
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                className="btn-icon rounded-circle"
+                onClick={() => handleRejectClick(row.original.id)}
+                title="Rechazar"
+              >
+                <TbX className="fs-lg" />
+              </Button>
+            </>
+          )}
           <Button
             variant="default"
             size="sm"
             className="btn-icon rounded-circle"
-            title="Cambiar Estado"
-            onClick={() => {
-              setSelectedProduct(row.original)
-              setShowChangeStatusModal(true)
-            }}>
-            <TbCheck className="fs-lg" />
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
-            className="btn-icon rounded-circle"
-            title="Eliminar"
             onClick={() => {
               toggleDeleteModal()
               setSelectedRowIds({ [row.id]: true })
@@ -341,7 +281,7 @@ const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProp
     },
   ]
 
-  const [data, setData] = useState<ProductTypeExtended[]>([])
+  const [data, setData] = useState<ProductRequestType[]>([])
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -349,44 +289,22 @@ const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProp
 
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
 
-  // Estado para el orden de columnas
-  const [columnOrder, setColumnOrder] = useState<string[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('product-requests-column-order')
-      if (saved) {
-        try {
-          return JSON.parse(saved)
-        } catch (e) {
-          console.error('Error al cargar orden de columnas:', e)
-        }
-      }
-    }
-    return []
-  })
-
-  // Guardar orden de columnas en localStorage
-  const handleColumnOrderChange = (newOrder: string[]) => {
-    setColumnOrder(newOrder)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('product-requests-column-order', JSON.stringify(newOrder))
-    }
-  }
-
-  // Actualizar datos cuando cambien los productos de Strapi
+  // Actualizar datos cuando cambien las solicitudes de Strapi
   useEffect(() => {
-    setData(mappedProducts)
-  }, [mappedProducts])
+    console.log('[ProductRequestsListing] useEffect - solicitudes:', solicitudes?.length, 'mappedSolicitudes:', mappedSolicitudes.length)
+    setData(mappedSolicitudes)
+    console.log('[ProductRequestsListing] Datos actualizados. Total:', mappedSolicitudes.length)
+  }, [mappedSolicitudes, solicitudes])
 
-  const table = useReactTable<ProductTypeExtended>({
+  const table = useReactTable<ProductRequestType>({
     data,
     columns,
-    state: { sorting, globalFilter, columnFilters, pagination, rowSelection: selectedRowIds, columnOrder },
+    state: { sorting, globalFilter, columnFilters, pagination, rowSelection: selectedRowIds },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     onColumnFiltersChange: setColumnFilters,
     onPaginationChange: setPagination,
     onRowSelectionChange: setSelectedRowIds,
-    onColumnOrderChange: setColumnOrder,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -394,9 +312,6 @@ const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProp
     globalFilterFn: 'includesString',
     enableColumnFilters: true,
     enableRowSelection: true,
-    filterFns: {
-      priceRange: priceRangeFilterFn,
-    },
   })
 
   const pageIndex = table.getState().pagination.pageIndex
@@ -407,70 +322,154 @@ const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProp
   const end = Math.min(start + pageSize - 1, totalItems)
 
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false)
+  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false)
+  const [confirmAction, setConfirmAction] = useState<'approve' | 'reject'>('approve')
+  const [pendingId, setPendingId] = useState<number | null>(null)
 
   const toggleDeleteModal = () => {
     setShowDeleteModal(!showDeleteModal)
   }
 
-  const handleDelete = () => {
-    const selectedIds = new Set(Object.keys(selectedRowIds))
-    setData((old) => old.filter((_, idx) => !selectedIds.has(idx.toString())))
-    setSelectedRowIds({})
-    setPagination({ ...pagination, pageIndex: 0 })
-    setShowDeleteModal(false)
+  const handleApproveClick = (id: number) => {
+    setPendingId(id)
+    setConfirmAction('approve')
+    setShowConfirmModal(true)
   }
 
-  // Manejar cambio de estado
-  const handleChangeStatus = async (newStatus: string) => {
-    if (!selectedProduct || !selectedProduct.strapiId) {
-      throw new Error('Producto no válido')
-    }
+  const handleRejectClick = (id: number) => {
+    setPendingId(id)
+    setConfirmAction('reject')
+    setShowConfirmModal(true)
+  }
 
+  const handleApprove = async () => {
+    if (!pendingId) return
+    
     try {
-      const response = await fetch(`/api/tienda/productos/${selectedProduct.strapiId}`, {
+      console.log('[ProductRequestsListing] Aprobando solicitud:', pendingId)
+      const response = await fetch(`/api/tienda/productos/${pendingId}`, {
         method: 'PUT',
+        credentials: 'include', // Incluir cookies
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          estado_publicacion: newStatus,
+          estado_publicacion: 'publicado',
         }),
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Error al actualizar el estado')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Error al aprobar la solicitud')
       }
 
-      // Actualizar el estado local
-      setData((old) => old.map((p) => {
-        if (p.strapiId === selectedProduct.strapiId) {
-          return { ...p, estadoPublicacion: newStatus as 'Publicado' | 'Pendiente' | 'Borrador' }
-        }
-        return p
-      }))
-
-      // Recargar la página para obtener datos actualizados desde Strapi
-      window.location.reload()
+      // Actualizar estado local
+      setData((old) => old.map(item => 
+        item.id === pendingId ? { ...item, estado: 'aprobada' as const } : item
+      ))
+      
+      router.refresh()
     } catch (error: any) {
-      console.error('[ProductRequestsListing] Error al cambiar estado:', error)
-      throw error
+      console.error('Error al aprobar solicitud:', error)
+      alert(error.message || 'Error al aprobar la solicitud')
+    } finally {
+      setPendingId(null)
     }
   }
 
+  const handleReject = async () => {
+    if (!pendingId) return
+    
+    try {
+      console.log('[ProductRequestsListing] Rechazando solicitud:', pendingId)
+      const response = await fetch(`/api/tienda/productos/${pendingId}`, {
+        method: 'PUT',
+        credentials: 'include', // Incluir cookies
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          estado_publicacion: 'pendiente',
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Error al rechazar la solicitud')
+      }
+
+      // Actualizar estado local
+      setData((old) => old.map(item => 
+        item.id === pendingId ? { ...item, estado: 'pendiente' as const } : item
+      ))
+      
+      router.refresh()
+    } catch (error: any) {
+      console.error('Error al rechazar solicitud:', error)
+      alert(error.message || 'Error al rechazar la solicitud')
+    } finally {
+      setPendingId(null)
+    }
+  }
+
+  const handleDelete = async () => {
+    const selectedIds = Object.keys(selectedRowIds)
+    const idsToDelete = selectedIds.map(id => data[parseInt(id)]?.id).filter(Boolean)
+    
+    try {
+      // Eliminar cada solicitud seleccionada
+      for (const solicitudId of idsToDelete) {
+        const response = await fetch(`/api/tienda/productos/${solicitudId}`, {
+          method: 'DELETE',
+          credentials: 'include', // Incluir cookies
+        })
+        if (!response.ok) {
+          throw new Error(`Error al eliminar solicitud ${solicitudId}`)
+        }
+      }
+      
+      // Actualizar datos localmente
+      setData((old) => old.filter((_, idx) => !selectedIds.includes(idx.toString())))
+      setSelectedRowIds({})
+      setPagination({ ...pagination, pageIndex: 0 })
+      setShowDeleteModal(false)
+      
+      // Recargar la página para reflejar cambios
+      router.refresh()
+    } catch (error) {
+      console.error('Error al eliminar solicitudes:', error)
+      alert('Error al eliminar las solicitudes seleccionadas')
+    }
+  }
+
+  // Mostrar error si existe
   const hasError = !!error
-  const hasData = mappedProducts.length > 0
+  const hasData = mappedSolicitudes.length > 0
   
   if (hasError && !hasData) {
     return (
       <Row>
         <Col xs={12}>
           <Alert variant="warning">
-            <strong>Error al cargar productos desde Strapi:</strong> {error}
+            <strong>Error al cargar solicitudes desde Strapi:</strong> {error}
+            <br />
+            <small className="text-muted">
+              Verifica que:
+              <ul className="mt-2 mb-0">
+                <li>STRAPI_API_TOKEN esté configurado en Railway</li>
+                <li>El servidor de Strapi esté disponible</li>
+                <li>Las variables de entorno estén correctas</li>
+              </ul>
+            </small>
           </Alert>
         </Col>
       </Row>
     )
+  }
+  
+  // Si hay error pero también hay datos, mostrar advertencia pero continuar
+  if (hasError && hasData) {
+    console.warn('[ProductRequestsListing] Error al cargar desde Strapi, usando datos disponibles:', error)
   }
 
   return (
@@ -483,7 +482,7 @@ const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProp
                 <input
                   type="search"
                   className="form-control"
-                  placeholder="Buscar nombre de producto..."
+                  placeholder="Buscar solicitud de producto..."
                   value={globalFilter ?? ''}
                   onChange={(e) => setGlobalFilter(e.target.value)}
                 />
@@ -506,23 +505,9 @@ const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProp
                   value={(table.getColumn('category')?.getFilterValue() as string) ?? 'All'}
                   onChange={(e) => table.getColumn('category')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
                   <option value="All">Categoría</option>
-                  <option value="Plan Lector">Plan Lector</option>
-                  <option value="Texto Curricular">Texto Curricular</option>
-                  <option value="Texto PAES">Texto PAES</option>
-                  <option value="Texto Complementario">Texto Complementario</option>
-                </select>
-                <LuTag className="app-search-icon text-muted" />
-              </div>
-
-              <div className="app-search">
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('estadoPublicacion')?.getFilterValue() as string) ?? 'All'}
-                  onChange={(e) => table.getColumn('estadoPublicacion')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
-                  <option value="All">Estado Publicación</option>
-                  <option value="Publicado">Publicado</option>
-                  <option value="Pendiente">Pendiente</option>
-                  <option value="Borrador">Borrador</option>
+                  <option value="Electronics">Electronics</option>
+                  <option value="Fashion">Fashion</option>
+                  <option value="Home">Home</option>
                 </select>
                 <LuBox className="app-search-icon text-muted" />
               </div>
@@ -530,15 +515,14 @@ const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProp
               <div className="app-search">
                 <select
                   className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('price')?.getFilterValue() as string) ?? ''}
-                  onChange={(e) => table.getColumn('price')?.setFilterValue(e.target.value || undefined)}>
-                  <option value="">Rango de Precio</option>
-                  <option value="0-50">$0 - $50</option>
-                  <option value="51-150">$51 - $150</option>
-                  <option value="151-500">$151 - $500</option>
-                  <option value="500+">$500+</option>
+                  value={(table.getColumn('estado')?.getFilterValue() as string) ?? 'All'}
+                  onChange={(e) => table.getColumn('estado')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
+                  <option value="All">Estado</option>
+                  <option value="pendiente">Pendiente</option>
+                  <option value="aprobada">Aprobada</option>
+                  <option value="rechazada">Rechazada</option>
                 </select>
-                <LuDollarSign className="app-search-icon text-muted" />
+                <LuBox className="app-search-icon text-muted" />
               </div>
 
               <div>
@@ -559,14 +543,18 @@ const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProp
               <Button variant="primary" className="btn-icon">
                 <TbList className="fs-lg" />
               </Button>
+              <Link href="/add-product" passHref>
+                <Button variant="danger" className="ms-1">
+                  <TbPlus className="fs-sm me-2" /> Nueva Solicitud
+                </Button>
+              </Link>
             </div>
           </CardHeader>
 
-          <DataTable<ProductTypeExtended>
+          <DataTable<ProductRequestType>
             table={table}
-            emptyMessage="No se encontraron registros"
+            emptyMessage="No se encontraron solicitudes"
             enableColumnReordering={true}
-            onColumnOrderChange={handleColumnOrderChange}
           />
 
           {table.getRowModel().rows.length > 0 && (
@@ -575,7 +563,7 @@ const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProp
                 totalItems={totalItems}
                 start={start}
                 end={end}
-                itemsName="productos"
+                itemsName="solicitudes"
                 showInfo
                 previousPage={table.previousPage}
                 canPreviousPage={table.getCanPreviousPage()}
@@ -593,21 +581,19 @@ const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProp
             onHide={toggleDeleteModal}
             onConfirm={handleDelete}
             selectedCount={Object.keys(selectedRowIds).length}
-            itemName="producto"
+            itemName="solicitud"
           />
 
-          {selectedProduct && (
-            <ChangeStatusModal
-              show={showChangeStatusModal}
-              onHide={() => {
-                setShowChangeStatusModal(false)
-                setSelectedProduct(null)
-              }}
-              onConfirm={handleChangeStatus}
-              currentStatus={selectedProduct.estadoPublicacion || 'Pendiente'}
-              productName={selectedProduct.name || 'Sin nombre'}
-            />
-          )}
+          <ConfirmStatusModal
+            show={showConfirmModal}
+            onHide={() => {
+              setShowConfirmModal(false)
+              setPendingId(null)
+            }}
+            onConfirm={confirmAction === 'approve' ? handleApprove : handleReject}
+            action={confirmAction}
+            itemName="solicitud"
+          />
         </Card>
       </Col>
     </Row>

@@ -18,6 +18,7 @@ export default async function Page({ params }: { params: Promise<{ marcaId: stri
     
     const response = await fetch(`${baseUrl}/api/tienda/marca/${marcaId}`, {
       cache: 'no-store',
+      credentials: 'include', // Incluir cookies
     })
     
     const data = await response.json()
@@ -38,4 +39,6 @@ export default async function Page({ params }: { params: Promise<{ marcaId: stri
     </Container>
   )
 }
+
+
 

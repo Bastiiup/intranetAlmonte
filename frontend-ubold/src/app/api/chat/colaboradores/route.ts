@@ -3,9 +3,10 @@
  * Obtiene todos los colaboradores con sus datos de Persona relacionados
  */
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import { requireAuth } from '@/lib/auth/middleware'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,7 +32,11 @@ interface ColaboradorAttributes {
   [key: string]: any
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Verificar autenticación
+  const authError = await requireAuth(request)
+  if (authError) return authError
+
   try {
     // Populate específico: solo los campos que necesitamos para el chat
     // Excluimos relaciones problemáticas como tags, cartera_asignaciones, trayectorias

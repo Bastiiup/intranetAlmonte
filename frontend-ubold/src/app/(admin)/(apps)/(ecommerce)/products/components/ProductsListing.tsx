@@ -34,7 +34,6 @@ import { format } from 'date-fns'
 type ProductTypeExtended = Omit<ProductType, 'image'> & {
   image: StaticImageData | { src: string | null }
   strapiId?: number
-  estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
 }
 
 // Helper para obtener campo con múltiples variaciones
@@ -115,9 +114,6 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
   const createdAt = attrs.createdAt || (producto as any).createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
 
-  // Obtener estado_publicacion
-  const estadoPublicacion = getField(data, 'estado_publicacion', 'ESTADO_PUBLICACION', 'estadoPublicacion') || 'Pendiente'
-
   const imageUrl = getImageUrl()
   return {
     image: { src: imageUrl || '' },
@@ -136,7 +132,6 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
     // Usar el ID numérico si existe, sino documentId, sino el id tal cual
     url: `/products/${producto.id || producto.documentId || producto.id}`,
     strapiId: producto.id,
-    estadoPublicacion: estadoPublicacion as 'Publicado' | 'Pendiente' | 'Borrador',
   }
 }
 
@@ -250,13 +245,13 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
     }),
     columnHelper.accessor('code', { header: 'SKU' }),
     columnHelper.accessor('category', {
-      header: 'Categoría',
+      header: 'Category',
       filterFn: 'equalsString',
       enableColumnFilter: true,
     }),
     columnHelper.accessor('stock', { header: 'Stock' }),
     columnHelper.accessor('price', {
-      header: 'Precio',
+      header: 'Price',
       filterFn: priceRangeFilterFn,
       enableColumnFilter: true,
       cell: ({ row }) => (
@@ -266,9 +261,9 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
         </>
       ),
     }),
-    columnHelper.accessor('sold', { header: 'Vendidos' }),
+    columnHelper.accessor('sold', { header: 'Sold' }),
     columnHelper.accessor('rating', {
-      header: 'Calificación',
+      header: 'Rating',
       cell: ({ row }) => (
         <>
           <Rating rating={row.original.rating} />
@@ -281,38 +276,18 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
       ),
     }),
     columnHelper.accessor('status', {
-      header: 'Estado',
+      header: 'Status',
       filterFn: 'equalsString',
       enableColumnFilter: true,
-      cell: ({ row }) => {
-        const statusText = row.original.status === 'published' ? 'Publicado' : 
-                          row.original.status === 'pending' ? 'Pendiente' : 'Rechazado'
-        return (
-          <span
-            className={`badge ${row.original.status === 'published' ? 'badge-soft-success' : row.original.status === 'pending' ? 'badge-soft-warning' : 'badge-soft-danger'} fs-xxs`}>
-            {statusText}
-          </span>
-        )
-      },
-    }),
-    columnHelper.accessor('estadoPublicacion', {
-      header: 'Estado Publicación',
-      filterFn: 'equalsString',
-      enableColumnFilter: true,
-      cell: ({ row }) => {
-        const estado = row.original.estadoPublicacion || 'Pendiente'
-        const badgeClass = estado === 'Publicado' ? 'badge-soft-success' :
-                          estado === 'Pendiente' ? 'badge-soft-warning' :
-                          'badge-soft-secondary'
-        return (
-          <span className={`badge ${badgeClass} fs-xxs`}>
-            {estado}
-          </span>
-        )
-      },
+      cell: ({ row }) => (
+        <span
+          className={`badge ${row.original.status === 'published' ? 'badge-soft-success' : row.original.status === 'pending' ? 'badge-soft-warning' : 'badge-soft-danger'} fs-xxs`}>
+          {toPascalCase(row.original.status)}
+        </span>
+      ),
     }),
     columnHelper.accessor('date', {
-      header: 'Fecha',
+      header: 'Date',
       cell: ({ row }) => (
         <>
           {row.original.date} <small className="text-muted">{row.original.time}</small>
@@ -320,7 +295,7 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
       ),
     }),
     {
-      header: 'Acciones',
+      header: 'Actions',
       cell: ({ row }: { row: TableRow<ProductTypeExtended> }) => (
         <div className="d-flex  gap-1">
           <Link href={row.original.url}>
@@ -328,7 +303,7 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
               <TbEye className="fs-lg" />
             </Button>
           </Link>
-          <Link href={`/products/${row.original.strapiId || row.original.code}`}>
+          <Link href={`/tienda/productos/${row.original.strapiId || row.original.code}/editar`}>
             <Button variant="default" size="sm" className="btn-icon rounded-circle">
               <TbEdit className="fs-lg" />
             </Button>
@@ -356,29 +331,6 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
 
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
 
-  // Estado para el orden de columnas
-  const [columnOrder, setColumnOrder] = useState<string[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('products-column-order')
-      if (saved) {
-        try {
-          return JSON.parse(saved)
-        } catch (e) {
-          console.error('Error al cargar orden de columnas:', e)
-        }
-      }
-    }
-    return []
-  })
-
-  // Guardar orden de columnas en localStorage
-  const handleColumnOrderChange = (newOrder: string[]) => {
-    setColumnOrder(newOrder)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('products-column-order', JSON.stringify(newOrder))
-    }
-  }
-
   // Actualizar datos cuando cambien los productos de Strapi
   useEffect(() => {
     console.log('[ProductsListing] useEffect - productos:', productos?.length, 'mappedProducts:', mappedProducts.length)
@@ -389,13 +341,12 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
   const table = useReactTable<ProductTypeExtended>({
     data,
     columns,
-    state: { sorting, globalFilter, columnFilters, pagination, rowSelection: selectedRowIds, columnOrder },
+    state: { sorting, globalFilter, columnFilters, pagination, rowSelection: selectedRowIds },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     onColumnFiltersChange: setColumnFilters,
     onPaginationChange: setPagination,
     onRowSelectionChange: setSelectedRowIds,
-    onColumnOrderChange: setColumnOrder,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -473,7 +424,7 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
                 <input
                   type="search"
                   className="form-control"
-                  placeholder="Buscar nombre de producto..."
+                  placeholder="Search product name..."
                   value={globalFilter ?? ''}
                   onChange={(e) => setGlobalFilter(e.target.value)}
                 />
@@ -482,25 +433,25 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
 
               {Object.keys(selectedRowIds).length > 0 && (
                 <Button variant="danger" size="sm" onClick={toggleDeleteModal}>
-                  Eliminar
+                  Delete
                 </Button>
               )}
             </div>
 
             <div className="d-flex align-items-center gap-2">
-              <span className="me-2 fw-semibold">Filtrar por:</span>
+              <span className="me-2 fw-semibold">Filter By:</span>
 
               <div className="app-search">
                 <select
                   className="form-select form-control my-1 my-md-0"
                   value={(table.getColumn('category')?.getFilterValue() as string) ?? 'All'}
                   onChange={(e) => table.getColumn('category')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
-                  <option value="All">Categoría</option>
-                  <option value="Electronics">Electrónica</option>
-                  <option value="Fashion">Moda</option>
-                  <option value="Home">Hogar</option>
-                  <option value="Sports">Deportes</option>
-                  <option value="Beauty">Belleza</option>
+                  <option value="All">Category</option>
+                  <option value="Electronics">Electronics</option>
+                  <option value="Fashion">Fashion</option>
+                  <option value="Home">Home</option>
+                  <option value="Sports">Sports</option>
+                  <option value="Beauty">Beauty</option>
                 </select>
                 <LuTag className="app-search-icon text-muted" />
               </div>
@@ -510,23 +461,10 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
                   className="form-select form-control my-1 my-md-0"
                   value={(table.getColumn('status')?.getFilterValue() as string) ?? 'All'}
                   onChange={(e) => table.getColumn('status')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
-                  <option value="All">Estado</option>
-                  <option value="published">Publicado</option>
-                  <option value="pending">Pendiente</option>
-                  <option value="rejected">Rechazado</option>
-                </select>
-                <LuBox className="app-search-icon text-muted" />
-              </div>
-
-              <div className="app-search">
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('estadoPublicacion')?.getFilterValue() as string) ?? 'All'}
-                  onChange={(e) => table.getColumn('estadoPublicacion')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
-                  <option value="All">Estado Publicación</option>
-                  <option value="Publicado">Publicado</option>
-                  <option value="Pendiente">Pendiente</option>
-                  <option value="Borrador">Borrador</option>
+                  <option value="All">Status</option>
+                  <option value="published">Published</option>
+                  <option value="pending">Pending</option>
+                  <option value="rejected">Rejected</option>
                 </select>
                 <LuBox className="app-search-icon text-muted" />
               </div>
@@ -536,7 +474,7 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
                   className="form-select form-control my-1 my-md-0"
                   value={(table.getColumn('price')?.getFilterValue() as string) ?? ''}
                   onChange={(e) => table.getColumn('price')?.setFilterValue(e.target.value || undefined)}>
-                  <option value="">Rango de Precio</option>
+                  <option value="">Price Range</option>
                   <option value="0-50">$0 - $50</option>
                   <option value="51-150">$51 - $150</option>
                   <option value="151-500">$151 - $500</option>
@@ -570,18 +508,13 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
               </Button>
               <Link href="/add-product" passHref>
                 <Button variant="danger" className="ms-1">
-                  <TbPlus className="fs-sm me-2" /> Agregar Producto
+                  <TbPlus className="fs-sm me-2" /> Add Product
                 </Button>
               </Link>
             </div>
           </CardHeader>
 
-          <DataTable<ProductTypeExtended>
-            table={table}
-            emptyMessage="No se encontraron registros"
-            enableColumnReordering={true}
-            onColumnOrderChange={handleColumnOrderChange}
-          />
+          <DataTable<ProductTypeExtended> table={table} emptyMessage="No records found" />
 
           {table.getRowModel().rows.length > 0 && (
             <CardFooter className="border-0">
@@ -589,7 +522,7 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
                 totalItems={totalItems}
                 start={start}
                 end={end}
-                itemsName="productos"
+                itemsName="products"
                 showInfo
                 previousPage={table.previousPage}
                 canPreviousPage={table.getCanPreviousPage()}

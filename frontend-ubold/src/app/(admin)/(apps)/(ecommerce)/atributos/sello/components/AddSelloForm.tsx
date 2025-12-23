@@ -67,6 +67,7 @@ const AddSelloForm = () => {
           
           const uploadResponse = await fetch('/api/tienda/upload', {
             method: 'POST',
+            credentials: 'include', // Incluir cookies
             body: formDataLogo,
           })
           
@@ -87,6 +88,7 @@ const AddSelloForm = () => {
       // Crear el sello
       const response = await fetch('/api/tienda/sello', {
         method: 'POST',
+        credentials: 'include', // Incluir cookies
         headers: {
           'Content-Type': 'application/json',
         },
