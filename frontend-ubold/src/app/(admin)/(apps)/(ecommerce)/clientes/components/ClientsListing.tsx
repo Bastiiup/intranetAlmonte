@@ -16,12 +16,14 @@ import {
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert } from 'react-bootstrap'
 import { LuDollarSign, LuSearch, LuUser } from 'react-icons/lu'
-import { TbList, TbPlus, TbTrash } from 'react-icons/tb'
+import { TbEdit, TbList, TbPlus, TbTrash } from 'react-icons/tb'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
+import EditClienteModal from './EditClienteModal'
 import { currency } from '@/helpers'
 import { format } from 'date-fns'
 
@@ -38,6 +40,7 @@ type ClienteType = {
   ultima_actividad?: string
   createdAt: string
   strapiId?: number
+  woocommerce_id?: number | string
 }
 
 // Helper para obtener campo con múltiples variaciones
@@ -71,6 +74,9 @@ const mapStrapiClienteToClienteType = (cliente: any): ClienteType => {
   const ultimaActividad = getField(data, 'ultima_actividad', 'ULTIMA_ACTIVIDAD', 'ultimaActividad') || ''
   const createdAt = attrs.createdAt || cliente.createdAt || new Date().toISOString()
 
+  // Obtener woocommerce_id
+  const woocommerceId = getField(data, 'woocommerce_id', 'woocommerceId', 'WOCOMMERCE_ID')
+
   return {
     id: cliente.id || cliente.documentId || 0,
     nombre,
@@ -83,6 +89,7 @@ const mapStrapiClienteToClienteType = (cliente: any): ClienteType => {
     ultima_actividad: ultimaActividad,
     createdAt,
     strapiId: cliente.id,
+    woocommerce_id: woocommerceId,
   }
 }
 
@@ -102,6 +109,10 @@ const gastoRangeFilterFn: FilterFn<any> = (row, columnId, value) => {
 const columnHelper = createColumnHelper<ClienteType>()
 
 const ClientsListing = ({ clientes, error }: ClientsListingProps = {}) => {
+  const router = useRouter()
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [selectedCliente, setSelectedCliente] = useState<ClienteType | null>(null)
+
   // Mapear clientes de Strapi al formato ClienteType si están disponibles
   const mappedClients = useMemo(() => {
     if (clientes && clientes.length > 0) {
@@ -218,7 +229,20 @@ const ClientsListing = ({ clientes, error }: ClientsListingProps = {}) => {
             variant="default"
             size="sm"
             className="btn-icon rounded-circle"
+            title="Editar"
             onClick={() => {
+              setSelectedCliente(row.original)
+              setShowEditModal(true)
+            }}>
+            <TbEdit className="fs-lg" />
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            className="btn-icon rounded-circle"
+            title="Eliminar"
+            onClick={() => {
+              setSelectedCliente(row.original)
               toggleDeleteModal()
               setSelectedRowIds({ [row.id]: true })
             }}>
@@ -297,17 +321,51 @@ const ClientsListing = ({ clientes, error }: ClientsListingProps = {}) => {
   const end = Math.min(start + pageSize - 1, totalItems)
 
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false)
+  const [deleting, setDeleting] = useState(false)
 
   const toggleDeleteModal = () => {
     setShowDeleteModal(!showDeleteModal)
   }
 
-  const handleDelete = () => {
-    const selectedIds = new Set(Object.keys(selectedRowIds))
-    setData((old) => old.filter((_, idx) => !selectedIds.has(idx.toString())))
-    setSelectedRowIds({})
-    setPagination({ ...pagination, pageIndex: 0 })
-    setShowDeleteModal(false)
+  const handleDelete = async () => {
+    if (!selectedCliente) return
+
+    const woocommerceId = selectedCliente.woocommerce_id
+    if (!woocommerceId) {
+      alert('No se puede eliminar: el cliente no tiene ID de WooCommerce')
+      setShowDeleteModal(false)
+      setSelectedCliente(null)
+      return
+    }
+
+    setDeleting(true)
+    try {
+      const response = await fetch(`/api/woocommerce/customers/${woocommerceId}`, {
+        method: 'DELETE',
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Error al eliminar el cliente')
+      }
+
+      // Refrescar la página para actualizar la lista
+      router.refresh()
+      setSelectedRowIds({})
+      setSelectedCliente(null)
+      setShowDeleteModal(false)
+    } catch (err: any) {
+      console.error('Error al eliminar cliente:', err)
+      alert(err.message || 'Error al eliminar el cliente')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const handleEditSave = () => {
+    // Refrescar la página para actualizar la lista
+    router.refresh()
   }
 
   // Mostrar error si existe
@@ -442,6 +500,16 @@ const ClientsListing = ({ clientes, error }: ClientsListingProps = {}) => {
             onConfirm={handleDelete}
             selectedCount={Object.keys(selectedRowIds).length}
             itemName="cliente"
+          />
+
+          <EditClienteModal
+            show={showEditModal}
+            onHide={() => {
+              setShowEditModal(false)
+              setSelectedCliente(null)
+            }}
+            cliente={selectedCliente}
+            onSave={handleEditSave}
           />
         </Card>
       </Col>

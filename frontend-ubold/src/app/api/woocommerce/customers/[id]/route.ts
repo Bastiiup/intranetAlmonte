@@ -267,3 +267,81 @@ export async function GET(
     )
   }
 }
+
+/**
+ * DELETE /api/woocommerce/customers/[id]
+ * Elimina un cliente de WooCommerce y sincroniza con Strapi
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const customerId = parseInt(id)
+
+    if (isNaN(customerId)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'ID de cliente inválido',
+        },
+        { status: 400 }
+      )
+    }
+
+    console.log('[API DELETE] Eliminando cliente:', customerId)
+
+    // 1. Buscar cliente en Strapi (WO-Clientes) por woocommerce_id
+    try {
+      const strapiSearch = await strapiClient.get<any>(`/api/wo-clientes?filters[woocommerce_id][$eq]=${customerId}&populate=*`)
+      const strapiClientes = strapiSearch.data && Array.isArray(strapiSearch.data) ? strapiSearch.data : (strapiSearch.data ? [strapiSearch.data] : [])
+      
+      if (strapiClientes.length > 0) {
+        const strapiCliente = strapiClientes[0]
+        const strapiClienteId = strapiCliente.documentId || strapiCliente.id?.toString()
+        
+        // Eliminar de Strapi
+        await strapiClient.delete(`/api/wo-clientes/${strapiClienteId}`)
+        console.log('[API DELETE] ✅ Cliente eliminado de Strapi (WO-Clientes):', strapiClienteId)
+        
+        // Nota: No eliminamos la Persona asociada ya que puede estar relacionada con otras entidades
+      }
+    } catch (strapiError: any) {
+      console.error('[API DELETE] ⚠️ Error al eliminar de Strapi (no crítico):', strapiError.message)
+      // Continuar aunque falle Strapi
+    }
+
+    // 2. Eliminar de WooCommerce principal
+    try {
+      await wooCommerceClient.delete(`customers/${customerId}`, { force: true })
+      console.log('[API DELETE] ✅ Cliente eliminado de WooCommerce principal:', customerId)
+    } catch (wcError: any) {
+      // Si el cliente no existe en WooCommerce, no es un error crítico
+      if (wcError.status === 404) {
+        console.log('[API DELETE] Cliente no encontrado en WooCommerce (ya eliminado):', customerId)
+      } else {
+        throw wcError
+      }
+    }
+
+    // 3. Intentar eliminar de WordPress adicional (Editorial Moraleja)
+    // Nota: Esto requiere buscar por email ya que no tenemos el ID directamente
+    // Por ahora, solo eliminamos del principal ya que no hay una forma directa de obtener el ID del segundo WordPress
+
+    return NextResponse.json({
+      success: true,
+      message: 'Cliente eliminado exitosamente',
+    })
+  } catch (error: any) {
+    console.error('[API DELETE] ❌ Error al eliminar cliente:', error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message || 'Error al eliminar cliente',
+        status: error.status || 500,
+      },
+      { status: error.status || 500 }
+    )
+  }
+}
