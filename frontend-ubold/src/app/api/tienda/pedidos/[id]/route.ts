@@ -348,7 +348,7 @@ export async function DELETE(
     let documentId: string | null = null
     let wooId: number | null = null
     let originPlatform: string = 'woo_moraleja'
-    let pedidoStrapi: any = null
+    let pedidoStrapi: any = null // Declarar pedidoStrapi antes de usarlo
     
     // Intentar obtener el pedido - si el ID parece ser un documentId (string), usar endpoint directo
     // Si es numérico, intentar con filtro primero
