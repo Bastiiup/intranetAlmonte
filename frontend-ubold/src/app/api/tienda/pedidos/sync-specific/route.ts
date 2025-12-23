@@ -61,25 +61,106 @@ async function buscarPedidoEnWooCommerce(orderNumber: string, platform: 'woo_mor
   const wcClient = createWooCommerceClient(platform)
   
   try {
-    // Intentar buscar por número de pedido
-    const orders = await wcClient.get<any>('orders', {
-      search: orderNumber,
-      per_page: 100,
-    })
-    
-    let ordersArray: any[] = []
-    if (Array.isArray(orders)) {
-      ordersArray = orders
-    } else if (orders?.data && Array.isArray(orders.data)) {
-      ordersArray = orders.data
+    // MÉTODO 1: Intentar buscar directamente por ID si el número es numérico
+    const orderNumberNum = parseInt(orderNumber)
+    if (!isNaN(orderNumberNum) && orderNumberNum > 0) {
+      try {
+        // Intentar primero con estado normal
+        const orderById = await wcClient.get<any>(`orders/${orderNumberNum}`)
+        if (orderById && (String(orderById.id) === String(orderNumberNum) || String(orderById.number) === String(orderNumber))) {
+          console.log(`[Sync Specific] ✅ Pedido encontrado por ID directo: ${orderNumberNum}`)
+          return orderById
+        }
+      } catch (idError: any) {
+        // Si no se encuentra, intentar con status=any para incluir trash
+        try {
+          const orderByIdAny = await wcClient.get<any>(`orders/${orderNumberNum}?status=any`)
+          if (orderByIdAny && (String(orderByIdAny.id) === String(orderNumberNum) || String(orderByIdAny.number) === String(orderNumber))) {
+            console.log(`[Sync Specific] ✅ Pedido encontrado por ID (status=any): ${orderNumberNum}`)
+            return orderByIdAny
+          }
+        } catch (anyError: any) {
+          console.log(`[Sync Specific] No encontrado por ID ${orderNumberNum} (ni con status=any), intentando otros métodos...`)
+        }
+      }
     }
     
-    // Buscar el pedido que coincida exactamente con el número
-    const pedido = ordersArray.find((o: any) => 
-      String(o.number) === String(orderNumber) || String(o.id) === String(orderNumber)
-    )
+    // MÉTODO 2: Buscar por número usando el parámetro search (incluyendo trash)
+    try {
+      const orders = await wcClient.get<any>('orders', {
+        search: orderNumber,
+        per_page: 100,
+        status: 'any', // Incluir todos los estados incluyendo trash
+      })
+      
+      let ordersArray: any[] = []
+      if (Array.isArray(orders)) {
+        ordersArray = orders
+      } else if (orders?.data && Array.isArray(orders.data)) {
+        ordersArray = orders.data
+      }
+      
+      // Buscar el pedido que coincida exactamente con el número
+      const pedido = ordersArray.find((o: any) => 
+        String(o.number) === String(orderNumber) || String(o.id) === String(orderNumber)
+      )
+      
+      if (pedido) {
+        console.log(`[Sync Specific] ✅ Pedido encontrado por búsqueda: ${orderNumber}`)
+        return pedido
+      }
+    } catch (searchError: any) {
+      console.log(`[Sync Specific] Búsqueda por search falló, intentando método 3...`)
+    }
     
-    return pedido || null
+    // MÉTODO 3: Buscar en un rango de pedidos recientes (últimos 1000)
+    try {
+      let page = 1
+      const perPage = 100
+      let found = false
+      let pedido = null
+      
+      // Buscar en las primeras 10 páginas (1000 pedidos)
+      while (!found && page <= 10) {
+        const orders = await wcClient.get<any>('orders', {
+          per_page: perPage,
+          page: page,
+          orderby: 'date',
+          order: 'desc',
+          status: 'any', // Incluir todos los estados incluyendo trash
+        })
+        
+        let ordersArray: any[] = []
+        if (Array.isArray(orders)) {
+          ordersArray = orders
+        } else if (orders?.data && Array.isArray(orders.data)) {
+          ordersArray = orders.data
+        }
+        
+        if (ordersArray.length === 0) break
+        
+        // Buscar el pedido que coincida
+        pedido = ordersArray.find((o: any) => 
+          String(o.number) === String(orderNumber) || String(o.id) === String(orderNumber)
+        )
+        
+        if (pedido) {
+          found = true
+          console.log(`[Sync Specific] ✅ Pedido encontrado en página ${page}: ${orderNumber}`)
+          break
+        }
+        
+        page++
+      }
+      
+      if (pedido) {
+        return pedido
+      }
+    } catch (rangeError: any) {
+      console.log(`[Sync Specific] Búsqueda en rango falló:`, rangeError.message)
+    }
+    
+    return null
   } catch (error: any) {
     console.error(`[Sync Specific] Error buscando pedido #${orderNumber} en ${platform}:`, error.message)
     return null
@@ -90,15 +171,78 @@ async function buscarPedidoEnWooCommerce(orderNumber: string, platform: 'woo_mor
 async function sincronizarPedidoEspecifico(orderNumber: string, platform: 'woo_moraleja' | 'woo_escolar') {
   console.log(`[Sync Specific] 🔍 Buscando pedido #${orderNumber} en ${platform}...`)
   
+  // PRIMERO: Verificar si ya existe en Strapi
+  try {
+    const strapiCheckResponse = await strapiClient.get<any>(
+      `/api/wo-pedidos?filters[numero_pedido][$eq]=${orderNumber}&populate=*&publicationState=preview`
+    )
+    
+    let strapiCheckItems: any[] = []
+    if (Array.isArray(strapiCheckResponse)) {
+      strapiCheckItems = strapiCheckResponse
+    } else if (strapiCheckResponse.data && Array.isArray(strapiCheckResponse.data)) {
+      strapiCheckItems = strapiCheckResponse.data
+    }
+    
+    // Filtrar por plataforma
+    const existingInStrapi = strapiCheckItems.find((item: any) => {
+      const attrs = item?.attributes || {}
+      const data = (attrs && Object.keys(attrs).length > 0) ? attrs : item
+      const itemPlatform = data?.originPlatform || data?.externalIds?.originPlatform
+      return itemPlatform === platform
+    })
+    
+    if (existingInStrapi) {
+      console.log(`[Sync Specific] ℹ️ Pedido #${orderNumber} ya existe en Strapi para ${platform}`)
+      // Aún así intentar actualizar desde WooCommerce si existe
+    }
+  } catch (strapiCheckError: any) {
+    console.log(`[Sync Specific] Error verificando en Strapi:`, strapiCheckError.message)
+  }
+  
   // Buscar en WooCommerce
   const wooOrder = await buscarPedidoEnWooCommerce(orderNumber, platform)
   
   if (!wooOrder) {
+    // Verificar si existe en Strapi aunque no esté en WooCommerce
+    try {
+      const strapiCheckResponse = await strapiClient.get<any>(
+        `/api/wo-pedidos?filters[numero_pedido][$eq]=${orderNumber}&populate=*&publicationState=preview`
+      )
+      
+      let strapiCheckItems: any[] = []
+      if (Array.isArray(strapiCheckResponse)) {
+        strapiCheckItems = strapiCheckResponse
+      } else if (strapiCheckResponse.data && Array.isArray(strapiCheckResponse.data)) {
+        strapiCheckItems = strapiCheckResponse.data
+      }
+      
+      const existingInStrapi = strapiCheckItems.find((item: any) => {
+        const attrs = item?.attributes || {}
+        const data = (attrs && Object.keys(attrs).length > 0) ? attrs : item
+        const itemPlatform = data?.originPlatform || data?.externalIds?.originPlatform
+        return itemPlatform === platform
+      })
+      
+      if (existingInStrapi) {
+        return {
+          success: true,
+          orderNumber,
+          platform,
+          action: 'already_exists',
+          message: `Pedido #${orderNumber} ya existe en Strapi pero no se encontró en WooCommerce ${platform}. Puede que haya sido eliminado o el número sea incorrecto.`,
+          documentId: existingInStrapi.documentId || existingInStrapi.id,
+        }
+      }
+    } catch (checkError: any) {
+      // Continuar con el error normal
+    }
+    
     return {
       success: false,
       orderNumber,
       platform,
-      error: `Pedido #${orderNumber} no encontrado en WooCommerce ${platform}`,
+      error: `Pedido #${orderNumber} no encontrado en WooCommerce ${platform}. Verifique que el pedido existe en el panel de WooCommerce y que el número es correcto.`,
     }
   }
   
