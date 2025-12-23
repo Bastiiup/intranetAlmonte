@@ -27,6 +27,33 @@ function mapEstado(wooStatus: string): string {
   return mapping[wooStatus.toLowerCase()] || 'pendiente'
 }
 
+// Función helper para normalizar origen a valores válidos de Strapi
+function normalizeOrigen(origen: string | null | undefined): string | null {
+  if (!origen) return null
+  
+  const origenLower = String(origen).toLowerCase().trim()
+  const valoresValidos = ['web', 'checkout', 'rest-api', 'admin', 'mobile', 'directo', 'otro']
+  
+  // Si ya es válido, devolverlo
+  if (valoresValidos.includes(origenLower)) {
+    return origenLower
+  }
+  
+  // Mapear variantes comunes
+  const mapping: Record<string, string> = {
+    'restapi': 'rest-api',
+    'rest api': 'rest-api',
+    'directo': 'directo',
+    'web': 'web',
+    'checkout': 'checkout',
+    'admin': 'admin',
+    'mobile': 'mobile',
+    'otro': 'otro',
+  }
+  
+  return mapping[origenLower] || 'web' // Por defecto 'web' si no se reconoce
+}
+
 // Función helper para mapear estado de español (frontend) a inglés (Strapi/WooCommerce)
 // Esta función SIEMPRE debe devolver un valor en inglés válido para Strapi
 function mapWooStatus(strapiStatus: string): string {
@@ -407,6 +434,31 @@ export async function PUT(
       data: {}
     }
 
+    // CORRECCIÓN: Si solo se actualiza el estado, verificar y corregir valores inválidos en otros campos
+    // Esto evita errores de validación cuando el pedido tiene valores inválidos (ej: origen con mayúsculas)
+    const soloActualizandoEstado = body.data.estado !== undefined && 
+      Object.keys(body.data).filter(k => k !== 'estado' && body.data[k] !== undefined).length === 0
+    
+    if (soloActualizandoEstado) {
+      // Obtener el pedido completo para verificar valores inválidos
+      try {
+        const pedidoCompleto = cuponStrapi || (await strapiClient.get<any>(`${pedidoEndpoint}/${documentId || id}?populate=*`))
+        const attrs = pedidoCompleto?.attributes || {}
+        const pedidoDataCompleto = (attrs && Object.keys(attrs).length > 0) ? attrs : pedidoCompleto
+        
+        // Si el pedido tiene origen inválido, corregirlo
+        if (pedidoDataCompleto?.origen) {
+          const origenNormalizado = normalizeOrigen(pedidoDataCompleto.origen)
+          if (origenNormalizado && origenNormalizado !== pedidoDataCompleto.origen) {
+            console.log(`[API Pedidos PUT] 🔧 Corrigiendo origen inválido: "${pedidoDataCompleto.origen}" → "${origenNormalizado}"`)
+            pedidoData.data.origen = origenNormalizado
+          }
+        }
+      } catch (error) {
+        console.warn('[API Pedidos PUT] ⚠️ No se pudo verificar valores inválidos del pedido:', error)
+      }
+    }
+
     // Solo agregar campos que realmente se están actualizando (que están en body.data)
     if (body.data.numero_pedido !== undefined) pedidoData.data.numero_pedido = body.data.numero_pedido?.toString().trim() || null
     if (body.data.fecha_pedido !== undefined) pedidoData.data.fecha_pedido = body.data.fecha_pedido || null
@@ -436,13 +488,15 @@ export async function PUT(
     if (body.data.envio !== undefined) pedidoData.data.envio = body.data.envio != null ? parseFloat(String(body.data.envio)) : null
     if (body.data.descuento !== undefined) pedidoData.data.descuento = body.data.descuento != null ? parseFloat(String(body.data.descuento)) : null
     if (body.data.moneda !== undefined) pedidoData.data.moneda = body.data.moneda || null
-    if (body.data.origen !== undefined) pedidoData.data.origen = body.data.origen || null
+    // CORRECCIÓN: Normalizar origen a valores válidos de Strapi
+    if (body.data.origen !== undefined) {
+      pedidoData.data.origen = normalizeOrigen(body.data.origen)
+    }
     if (body.data.cliente !== undefined) pedidoData.data.cliente = body.data.cliente || null
     // IMPORTANTE: Solo actualizar items si se envían explícitamente Y tienen product_id válido
     // Si solo estamos actualizando el estado, NO enviar items para evitar que el hook 
     // afterUpdate de Strapi intente sincronizar con WooCommerce y falle
-    const soloActualizandoEstado = body.data.estado !== undefined && 
-      Object.keys(body.data).filter(k => k !== 'estado' && body.data[k] !== undefined).length === 0
+    // (soloActualizandoEstado ya se calculó arriba)
     
     if (body.data.items !== undefined && !soloActualizandoEstado) {
       // Validar que los items tengan product_id válido antes de enviarlos
