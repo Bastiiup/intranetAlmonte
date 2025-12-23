@@ -139,11 +139,18 @@ export default async function Page({ params }: PageProps) {
     <Container fluid>
       <PageBreadcrumb title={`Pedido #${pedido.number || pedido.id}`} subtitle="Ecommerce" />
 
-      {/* Editor de Estado */}
+      {/* Editor de Estado - Siempre mostrar para permitir cambios */}
       <Row className="mb-3">
         <Col>
           <OrderStatusEditor 
-            pedidoId={pedido._strapiData?.documentId || pedido._strapiData?.id || pedidoId}
+            pedidoId={
+              pedido._strapiData?.documentId || 
+              pedido._strapiData?.id || 
+              strapiPedido?.documentId || 
+              strapiPedido?.id || 
+              (strapiPedido?.attributes && (strapiPedido.attributes.documentId || strapiPedido.attributes.id)) ||
+              pedidoId
+            }
             currentStatus={pedido.status || pedido._strapiData?.estado || 'pending'}
           />
         </Col>
