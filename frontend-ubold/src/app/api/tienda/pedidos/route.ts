@@ -60,6 +60,43 @@ function mapWooStatus(strapiStatus: string): string {
   return mapeado
 }
 
+// Función helper para normalizar el campo 'origen'
+function normalizeOrigen(origen: string | null | undefined): string {
+  if (!origen) return 'web'
+  const origenLower = String(origen).toLowerCase().trim()
+  const mapping: Record<string, string> = {
+    'rest-api': 'rest-api',
+    'rest api': 'rest-api',
+    'admin': 'admin',
+    'mobile': 'mobile',
+    'directo': 'directo',
+    'otro': 'otro',
+    'web': 'web',
+    'checkout': 'checkout',
+    'woocommerce': 'web', // WooCommerce orders often come as 'woocommerce'
+  }
+  return mapping[origenLower] || 'web' // Default to 'web' if not recognized
+}
+
+// Función helper para normalizar el campo 'metodo_pago'
+function normalizeMetodoPago(metodoPago: string | null | undefined): string | null {
+  if (!metodoPago) return null
+  const metodoLower = String(metodoPago).toLowerCase().trim()
+  const mapping: Record<string, string> = {
+    'bacs': 'bacs',
+    'cheque': 'cheque',
+    'cod': 'cod',
+    'contra entrega': 'cod',
+    'paypal': 'paypal',
+    'stripe': 'stripe',
+    'tarjeta': 'stripe', // Mapear 'tarjeta' a 'stripe'
+    'transferencia': 'transferencia',
+    'transferencia bancaria': 'transferencia',
+    'otro': 'otro',
+  }
+  return mapping[metodoLower] || 'otro' // Default a 'otro' si no reconocido
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Obtener TODOS los pedidos de ambas plataformas (woo_moraleja y woo_escolar)
@@ -148,12 +185,12 @@ export async function POST(request: NextRequest) {
         envio: body.data.envio ? parseFloat(body.data.envio) : null,
         descuento: body.data.descuento ? parseFloat(body.data.descuento) : null,
         moneda: body.data.moneda || 'CLP',
-        origen: body.data.origen || 'woocommerce',
+        origen: normalizeOrigen(body.data.origen),
         cliente: body.data.cliente || null,
         items: body.data.items || [],
         billing: body.data.billing || null,
         shipping: body.data.shipping || null,
-        metodo_pago: body.data.metodo_pago || null,
+        metodo_pago: normalizeMetodoPago(body.data.metodo_pago),
         metodo_pago_titulo: body.data.metodo_pago_titulo || null,
         nota_cliente: body.data.nota_cliente || null,
         originPlatform: originPlatform,
