@@ -1,9 +1,9 @@
-import { Container } from 'react-bootstrap'
+import { Col, Container, Row } from 'react-bootstrap'
 import { headers } from 'next/headers'
 import type { Metadata } from 'next'
 
-import ClientsListing from '@/app/(admin)/(apps)/(ecommerce)/clientes/components/ClientsListing'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import CustomersCard from '@/app/(admin)/(apps)/(ecommerce)/customers/components/CustomersCard'
 
 // Forzar renderizado dinámico
 export const dynamic = 'force-dynamic'
@@ -18,13 +18,12 @@ export default async function Page() {
 
   try {
     // Usar API Route como proxy (igual que productos)
-    // Esto maneja el token de Strapi solo en el servidor
     const headersList = await headers()
     const host = headersList.get('host') || 'localhost:3000'
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
     const baseUrl = `${protocol}://${host}`
     
-    const response = await fetch(`${baseUrl}/api/tienda/clientes`, {
+    const response = await fetch(`${baseUrl}/api/woocommerce/customers?per_page=100`, {
       cache: 'no-store', // Forzar fetch dinámico
     })
     
@@ -33,9 +32,6 @@ export default async function Page() {
     if (data.success && data.data) {
       clientes = Array.isArray(data.data) ? data.data : [data.data]
       console.log('[Clientes Page] Clientes obtenidos:', clientes.length)
-      if (clientes.length > 0) {
-        console.log('[Clientes Page] Primer cliente:', JSON.stringify(clientes[0], null, 2))
-      }
     } else {
       error = data.error || 'Error al obtener clientes'
       console.error('[Clientes Page] Error en respuesta:', data)
@@ -44,13 +40,16 @@ export default async function Page() {
     error = err.message || 'Error al conectar con la API'
     console.error('[Clientes Page] Error al obtener clientes:', err)
   }
-  
-  console.log('[Clientes Page] Render - clientes:', clientes.length, 'error:', error)
 
   return (
     <Container fluid>
       <PageBreadcrumb title="Todos los Clientes" subtitle="Ecommerce" />
-      <ClientsListing clientes={clientes} error={error} />
+
+      <Row className="justify-content-center">
+        <Col xxl={12}>
+          <CustomersCard clientes={clientes} error={error} />
+        </Col>
+      </Row>
     </Container>
   )
 }
