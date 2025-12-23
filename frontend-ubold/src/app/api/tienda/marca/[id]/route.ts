@@ -138,8 +138,11 @@ export async function DELETE(
 
     const marcaEndpoint = '/api/marcas'
     
-    // Primero obtener la marca de Strapi para obtener el documentId
+    // Primero obtener la marca de Strapi para obtener el documentId y verificar estado_publicacion
+    let marcaStrapi: any = null
     let documentId: string | null = null
+    let estadoPublicacion: string | null = null
+    
     try {
       const marcaResponse = await strapiClient.get<any>(`${marcaEndpoint}?filters[id][$eq]=${id}&populate=*`)
       let marcas: any[] = []
@@ -150,24 +153,44 @@ export async function DELETE(
       } else if (marcaResponse.data) {
         marcas = [marcaResponse.data]
       }
-      const marcaStrapi = marcas[0]
+      marcaStrapi = marcas[0]
       documentId = marcaStrapi?.documentId || marcaStrapi?.data?.documentId || id
+      
+      if (marcaStrapi) {
+        const attrs = marcaStrapi.attributes || {}
+        const data = (attrs && Object.keys(attrs).length > 0) ? attrs : marcaStrapi
+        estadoPublicacion = data.estado_publicacion || data.estadoPublicacion || null
+        
+        console.log('[API Marca DELETE] Estado de publicación:', estadoPublicacion)
+        
+        // Normalizar estado a minúsculas para comparación
+        if (estadoPublicacion) {
+          estadoPublicacion = estadoPublicacion.toLowerCase()
+        }
+      }
     } catch (error: any) {
       console.warn('[API Marca DELETE] ⚠️ No se pudo obtener marca de Strapi:', error.message)
       documentId = id
     }
 
     // Eliminar en Strapi usando documentId si está disponible
-    // La eliminación en WordPress se maneja automáticamente en los lifecycles de Strapi
+    // El lifecycle de Strapi verifica estado_publicacion y solo elimina de WooCommerce si estaba "publicado"
     const strapiEndpoint = documentId ? `${marcaEndpoint}/${documentId}` : `${marcaEndpoint}/${id}`
     console.log('[API Marca DELETE] Usando endpoint Strapi:', strapiEndpoint, { documentId, id })
 
     const response = await strapiClient.delete<any>(strapiEndpoint)
-    console.log('[API Marca DELETE] ✅ Marca eliminada en Strapi')
+    
+    if (estadoPublicacion === 'publicado') {
+      console.log('[API Marca DELETE] ✅ Marca eliminada en Strapi. El lifecycle eliminará de WooCommerce si estaba publicado.')
+    } else {
+      console.log('[API Marca DELETE] ✅ Marca eliminada en Strapi (solo Strapi, no estaba publicada en WooCommerce)')
+    }
 
     return NextResponse.json({
       success: true,
-      message: 'Marca eliminada exitosamente en Strapi',
+      message: estadoPublicacion === 'publicado' 
+        ? 'Marca eliminada exitosamente en Strapi. El lifecycle eliminará de WooCommerce.' 
+        : 'Marca eliminada exitosamente en Strapi',
       data: response
     })
 

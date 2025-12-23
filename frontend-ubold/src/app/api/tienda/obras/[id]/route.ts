@@ -136,8 +136,11 @@ export async function DELETE(
 
     const obraEndpoint = '/api/obras'
     
-    // Primero obtener la obra de Strapi para obtener el documentId
+    // Primero obtener la obra de Strapi para obtener el documentId y verificar estado_publicacion
+    let obraStrapi: any = null
     let documentId: string | null = null
+    let estadoPublicacion: string | null = null
+    
     try {
       const obraResponse = await strapiClient.get<any>(`${obraEndpoint}?filters[id][$eq]=${id}&populate=*`)
       let obras: any[] = []
@@ -148,24 +151,44 @@ export async function DELETE(
       } else if (obraResponse.data) {
         obras = [obraResponse.data]
       }
-      const obraStrapi = obras[0]
+      obraStrapi = obras[0]
       documentId = obraStrapi?.documentId || obraStrapi?.data?.documentId || id
+      
+      if (obraStrapi) {
+        const attrs = obraStrapi.attributes || {}
+        const data = (attrs && Object.keys(attrs).length > 0) ? attrs : obraStrapi
+        estadoPublicacion = data.estado_publicacion || data.estadoPublicacion || null
+        
+        console.log('[API Obras DELETE] Estado de publicación:', estadoPublicacion)
+        
+        // Normalizar estado a minúsculas para comparación
+        if (estadoPublicacion) {
+          estadoPublicacion = estadoPublicacion.toLowerCase()
+        }
+      }
     } catch (error: any) {
       console.warn('[API Obras DELETE] ⚠️ No se pudo obtener obra de Strapi:', error.message)
       documentId = id
     }
 
     // Eliminar en Strapi usando documentId si está disponible
-    // La eliminación en WordPress se maneja automáticamente en los lifecycles de Strapi
+    // El lifecycle de Strapi verifica estado_publicacion y solo elimina de WooCommerce si estaba "publicado"
     const strapiEndpoint = documentId ? `${obraEndpoint}/${documentId}` : `${obraEndpoint}/${id}`
     console.log('[API Obras DELETE] Usando endpoint Strapi:', strapiEndpoint, { documentId, id })
 
     const response = await strapiClient.delete<any>(strapiEndpoint)
-    console.log('[API Obras DELETE] ✅ Obra eliminada en Strapi')
+    
+    if (estadoPublicacion === 'publicado') {
+      console.log('[API Obras DELETE] ✅ Obra eliminada en Strapi. El lifecycle eliminará de WooCommerce si estaba publicado.')
+    } else {
+      console.log('[API Obras DELETE] ✅ Obra eliminada en Strapi (solo Strapi, no estaba publicada en WooCommerce)')
+    }
 
     return NextResponse.json({
       success: true,
-      message: 'Obra eliminada exitosamente en Strapi',
+      message: estadoPublicacion === 'publicado' 
+        ? 'Obra eliminada exitosamente en Strapi. El lifecycle eliminará de WooCommerce.' 
+        : 'Obra eliminada exitosamente en Strapi',
       data: response
     })
 

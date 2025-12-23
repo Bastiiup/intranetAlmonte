@@ -138,8 +138,11 @@ export async function DELETE(
 
     const selloEndpoint = '/api/sellos'
     
-    // Primero obtener el sello de Strapi para obtener el documentId
+    // Primero obtener el sello de Strapi para obtener el documentId y verificar estado_publicacion
+    let selloStrapi: any = null
     let documentId: string | null = null
+    let estadoPublicacion: string | null = null
+    
     try {
       const selloResponse = await strapiClient.get<any>(`${selloEndpoint}?filters[id][$eq]=${id}&populate=*`)
       let sellos: any[] = []
@@ -150,24 +153,44 @@ export async function DELETE(
       } else if (selloResponse.data) {
         sellos = [selloResponse.data]
       }
-      const selloStrapi = sellos[0]
+      selloStrapi = sellos[0]
       documentId = selloStrapi?.documentId || selloStrapi?.data?.documentId || id
+      
+      if (selloStrapi) {
+        const attrs = selloStrapi.attributes || {}
+        const data = (attrs && Object.keys(attrs).length > 0) ? attrs : selloStrapi
+        estadoPublicacion = data.estado_publicacion || data.estadoPublicacion || null
+        
+        console.log('[API Sello DELETE] Estado de publicación:', estadoPublicacion)
+        
+        // Normalizar estado a minúsculas para comparación
+        if (estadoPublicacion) {
+          estadoPublicacion = estadoPublicacion.toLowerCase()
+        }
+      }
     } catch (error: any) {
       console.warn('[API Sello DELETE] ⚠️ No se pudo obtener sello de Strapi:', error.message)
       documentId = id
     }
 
     // Eliminar en Strapi usando documentId si está disponible
-    // La eliminación en WordPress se maneja automáticamente en los lifecycles de Strapi
+    // El lifecycle de Strapi verifica estado_publicacion y solo elimina de WooCommerce si estaba "publicado"
     const strapiEndpoint = documentId ? `${selloEndpoint}/${documentId}` : `${selloEndpoint}/${id}`
     console.log('[API Sello DELETE] Usando endpoint Strapi:', strapiEndpoint, { documentId, id })
 
     const response = await strapiClient.delete<any>(strapiEndpoint)
-    console.log('[API Sello DELETE] ✅ Sello eliminado en Strapi')
+    
+    if (estadoPublicacion === 'publicado') {
+      console.log('[API Sello DELETE] ✅ Sello eliminado en Strapi. El lifecycle eliminará de WooCommerce si estaba publicado.')
+    } else {
+      console.log('[API Sello DELETE] ✅ Sello eliminado en Strapi (solo Strapi, no estaba publicada en WooCommerce)')
+    }
 
     return NextResponse.json({
       success: true,
-      message: 'Sello eliminado exitosamente en Strapi',
+      message: estadoPublicacion === 'publicado' 
+        ? 'Sello eliminado exitosamente en Strapi. El lifecycle eliminará de WooCommerce.' 
+        : 'Sello eliminado exitosamente en Strapi',
       data: response
     })
 

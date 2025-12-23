@@ -180,10 +180,11 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    console.log('[API Colecciones DELETE] Eliminando colección:', id)
+    console.log('[API Colecciones DELETE] 🗑️ Eliminando colección:', id)
 
-    // Buscar la colección primero para obtener el ID correcto
+    // Buscar la colección primero para obtener el ID correcto y verificar estado_publicacion
     let coleccion: any = null
+    let estadoPublicacion: string | null = null
     
     try {
       const response = await strapiClient.get<any>(`/api/colecciones?filters[id][$eq]=${id}&populate=*`)
@@ -220,17 +221,35 @@ export async function DELETE(
       }, { status: 404 })
     }
 
+    // Obtener estado_publicacion de la colección
+    const attrs = coleccion.attributes || {}
+    const data = (attrs && Object.keys(attrs).length > 0) ? attrs : coleccion
+    estadoPublicacion = data.estado_publicacion || data.estadoPublicacion || null
+    
+    console.log('[API Colecciones DELETE] Estado de publicación:', estadoPublicacion)
+    
+    // Normalizar estado a minúsculas para comparación
+    if (estadoPublicacion) {
+      estadoPublicacion = estadoPublicacion.toLowerCase()
+    }
+
     // En Strapi v4, usar documentId (string) para eliminar, no el id numérico
     const coleccionDocumentId = coleccion.documentId || coleccion.data?.documentId || coleccion.id?.toString() || id
     console.log('[API Colecciones DELETE] Usando documentId para eliminar:', coleccionDocumentId)
 
     await strapiClient.delete(`/api/colecciones/${coleccionDocumentId}`)
     
-    console.log('[API Colecciones DELETE] ✅ Colección eliminada:', coleccionDocumentId)
+    if (estadoPublicacion === 'publicado') {
+      console.log('[API Colecciones DELETE] ✅ Colección eliminada en Strapi. El lifecycle eliminará de WooCommerce si estaba publicado.')
+    } else {
+      console.log('[API Colecciones DELETE] ✅ Colección eliminada en Strapi (solo Strapi, no estaba publicada en WooCommerce)')
+    }
     
     return NextResponse.json({
       success: true,
-      message: 'Colección eliminada exitosamente'
+      message: estadoPublicacion === 'publicado' 
+        ? 'Colección eliminada exitosamente en Strapi. El lifecycle eliminará de WooCommerce.' 
+        : 'Colección eliminada exitosamente en Strapi'
     })
   } catch (error: any) {
     console.error('[API Colecciones DELETE] ❌ Error:', error.message)
