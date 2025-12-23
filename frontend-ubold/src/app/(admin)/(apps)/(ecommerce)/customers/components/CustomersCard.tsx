@@ -122,9 +122,6 @@ const CustomersCard = ({ clientes, error }: CustomersCardProps = {}) => {
       header: 'Nombre del Cliente',
       cell: ({ row }) => (
         <div className="d-flex align-items-center gap-2">
-          <div className="avatar avatar-sm">
-            <Image src={row.original.avatar.src} alt="" height={32} width={32} className="img-fluid rounded-circle" />
-          </div>
           <div>
             <h5 className="mb-0">
               {row.original.name}
