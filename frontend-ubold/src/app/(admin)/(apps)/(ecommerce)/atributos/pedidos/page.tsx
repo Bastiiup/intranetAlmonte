@@ -1,15 +1,16 @@
-import { Container } from 'react-bootstrap'
+import { Col, Container, Row } from 'react-bootstrap'
 import { headers } from 'next/headers'
 import type { Metadata } from 'next'
 
+import OrdersStats from '@/app/(admin)/(apps)/(ecommerce)/orders/components/OrdersStats'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import PedidosListing from './components/PedidosListing'
+import OrdersList from '@/app/(admin)/(apps)/(ecommerce)/orders/components/OrdersList'
 
 // Forzar renderizado dinámico
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Todos los Pedidos',
+  title: 'Pedidos',
 }
 
 export default async function Page() {
@@ -17,7 +18,7 @@ export default async function Page() {
   let error: string | null = null
 
   try {
-    // Usar API Route como proxy
+    // Usar API Route como proxy - mapear pedidos de Strapi al formato de WooCommerce para OrdersList
     const headersList = await headers()
     const host = headersList.get('host') || 'localhost:3000'
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
@@ -30,8 +31,36 @@ export default async function Page() {
     const data = await response.json()
     
     if (data.success && data.data) {
-      pedidos = Array.isArray(data.data) ? data.data : [data.data]
-      console.log('[Pedidos Page] Pedidos obtenidos:', pedidos.length)
+      const strapiPedidos = Array.isArray(data.data) ? data.data : [data.data]
+      
+      // Mapear pedidos de Strapi al formato de WooCommerce que espera OrdersList
+      pedidos = strapiPedidos.map((pedido: any) => {
+        const attrs = pedido.attributes || {}
+        const pedidoData = (attrs && Object.keys(attrs).length > 0) ? attrs : pedido
+        
+        // Mapear estado de Strapi (inglés) a formato WooCommerce
+        const estado = pedidoData.estado || 'pending'
+        
+        return {
+          id: pedidoData.wooId || pedidoData.numero_pedido || pedido.id,
+          number: pedidoData.numero_pedido || pedidoData.wooId || pedido.id,
+          date_created: pedidoData.fecha_pedido || new Date().toISOString(),
+          status: estado, // Estados en inglés: pending, processing, completed, cancelled, etc.
+          total: String(pedidoData.total || 0),
+          billing: pedidoData.billing || {
+            first_name: pedidoData.cliente?.nombre || '',
+            last_name: '',
+            email: pedidoData.cliente?.email || '',
+          },
+          payment_method: pedidoData.metodo_pago || '',
+          payment_method_title: pedidoData.metodo_pago_titulo || '',
+          date_paid: estado === 'completed' ? pedidoData.fecha_pedido : null,
+          line_items: pedidoData.items || [],
+          ...pedidoData.rawWooData, // Incluir datos originales de WooCommerce si existen
+        }
+      })
+      
+      console.log('[Pedidos Page] Pedidos obtenidos y mapeados:', pedidos.length)
     } else {
       error = data.error || 'Error al obtener pedidos'
       console.error('[Pedidos Page] Error en respuesta:', data)
@@ -43,8 +72,15 @@ export default async function Page() {
 
   return (
     <Container fluid>
-      <PageBreadcrumb title="Todos los Pedidos" subtitle="Ecommerce" />
-      <PedidosListing pedidos={pedidos} error={error} />
+      <PageBreadcrumb title="Pedidos" subtitle="Ecommerce" />
+
+      <OrdersStats pedidos={pedidos} />
+
+      <Row>
+        <Col cols={12}>
+          <OrdersList pedidos={pedidos} error={error} />
+        </Col>
+      </Row>
     </Container>
   )
 }

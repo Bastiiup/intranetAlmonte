@@ -338,12 +338,43 @@ const OrdersList = ({ pedidos, error }: OrdersListProps = {}) => {
     setShowDeleteModal(!showDeleteModal)
   }
 
-  const handleDelete = () => {
-    const selectedIds = new Set(Object.keys(selectedRowIds))
-    setData((old) => old.filter((_, idx) => !selectedIds.has(idx.toString())))
-    setSelectedRowIds({})
-    setPagination({ ...pagination, pageIndex: 0 })
-    setShowDeleteModal(false)
+  const handleDelete = async () => {
+    const selectedRowIdsArray = Object.keys(selectedRowIds)
+    const idsToDelete = selectedRowIdsArray
+      .map(rowId => {
+        const row = table.getRow(rowId)
+        return row?.original?.id
+      })
+      .filter(Boolean)
+    
+    if (idsToDelete.length === 0) {
+      alert('No se seleccionaron pedidos para eliminar')
+      return
+    }
+    
+    try {
+      for (const pedidoId of idsToDelete) {
+        const response = await fetch(`/api/tienda/pedidos/${pedidoId}`, {
+          method: 'DELETE',
+        })
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || `Error al eliminar pedido ${pedidoId}`)
+        }
+      }
+      
+      // Actualizar datos eliminando los pedidos eliminados
+      setData((old) => old.filter(pedido => !idsToDelete.includes(pedido.id)))
+      setSelectedRowIds({})
+      setPagination({ ...pagination, pageIndex: 0 })
+      setShowDeleteModal(false)
+      
+      // Recargar la página para obtener datos actualizados
+      window.location.reload()
+    } catch (error: any) {
+      console.error('Error al eliminar pedidos:', error)
+      alert(`Error al eliminar los pedidos seleccionados: ${error.message || 'Error desconocido'}`)
+    }
   }
 
   // Si hay error, mostrarlo
@@ -383,7 +414,7 @@ const OrdersList = ({ pedidos, error }: OrdersListProps = {}) => {
           </div>
           {Object.keys(selectedRowIds).length > 0 && (
             <Button variant="danger" size="sm" onClick={toggleDeleteModal}>
-              Delete
+              Eliminar
             </Button>
           )}
         </div>
