@@ -28,6 +28,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function Page({ params }: PageProps) {
   const { pedidoId } = await params
   let pedido: any = null
+  let strapiPedido: any = null
   let error: string | null = null
 
   try {
@@ -44,7 +45,7 @@ export default async function Page({ params }: PageProps) {
     const data = await response.json()
     
     if (data.success && data.data) {
-      const strapiPedido = data.data
+      strapiPedido = data.data
       
       // Mapear pedido de Strapi al formato WooCommerce que esperan los componentes
       const attrs = strapiPedido.attributes || {}
