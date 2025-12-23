@@ -411,12 +411,23 @@ export async function PUT(
     if (body.data.fecha_pedido !== undefined) pedidoData.data.fecha_pedido = body.data.fecha_pedido || null
     // Strapi espera valores en inglés (pending, processing, on-hold, completed, cancelled, refunded, failed, auto-draft, checkout-draft)
     // El frontend envía el estado en español, así que lo mapeamos a inglés
-    if (body.data.estado !== undefined) {
-      console.log('[API Pedidos PUT] 🔍 Estado recibido del frontend:', body.data.estado, typeof body.data.estado)
-      const estadoMapeadoParaStrapi = mapWooStatus(String(body.data.estado))
-      console.log('[API Pedidos PUT] ✅ Estado mapeado para Strapi:', estadoMapeadoParaStrapi)
-      pedidoData.data.estado = estadoMapeadoParaStrapi || 'pending'
-      console.log('[API Pedidos PUT] 📤 Estado que se enviará a Strapi:', pedidoData.data.estado)
+    if (body.data.estado !== undefined && body.data.estado !== null) {
+      const estadoRecibido = String(body.data.estado).trim()
+      console.log('[API Pedidos PUT] 🔍 Estado recibido del frontend:', estadoRecibido, typeof body.data.estado)
+      
+      // SIEMPRE mapear el estado, incluso si ya está en inglés
+      const estadoMapeadoParaStrapi = mapWooStatus(estadoRecibido)
+      console.log('[API Pedidos PUT] ✅ Estado mapeado para Strapi:', estadoMapeadoParaStrapi, '(desde:', estadoRecibido, ')')
+      
+      // Validar que el estado mapeado sea válido para Strapi
+      const estadosValidosStrapi = ['auto-draft', 'pending', 'processing', 'on-hold', 'completed', 'cancelled', 'refunded', 'failed', 'checkout-draft']
+      if (!estadosValidosStrapi.includes(estadoMapeadoParaStrapi)) {
+        console.error('[API Pedidos PUT] ❌ Estado mapeado no válido para Strapi:', estadoMapeadoParaStrapi)
+        throw new Error(`Estado "${estadoRecibido}" (mapeado a "${estadoMapeadoParaStrapi}") no es válido. Estados válidos: ${estadosValidosStrapi.join(', ')}`)
+      }
+      
+      pedidoData.data.estado = estadoMapeadoParaStrapi
+      console.log('[API Pedidos PUT] 📤 Estado FINAL que se enviará a Strapi:', pedidoData.data.estado)
     }
     if (body.data.total !== undefined) pedidoData.data.total = body.data.total != null ? parseFloat(String(body.data.total)) : null
     if (body.data.subtotal !== undefined) pedidoData.data.subtotal = body.data.subtotal != null ? parseFloat(String(body.data.subtotal)) : null
