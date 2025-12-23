@@ -5,7 +5,13 @@ import { useRouter } from 'next/navigation'
 import { Card, CardHeader, CardBody, Form, Button, Row, Col, FormGroup, FormLabel, FormControl, Alert } from 'react-bootstrap'
 import { LuSave, LuX } from 'react-icons/lu'
 
-const AddClienteForm = () => {
+interface AddClienteFormProps {
+  onSave?: () => void
+  onCancel?: () => void
+  showCard?: boolean
+}
+
+const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormProps = {}) => {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -76,9 +82,18 @@ const AddClienteForm = () => {
       }
 
       setSuccess(true)
-      setTimeout(() => {
-        router.push('/clientes')
-      }, 1500)
+      
+      // Si hay callback onSave, usarlo (modal), sino redirigir (página completa)
+      if (onSave) {
+        setTimeout(() => {
+          onSave()
+          router.refresh()
+        }, 1500)
+      } else {
+        setTimeout(() => {
+          router.push('/clientes')
+        }, 1500)
+      }
     } catch (err: any) {
       console.error('Error al crear cliente:', err)
       setError(err.message || 'Error al crear el cliente')
@@ -87,14 +102,8 @@ const AddClienteForm = () => {
     }
   }
 
-  return (
-    <Row>
-      <Col xs={12}>
-        <Card>
-          <CardHeader>
-            <h4 className="card-title mb-0">Agregar Cliente</h4>
-          </CardHeader>
-          <CardBody>
+  const formContent = (
+    <>
             {error && (
               <Alert variant="danger" dismissible onClose={() => setError(null)}>
                 {error}
@@ -166,7 +175,13 @@ const AddClienteForm = () => {
               <div className="d-flex gap-2 justify-content-end">
                 <Button
                   variant="light"
-                  onClick={() => router.back()}
+                  onClick={() => {
+                    if (onCancel) {
+                      onCancel()
+                    } else {
+                      router.back()
+                    }
+                  }}
                   disabled={loading}
                 >
                   <LuX className="me-1" /> Cancelar
@@ -185,6 +200,22 @@ const AddClienteForm = () => {
                 </Button>
               </div>
             </Form>
+    </>
+  )
+
+  if (!showCard) {
+    return formContent
+  }
+
+  return (
+    <Row>
+      <Col xs={12}>
+        <Card>
+          <CardHeader>
+            <h4 className="card-title mb-0">Agregar Cliente</h4>
+          </CardHeader>
+          <CardBody>
+            {formContent}
           </CardBody>
         </Card>
       </Col>
