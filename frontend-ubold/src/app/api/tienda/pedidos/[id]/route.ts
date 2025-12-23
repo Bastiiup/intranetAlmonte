@@ -634,9 +634,10 @@ export async function PUT(
     if (body.data.metodo_pago_titulo !== undefined) pedidoData.data.metodo_pago_titulo = body.data.metodo_pago_titulo || null
     if (body.data.nota_cliente !== undefined) pedidoData.data.nota_cliente = body.data.nota_cliente || null
     
-    // Actualizar campos usando camelCase como en el schema de Strapi
+    // Actualizar campos - Strapi espera camelCase según el schema
     // Solo actualizar externalIds si se actualizó en WooCommerce
     // NO enviar wooId, rawWooData directamente - no son campos del schema principal
+    // Estos campos se actualizan a través de externalIds
     if (wooCommercePedido) {
       pedidoData.data.externalIds = {
         wooCommerce: {
@@ -655,6 +656,9 @@ export async function PUT(
         pedidoData.data.originPlatform = platformToSave
       }
     }
+    
+    // NOTA: Los campos originPlatform, externalIds están en camelCase que es correcto para Strapi
+    // El warning del cliente de Strapi es solo informativo - Strapi acepta camelCase
     
     // Verificar que hay datos para actualizar
     if (Object.keys(pedidoData.data).length === 0) {

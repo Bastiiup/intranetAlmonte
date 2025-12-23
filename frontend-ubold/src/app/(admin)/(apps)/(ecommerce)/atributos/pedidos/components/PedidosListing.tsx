@@ -439,23 +439,31 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
       .filter(Boolean)
     
     if (idsToDelete.length === 0) {
-      alert('No se seleccionaron pedidos para eliminar')
+      alert('No se seleccionaron pedidos para cancelar')
       return
     }
     
     try {
       for (const pedidoId of idsToDelete) {
+        // En lugar de eliminar, cambiar el estado a "cancelado"
         const response = await fetch(`/api/tienda/pedidos/${pedidoId}`, {
-          method: 'DELETE',
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            data: {
+              estado: 'cancelado'
+            }
+          }),
         })
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.error || `Error al eliminar pedido ${pedidoId}`)
+          throw new Error(errorData.error || `Error al cancelar pedido ${pedidoId}`)
         }
       }
       
-      // Actualizar datos eliminando los pedidos eliminados
-      setData((old) => old.filter(pedido => !idsToDelete.includes(pedido.id)))
+      // Recargar datos para mostrar los cambios
       setSelectedRowIds({})
       setPagination({ ...pagination, pageIndex: 0 })
       setShowDeleteModal(false)
@@ -463,8 +471,8 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
       // Recargar la página para obtener datos actualizados
       router.refresh()
     } catch (error: any) {
-      console.error('Error al eliminar pedidos:', error)
-      alert(`Error al eliminar los pedidos seleccionados: ${error.message || 'Error desconocido'}`)
+      console.error('Error al cancelar pedidos:', error)
+      alert(`Error al cancelar los pedidos seleccionados: ${error.message || 'Error desconocido'}`)
     }
   }
 
@@ -802,7 +810,7 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
 
               {Object.keys(selectedRowIds).length > 0 && (
                 <Button variant="danger" size="sm" onClick={toggleDeleteModal}>
-                  Eliminar
+                  Cancelar pedido (mantener datos guardados)
                 </Button>
               )}
             </div>
@@ -949,8 +957,19 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
             onHide={toggleDeleteModal}
             onConfirm={handleDelete}
             selectedCount={Object.keys(selectedRowIds).length}
-            itemName="pedido"
-          />
+            modalTitle="Cancelar Pedido"
+            confirmButtonText="Cancelar Pedido"
+            cancelButtonText="No Cancelar"
+          >
+            {Object.keys(selectedRowIds).length > 1 ? (
+              <p>¿Estás seguro de que deseas cancelar estos {Object.keys(selectedRowIds).length} pedidos?</p>
+            ) : (
+              <p>¿Estás seguro de que deseas cancelar este pedido?</p>
+            )}
+            <p className="text-muted small mb-0">
+              <strong>Nota:</strong> Los datos del pedido se mantendrán guardados, solo se cambiará el estado a "Cancelado".
+            </p>
+          </DeleteConfirmationModal>
         </Card>
       </Col>
     </Row>
