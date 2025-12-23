@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import wooCommerceClient from '@/lib/woocommerce/client'
+import strapiClient from '@/lib/strapi/client'
 import { buildWooCommerceAddress, createAddressMetaData, type DetailedAddress } from '@/lib/woocommerce/address-utils'
 import { parseNombreCompleto, enviarClienteABothWordPress } from '@/lib/clientes/utils'
 
@@ -151,7 +152,105 @@ export async function PUT(
       updateData
     )
 
-    // Nota: Strapi se actualizará automáticamente desde WordPress, no es necesario hacerlo manualmente aquí
+    // Actualizar también en Strapi (WO-Clientes) si existe
+    try {
+      const emailFinal = updateData.email || (customer as any).email
+      
+      if (emailFinal) {
+        // Buscar cliente en Strapi por correo_electronico (email)
+        const strapiSearch = await strapiClient.get<any>(`/api/wo-clientes?filters[correo_electronico][$eq]=${encodeURIComponent(emailFinal)}&populate=*`)
+        const strapiClientes = strapiSearch.data && Array.isArray(strapiSearch.data) ? strapiSearch.data : (strapiSearch.data ? [strapiSearch.data] : [])
+        
+        if (strapiClientes.length > 0) {
+          const strapiCliente = strapiClientes[0]
+          const strapiClienteId = strapiCliente.documentId || strapiCliente.id?.toString()
+          
+          const nombreCompleto = `${updateData.first_name || (customer as any).first_name} ${updateData.last_name || (customer as any).last_name || ''}`.trim()
+          
+          const strapiUpdateData: any = {
+            data: {
+              nombre: nombreCompleto,
+              correo_electronico: emailFinal,
+            },
+          }
+          
+          if (updateData.billing?.phone) {
+            strapiUpdateData.data.telefono = updateData.billing.phone
+          }
+          
+          await strapiClient.put(`/api/wo-clientes/${strapiClienteId}`, strapiUpdateData)
+          console.log('[API PUT] ✅ Cliente actualizado en Strapi (WO-Clientes):', strapiClienteId)
+        }
+      }
+    } catch (strapiError: any) {
+      console.error('[API PUT] ⚠️ Error al actualizar en Strapi WO-Clientes (no crítico):', strapiError.message)
+    }
+
+    // Actualizar también en Persona si existe
+    try {
+      const emailFinal = updateData.email || (customer as any).email
+      if (emailFinal) {
+        // Buscar persona por email
+        const personaSearch = await strapiClient.get<any>(`/api/personas?populate[emails]=*&pagination[pageSize]=1000`)
+        const personasArray = personaSearch.data && Array.isArray(personaSearch.data) 
+          ? personaSearch.data 
+          : (personaSearch.data ? [personaSearch.data] : [])
+        
+        let personaEncontrada: any = null
+        for (const persona of personasArray) {
+          const attrs = persona.attributes || persona
+          if (attrs.emails && Array.isArray(attrs.emails)) {
+            const tieneEmail = attrs.emails.some((e: any) => {
+              const emailValue = typeof e === 'string' ? e : (e.email || e)
+              return emailValue?.toLowerCase() === emailFinal.toLowerCase()
+            })
+            if (tieneEmail) {
+              personaEncontrada = persona
+              break
+            }
+          }
+        }
+        
+        if (personaEncontrada) {
+          const nombreCompleto = `${updateData.first_name || (customer as any).first_name} ${updateData.last_name || (customer as any).last_name || ''}`.trim()
+          const nombreParseado = parseNombreCompleto(nombreCompleto)
+          const personaId = personaEncontrada.documentId || personaEncontrada.id?.toString()
+          
+          const personaUpdateData: any = {
+            data: {
+              nombre_completo: nombreCompleto,
+              nombres: nombreParseado.nombres || updateData.first_name || (customer as any).first_name,
+              primer_apellido: nombreParseado.primer_apellido || updateData.last_name || (customer as any).last_name || null,
+              segundo_apellido: nombreParseado.segundo_apellido || null,
+            },
+          }
+          
+          if (updateData.email) {
+            personaUpdateData.data.emails = [
+              {
+                email: updateData.email.trim(),
+                tipo: 'principal',
+              }
+            ]
+          }
+          
+          // Agregar teléfono si viene en los datos de actualización
+          if (updateData.billing?.phone) {
+            personaUpdateData.data.telefonos = [
+              {
+                telefono: updateData.billing.phone.trim(),
+                tipo: 'principal',
+              }
+            ]
+          }
+          
+          await strapiClient.put(`/api/personas/${personaId}`, personaUpdateData)
+          console.log('[API PUT] ✅ Persona actualizada en Strapi:', personaId)
+        }
+      }
+    } catch (personaError: any) {
+      console.error('[API PUT] ⚠️ Error al actualizar Persona en Strapi (no crítico):', personaError.message)
+    }
 
     // Enviar a ambos WordPress (ya está actualizado en el principal, pero lo sincronizamos también con el segundo)
     try {
@@ -228,9 +327,9 @@ export async function GET(
 
 /**
  * DELETE /api/woocommerce/customers/[id]
- * Elimina un cliente de WooCommerce
+ * Elimina un cliente de WooCommerce y también en Strapi (WO-Clientes)
  * El [id] puede ser el ID de WooCommerce o un email
- * Nota: Strapi se actualizará automáticamente desde WordPress
+ * Nota: No se elimina Persona ya que puede estar relacionada con otras entidades
  */
 export async function DELETE(
   request: NextRequest,
@@ -293,9 +392,38 @@ export async function DELETE(
 
     console.log('[API DELETE] Eliminando cliente:', customerId)
 
-    // Nota: Strapi se actualizará automáticamente desde WordPress, no es necesario hacerlo manualmente aquí
+    // 1. Obtener email del cliente de WooCommerce para buscar en Strapi
+    let customerEmail: string | null = null
+    try {
+      const wcCustomer = await wooCommerceClient.get<any>(`customers/${customerId}`)
+      customerEmail = wcCustomer.email || null
+    } catch (error: any) {
+      console.warn('[API DELETE] No se pudo obtener email del cliente de WooCommerce (continuando):', error.message)
+    }
 
-    // Eliminar de WooCommerce principal
+    // 2. Buscar y eliminar cliente en Strapi (WO-Clientes) por correo_electronico
+    if (customerEmail) {
+      try {
+        const strapiSearch = await strapiClient.get<any>(`/api/wo-clientes?filters[correo_electronico][$eq]=${encodeURIComponent(customerEmail)}&populate=*`)
+        const strapiClientes = strapiSearch.data && Array.isArray(strapiSearch.data) ? strapiSearch.data : (strapiSearch.data ? [strapiSearch.data] : [])
+        
+        if (strapiClientes.length > 0) {
+          const strapiCliente = strapiClientes[0]
+          const strapiClienteId = strapiCliente.documentId || strapiCliente.id?.toString()
+          
+          // Eliminar de Strapi (WO-Clientes)
+          await strapiClient.delete(`/api/wo-clientes/${strapiClienteId}`)
+          console.log('[API DELETE] ✅ Cliente eliminado de Strapi (WO-Clientes):', strapiClienteId)
+          
+          // Nota: No eliminamos la Persona asociada ya que puede estar relacionada con otras entidades
+        }
+      } catch (strapiError: any) {
+        console.error('[API DELETE] ⚠️ Error al eliminar de Strapi WO-Clientes (no crítico):', strapiError.message)
+        // Continuar aunque falle Strapi
+      }
+    }
+
+    // 3. Eliminar de WooCommerce principal
     try {
       await wooCommerceClient.delete(`customers/${customerId}`, true)
       console.log('[API DELETE] ✅ Cliente eliminado de WooCommerce principal:', customerId)
