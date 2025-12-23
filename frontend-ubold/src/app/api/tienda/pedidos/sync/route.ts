@@ -78,14 +78,20 @@ async function syncOrdersFromPlatform(platform: 'woo_moraleja' | 'woo_escolar') 
     let hasMore = true
 
     while (hasMore) {
-      const wooOrders = await wcClient.get<any[]>('orders', {
+      const wooOrdersResponse = await wcClient.get<any>('orders', {
         per_page: perPage,
         page: page,
         orderby: 'date',
         order: 'desc',
       })
 
-      const orders = Array.isArray(wooOrders) ? wooOrders : (wooOrders?.data || [])
+      // Manejar diferentes formatos de respuesta de WooCommerce
+      let orders: any[] = []
+      if (Array.isArray(wooOrdersResponse)) {
+        orders = wooOrdersResponse
+      } else if (wooOrdersResponse && typeof wooOrdersResponse === 'object' && 'data' in wooOrdersResponse) {
+        orders = Array.isArray(wooOrdersResponse.data) ? wooOrdersResponse.data : []
+      }
       
       if (orders.length === 0) {
         hasMore = false
