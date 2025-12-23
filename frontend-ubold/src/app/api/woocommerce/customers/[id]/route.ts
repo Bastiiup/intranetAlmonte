@@ -314,7 +314,7 @@ export async function DELETE(
 
     // 2. Eliminar de WooCommerce principal
     try {
-      await wooCommerceClient.delete(`customers/${customerId}`, { force: true })
+      await wooCommerceClient.delete(`customers/${customerId}`, true)
       console.log('[API DELETE] ✅ Cliente eliminado de WooCommerce principal:', customerId)
     } catch (wcError: any) {
       // Si el cliente no existe en WooCommerce, no es un error crítico
