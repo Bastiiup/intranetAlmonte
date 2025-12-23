@@ -368,6 +368,21 @@ const OrdersList = ({ pedidos, error, basePath = '/orders' }: OrdersListProps = 
     setData(mappedOrders)
   }, [mappedOrders])
 
+  const [showHidden, setShowHidden] = useState(true) // Por defecto mostrar pedidos ocultos
+  
+  // Filtrar pedidos según si están ocultos o no
+  const filteredData = useMemo(() => {
+    if (showHidden) {
+      return data // Mostrar todos los pedidos
+    }
+    // Filtrar solo pedidos publicados (que tienen publishedAt)
+    return data.filter((pedido: any) => {
+      // Si el pedido tiene _isPublished o similar, usarlo
+      // Por ahora, asumimos que todos los pedidos que llegan están publicados si showHidden es false
+      return true // Por ahora mostrar todos, el filtro real se hace en el backend
+    })
+  }, [data, showHidden])
+
   const table = useReactTable({
     data: filteredData,
     columns,
@@ -461,21 +476,6 @@ const OrdersList = ({ pedidos, error, basePath = '/orders' }: OrdersListProps = 
       </Card>
     )
   }
-
-  const [showHidden, setShowHidden] = useState(true) // Por defecto mostrar pedidos ocultos
-  
-  // Filtrar pedidos según si están ocultos o no
-  const filteredData = useMemo(() => {
-    if (showHidden) {
-      return data // Mostrar todos los pedidos
-    }
-    // Filtrar solo pedidos publicados (que tienen publishedAt)
-    return data.filter((pedido: any) => {
-      // Si el pedido tiene _isPublished o similar, usarlo
-      // Por ahora, asumimos que todos los pedidos que llegan están publicados si showHidden es false
-      return true // Por ahora mostrar todos, el filtro real se hace en el backend
-    })
-  }, [data, showHidden])
 
   return (
     <Card>
