@@ -398,14 +398,11 @@ export async function PUT(
     // Solo agregar campos que realmente se están actualizando (que están en body.data)
     if (body.data.numero_pedido !== undefined) pedidoData.data.numero_pedido = body.data.numero_pedido?.toString().trim() || null
     if (body.data.fecha_pedido !== undefined) pedidoData.data.fecha_pedido = body.data.fecha_pedido || null
-    // Mapear estado de español a inglés antes de enviar a Strapi (Strapi espera valores en inglés de WooCommerce)
+    // Strapi espera valores en español (pendiente, procesando, en_espera, completado, cancelado, reembolsado, fallido)
+    // El frontend ya envía el estado en español, así que lo usamos directamente
     if (body.data.estado !== undefined) {
-      const estadoMapeadoParaStrapi = mapWooStatus(body.data.estado)
-      pedidoData.data.estado = estadoMapeadoParaStrapi || null
-      console.log('[API Pedidos PUT] Mapeando estado para Strapi:', { 
-        original: body.data.estado, 
-        mapeado: estadoMapeadoParaStrapi 
-      })
+      pedidoData.data.estado = body.data.estado || null
+      console.log('[API Pedidos PUT] Estado para Strapi (en español):', body.data.estado)
     }
     if (body.data.total !== undefined) pedidoData.data.total = body.data.total != null ? parseFloat(String(body.data.total)) : null
     if (body.data.subtotal !== undefined) pedidoData.data.subtotal = body.data.subtotal != null ? parseFloat(String(body.data.subtotal)) : null
@@ -423,10 +420,9 @@ export async function PUT(
     if (body.data.nota_cliente !== undefined) pedidoData.data.nota_cliente = body.data.nota_cliente || null
     
     // Actualizar campos usando camelCase como en el schema de Strapi
-    // Solo actualizar estos campos si se actualizó en WooCommerce
+    // Solo actualizar externalIds si se actualizó en WooCommerce
+    // NO enviar wooId, rawWooData directamente - no son campos del schema principal
     if (wooCommercePedido) {
-      pedidoData.data.wooId = wooCommercePedido.id
-      pedidoData.data.rawWooData = wooCommercePedido
       pedidoData.data.externalIds = {
         wooCommerce: {
           id: wooCommercePedido.id,
