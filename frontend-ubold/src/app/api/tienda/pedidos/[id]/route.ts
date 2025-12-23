@@ -398,11 +398,15 @@ export async function PUT(
     // Solo agregar campos que realmente se están actualizando (que están en body.data)
     if (body.data.numero_pedido !== undefined) pedidoData.data.numero_pedido = body.data.numero_pedido?.toString().trim() || null
     if (body.data.fecha_pedido !== undefined) pedidoData.data.fecha_pedido = body.data.fecha_pedido || null
-    // Strapi espera valores en español (pendiente, procesando, en_espera, completado, cancelado, reembolsado, fallido)
-    // El frontend ya envía el estado en español, así que lo usamos directamente
+    // Strapi espera valores en inglés (pending, processing, on-hold, completed, cancelled, refunded, failed, auto-draft, checkout-draft)
+    // El frontend envía el estado en español, así que lo mapeamos a inglés
     if (body.data.estado !== undefined) {
-      pedidoData.data.estado = body.data.estado || null
-      console.log('[API Pedidos PUT] Estado para Strapi (en español):', body.data.estado)
+      const estadoMapeadoParaStrapi = mapWooStatus(body.data.estado)
+      pedidoData.data.estado = estadoMapeadoParaStrapi || null
+      console.log('[API Pedidos PUT] Mapeando estado para Strapi:', { 
+        original: body.data.estado, 
+        mapeado: estadoMapeadoParaStrapi 
+      })
     }
     if (body.data.total !== undefined) pedidoData.data.total = body.data.total != null ? parseFloat(String(body.data.total)) : null
     if (body.data.subtotal !== undefined) pedidoData.data.subtotal = body.data.subtotal != null ? parseFloat(String(body.data.subtotal)) : null

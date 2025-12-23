@@ -123,7 +123,8 @@ export async function POST(request: NextRequest) {
       data: {
         numero_pedido: numeroPedido,
         fecha_pedido: body.data.fecha_pedido || new Date().toISOString(),
-        estado: body.data.estado || 'pendiente',
+        // Strapi espera valores en inglés, mapear de español a inglés
+        estado: body.data.estado ? mapWooStatus(body.data.estado) : 'pending',
         total: body.data.total ? parseFloat(body.data.total) : null,
         subtotal: body.data.subtotal ? parseFloat(body.data.subtotal) : null,
         impuestos: body.data.impuestos ? parseFloat(body.data.impuestos) : null,
