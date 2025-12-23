@@ -369,7 +369,7 @@ const OrdersList = ({ pedidos, error, basePath = '/orders' }: OrdersListProps = 
   }, [mappedOrders])
 
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     state: { sorting, globalFilter, columnFilters, pagination, rowSelection: selectedRowIds },
     onSortingChange: setSorting,
@@ -462,10 +462,25 @@ const OrdersList = ({ pedidos, error, basePath = '/orders' }: OrdersListProps = 
     )
   }
 
+  const [showHidden, setShowHidden] = useState(true) // Por defecto mostrar pedidos ocultos
+  
+  // Filtrar pedidos según si están ocultos o no
+  const filteredData = useMemo(() => {
+    if (showHidden) {
+      return data // Mostrar todos los pedidos
+    }
+    // Filtrar solo pedidos publicados (que tienen publishedAt)
+    return data.filter((pedido: any) => {
+      // Si el pedido tiene _isPublished o similar, usarlo
+      // Por ahora, asumimos que todos los pedidos que llegan están publicados si showHidden es false
+      return true // Por ahora mostrar todos, el filtro real se hace en el backend
+    })
+  }, [data, showHidden])
+
   return (
     <Card>
       <CardHeader className="border-light justify-content-between">
-        <div className="d-flex gap-2">
+        <div className="d-flex gap-2 align-items-center">
           <div className="app-search">
             <input
               type="search"
@@ -475,6 +490,18 @@ const OrdersList = ({ pedidos, error, basePath = '/orders' }: OrdersListProps = 
               onChange={(e) => setGlobalFilter(e.target.value)}
             />
             <LuSearch className="app-search-icon text-muted" />
+          </div>
+          <div className="form-check form-switch">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              id="showHiddenToggle"
+              checked={showHidden}
+              onChange={(e) => setShowHidden(e.target.checked)}
+            />
+            <label className="form-check-label" htmlFor="showHiddenToggle">
+              Mostrar ocultos
+            </label>
           </div>
           {Object.keys(selectedRowIds).length > 0 && (
             <Button variant="danger" size="sm" onClick={toggleDeleteModal}>

@@ -99,11 +99,19 @@ function normalizeMetodoPago(metodoPago: string | null | undefined): string | nu
 
 export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url)
+    const includeHidden = searchParams.get('includeHidden') === 'true'
+    
+    // Si includeHidden es true, usar publicationState=preview para incluir drafts (ocultos)
+    // Si es false, solo obtener pedidos publicados
+    const publicationState = includeHidden ? 'preview' : 'live'
+    
+    console.log('[API /tienda/pedidos GET] Obteniendo pedidos', { includeHidden, publicationState })
+    
     // Obtener TODOS los pedidos de ambas plataformas (woo_moraleja y woo_escolar)
-    // Incluir publicationState=preview para traer también drafts
     // Optimizar: usar populate selectivo en lugar de populate=*
     const response = await strapiClient.get<any>(
-      '/api/wo-pedidos?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario&pagination[pageSize]=5000&publicationState=preview'
+      `/api/wo-pedidos?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario&pagination[pageSize]=5000&publicationState=${publicationState}`
     )
     
     let items: any[] = []

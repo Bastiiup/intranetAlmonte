@@ -24,7 +24,8 @@ export default async function Page() {
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
     const baseUrl = `${protocol}://${host}`
     
-    const response = await fetch(`${baseUrl}/api/tienda/pedidos`, {
+    // Por defecto incluir pedidos ocultos para mostrarlos todos
+    const response = await fetch(`${baseUrl}/api/tienda/pedidos?includeHidden=true`, {
       cache: 'no-store', // Forzar fetch dinámico
     })
     
@@ -44,10 +45,14 @@ export default async function Page() {
         // Mapear estado de Strapi (inglés) a formato WooCommerce
         const estado = pedidoData.estado || 'pending'
         
+        // Priorizar numero_pedido, luego wooId, y finalmente documentId como último recurso
+        const numeroPedido = pedidoData.numero_pedido || pedidoData.wooId || null
+        const displayId = numeroPedido ? String(numeroPedido) : documentId
+        
         return {
           id: documentId, // Usar documentId de Strapi para el link (necesario para la API)
-          number: pedidoData.numero_pedido || pedidoData.wooId || documentId,
-          displayId: pedidoData.numero_pedido || pedidoData.wooId || documentId, // ID para mostrar en la tabla
+          number: numeroPedido ? String(numeroPedido) : documentId,
+          displayId: displayId, // ID para mostrar en la tabla (priorizar numero_pedido o wooId)
           date_created: pedidoData.fecha_pedido || new Date().toISOString(),
           status: estado, // Estados en inglés: pending, processing, completed, cancelled, etc.
           total: String(pedidoData.total || 0),
