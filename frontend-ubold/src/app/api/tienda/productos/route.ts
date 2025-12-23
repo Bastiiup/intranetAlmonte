@@ -9,7 +9,7 @@ import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     // Verificar que el token esté configurado
     const token = process.env.STRAPI_API_TOKEN
@@ -26,12 +26,20 @@ export async function GET() {
       )
     }
 
+    // Obtener parámetros de query string
+    const { searchParams } = new URL(request.url)
+    const pageSize = searchParams.get('pagination[pageSize]') || '1000'
+    const page = searchParams.get('pagination[page]') || '1'
+
     // Endpoint correcto confirmado: /api/libros (verificado en test-strapi)
     const endpointUsed = '/api/libros'
-    const url = `${process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'}${endpointUsed}?populate=*&pagination[pageSize]=100`
+    const queryString = `populate=*&pagination[pageSize]=${pageSize}&pagination[page]=${page}`
+    const url = `${process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'}${endpointUsed}?${queryString}`
     
     console.log('[API /tienda/productos] Intentando obtener productos:', {
       endpoint: endpointUsed,
+      page,
+      pageSize,
       url: url.replace(/Bearer\s+\w+/, 'Bearer [TOKEN]'), // Ocultar token en logs
       tieneToken: !!token,
     })
@@ -39,7 +47,7 @@ export async function GET() {
     // Usar populate=* que funciona correctamente
     // Solo especificar campos que realmente existen en Strapi (en minúsculas)
     const response = await strapiClient.get<any>(
-      `${endpointUsed}?populate=*&pagination[pageSize]=100`
+      `${endpointUsed}?${queryString}`
     )
     
     // Log detallado para debugging

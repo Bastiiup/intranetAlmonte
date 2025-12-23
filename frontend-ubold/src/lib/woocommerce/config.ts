@@ -5,20 +5,42 @@
  * para conectarse con la API REST de WooCommerce.
  */
 
-// URL base de WooCommerce (debe empezar con NEXT_PUBLIC_ para estar disponible en el cliente)
+// Configuración para WooCommerce Escolar (por defecto)
 export const WOOCOMMERCE_URL = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL || 'https://staging.escolar.cl'
-
-// Credenciales de API de WooCommerce (solo disponibles en el servidor)
 export const WOOCOMMERCE_CONSUMER_KEY = process.env.WOOCOMMERCE_CONSUMER_KEY || ''
 export const WOOCOMMERCE_CONSUMER_SECRET = process.env.WOOCOMMERCE_CONSUMER_SECRET || ''
 
+// Configuración para WooCommerce Moraleja
+export const WOO_MORALEJA_URL = process.env.NEXT_PUBLIC_WOO_MORALEJA_URL || process.env.WOO_MORALEJA_URL || 'https://moraleja.cl'
+export const WOO_MORALEJA_CONSUMER_KEY = process.env.WOO_MORALEJA_CONSUMER_KEY || ''
+export const WOO_MORALEJA_CONSUMER_SECRET = process.env.WOO_MORALEJA_CONSUMER_SECRET || ''
+
 // Validar que las credenciales existan en producción
 if (process.env.NODE_ENV === 'production' && (!WOOCOMMERCE_CONSUMER_KEY || !WOOCOMMERCE_CONSUMER_SECRET)) {
-  console.warn('⚠️  WooCommerce API credentials no están configuradas. El POS no funcionará correctamente.')
+  console.warn('⚠️  WooCommerce API credentials (Escolar) no están configuradas. El POS no funcionará correctamente.')
+}
+
+if (process.env.NODE_ENV === 'production' && (!WOO_MORALEJA_CONSUMER_KEY || !WOO_MORALEJA_CONSUMER_SECRET)) {
+  console.warn('⚠️  WooCommerce API credentials (Moraleja) no están configuradas.')
 }
 
 // Helper para construir URLs completas de la API REST de WooCommerce
-export const getWooCommerceUrl = (path: string): string => {
+export const getWooCommerceUrl = (path: string, platform?: 'woo_moraleja' | 'woo_escolar'): string => {
   const cleanPath = path.startsWith('/') ? path.slice(1) : path
-  return `${WOOCOMMERCE_URL}/wp-json/wc/v3/${cleanPath}`
+  const baseUrl = platform === 'woo_moraleja' ? WOO_MORALEJA_URL : WOOCOMMERCE_URL
+  return `${baseUrl}/wp-json/wc/v3/${cleanPath}`
+}
+
+// Helper para obtener credenciales según la plataforma
+export const getWooCommerceCredentials = (platform: 'woo_moraleja' | 'woo_escolar'): { key: string; secret: string } => {
+  if (platform === 'woo_moraleja') {
+    return {
+      key: WOO_MORALEJA_CONSUMER_KEY,
+      secret: WOO_MORALEJA_CONSUMER_SECRET,
+    }
+  }
+  return {
+    key: WOOCOMMERCE_CONSUMER_KEY,
+    secret: WOOCOMMERCE_CONSUMER_SECRET,
+  }
 }

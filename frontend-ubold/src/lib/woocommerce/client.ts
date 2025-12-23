@@ -5,7 +5,7 @@
  * usando Consumer Key y Consumer Secret con autenticación básica HTTP.
  */
 
-import { getWooCommerceUrl, WOOCOMMERCE_CONSUMER_KEY, WOOCOMMERCE_CONSUMER_SECRET } from './config'
+import { getWooCommerceUrl, getWooCommerceCredentials, WOOCOMMERCE_CONSUMER_KEY, WOOCOMMERCE_CONSUMER_SECRET } from './config'
 
 // Tipos para respuestas de WooCommerce
 export type WooCommerceError = {
@@ -262,19 +262,23 @@ export type WooCommerceOrder = {
 }
 
 // Crear credenciales básicas para autenticación HTTP
-const getAuthHeader = (): string => {
-  if (!WOOCOMMERCE_CONSUMER_KEY || !WOOCOMMERCE_CONSUMER_SECRET) {
-    throw new Error('WooCommerce API credentials are not configured')
+const getAuthHeader = (platform?: 'woo_moraleja' | 'woo_escolar'): string => {
+  const credentials = platform 
+    ? getWooCommerceCredentials(platform)
+    : { key: WOOCOMMERCE_CONSUMER_KEY, secret: WOOCOMMERCE_CONSUMER_SECRET }
+  
+  if (!credentials.key || !credentials.secret) {
+    throw new Error(`WooCommerce API credentials are not configured for ${platform || 'default'}`)
   }
   // WooCommerce usa Basic Auth con Consumer Key como usuario y Consumer Secret como contraseña
   // Usar btoa para codificar en base64 (disponible en navegador y Node.js)
-  const credentials = `${WOOCOMMERCE_CONSUMER_KEY}:${WOOCOMMERCE_CONSUMER_SECRET}`
+  const credsString = `${credentials.key}:${credentials.secret}`
   if (typeof Buffer !== 'undefined') {
     // Node.js
-    return `Basic ${Buffer.from(credentials).toString('base64')}`
+    return `Basic ${Buffer.from(credsString).toString('base64')}`
   } else {
     // Navegador
-    return `Basic ${btoa(credentials)}`
+    return `Basic ${btoa(credsString)}`
   }
 }
 
@@ -298,10 +302,10 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return response.json()
 }
 
-// Cliente WooCommerce
-const wooCommerceClient = {
+// Factory para crear cliente WooCommerce según la plataforma
+const createWooCommerceClient = (platform?: 'woo_moraleja' | 'woo_escolar') => ({
   async get<T>(path: string, params?: Record<string, any>): Promise<T> {
-    const url = new URL(getWooCommerceUrl(path))
+    const url = new URL(getWooCommerceUrl(path, platform))
     
     // Agregar parámetros de consulta
     if (params) {
@@ -316,7 +320,7 @@ const wooCommerceClient = {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': getAuthHeader(),
+        'Authorization': getAuthHeader(platform),
       },
     })
 
@@ -324,7 +328,7 @@ const wooCommerceClient = {
   },
 
   async post<T>(path: string, data: any): Promise<T> {
-    const url = getWooCommerceUrl(path)
+    const url = getWooCommerceUrl(path, platform)
     
     // Agregar timeout para evitar que se quede colgado
     const controller = new AbortController()
@@ -335,7 +339,7 @@ const wooCommerceClient = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': getAuthHeader(),
+          'Authorization': getAuthHeader(platform),
         },
         body: JSON.stringify(data),
         signal: controller.signal,
@@ -355,12 +359,12 @@ const wooCommerceClient = {
   },
 
   async put<T>(path: string, data: any): Promise<T> {
-    const url = getWooCommerceUrl(path)
+    const url = getWooCommerceUrl(path, platform)
     const response = await fetch(url, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': getAuthHeader(),
+        'Authorization': getAuthHeader(platform),
       },
       body: JSON.stringify(data),
     })
@@ -369,7 +373,7 @@ const wooCommerceClient = {
   },
 
   async delete<T>(path: string, force = false): Promise<T> {
-    const url = new URL(getWooCommerceUrl(path))
+    const url = new URL(getWooCommerceUrl(path, platform))
     if (force) {
       url.searchParams.append('force', 'true')
     }
@@ -378,13 +382,17 @@ const wooCommerceClient = {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': getAuthHeader(),
+        'Authorization': getAuthHeader(platform),
       },
     })
 
     return handleResponse<T>(response)
   },
-}
+})
 
+// Cliente WooCommerce por defecto (para compatibilidad con código existente)
+const wooCommerceClient = createWooCommerceClient('woo_escolar')
+
+export { createWooCommerceClient }
 export default wooCommerceClient
 

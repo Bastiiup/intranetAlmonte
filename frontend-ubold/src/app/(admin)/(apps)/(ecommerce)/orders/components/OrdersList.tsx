@@ -17,13 +17,83 @@ import Link from 'next/link'
 import { useState, useMemo, useEffect } from 'react'
 import { Button, Card, CardFooter, CardHeader, Alert } from 'react-bootstrap'
 import { LuCalendar, LuCreditCard, LuSearch, LuTruck } from 'react-icons/lu'
-import { TbEye, TbPointFilled } from 'react-icons/tb'
+import { TbEye, TbEyeOff, TbPointFilled } from 'react-icons/tb'
+import { useRouter } from 'next/navigation'
 
 import { orders, OrderType } from '@/app/(admin)/(apps)/(ecommerce)/orders/data'
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
 import { currency } from '@/helpers'
+
+// Componente para acciones de pedido
+const OrderActions = ({ row, basePath }: { row: TableRow<OrderType>, basePath: string }) => {
+  const [isHiding, setIsHiding] = useState(false)
+  const router = useRouter()
+  
+  const handleHide = async () => {
+    if (!confirm('¿Estás seguro de que deseas ocultar este pedido?')) {
+      return
+    }
+    
+    setIsHiding(true)
+    try {
+      const pedidoId = row.original.id
+      // Obtener el documentId si está disponible
+      const documentId = (row.original as any)._strapiDocumentId || pedidoId
+      
+      const response = await fetch(`/api/tienda/pedidos/${documentId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          data: {
+            publishedAt: null, // Despublicar para ocultar
+          },
+        }),
+      })
+      
+      const result = await response.json()
+      
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Error al ocultar el pedido')
+      }
+      
+      // Recargar la página para actualizar la lista
+      router.refresh()
+    } catch (err: any) {
+      console.error('Error al ocultar pedido:', err)
+      alert(`Error al ocultar el pedido: ${err.message || 'Error desconocido'}`)
+    } finally {
+      setIsHiding(false)
+    }
+  }
+  
+  return (
+    <div className="d-flex gap-1">
+      <Link href={`${basePath}/${row.original.id}`}>
+        <Button variant="default" size="sm" className="btn-icon rounded-circle">
+          <TbEye className="fs-lg" />
+        </Button>
+      </Link>
+      <Button 
+        variant="outline-secondary" 
+        size="sm" 
+        className="btn-icon rounded-circle"
+        onClick={handleHide}
+        disabled={isHiding}
+        title="Ocultar pedido"
+      >
+        {isHiding ? (
+          <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" />
+        ) : (
+          <TbEyeOff className="fs-lg" />
+        )}
+      </Button>
+    </div>
+  )
+}
 
 // Función para traducir estados al español
 const translatePaymentStatus = (status: string): string => {
@@ -121,6 +191,7 @@ const mapWooCommerceOrderToOrderType = (pedido: any): OrderType => {
 interface OrdersListProps {
   pedidos?: any[]
   error?: string | null
+  basePath?: string // Ruta base para los links de detalles (default: '/orders')
 }
 
 const columnHelper = createColumnHelper<OrderType>()
@@ -161,7 +232,7 @@ const dateRangeFilterFn: FilterFn<any> = (row, columnId, selectedRange) => {
   }
 }
 
-const OrdersList = ({ pedidos, error }: OrdersListProps = {}) => {
+const OrdersList = ({ pedidos, error, basePath = '/orders' }: OrdersListProps = {}) => {
   const columns = [
     {
       id: 'select',
@@ -187,12 +258,11 @@ const OrdersList = ({ pedidos, error }: OrdersListProps = {}) => {
     columnHelper.accessor('id', {
       header: 'ID Pedido',
       cell: ({ row }) => {
-        // El id en OrderType es el ID numérico de WooCommerce para el link
-        // Pero podemos mostrar el number si está disponible
-        const displayNumber = row.original.id
+        // Mostrar el número de pedido (displayId o number) en lugar del ID interno
+        const displayNumber = (row.original as any).displayId || row.original.number || row.original.id
         return (
           <h5 className="fs-sm mb-0 fw-medium">
-            <Link href={`/orders/${row.original.id}`} className="link-reset">
+            <Link href={`${basePath}/${row.original.id}`} className="link-reset">
               #{displayNumber}
             </Link>
           </h5>
@@ -270,13 +340,7 @@ const OrdersList = ({ pedidos, error }: OrdersListProps = {}) => {
     {
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<OrderType> }) => (
-        <div className="d-flex gap-1">
-          <Link href={`/orders/${row.original.id}`}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle">
-              <TbEye className="fs-lg" />
-            </Button>
-          </Link>
-        </div>
+        <OrderActions row={row} basePath={basePath} />
       ),
     },
   ]
@@ -304,8 +368,23 @@ const OrdersList = ({ pedidos, error }: OrdersListProps = {}) => {
     setData(mappedOrders)
   }, [mappedOrders])
 
+  const [showHidden, setShowHidden] = useState(true) // Por defecto mostrar pedidos ocultos
+  
+  // Filtrar pedidos según si están ocultos o no
+  const filteredData = useMemo(() => {
+    if (showHidden) {
+      return data // Mostrar todos los pedidos
+    }
+    // Filtrar solo pedidos publicados (que tienen publishedAt)
+    return data.filter((pedido: any) => {
+      // Si el pedido tiene _isPublished o similar, usarlo
+      // Por ahora, asumimos que todos los pedidos que llegan están publicados si showHidden es false
+      return true // Por ahora mostrar todos, el filtro real se hace en el backend
+    })
+  }, [data, showHidden])
+
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     state: { sorting, globalFilter, columnFilters, pagination, rowSelection: selectedRowIds },
     onSortingChange: setSorting,
@@ -338,12 +417,43 @@ const OrdersList = ({ pedidos, error }: OrdersListProps = {}) => {
     setShowDeleteModal(!showDeleteModal)
   }
 
-  const handleDelete = () => {
-    const selectedIds = new Set(Object.keys(selectedRowIds))
-    setData((old) => old.filter((_, idx) => !selectedIds.has(idx.toString())))
-    setSelectedRowIds({})
-    setPagination({ ...pagination, pageIndex: 0 })
-    setShowDeleteModal(false)
+  const handleDelete = async () => {
+    const selectedRowIdsArray = Object.keys(selectedRowIds)
+    const idsToDelete = selectedRowIdsArray
+      .map(rowId => {
+        const row = table.getRow(rowId)
+        return row?.original?.id
+      })
+      .filter(Boolean)
+    
+    if (idsToDelete.length === 0) {
+      alert('No se seleccionaron pedidos para eliminar')
+      return
+    }
+    
+    try {
+      for (const pedidoId of idsToDelete) {
+        const response = await fetch(`/api/tienda/pedidos/${pedidoId}`, {
+          method: 'DELETE',
+        })
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || `Error al eliminar pedido ${pedidoId}`)
+        }
+      }
+      
+      // Actualizar datos eliminando los pedidos eliminados
+      setData((old) => old.filter(pedido => !idsToDelete.includes(pedido.id)))
+      setSelectedRowIds({})
+      setPagination({ ...pagination, pageIndex: 0 })
+      setShowDeleteModal(false)
+      
+      // Recargar la página para obtener datos actualizados
+      window.location.reload()
+    } catch (error: any) {
+      console.error('Error al eliminar pedidos:', error)
+      alert(`Error al eliminar los pedidos seleccionados: ${error.message || 'Error desconocido'}`)
+    }
   }
 
   // Si hay error, mostrarlo
@@ -370,7 +480,7 @@ const OrdersList = ({ pedidos, error }: OrdersListProps = {}) => {
   return (
     <Card>
       <CardHeader className="border-light justify-content-between">
-        <div className="d-flex gap-2">
+        <div className="d-flex gap-2 align-items-center">
           <div className="app-search">
             <input
               type="search"
@@ -381,9 +491,21 @@ const OrdersList = ({ pedidos, error }: OrdersListProps = {}) => {
             />
             <LuSearch className="app-search-icon text-muted" />
           </div>
+          <div className="form-check form-switch">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              id="showHiddenToggle"
+              checked={showHidden}
+              onChange={(e) => setShowHidden(e.target.checked)}
+            />
+            <label className="form-check-label" htmlFor="showHiddenToggle">
+              Mostrar ocultos
+            </label>
+          </div>
           {Object.keys(selectedRowIds).length > 0 && (
             <Button variant="danger" size="sm" onClick={toggleDeleteModal}>
-              Delete
+              Eliminar
             </Button>
           )}
         </div>

@@ -1,296 +1,341 @@
-/**
- * API Route para obtener y crear pedidos sincronizados entre Strapi y WooCommerce
- * Esto evita exponer el token de Strapi en el cliente
- */
-
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
-import wooCommerceClient from '@/lib/woocommerce/client'
-import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
-import type { WooCommerceOrder } from '@/lib/woocommerce/types'
-import { mapWooCommerceOrderToShipit, validateOrderForShipment, getShipitIdFromOrder } from '@/lib/shipit/utils'
-import { getCommuneId } from '@/lib/shipit/communes'
-import shipitClient from '@/lib/shipit/client'
-import type { ShipitShipmentResponse } from '@/lib/shipit/types'
+import wooCommerceClient, { createWooCommerceClient } from '@/lib/woocommerce/client'
 
 export const dynamic = 'force-dynamic'
 
-// Cache del endpoint encontrado (optimización: evita búsquedas repetidas)
-let cachedPedidoEndpoint: string | null = null
-
-// Función helper para encontrar el endpoint correcto de pedidos en Strapi
-async function findPedidoEndpoint(): Promise<string> {
-  // Si ya tenemos el endpoint cacheado, usarlo directamente
-  if (cachedPedidoEndpoint) {
-    return cachedPedidoEndpoint
+// Función helper para obtener el cliente de WooCommerce según la plataforma
+function getWooCommerceClientForPlatform(platform: string) {
+  if (platform === 'woo_moraleja') {
+    return createWooCommerceClient('woo_moraleja')
+  } else if (platform === 'woo_escolar') {
+    return createWooCommerceClient('woo_escolar')
   }
-
-  const endpoints = ['/api/pedidos', '/api/wo-pedidos', '/api/ecommerce-pedidos']
-  
-  for (const endpoint of endpoints) {
-    try {
-      // Verificar rápidamente si el endpoint existe
-      await strapiClient.get<any>(`${endpoint}?pagination[pageSize]=1`)
-      // Cachear el endpoint encontrado
-      cachedPedidoEndpoint = endpoint
-      return endpoint
-    } catch {
-      continue
-    }
-  }
-  
-  // Si ninguno funciona, usar el primero por defecto
-  cachedPedidoEndpoint = endpoints[0]
-  return endpoints[0]
+  // Por defecto usar escolar
+  return createWooCommerceClient('woo_escolar')
 }
 
-export async function GET() {
+// Función helper para mapear estado de WooCommerce a estado de Strapi
+function mapEstado(wooStatus: string): string {
+  const mapping: Record<string, string> = {
+    'pending': 'pendiente',
+    'processing': 'procesando',
+    'on-hold': 'en_espera',
+    'completed': 'completado',
+    'cancelled': 'cancelado',
+    'refunded': 'reembolsado',
+    'failed': 'fallido',
+  }
+  
+  return mapping[wooStatus.toLowerCase()] || 'pendiente'
+}
+
+// Función helper para mapear estado de Strapi a estado de WooCommerce
+function mapWooStatus(strapiStatus: string): string {
+  const statusLower = strapiStatus.toLowerCase().trim()
+  const mapping: Record<string, string> = {
+    'pendiente': 'pending',
+    'procesando': 'processing',
+    'en_espera': 'on-hold',
+    'completado': 'completed',
+    'cancelado': 'cancelled',
+    'reembolsado': 'refunded',
+    'fallido': 'failed',
+    // También aceptar estados en inglés directamente (por si acaso)
+    'pending': 'pending',
+    'processing': 'processing',
+    'on-hold': 'on-hold',
+    'completed': 'completed',
+    'cancelled': 'cancelled',
+    'refunded': 'refunded',
+    'failed': 'failed',
+  }
+  
+  const mapeado = mapping[statusLower]
+  if (!mapeado) {
+    console.warn('[mapWooStatus] Estado no reconocido:', strapiStatus, 'usando pending por defecto')
+    return 'pending'
+  }
+  
+  return mapeado
+}
+
+// Función helper para normalizar el campo 'origen'
+function normalizeOrigen(origen: string | null | undefined): string {
+  if (!origen) return 'web'
+  const origenLower = String(origen).toLowerCase().trim()
+  const mapping: Record<string, string> = {
+    'rest-api': 'rest-api',
+    'rest api': 'rest-api',
+    'admin': 'admin',
+    'mobile': 'mobile',
+    'directo': 'directo',
+    'otro': 'otro',
+    'web': 'web',
+    'checkout': 'checkout',
+    'woocommerce': 'web', // WooCommerce orders often come as 'woocommerce'
+  }
+  return mapping[origenLower] || 'web' // Default to 'web' if not recognized
+}
+
+// Función helper para normalizar el campo 'metodo_pago'
+function normalizeMetodoPago(metodoPago: string | null | undefined): string | null {
+  if (!metodoPago) return null
+  const metodoLower = String(metodoPago).toLowerCase().trim()
+  const mapping: Record<string, string> = {
+    'bacs': 'bacs',
+    'cheque': 'cheque',
+    'cod': 'cod',
+    'contra entrega': 'cod',
+    'paypal': 'paypal',
+    'stripe': 'stripe',
+    'tarjeta': 'stripe', // Mapear 'tarjeta' a 'stripe'
+    'transferencia': 'transferencia',
+    'transferencia bancaria': 'transferencia',
+    'otro': 'otro',
+  }
+  return mapping[metodoLower] || 'otro' // Default a 'otro' si no reconocido
+}
+
+export async function GET(request: NextRequest) {
   try {
-    // Usar función helper que cachea el endpoint encontrado
-    const endpointUsed = await findPedidoEndpoint()
-    const response = await strapiClient.get<any>(`${endpointUsed}?populate=*&pagination[pageSize]=100`)
+    const { searchParams } = new URL(request.url)
+    const includeHidden = searchParams.get('includeHidden') === 'true'
     
-    // Log detallado para debugging (solo en desarrollo)
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[API /tienda/pedidos] Respuesta de Strapi:', {
-        endpoint: endpointUsed,
-        cached: cachedPedidoEndpoint === endpointUsed,
-        hasData: !!response.data,
-        isArray: Array.isArray(response.data),
-        count: Array.isArray(response.data) ? response.data.length : response.data ? 1 : 0,
-      })
+    // Si includeHidden es true, usar publicationState=preview para incluir drafts (ocultos)
+    // Si es false, solo obtener pedidos publicados
+    const publicationState = includeHidden ? 'preview' : 'live'
+    
+    console.log('[API /tienda/pedidos GET] Obteniendo pedidos', { includeHidden, publicationState })
+    
+    // Obtener TODOS los pedidos de ambas plataformas (woo_moraleja y woo_escolar)
+    // Optimizar: usar populate selectivo en lugar de populate=*
+    const response = await strapiClient.get<any>(
+      `/api/wo-pedidos?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario&pagination[pageSize]=5000&publicationState=${publicationState}`
+    )
+    
+    let items: any[] = []
+    if (Array.isArray(response)) {
+      items = response
+    } else if (response.data && Array.isArray(response.data)) {
+      items = response.data
+    } else if (response.data) {
+      items = [response.data]
+    } else {
+      items = [response]
     }
+    
+    // Contar pedidos por plataforma para logging
+    const porPlataforma = items.reduce((acc: any, item: any) => {
+      const attrs = item?.attributes || {}
+      const data = (attrs && Object.keys(attrs).length > 0) ? attrs : item
+      const platform = data?.originPlatform || data?.externalIds?.originPlatform || 'desconocida'
+      acc[platform] = (acc[platform] || 0) + 1
+      return acc
+    }, {})
+    
+    console.log('[API GET pedidos] ✅ Items obtenidos:', items.length, 'Por plataforma:', porPlataforma)
     
     return NextResponse.json({
       success: true,
-      data: response.data || [],
-      meta: response.meta || {},
-      endpoint: endpointUsed,
-    }, { status: 200 })
-  } catch (error: any) {
-    console.error('[API /tienda/pedidos] Error al obtener pedidos:', {
-      message: error.message,
-      status: error.status,
-      details: error.details,
+      data: items
     })
-    return NextResponse.json(
-      { 
-        success: false,
-        error: error.message || 'Error al obtener pedidos',
-        data: [],
-        meta: {},
-      },
-      { status: error.status || 500 }
-    )
+  } catch (error: any) {
+    console.error('[API GET pedidos] ❌ Error:', error.message)
+    
+    return NextResponse.json({
+      success: true,
+      data: [],
+      warning: `No se pudieron cargar los pedidos: ${error.message}`
+    })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    
-    // Log solo en desarrollo para mejor rendimiento en producción
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[API Pedidos POST] 📝 Creando pedido:', {
-        hasLineItems: !!body.line_items,
-        lineItemsCount: body.line_items?.length || 0,
-        customerId: body.customer_id,
-        paymentMethod: body.payment_method
-      })
-    }
+    console.log('[API Pedidos POST] 📝 Creando pedido:', body)
 
-    // Validar que el pedido tenga line_items
-    if (!body.line_items || !Array.isArray(body.line_items) || body.line_items.length === 0) {
+    // Validar campos obligatorios
+    if (!body.data?.numero_pedido) {
       return NextResponse.json({
         success: false,
-        error: 'El pedido debe tener al menos un producto'
+        error: 'El número de pedido es obligatorio'
       }, { status: 400 })
     }
 
-    // Preparar datos del pedido para WooCommerce
-    const wooCommerceOrderData: any = {
-      payment_method: body.payment_method || 'pos',
-      payment_method_title: body.payment_method_title || 'Punto de Venta',
-      set_paid: body.set_paid !== undefined ? body.set_paid : true,
-      status: body.status || 'completed',
-      customer_id: body.customer_id || 0,
-      billing: body.billing || {
-        first_name: 'Cliente',
-        last_name: 'POS',
-        email: 'pos@escolar.cl',
-        phone: '',
-        address_1: '',
-        address_2: '',
-        city: '',
-        state: '',
-        postcode: '',
-        country: 'CL',
-      },
-      shipping: body.shipping || {
-        first_name: '',
-        last_name: '',
-        address_1: '',
-        address_2: '',
-        city: '',
-        state: '',
-        postcode: '',
-        country: 'CL',
-      },
-      line_items: body.line_items.map((item: any) => ({
-        product_id: item.product_id,
-        quantity: item.quantity,
-        ...(item.variation_id && { variation_id: item.variation_id }),
-      })),
-      ...(body.customer_note && { customer_note: body.customer_note }),
-      ...(body.meta_data && Array.isArray(body.meta_data) && { meta_data: body.meta_data }),
+    // Validar originPlatform
+    const validPlatforms = ['woo_moraleja', 'woo_escolar', 'otros']
+    const originPlatform = body.data.originPlatform || body.data.origin_platform || 'woo_moraleja'
+    if (!validPlatforms.includes(originPlatform)) {
+      return NextResponse.json({
+        success: false,
+        error: `originPlatform debe ser uno de: ${validPlatforms.join(', ')}`
+      }, { status: 400 })
     }
 
-    // Crear pedido SOLO en WooCommerce (optimizado para velocidad)
-    // Strapi se sincronizará automáticamente vía webhook desde WooCommerce
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[API Pedidos POST] 🛒 Creando pedido en WooCommerce (Strapi se sincronizará vía webhook)...')
+    const numeroPedido = body.data.numero_pedido.trim()
+    const pedidoEndpoint = '/api/wo-pedidos'
+    console.log('[API Pedidos POST] Usando endpoint Strapi:', pedidoEndpoint)
+
+    // Crear en Strapi PRIMERO para obtener el documentId
+    console.log('[API Pedidos POST] 📚 Creando pedido en Strapi primero...')
+    
+    const pedidoData: any = {
+      data: {
+        numero_pedido: numeroPedido,
+        fecha_pedido: body.data.fecha_pedido || new Date().toISOString(),
+        // Strapi espera valores en inglés, mapear de español a inglés
+        estado: body.data.estado ? mapWooStatus(body.data.estado) : 'pending',
+        total: body.data.total ? parseFloat(body.data.total) : null,
+        subtotal: body.data.subtotal ? parseFloat(body.data.subtotal) : null,
+        impuestos: body.data.impuestos ? parseFloat(body.data.impuestos) : null,
+        envio: body.data.envio ? parseFloat(body.data.envio) : null,
+        descuento: body.data.descuento ? parseFloat(body.data.descuento) : null,
+        moneda: body.data.moneda || 'CLP',
+        origen: normalizeOrigen(body.data.origen),
+        cliente: body.data.cliente || null,
+        items: body.data.items || [],
+        billing: body.data.billing || null,
+        shipping: body.data.shipping || null,
+        metodo_pago: normalizeMetodoPago(body.data.metodo_pago),
+        metodo_pago_titulo: body.data.metodo_pago_titulo || null,
+        nota_cliente: body.data.nota_cliente || null,
+        originPlatform: originPlatform,
+      }
+    }
+
+    const strapiPedido = await strapiClient.post<any>(pedidoEndpoint, pedidoData)
+    const documentId = strapiPedido.data?.documentId || strapiPedido.documentId
+    
+    if (!documentId) {
+      throw new Error('No se pudo obtener el documentId de Strapi')
     }
     
-    const wooCommerceOrder = await wooCommerceClient.post<WooCommerceOrder>('orders', wooCommerceOrderData)
-    
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[API Pedidos POST] ✅ Pedido creado en WooCommerce:', {
-        id: wooCommerceOrder.id,
-        status: wooCommerceOrder.status,
-        total: wooCommerceOrder.total,
-        number: wooCommerceOrder.number
+    console.log('[API Pedidos POST] ✅ Pedido creado en Strapi:', {
+      id: strapiPedido.data?.id || strapiPedido.id,
+      documentId: documentId
+    })
+
+    // Si originPlatform es "otros", no crear en WooCommerce
+    if (originPlatform === 'otros') {
+      return NextResponse.json({
+        success: true,
+        data: {
+          strapi: strapiPedido.data || strapiPedido,
+        },
+        message: 'Pedido creado exitosamente en Strapi'
       })
     }
 
-    // Intentar crear envío en Shipit solo si es envío (no retiro en tienda)
-    let shipitShipment = null
-    let shipitError = null
+    // Crear pedido en WooCommerce
+    const wcClient = getWooCommerceClientForPlatform(originPlatform)
+    console.log('[API Pedidos POST] 🛒 Creando pedido en WooCommerce...')
+    
+    // Mapear items de Strapi a formato WooCommerce
+    const lineItems = (body.data.items || []).map((item: any) => ({
+      product_id: item.producto_id || item.libro_id || null,
+      quantity: item.cantidad || 1,
+      name: item.nombre || '',
+      price: item.precio_unitario || 0,
+      sku: item.sku || '',
+    })).filter((item: any) => item.product_id)
 
-    // Verificar tipo de entrega desde meta_data
-    const deliveryTypeMeta = wooCommerceOrder.meta_data?.find(
-      (meta) => meta.key === '_delivery_type'
-    )
-    const deliveryType = deliveryTypeMeta 
-      ? (typeof deliveryTypeMeta.value === 'string' ? deliveryTypeMeta.value : String(deliveryTypeMeta.value))
-      : 'pickup'
-
-    // Solo crear envío si es tipo "shipping" (envío a domicilio)
-    if (deliveryType === 'shipping') {
-      try {
-        // Validar que el pedido tenga información de envío
-        const validation = validateOrderForShipment(wooCommerceOrder)
-      
-      if (validation.valid) {
-        // Verificar si ya tiene un envío de Shipit
-        const existingShipitId = getShipitIdFromOrder(wooCommerceOrder)
-
-        if (!existingShipitId) {
-          // Verificar cobertura antes de crear envío (opcional, puede ser lento)
-          // Comentado por defecto para no ralentizar la creación del pedido
-          // Se puede activar si es necesario:
-          /*
-          try {
-            const communeId = getCommuneId(wooCommerceOrder.shipping.city)
-            if (communeId) {
-              const coverageResponse = await shipitClient.get('coverage', { commune_id: communeId })
-              if (!coverageResponse.available) {
-                console.warn('[API Pedidos POST] ⚠️  No hay cobertura de Shipit para esta comuna')
-                // Continuar de todas formas, pero registrar la advertencia
-              }
-            }
-          } catch (coverageError) {
-            // No fallar si la verificación de cobertura falla
-            console.warn('[API Pedidos POST] No se pudo verificar cobertura:', coverageError)
-          }
-          */
-
-          // Mapear pedido a formato Shipit
-          const shipmentData = mapWooCommerceOrderToShipit(wooCommerceOrder, {
-            // communeId se obtendrá automáticamente desde la ciudad
-            courier: process.env.SHIPIT_DEFAULT_COURIER || 'shippify', // Courier desde env o por defecto
-            kind: 0, // Envío normal
-            testMode: process.env.NODE_ENV === 'development', // Modo prueba en desarrollo
-          })
-
-          // Crear envío en Shipit
-          if (process.env.NODE_ENV === 'development') {
-            console.log('[API Pedidos POST] 📦 Creando envío en Shipit...')
-          }
-
-          shipitShipment = await shipitClient.post<ShipitShipmentResponse>(
-            'shipments',
-            shipmentData
-          )
-
-          // Guardar ID de Shipit en el pedido de WooCommerce
-          const currentMetaData = wooCommerceOrder.meta_data || []
-          const updatedMetaData = [
-            ...currentMetaData.filter(
-              (meta) => meta.key !== '_shipit_id' && meta.key !== 'shipit_id'
-            ),
-            {
-              key: '_shipit_id',
-              value: String(shipitShipment.id),
-            },
-          ]
-
-          if (shipitShipment.tracking_number) {
-            updatedMetaData.push({
-              key: '_shipit_tracking',
-              value: shipitShipment.tracking_number,
-            })
-          }
-
-          // Actualizar pedido en WooCommerce con el ID de Shipit
-          await wooCommerceClient.put(`orders/${wooCommerceOrder.id}`, {
-            meta_data: updatedMetaData,
-          })
-
-          if (process.env.NODE_ENV === 'development') {
-            console.log('[API Pedidos POST] ✅ Envío creado en Shipit:', {
-              shipitId: shipitShipment.id,
-              tracking: shipitShipment.tracking_number,
-            })
-          }
-        } else {
-          if (process.env.NODE_ENV === 'development') {
-            console.log('[API Pedidos POST] ⚠️  Pedido ya tiene envío de Shipit:', existingShipitId)
-          }
-        }
-      } else {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[API Pedidos POST] ⚠️  Pedido no tiene información suficiente para crear envío:', validation.errors)
-        }
-      }
-      } catch (error: any) {
-        // No fallar el pedido si Shipit falla, solo loguear el error
-        shipitError = error.message || 'Error al crear envío en Shipit'
-        console.error('[API Pedidos POST] ❌ Error al crear envío en Shipit (no crítico):', {
-          orderId: wooCommerceOrder.id,
-          error: shipitError,
-          details: error.details,
-        })
-      }
-    } else {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[API Pedidos POST] ℹ️  Pedido es retiro en tienda, no se creará envío en Shipit')
-      }
+    const wooCommercePedidoData: any = {
+      status: mapWooStatus(body.data.estado || 'pendiente'),
+      currency: body.data.moneda || 'CLP',
+      date_created: body.data.fecha_pedido || new Date().toISOString(),
+      line_items: lineItems,
+      billing: body.data.billing || {},
+      shipping: body.data.shipping || {},
+      payment_method: body.data.metodo_pago || '',
+      payment_method_title: body.data.metodo_pago_titulo || '',
+      customer_note: body.data.nota_cliente || '',
+      total: String(body.data.total || 0),
+      subtotal: String(body.data.subtotal || 0),
+      total_tax: String(body.data.impuestos || 0),
+      shipping_total: String(body.data.envio || 0),
+      discount_total: String(body.data.descuento || 0),
     }
 
-    // Responder inmediatamente - Strapi se sincronizará vía webhook de WooCommerce
+    // Crear pedido en WooCommerce
+    let wooCommercePedido = null
+    try {
+      const wooResponse = await wcClient.post<any>('orders', wooCommercePedidoData)
+      
+      wooCommercePedido = wooResponse?.data || wooResponse
+      
+      console.log('[API Pedidos POST] ✅ Pedido creado en WooCommerce:', {
+        id: wooCommercePedido?.id,
+        number: wooCommercePedido?.number,
+      })
+
+      if (!wooCommercePedido || !wooCommercePedido.id) {
+        throw new Error('La respuesta de WooCommerce no contiene un pedido válido')
+      }
+
+      // Actualizar Strapi con el wooId y rawWooData (usar camelCase como en el schema)
+      const updateData: any = {
+        data: {
+          wooId: wooCommercePedido.id,
+          rawWooData: wooCommercePedido,
+          externalIds: {
+            wooCommerce: {
+              id: wooCommercePedido.id,
+              number: wooCommercePedido.number,
+            },
+            originPlatform: originPlatform,
+          }
+        }
+      }
+
+      await strapiClient.put<any>(`${pedidoEndpoint}/${documentId}`, updateData)
+      console.log('[API Pedidos POST] ✅ Strapi actualizado con datos de WooCommerce')
+    } catch (wooError: any) {
+      console.error('[API Pedidos POST] ⚠️ Error al crear pedido en WooCommerce:', wooError.message)
+      
+      // Si el error es por credenciales no configuradas, permitir crear solo en Strapi
+      const esErrorCredenciales = wooError.message?.includes('credentials are not configured') ||
+                                   wooError.message?.includes('no están configuradas')
+      
+      if (esErrorCredenciales) {
+        console.warn('[API Pedidos POST] ⚠️ Credenciales de WooCommerce no configuradas, creando pedido solo en Strapi')
+        return NextResponse.json({
+          success: true,
+          data: {
+            strapi: strapiPedido.data || strapiPedido,
+          },
+          message: 'Pedido creado exitosamente en Strapi (WooCommerce no disponible - credenciales no configuradas)',
+          warning: `WooCommerce ${originPlatform} no está configurado. El pedido se creó solo en Strapi.`
+        })
+      }
+      
+      // Si falla WooCommerce por otro motivo, eliminar de Strapi para mantener consistencia
+      try {
+        const deleteResponse = await strapiClient.delete<any>(`${pedidoEndpoint}/${documentId}`)
+        console.log('[API Pedidos POST] 🗑️ Pedido eliminado de Strapi debido a error en WooCommerce')
+      } catch (deleteError: any) {
+        // Ignorar errores de eliminación si la respuesta no es JSON válido (puede ser 204 No Content)
+        if (deleteError.message && !deleteError.message.includes('JSON')) {
+          console.error('[API Pedidos POST] ⚠️ Error al eliminar de Strapi:', deleteError.message)
+        } else {
+          console.log('[API Pedidos POST] 🗑️ Pedido eliminado de Strapi (respuesta no JSON, probablemente exitosa)')
+        }
+      }
+      
+      throw new Error(`Error al crear pedido en WooCommerce: ${wooError.message}`)
+    }
+
     return NextResponse.json({
       success: true,
       data: {
-        woocommerce: wooCommerceOrder,
-        shipit: shipitShipment,
+        woocommerce: wooCommercePedido,
+        strapi: strapiPedido.data || strapiPedido,
       },
-      message: 'Pedido creado exitosamente en WooCommerce. Sincronización con Strapi se procesará automáticamente.' + 
-        (shipitShipment ? ' Envío creado en Shipit.' : shipitError ? ' No se pudo crear envío en Shipit (no crítico).' : ''),
-      ...(shipitError && { shipitWarning: shipitError }),
-    }, { status: 200 })
+      message: 'Pedido creado exitosamente en Strapi y WooCommerce'
+    })
 
   } catch (error: any) {
-    // Siempre loguear errores (son importantes para debugging)
     console.error('[API Pedidos POST] ❌ ERROR al crear pedido:', {
       message: error.message,
       status: error.status,
@@ -304,4 +349,3 @@ export async function POST(request: NextRequest) {
     }, { status: error.status || 500 })
   }
 }
-

@@ -162,11 +162,21 @@ const strapiClient = {
       const dataObj = data as any
       if (dataObj.data) {
         const keys = Object.keys(dataObj.data)
-        console.log('[Strapi POST] Keys a enviar:', keys)
-        const hasUppercase = keys.some(k => k !== k.toLowerCase())
-        if (hasUppercase) {
-          console.error('[Strapi POST] 🚨 ADVERTENCIA: Hay mayúsculas en keys!')
-          console.error('[Strapi POST] Keys problemáticos:', keys.filter(k => k !== k.toLowerCase()))
+        // Verificar solo keys que tienen mayúsculas en medio (no camelCase válido)
+        // camelCase válido: originPlatform, externalIds, wooId (primera letra minúscula, resto camelCase)
+        // Problemático: OriginPlatform, EXTERNAL_IDS, WooId (mayúscula al inicio o todo mayúsculas)
+        const problematicKeys = keys.filter(k => {
+          // Ignorar camelCase válido (primera letra minúscula)
+          if (k[0] === k[0].toLowerCase()) {
+            return false // Es camelCase válido
+          }
+          // Detectar si tiene mayúsculas al inicio o todo mayúsculas
+          return k !== k.toLowerCase() && (k[0] === k[0].toUpperCase() || k === k.toUpperCase())
+        })
+        
+        if (problematicKeys.length > 0) {
+          console.warn('[Strapi POST] ⚠️ ADVERTENCIA: Keys con formato problemático (no camelCase):', problematicKeys)
+          console.warn('[Strapi POST] ℹ️  Nota: camelCase válido (ej: originPlatform, externalIds) es aceptado por Strapi')
         }
       }
     }
@@ -206,15 +216,26 @@ const strapiClient = {
     const url = getStrapiUrl(path)
     
     // LOG para debug - verificar keys antes de enviar
+    // NOTA: Strapi acepta camelCase (ej: originPlatform, externalIds) - el warning es solo informativo
     if (data && typeof data === 'object') {
       const dataObj = data as any
       if (dataObj.data) {
         const keys = Object.keys(dataObj.data)
-        console.log('[Strapi PUT] Keys a enviar:', keys)
-        const hasUppercase = keys.some(k => k !== k.toLowerCase())
-        if (hasUppercase) {
-          console.error('[Strapi PUT] 🚨 ADVERTENCIA: Hay mayúsculas en keys!')
-          console.error('[Strapi PUT] Keys problemáticos:', keys.filter(k => k !== k.toLowerCase()))
+        // Verificar solo keys que tienen mayúsculas en medio (no camelCase válido)
+        // camelCase válido: originPlatform, externalIds, wooId (primera letra minúscula, resto camelCase)
+        // Problemático: OriginPlatform, EXTERNAL_IDS, WooId (mayúscula al inicio o todo mayúsculas)
+        const problematicKeys = keys.filter(k => {
+          // Ignorar camelCase válido (primera letra minúscula)
+          if (k[0] === k[0].toLowerCase()) {
+            return false // Es camelCase válido
+          }
+          // Detectar si tiene mayúsculas al inicio o todo mayúsculas
+          return k !== k.toLowerCase() && (k[0] === k[0].toUpperCase() || k === k.toUpperCase())
+        })
+        
+        if (problematicKeys.length > 0) {
+          console.warn('[Strapi PUT] ⚠️ ADVERTENCIA: Keys con formato problemático (no camelCase):', problematicKeys)
+          console.warn('[Strapi PUT] ℹ️  Nota: camelCase válido (ej: originPlatform, externalIds) es aceptado por Strapi')
         }
       }
     }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, memo } from 'react'
+import { useState, useEffect, memo, useRef } from 'react'
 import { FormLabel, FormSelect } from 'react-bootstrap'
 
 interface RelationSelectorProps {
@@ -27,20 +27,76 @@ const RelationSelector = memo(function RelationSelector({
   const [options, setOptions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const selectRef = useRef<HTMLSelectElement>(null)
 
   useEffect(() => {
     fetchOptions()
   }, [endpoint])
 
+  // Sincronizar valores seleccionados cuando cambia el prop value
+  useEffect(() => {
+    if (multiple && selectRef.current) {
+      const select = selectRef.current
+      const valueArray = Array.isArray(value) ? value.map(String) : (value ? [String(value)] : [])
+      
+      // Deseleccionar todas las opciones primero
+      Array.from(select.options).forEach(option => {
+        option.selected = false
+      })
+      
+      // Seleccionar las opciones que están en el array de valores
+      valueArray.forEach(val => {
+        const option = Array.from(select.options).find(opt => opt.value === val)
+        if (option) {
+          option.selected = true
+        }
+      })
+    }
+  }, [value, multiple, options])
+
   const fetchOptions = async () => {
     try {
       setLoading(true)
       setError(null)
-      const res = await fetch(endpoint)
+      
+      // Para productos, cargar todos sin límite de paginación
+      const isProductosEndpoint = endpoint.includes('/productos')
+      const fetchUrl = isProductosEndpoint 
+        ? `${endpoint}?pagination[pageSize]=1000` 
+        : endpoint
+      
+      const res = await fetch(fetchUrl)
       const data = await res.json()
       
       if (data.success) {
-        const items = data.data || []
+        let items = data.data || []
+        
+        // Si hay paginación y hay más páginas, cargar todas
+        if (isProductosEndpoint && data.meta?.pagination) {
+          const pagination = data.meta.pagination
+          const totalPages = pagination.pageCount || 1
+          
+          if (totalPages > 1) {
+            console.log(`[RelationSelector] ${label} - Cargando ${totalPages} páginas...`)
+            const allItems = [...items]
+            
+            // Cargar las páginas restantes
+            for (let page = 2; page <= totalPages; page++) {
+              try {
+                const pageRes = await fetch(`${endpoint}?pagination[pageSize]=1000&pagination[page]=${page}`)
+                const pageData = await pageRes.json()
+                if (pageData.success && pageData.data) {
+                  allItems.push(...pageData.data)
+                }
+              } catch (pageErr) {
+                console.warn(`[RelationSelector] Error al cargar página ${page}:`, pageErr)
+              }
+            }
+            
+            items = allItems
+          }
+        }
+        
         console.log(`[RelationSelector] ${label} - Items recibidos:`, items.length)
         
         // LOG para ver campos disponibles del primer item
@@ -74,17 +130,30 @@ const RelationSelector = memo(function RelationSelector({
     const attrs = option.attributes || {}
     const data = (attrs && Object.keys(attrs).length > 0) ? attrs : option
     
-    return data[displayField] || 
-           option[displayField] ||
-           data.nombre || 
-           option.nombre || 
-           data.titulo ||
-           option.titulo || 
-           data.name ||
-           option.name ||
-           data.title ||
-           option.title ||
-           `Item ${option.id || option.documentId || data.id || data.documentId}`
+    // Obtener el ID del producto
+    const productId = option.id || option.documentId || data.id || data.documentId
+    
+    // Intentar obtener el nombre/título del producto (incluyendo nombre_libro que es el campo real)
+    const nombre = data[displayField] || 
+                   option[displayField] ||
+                   data.nombre_libro ||
+                   option.nombre_libro ||
+                   data.nombre || 
+                   option.nombre || 
+                   data.titulo ||
+                   option.titulo || 
+                   data.name ||
+                   option.name ||
+                   data.title ||
+                   option.title ||
+                   null
+    
+    // Si hay nombre, mostrar "Nombre (ID)", si no solo "Item ID"
+    if (nombre) {
+      return `${nombre} (${productId})`
+    }
+    
+    return `Item ${productId}`
   }
 
   return (
@@ -100,15 +169,16 @@ const RelationSelector = memo(function RelationSelector({
       ) : (
         <>
           <FormSelect
+            ref={selectRef}
             value={multiple ? undefined : (value as string || '')}
             onChange={handleSelectChange}
             multiple={multiple}
             required={required}
             {...(multiple ? { style: { minHeight: '120px' } } : {})}
           >
-            <option value="">Add or create a relation</option>
+            {!multiple && <option value="">Add or create a relation</option>}
             {options.map((option: any) => {
-              const optionId = option.documentId || option.id
+              const optionId = String(option.documentId || option.id)
               const displayText = getDisplayValue(option)
               return (
                 <option key={optionId} value={optionId}>
