@@ -2,16 +2,16 @@
 FROM node:20.9.0-alpine
 
 # Instalar solo lo necesario para build
-RUN apk add --no-cache libc6-compat
+# RUN apk add --no-cache libc6-compat
 
 # Establecer directorio de trabajo
 WORKDIR /app
 
 # Copiar archivos de dependencias primero (para mejor cache de Docker)
-COPY frontend-ubold/package*.json ./
+COPY frontend-ubold/package.json frontend-ubold/package-lock.json* frontend-ubold/bun.lock* ./
 
 # Instalar dependencias
-RUN npm ci --prefer-offline --no-audit --legacy-peer-deps || npm install --prefer-offline --no-audit --legacy-peer-deps
+RUN npm ci 
 
 # Copiar el resto de los archivos
 COPY frontend-ubold/ .
