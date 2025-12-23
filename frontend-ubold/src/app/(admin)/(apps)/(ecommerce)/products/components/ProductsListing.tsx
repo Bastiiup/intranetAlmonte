@@ -657,7 +657,6 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
             onConfirm={handleDelete}
             selectedCount={Object.keys(selectedRowIds).length}
             itemName="producto"
-            loading={loading}
           />
         </Card>
       </Col>
