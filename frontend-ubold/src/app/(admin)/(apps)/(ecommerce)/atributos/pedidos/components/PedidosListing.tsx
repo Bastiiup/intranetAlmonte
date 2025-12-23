@@ -844,6 +844,11 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
               <Button variant="primary" className="btn-icon">
                 <TbList className="fs-lg" />
               </Button>
+              <Link href="/atributos/pedidos/sync-missing" passHref>
+                <Button variant="warning" className="ms-1">
+                  Sincronizar Faltantes
+                </Button>
+              </Link>
               <Link href="/atributos/pedidos/agregar" passHref>
                 <Button variant="danger" className="ms-1">
                   <TbPlus className="fs-sm me-2" /> Agregar Pedido
