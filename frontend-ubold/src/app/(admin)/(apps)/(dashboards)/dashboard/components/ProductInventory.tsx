@@ -61,14 +61,18 @@ const ProductInventory = ({ products: propsProducts }: ProductInventoryProps) =>
         const imageSrc = getImageSrc(row.original.image)
         return (
           <div className="d-flex align-items-center">
-            <Image src={imageSrc} className="avatar-sm rounded-circle me-2" alt={row.original.name || 'Producto'} />
+            <Image src={imageSrc} className="avatar-sm rounded-circle me-2" alt={row.original.name} />
             <div>
               <span className="text-muted fs-xs">{row.original.category}</span>
-              <h5 className="fs-base mb-0">
-                <Link href="/products/1" className="text-body">
-                  {row.original.name}
-                </Link>
-              </h5>
+
+
+              {row.original.name ? (
+                <h5 className="fs-base mb-0">
+                  <Link href="/products/1" className="text-body">
+                    {row.original.name}
+                  </Link>
+                </h5>
+              ) : null}
             </div>
           </div>
         )
@@ -124,7 +128,7 @@ const ProductInventory = ({ products: propsProducts }: ProductInventoryProps) =>
           </DropdownToggle>
           <DropdownMenu align={'start'} className="dropdown-menu-end">
             <DropdownItem href="#">Editar Producto</DropdownItem>
-            <DropdownItem href="#">Eliminar Producto</DropdownItem>
+            <DropdownItem href="#">Remove</DropdownItem>
           </DropdownMenu>
         </Dropdown>
       ),
