@@ -123,8 +123,8 @@ const ProductInventory = ({ products: propsProducts }: ProductInventoryProps) =>
             <TbDotsVertical className="fs-lg" />
           </DropdownToggle>
           <DropdownMenu align={'start'} className="dropdown-menu-end">
-            <DropdownItem href="#">Edit Product</DropdownItem>
-            <DropdownItem href="#">Remove</DropdownItem>
+            <DropdownItem href="#">Editar Producto</DropdownItem>
+            <DropdownItem href="#">Eliminar Producto</DropdownItem>
           </DropdownMenu>
         </Dropdown>
       ),
