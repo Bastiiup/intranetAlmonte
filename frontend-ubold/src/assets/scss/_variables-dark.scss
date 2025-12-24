@@ -8,15 +8,15 @@
 
 // scss-docs-start sass-dark-mode-vars
 // scss-docs-start theme-text-dark-variables
-$primary-text-emphasis-dark:        tint-color($primary, 40%);
-$secondary-text-emphasis-dark:      tint-color($secondary, 40%);
-$success-text-emphasis-dark:        tint-color($success, 40%);
-$info-text-emphasis-dark:           tint-color($info, 40%);
-$warning-text-emphasis-dark:        tint-color($warning, 40%);
-$danger-text-emphasis-dark:         tint-color($danger, 40%);
-$purple-text-emphasis-dark:         tint-color($purple, 40%);
-$light-text-emphasis-dark:          $gray-100;
-$dark-text-emphasis-dark:           $gray-300;
+$primary-text-emphasis-dark:        tint-color($primary, 40%) !default;
+$secondary-text-emphasis-dark:      tint-color($secondary, 40%) !default;
+$success-text-emphasis-dark:        tint-color($success, 40%) !default;
+$info-text-emphasis-dark:           tint-color($info, 40%) !default;
+$warning-text-emphasis-dark:        tint-color($warning, 40%) !default;
+$danger-text-emphasis-dark:         tint-color($danger, 40%) !default;
+$purple-text-emphasis-dark:         tint-color($purple, 40%) !default;
+$light-text-emphasis-dark:          $gray-100 !default;
+$dark-text-emphasis-dark:           $gray-300 !default;
 // scss-docs-end theme-text-dark-variables
 
 $theme-colors-text-dark: (
@@ -32,15 +32,15 @@ $theme-colors-text-dark: (
 );
 
 // scss-docs-start theme-bg-subtle-dark-variables
-$primary-bg-subtle-dark:            rgba($primary, 20%);
-$secondary-bg-subtle-dark:          rgba($secondary, 20%);
-$success-bg-subtle-dark:            rgba($success, 20%);
-$info-bg-subtle-dark:               rgba($info, 20%);
-$warning-bg-subtle-dark:            rgba($warning, 20%);
-$danger-bg-subtle-dark:             rgba($danger, 20%);
-$purple-bg-subtle-dark:             rgba($purple, 20%);
-$light-bg-subtle-dark:              #22232c;
-$dark-bg-subtle-dark:               mix($gray-800, $black);
+$primary-bg-subtle-dark:            rgba($primary, 20%) !default;
+$secondary-bg-subtle-dark:          rgba($secondary, 20%) !default;
+$success-bg-subtle-dark:            rgba($success, 20%) !default;
+$info-bg-subtle-dark:               rgba($info, 20%) !default;
+$warning-bg-subtle-dark:            rgba($warning, 20%) !default;
+$danger-bg-subtle-dark:             rgba($danger, 20%) !default;
+$purple-bg-subtle-dark:             rgba($purple, 20%) !default;
+$light-bg-subtle-dark:              #22232c !default;
+$dark-bg-subtle-dark:               mix($gray-800, $black) !default;
 // scss-docs-end theme-bg-subtle-dark-variables
 
 $theme-colors-bg-subtle-dark: (
@@ -56,15 +56,15 @@ $theme-colors-bg-subtle-dark: (
 );
 
 // scss-docs-start theme-border-subtle-dark-variables
-$primary-border-subtle-dark:        shade-color($primary, 40%);
-$secondary-border-subtle-dark:      shade-color($secondary, 40%);
-$success-border-subtle-dark:        shade-color($success, 40%);
-$info-border-subtle-dark:           shade-color($info, 40%);
-$warning-border-subtle-dark:        shade-color($warning, 40%);
-$danger-border-subtle-dark:         shade-color($danger, 40%);
-$purple-border-subtle-dark:         shade-color($purple, 40%);
-$light-border-subtle-dark:          $gray-700;
-$dark-border-subtle-dark:           $gray-700;
+$primary-border-subtle-dark:        shade-color($primary, 40%) !default;
+$secondary-border-subtle-dark:      shade-color($secondary, 40%) !default;
+$success-border-subtle-dark:        shade-color($success, 40%) !default;
+$info-border-subtle-dark:           shade-color($info, 40%) !default;
+$warning-border-subtle-dark:        shade-color($warning, 40%) !default;
+$danger-border-subtle-dark:         shade-color($danger, 40%) !default;
+$purple-border-subtle-dark:         shade-color($purple, 40%) !default;
+$light-border-subtle-dark:          $gray-700 !default;
+$dark-border-subtle-dark:           $gray-700 !default;
 // scss-docs-end theme-border-subtle-dark-variables
 
 $theme-colors-border-subtle-dark: (
@@ -93,10 +93,10 @@ $body-emphasis-color-dark:          #b0bbc5;
 $border-color-dark:                 #293036;
 $border-color-translucent-dark:     #8391a2;
 
-$headings-color-dark:               $body-color-dark;
-$link-color-dark:                   tint-color($primary, 40%);
-$link-hover-color-dark:             shift-color($link-color-dark, -$link-shade-percentage);
-$code-color-dark:                   tint-color($code-color, 40%);
+$headings-color-dark:               $body-color-dark !default;
+$link-color-dark:                   tint-color($primary, 40%) !default;
+$link-hover-color-dark:             shift-color($link-color-dark, -$link-shade-percentage) !default;
+$code-color-dark:                   tint-color($code-color, 40%) !default;
 
 //
 // Mark/Highlight

@@ -84,8 +84,24 @@ export async function PUT(
       autorData.data.estado_publicacion = body.data.estado_publicacion
     }
 
+    // Guardar datos anteriores para el log
+    const attrsAnteriores = autorStrapi?.attributes || {}
+    const datosAnteriores = (attrsAnteriores && Object.keys(attrsAnteriores).length > 0) ? attrsAnteriores : autorStrapi
+    const nombreAnterior = datosAnteriores?.nombre_completo_autor || 'N/A'
+    
     const strapiResponse = await strapiClient.put<any>(strapiEndpoint, autorData)
     console.log('[API Autores PUT] ✅ Autor actualizado en Strapi')
+    
+    // Registrar log de actualización
+    const nombreNuevo = autorData.data.nombre_completo_autor || nombreAnterior
+    logActivity(request, {
+      accion: 'actualizar',
+      entidad: 'autor',
+      entidadId: documentId || id,
+      descripcion: createLogDescription('actualizar', 'autor', nombreNuevo, `Autor "${nombreNuevo}"`),
+      datosAnteriores: datosAnteriores ? { nombre_completo: nombreAnterior } : undefined,
+      datosNuevos: autorData.data,
+    }).catch(() => {})
 
     return NextResponse.json({
       success: true,

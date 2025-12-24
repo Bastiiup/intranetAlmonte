@@ -42,11 +42,14 @@ const OrderActions = ({ row, basePath }: { row: TableRow<OrderType>, basePath: s
       // Obtener el documentId si está disponible
       const documentId = (row.original as any)._strapiDocumentId || pedidoId
       
+      console.log('[OrderActions] Ocultando pedido:', { pedidoId, documentId })
+      
       const response = await fetch(`/api/tienda/pedidos/${documentId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Incluir cookies para autenticación
         body: JSON.stringify({
           data: {
             publishedAt: null, // Despublicar para ocultar
@@ -56,14 +59,19 @@ const OrderActions = ({ row, basePath }: { row: TableRow<OrderType>, basePath: s
       
       const result = await response.json()
       
+      console.log('[OrderActions] Respuesta del servidor:', { response: response.status, result })
+      
       if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Error al ocultar el pedido')
+        throw new Error(result.error || result.message || 'Error al ocultar el pedido')
       }
       
+      // Mostrar mensaje de éxito
+      alert('Pedido ocultado exitosamente')
+      
       // Recargar la página para actualizar la lista
-      router.refresh()
+      window.location.reload()
     } catch (err: any) {
-      console.error('Error al ocultar pedido:', err)
+      console.error('[OrderActions] Error al ocultar pedido:', err)
       alert(`Error al ocultar el pedido: ${err.message || 'Error desconocido'}`)
     } finally {
       setIsHiding(false)
@@ -125,18 +133,19 @@ const defaultPaymentMethod = visa
 
 // Función para mapear pedidos de WooCommerce al formato OrderType
 const mapWooCommerceOrderToOrderType = (pedido: any): OrderType => {
-  // Usar el ID numérico de WooCommerce para el link (necesario para la API)
-  // Pero mostrar el number en la UI si existe
-  const displayId = pedido.number || pedido.id?.toString() || 'N/A'
-  const id = pedido.id?.toString() || displayId // ID numérico para la URL
+  // Usar displayId si está disponible (prioriza numero_pedido o wooId), sino usar id
+  const displayId = pedido.displayId || pedido.number || pedido.id?.toString() || 'N/A'
+  const id = pedido.id?.toString() || displayId // ID para la URL (documentId de Strapi)
   
   // Parsear fecha
   const dateCreated = pedido.date_created ? new Date(pedido.date_created) : new Date()
   const date = format(dateCreated, 'dd MMM, yyyy')
   const time = format(dateCreated, 'h:mm a')
   
-  // Información del cliente
-  const customerName = `${pedido.billing?.first_name || ''} ${pedido.billing?.last_name || ''}`.trim() || 'Cliente sin nombre'
+  // Información del cliente - usar full_name si está disponible, sino construir desde first_name/last_name
+  const customerName = pedido.billing?.full_name || 
+                       `${pedido.billing?.first_name || ''} ${pedido.billing?.last_name || ''}`.trim() || 
+                       'Cliente sin nombre'
   const customerEmail = pedido.billing?.email || 'Sin email'
   
   // Monto
@@ -169,7 +178,9 @@ const mapWooCommerceOrderToOrderType = (pedido: any): OrderType => {
                            paymentMethodTitle.toLowerCase().includes('tarjeta') ? 'card' : 'other'
   
   return {
-    id, // ID numérico de WooCommerce para usar en la URL
+    id, // ID para usar en la URL (documentId de Strapi)
+    number: displayId, // Número de pedido para mostrar
+    displayId: displayId, // ID para mostrar en la tabla
     date,
     time,
     customer: {
@@ -230,6 +241,33 @@ const dateRangeFilterFn: FilterFn<any> = (row, columnId, selectedRange) => {
     default:
       return true
   }
+}
+
+// Filtro global personalizado que busca en todos los campos, incluyendo nombre del cliente
+const globalFilterFn: FilterFn<any> = (row, columnId, filterValue) => {
+  if (!filterValue || filterValue === '') return true
+  
+  const searchValue = String(filterValue).toLowerCase()
+  
+  // Buscar en todos los campos accesibles
+  const order = row.original
+  const searchableFields = [
+    order.id?.toString() || '',
+    order.number?.toString() || '',
+    order.displayId?.toString() || '',
+    order.customer?.name || '',
+    order.customer?.email || '',
+    order.date || '',
+    order.time || '',
+    order.amount?.toString() || '',
+    order.paymentStatus || '',
+    order.orderStatus || '',
+  ]
+  
+  // Buscar si alguno de los campos contiene el valor de búsqueda
+  return searchableFields.some(field => 
+    String(field).toLowerCase().includes(searchValue)
+  )
 }
 
 const OrdersList = ({ pedidos, error, basePath = '/orders' }: OrdersListProps = {}) => {
@@ -396,11 +434,12 @@ const OrdersList = ({ pedidos, error, basePath = '/orders' }: OrdersListProps = 
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    globalFilterFn: 'includesString',
+    globalFilterFn: globalFilterFn,
     enableColumnFilters: true,
     enableRowSelection: true,
     filterFns: {
       dateRange: dateRangeFilterFn,
+      globalFilter: globalFilterFn,
     },
   })
 

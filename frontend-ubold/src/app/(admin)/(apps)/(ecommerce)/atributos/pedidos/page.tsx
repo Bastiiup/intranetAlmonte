@@ -26,6 +26,7 @@ export default async function Page() {
     
     // Por defecto incluir pedidos ocultos para mostrarlos todos
     const response = await fetch(`${baseUrl}/api/tienda/pedidos?includeHidden=true`, {
+      credentials: 'include',
       cache: 'no-store', // Forzar fetch dinámico
     })
     
@@ -49,6 +50,30 @@ export default async function Page() {
         const numeroPedido = pedidoData.numero_pedido || pedidoData.wooId || null
         const displayId = numeroPedido ? String(numeroPedido) : documentId
         
+        // Mejorar mapeo del nombre del cliente para búsqueda
+        let clienteNombre = ''
+        let clienteEmail = ''
+        if (pedidoData.cliente) {
+          if (typeof pedidoData.cliente === 'object') {
+            clienteNombre = pedidoData.cliente.nombre || pedidoData.cliente.name || pedidoData.cliente.razon_social || ''
+            clienteEmail = pedidoData.cliente.email || ''
+          } else {
+            clienteNombre = String(pedidoData.cliente)
+          }
+        }
+        
+        // Si hay billing, usarlo; si no, crear desde cliente
+        const billingData = pedidoData.billing || {}
+        let firstName = billingData.first_name || ''
+        let lastName = billingData.last_name || ''
+        
+        // Si no hay first_name/last_name pero hay cliente.nombre, dividirlo
+        if (!firstName && clienteNombre) {
+          const nombreParts = clienteNombre.trim().split(' ')
+          firstName = nombreParts[0] || ''
+          lastName = nombreParts.slice(1).join(' ') || ''
+        }
+        
         return {
           id: documentId, // Usar documentId de Strapi para el link (necesario para la API)
           number: numeroPedido ? String(numeroPedido) : documentId,
@@ -56,10 +81,12 @@ export default async function Page() {
           date_created: pedidoData.fecha_pedido || new Date().toISOString(),
           status: estado, // Estados en inglés: pending, processing, completed, cancelled, etc.
           total: String(pedidoData.total || 0),
-          billing: pedidoData.billing || {
-            first_name: pedidoData.cliente?.nombre || '',
-            last_name: '',
-            email: pedidoData.cliente?.email || '',
+          billing: {
+            first_name: firstName,
+            last_name: lastName,
+            email: billingData.email || clienteEmail || '',
+            // Agregar nombre completo para búsqueda
+            full_name: clienteNombre || `${firstName} ${lastName}`.trim(),
           },
           payment_method: pedidoData.metodo_pago || '',
           payment_method_title: pedidoData.metodo_pago_titulo || '',

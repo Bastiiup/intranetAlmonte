@@ -93,7 +93,31 @@ const Page = () => {
 
               {error && (
                 <Alert variant="danger" className="mb-3">
-                  {error}
+                  <div className="d-flex align-items-start">
+                    <i className="mdi mdi-alert-circle-outline me-2 mt-1"></i>
+                    <div>
+                      <strong>Error al iniciar sesión</strong>
+                      <div className="mt-1">{error}</div>
+                      {error.includes('no tiene una contraseña configurada') && (
+                        <div className="mt-2">
+                          <div className="alert alert-info py-2 mb-2 small">
+                            <strong>Instrucciones para el administrador:</strong>
+                            <ol className="mb-0 mt-2 ps-3">
+                              <li>Accede al panel de administración de Strapi: <code>{process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'}/admin</code></li>
+                              <li>Ve a la sección <strong>"Content Manager"</strong> → <strong>"Colaboradores"</strong></li>
+                              <li>Busca el colaborador con email: <strong>{email}</strong></li>
+                              <li>Edita el colaborador y configura un campo <strong>"password"</strong> o usa el endpoint de actualización de contraseña</li>
+                              <li>Guarda los cambios</li>
+                            </ol>
+                          </div>
+                          <div className="small text-muted">
+                            <i className="mdi mdi-information-outline me-1"></i>
+                            Si eres el administrador, puedes configurar la contraseña desde el panel de Strapi.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </Alert>
               )}
 

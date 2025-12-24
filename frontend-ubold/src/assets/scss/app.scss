@@ -7,13 +7,18 @@
 
 // Core files
 @import "bootstrap/scss/functions";
-@import "bootstrap/scss/variables";
+@import "bootstrap/scss/variables"; // Primero variables de Bootstrap (define $primary y al final importa variables-dark)
+@import "variables"; // Nuestras variables personalizadas (pueden sobrescribir las de Bootstrap)
 
-@import "variables";
-@import "variables-dark"; // Necesario para que maps.scss tenga las variables dark definidas
+// Importar variables-dark de Bootstrap explícitamente después de variables para que $primary esté disponible
+@import "bootstrap/scss/variables-dark";
+
+@import "_variables-dark"; // Nuestras variables dark personalizadas (sobrescribe las de Bootstrap)
 
 // Bootstrap - Importación directa de componentes para evitar problemas de resolución de rutas
 @import "bootstrap/scss/maps";
+// Importar vendor/rfs antes de mixins para evitar problemas de resolución
+@import "bootstrap/scss/vendor/rfs";
 @import "bootstrap/scss/mixins";
 @import "bootstrap/scss/utilities";
 @import "bootstrap/scss/root";

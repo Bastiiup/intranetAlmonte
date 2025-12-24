@@ -8,6 +8,7 @@ import strapiClient from '@/lib/strapi/client'
 import wooCommerceClient from '@/lib/woocommerce/client'
 import { STRAPI_API_URL } from '@/lib/strapi/config'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import { logActivity, createLogDescription } from '@/lib/logging'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,6 +70,15 @@ export async function GET(request: NextRequest) {
         keysAttributes: primerProducto.attributes ? Object.keys(primerProducto.attributes).slice(0, 5) : [],
       })
     }
+    
+    // Registrar log de visualización
+    const count = Array.isArray(response.data) ? response.data.length : response.data ? 1 : 0
+    logActivity(request, {
+      accion: 'ver',
+      entidad: 'productos',
+      descripcion: createLogDescription('ver', 'productos', null, `${count} productos`),
+      metadata: { cantidad: count },
+    }).catch(() => {})
     
     return NextResponse.json({
       success: true,
@@ -266,6 +276,17 @@ export async function POST(request: NextRequest) {
       // No fallar si Strapi falla, el producto ya está en WooCommerce
       // Continuar con la respuesta exitosa
     }
+
+    // Registrar log de creación
+    const productoId = strapiProduct?.data?.documentId || strapiProduct?.data?.id || wooCommerceProduct?.id
+    logActivity(request, {
+      accion: 'crear',
+      entidad: 'producto',
+      entidadId: productoId,
+      descripcion: createLogDescription('crear', 'producto', isbn, `Producto "${body.nombre_libro}" (ISBN: ${isbn})`),
+      datosNuevos: { nombre: body.nombre_libro, isbn, precio: body.precio },
+      metadata: { woocommerceId: wooCommerceProduct?.id, strapiId: strapiProduct?.data?.documentId },
+    }).catch(() => {})
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import wooCommerceClient, { createWooCommerceClient } from '@/lib/woocommerce/client'
+import { logActivity, createLogDescription } from '@/lib/logging'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,71 +31,112 @@ function mapEstado(wooStatus: string): string {
   return mapping[wooStatus.toLowerCase()] || 'pendiente'
 }
 
-// Función helper para mapear estado de Strapi a estado de WooCommerce
+// Función helper para mapear estado de español (frontend) a inglés (Strapi/WooCommerce)
+// Esta función SIEMPRE debe devolver un valor en inglés válido para Strapi
 function mapWooStatus(strapiStatus: string): string {
-  const statusLower = strapiStatus.toLowerCase().trim()
+  if (!strapiStatus) {
+    console.warn('[mapWooStatus] Estado vacío, usando pending por defecto')
+    return 'pending'
+  }
+  
+  const statusLower = String(strapiStatus).toLowerCase().trim()
+  
+  // Primero verificar si ya es un estado válido en inglés (para Strapi)
+  const estadosValidosStrapi = ['auto-draft', 'pending', 'processing', 'on-hold', 'completed', 'cancelled', 'refunded', 'failed', 'checkout-draft']
+  if (estadosValidosStrapi.includes(statusLower)) {
+    console.log('[mapWooStatus] ✅ Estado ya está en inglés válido:', statusLower)
+    return statusLower
+  }
+  
+  // Si no es válido en inglés, mapear desde español
   const mapping: Record<string, string> = {
+    // Estados en español (del frontend o de Strapi si están mal guardados)
     'pendiente': 'pending',
     'procesando': 'processing',
     'en_espera': 'on-hold',
+    'en espera': 'on-hold', // Variante con espacio
     'completado': 'completed',
     'cancelado': 'cancelled',
     'reembolsado': 'refunded',
     'fallido': 'failed',
-    // También aceptar estados en inglés directamente (por si acaso)
-    'pending': 'pending',
-    'processing': 'processing',
-    'on-hold': 'on-hold',
-    'completed': 'completed',
-    'cancelled': 'cancelled',
-    'refunded': 'refunded',
-    'failed': 'failed',
+    // Variantes adicionales
+    'onhold': 'on-hold', // Variante sin guión
   }
   
   const mapeado = mapping[statusLower]
   if (!mapeado) {
-    console.warn('[mapWooStatus] Estado no reconocido:', strapiStatus, 'usando pending por defecto')
+    console.error('[mapWooStatus] ❌ Estado no reconocido:', strapiStatus, '(normalizado:', statusLower, ')', 'usando pending por defecto')
     return 'pending'
   }
   
+  console.log('[mapWooStatus] ✅ Mapeo:', strapiStatus, '->', mapeado)
   return mapeado
 }
 
-// Función helper para normalizar el campo 'origen'
-function normalizeOrigen(origen: string | null | undefined): string {
-  if (!origen) return 'web'
+// Función helper para normalizar origen a valores válidos de Strapi
+function normalizeOrigen(origen: string | null | undefined): string | null {
+  if (!origen) return null
+  
   const origenLower = String(origen).toLowerCase().trim()
+  const valoresValidos = ['web', 'checkout', 'rest-api', 'admin', 'mobile', 'directo', 'otro']
+  
+  // Si ya es válido, devolverlo
+  if (valoresValidos.includes(origenLower)) {
+    return origenLower
+  }
+  
+  // Mapear variantes comunes
   const mapping: Record<string, string> = {
-    'rest-api': 'rest-api',
+    'restapi': 'rest-api',
     'rest api': 'rest-api',
-    'admin': 'admin',
-    'mobile': 'mobile',
     'directo': 'directo',
-    'otro': 'otro',
     'web': 'web',
     'checkout': 'checkout',
+    'admin': 'admin',
+    'mobile': 'mobile',
+    'otro': 'otro',
     'woocommerce': 'web', // WooCommerce orders often come as 'woocommerce'
   }
-  return mapping[origenLower] || 'web' // Default to 'web' if not recognized
+  
+  return mapping[origenLower] || 'web' // Por defecto 'web' si no se reconoce
 }
 
-// Función helper para normalizar el campo 'metodo_pago'
+// Función helper para normalizar metodo_pago a valores válidos de Strapi
 function normalizeMetodoPago(metodoPago: string | null | undefined): string | null {
   if (!metodoPago) return null
+  
   const metodoLower = String(metodoPago).toLowerCase().trim()
+  const valoresValidos = ['bacs', 'cheque', 'cod', 'paypal', 'stripe', 'transferencia', 'otro']
+  
+  // Si ya es válido, devolverlo
+  if (valoresValidos.includes(metodoLower)) {
+    return metodoLower
+  }
+  
+  // Mapear variantes comunes
   const mapping: Record<string, string> = {
+    'tarjeta': 'stripe', // tarjeta → stripe (más común)
+    'tarjeta de crédito': 'stripe',
+    'tarjeta de debito': 'stripe',
+    'credit card': 'stripe',
+    'debit card': 'stripe',
+    'card': 'stripe',
+    'transferencia bancaria': 'transferencia',
+    'transfer': 'transferencia',
+    'bank transfer': 'transferencia',
     'bacs': 'bacs',
     'cheque': 'cheque',
+    'check': 'cheque',
     'cod': 'cod',
+    'cash on delivery': 'cod',
     'contra entrega': 'cod',
     'paypal': 'paypal',
     'stripe': 'stripe',
-    'tarjeta': 'stripe', // Mapear 'tarjeta' a 'stripe'
-    'transferencia': 'transferencia',
-    'transferencia bancaria': 'transferencia',
     'otro': 'otro',
+    'other': 'otro',
   }
-  return mapping[metodoLower] || 'otro' // Default a 'otro' si no reconocido
+  
+  return mapping[metodoLower] || 'bacs' // Por defecto 'bacs' si no se reconoce (consistente con PUT)
 }
 
 export async function GET(request: NextRequest) {
@@ -135,6 +177,14 @@ export async function GET(request: NextRequest) {
     }, {})
     
     console.log('[API GET pedidos] ✅ Items obtenidos:', items.length, 'Por plataforma:', porPlataforma)
+    
+    // Registrar log de visualización (asíncrono, no bloquea)
+    logActivity(request, {
+      accion: 'ver',
+      entidad: 'pedidos',
+      descripcion: createLogDescription('ver', 'pedidos', null, `${items.length} pedidos`),
+      metadata: { cantidad: items.length, porPlataforma },
+    }).catch(() => {}) // Ignorar errores de logging
     
     return NextResponse.json({
       success: true,
@@ -217,8 +267,27 @@ export async function POST(request: NextRequest) {
       documentId: documentId
     })
 
+    // Registrar log de creación (asíncrono, no bloquea)
+    logActivity(request, {
+      accion: 'crear',
+      entidad: 'pedido',
+      entidadId: documentId,
+      descripcion: createLogDescription('crear', 'pedido', numeroPedido, `Pedido #${numeroPedido} desde ${originPlatform}`),
+      datosNuevos: { numero_pedido: numeroPedido, originPlatform, estado: pedidoData.data.estado },
+      metadata: { originPlatform, total: pedidoData.data.total },
+    }).catch(() => {}) // Ignorar errores de logging
+
     // Si originPlatform es "otros", no crear en WooCommerce
     if (originPlatform === 'otros') {
+      // Actualizar log con información de que solo se creó en Strapi
+      logActivity(request, {
+        accion: 'crear',
+        entidad: 'pedido',
+        entidadId: documentId,
+        descripcion: createLogDescription('crear', 'pedido', numeroPedido, `Pedido #${numeroPedido} creado solo en Strapi (origen: otros)`),
+        metadata: { soloStrapi: true, originPlatform },
+      }).catch(() => {})
+      
       return NextResponse.json({
         success: true,
         data: {
@@ -233,13 +302,21 @@ export async function POST(request: NextRequest) {
     console.log('[API Pedidos POST] 🛒 Creando pedido en WooCommerce...')
     
     // Mapear items de Strapi a formato WooCommerce
-    const lineItems = (body.data.items || []).map((item: any) => ({
-      product_id: item.producto_id || item.libro_id || null,
-      quantity: item.cantidad || 1,
-      name: item.nombre || '',
-      price: item.precio_unitario || 0,
-      sku: item.sku || '',
-    })).filter((item: any) => item.product_id)
+    // Validar que los items tengan product_id válido antes de crear en WooCommerce
+    const lineItems = (body.data.items || [])
+      .map((item: any) => ({
+        product_id: item.producto_id || item.libro_id || item.product_id || null,
+        quantity: item.cantidad || 1,
+        name: item.nombre || '',
+        price: item.precio_unitario || 0,
+        sku: item.sku || '',
+      }))
+      .filter((item: any) => item.product_id && !isNaN(Number(item.product_id)))
+    
+    // Si no hay items válidos y se requiere crear en WooCommerce, advertir
+    if (lineItems.length === 0 && (body.data.items || []).length > 0) {
+      console.warn('[API Pedidos POST] ⚠️ No hay items con product_id válido para WooCommerce')
+    }
 
     const wooCommercePedidoData: any = {
       status: mapWooStatus(body.data.estado || 'pendiente'),
@@ -274,23 +351,40 @@ export async function POST(request: NextRequest) {
         throw new Error('La respuesta de WooCommerce no contiene un pedido válido')
       }
 
-      // Actualizar Strapi con el wooId y rawWooData (usar camelCase como en el schema)
+      // Actualizar Strapi con el wooId y rawWooData
+      // IMPORTANTE: Según el schema de Strapi, wooId y rawWooData NO son campos directos
+      // Deben ir en externalIds. Sin embargo, algunos schemas pueden tenerlos como campos directos.
+      // Usar externalIds que es el formato correcto según el PUT
       const updateData: any = {
         data: {
-          wooId: wooCommercePedido.id,
-          rawWooData: wooCommercePedido,
+          // Actualizar numero_pedido con el número de WooCommerce si es diferente
+          numero_pedido: wooCommercePedido.number?.toString() || numeroPedido,
+          // Guardar datos de WooCommerce en externalIds (formato correcto)
           externalIds: {
             wooCommerce: {
               id: wooCommercePedido.id,
               number: wooCommercePedido.number,
+              data: wooCommercePedido, // Guardar datos completos aquí
             },
             originPlatform: originPlatform,
-          }
+          },
+          // Si el schema permite wooId directamente, también actualizarlo
+          // (esto depende de cómo esté configurado Strapi)
+          wooId: wooCommercePedido.id,
         }
       }
 
       await strapiClient.put<any>(`${pedidoEndpoint}/${documentId}`, updateData)
       console.log('[API Pedidos POST] ✅ Strapi actualizado con datos de WooCommerce')
+      
+      // Actualizar log con información de WooCommerce
+      logActivity(request, {
+        accion: 'sincronizar',
+        entidad: 'pedido',
+        entidadId: documentId,
+        descripcion: createLogDescription('sincronizar', 'pedido', numeroPedido, `Pedido #${numeroPedido} sincronizado con WooCommerce ${originPlatform}`),
+        metadata: { wooCommerceId: wooCommercePedido.id, originPlatform },
+      }).catch(() => {})
     } catch (wooError: any) {
       console.error('[API Pedidos POST] ⚠️ Error al crear pedido en WooCommerce:', wooError.message)
       
@@ -310,10 +404,32 @@ export async function POST(request: NextRequest) {
         })
       }
       
-      // Si falla WooCommerce por otro motivo, eliminar de Strapi para mantener consistencia
+      // Si falla WooCommerce por otro motivo, decidir si eliminar de Strapi o mantenerlo
+      // Por defecto, mantener en Strapi y solo advertir (más permisivo)
+      const esErrorIdInvalido = wooError.message?.includes('ID no válido') || 
+                                 wooError.message?.includes('no válido') ||
+                                 wooError.message?.includes('invalid_id') ||
+                                 wooError.details?.code === 'woocommerce_rest_shop_order_invalid_id' ||
+                                 wooError.status === 404
+      
+      if (esErrorIdInvalido) {
+        // Si es error de ID inválido (producto no existe), mantener en Strapi
+        console.warn('[API Pedidos POST] ⚠️ Error en WooCommerce (ID inválido), manteniendo pedido en Strapi')
+        return NextResponse.json({
+          success: true,
+          data: {
+            strapi: strapiPedido.data || strapiPedido,
+          },
+          message: 'Pedido creado en Strapi (WooCommerce falló - producto no válido)',
+          warning: `Error al crear en WooCommerce: ${wooError.message}. El pedido se mantiene en Strapi.`
+        })
+      }
+      
+      // Para otros errores, eliminar de Strapi para mantener consistencia
+      // (solo si es un error crítico que impide la creación)
       try {
         const deleteResponse = await strapiClient.delete<any>(`${pedidoEndpoint}/${documentId}`)
-        console.log('[API Pedidos POST] 🗑️ Pedido eliminado de Strapi debido a error en WooCommerce')
+        console.log('[API Pedidos POST] 🗑️ Pedido eliminado de Strapi debido a error crítico en WooCommerce')
       } catch (deleteError: any) {
         // Ignorar errores de eliminación si la respuesta no es JSON válido (puede ser 204 No Content)
         if (deleteError.message && !deleteError.message.includes('JSON')) {

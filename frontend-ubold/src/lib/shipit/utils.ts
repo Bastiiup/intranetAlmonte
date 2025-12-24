@@ -180,26 +180,76 @@ function calculateOrderSizes(order: WooCommerceOrder): ShipitSizes {
 }
 
 /**
- * Extrae el ID de Shipit desde los meta_data de un pedido WooCommerce
+ * Extrae el ID de Shipit desde un pedido (WooCommerce o Strapi)
+ * Busca en meta_data (WooCommerce) o en campos directos (Strapi)
  */
-export function getShipitIdFromOrder(order: WooCommerceOrder): number | null {
-  const shipitMeta = order.meta_data?.find(
-    (meta) => meta.key === '_shipit_id' || meta.key === 'shipit_id'
-  )
-  if (!shipitMeta) return null
-  const value = typeof shipitMeta.value === 'string' ? shipitMeta.value : String(shipitMeta.value)
-  return parseInt(value, 10) || null
+export function getShipitIdFromOrder(order: any): number | null {
+  // Primero buscar en campos directos de Strapi
+  if (order.shipit_id) {
+    const value = typeof order.shipit_id === 'string' ? order.shipit_id : String(order.shipit_id)
+    return parseInt(value, 10) || null
+  }
+  
+  // Buscar en meta_data (WooCommerce)
+  if (order.meta_data && Array.isArray(order.meta_data)) {
+    const shipitMeta = order.meta_data.find(
+      (meta: any) => meta.key === '_shipit_id' || meta.key === 'shipit_id'
+    )
+    if (shipitMeta) {
+      const value = typeof shipitMeta.value === 'string' ? shipitMeta.value : String(shipitMeta.value)
+      return parseInt(value, 10) || null
+    }
+  }
+  
+  // Buscar en rawWooData si existe (pedidos de Strapi que incluyen datos de WooCommerce)
+  if (order.rawWooData?.meta_data && Array.isArray(order.rawWooData.meta_data)) {
+    const shipitMeta = order.rawWooData.meta_data.find(
+      (meta: any) => meta.key === '_shipit_id' || meta.key === 'shipit_id'
+    )
+    if (shipitMeta) {
+      const value = typeof shipitMeta.value === 'string' ? shipitMeta.value : String(shipitMeta.value)
+      return parseInt(value, 10) || null
+    }
+  }
+  
+  return null
 }
 
 /**
- * Extrae el tracking number de Shipit desde los meta_data de un pedido
+ * Extrae el tracking number de Shipit desde un pedido (WooCommerce o Strapi)
+ * Busca en meta_data (WooCommerce) o en campos directos (Strapi)
  */
-export function getShipitTrackingFromOrder(order: WooCommerceOrder): string | null {
-  const trackingMeta = order.meta_data?.find(
-    (meta) => meta.key === '_shipit_tracking' || meta.key === 'shipit_tracking_number'
-  )
-  if (!trackingMeta) return null
-  return typeof trackingMeta.value === 'string' ? trackingMeta.value : String(trackingMeta.value)
+export function getShipitTrackingFromOrder(order: any): string | null {
+  // Primero buscar en campos directos de Strapi
+  if (order.shipit_tracking || order.shipit_tracking_number) {
+    return typeof order.shipit_tracking === 'string' 
+      ? order.shipit_tracking 
+      : typeof order.shipit_tracking_number === 'string'
+      ? order.shipit_tracking_number
+      : String(order.shipit_tracking || order.shipit_tracking_number)
+  }
+  
+  // Buscar en meta_data (WooCommerce)
+  if (order.meta_data && Array.isArray(order.meta_data)) {
+    const trackingMeta = order.meta_data.find(
+      (meta: any) => meta.key === '_shipit_tracking' || meta.key === 'shipit_tracking_number'
+    )
+    if (trackingMeta) {
+      return typeof trackingMeta.value === 'string' ? trackingMeta.value : String(trackingMeta.value)
+    }
+  }
+  
+  // Buscar en rawWooData si existe (pedidos de Strapi que incluyen datos de WooCommerce)
+  if (order.rawWooData?.meta_data && Array.isArray(order.rawWooData.meta_data)) {
+    const trackingMeta = order.rawWooData.meta_data.find(
+      (meta: any) => meta.key === '_shipit_tracking' || meta.key === 'shipit_tracking_number'
+    )
+    if (trackingMeta) {
+      return typeof trackingMeta.value === 'string' ? trackingMeta.value : String(trackingMeta.value)
+    }
+  }
+  
+  return null
 }
 
 /**

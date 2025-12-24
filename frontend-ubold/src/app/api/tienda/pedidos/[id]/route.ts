@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import wooCommerceClient, { createWooCommerceClient } from '@/lib/woocommerce/client'
+import { logActivity, createLogDescription } from '@/lib/logging'
 
 export const dynamic = 'force-dynamic'
 
@@ -310,6 +311,19 @@ export async function GET(
       
       if (pedido) {
         console.log('[API /tienda/pedidos/[id] GET] ✅ Pedido encontrado con endpoint directo')
+        
+        // Registrar log de visualización
+        const attrs = pedido.attributes || {}
+        const data = (attrs && Object.keys(attrs).length > 0) ? attrs : pedido
+        const numeroPedido = data.numero_pedido || data.wooId || id
+        
+        logActivity(request, {
+          accion: 'ver',
+          entidad: 'pedido',
+          entidadId: id,
+          descripcion: createLogDescription('ver', 'pedido', numeroPedido),
+        }).catch(() => {})
+        
         return NextResponse.json({
           success: true,
           data: pedido
@@ -431,6 +445,20 @@ export async function DELETE(
         console.log('[API Pedidos DELETE] ✅ Pedido eliminado en Strapi (respuesta no JSON, probablemente exitosa)')
       }
     }
+
+    // Registrar log de eliminación
+    const attrs = pedidoStrapi?.attributes || {}
+    const data = (attrs && Object.keys(attrs).length > 0) ? attrs : pedidoStrapi
+    const numeroPedido = data?.numero_pedido || data?.wooId || id
+    
+    logActivity(request, {
+      accion: 'eliminar',
+      entidad: 'pedido',
+      entidadId: documentId || id,
+      descripcion: createLogDescription('eliminar', 'pedido', numeroPedido, `Pedido #${numeroPedido} eliminado${wooCommerceDeleted ? ' de WooCommerce y Strapi' : ' de Strapi'}`),
+      datosAnteriores: pedidoStrapi ? { numero_pedido: numeroPedido, originPlatform } : undefined,
+      metadata: { wooCommerceDeleted, originPlatform },
+    }).catch(() => {})
 
     return NextResponse.json({
       success: true,
@@ -716,6 +744,21 @@ export async function PUT(
       }
     }
 
+    // Manejar publishedAt para ocultar/mostrar pedidos
+    // En Strapi, publishedAt debe estar en el nivel raíz del objeto data
+    if (body.data.publishedAt !== undefined) {
+      // Si publishedAt es null, despublicar el pedido (ocultar)
+      // Si es una fecha string, publicar el pedido
+      // Si es false o undefined, mantener el estado actual
+      if (body.data.publishedAt === null) {
+        pedidoData.data.publishedAt = null // Despublicar
+        console.log('[API Pedidos PUT] 📝 Despublicando pedido (publishedAt: null)')
+      } else if (body.data.publishedAt) {
+        pedidoData.data.publishedAt = body.data.publishedAt // Publicar con fecha
+        console.log('[API Pedidos PUT] 📝 Publicando pedido (publishedAt:', body.data.publishedAt, ')')
+      }
+    }
+    
     // Solo agregar campos que realmente se están actualizando (que están en body.data)
     if (body.data.numero_pedido !== undefined) pedidoData.data.numero_pedido = body.data.numero_pedido?.toString().trim() || null
     if (body.data.fecha_pedido !== undefined) pedidoData.data.fecha_pedido = body.data.fecha_pedido || null
@@ -804,6 +847,9 @@ export async function PUT(
     // El warning del cliente de Strapi es solo informativo - Strapi acepta camelCase
     
     // Verificar que hay datos para actualizar
+    // publishedAt puede ser null (para despublicar), así que verificar explícitamente
+    const hasPublishedAt = body.data.publishedAt !== undefined && 'publishedAt' in pedidoData.data
+    
     if (Object.keys(pedidoData.data).length === 0) {
       console.warn('[API Pedidos PUT] ⚠️ No hay campos para actualizar en Strapi')
       return NextResponse.json({
@@ -817,8 +863,43 @@ export async function PUT(
     console.log('[API Pedidos PUT] Datos a enviar a Strapi:', JSON.stringify(pedidoData, null, 2))
 
     try {
+      // Guardar datos anteriores para el log
+      const attrsAnteriores = cuponStrapi?.attributes || {}
+      const datosAnteriores = (attrsAnteriores && Object.keys(attrsAnteriores).length > 0) ? attrsAnteriores : cuponStrapi
+      const numeroPedido = datosAnteriores?.numero_pedido || datosAnteriores?.wooId || id
+      
       const strapiResponse = await strapiClient.put<any>(strapiEndpoint, pedidoData)
       console.log('[API Pedidos PUT] ✅ Pedido actualizado en Strapi')
+      
+      // Determinar tipo de acción para el log
+      let accion: 'actualizar' | 'cambiar_estado' | 'ocultar' | 'mostrar' = 'actualizar'
+      let descripcionDetalle = ''
+      
+      if (body.data.publishedAt === null) {
+        accion = 'ocultar'
+        descripcionDetalle = 'Pedido ocultado'
+      } else if (body.data.publishedAt !== undefined && body.data.publishedAt !== null) {
+        accion = 'mostrar'
+        descripcionDetalle = 'Pedido mostrado'
+      } else if (body.data.estado !== undefined) {
+        accion = 'cambiar_estado'
+        const estadoAnterior = datosAnteriores?.estado || 'desconocido'
+        const estadoNuevo = pedidoData.data.estado || body.data.estado
+        descripcionDetalle = `Estado: ${estadoAnterior} → ${estadoNuevo}`
+      } else {
+        descripcionDetalle = 'Datos actualizados'
+      }
+      
+      // Registrar log de actualización
+      logActivity(request, {
+        accion,
+        entidad: 'pedido',
+        entidadId: documentId || id,
+        descripcion: createLogDescription(accion, 'pedido', numeroPedido, descripcionDetalle),
+        datosAnteriores: datosAnteriores ? { estado: datosAnteriores.estado, publishedAt: datosAnteriores.publishedAt } : undefined,
+        datosNuevos: pedidoData.data,
+        metadata: { wooCommerceActualizado: !!wooCommercePedido, originPlatform },
+      }).catch(() => {})
       
       return NextResponse.json({
         success: true,

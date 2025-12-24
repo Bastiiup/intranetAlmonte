@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getStrapiUrl } from '@/lib/strapi/config'
+import { logActivity, createLogDescription } from '@/lib/logging'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,9 +47,27 @@ export async function POST(request: Request) {
         status: loginResponse.status,
         error: errorData,
       })
+      
+      // Detectar mensajes específicos de Strapi y proporcionar mensajes más claros
+      const errorMessage = errorData.error?.message || errorData.message || 'Error al iniciar sesión'
+      let userFriendlyMessage = errorMessage
+      
+      // Detectar si el colaborador no tiene contraseña configurada
+      if (
+        errorMessage.toLowerCase().includes('no se ha configurado una contraseña') ||
+        errorMessage.toLowerCase().includes('contraseña') && errorMessage.toLowerCase().includes('colaborador')
+      ) {
+        userFriendlyMessage = 'Este colaborador no tiene una contraseña configurada. Por favor, contacta al administrador para que configure una contraseña en Strapi.'
+      } else if (errorMessage.toLowerCase().includes('invalid') || errorMessage.toLowerCase().includes('incorrect')) {
+        userFriendlyMessage = 'Email o contraseña incorrectos. Verifica tus credenciales e intenta nuevamente.'
+      } else if (errorMessage.toLowerCase().includes('not found') || errorMessage.toLowerCase().includes('no encontrado')) {
+        userFriendlyMessage = 'No se encontró un colaborador con este email. Verifica que el email sea correcto.'
+      }
+      
       return NextResponse.json(
         { 
-          error: errorData.error?.message || errorData.message || 'Error al iniciar sesión',
+          error: userFriendlyMessage,
+          originalError: errorMessage, // Mantener el error original para debugging
         },
         { status: loginResponse.status }
       )
@@ -66,6 +85,24 @@ export async function POST(request: Request) {
       },
       { status: 200 }
     )
+
+    // Registrar log de login (usar request original)
+    const requestForLog = new Request(request.url, {
+      method: request.method,
+      headers: request.headers,
+    })
+    // Agregar cookie de colaborador temporalmente para el log
+    if (data.colaborador) {
+      requestForLog.headers.set('cookie', `colaboradorData=${JSON.stringify(data.colaborador)}`)
+    }
+    
+    logActivity(requestForLog as any, {
+      accion: 'login',
+      entidad: 'usuario',
+      entidadId: data.colaborador?.id || data.colaborador?.documentId || null,
+      descripcion: createLogDescription('login', 'usuario', null, `Usuario ${data.colaborador?.email_login || email}`),
+      metadata: { email: data.colaborador?.email_login || email },
+    }).catch(() => {})
 
     // Establecer cookies en el servidor para que el middleware las detecte
     if (data.jwt) {

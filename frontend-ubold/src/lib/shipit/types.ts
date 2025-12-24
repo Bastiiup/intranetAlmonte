@@ -115,6 +115,18 @@ export type ShipitCoverage = {
   }>
 }
 
+// Cotización/Tarifa de envío
+export type ShipitRate = {
+  courier: {
+    name: string
+    client: string
+  }
+  price: number
+  estimated_days?: number
+  available: boolean
+  kind: 0 | 1 | 2
+}
+
 // Error de Shipit
 export type ShipitError = {
   error: string

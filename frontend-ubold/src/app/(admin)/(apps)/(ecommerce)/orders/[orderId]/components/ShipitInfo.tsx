@@ -50,19 +50,29 @@ export default function ShipitInfo({ pedido, onRefresh }: ShipitInfoProps) {
   }
 
   const handleCreateShipment = async () => {
-    if (!pedido?.id) return
+    if (!pedido?.id && !pedido?.number) return
 
     setCreating(true)
     setError(null)
 
     try {
+      // Para pedidos de Strapi, usar wooId o numero_pedido si está disponible
+      // Para pedidos de WooCommerce, usar id directamente
+      const orderId = pedido.wooId || pedido.numero_pedido || pedido.id || pedido.number
+      
+      if (!orderId) {
+        setError('No se pudo determinar el ID del pedido')
+        setCreating(false)
+        return
+      }
+
       const response = await fetch('/api/shipit/shipments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          orderId: pedido.id,
+          orderId: orderId,
           courier: 'shippify',
           kind: 0,
           testMode: false,

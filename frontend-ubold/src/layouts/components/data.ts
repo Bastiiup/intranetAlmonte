@@ -49,6 +49,7 @@ import {
   LuSparkles,
   LuTable,
   LuUsers,
+  LuFileText,
 } from 'react-icons/lu'
 
 type UserDropdownItemType = {
@@ -194,6 +195,7 @@ export const menuItems: MenuItemType[] = [
   { key: 'chat', label: 'Chat', icon: LuMessageSquareDot, url: '/chat' },
   { key: 'calendar', label: 'Calendario', icon: LuCalendar, url: '/calendar' },
   { key: 'file-manager', label: 'Gestor de Archivos', icon: LuFolderOpenDot, url: '/file-manager' },
+  { key: 'logs', label: 'Logs', icon: LuFileText, url: '/logs' },
   { key: 'equipos-section', label: 'EQUIPOS', isTitle: true },
   {
     key: 'equipos',
