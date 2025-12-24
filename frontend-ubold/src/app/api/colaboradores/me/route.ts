@@ -60,16 +60,17 @@ export async function GET(request: Request) {
     }
 
     const colaboradorRaw = Array.isArray(response.data) ? response.data[0] : response.data
+    const colaboradorRawAny = colaboradorRaw as any // Cast para acceder a campos que pueden estar en el nivel superior
     
     // Extraer campos del colaborador (pueden venir en attributes si tiene draft/publish)
-    const colaboradorAttrs = colaboradorRaw.attributes || colaboradorRaw
+    const colaboradorAttrs = colaboradorRawAny.attributes || colaboradorRawAny
     const colaborador = {
-      id: colaboradorRaw.id,
-      email_login: colaboradorAttrs.email_login || colaboradorRaw.email_login,
-      rol: colaboradorAttrs.rol || colaboradorRaw.rol || 'soporte',
-      activo: colaboradorAttrs.activo !== undefined ? colaboradorAttrs.activo : colaboradorRaw.activo,
-      persona: colaboradorAttrs.persona?.data || colaboradorRaw.persona?.data || colaboradorAttrs.persona || colaboradorRaw.persona || null,
-      usuario: colaboradorAttrs.usuario?.data || colaboradorRaw.usuario?.data || colaboradorAttrs.usuario || colaboradorRaw.usuario || null,
+      id: colaboradorRawAny.id,
+      email_login: colaboradorAttrs.email_login || colaboradorRawAny.email_login,
+      rol: colaboradorAttrs.rol || colaboradorRawAny.rol || 'soporte',
+      activo: colaboradorAttrs.activo !== undefined ? colaboradorAttrs.activo : colaboradorRawAny.activo,
+      persona: colaboradorAttrs.persona?.data || colaboradorRawAny.persona?.data || colaboradorAttrs.persona || colaboradorRawAny.persona || null,
+      usuario: colaboradorAttrs.usuario?.data || colaboradorRawAny.usuario?.data || colaboradorAttrs.usuario || colaboradorRawAny.usuario || null,
     }
 
     return NextResponse.json({ colaborador }, { status: 200 })
