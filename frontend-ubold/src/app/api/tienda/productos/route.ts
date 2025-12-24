@@ -265,14 +265,14 @@ export async function POST(request: NextRequest) {
     console.log('[API POST] Para publicar, cambiar el estado desde la página de Solicitudes')
 
     // Registrar log de creación
-    const productoId = strapiProduct?.data?.documentId || strapiProduct?.data?.id || wooCommerceProduct?.id
+    const productoId = strapiProduct?.data?.documentId || strapiProduct?.data?.id || strapiProduct?.documentId || strapiProduct?.id
     logActivity(request, {
       accion: 'crear',
       entidad: 'producto',
       entidadId: productoId,
       descripcion: createLogDescription('crear', 'producto', isbn, `Producto "${body.nombre_libro}" (ISBN: ${isbn})`),
       datosNuevos: { nombre: body.nombre_libro, isbn, precio: body.precio },
-      metadata: { woocommerceId: wooCommerceProduct?.id, strapiId: strapiProduct?.data?.documentId },
+      metadata: { strapiId: strapiProduct?.data?.documentId || strapiProduct?.data?.id },
     }).catch(() => {})
 
     return NextResponse.json({
