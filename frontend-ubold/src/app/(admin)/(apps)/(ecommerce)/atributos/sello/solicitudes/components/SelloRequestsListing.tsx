@@ -125,6 +125,8 @@ const columnHelper = createColumnHelper<SelloTypeExtended>()
 
 const SelloRequestsListing = ({ sellos, error }: SelloRequestsListingProps = {}) => {
   const router = useRouter()
+  const { colaborador } = useAuth()
+  const canDelete = colaborador?.rol === 'super_admin'
   
   const mappedSellos = useMemo(() => {
     if (sellos && sellos.length > 0) {
