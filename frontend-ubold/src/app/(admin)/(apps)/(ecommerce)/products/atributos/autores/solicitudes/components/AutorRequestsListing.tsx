@@ -22,7 +22,7 @@ import { TbEdit, TbEye, TbList, TbTrash, TbCheck } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
-import ChangeStatusModal from '@/components/table/ChangeStatusModal'
+import ConfirmStatusModal from '@/components/table/ConfirmStatusModal'
 import TablePagination from '@/components/table/TablePagination'
 import { STRAPI_API_URL } from '@/lib/strapi/config'
 import { format } from 'date-fns'

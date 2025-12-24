@@ -21,7 +21,7 @@ import { TbEdit, TbEye, TbList, TbTrash, TbCheck } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
-import ChangeStatusModal from '@/components/table/ChangeStatusModal'
+import ConfirmStatusModal from '@/components/table/ConfirmStatusModal'
 import TablePagination from '@/components/table/TablePagination'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'

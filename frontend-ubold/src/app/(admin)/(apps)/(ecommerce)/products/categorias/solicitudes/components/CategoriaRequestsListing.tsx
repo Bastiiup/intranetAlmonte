@@ -21,7 +21,7 @@ import { TbEdit, TbEye, TbList, TbTrash, TbCheck } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
-import ChangeStatusModal from '@/components/table/ChangeStatusModal'
+import ConfirmStatusModal from '@/components/table/ConfirmStatusModal'
 import TablePagination from '@/components/table/TablePagination'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
@@ -157,6 +157,7 @@ const CategoriaRequestsListing = ({ categorias, error }: CategoriaRequestsListin
   // Estado para el modal de cambio de estado
   const [showChangeStatusModal, setShowChangeStatusModal] = useState(false)
   const [selectedCategoria, setSelectedCategoria] = useState<CategoriaTypeExtended | null>(null)
+  const [statusAction, setStatusAction] = useState<'approve' | 'reject'>('approve')
 
   const columns: ColumnDef<CategoriaTypeExtended, any>[] = [
     {
@@ -253,9 +254,10 @@ const CategoriaRequestsListing = ({ categorias, error }: CategoriaRequestsListin
             variant="default"
             size="sm"
             className="btn-icon rounded-circle"
-            title="Cambiar Estado"
+            title="Aprobar"
             onClick={() => {
               setSelectedCategoria(row.original)
+              setStatusAction('approve')
               setShowChangeStatusModal(true)
             }}>
             <TbCheck className="fs-lg" />
@@ -369,10 +371,11 @@ const CategoriaRequestsListing = ({ categorias, error }: CategoriaRequestsListin
     }
   }
 
-  const handleStatusChange = async (newStatus: string) => {
+  const handleStatusChange = async () => {
     if (!selectedCategoria?.strapiId) return
 
-    // IMPORTANTE: Strapi espera valores en minúsculas: "pendiente", "publicado", "borrador"
+    // Determinar el nuevo estado basado en la acción
+    const newStatus = statusAction === 'approve' ? 'publicado' : 'rechazado'
     const newStatusLower = newStatus.toLowerCase()
 
     try {
@@ -399,6 +402,8 @@ const CategoriaRequestsListing = ({ categorias, error }: CategoriaRequestsListin
         )
       )
       console.log(`[CategoriaRequestsListing] Estado de categoría ${selectedCategoria.strapiId} actualizado a ${newStatus}`)
+      setShowChangeStatusModal(false)
+      setSelectedCategoria(null)
     } catch (err: any) {
       console.error('[CategoriaRequestsListing] Error al cambiar estado:', err)
       alert(`Error al cambiar estado: ${err.message}`)
@@ -516,15 +521,15 @@ const CategoriaRequestsListing = ({ categorias, error }: CategoriaRequestsListin
           />
 
           {selectedCategoria && (
-            <ChangeStatusModal
+            <ConfirmStatusModal
               show={showChangeStatusModal}
               onHide={() => {
                 setShowChangeStatusModal(false)
                 setSelectedCategoria(null)
               }}
               onConfirm={handleStatusChange}
-              currentStatus={selectedCategoria.estadoPublicacion || 'Pendiente'}
-              productName={selectedCategoria.name || 'Categoría'}
+              action={statusAction}
+              itemName={selectedCategoria.name || 'categoría'}
             />
           )}
         </Card>

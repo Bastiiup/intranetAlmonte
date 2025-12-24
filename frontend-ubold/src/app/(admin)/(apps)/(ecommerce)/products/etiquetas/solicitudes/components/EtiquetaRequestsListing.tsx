@@ -21,7 +21,7 @@ import { TbEdit, TbEye, TbList, TbTrash, TbCheck } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
-import ChangeStatusModal from '@/components/table/ChangeStatusModal'
+import ConfirmStatusModal from '@/components/table/ConfirmStatusModal'
 import TablePagination from '@/components/table/TablePagination'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
@@ -124,6 +124,7 @@ const EtiquetaRequestsListing = ({ etiquetas, error }: EtiquetaRequestsListingPr
   // Estado para el modal de cambio de estado
   const [showChangeStatusModal, setShowChangeStatusModal] = useState(false)
   const [selectedEtiqueta, setSelectedEtiqueta] = useState<EtiquetaTypeExtended | null>(null)
+  const [statusAction, setStatusAction] = useState<'approve' | 'reject'>('approve')
 
   const columns: ColumnDef<EtiquetaTypeExtended, any>[] = [
     {
@@ -220,6 +221,7 @@ const EtiquetaRequestsListing = ({ etiquetas, error }: EtiquetaRequestsListingPr
             title="Cambiar Estado"
             onClick={() => {
               setSelectedEtiqueta(row.original)
+              setStatusAction('approve')
               setShowChangeStatusModal(true)
             }}>
             <TbCheck className="fs-lg" />
@@ -333,10 +335,11 @@ const EtiquetaRequestsListing = ({ etiquetas, error }: EtiquetaRequestsListingPr
     }
   }
 
-  const handleStatusChange = async (newStatus: string) => {
+  const handleStatusChange = async () => {
     if (!selectedEtiqueta?.strapiId) return
 
-    // IMPORTANTE: Strapi espera valores en minúsculas: "pendiente", "publicado", "borrador"
+    // Determinar el nuevo estado basado en la acción
+    const newStatus = statusAction === 'approve' ? 'publicado' : 'rechazado'
     const newStatusLower = newStatus.toLowerCase()
 
     try {
@@ -363,6 +366,8 @@ const EtiquetaRequestsListing = ({ etiquetas, error }: EtiquetaRequestsListingPr
         )
       )
       console.log(`[EtiquetaRequestsListing] Estado de etiqueta ${selectedEtiqueta.strapiId} actualizado a ${newStatus}`)
+      setShowChangeStatusModal(false)
+      setSelectedEtiqueta(null)
     } catch (err: any) {
       console.error('[EtiquetaRequestsListing] Error al cambiar estado:', err)
       alert(`Error al cambiar estado: ${err.message}`)
@@ -480,15 +485,15 @@ const EtiquetaRequestsListing = ({ etiquetas, error }: EtiquetaRequestsListingPr
           />
 
           {selectedEtiqueta && (
-            <ChangeStatusModal
+            <ConfirmStatusModal
               show={showChangeStatusModal}
               onHide={() => {
                 setShowChangeStatusModal(false)
                 setSelectedEtiqueta(null)
               }}
               onConfirm={handleStatusChange}
-              currentStatus={selectedEtiqueta.estadoPublicacion || 'Pendiente'}
-              productName={selectedEtiqueta.name || 'Etiqueta'}
+              action={statusAction}
+              itemName={selectedEtiqueta.name || 'etiqueta'}
             />
           )}
         </Card>

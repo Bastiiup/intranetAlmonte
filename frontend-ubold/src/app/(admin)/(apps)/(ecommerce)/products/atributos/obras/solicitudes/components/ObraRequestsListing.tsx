@@ -21,7 +21,7 @@ import { TbEdit, TbEye, TbList, TbTrash, TbCheck } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
-import ChangeStatusModal from '@/components/table/ChangeStatusModal'
+import ConfirmStatusModal from '@/components/table/ConfirmStatusModal'
 import TablePagination from '@/components/table/TablePagination'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
@@ -129,6 +129,7 @@ const ObraRequestsListing = ({ obras, error }: ObraRequestsListingProps = {}) =>
   // Estado para el modal de cambio de estado
   const [showChangeStatusModal, setShowChangeStatusModal] = useState(false)
   const [selectedObra, setSelectedObra] = useState<ObraTypeExtended | null>(null)
+  const [statusAction, setStatusAction] = useState<'approve' | 'reject'>('approve')
 
   const columns: ColumnDef<ObraTypeExtended, any>[] = [
     {
@@ -234,6 +235,7 @@ const ObraRequestsListing = ({ obras, error }: ObraRequestsListingProps = {}) =>
             title="Cambiar Estado"
             onClick={() => {
               setSelectedObra(row.original)
+              setStatusAction('approve')
               setShowChangeStatusModal(true)
             }}>
             <TbCheck className="fs-lg" />
@@ -347,10 +349,11 @@ const ObraRequestsListing = ({ obras, error }: ObraRequestsListingProps = {}) =>
     }
   }
 
-  const handleStatusChange = async (newStatus: string) => {
+  const handleStatusChange = async () => {
     if (!selectedObra?.strapiId) return
 
-    // IMPORTANTE: Strapi espera valores en minúsculas: "pendiente", "publicado", "borrador"
+    // Determinar el nuevo estado basado en la acción
+    const newStatus = statusAction === 'approve' ? 'publicado' : 'rechazado'
     const newStatusLower = newStatus.toLowerCase()
 
     try {
@@ -377,6 +380,8 @@ const ObraRequestsListing = ({ obras, error }: ObraRequestsListingProps = {}) =>
         )
       )
       console.log(`[ObraRequestsListing] Estado de obra ${selectedObra.strapiId} actualizado a ${newStatus}`)
+      setShowChangeStatusModal(false)
+      setSelectedObra(null)
     } catch (err: any) {
       console.error('[ObraRequestsListing] Error al cambiar estado:', err)
       alert(`Error al cambiar estado: ${err.message}`)
@@ -494,15 +499,15 @@ const ObraRequestsListing = ({ obras, error }: ObraRequestsListingProps = {}) =>
           />
 
           {selectedObra && (
-            <ChangeStatusModal
+            <ConfirmStatusModal
               show={showChangeStatusModal}
               onHide={() => {
                 setShowChangeStatusModal(false)
                 setSelectedObra(null)
               }}
               onConfirm={handleStatusChange}
-              currentStatus={selectedObra.estadoPublicacion || 'Pendiente'}
-              productName={selectedObra.nombre || 'Obra'}
+              action={statusAction}
+              itemName={selectedObra.nombre || 'obra'}
             />
           )}
         </Card>
