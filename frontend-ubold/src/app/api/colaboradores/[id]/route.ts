@@ -136,6 +136,17 @@ export async function PUT(
       )
     }
 
+    // Validar contraseña si se proporciona
+    if (body.password && body.password.trim().length > 0 && body.password.trim().length < 6) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'La contraseña debe tener al menos 6 caracteres',
+        },
+        { status: 400 }
+      )
+    }
+
     // Preparar datos para Strapi
     // Solo enviar campos que existen en el modelo de Strapi
     const colaboradorData: any = {
@@ -143,6 +154,8 @@ export async function PUT(
         email_login: body.email_login.trim(),
         rol: body.rol || null,
         activo: body.activo !== undefined ? body.activo : true,
+        // Solo enviar password si se proporcionó (no vacío)
+        ...(body.password && body.password.trim().length > 0 && { password: body.password }),
         ...(body.persona && { persona: body.persona }),
         ...(body.usuario && { usuario: body.usuario }),
       },
@@ -178,7 +191,7 @@ export async function PUT(
 
 /**
  * DELETE /api/colaboradores/[id]
- * Elimina un colaborador (soft delete marcando como inactivo)
+ * Elimina un colaborador permanentemente
  */
 export async function DELETE(
   request: NextRequest,
@@ -186,23 +199,16 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
+    console.log('[API /colaboradores/[id] DELETE] Eliminando colaborador:', id)
 
-    // Soft delete: marcar como inactivo en lugar de eliminar
-    const colaboradorData: any = {
-      data: {
-        activo: false,
-      },
-    }
-
-    const response = await strapiClient.put<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
-      `/api/colaboradores/${id}`,
-      colaboradorData
+    // Eliminar permanentemente usando delete
+    const response = await strapiClient.delete(
+      `/api/colaboradores/${id}`
     )
 
     return NextResponse.json({
       success: true,
-      data: response.data,
-      message: 'Colaborador desactivado exitosamente',
+      message: 'Colaborador eliminado permanentemente',
     }, { status: 200 })
   } catch (error: any) {
     console.error('[API /colaboradores/[id] DELETE] Error:', {

@@ -371,11 +371,16 @@ const ColaboradoresListing = ({ colaboradores: propsColaboradores, error: propsE
         onConfirm={handleDelete}
         selectedCount={1}
         itemName="colaborador"
-        modalTitle="Desactivar Colaborador"
-        confirmButtonText="Desactivar"
+        modalTitle="Eliminar Colaborador"
+        confirmButtonText="Eliminar Permanentemente"
         cancelButtonText="Cancelar"
       >
-        ¿Estás seguro de que deseas desactivar a {deleteModal.colaborador?.email_login}?
+        <div>
+          <p>¿Estás seguro de que deseas eliminar permanentemente a <strong>{deleteModal.colaborador?.email_login}</strong>?</p>
+          <p className="text-danger mb-0">
+            <small>Esta acción no se puede deshacer. El colaborador será eliminado permanentemente del sistema.</small>
+          </p>
+        </div>
       </DeleteConfirmationModal>
     </>
   )

@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardHeader, CardBody, Form, Button, Row, Col, FormGroup, FormLabel, FormControl, FormSelect, Alert, FormCheck } from 'react-bootstrap'
-import { LuSave, LuX } from 'react-icons/lu'
+import { Card, CardHeader, CardBody, Form, Button, Row, Col, FormGroup, FormLabel, FormControl, FormSelect, Alert, FormCheck, InputGroup } from 'react-bootstrap'
+import { LuSave, LuX, LuEye, LuEyeOff } from 'react-icons/lu'
 
 const ROLES = [
   'super_admin',
@@ -35,6 +35,7 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(propsError || null)
   const [success, setSuccess] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   // Obtener datos del colaborador - manejar diferentes estructuras de Strapi
   const getColaboradorData = () => {
@@ -69,6 +70,7 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
 
   const [formData, setFormData] = useState({
     email_login: colaboradorData?.email_login || '',
+    password: '', // Campo opcional para cambiar contraseña
     rol: colaboradorData?.rol || '',
     activo: colaboradorData?.activo !== undefined ? colaboradorData.activo : true,
   })
@@ -77,6 +79,7 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
     if (colaboradorData) {
       setFormData({
         email_login: colaboradorData.email_login || '',
+        password: '', // No prellenar contraseña por seguridad
         rol: colaboradorData.rol || '',
         activo: colaboradorData.activo !== undefined ? colaboradorData.activo : true,
       })
@@ -114,11 +117,18 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
         throw new Error('El email_login no tiene un formato válido')
       }
 
+      // Validar contraseña si se proporciona
+      if (formData.password && formData.password.trim().length > 0 && formData.password.trim().length < 6) {
+        throw new Error('La contraseña debe tener al menos 6 caracteres')
+      }
+
       // Preparar datos para Strapi
       const colaboradorUpdateData: any = {
         email_login: formData.email_login.trim(),
         rol: formData.rol || null,
         activo: formData.activo,
+        // Solo enviar password si se proporcionó (no vacío)
+        ...(formData.password && formData.password.trim().length > 0 && { password: formData.password }),
       }
 
       // Actualizar el colaborador
@@ -224,6 +234,30 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
               </FormGroup>
             </Col>
 
+            <Col md={6}>
+              <FormGroup className="mb-3">
+                <FormLabel>Nueva Contraseña</FormLabel>
+                <InputGroup>
+                  <FormControl
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Dejar vacío para no cambiar"
+                    value={formData.password}
+                    onChange={(e) => handleFieldChange('password', e.target.value)}
+                    disabled={loading}
+                    minLength={6}
+                  />
+                  <Button
+                    variant="outline-secondary"
+                    onClick={() => setShowPassword(!showPassword)}
+                    disabled={loading}
+                    type="button"
+                  >
+                    {showPassword ? <LuEyeOff /> : <LuEye />}
+                  </Button>
+                </InputGroup>
+                <small className="text-muted">Dejar vacío para mantener la contraseña actual. Mínimo 6 caracteres si se cambia.</small>
+              </FormGroup>
+            </Col>
 
             <Col md={12}>
               <FormGroup className="mb-3">
