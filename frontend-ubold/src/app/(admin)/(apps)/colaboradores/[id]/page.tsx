@@ -34,7 +34,19 @@ export default async function Page({ params }: PageProps) {
     const data = await response.json()
     
     if (data.success && data.data) {
+      // La respuesta puede venir en diferentes formatos
+      // Caso 1: data.data (anidado)
+      // Caso 2: data.data directamente
       colaborador = data.data
+      
+      // Log para debugging
+      console.log('[Colaborador Page] Datos recibidos:', {
+        hasData: !!colaborador,
+        hasAttributes: !!(colaborador as any)?.attributes,
+        hasId: !!(colaborador as any)?.id,
+        hasDocumentId: !!(colaborador as any)?.documentId,
+        keys: colaborador ? Object.keys(colaborador) : [],
+      })
     } else {
       error = data.error || 'Error al obtener colaborador'
       if (data.status === 404) {

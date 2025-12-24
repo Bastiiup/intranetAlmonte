@@ -36,16 +36,36 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
   const [error, setError] = useState<string | null>(propsError || null)
   const [success, setSuccess] = useState(false)
 
-  // Obtener datos del colaborador
+  // Obtener datos del colaborador - manejar diferentes estructuras de Strapi
   const getColaboradorData = () => {
     if (!propsColaborador) return null
-    const attrs = propsColaborador.attributes || {}
-    return (attrs && Object.keys(attrs).length > 0) ? attrs : propsColaborador
+    
+    // Caso 1: datos en attributes (estructura estándar de Strapi)
+    if (propsColaborador.attributes) {
+      return propsColaborador.attributes
+    }
+    
+    // Caso 2: datos directamente en el objeto
+    if (propsColaborador.email_login || propsColaborador.rol !== undefined) {
+      return propsColaborador
+    }
+    
+    // Caso 3: datos en data.attributes
+    if ((propsColaborador as any).data?.attributes) {
+      return (propsColaborador as any).data.attributes
+    }
+    
+    // Caso 4: datos en data directamente
+    if ((propsColaborador as any).data) {
+      return (propsColaborador as any).data
+    }
+    
+    return null
   }
 
   const colaboradorData = getColaboradorData()
   // Obtener el ID correcto (documentId si existe, sino id)
-  const colaboradorId = (propsColaborador as any)?.documentId || propsColaborador?.id
+  const colaboradorId = (propsColaborador as any)?.documentId || propsColaborador?.id || (propsColaborador as any)?.data?.id
 
   const [formData, setFormData] = useState({
     email_login: colaboradorData?.email_login || '',
@@ -134,6 +154,16 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
         <CardBody>
           <Alert variant="warning">
             No se pudo cargar la información del colaborador.
+            {propsError && (
+              <div className="mt-2">
+                <small>Error: {propsError}</small>
+              </div>
+            )}
+            {!propsColaborador && (
+              <div className="mt-2">
+                <small>No se recibieron datos del colaborador.</small>
+              </div>
+            )}
           </Alert>
         </CardBody>
       </Card>
