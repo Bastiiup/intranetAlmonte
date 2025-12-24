@@ -101,21 +101,7 @@ const mapStrapiAutorToAutorType = (autor: any): AutorType => {
   // Contar libros (si hay relación con libros)
   const libros = data.libros?.data || data.libros || []
   const librosCount = Array.isArray(libros) ? libros.length : 0
-<<<<<<< HEAD:frontend-ubold/src/app/(admin)/(apps)/(ecommerce)/products/atributos/autores/components/AutoresListing.tsx
-  
-  // Obtener estado (publishedAt indica si está publicado)
-  const isPublished = !!(attrs.publishedAt || autor.publishedAt)
-  
-  // Obtener estado_publicacion (Strapi devuelve en minúsculas: "pendiente", "publicado", "borrador")
-  const estadoPublicacionRaw = getField(data, 'estado_publicacion', 'ESTADO_PUBLICACION', 'estadoPublicacion') || 'pendiente'
-  // Normalizar y capitalizar para mostrar (pero Strapi espera minúsculas)
-  const estadoPublicacion = typeof estadoPublicacionRaw === 'string' 
-    ? estadoPublicacionRaw.toLowerCase() 
-    : estadoPublicacionRaw
-  
-=======
 
->>>>>>> origin/matiRama2:frontend-ubold/src/app/(admin)/(apps)/(ecommerce)/atributos/autores/components/AutoresListing.tsx
   // Obtener fechas
   const createdAt = attrs.createdAt || (autor as any).createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
@@ -131,15 +117,8 @@ const mapStrapiAutorToAutorType = (autor: any): AutorType => {
     status: isPublished ? 'active' : 'inactive',
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
-<<<<<<< HEAD:frontend-ubold/src/app/(admin)/(apps)/(ecommerce)/products/atributos/autores/components/AutoresListing.tsx
-    url: `/products/atributos/autores/${autor.id || autor.documentId || autor.id}`,
-    estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
-                       estadoPublicacion === 'borrador' ? 'Borrador' : 
-                       'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
-=======
     url: `/atributos/autores/${autor.id || autor.documentId || autor.id}`,
     foto: { src: fotoUrl },
->>>>>>> origin/matiRama2:frontend-ubold/src/app/(admin)/(apps)/(ecommerce)/atributos/autores/components/AutoresListing.tsx
   }
 }
 
@@ -152,14 +131,10 @@ const columnHelper = createColumnHelper<AutorType>()
 
 const AutoresListing = ({ autores, error }: AutoresListingProps = {}) => {
   const router = useRouter()
-<<<<<<< HEAD:frontend-ubold/src/app/(admin)/(apps)/(ecommerce)/products/atributos/autores/components/AutoresListing.tsx
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
   const canDelete = colaborador?.rol === 'super_admin'
   
-=======
-
->>>>>>> origin/matiRama2:frontend-ubold/src/app/(admin)/(apps)/(ecommerce)/atributos/autores/components/AutoresListing.tsx
   // Mapear autores de Strapi al formato AutorType si están disponibles
   const mappedAutores = useMemo(() => {
     if (autores && autores.length > 0) {
@@ -480,23 +455,11 @@ const AutoresListing = ({ autores, error }: AutoresListingProps = {}) => {
               <div className="app-search">
                 <select
                   className="form-select form-control my-1 my-md-0"
-<<<<<<< HEAD:frontend-ubold/src/app/(admin)/(apps)/(ecommerce)/products/atributos/autores/components/AutoresListing.tsx
-                  value={(table.getColumn('estadoPublicacion')?.getFilterValue() as string) ?? 'All'}
-                  onChange={(e) => {
-                    const value = e.target.value === 'All' ? undefined : e.target.value
-                    table.getColumn('estadoPublicacion')?.setFilterValue(value)
-                  }}>
-                  <option value="All">Estado Publicación</option>
-                  <option value="Publicado">Publicado</option>
-                  <option value="Pendiente">Pendiente</option>
-                  <option value="Borrador">Borrador</option>
-=======
                   value={(table.getColumn('tipo')?.getFilterValue() as string) ?? 'All'}
                   onChange={(e) => table.getColumn('tipo')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
                   <option value="All">Tipo</option>
                   <option value="Persona">Persona</option>
                   <option value="Empresa">Empresa</option>
->>>>>>> origin/matiRama2:frontend-ubold/src/app/(admin)/(apps)/(ecommerce)/atributos/autores/components/AutoresListing.tsx
                 </select>
                 <LuBox className="app-search-icon text-muted" />
               </div>

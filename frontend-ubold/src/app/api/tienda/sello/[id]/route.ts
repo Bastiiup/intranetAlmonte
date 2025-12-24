@@ -338,23 +338,20 @@ export async function PUT(
       selloData.data.logo = body.data.logo || null
     }
 
-<<<<<<< HEAD
     // Estado de publicación - IMPORTANTE: Strapi espera valores en minúsculas
-    if (body.data.estado_publicacion !== undefined) {
-      // Normalizar a minúsculas para Strapi: "pendiente", "publicado", "borrador"
+    if (body.estado_publicacion !== undefined && body.estado_publicacion !== '') {
+      const estadoNormalizado = typeof body.estado_publicacion === 'string' 
+        ? body.estado_publicacion.toLowerCase() 
+        : body.estado_publicacion
+      selloData.data.estado_publicacion = estadoNormalizado
+      console.log('[API Sello PUT] 📝 Estado de publicación actualizado:', estadoNormalizado)
+    }
+    if (body.data?.estado_publicacion !== undefined && body.data.estado_publicacion !== '') {
       const estadoNormalizado = typeof body.data.estado_publicacion === 'string' 
         ? body.data.estado_publicacion.toLowerCase() 
         : body.data.estado_publicacion
       selloData.data.estado_publicacion = estadoNormalizado
       console.log('[API Sello PUT] 📝 Estado de publicación actualizado:', estadoNormalizado)
-=======
-    // Estado de publicación
-    if (body.estado_publicacion !== undefined && body.estado_publicacion !== '') {
-      selloData.data.estado_publicacion = body.estado_publicacion
-    }
-    if (body.data?.estado_publicacion !== undefined && body.data.estado_publicacion !== '') {
-      selloData.data.estado_publicacion = body.data.estado_publicacion
->>>>>>> origin/matiRama2
     }
 
     // No guardamos woocommerce_id en Strapi porque no existe en el schema

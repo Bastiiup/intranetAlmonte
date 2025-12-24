@@ -53,12 +53,7 @@ const mapStrapiMarcaToMarcaType = (marca: any): MarcaType => {
   const attrs = marca.attributes || {}
   const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (marca as any)
 
-<<<<<<< HEAD
-  // Obtener name (schema real de Strapi usa "name")
-  const nombre = getField(data, 'name', 'nombre_marca', 'nombreMarca', 'nombre', 'NOMBRE_MARCA', 'NAME') || 'Sin nombre'
-=======
   const nombre = getField(data, 'name', 'nombre', 'nombre_marca', 'nombreMarca', 'NOMBRE_MARCA', 'NAME') || 'Sin nombre'
->>>>>>> origin/matiRama2
   const descripcion = getField(data, 'descripcion', 'description', 'DESCRIPCION') || ''
   
   const isPublished = !!(attrs.publishedAt || (marca as any).publishedAt)

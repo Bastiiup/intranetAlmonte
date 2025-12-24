@@ -41,12 +41,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     console.log('[API Marca POST] 📝 Creando marca:', body)
 
-<<<<<<< HEAD
-    // Validar campos obligatorios según schema de Strapi (usa "name", no "nombre_marca")
-=======
     // Validar campos obligatorios según schema de Strapi
     // Schema real: name* (Text), descripcion, imagen, marca_padre, marcas_hijas, externalIds
->>>>>>> origin/matiRama2
     if (!body.data?.name && !body.data?.nombre_marca && !body.data?.nombreMarca && !body.data?.nombre) {
       return NextResponse.json({
         success: false,
@@ -57,27 +53,17 @@ export async function POST(request: NextRequest) {
     const nombreMarca = body.data.name || body.data.nombre_marca || body.data.nombreMarca || body.data.nombre
     const marcaEndpoint = '/api/marcas'
     
-<<<<<<< HEAD
     const estadoPublicacion = 'pendiente' // Siempre pendiente al crear
     
     console.log('[API Marca POST] 📚 Creando marca en Strapi...')
     console.log('[API Marca POST] Estado de publicación:', estadoPublicacion, '(siempre pendiente al crear)')
     
-    // El schema de Strapi para marca usa: name* (Text), descripcion (Text), imagen (Media)
-=======
     // El schema de Strapi para marca usa: name* (Text), descripcion, imagen, marca_padre, marcas_hijas, externalIds
->>>>>>> origin/matiRama2
     const marcaData: any = {
       data: {
         name: nombreMarca.trim(),
         descripcion: body.data.descripcion || null,
-<<<<<<< HEAD
         estado_publicacion: estadoPublicacion, // Siempre "pendiente" al crear (minúscula para Strapi)
-      }
-    }
-
-    // Manejar imagen (media)
-=======
       }
     }
 
@@ -92,7 +78,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Manejar imagen (Media)
->>>>>>> origin/matiRama2
     if (body.data.imagen) {
       marcaData.data.imagen = body.data.imagen
     }

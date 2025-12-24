@@ -90,13 +90,10 @@ export async function POST(request: NextRequest) {
     
     const response = await strapiClient.post('/api/autores', autorData) as any
     
-<<<<<<< HEAD
-    console.log('[API Autores POST] ✅ Autor creado en Strapi:', response.id || response.documentId)
-    console.log('[API Autores POST] Estado: ⏸️ Solo guardado en Strapi (pendiente), no se publica en WordPress')
-    console.log('[API Autores POST] Para publicar, cambiar el estado desde la página de Solicitudes')
-=======
     const autorId = response.data?.documentId || response.data?.id || response.documentId || response.id
     console.log('[API Autores POST] ✅ Autor creado en Strapi:', autorId)
+    console.log('[API Autores POST] Estado: ⏸️ Solo guardado en Strapi (pendiente), no se publica en WordPress')
+    console.log('[API Autores POST] Para publicar, cambiar el estado desde la página de Solicitudes')
     
     // Registrar log de creación
     logActivity(request, {
@@ -106,7 +103,6 @@ export async function POST(request: NextRequest) {
       descripcion: createLogDescription('crear', 'autor', null, `Autor "${body.data.nombre_completo_autor}"`),
       datosNuevos: { nombre_completo: body.data.nombre_completo_autor, tipo: body.data.tipo_autor },
     }).catch(() => {})
->>>>>>> origin/matiRama2
     
     return NextResponse.json({
       success: true,

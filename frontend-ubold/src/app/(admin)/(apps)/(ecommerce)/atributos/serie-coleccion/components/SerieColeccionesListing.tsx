@@ -82,22 +82,9 @@ const mapStrapiSerieColeccionToSerieColeccionType = (serieColeccion: any): Serie
   // Obtener estado (usa publishedAt para determinar si está publicado)
   const isPublished = !!(attrs.publishedAt || (serieColeccion as any).publishedAt)
   
-<<<<<<< HEAD:frontend-ubold/src/app/(admin)/(apps)/(ecommerce)/products/etiquetas/components/TagsListing.tsx
-  // Obtener estado_publicacion (Strapi devuelve en minúsculas: "pendiente", "publicado", "borrador")
-  const estadoPublicacionRaw = getField(data, 'estado_publicacion', 'ESTADO_PUBLICACION', 'estadoPublicacion') || 'pendiente'
-  // Normalizar y capitalizar para mostrar (pero Strapi espera minúsculas)
-  const estadoPublicacion = typeof estadoPublicacionRaw === 'string' 
-    ? estadoPublicacionRaw.toLowerCase() 
-    : estadoPublicacionRaw
-  
-  // Contar productos (si hay relación)
-  const productos = data.productos?.data || data.products?.data || data.productos || data.products || []
-  const productosCount = Array.isArray(productos) ? productos.length : 0
-=======
   // Contar productos asociados (libros según schema)
   const libros = data.libros?.data || data.libros || []
   const librosCount = Array.isArray(libros) ? libros.length : 0
->>>>>>> origin/matiRama2:frontend-ubold/src/app/(admin)/(apps)/(ecommerce)/atributos/serie-coleccion/components/SerieColeccionesListing.tsx
   
   // Obtener fechas
   const createdAt = attrs.createdAt || (serieColeccion as any).createdAt || new Date().toISOString()
@@ -113,14 +100,7 @@ const mapStrapiSerieColeccionToSerieColeccionType = (serieColeccion: any): Serie
     status: isPublished ? 'active' : 'inactive',
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
-<<<<<<< HEAD:frontend-ubold/src/app/(admin)/(apps)/(ecommerce)/products/etiquetas/components/TagsListing.tsx
-    url: `/products/etiquetas/${etiqueta.id || etiqueta.documentId || etiqueta.id}`, // URL para edición
-    estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
-                       estadoPublicacion === 'borrador' ? 'Borrador' : 
-                       'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
-=======
     url: `/atributos/serie-coleccion/${serieColeccion.id || serieColeccion.documentId || serieColeccion.id}`,
->>>>>>> origin/matiRama2:frontend-ubold/src/app/(admin)/(apps)/(ecommerce)/atributos/serie-coleccion/components/SerieColeccionesListing.tsx
   }
 }
 
@@ -257,8 +237,6 @@ const SerieColeccionesListing = ({ serieColecciones, error }: SerieColeccionesLi
         </>
       ),
     }),
-=======
->>>>>>> origin/matiRama2:frontend-ubold/src/app/(admin)/(apps)/(ecommerce)/atributos/serie-coleccion/components/SerieColeccionesListing.tsx
     {
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<SerieColeccionType> }) => (

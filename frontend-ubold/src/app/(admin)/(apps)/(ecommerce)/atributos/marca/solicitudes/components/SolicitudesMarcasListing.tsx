@@ -61,29 +61,7 @@ const mapStrapiSolicitudToSolicitudType = (solicitud: any): SolicitudMarcaType =
   // Por defecto todas las solicitudes están pendientes hasta que tengamos el campo específico
   const estado = getField(data, 'estado', 'estado_solicitud', 'ESTADO') || 'pendiente'
   
-<<<<<<< HEAD:frontend-ubold/src/app/(admin)/(apps)/(ecommerce)/products/categorias/components/CategoriesListing.tsx
-  // Obtener descripción
-  const descripcion = getField(data, 'descripcion', 'description', 'DESCRIPCION', 'DESCRIPTION') || ''
-  
-  // Obtener estado
-  const activo = data.activo !== undefined ? data.activo : (data.isActive !== undefined ? data.isActive : true)
-  
-  // Obtener estado_publicacion (Strapi devuelve en minúsculas: "pendiente", "publicado", "borrador")
-  const estadoPublicacionRaw = getField(data, 'estado_publicacion', 'ESTADO_PUBLICACION', 'estadoPublicacion') || 'pendiente'
-  // Normalizar y capitalizar para mostrar (pero Strapi espera minúsculas)
-  const estadoPublicacion = typeof estadoPublicacionRaw === 'string' 
-    ? estadoPublicacionRaw.toLowerCase() 
-    : estadoPublicacionRaw
-  
-  // Contar productos
-  const productos = data.productos?.data || data.products?.data || data.productos || data.products || []
-  const productosCount = Array.isArray(productos) ? productos.length : 0
-  
-  // Obtener fechas
-  const createdAt = attrs.createdAt || (categoria as any).createdAt || new Date().toISOString()
-=======
   const createdAt = attrs.createdAt || (solicitud as any).createdAt || new Date().toISOString()
->>>>>>> origin/matiRama2:frontend-ubold/src/app/(admin)/(apps)/(ecommerce)/atributos/marca/solicitudes/components/SolicitudesMarcasListing.tsx
   const createdDate = new Date(createdAt)
   
   return {
@@ -94,14 +72,7 @@ const mapStrapiSolicitudToSolicitudType = (solicitud: any): SolicitudMarcaType =
     estado: estado as 'pendiente' | 'aprobada' | 'rechazada',
     fecha_solicitud: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
-<<<<<<< HEAD:frontend-ubold/src/app/(admin)/(apps)/(ecommerce)/products/categorias/components/CategoriesListing.tsx
-    url: `/products/categorias/${categoria.id || categoria.documentId || categoria.id}`,
-    estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
-                       estadoPublicacion === 'borrador' ? 'Borrador' : 
-                       'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
-=======
     url: `/atributos/marca/${solicitud.id || solicitud.documentId || solicitud.id}`,
->>>>>>> origin/matiRama2:frontend-ubold/src/app/(admin)/(apps)/(ecommerce)/atributos/marca/solicitudes/components/SolicitudesMarcasListing.tsx
   }
 }
 
@@ -233,12 +204,8 @@ const SolicitudesMarcasListing = ({ solicitudes, error }: SolicitudesMarcasListi
         )
       },
     }),
-    columnHelper.accessor('date', {
-      header: 'Fecha',
-=======
     columnHelper.accessor('fecha_solicitud', {
       header: 'Fecha de Solicitud',
->>>>>>> origin/matiRama2:frontend-ubold/src/app/(admin)/(apps)/(ecommerce)/atributos/marca/solicitudes/components/SolicitudesMarcasListing.tsx
       cell: ({ row }) => (
         <>
           {row.original.fecha_solicitud} <small className="text-muted">{row.original.time}</small>

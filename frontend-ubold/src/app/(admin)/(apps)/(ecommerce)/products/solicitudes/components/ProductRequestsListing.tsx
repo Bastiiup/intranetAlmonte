@@ -26,11 +26,8 @@ import ConfirmStatusModal from '@/components/table/ConfirmStatusModal'
 import TablePagination from '@/components/table/TablePagination'
 import { STRAPI_API_URL } from '@/lib/strapi/config'
 import { format } from 'date-fns'
-<<<<<<< HEAD
-import { useAuth } from '@/hooks/useAuth'
-=======
 import { useRouter } from 'next/navigation'
->>>>>>> origin/matiRama2
+import { useAuth } from '@/hooks/useAuth'
 
 // Tipo para solicitudes de productos
 type ProductRequestType = {
@@ -93,17 +90,6 @@ const mapStrapiSolicitudToRequestType = (solicitud: any): ProductRequestType => 
   
   const createdAt = attrs.createdAt || (solicitud as any).createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
-<<<<<<< HEAD
-
-  // Obtener estado_publicacion (Strapi devuelve en minúsculas: "pendiente", "publicado", "borrador")
-  const estadoPublicacionRaw = getField(data, 'estado_publicacion', 'ESTADO_PUBLICACION', 'estadoPublicacion') || 'pendiente'
-  // Normalizar y capitalizar para mostrar (pero Strapi espera minúsculas)
-  const estadoPublicacion = typeof estadoPublicacionRaw === 'string' 
-    ? estadoPublicacionRaw.toLowerCase() 
-    : estadoPublicacionRaw
-
-=======
->>>>>>> origin/matiRama2
   const imageUrl = getImageUrl()
 
   return {
@@ -116,17 +102,8 @@ const mapStrapiSolicitudToRequestType = (solicitud: any): ProductRequestType => 
     estado: estado as 'pendiente' | 'aprobada' | 'rechazada',
     fecha_solicitud: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
-<<<<<<< HEAD
-    url: `/products/${producto.id || producto.documentId || producto.id}`,
-    strapiId: producto.id,
-    estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
-                       estadoPublicacion === 'borrador' ? 'Borrador' : 
-                       'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
-    productoOriginal: producto, // Guardar producto original para actualizar
-=======
     url: `/products/${solicitud.id || solicitud.documentId || solicitud.id}`,
     strapiId: solicitud.id,
->>>>>>> origin/matiRama2
   }
 }
 
@@ -137,22 +114,11 @@ interface ProductRequestsListingProps {
 
 const columnHelper = createColumnHelper<ProductRequestType>()
 
-<<<<<<< HEAD
-const columnHelper = createColumnHelper<ProductTypeExtended>()
-
-const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProps = {}) => {
+const ProductRequestsListing = ({ solicitudes, error }: ProductRequestsListingProps = {}) => {
+  const router = useRouter()
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
   const canDelete = colaborador?.rol === 'super_admin'
-
-  const mappedProducts = useMemo(() => {
-    if (productos && productos.length > 0) {
-      console.log('[ProductRequestsListing] Productos recibidos:', productos.length)
-      const mapped = productos.map(mapStrapiProductToProductType)
-      console.log('[ProductRequestsListing] Productos mapeados:', mapped.length)
-=======
-const ProductRequestsListing = ({ solicitudes, error }: ProductRequestsListingProps = {}) => {
-  const router = useRouter()
   
   // Mapear solicitudes de Strapi al formato ProductRequestType si están disponibles
   const mappedSolicitudes = useMemo(() => {
@@ -160,7 +126,6 @@ const ProductRequestsListing = ({ solicitudes, error }: ProductRequestsListingPr
       console.log('[ProductRequestsListing] Solicitudes recibidas:', solicitudes.length)
       const mapped = solicitudes.map(mapStrapiSolicitudToRequestType)
       console.log('[ProductRequestsListing] Solicitudes mapeadas:', mapped.length)
->>>>>>> origin/matiRama2
       return mapped
     }
     console.log('[ProductRequestsListing] No hay solicitudes de Strapi')
@@ -305,18 +270,6 @@ const ProductRequestsListing = ({ solicitudes, error }: ProductRequestsListingPr
               </Button>
             </>
           )}
-          <Button
-            variant="default"
-            size="sm"
-            className="btn-icon rounded-circle"
-<<<<<<< HEAD
-            title="Cambiar Estado"
-            onClick={() => {
-              setSelectedProduct(row.original)
-              setShowChangeStatusModal(true)
-            }}>
-            <TbCheck className="fs-lg" />
-          </Button>
           {canDelete && (
             <Button
               variant="default"
@@ -330,14 +283,6 @@ const ProductRequestsListing = ({ solicitudes, error }: ProductRequestsListingPr
               <TbTrash className="fs-lg" />
             </Button>
           )}
-=======
-            onClick={() => {
-              toggleDeleteModal()
-              setSelectedRowIds({ [row.id]: true })
-            }}>
-            <TbTrash className="fs-lg" />
-          </Button>
->>>>>>> origin/matiRama2
         </div>
       ),
     },
@@ -404,19 +349,9 @@ const ProductRequestsListing = ({ solicitudes, error }: ProductRequestsListingPr
     setShowConfirmModal(true)
   }
 
-<<<<<<< HEAD
-    // IMPORTANTE: Strapi espera valores con mayúscula inicial: "Publicado", "Pendiente", "Borrador"
-    // Normalizar a formato con mayúscula inicial
-    const newStatusNormalized = newStatus === 'Publicado' ? 'Publicado' :
-                                newStatus === 'Pendiente' ? 'Pendiente' :
-                                newStatus === 'Borrador' ? 'Borrador' :
-                                newStatus.charAt(0).toUpperCase() + newStatus.slice(1).toLowerCase()
-
-=======
   const handleApprove = async () => {
     if (!pendingId) return
     
->>>>>>> origin/matiRama2
     try {
       console.log('[ProductRequestsListing] Aprobando solicitud:', pendingId)
       const response = await fetch(`/api/tienda/productos/${pendingId}`, {
@@ -426,13 +361,9 @@ const ProductRequestsListing = ({ solicitudes, error }: ProductRequestsListingPr
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-<<<<<<< HEAD
           data: {
-            estado_publicacion: newStatusNormalized, // Enviar con mayúscula inicial dentro de data
+            estado_publicacion: 'publicado',
           },
-=======
-          estado_publicacion: 'publicado',
->>>>>>> origin/matiRama2
         }),
       })
 
@@ -441,26 +372,12 @@ const ProductRequestsListing = ({ solicitudes, error }: ProductRequestsListingPr
         throw new Error(errorData.error || 'Error al aprobar la solicitud')
       }
 
-<<<<<<< HEAD
-      // Actualizar el estado local (ya viene con mayúscula inicial)
-      const estadoMostrar = newStatusNormalized
-      setData((old) => old.map((p) => {
-        if (p.strapiId === selectedProduct.strapiId) {
-          return { ...p, estadoPublicacion: estadoMostrar as 'Publicado' | 'Pendiente' | 'Borrador' }
-        }
-        return p
-      }))
-
-      // Recargar la página para obtener datos actualizados desde Strapi
-      window.location.reload()
-=======
       // Actualizar estado local
       setData((old) => old.map(item => 
         item.id === pendingId ? { ...item, estado: 'aprobada' as const } : item
       ))
       
       router.refresh()
->>>>>>> origin/matiRama2
     } catch (error: any) {
       console.error('Error al aprobar solicitud:', error)
       alert(error.message || 'Error al aprobar la solicitud')
@@ -481,7 +398,9 @@ const ProductRequestsListing = ({ solicitudes, error }: ProductRequestsListingPr
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          estado_publicacion: 'pendiente',
+          data: {
+            estado_publicacion: 'pendiente',
+          },
         }),
       })
 

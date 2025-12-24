@@ -60,65 +60,6 @@ export async function PUT(
       data: {}
     }
 
-<<<<<<< HEAD
-    // En Strapi v4, usar documentId (string) para actualizar, no el id numérico
-    const autorDocumentId = autor.documentId || autor.data?.documentId || autor.id?.toString() || id
-    console.log('[API Autores PUT] Usando documentId para actualizar:', autorDocumentId)
-
-    // Obtener estado_publicacion actual del autor antes de actualizar
-    // IMPORTANTE: Strapi espera valores en minúsculas: "pendiente", "publicado", "borrador"
-    const estadoActual = autor.attributes?.estado_publicacion || autor.estado_publicacion || 'pendiente'
-    const nuevoEstadoRaw = body.data.estado_publicacion !== undefined ? body.data.estado_publicacion : estadoActual
-    // Normalizar a minúsculas para Strapi
-    const nuevoEstado = typeof nuevoEstadoRaw === 'string' ? nuevoEstadoRaw.toLowerCase() : nuevoEstadoRaw
-
-    // Preparar datos de actualización
-    const updateData: any = {
-      data: {},
-    }
-
-    if (body.data.nombre_completo_autor !== undefined) {
-      updateData.data.nombre_completo_autor = body.data.nombre_completo_autor
-    }
-    if (body.data.nombres !== undefined) {
-      updateData.data.nombres = body.data.nombres
-    }
-    if (body.data.primer_apellido !== undefined) {
-      updateData.data.primer_apellido = body.data.primer_apellido
-    }
-    if (body.data.segundo_apellido !== undefined) {
-      updateData.data.segundo_apellido = body.data.segundo_apellido
-    }
-    if (body.data.tipo_autor !== undefined) {
-      updateData.data.tipo_autor = body.data.tipo_autor
-    }
-    if (body.data.website !== undefined) {
-      updateData.data.website = body.data.website
-    }
-    if (body.data.pais !== undefined) {
-      updateData.data.pais = body.data.pais
-    }
-    if (body.data.foto !== undefined) {
-      updateData.data.foto = body.data.foto
-    }
-    if (body.data.estado_publicacion !== undefined) {
-      updateData.data.estado_publicacion = body.data.estado_publicacion
-    }
-
-    console.log('[API Autores PUT] Estado actual:', estadoActual, '→ Nuevo estado:', nuevoEstado)
-
-    const response = await strapiClient.put(`/api/autores/${autorDocumentId}`, updateData)
-    
-    // IMPORTANTE: 
-    // - Si nuevoEstado = "publicado" (minúscula) → Strapi debería publicarlo y sincronizarlo con WordPress (ambos: escolar y moraleja)
-    // - Si nuevoEstado = "pendiente" o "borrador" (minúsculas) → Solo se actualiza en Strapi, NO se publica en WordPress
-    // La sincronización con WordPress se maneja en los lifecycles de Strapi basándose en estado_publicacion
-    
-    console.log('[API Autores PUT] ✅ Autor actualizado:', autorDocumentId)
-    console.log('[API Autores PUT]', nuevoEstado === 'publicado' 
-      ? '✅ Se publicará en WordPress (si está configurado en Strapi)' 
-      : '⏸️ Solo actualizado en Strapi, no se publica en WordPress')
-=======
     // Aceptar diferentes formatos del formulario pero guardar según schema real
     if (body.data?.nombre_completo_autor) autorData.data.nombre_completo_autor = body.data.nombre_completo_autor.trim()
     if (body.data?.nombreCompletoAutor) autorData.data.nombre_completo_autor = body.data.nombreCompletoAutor.trim()
@@ -126,7 +67,6 @@ export async function PUT(
     if (body.data?.nombres !== undefined) autorData.data.nombres = body.data.nombres?.trim() || null
     if (body.data?.primer_apellido !== undefined) autorData.data.primer_apellido = body.data.primer_apellido?.trim() || null
     if (body.data?.segundo_apellido !== undefined) autorData.data.segundo_apellido = body.data.segundo_apellido?.trim() || null
->>>>>>> origin/matiRama2
     
     if (body.data?.website !== undefined) autorData.data.website = body.data.website?.trim() || null
     if (body.data?.pais !== undefined) autorData.data.pais = body.data.pais
@@ -137,12 +77,20 @@ export async function PUT(
       autorData.data.foto = body.data.foto || null
     }
 
-    // Estado de publicación
+    // Estado de publicación - IMPORTANTE: Strapi espera valores en minúsculas
     if (body.estado_publicacion !== undefined && body.estado_publicacion !== '') {
-      autorData.data.estado_publicacion = body.estado_publicacion
+      const estadoNormalizado = typeof body.estado_publicacion === 'string' 
+        ? body.estado_publicacion.toLowerCase() 
+        : body.estado_publicacion
+      autorData.data.estado_publicacion = estadoNormalizado
+      console.log('[API Autores PUT] 📝 Estado de publicación actualizado:', estadoNormalizado)
     }
     if (body.data?.estado_publicacion !== undefined && body.data.estado_publicacion !== '') {
-      autorData.data.estado_publicacion = body.data.estado_publicacion
+      const estadoNormalizado = typeof body.data.estado_publicacion === 'string' 
+        ? body.data.estado_publicacion.toLowerCase() 
+        : body.data.estado_publicacion
+      autorData.data.estado_publicacion = estadoNormalizado
+      console.log('[API Autores PUT] 📝 Estado de publicación actualizado:', estadoNormalizado)
     }
 
     // Guardar datos anteriores para el log
@@ -166,17 +114,8 @@ export async function PUT(
 
     return NextResponse.json({
       success: true,
-<<<<<<< HEAD
-      data: response,
-      message: nuevoEstado === 'publicado' && estadoActual !== 'publicado'
-        ? 'Autor actualizado y se publicará en WordPress'
-        : nuevoEstado !== 'publicado' && estadoActual === 'publicado'
-        ? 'Autor actualizado (ya no se publica en WordPress)'
-        : 'Autor actualizado'
-=======
       data: strapiResponse.data || strapiResponse,
       message: 'Autor actualizado exitosamente'
->>>>>>> origin/matiRama2
     })
 
   } catch (error: any) {
@@ -188,116 +127,9 @@ export async function PUT(
     
     return NextResponse.json({
       success: false,
-<<<<<<< HEAD
-      error: error.message || 'Error al actualizar el autor'
-    }, { status: 500 })
-  }
-}
-
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    // Verificar rol del usuario
-    const colaboradorCookie = request.cookies.get('auth_colaborador')?.value
-    if (colaboradorCookie) {
-      try {
-        const colaborador = JSON.parse(colaboradorCookie)
-        if (colaborador.rol !== 'super_admin') {
-          return NextResponse.json({
-            success: false,
-            error: 'No tienes permisos para eliminar autores'
-          }, { status: 403 })
-        }
-      } catch (e) {
-        // Si hay error parseando, continuar (podría ser que no esté autenticado)
-      }
-    }
-
-    const { id } = await params
-    console.log('[API Autores DELETE] 🗑️ Eliminando autor:', id)
-
-    // Buscar el autor primero para obtener el ID correcto y verificar estado_publicacion
-    let autor: any = null
-    let estadoPublicacion: string | null = null
-    
-    try {
-      const response = await strapiClient.get<any>(`/api/autores?filters[id][$eq]=${id}&populate=*`)
-      
-      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-        autor = response.data[0]
-      } else if (response.data && !Array.isArray(response.data)) {
-        autor = response.data
-      } else if (Array.isArray(response) && response.length > 0) {
-        autor = response[0]
-      }
-    } catch (error: any) {
-      // Si falla, intentar obtener todos y buscar
-      try {
-        const allResponse = await strapiClient.get<any>('/api/autores?populate=*&pagination[pageSize]=1000')
-        const allAutores = Array.isArray(allResponse) 
-          ? allResponse 
-          : (allResponse.data && Array.isArray(allResponse.data) ? allResponse.data : [])
-        
-        autor = allAutores.find((a: any) => 
-          a.id?.toString() === id || 
-          a.documentId === id ||
-          (a.attributes && (a.attributes.id?.toString() === id || a.attributes.documentId === id))
-        )
-      } catch (searchError: any) {
-        console.error('[API Autores DELETE] Error en búsqueda:', searchError.message)
-      }
-    }
-
-    if (!autor) {
-      return NextResponse.json({
-        success: false,
-        error: 'Autor no encontrado'
-      }, { status: 404 })
-    }
-
-    // Obtener estado_publicacion del autor
-    const attrs = autor.attributes || {}
-    const data = (attrs && Object.keys(attrs).length > 0) ? attrs : autor
-    estadoPublicacion = data.estado_publicacion || data.estadoPublicacion || null
-    
-    console.log('[API Autores DELETE] Estado de publicación:', estadoPublicacion)
-    
-    // Normalizar estado a minúsculas para comparación
-    if (estadoPublicacion) {
-      estadoPublicacion = estadoPublicacion.toLowerCase()
-    }
-
-    // En Strapi v4, usar documentId (string) para eliminar, no el id numérico
-    const autorDocumentId = autor.documentId || autor.data?.documentId || autor.id?.toString() || id
-    console.log('[API Autores DELETE] Usando documentId para eliminar:', autorDocumentId)
-
-    await strapiClient.delete(`/api/autores/${autorDocumentId}`)
-    
-    if (estadoPublicacion === 'publicado') {
-      console.log('[API Autores DELETE] ✅ Autor eliminado en Strapi. El lifecycle eliminará de WooCommerce si estaba publicado.')
-    } else {
-      console.log('[API Autores DELETE] ✅ Autor eliminado en Strapi (solo Strapi, no estaba publicada en WooCommerce)')
-    }
-    
-    return NextResponse.json({
-      success: true,
-      message: estadoPublicacion === 'publicado' 
-        ? 'Autor eliminado exitosamente en Strapi. El lifecycle eliminará de WooCommerce.' 
-        : 'Autor eliminado exitosamente en Strapi'
-    })
-  } catch (error: any) {
-    console.error('[API Autores DELETE] ❌ Error:', error.message)
-    return NextResponse.json({
-      success: false,
-      error: error.message || 'Error al eliminar el autor'
-    }, { status: 500 })
-=======
       error: error.message || 'Error al actualizar el autor',
       details: error.details
     }, { status: error.status || 500 })
->>>>>>> origin/matiRama2
   }
 }
 
