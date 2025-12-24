@@ -30,15 +30,58 @@ export async function GET(
 ) {
   try {
     const { id } = await params
+    console.log('[API /colaboradores/[id] GET] Buscando colaborador con ID:', id)
 
-    // Usar fields específicos para persona para evitar errores con campos que no existen (tags, etc)
-    const response = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
-      `/api/colaboradores/${id}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[usuario]=*`
-    )
+    let colaborador: any = null
+
+    // Intentar primero con el endpoint directo (funciona con documentId o id)
+    try {
+      const response = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
+        `/api/colaboradores/${id}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[usuario]=*`
+      )
+      
+      if (response.data) {
+        colaborador = response.data
+        console.log('[API /colaboradores/[id] GET] Colaborador encontrado directamente')
+      }
+    } catch (directError: any) {
+      console.log('[API /colaboradores/[id] GET] Endpoint directo falló, intentando búsqueda por filtro...')
+      
+      // Si falla, intentar buscar por filtro (útil cuando el ID es numérico pero necesitamos documentId)
+      try {
+        const filterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
+          `/api/colaboradores?filters[id][$eq]=${id}&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[usuario]=*`
+        )
+        
+        if (filterResponse.data) {
+          if (Array.isArray(filterResponse.data) && filterResponse.data.length > 0) {
+            colaborador = filterResponse.data[0]
+            console.log('[API /colaboradores/[id] GET] Colaborador encontrado por filtro (array)')
+          } else if (!Array.isArray(filterResponse.data)) {
+            colaborador = filterResponse.data
+            console.log('[API /colaboradores/[id] GET] Colaborador encontrado por filtro (objeto)')
+          }
+        }
+      } catch (filterError: any) {
+        console.error('[API /colaboradores/[id] GET] Error en búsqueda por filtro:', filterError.message)
+      }
+    }
+
+    if (!colaborador) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Colaborador no encontrado',
+          details: { id },
+          status: 404,
+        },
+        { status: 404 }
+      )
+    }
 
     return NextResponse.json({
       success: true,
-      data: response.data,
+      data: colaborador,
     }, { status: 200 })
   } catch (error: any) {
     console.error('[API /colaboradores/[id] GET] Error:', {
