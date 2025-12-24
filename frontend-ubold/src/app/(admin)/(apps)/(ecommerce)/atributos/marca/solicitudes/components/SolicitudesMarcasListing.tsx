@@ -16,7 +16,7 @@ import {
 import Link from 'next/link'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge } from 'react-bootstrap'
-import { LuSearch } from 'react-icons/lu'
+import { LuBox, LuSearch } from 'react-icons/lu'
 import { TbEdit, TbEye, TbList, TbPlus, TbTrash } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
@@ -373,19 +373,6 @@ const SolicitudesMarcasListing = ({ solicitudes, error }: SolicitudesMarcasListi
                   <option value="aprobada">Aprobada</option>
                   <option value="rechazada">Rechazada</option>
                 </select>
-              </div>
-
-              <div className="app-search">
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('estadoPublicacion')?.getFilterValue() as string) ?? 'All'}
-                  onChange={(e) => table.getColumn('estadoPublicacion')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
-                  <option value="All">Estado Publicación</option>
-                  <option value="Publicado">Publicado</option>
-                  <option value="Pendiente">Pendiente</option>
-                  <option value="Borrador">Borrador</option>
-                </select>
-                <LuBox className="app-search-icon text-muted" />
               </div>
 
               <div>
