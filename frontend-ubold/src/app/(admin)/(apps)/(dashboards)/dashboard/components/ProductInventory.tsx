@@ -61,7 +61,7 @@ const ProductInventory = ({ products: propsProducts }: ProductInventoryProps) =>
         const imageSrc = getImageSrc(row.original.image)
         return (
           <div className="d-flex align-items-center">
-            <Image src={imageSrc} className="avatar-sm rounded-circle me-2" alt={row.original.name} />
+            <Image src={imageSrc} className="avatar-sm rounded-circle me-2" alt={row.original.name || 'Producto'} />
             <div>
               <span className="text-muted fs-xs">{row.original.category}</span>
               <h5 className="fs-base mb-0">
