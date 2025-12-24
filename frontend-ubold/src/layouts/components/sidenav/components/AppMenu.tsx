@@ -171,6 +171,13 @@ const AppMenu = () => {
   const [openMenuKey, setOpenMenuKey] = useState<string | null>(null)
   const { colaborador } = useAuth()
   const userRole = colaborador?.rol
+  
+  // Debug temporal
+  useEffect(() => {
+    console.log('[AppMenu DEBUG] colaborador completo:', colaborador)
+    console.log('[AppMenu DEBUG] userRole:', userRole)
+    console.log('[AppMenu DEBUG] typeof userRole:', typeof userRole)
+  }, [colaborador, userRole])
 
   const scrollToActiveLink = () => {
     const activeItem: HTMLAnchorElement | null = document.querySelector('.side-nav-link.active')
@@ -200,25 +207,33 @@ const AppMenu = () => {
             if (nextItem.isTitle) {
               return false
             }
-            // Verificar si este item pasa el filtro
+            // IMPORTANTE: Primero verificar acceso al item padre
+            if (!hasAccess(nextItem, userRole)) {
+              continue // Si el padre no tiene acceso, no mostrar el título
+            }
+            // Si tiene children, verificar si alguno tiene acceso
             if (nextItem.children) {
               const filteredChildren = filterChildrenByRole(nextItem.children, userRole)
               if (filteredChildren.length > 0) {
                 return true
               }
-            } else if (hasAccess(nextItem, userRole)) {
-              return true
+            } else {
+              return true // El item padre tiene acceso y no tiene children, mostrar título
             }
           }
           return false
+        }
+        // IMPORTANTE: Primero verificar acceso al item padre
+        if (!hasAccess(item, userRole)) {
+          return false // Si el padre no tiene acceso, no mostrarlo
         }
         // Si tiene children, verificar si alguno tiene acceso
         if (item.children) {
           const filteredChildren = filterChildrenByRole(item.children, userRole)
           return filteredChildren.length > 0
         }
-        // Si es un item simple, verificar acceso directo
-        return hasAccess(item, userRole)
+        // Si es un item simple y pasó hasAccess, mostrarlo
+        return true
       })
       .map((item) => {
         // Si tiene children, filtrarlos
