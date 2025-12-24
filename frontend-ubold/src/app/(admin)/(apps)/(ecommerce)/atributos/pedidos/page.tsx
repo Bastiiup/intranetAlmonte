@@ -1,5 +1,5 @@
 import { Col, Container, Row } from 'react-bootstrap'
-import { headers } from 'next/headers'
+import { headers, cookies } from 'next/headers'
 import type { Metadata } from 'next'
 
 import OrdersStats from '@/app/(admin)/(apps)/(ecommerce)/orders/components/OrdersStats'
@@ -24,10 +24,18 @@ export default async function Page() {
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
     const baseUrl = `${protocol}://${host}`
     
+    // Obtener cookies del servidor para pasarlas al fetch interno
+    const cookieStore = await cookies()
+    const cookieString = cookieStore.getAll()
+      .map(cookie => `${cookie.name}=${cookie.value}`)
+      .join('; ')
+    
     // Por defecto incluir pedidos ocultos para mostrarlos todos
     const response = await fetch(`${baseUrl}/api/tienda/pedidos?includeHidden=true`, {
-      credentials: 'include',
       cache: 'no-store', // Forzar fetch dinámico
+      headers: {
+        'Cookie': cookieString, // Pasar cookies al fetch interno
+      },
     })
     
     const data = await response.json()

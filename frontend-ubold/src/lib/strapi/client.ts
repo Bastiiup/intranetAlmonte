@@ -144,6 +144,24 @@ const strapiClient = {
         timeoutError.status = 504
         throw timeoutError
       }
+      
+      // Mejorar mensaje de error para errores de conexión
+      if (error.message?.includes('fetch failed') || error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+        const connectionError = new Error(
+          `Error de conexión con Strapi: ${error.message || error.code || 'fetch failed'}. URL: ${url}`
+        ) as Error & { status?: number; originalError?: any }
+        connectionError.status = 503
+        connectionError.originalError = error
+        console.error('[Strapi Client GET] ❌ Error de conexión:', {
+          url,
+          error: error.message,
+          code: error.code,
+          cause: error.cause,
+          stack: error.stack?.substring(0, 500),
+        })
+        throw connectionError
+      }
+      
       throw error
     }
   },

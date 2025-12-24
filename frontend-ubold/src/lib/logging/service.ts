@@ -44,20 +44,107 @@ export async function getUserFromRequest(request: NextRequest): Promise<{
 } | null> {
   try {
     // Intentar obtener colaborador de las cookies
-    const colaboradorCookie = request.cookies.get('colaboradorData')?.value || 
-                              request.cookies.get('colaborador')?.value
+    // Primero intentar desde request.cookies (funciona cuando viene del navegador)
+    let colaboradorCookie = request.cookies.get('colaboradorData')?.value || 
+                           request.cookies.get('colaborador')?.value
+    
+    // Si no hay cookies en request.cookies, intentar extraer del header Cookie
+    // Esto es necesario cuando se hace fetch desde el servidor (SSR)
+    if (!colaboradorCookie) {
+      const cookieHeader = request.headers.get('cookie')
+      if (cookieHeader) {
+        // Parsear cookies manualmente del header
+        const cookies = cookieHeader.split(';').reduce((acc: Record<string, string>, cookie: string) => {
+          const [name, ...valueParts] = cookie.trim().split('=')
+          if (name && valueParts.length > 0) {
+            acc[name] = decodeURIComponent(valueParts.join('='))
+          }
+          return acc
+        }, {})
+        
+        colaboradorCookie = cookies['colaboradorData'] || cookies['colaborador']
+        
+        console.log('[Logging] 🔍 Cookies extraídas del header:', {
+          tieneColaboradorData: !!cookies['colaboradorData'],
+          tieneColaborador: !!cookies['colaborador'],
+          todasLasCookies: Object.keys(cookies).join(', '),
+        })
+      }
+    }
     
     if (colaboradorCookie) {
       try {
         const colaborador = JSON.parse(colaboradorCookie)
-        return {
-          id: colaborador.id || colaborador.documentId || null,
-          email: colaborador.email_login || colaborador.email || undefined,
-          nombre: colaborador.nombre || undefined,
+        
+        // El ID puede estar en diferentes lugares según la estructura de Strapi
+        // Intentar múltiples formas de obtener el ID
+        let colaboradorId: string | number | null = null
+        
+        // Forma 1: ID directo
+        if (colaborador.id) {
+          colaboradorId = colaborador.id
         }
-      } catch {
-        // Si no se puede parsear, continuar
+        // Forma 2: documentId (Strapi v5)
+        else if (colaborador.documentId) {
+          colaboradorId = colaborador.documentId
+        }
+        // Forma 3: Dentro de data
+        else if (colaborador.data) {
+          colaboradorId = colaborador.data.id || colaborador.data.documentId || null
+        }
+        // Forma 4: Dentro de attributes
+        else if (colaborador.attributes && colaborador.attributes.id) {
+          colaboradorId = colaborador.attributes.id
+        }
+        
+        // Intentar obtener nombre de persona si está disponible
+        let nombre = colaborador.nombre || colaborador.email_login || undefined
+        if (colaborador.persona) {
+          const persona = colaborador.persona
+          // Manejar diferentes estructuras de persona
+          const personaAttrs = persona.attributes || persona.data?.attributes || persona.data || persona
+          
+          if (personaAttrs?.nombre_completo) {
+            nombre = personaAttrs.nombre_completo
+          } else if (personaAttrs?.nombres) {
+            const nombres = personaAttrs.nombres
+            const apellidos = `${personaAttrs.primer_apellido || ''} ${personaAttrs.segundo_apellido || ''}`.trim()
+            nombre = apellidos ? `${nombres} ${apellidos}`.trim() : nombres
+          }
+        }
+        
+        console.log('[Logging] 🔍 Colaborador desde cookie:', {
+          tieneId: !!colaboradorId,
+          id: colaboradorId,
+          email_login: colaborador.email_login || colaborador.email,
+          tienePersona: !!colaborador.persona,
+          nombre: nombre,
+          keys: Object.keys(colaborador).join(', '),
+          colaboradorPreview: JSON.stringify(colaborador).substring(0, 300),
+        })
+        
+        if (colaboradorId) {
+          return {
+            id: colaboradorId,
+            email: colaborador.email_login || colaborador.email || undefined,
+            nombre: nombre,
+          }
+        } else {
+          console.warn('[Logging] ⚠️ No se pudo extraer ID del colaborador:', {
+            tieneId: !!colaborador.id,
+            tieneDocumentId: !!colaborador.documentId,
+            tieneData: !!colaborador.data,
+            estructura: Object.keys(colaborador).join(', '),
+          })
+        }
+      } catch (parseError: any) {
+        console.warn('[Logging] ⚠️ Error al parsear cookie colaboradorData:', {
+          error: parseError.message,
+          cookiePreview: colaboradorCookie.substring(0, 100),
+        })
       }
+    } else {
+      console.warn('[Logging] ⚠️ No se encontró cookie colaboradorData ni colaborador')
     }
 
     // Si hay token, intentar obtener usuario de Strapi
@@ -143,6 +230,10 @@ export async function logActivity(
       fecha: new Date().toISOString(),
     }
 
+    // Obtener cookies y token para logging
+    const colaboradorCookie = request.cookies.get('colaboradorData')?.value || request.cookies.get('colaborador')?.value
+    const token = request.headers.get('authorization') || request.cookies.get('auth_token')?.value
+    
     // Agregar usuario si está disponible
     if (user?.id) {
       logData.usuario = user.id
@@ -150,12 +241,41 @@ export async function logActivity(
         id: user.id,
         email: user.email,
         nombre: user.nombre,
+        accion: params.accion,
+        entidad: params.entidad,
       })
     } else {
+      // Listar todas las cookies disponibles para debug
+      const allCookies: Record<string, string> = {}
+      try {
+        // Intentar obtener todas las cookies (puede no estar disponible en todas las versiones)
+        if (typeof request.cookies.getAll === 'function') {
+          request.cookies.getAll().forEach((cookie: any) => {
+            allCookies[cookie.name] = cookie.value ? cookie.value.substring(0, 100) : '' // Primeros 100 chars
+          })
+        } else {
+          // Fallback: solo listar las cookies conocidas
+          const knownCookies = ['colaboradorData', 'colaborador', 'auth_token', 'user']
+          knownCookies.forEach(name => {
+            const cookie = request.cookies.get(name)
+            if (cookie) {
+              allCookies[name] = cookie.value.substring(0, 100)
+            }
+          })
+        }
+      } catch (cookieError) {
+        // Si hay error al obtener cookies, continuar sin ellas
+        console.warn('[Logging] ⚠️ Error al obtener cookies:', cookieError)
+      }
+      
       console.warn('[Logging] ⚠️ No se pudo capturar usuario para log:', {
+        accion: params.accion,
+        entidad: params.entidad,
         tieneColaboradorCookie: !!colaboradorCookie,
         tieneToken: !!token,
-        colaboradorCookiePreview: colaboradorCookie ? colaboradorCookie.substring(0, 50) : 'no hay',
+        colaboradorCookiePreview: colaboradorCookie ? colaboradorCookie.substring(0, 100) : 'no hay',
+        todasLasCookies: Object.keys(allCookies).join(', '),
+        cookiesDisponibles: allCookies,
       })
     }
 
@@ -197,10 +317,7 @@ export async function logActivity(
     // El Content Type "Log de Actividades" en Strapi se convierte a "activity-logs" en la API
     const logEndpoint = '/api/activity-logs'
     
-    // Logging mejorado para debug
-    const colaboradorCookie = request.cookies.get('colaboradorData')?.value || request.cookies.get('colaborador')?.value
-    const token = request.headers.get('authorization') || request.cookies.get('auth_token')?.value
-    
+    // Logging mejorado para debug (usar las variables ya definidas arriba)
     console.log('[Logging] 📝 Registrando actividad:', {
       accion: params.accion,
       entidad: params.entidad,
@@ -213,9 +330,28 @@ export async function logActivity(
       colaboradorCookiePreview: colaboradorCookie ? colaboradorCookie.substring(0, 100) : 'no hay',
     })
     
+    // Log del body que se envía a Strapi (solo para debug)
+    console.log('[Logging] 📤 Enviando a Strapi:', {
+      endpoint: logEndpoint,
+      logData: {
+        accion: logData.accion,
+        entidad: logData.entidad,
+        usuario: logData.usuario || null, // Mostrar explícitamente si es null
+        descripcion: logData.descripcion?.substring(0, 50),
+        fecha: logData.fecha,
+      },
+      tieneUsuario: !!logData.usuario,
+      usuarioId: logData.usuario || 'null',
+    })
+    
     strapiClient.post(logEndpoint, { data: logData })
-      .then(() => {
-        console.log('[Logging] ✅ Actividad registrada exitosamente')
+      .then((response: any) => {
+        console.log('[Logging] ✅ Actividad registrada exitosamente:', {
+          usuario: logData.usuario || 'null',
+          accion: params.accion,
+          entidad: params.entidad,
+          responseStatus: response?.status || 'unknown',
+        })
       })
       .catch((error) => {
         // Solo loggear errores, no lanzar excepciones para no afectar el flujo principal
@@ -224,7 +360,13 @@ export async function logActivity(
           status: error.status,
           endpoint: logEndpoint,
           details: error.details,
-          logData: JSON.stringify(logData).substring(0, 200), // Primeros 200 caracteres para debug
+          logData: {
+            accion: logData.accion,
+            entidad: logData.entidad,
+            usuario: logData.usuario || null,
+            descripcion: logData.descripcion?.substring(0, 50),
+          },
+          tieneUsuario: !!logData.usuario,
         })
       })
   } catch (error) {

@@ -24,15 +24,36 @@ export async function GET(request: NextRequest) {
     // Colaboradores tiene relaciones con 'Persona' (nombre) y 'User'
     let logsResponse: any
     try {
-      // Usar el mismo populate que funciona en /api/logs/route.ts
-      // Esto obtiene todos los datos del usuario (Colaborador) sin especificar campos
+      // Obtener logs con populate completo de usuario (Colaborador) y persona
+      // El campo 'usuario' en activity-logs es una relación manyToOne con 'Colaboradores'
+      // Dentro de 'Colaboradores' hay una relación oneWay con 'Persona'
+      // Especificar campos del Colaborador (email_login) y de Persona (nombres, apellidos)
+      // Evitar usar * para prevenir errores con relaciones anidadas problemáticas
+      
+      const strapiUrl = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.STRAPI_API_URL || 'https://strapi.moraleja.cl'
+      addDebugLog(`[API /logs/usuarios] 🔗 URL de Strapi: ${strapiUrl}`)
+      addDebugLog(`[API /logs/usuarios] 🔗 Endpoint completo: ${strapiUrl}/api/activity-logs?...`)
+      
       logsResponse = await strapiClient.get<any>(
-        `/api/activity-logs?populate[usuario][populate]=*&pagination[pageSize]=10000&sort=fecha:desc`
+        `/api/activity-logs?populate[usuario][fields]=email_login&populate[usuario][populate][persona][fields]=nombres,primer_apellido,segundo_apellido,nombre_completo&pagination[pageSize]=10000&sort=fecha:desc`
       )
       addDebugLog('[API /logs/usuarios] ✅ Respuesta de Strapi recibida')
     } catch (strapiError: any) {
+      const strapiUrl = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.STRAPI_API_URL || 'https://strapi.moraleja.cl'
       addDebugLog(`[API /logs/usuarios] ❌ Error al obtener logs de Strapi: ${strapiError.message}`)
-      addDebugLog(`[API /logs/usuarios] ❌ Stack: ${strapiError.stack?.substring(0, 500)}`)
+      addDebugLog(`[API /logs/usuarios] ❌ URL intentada: ${strapiUrl}/api/activity-logs`)
+      addDebugLog(`[API /logs/usuarios] ❌ Tipo de error: ${strapiError.name || 'Unknown'}`)
+      addDebugLog(`[API /logs/usuarios] ❌ Código de error: ${strapiError.code || 'N/A'}`)
+      addDebugLog(`[API /logs/usuarios] ❌ Stack: ${strapiError.stack?.substring(0, 1000)}`)
+      
+      // Si es un error de conexión, dar más información
+      if (strapiError.message?.includes('fetch failed') || strapiError.code === 'ECONNREFUSED' || strapiError.code === 'ENOTFOUND') {
+        addDebugLog(`[API /logs/usuarios] ⚠️ Error de conexión detectado. Verificar:`)
+        addDebugLog(`  - ¿Strapi está corriendo en ${strapiUrl}?`)
+        addDebugLog(`  - ¿La URL es correcta?`)
+        addDebugLog(`  - ¿Hay problemas de red/firewall?`)
+      }
+      
       throw strapiError
     }
 
@@ -96,50 +117,32 @@ export async function GET(request: NextRequest) {
       totalAcciones: number
     }>()
 
+    // Mapa temporal para rastrear IPs que ya tienen usuario asociado
+    // Esto evita crear usuarios anónimos si ya existe un usuario real con esa IP
+    const ipToUsuarioId = new Map<string, number>()
+
     console.log('[API /logs/usuarios] 🔍 Procesando logs, total:', logs.length)
     
+    // PRIMERA PASADA: Procesar TODOS los logs CON usuario real
+    // Esto registra todas las IPs asociadas a usuarios reales
     logs.forEach((log: any, index: number) => {
       // Manejar estructura de Strapi (puede venir con .attributes o directamente)
       const logData = log.attributes || log
       const usuario = logData.usuario
       
       if (index === 0) {
-        addDebugLog(`[API /logs/usuarios] 🔍 Primer log estructura completa:\n${JSON.stringify(log, null, 2).substring(0, 1000)}`)
+        addDebugLog(`[API /logs/usuarios] 🔍 Primer log estructura completa:\n${JSON.stringify(log, null, 2).substring(0, 1500)}`)
         addDebugLog(`[API /logs/usuarios] 🔍 logData keys: ${Object.keys(logData).join(', ')}`)
-        addDebugLog(`[API /logs/usuarios] 🔍 logData.usuario:\n${JSON.stringify(usuario, null, 2).substring(0, 500)}`)
+        addDebugLog(`[API /logs/usuarios] 🔍 logData.usuario tipo: ${typeof usuario}, esObjeto: ${typeof usuario === 'object'}`)
+        if (usuario && typeof usuario === 'object') {
+          addDebugLog(`[API /logs/usuarios] 🔍 logData.usuario keys: ${Object.keys(usuario).join(', ')}`)
+          addDebugLog(`[API /logs/usuarios] 🔍 logData.usuario estructura:\n${JSON.stringify(usuario, null, 2).substring(0, 1000)}`)
+        }
       }
       
+      // Solo procesar logs CON usuario real en la primera pasada
       if (!usuario) {
-        // Si no hay usuario, crear un usuario "anónimo" basado en IP para agrupar logs sin usuario
-        const ipAddress = logData.ip_address || 'desconocido'
-        const userAgent = logData.user_agent || 'desconocido'
-        const fechaLog = logData.fecha || logData.createdAt
-        
-        // Generar un ID único basado en la IP (usar hash simple)
-        const ipHash = ipAddress.split('').reduce((acc: number, char: string) => {
-          return ((acc << 5) - acc) + char.charCodeAt(0)
-        }, 0)
-        const usuarioId = -Math.abs(ipHash) // ID negativo para usuarios anónimos
-        
-        // Si el usuario anónimo ya existe, actualizar último acceso
-        if (usuariosMap.has(usuarioId)) {
-          const usuarioExistente = usuariosMap.get(usuarioId)!
-          usuarioExistente.totalAcciones++
-          if (fechaLog && (!usuarioExistente.ultimoAcceso || new Date(fechaLog) > new Date(usuarioExistente.ultimoAcceso))) {
-            usuarioExistente.ultimoAcceso = fechaLog
-          }
-        } else {
-          // Crear nuevo usuario anónimo
-          usuariosMap.set(usuarioId, {
-            id: usuarioId,
-            nombre: `Usuario Anónimo (${ipAddress === 'desconocido' ? 'Sin IP' : ipAddress})`,
-            usuario: ipAddress,
-            email: userAgent.substring(0, 50) + (userAgent.length > 50 ? '...' : ''),
-            ultimoAcceso: fechaLog || null,
-            totalAcciones: 1,
-          })
-        }
-        return
+        return // Saltar logs sin usuario, se procesarán en la segunda pasada
       }
 
       let usuarioId: number | null = null
@@ -168,13 +171,23 @@ export async function GET(request: NextRequest) {
           if (persona) {
             const personaData = persona.data || persona
             const personaAttrs = personaData?.attributes || personaData || persona
-            nombre = personaAttrs.nombre_completo || 
-                     personaAttrs.nombres || 
-                     `${(personaAttrs.primer_apellido || '')} ${(personaAttrs.segundo_apellido || '')}`.trim() ||
-                     emailLogin || 
-                     'Sin nombre'
+            
+            // Construir nombre completo desde los campos disponibles
+            // Prioridad: nombre_completo > nombres + primer_apellido > solo nombres > email_login
+            if (personaAttrs?.nombre_completo) {
+              nombre = personaAttrs.nombre_completo
+            } else if (personaAttrs?.nombres) {
+              const nombres = personaAttrs.nombres.trim()
+              const primerApellido = (personaAttrs.primer_apellido || '').trim()
+              // Solo usar nombres + primer_apellido (sin segundo_apellido)
+              nombre = primerApellido ? `${nombres} ${primerApellido}`.trim() : nombres
+            } else if (personaAttrs?.primer_apellido) {
+              nombre = personaAttrs.primer_apellido.trim()
+            } else {
+              nombre = emailLogin || 'Usuario sin nombre'
+            }
           } else {
-            nombre = emailLogin || 'Sin nombre'
+            nombre = emailLogin || 'Usuario sin nombre'
           }
         } 
         // Caso 2: usuario directamente con id y attributes
@@ -190,13 +203,23 @@ export async function GET(request: NextRequest) {
           if (persona) {
             const personaData = persona.data || persona
             const personaAttrs = personaData?.attributes || personaData || persona
-            nombre = personaAttrs.nombre_completo || 
-                     personaAttrs.nombres || 
-                     `${(personaAttrs.primer_apellido || '')} ${(personaAttrs.segundo_apellido || '')}`.trim() ||
-                     emailLogin || 
-                     'Sin nombre'
+            
+            // Construir nombre completo desde los campos disponibles
+            // Prioridad: nombre_completo > nombres + primer_apellido > solo nombres > email_login
+            if (personaAttrs?.nombre_completo) {
+              nombre = personaAttrs.nombre_completo
+            } else if (personaAttrs?.nombres) {
+              const nombres = personaAttrs.nombres.trim()
+              const primerApellido = (personaAttrs.primer_apellido || '').trim()
+              // Solo usar nombres + primer_apellido (sin segundo_apellido)
+              nombre = primerApellido ? `${nombres} ${primerApellido}`.trim() : nombres
+            } else if (personaAttrs?.primer_apellido) {
+              nombre = personaAttrs.primer_apellido.trim()
+            } else {
+              nombre = emailLogin || 'Usuario sin nombre'
+            }
           } else {
-            nombre = emailLogin || 'Sin nombre'
+            nombre = emailLogin || 'Usuario sin nombre'
           }
         }
       } 
@@ -209,7 +232,30 @@ export async function GET(request: NextRequest) {
       }
       
       if (index === 0) {
-        addDebugLog(`[API /logs/usuarios] 🔍 Procesando usuario del primer log: tipo=${typeof usuario}, esObjeto=${typeof usuario === 'object'}, keys=${usuario && typeof usuario === 'object' ? Object.keys(usuario).join(', ') : 'N/A'}, usuarioId=${usuarioId}, nombre=${nombre}, emailLogin=${emailLogin}`)
+        addDebugLog(`[API /logs/usuarios] 🔍 Procesando usuario del primer log:`)
+        addDebugLog(`  - tipo: ${typeof usuario}`)
+        addDebugLog(`  - esObjeto: ${typeof usuario === 'object'}`)
+        addDebugLog(`  - keys: ${usuario && typeof usuario === 'object' ? Object.keys(usuario).join(', ') : 'N/A'}`)
+        addDebugLog(`  - usuarioId: ${usuarioId}`)
+        addDebugLog(`  - nombre: ${nombre}`)
+        addDebugLog(`  - emailLogin: ${emailLogin}`)
+        addDebugLog(`  - email: ${email}`)
+        if (usuario && typeof usuario === 'object') {
+          if (usuario.data) {
+            const colaboradorAttrs = usuario.data.attributes || usuario.data
+            addDebugLog(`  - colaboradorAttrs.email_login: ${colaboradorAttrs.email_login}`)
+            addDebugLog(`  - colaboradorAttrs.persona: ${colaboradorAttrs.persona ? 'existe' : 'no existe'}`)
+            if (colaboradorAttrs.persona) {
+              const personaAttrs = colaboradorAttrs.persona.data?.attributes || colaboradorAttrs.persona.data || colaboradorAttrs.persona.attributes || colaboradorAttrs.persona
+              addDebugLog(`  - personaAttrs.nombre_completo: ${personaAttrs.nombre_completo || 'no existe'}`)
+              addDebugLog(`  - personaAttrs.nombres: ${personaAttrs.nombres || 'no existe'}`)
+            }
+          } else if (usuario.attributes || usuario.id) {
+            const colaboradorAttrs = usuario.attributes || usuario
+            addDebugLog(`  - colaboradorAttrs.email_login: ${colaboradorAttrs.email_login}`)
+            addDebugLog(`  - colaboradorAttrs.persona: ${colaboradorAttrs.persona ? 'existe' : 'no existe'}`)
+          }
+        }
       }
 
       if (!usuarioId) {
@@ -218,6 +264,12 @@ export async function GET(request: NextRequest) {
       }
 
       const fechaLog = logData.fecha || logData.createdAt
+      const ipAddress = logData.ip_address || 'desconocido'
+
+      // Registrar la IP con este usuarioId para evitar crear usuarios anónimos después
+      if (ipAddress !== 'desconocido') {
+        ipToUsuarioId.set(ipAddress, usuarioId)
+      }
 
       // Si el usuario ya existe, actualizar último acceso si es más reciente
       if (usuariosMap.has(usuarioId)) {
@@ -233,6 +285,59 @@ export async function GET(request: NextRequest) {
           nombre,
           usuario: emailLogin,
           email,
+          ultimoAcceso: fechaLog || null,
+          totalAcciones: 1,
+        })
+      }
+    })
+
+    // Segunda pasada: procesar logs sin usuario, pero solo si la IP no está asociada a un usuario real
+    logs.forEach((log: any) => {
+      const logData = log.attributes || log
+      const usuario = logData.usuario
+      
+      // Solo procesar logs sin usuario
+      if (usuario) {
+        return
+      }
+
+      const ipAddress = logData.ip_address || 'desconocido'
+      const userAgent = logData.user_agent || 'desconocido'
+      const fechaLog = logData.fecha || logData.createdAt
+      
+      // Si esta IP ya está asociada a un usuario real, agregar el log a ese usuario
+      if (ipToUsuarioId.has(ipAddress)) {
+        const usuarioIdReal = ipToUsuarioId.get(ipAddress)!
+        if (usuariosMap.has(usuarioIdReal)) {
+          const usuarioExistente = usuariosMap.get(usuarioIdReal)!
+          usuarioExistente.totalAcciones++
+          if (fechaLog && (!usuarioExistente.ultimoAcceso || new Date(fechaLog) > new Date(usuarioExistente.ultimoAcceso))) {
+            usuarioExistente.ultimoAcceso = fechaLog
+          }
+        }
+        return // No crear usuario anónimo, ya está asociado a un usuario real
+      }
+      
+      // Solo crear usuario anónimo si la IP no está asociada a ningún usuario real
+      const ipHash = ipAddress.split('').reduce((acc: number, char: string) => {
+        return ((acc << 5) - acc) + char.charCodeAt(0)
+      }, 0)
+      const usuarioId = -Math.abs(ipHash) // ID negativo para usuarios anónimos
+      
+      // Si el usuario anónimo ya existe, actualizar último acceso
+      if (usuariosMap.has(usuarioId)) {
+        const usuarioExistente = usuariosMap.get(usuarioId)!
+        usuarioExistente.totalAcciones++
+        if (fechaLog && (!usuarioExistente.ultimoAcceso || new Date(fechaLog) > new Date(usuarioExistente.ultimoAcceso))) {
+          usuarioExistente.ultimoAcceso = fechaLog
+        }
+      } else {
+        // Crear nuevo usuario anónimo solo si no hay usuario real con esa IP
+        usuariosMap.set(usuarioId, {
+          id: usuarioId,
+          nombre: `Usuario Anónimo (${ipAddress === 'desconocido' ? 'Sin IP' : ipAddress})`,
+          usuario: ipAddress,
+          email: userAgent.substring(0, 50) + (userAgent.length > 50 ? '...' : ''),
           ultimoAcceso: fechaLog || null,
           totalAcciones: 1,
         })

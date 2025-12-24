@@ -20,7 +20,8 @@ const ProductImage = ({ onImageChange }: ProductImageProps) => {
     } else {
       onImageChange?.(null)
     }
-  }, [files, onImageChange])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files]) // Remover onImageChange de las dependencias para evitar loops infinitos
 
   return (
     <Card>

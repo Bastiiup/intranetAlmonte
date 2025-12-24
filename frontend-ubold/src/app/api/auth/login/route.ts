@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getStrapiUrl } from '@/lib/strapi/config'
+import strapiClient from '@/lib/strapi/client'
 import { logActivity, createLogDescription } from '@/lib/logging'
 
 export const dynamic = 'force-dynamic'
@@ -75,13 +76,68 @@ export async function POST(request: Request) {
 
     const data = await loginResponse.json()
 
+    // Obtener colaborador completo con populate de persona
+    let colaboradorCompleto = data.colaborador
+    if (data.colaborador?.id || data.colaborador?.documentId) {
+      try {
+        const colaboradorId = data.colaborador.id || data.colaborador.documentId
+        const colaboradorConPersona = await strapiClient.get<any>(
+          `/api/colaboradores/${colaboradorId}?populate[persona][fields][0]=nombres&populate[persona][fields][1]=primer_apellido&populate[persona][fields][2]=segundo_apellido&populate[persona][fields][3]=nombre_completo`
+        )
+        
+        // Extraer datos del colaborador con persona
+        // Manejar diferentes estructuras de respuesta de Strapi
+        let personaData = null
+        
+        if (colaboradorConPersona.data) {
+          const colaboradorData = colaboradorConPersona.data
+          const colaboradorAttrs = colaboradorData.attributes || colaboradorData
+          personaData = colaboradorAttrs.persona
+          
+          // Si persona viene como objeto con data
+          if (personaData?.data) {
+            personaData = personaData.data.attributes || personaData.data
+          } else if (personaData?.attributes) {
+            personaData = personaData.attributes
+          }
+        } else if (colaboradorConPersona.attributes) {
+          personaData = colaboradorConPersona.attributes.persona
+          
+          // Si persona viene como objeto con data
+          if (personaData?.data) {
+            personaData = personaData.data.attributes || personaData.data
+          } else if (personaData?.attributes) {
+            personaData = personaData.attributes
+          }
+        }
+        
+        // Actualizar colaboradorCompleto con persona
+        if (personaData) {
+          colaboradorCompleto = {
+            ...data.colaborador,
+            persona: personaData,
+          }
+          console.log('[API /auth/login] ✅ Persona obtenida para colaborador:', {
+            id: colaboradorId,
+            nombreCompleto: personaData.nombre_completo,
+            nombres: personaData.nombres,
+          })
+        } else {
+          console.warn('[API /auth/login] ⚠️ Colaborador no tiene persona asociada:', colaboradorId)
+        }
+      } catch (error: any) {
+        console.warn('[API /auth/login] ⚠️ No se pudo obtener persona del colaborador:', error.message)
+        // Continuar con el colaborador sin persona
+      }
+    }
+
     // Crear respuesta con cookies establecidas en el servidor
     const response = NextResponse.json(
       {
         message: 'Login exitoso',
         jwt: data.jwt,
         usuario: data.usuario,
-        colaborador: data.colaborador,
+        colaborador: colaboradorCompleto,
       },
       { status: 200 }
     )
@@ -91,9 +147,9 @@ export async function POST(request: Request) {
       method: request.method,
       headers: request.headers,
     })
-    // Agregar cookie de colaborador temporalmente para el log
-    if (data.colaborador) {
-      requestForLog.headers.set('cookie', `colaboradorData=${JSON.stringify(data.colaborador)}`)
+    // Agregar cookie de colaborador temporalmente para el log (usar colaboradorCompleto con persona)
+    if (colaboradorCompleto) {
+      requestForLog.headers.set('cookie', `colaboradorData=${JSON.stringify(colaboradorCompleto)}`)
     }
     
     logActivity(requestForLog as any, {
@@ -115,9 +171,10 @@ export async function POST(request: Request) {
       })
     }
 
-    if (data.colaborador) {
+    if (colaboradorCompleto) {
       // El middleware busca 'colaboradorData', así que usamos ese nombre
-      response.cookies.set('colaboradorData', JSON.stringify(data.colaborador), {
+      // Guardar colaboradorCompleto con persona poblada
+      response.cookies.set('colaboradorData', JSON.stringify(colaboradorCompleto), {
         httpOnly: false,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
@@ -126,7 +183,7 @@ export async function POST(request: Request) {
       })
       
       // También establecer 'colaborador' para compatibilidad con el código existente
-      response.cookies.set('colaborador', JSON.stringify(data.colaborador), {
+      response.cookies.set('colaborador', JSON.stringify(colaboradorCompleto), {
         httpOnly: false,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',

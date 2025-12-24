@@ -1,5 +1,5 @@
 import { Container } from 'react-bootstrap'
-import { headers } from 'next/headers'
+import { headers, cookies } from 'next/headers'
 import type { Metadata } from 'next'
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
@@ -23,9 +23,18 @@ export default async function Page() {
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
     const baseUrl = `${protocol}://${host}`
     
+    // Obtener cookies del servidor para pasarlas al fetch interno
+    const cookieStore = await cookies()
+    const cookieString = cookieStore.getAll()
+      .map(cookie => `${cookie.name}=${cookie.value}`)
+      .join('; ')
+    
     // Por ahora usar productos como solicitudes hasta que tengamos el endpoint específico
     const response = await fetch(`${baseUrl}/api/tienda/productos`, {
       cache: 'no-store', // Forzar fetch dinámico
+      headers: {
+        'Cookie': cookieString, // Pasar cookies al fetch interno
+      },
     })
     
     const data = await response.json()

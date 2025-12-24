@@ -140,6 +140,14 @@ function normalizeMetodoPago(metodoPago: string | null | undefined): string | nu
 }
 
 export async function GET(request: NextRequest) {
+  // Debug: Verificar cookies
+  const colaboradorCookie = request.cookies.get('colaboradorData')?.value || request.cookies.get('colaborador')?.value
+  console.log('[API GET pedidos] 🔍 Cookies disponibles:', {
+    tieneColaboradorData: !!request.cookies.get('colaboradorData'),
+    tieneColaborador: !!request.cookies.get('colaborador'),
+    todasLasCookies: request.cookies.getAll().map(c => c.name).join(', '),
+    colaboradorPreview: colaboradorCookie ? colaboradorCookie.substring(0, 100) : 'no hay',
+  })
   try {
     const { searchParams } = new URL(request.url)
     const includeHidden = searchParams.get('includeHidden') === 'true'

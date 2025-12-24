@@ -108,18 +108,32 @@ export default function LogsList() {
     }),
     columnHelper.accessor('nombre', {
       header: 'Nombre',
-      cell: ({ row }) => (
-        <div>
-          <div>{row.original.nombre}</div>
-          {row.original.email && row.original.email !== 'Sin email' && row.original.email !== 'N/A' && (
-            <div className="small text-muted">{row.original.email}</div>
-          )}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const nombre = row.original.nombre
+        const esAnonimo = nombre.includes('Usuario Anónimo')
+        
+        return (
+          <div className={esAnonimo ? 'text-muted' : 'fw-medium'}>
+            {nombre}
+          </div>
+        )
+      },
     }),
     columnHelper.accessor('usuario', {
-      header: 'Usuario',
-      cell: ({ row }) => row.original.usuario || '-',
+      header: 'Usuario / Email',
+      cell: ({ row }) => {
+        const usuario = row.original.usuario
+        const email = row.original.email
+        const esAnonimo = row.original.nombre.includes('Usuario Anónimo')
+        
+        // Si es usuario anónimo, mostrar IP
+        if (esAnonimo) {
+          return <div className="text-muted">{usuario || '-'}</div>
+        }
+        
+        // Mostrar email_login (usuario)
+        return <div>{usuario || email || '-'}</div>
+      },
     }),
     {
       id: 'contraseña',

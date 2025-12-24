@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import wooCommerceClient from '@/lib/woocommerce/client'
 import type { WooCommerceOrder } from '@/lib/woocommerce/types'
+import { logActivity, createLogDescription } from '@/lib/logging'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +28,14 @@ export async function GET(request: NextRequest) {
     }
 
     const orders = await wooCommerceClient.get<WooCommerceOrder[]>('orders', params)
+
+    // Registrar log de visualización (asíncrono, no bloquea)
+    logActivity(request, {
+      accion: 'ver',
+      entidad: 'pedidos_woocommerce',
+      descripcion: createLogDescription('ver', 'pedidos_woocommerce', null, `${orders.length} pedidos de WooCommerce`),
+      metadata: { cantidad: orders.length, perPage, page, status },
+    }).catch(() => {}) // Ignorar errores de logging
 
     return NextResponse.json({
       success: true,

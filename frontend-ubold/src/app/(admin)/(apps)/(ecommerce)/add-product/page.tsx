@@ -83,6 +83,11 @@ export default function AddProductPage() {
     portada_libro: null as File | null,
   })
 
+  // Memoizar la función onImageChange para evitar loops infinitos
+  const handleImageChange = useCallback((file: File | null) => {
+    setFormData(prev => ({ ...prev, portada_libro: file }))
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -357,7 +362,7 @@ export default function AddProductPage() {
             </FormGroup>
 
             <ProductImage 
-              onImageChange={(file) => setFormData(prev => ({ ...prev, portada_libro: file }))}
+              onImageChange={handleImageChange}
             />
           </CardBody>
         </Card>

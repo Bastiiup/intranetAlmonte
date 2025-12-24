@@ -157,50 +157,47 @@ const DataTable = <TData,>({
   const headerGroups = table.getHeaderGroups()
   const columnIds = headerGroups[0]?.headers.map((header) => header.id) || []
 
-  return (
-    <div className={clsx('table-responsive', className)}>
-      <Table responsive hover className="table table-custom table-centered table-select w-100 mb-0">
-        {showHeaders && (
-          <thead className="bg-light align-middle bg-opacity-25 thead-sm">
-            {headerGroups.map((headerGroup) => (
-              <tr key={headerGroup.id} className="text-uppercase fs-xxs">
-                {enableColumnReordering ? (
-                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                    <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
-                      {headerGroup.headers.map((header) => (
-                        <SortableHeader
-                          key={header.id}
-                          header={header}
-                          table={table}
-                          enableReordering={enableColumnReordering}
-                        />
-                      ))}
-                    </SortableContext>
-                  </DndContext>
-                ) : (
-                  headerGroup.headers.map((header) => (
-                    <th
+  const tableContent = (
+    <Table responsive hover className="table table-custom table-centered table-select w-100 mb-0">
+      {showHeaders && (
+        <thead className="bg-light align-middle bg-opacity-25 thead-sm">
+          {headerGroups.map((headerGroup) => (
+            <tr key={headerGroup.id} className="text-uppercase fs-xxs">
+              {enableColumnReordering ? (
+                <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
+                  {headerGroup.headers.map((header) => (
+                    <SortableHeader
                       key={header.id}
-                      onClick={header.column.getToggleSortingHandler()}
-                      style={{
-                        cursor: header.column.getCanSort() ? 'pointer' : 'default',
-                        userSelect: 'none',
-                      }}>
-                      <div className="d-flex align-items-center">
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {header.column.getCanSort() &&
-                          ({
-                            asc: <TbArrowUp className="ms-1" />,
-                            desc: <TbArrowDown className="ms-1" />,
-                          }[header.column.getIsSorted() as string] ?? null)}
-                      </div>
-                    </th>
-                  ))
-                )}
-              </tr>
-            ))}
-          </thead>
-        )}
+                      header={header}
+                      table={table}
+                      enableReordering={enableColumnReordering}
+                    />
+                  ))}
+                </SortableContext>
+              ) : (
+                headerGroup.headers.map((header) => (
+                  <th
+                    key={header.id}
+                    onClick={header.column.getToggleSortingHandler()}
+                    style={{
+                      cursor: header.column.getCanSort() ? 'pointer' : 'default',
+                      userSelect: 'none',
+                    }}>
+                    <div className="d-flex align-items-center">
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                      {header.column.getCanSort() &&
+                        ({
+                          asc: <TbArrowUp className="ms-1" />,
+                          desc: <TbArrowDown className="ms-1" />,
+                        }[header.column.getIsSorted() as string] ?? null)}
+                    </div>
+                  </th>
+                ))
+              )}
+            </tr>
+          ))}
+        </thead>
+      )}
         <tbody>
           {table.getRowModel().rows?.length ? (
             table.getRowModel().rows.map((row) => (
@@ -219,7 +216,20 @@ const DataTable = <TData,>({
           )}
         </tbody>
       </Table>
+  )
+
+  const wrapperContent = (
+    <div className={clsx('table-responsive', className)}>
+      {tableContent}
     </div>
+  )
+
+  return enableColumnReordering ? (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      {wrapperContent}
+    </DndContext>
+  ) : (
+    wrapperContent
   )
 }
 

@@ -187,11 +187,13 @@ const RelationSelector = memo(function RelationSelector({
             {...(multiple ? { style: { minHeight: '120px' } } : {})}
           >
             {!multiple && <option value="">Add or create a relation</option>}
-            {options.map((option: any) => {
-              const optionId = String(option.documentId || option.id)
+            {options.map((option: any, index: number) => {
+              const optionId = String(option.documentId || option.id || index)
               const displayText = getDisplayValue(option)
+              // Usar índice junto con ID para garantizar claves únicas
+              const uniqueKey = `${optionId}-${index}`
               return (
-                <option key={optionId} value={optionId}>
+                <option key={uniqueKey} value={optionId}>
                   {displayText}
                 </option>
               )
