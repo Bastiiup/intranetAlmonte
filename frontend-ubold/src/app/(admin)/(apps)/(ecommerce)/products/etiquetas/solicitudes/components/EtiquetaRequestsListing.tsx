@@ -17,11 +17,11 @@ import Link from 'next/link'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert } from 'react-bootstrap'
 import { LuBox, LuSearch } from 'react-icons/lu'
-import { TbEdit, TbEye, TbList, TbTrash, TbCheck } from 'react-icons/tb'
+import { TbEdit, TbEye, TbList, TbTrash, TbCheck, TbX } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
-import ChangeStatusModal from '@/components/table/ChangeStatusModal'
+import ConfirmStatusModal from '@/components/table/ConfirmStatusModal'
 import TablePagination from '@/components/table/TablePagination'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
@@ -117,9 +117,10 @@ const EtiquetaRequestsListing = ({ etiquetas, error }: EtiquetaRequestsListingPr
     return []
   }, [etiquetas])
 
-  // Estado para el modal de cambio de estado
-  const [showChangeStatusModal, setShowChangeStatusModal] = useState(false)
-  const [selectedEtiqueta, setSelectedEtiqueta] = useState<EtiquetaTypeExtended | null>(null)
+  // Estado para el modal de confirmación
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<'approve' | 'reject'>('approve')
+  const [pendingId, setPendingId] = useState<number | null>(null)
 
   const columns: ColumnDef<EtiquetaTypeExtended, any>[] = [
     {
@@ -209,17 +210,36 @@ const EtiquetaRequestsListing = ({ etiquetas, error }: EtiquetaRequestsListingPr
               <TbEdit className="fs-lg" />
             </Button>
           </Link>
-          <Button
-            variant="default"
-            size="sm"
-            className="btn-icon rounded-circle"
-            title="Cambiar Estado"
-            onClick={() => {
-              setSelectedEtiqueta(row.original)
-              setShowChangeStatusModal(true)
-            }}>
-            <TbCheck className="fs-lg" />
-          </Button>
+          {row.original.estadoPublicacion === 'Pendiente' && (
+            <>
+              <Button
+                variant="success"
+                size="sm"
+                className="btn-icon rounded-circle"
+                onClick={() => {
+                  setPendingId(row.original.strapiId || row.original.id)
+                  setConfirmAction('approve')
+                  setShowConfirmModal(true)
+                }}
+                title="Aprobar"
+              >
+                <TbCheck className="fs-lg" />
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                className="btn-icon rounded-circle"
+                onClick={() => {
+                  setPendingId(row.original.strapiId || row.original.id)
+                  setConfirmAction('reject')
+                  setShowConfirmModal(true)
+                }}
+                title="Rechazar"
+              >
+                <TbX className="fs-lg" />
+              </Button>
+            </>
+          )}
           <Button
             variant="default"
             size="sm"
@@ -327,39 +347,61 @@ const EtiquetaRequestsListing = ({ etiquetas, error }: EtiquetaRequestsListingPr
     }
   }
 
-  const handleStatusChange = async (newStatus: string) => {
-    if (!selectedEtiqueta?.strapiId) return
-
-    // IMPORTANTE: Strapi espera valores en minúsculas: "pendiente", "publicado", "borrador"
-    const newStatusLower = newStatus.toLowerCase()
-
+  const handleApprove = async () => {
+    if (!pendingId) return
+    
     try {
-      const response = await fetch(`/api/tienda/etiquetas/${selectedEtiqueta.strapiId}`, {
+      const response = await fetch(`/api/tienda/etiquetas/${pendingId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ data: { estado_publicacion: newStatusLower } }),
+        body: JSON.stringify({ data: { estado_publicacion: 'publicado' } }),
       })
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Error al actualizar el estado de la etiqueta')
+        throw new Error(errorData.error || 'Error al aprobar la etiqueta')
       }
 
-      // Actualizar el estado local (capitalizar para mostrar)
-      const estadoMostrar = newStatusLower === 'publicado' ? 'Publicado' : 
-                           newStatusLower === 'borrador' ? 'Borrador' : 
-                           'Pendiente'
       setData((prevData) =>
         prevData.map((e) =>
-          e.strapiId === selectedEtiqueta.strapiId ? { ...e, estadoPublicacion: estadoMostrar as any } : e
+          (e.strapiId === pendingId || e.id === pendingId) ? { ...e, estadoPublicacion: 'Publicado' as any } : e
         )
       )
-      console.log(`[EtiquetaRequestsListing] Estado de etiqueta ${selectedEtiqueta.strapiId} actualizado a ${newStatus}`)
+      router.refresh()
     } catch (err: any) {
-      console.error('[EtiquetaRequestsListing] Error al cambiar estado:', err)
-      alert(`Error al cambiar estado: ${err.message}`)
+      console.error('[EtiquetaRequestsListing] Error al aprobar:', err)
+      alert(`Error al aprobar: ${err.message}`)
+    }
+  }
+
+  const handleReject = async () => {
+    if (!pendingId) return
+    
+    try {
+      const response = await fetch(`/api/tienda/etiquetas/${pendingId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ data: { estado_publicacion: 'borrador' } }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Error al rechazar la etiqueta')
+      }
+
+      setData((prevData) =>
+        prevData.map((e) =>
+          (e.strapiId === pendingId || e.id === pendingId) ? { ...e, estadoPublicacion: 'Borrador' as any } : e
+        )
+      )
+      router.refresh()
+    } catch (err: any) {
+      console.error('[EtiquetaRequestsListing] Error al rechazar:', err)
+      alert(`Error al rechazar: ${err.message}`)
     }
   }
 
@@ -473,18 +515,16 @@ const EtiquetaRequestsListing = ({ etiquetas, error }: EtiquetaRequestsListingPr
             itemName="etiqueta"
           />
 
-          {selectedEtiqueta && (
-            <ChangeStatusModal
-              show={showChangeStatusModal}
-              onHide={() => {
-                setShowChangeStatusModal(false)
-                setSelectedEtiqueta(null)
-              }}
-              onConfirm={handleStatusChange}
-              currentStatus={selectedEtiqueta.estadoPublicacion || 'Pendiente'}
-              productName={selectedEtiqueta.name || 'Etiqueta'}
-            />
-          )}
+          <ConfirmStatusModal
+            show={showConfirmModal}
+            onHide={() => {
+              setShowConfirmModal(false)
+              setPendingId(null)
+            }}
+            onConfirm={confirmAction === 'approve' ? handleApprove : handleReject}
+            action={confirmAction}
+            itemName="etiqueta"
+          />
         </Card>
       </Col>
     </Row>

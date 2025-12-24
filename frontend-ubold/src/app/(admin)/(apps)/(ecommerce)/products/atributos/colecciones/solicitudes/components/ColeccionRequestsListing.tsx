@@ -17,11 +17,11 @@ import Link from 'next/link'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert } from 'react-bootstrap'
 import { LuBox, LuSearch, LuTag } from 'react-icons/lu'
-import { TbEdit, TbEye, TbList, TbTrash, TbCheck } from 'react-icons/tb'
+import { TbEdit, TbEye, TbList, TbTrash, TbCheck, TbX } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
-import ChangeStatusModal from '@/components/table/ChangeStatusModal'
+import ConfirmStatusModal from '@/components/table/ConfirmStatusModal'
 import TablePagination from '@/components/table/TablePagination'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
@@ -129,9 +129,10 @@ const ColeccionRequestsListing = ({ colecciones, error }: ColeccionRequestsListi
     return []
   }, [colecciones])
 
-  // Estado para el modal de cambio de estado
-  const [showChangeStatusModal, setShowChangeStatusModal] = useState(false)
-  const [selectedColeccion, setSelectedColeccion] = useState<ColeccionTypeExtended | null>(null)
+  // Estado para el modal de confirmación
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<'approve' | 'reject'>('approve')
+  const [pendingId, setPendingId] = useState<number | null>(null)
 
   const columns: ColumnDef<ColeccionTypeExtended, any>[] = [
     {
@@ -232,17 +233,36 @@ const ColeccionRequestsListing = ({ colecciones, error }: ColeccionRequestsListi
               <TbEdit className="fs-lg" />
             </Button>
           </Link>
-          <Button
-            variant="default"
-            size="sm"
-            className="btn-icon rounded-circle"
-            title="Cambiar Estado"
-            onClick={() => {
-              setSelectedColeccion(row.original)
-              setShowChangeStatusModal(true)
-            }}>
-            <TbCheck className="fs-lg" />
-          </Button>
+          {row.original.estadoPublicacion === 'Pendiente' && (
+            <>
+              <Button
+                variant="success"
+                size="sm"
+                className="btn-icon rounded-circle"
+                onClick={() => {
+                  setPendingId(row.original.strapiId || row.original.id)
+                  setConfirmAction('approve')
+                  setShowConfirmModal(true)
+                }}
+                title="Aprobar"
+              >
+                <TbCheck className="fs-lg" />
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                className="btn-icon rounded-circle"
+                onClick={() => {
+                  setPendingId(row.original.strapiId || row.original.id)
+                  setConfirmAction('reject')
+                  setShowConfirmModal(true)
+                }}
+                title="Rechazar"
+              >
+                <TbX className="fs-lg" />
+              </Button>
+            </>
+          )}
           <Button
             variant="default"
             size="sm"
@@ -350,39 +370,61 @@ const ColeccionRequestsListing = ({ colecciones, error }: ColeccionRequestsListi
     }
   }
 
-  const handleStatusChange = async (newStatus: string) => {
-    if (!selectedColeccion?.strapiId) return
-
-    // IMPORTANTE: Strapi espera valores en minúsculas: "pendiente", "publicado", "borrador"
-    const newStatusLower = newStatus.toLowerCase()
-
+  const handleApprove = async () => {
+    if (!pendingId) return
+    
     try {
-      const response = await fetch(`/api/tienda/colecciones/${selectedColeccion.strapiId}`, {
+      const response = await fetch(`/api/tienda/colecciones/${pendingId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ data: { estado_publicacion: newStatusLower } }),
+        body: JSON.stringify({ data: { estado_publicacion: 'publicado' } }),
       })
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Error al actualizar el estado de la colección')
+        throw new Error(errorData.error || 'Error al aprobar la colección')
       }
 
-      // Actualizar el estado local (capitalizar para mostrar)
-      const estadoMostrar = newStatusLower === 'publicado' ? 'Publicado' : 
-                           newStatusLower === 'borrador' ? 'Borrador' : 
-                           'Pendiente'
       setData((prevData) =>
         prevData.map((c) =>
-          c.strapiId === selectedColeccion.strapiId ? { ...c, estadoPublicacion: estadoMostrar as any } : c
+          (c.strapiId === pendingId || c.id === pendingId) ? { ...c, estadoPublicacion: 'Publicado' as any } : c
         )
       )
-      console.log(`[ColeccionRequestsListing] Estado de colección ${selectedColeccion.strapiId} actualizado a ${newStatus}`)
+      router.refresh()
     } catch (err: any) {
-      console.error('[ColeccionRequestsListing] Error al cambiar estado:', err)
-      alert(`Error al cambiar estado: ${err.message}`)
+      console.error('[ColeccionRequestsListing] Error al aprobar:', err)
+      alert(`Error al aprobar: ${err.message}`)
+    }
+  }
+
+  const handleReject = async () => {
+    if (!pendingId) return
+    
+    try {
+      const response = await fetch(`/api/tienda/colecciones/${pendingId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ data: { estado_publicacion: 'borrador' } }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Error al rechazar la colección')
+      }
+
+      setData((prevData) =>
+        prevData.map((c) =>
+          (c.strapiId === pendingId || c.id === pendingId) ? { ...c, estadoPublicacion: 'Borrador' as any } : c
+        )
+      )
+      router.refresh()
+    } catch (err: any) {
+      console.error('[ColeccionRequestsListing] Error al rechazar:', err)
+      alert(`Error al rechazar: ${err.message}`)
     }
   }
 
@@ -496,18 +538,16 @@ const ColeccionRequestsListing = ({ colecciones, error }: ColeccionRequestsListi
             itemName="colección"
           />
 
-          {selectedColeccion && (
-            <ChangeStatusModal
-              show={showChangeStatusModal}
-              onHide={() => {
-                setShowChangeStatusModal(false)
-                setSelectedColeccion(null)
-              }}
-              onConfirm={handleStatusChange}
-              currentStatus={selectedColeccion.estadoPublicacion || 'Pendiente'}
-              productName={selectedColeccion.name || 'Colección'}
-            />
-          )}
+          <ConfirmStatusModal
+            show={showConfirmModal}
+            onHide={() => {
+              setShowConfirmModal(false)
+              setPendingId(null)
+            }}
+            onConfirm={confirmAction === 'approve' ? handleApprove : handleReject}
+            action={confirmAction}
+            itemName="colección"
+          />
         </Card>
       </Col>
     </Row>

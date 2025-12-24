@@ -17,11 +17,11 @@ import Link from 'next/link'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert } from 'react-bootstrap'
 import { LuBox, LuSearch } from 'react-icons/lu'
-import { TbEdit, TbEye, TbList, TbTrash, TbCheck } from 'react-icons/tb'
+import { TbEdit, TbEye, TbList, TbTrash, TbCheck, TbX } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
-import ChangeStatusModal from '@/components/table/ChangeStatusModal'
+import ConfirmStatusModal from '@/components/table/ConfirmStatusModal'
 import TablePagination from '@/components/table/TablePagination'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
@@ -150,9 +150,10 @@ const CategoriaRequestsListing = ({ categorias, error }: CategoriaRequestsListin
     return []
   }, [categorias])
 
-  // Estado para el modal de cambio de estado
-  const [showChangeStatusModal, setShowChangeStatusModal] = useState(false)
-  const [selectedCategoria, setSelectedCategoria] = useState<CategoriaTypeExtended | null>(null)
+  // Estado para el modal de confirmación
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<'approve' | 'reject'>('approve')
+  const [pendingId, setPendingId] = useState<number | null>(null)
 
   const columns: ColumnDef<CategoriaTypeExtended, any>[] = [
     {
@@ -245,17 +246,36 @@ const CategoriaRequestsListing = ({ categorias, error }: CategoriaRequestsListin
               <TbEdit className="fs-lg" />
             </Button>
           </Link>
-          <Button
-            variant="default"
-            size="sm"
-            className="btn-icon rounded-circle"
-            title="Cambiar Estado"
-            onClick={() => {
-              setSelectedCategoria(row.original)
-              setShowChangeStatusModal(true)
-            }}>
-            <TbCheck className="fs-lg" />
-          </Button>
+          {row.original.estadoPublicacion === 'Pendiente' && (
+            <>
+              <Button
+                variant="success"
+                size="sm"
+                className="btn-icon rounded-circle"
+                onClick={() => {
+                  setPendingId(row.original.strapiId || row.original.id)
+                  setConfirmAction('approve')
+                  setShowConfirmModal(true)
+                }}
+                title="Aprobar"
+              >
+                <TbCheck className="fs-lg" />
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                className="btn-icon rounded-circle"
+                onClick={() => {
+                  setPendingId(row.original.strapiId || row.original.id)
+                  setConfirmAction('reject')
+                  setShowConfirmModal(true)
+                }}
+                title="Rechazar"
+              >
+                <TbX className="fs-lg" />
+              </Button>
+            </>
+          )}
           <Button
             variant="default"
             size="sm"
@@ -363,39 +383,61 @@ const CategoriaRequestsListing = ({ categorias, error }: CategoriaRequestsListin
     }
   }
 
-  const handleStatusChange = async (newStatus: string) => {
-    if (!selectedCategoria?.strapiId) return
-
-    // IMPORTANTE: Strapi espera valores en minúsculas: "pendiente", "publicado", "borrador"
-    const newStatusLower = newStatus.toLowerCase()
-
+  const handleApprove = async () => {
+    if (!pendingId) return
+    
     try {
-      const response = await fetch(`/api/tienda/categorias/${selectedCategoria.strapiId}`, {
+      const response = await fetch(`/api/tienda/categorias/${pendingId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ data: { estado_publicacion: newStatusLower } }),
+        body: JSON.stringify({ data: { estado_publicacion: 'publicado' } }),
       })
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Error al actualizar el estado de la categoría')
+        throw new Error(errorData.error || 'Error al aprobar la categoría')
       }
 
-      // Actualizar el estado local (capitalizar para mostrar)
-      const estadoMostrar = newStatusLower === 'publicado' ? 'Publicado' : 
-                           newStatusLower === 'borrador' ? 'Borrador' : 
-                           'Pendiente'
       setData((prevData) =>
         prevData.map((c) =>
-          c.strapiId === selectedCategoria.strapiId ? { ...c, estadoPublicacion: estadoMostrar as any } : c
+          (c.strapiId === pendingId || c.id === pendingId) ? { ...c, estadoPublicacion: 'Publicado' as any } : c
         )
       )
-      console.log(`[CategoriaRequestsListing] Estado de categoría ${selectedCategoria.strapiId} actualizado a ${newStatus}`)
+      router.refresh()
     } catch (err: any) {
-      console.error('[CategoriaRequestsListing] Error al cambiar estado:', err)
-      alert(`Error al cambiar estado: ${err.message}`)
+      console.error('[CategoriaRequestsListing] Error al aprobar:', err)
+      alert(`Error al aprobar: ${err.message}`)
+    }
+  }
+
+  const handleReject = async () => {
+    if (!pendingId) return
+    
+    try {
+      const response = await fetch(`/api/tienda/categorias/${pendingId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ data: { estado_publicacion: 'borrador' } }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Error al rechazar la categoría')
+      }
+
+      setData((prevData) =>
+        prevData.map((c) =>
+          (c.strapiId === pendingId || c.id === pendingId) ? { ...c, estadoPublicacion: 'Borrador' as any } : c
+        )
+      )
+      router.refresh()
+    } catch (err: any) {
+      console.error('[CategoriaRequestsListing] Error al rechazar:', err)
+      alert(`Error al rechazar: ${err.message}`)
     }
   }
 
@@ -509,18 +551,16 @@ const CategoriaRequestsListing = ({ categorias, error }: CategoriaRequestsListin
             itemName="categoría"
           />
 
-          {selectedCategoria && (
-            <ChangeStatusModal
-              show={showChangeStatusModal}
-              onHide={() => {
-                setShowChangeStatusModal(false)
-                setSelectedCategoria(null)
-              }}
-              onConfirm={handleStatusChange}
-              currentStatus={selectedCategoria.estadoPublicacion || 'Pendiente'}
-              productName={selectedCategoria.name || 'Categoría'}
-            />
-          )}
+          <ConfirmStatusModal
+            show={showConfirmModal}
+            onHide={() => {
+              setShowConfirmModal(false)
+              setPendingId(null)
+            }}
+            onConfirm={confirmAction === 'approve' ? handleApprove : handleReject}
+            action={confirmAction}
+            itemName="categoría"
+          />
         </Card>
       </Col>
     </Row>
