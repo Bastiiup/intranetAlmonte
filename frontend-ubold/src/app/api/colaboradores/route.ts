@@ -97,12 +97,11 @@ export async function POST(request: Request) {
     }
 
     // Preparar datos para Strapi
+    // Solo enviar campos que existen en el modelo de Strapi
     const colaboradorData: any = {
       data: {
         email_login: body.email_login.trim(),
         rol: body.rol || null,
-        rol_principal: body.rol_principal || null,
-        rol_operativo: body.rol_operativo || null,
         activo: body.activo !== undefined ? body.activo : true,
         ...(body.persona && { persona: body.persona }),
         ...(body.usuario && { usuario: body.usuario }),
