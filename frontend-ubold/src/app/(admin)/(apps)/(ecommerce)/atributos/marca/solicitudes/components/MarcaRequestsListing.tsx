@@ -101,6 +101,8 @@ const columnHelper = createColumnHelper<MarcaTypeExtended>()
 
 const MarcaRequestsListing = ({ marcas, error }: MarcaRequestsListingProps = {}) => {
   const router = useRouter()
+  const { colaborador } = useAuth()
+  const canDelete = colaborador?.rol === 'super_admin'
   
   const mappedMarcas = useMemo(() => {
     if (marcas && marcas.length > 0) {
