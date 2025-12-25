@@ -210,6 +210,21 @@ export async function POST(request: Request) {
     }
 
     if (colaboradorCompleto) {
+      // Asegurar que el ID esté en el nivel superior antes de guardar en cookie
+      const colaboradorId = colaboradorCompleto.id || colaboradorCompleto.documentId
+      if (!colaboradorCompleto.id && !colaboradorCompleto.documentId && colaboradorId) {
+        colaboradorCompleto.id = colaboradorId
+      }
+      
+      console.log('[API /auth/login] 💾 Guardando colaborador en cookie:', {
+        tieneId: !!colaboradorCompleto.id,
+        id: colaboradorCompleto.id,
+        tieneDocumentId: !!colaboradorCompleto.documentId,
+        documentId: colaboradorCompleto.documentId,
+        email_login: colaboradorCompleto.email_login,
+        tienePersona: !!colaboradorCompleto.persona,
+      })
+      
       // El middleware busca 'colaboradorData', así que usamos ese nombre
       // Guardar colaboradorCompleto con persona poblada
       response.cookies.set('colaboradorData', JSON.stringify(colaboradorCompleto), {

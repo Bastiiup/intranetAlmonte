@@ -85,90 +85,65 @@ export async function getUserFromRequest(request: NextRequest): Promise<{
     
     if (colaboradorCookie) {
       try {
+        console.log('[LOGGING] 📋 Cookie colaboradorData:', colaboradorCookie.substring(0, 200))
+        
         const colaborador = JSON.parse(colaboradorCookie)
+        console.log('[LOGGING] 👤 Colaborador parseado:', JSON.stringify(colaborador, null, 2).substring(0, 1000))
         
-        // El ID puede estar en diferentes lugares según la estructura de Strapi
-        // Intentar múltiples formas de obtener el ID
-        let colaboradorId: string | number | null = null
-        
-        // Forma 1: ID directo (más común después del login)
-        if (colaborador.id !== undefined && colaborador.id !== null) {
-          colaboradorId = colaborador.id
-        }
-        // Forma 2: documentId (Strapi v5)
-        else if (colaborador.documentId !== undefined && colaborador.documentId !== null) {
-          colaboradorId = colaborador.documentId
-        }
-        // Forma 3: Dentro de data (estructura de respuesta de Strapi)
-        else if (colaborador.data) {
-          colaboradorId = colaborador.data.id || colaborador.data.documentId || null
-        }
-        // Forma 4: Dentro de attributes
-        else if (colaborador.attributes) {
-          colaboradorId = colaborador.attributes.id || colaborador.attributes.documentId || null
-        }
-        
-        // Si aún no tenemos ID, intentar buscar recursivamente en toda la estructura
-        if (!colaboradorId) {
-          const findId = (obj: any): string | number | null => {
-            if (!obj || typeof obj !== 'object') return null
-            if (obj.id !== undefined && obj.id !== null) return obj.id
-            if (obj.documentId !== undefined && obj.documentId !== null) return obj.documentId
-            for (const key in obj) {
-              if (key === 'id' || key === 'documentId') {
-                if (obj[key] !== undefined && obj[key] !== null) return obj[key]
-              } else if (typeof obj[key] === 'object' && obj[key] !== null) {
-                const found = findId(obj[key])
-                if (found) return found
-              }
-            }
-            return null
-          }
-          colaboradorId = findId(colaborador)
-        }
-        
-        // Intentar obtener nombre de persona si está disponible
-        let nombre = colaborador.nombre || colaborador.email_login || undefined
-        if (colaborador.persona) {
-          const persona = colaborador.persona
-          // Manejar diferentes estructuras de persona
-          const personaAttrs = persona.attributes || persona.data?.attributes || persona.data || persona
+        // Búsqueda recursiva del ID
+        const findId = (obj: any): string | number | null => {
+          if (!obj || typeof obj !== 'object') return null
+          if (obj.id !== undefined && obj.id !== null) return obj.id
+          if (obj.documentId !== undefined && obj.documentId !== null) return obj.documentId
           
-          if (personaAttrs?.nombre_completo) {
-            nombre = personaAttrs.nombre_completo
-          } else if (personaAttrs?.nombres) {
-            const nombres = personaAttrs.nombres
-            const apellidos = `${personaAttrs.primer_apellido || ''} ${personaAttrs.segundo_apellido || ''}`.trim()
-            nombre = apellidos ? `${nombres} ${apellidos}`.trim() : nombres
+          for (const key in obj) {
+            if (typeof obj[key] === 'object' && obj[key] !== null) {
+              const found = findId(obj[key])
+              if (found) return found
+            }
           }
+          return null
         }
-        
-        console.log('[Logging] 🔍 Colaborador desde cookie:', {
-          tieneId: !!colaboradorId,
-          id: colaboradorId,
-          email_login: colaborador.email_login || colaborador.email,
-          tienePersona: !!colaborador.persona,
-          nombre: nombre,
-          keys: Object.keys(colaborador).join(', '),
-          estructuraCompleta: JSON.stringify(colaborador, null, 2).substring(0, 500),
+
+        const colaboradorId = findId(colaborador)
+        console.log('[LOGGING] 🔑 ID encontrado:', colaboradorId)
+
+        if (!colaboradorId) {
+          console.log('[LOGGING] ❌ No se pudo encontrar ID en el colaborador')
+          console.log('[LOGGING] ❌ Estructura completa:', JSON.stringify(colaborador, null, 2))
+          return null
+        }
+
+        // Extraer email y nombre
+        const emailLogin = colaborador.email_login || 
+                           colaborador.data?.attributes?.email_login || 
+                           colaborador.attributes?.email_login || 
+                           colaborador.email ||
+                           'Sin email'
+
+        const persona = colaborador.persona || 
+                        colaborador.data?.attributes?.persona?.data?.attributes ||
+                        colaborador.attributes?.persona?.data?.attributes ||
+                        colaborador.data?.attributes?.persona ||
+                        colaborador.attributes?.persona ||
+                        {}
+
+        const personaAttrs = persona.attributes || persona.data?.attributes || persona.data || persona
+
+        const nombre = personaAttrs.nombre_completo || 
+                       `${(personaAttrs.nombres || '').trim()} ${(personaAttrs.primer_apellido || '').trim()}`.trim() ||
+                       emailLogin
+
+        console.log('[LOGGING] ✅ Usuario extraído:', { 
+          id: colaboradorId, 
+          email: emailLogin, 
+          nombre 
         })
-        
-        if (colaboradorId) {
-          return {
-            id: colaboradorId,
-            email: colaborador.email_login || colaborador.email || undefined,
-            nombre: nombre,
-          }
-        } else {
-          console.error('[Logging] ❌ No se pudo extraer ID del colaborador:', {
-            tieneId: !!colaborador.id,
-            tieneDocumentId: !!colaborador.documentId,
-            tieneData: !!colaborador.data,
-            tieneAttributes: !!colaborador.attributes,
-            estructura: Object.keys(colaborador).join(', '),
-            estructuraCompleta: JSON.stringify(colaborador, null, 2).substring(0, 500),
-            email_login: colaborador.email_login || colaborador.email || 'sin email',
-          })
+
+        return {
+          id: colaboradorId,
+          email: emailLogin,
+          nombre: nombre
         }
       } catch (parseError: any) {
         console.warn('[Logging] ⚠️ Error al parsear cookie colaboradorData:', {
@@ -268,23 +243,19 @@ export async function logActivity(
     const token = request.headers.get('authorization') || request.cookies.get('auth_token')?.value
     
     // Agregar usuario si está disponible
-    console.log('[Logging] 🔍 [logActivity] Usuario extraído:', {
-      tieneUsuario: !!user,
-      usuarioId: user?.id || 'null',
-      usuarioEmail: user?.email || 'null',
-      usuarioNombre: user?.nombre || 'null',
-    })
+    console.log('[LOGGING] 🎯 Usuario obtenido para log:', user)
     
     if (user?.id) {
-      // IMPORTANTE: Strapi espera el ID numérico o documentId, no un objeto
+      // CRÍTICO: El campo usuario debe ser solo el ID numérico o documentId, NO un objeto
       logData.usuario = user.id
-      console.log('[Logging] ✅ Usuario capturado para log:', {
+      console.log('[LOGGING] ✅ Usuario asociado al log:', {
         id: user.id,
         email: user.email,
         nombre: user.nombre,
         accion: params.accion,
         entidad: params.entidad,
-        usuarioAsociado: logData.usuario,
+        usuarioEnLogData: logData.usuario,
+        tipoUsuario: typeof logData.usuario,
       })
     } else {
       // Listar todas las cookies disponibles para debug
@@ -374,29 +345,16 @@ export async function logActivity(
     
     // Log del body que se envía a Strapi (solo para debug)
     const bodyToSend = { data: logData }
-    console.log('[Logging] 📤 Enviando a Strapi:', {
-      endpoint: logEndpoint,
-      bodyCompleto: JSON.stringify(bodyToSend, null, 2),
-      logData: {
-        accion: logData.accion,
-        entidad: logData.entidad,
-        usuario: logData.usuario || null, // Mostrar explícitamente si es null
-        descripcion: logData.descripcion?.substring(0, 50),
-        fecha: logData.fecha,
-        ip_address: logData.ip_address,
-      },
-      tieneUsuario: !!logData.usuario,
-      usuarioId: logData.usuario || 'null',
-      tipoUsuario: typeof logData.usuario,
-    })
+    console.log('[LOGGING] 📤 Log a enviar a Strapi:', JSON.stringify(bodyToSend, null, 2))
     
     strapiClient.post(logEndpoint, bodyToSend)
       .then((response: any) => {
-        console.log('[Logging] ✅ Actividad registrada exitosamente:', {
+        const logId = response?.data?.id || response?.id || 'unknown'
+        console.log('[LOGGING] ✅ Log creado exitosamente:', {
+          logId: logId,
           usuario: logData.usuario || 'null',
           accion: params.accion,
           entidad: params.entidad,
-          responseStatus: response?.status || 'unknown',
         })
       })
       .catch((error) => {
