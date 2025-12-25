@@ -77,18 +77,7 @@ export async function GET(
             documentId: producto.documentId,
           })
           
-          // Registrar log de visualización
-          const attrs = producto.attributes || {}
-          const data = (attrs && Object.keys(attrs).length > 0) ? attrs : producto
-          const nombreProducto = data.nombre_libro || data.isbn_libro || id
-          
-          logActivity(request as any, {
-            accion: 'ver',
-            entidad: 'producto',
-            entidadId: id,
-            descripcion: createLogDescription('ver', 'producto', nombreProducto),
-          }).catch(() => {})
-          
+          // No registrar log de visualización - solo se registran ediciones y eliminaciones
           return NextResponse.json({
             success: true,
             data: producto,
@@ -552,6 +541,19 @@ export async function DELETE(
     console.log('[API Productos DELETE] Usando documentId para eliminar:', productoDocumentId)
 
     await strapiClient.delete(`/api/libros/${productoDocumentId}`)
+    
+    // Registrar log de eliminación
+    const attrs = productoStrapi.attributes || {}
+    const data = (attrs && Object.keys(attrs).length > 0) ? attrs : productoStrapi
+    const nombreProducto = data.nombre_libro || data.isbn_libro || id
+    
+    logActivity(request, {
+      accion: 'eliminar',
+      entidad: 'producto',
+      entidadId: productoDocumentId || id,
+      descripcion: createLogDescription('eliminar', 'producto', nombreProducto, `Producto "${nombreProducto}" eliminado`),
+      datosAnteriores: { nombre: nombreProducto, estado: estadoPublicacion },
+    }).catch(() => {})
     
     if (estadoPublicacion === 'publicado') {
       console.log('[API Productos DELETE] ✅ Producto eliminado en Strapi. El lifecycle eliminará de WooCommerce si estaba publicado.')

@@ -69,15 +69,7 @@ export async function GET(request: NextRequest) {
       })
     }
     
-    // Registrar log de visualización
-    const count = Array.isArray(response.data) ? response.data.length : response.data ? 1 : 0
-    logActivity(request, {
-      accion: 'ver',
-      entidad: 'productos',
-      descripcion: createLogDescription('ver', 'productos', null, `${count} productos`),
-      metadata: { cantidad: count },
-    }).catch(() => {})
-    
+    // No registrar log de visualización - solo se registran ediciones y eliminaciones
     return NextResponse.json({
       success: true,
       data: response.data || [],
