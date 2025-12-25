@@ -7,9 +7,8 @@ RUN apk add --no-cache libc6-compat
 # Establecer directorio de trabajo
 WORKDIR /app
 
-# Variables de entorno para optimizar build
+# Variables de entorno base
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 ENV CI=true
 
@@ -17,7 +16,8 @@ ENV CI=true
 FROM base AS deps
 # Copiar solo archivos de dependencias
 COPY frontend-ubold/package*.json ./
-# Instalar dependencias con cache optimizado (sin --silent para ver progreso)
+# Instalar TODAS las dependencias (incluyendo devDependencies para el build)
+# No usar NODE_ENV=production aquí para que se instalen devDependencies
 RUN npm ci --prefer-offline --no-audit --legacy-peer-deps || \
     npm install --prefer-offline --no-audit --legacy-peer-deps
 
@@ -34,8 +34,8 @@ COPY frontend-ubold/src ./src
 COPY frontend-ubold/public ./public
 COPY frontend-ubold/fix-server.js ./
 COPY frontend-ubold/server.js ./
-# Construir la aplicación con optimizaciones
-RUN npm run build
+# Construir la aplicación con optimizaciones (NODE_ENV se establece solo para el build)
+RUN NODE_ENV=production npm run build
 # Ejecutar postbuild para copiar archivos estáticos
 RUN npm run postbuild || echo "Postbuild skipped"
 
