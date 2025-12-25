@@ -47,7 +47,11 @@ export default function LogsList() {
         const message = args.map(arg => 
           typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
         ).join(' ')
-        if ((message.includes('[API /logs/usuarios]') || message.includes('[LogsList]')) && !message.includes('[SERVER]')) {
+        if ((message.includes('[API /logs/usuarios]') || 
+             message.includes('[LogsList]') || 
+             message.includes('[LOGGING]') || 
+             message.includes('[API PUT') || 
+             message.includes('[API /auth/login]')) && !message.includes('[SERVER]')) {
           setDebugLogs(prev => {
             if (prev.length > 0 && prev[prev.length - 1] === `[LOG] ${message}`) {
               return prev
@@ -64,7 +68,11 @@ export default function LogsList() {
         const message = args.map(arg => 
           typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
         ).join(' ')
-        if ((message.includes('[API /logs/usuarios]') || message.includes('[LogsList]')) && !message.includes('[SERVER]')) {
+        if ((message.includes('[API /logs/usuarios]') || 
+             message.includes('[LogsList]') || 
+             message.includes('[LOGGING]') || 
+             message.includes('[API PUT') || 
+             message.includes('[API /auth/login]')) && !message.includes('[SERVER]')) {
           setDebugLogs(prev => {
             if (prev.length > 0 && prev[prev.length - 1] === `[ERROR] ${message}`) {
               return prev
@@ -81,7 +89,11 @@ export default function LogsList() {
         const message = args.map(arg => 
           typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
         ).join(' ')
-        if ((message.includes('[API /logs/usuarios]') || message.includes('[LogsList]')) && !message.includes('[SERVER]')) {
+        if ((message.includes('[API /logs/usuarios]') || 
+             message.includes('[LogsList]') || 
+             message.includes('[LOGGING]') || 
+             message.includes('[API PUT') || 
+             message.includes('[API /auth/login]')) && !message.includes('[SERVER]')) {
           setDebugLogs(prev => {
             if (prev.length > 0 && prev[prev.length - 1] === `[WARN] ${message}`) {
               return prev
