@@ -211,23 +211,36 @@ export async function POST(request: Request) {
 
     if (colaboradorCompleto) {
       // Asegurar que el ID esté en el nivel superior antes de guardar en cookie
-      const colaboradorId = colaboradorCompleto.id || colaboradorCompleto.documentId
-      if (!colaboradorCompleto.id && !colaboradorCompleto.documentId && colaboradorId) {
-        colaboradorCompleto.id = colaboradorId
+      const colaboradorIdFinal = colaboradorCompleto.id || colaboradorCompleto.documentId
+      if (!colaboradorCompleto.id && !colaboradorCompleto.documentId && colaboradorIdFinal) {
+        colaboradorCompleto.id = colaboradorIdFinal
       }
       
-      console.log('[API /auth/login] 💾 Guardando colaborador en cookie:', {
-        tieneId: !!colaboradorCompleto.id,
-        id: colaboradorCompleto.id,
-        tieneDocumentId: !!colaboradorCompleto.documentId,
-        documentId: colaboradorCompleto.documentId,
-        email_login: colaboradorCompleto.email_login,
-        tienePersona: !!colaboradorCompleto.persona,
+      // Crear estructura limpia para la cookie (sin estructuras anidadas de Strapi)
+      const colaboradorParaCookie = {
+        id: colaboradorCompleto.id || colaboradorCompleto.documentId,
+        documentId: colaboradorCompleto.documentId || colaboradorCompleto.id,
+        email_login: colaboradorCompleto.email_login || colaboradorCompleto.email,
+        persona: colaboradorCompleto.persona || null,
+      }
+      
+      console.log('[API /auth/login] 💾 Estructura del colaborador ANTES de guardar en cookie:', {
+        estructuraOriginal: JSON.stringify(colaboradorCompleto, null, 2).substring(0, 1000),
+        estructuraParaCookie: JSON.stringify(colaboradorParaCookie, null, 2).substring(0, 1000),
+        tieneId: !!colaboradorParaCookie.id,
+        id: colaboradorParaCookie.id,
+        tieneDocumentId: !!colaboradorParaCookie.documentId,
+        documentId: colaboradorParaCookie.documentId,
+        email_login: colaboradorParaCookie.email_login,
+        tienePersona: !!colaboradorParaCookie.persona,
       })
       
       // El middleware busca 'colaboradorData', así que usamos ese nombre
-      // Guardar colaboradorCompleto con persona poblada
-      response.cookies.set('colaboradorData', JSON.stringify(colaboradorCompleto), {
+      // Guardar estructura limpia en cookie (sin estructuras anidadas de Strapi)
+      const cookieValue = JSON.stringify(colaboradorParaCookie)
+      console.log('[API /auth/login] 💾 Valor de cookie a guardar (primeros 200 chars):', cookieValue.substring(0, 200))
+      
+      response.cookies.set('colaboradorData', cookieValue, {
         httpOnly: false,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
@@ -236,13 +249,15 @@ export async function POST(request: Request) {
       })
       
       // También establecer 'colaborador' para compatibilidad con el código existente
-      response.cookies.set('colaborador', JSON.stringify(colaboradorCompleto), {
+      response.cookies.set('colaborador', cookieValue, {
         httpOnly: false,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         path: '/',
         maxAge: 60 * 60 * 24 * 7,
       })
+      
+      console.log('[API /auth/login] ✅ Cookie guardada exitosamente con ID:', colaboradorParaCookie.id)
     }
 
     if (data.usuario) {

@@ -246,16 +246,18 @@ export async function logActivity(
     console.log('[LOGGING] 🎯 Usuario obtenido para log:', user)
     
     if (user?.id) {
-      // CRÍTICO: El campo usuario debe ser solo el ID numérico o documentId, NO un objeto
-      logData.usuario = user.id
+      // CRÍTICO: El campo usuario debe ser solo el ID numérico, NO un objeto
+      // Convertir explícitamente a número para asegurar el formato correcto
+      logData.usuario = Number(user.id) || null
       console.log('[LOGGING] ✅ Usuario asociado al log:', {
-        id: user.id,
+        idOriginal: user.id,
+        idConvertido: logData.usuario,
         email: user.email,
         nombre: user.nombre,
         accion: params.accion,
         entidad: params.entidad,
-        usuarioEnLogData: logData.usuario,
         tipoUsuario: typeof logData.usuario,
+        esNumero: typeof logData.usuario === 'number',
       })
     } else {
       // Listar todas las cookies disponibles para debug
@@ -349,25 +351,39 @@ export async function logActivity(
     
     strapiClient.post(logEndpoint, bodyToSend)
       .then((response: any) => {
-        const logId = response?.data?.id || response?.id || 'unknown'
-        console.log('[LOGGING] ✅ Log creado exitosamente:', {
+        const logId = response?.data?.id || response?.id || response?.data?.documentId || 'unknown'
+        const usuarioEnRespuesta = response?.data?.usuario || response?.data?.attributes?.usuario || null
+        
+        console.log('[LOGGING] ✅ Log creado exitosamente en Strapi:', {
           logId: logId,
-          usuario: logData.usuario || 'null',
+          usuarioEnviado: logData.usuario || 'null',
+          usuarioEnRespuesta: usuarioEnRespuesta ? (usuarioEnRespuesta.id || usuarioEnRespuesta) : 'null',
           accion: params.accion,
           entidad: params.entidad,
+          respuestaCompleta: JSON.stringify(response, null, 2).substring(0, 500),
         })
+        
+        // Verificar que el usuario se haya guardado correctamente
+        if (!usuarioEnRespuesta && logData.usuario) {
+          console.warn('[LOGGING] ⚠️ ADVERTENCIA: Usuario enviado pero no aparece en respuesta:', {
+            usuarioEnviado: logData.usuario,
+            respuesta: JSON.stringify(response, null, 2).substring(0, 500),
+          })
+        }
       })
       .catch((error) => {
         // Solo loggear errores, no lanzar excepciones para no afectar el flujo principal
-        console.error('[Logging] ❌ Error al registrar actividad:', {
+        console.error('[LOGGING] ❌ Error al registrar actividad en Strapi:', {
           error: error.message,
           status: error.status,
           endpoint: logEndpoint,
           details: error.details,
-          logData: {
+          errorCompleto: JSON.stringify(error, null, 2).substring(0, 500),
+          logDataEnviado: {
             accion: logData.accion,
             entidad: logData.entidad,
             usuario: logData.usuario || null,
+            tipoUsuario: typeof logData.usuario,
             descripcion: logData.descripcion?.substring(0, 50),
           },
           tieneUsuario: !!logData.usuario,
