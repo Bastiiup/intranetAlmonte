@@ -77,10 +77,30 @@ export async function POST(request: Request) {
     const data = await loginResponse.json()
 
     // Obtener colaborador completo con populate de persona
+    // Asegurarse de que el colaborador siempre tenga el ID
     let colaboradorCompleto = data.colaborador
-    if (data.colaborador?.id || data.colaborador?.documentId) {
+    
+    // Extraer ID del colaborador (puede estar en diferentes lugares)
+    const colaboradorId = data.colaborador?.id || 
+                         data.colaborador?.documentId || 
+                         data.colaborador?.data?.id || 
+                         data.colaborador?.data?.documentId ||
+                         data.colaborador?.attributes?.id ||
+                         null
+    
+    // Asegurarse de que el colaborador tenga el ID en el nivel superior
+    if (colaboradorCompleto && colaboradorId) {
+      // Si no tiene ID en el nivel superior, agregarlo
+      if (!colaboradorCompleto.id && !colaboradorCompleto.documentId) {
+        colaboradorCompleto = {
+          ...colaboradorCompleto,
+          id: colaboradorId,
+        }
+      }
+    }
+    
+    if (colaboradorId) {
       try {
-        const colaboradorId = data.colaborador.id || data.colaborador.documentId
         const colaboradorConPersona = await strapiClient.get<any>(
           `/api/colaboradores/${colaboradorId}?populate[persona][fields][0]=nombres&populate[persona][fields][1]=primer_apellido&populate[persona][fields][2]=segundo_apellido&populate[persona][fields][3]=nombre_completo`
         )
@@ -111,24 +131,42 @@ export async function POST(request: Request) {
           }
         }
         
-        // Actualizar colaboradorCompleto con persona
+        // Actualizar colaboradorCompleto con persona y asegurar que tenga ID
         if (personaData) {
           colaboradorCompleto = {
-            ...data.colaborador,
+            ...colaboradorCompleto,
+            id: colaboradorCompleto.id || colaboradorId,
+            documentId: colaboradorCompleto.documentId || colaboradorId,
             persona: personaData,
           }
           console.log('[API /auth/login] ✅ Persona obtenida para colaborador:', {
-            id: colaboradorId,
+            id: colaboradorCompleto.id || colaboradorId,
+            email_login: colaboradorCompleto.email_login,
             nombreCompleto: personaData.nombre_completo,
             nombres: personaData.nombres,
           })
         } else {
+          // Asegurar que tenga ID aunque no tenga persona
+          colaboradorCompleto = {
+            ...colaboradorCompleto,
+            id: colaboradorCompleto.id || colaboradorId,
+            documentId: colaboradorCompleto.documentId || colaboradorId,
+          }
           console.warn('[API /auth/login] ⚠️ Colaborador no tiene persona asociada:', colaboradorId)
         }
       } catch (error: any) {
         console.warn('[API /auth/login] ⚠️ No se pudo obtener persona del colaborador:', error.message)
-        // Continuar con el colaborador sin persona
+        // Asegurar que tenga ID aunque falle la obtención de persona
+        colaboradorCompleto = {
+          ...colaboradorCompleto,
+          id: colaboradorCompleto.id || colaboradorId,
+          documentId: colaboradorCompleto.documentId || colaboradorId,
+        }
       }
+    } else {
+      console.error('[API /auth/login] ❌ No se pudo extraer ID del colaborador:', {
+        estructura: JSON.stringify(data.colaborador, null, 2).substring(0, 500),
+      })
     }
 
     // Crear respuesta con cookies establecidas en el servidor

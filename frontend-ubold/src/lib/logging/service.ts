@@ -80,21 +80,40 @@ export async function getUserFromRequest(request: NextRequest): Promise<{
         // Intentar múltiples formas de obtener el ID
         let colaboradorId: string | number | null = null
         
-        // Forma 1: ID directo
-        if (colaborador.id) {
+        // Forma 1: ID directo (más común después del login)
+        if (colaborador.id !== undefined && colaborador.id !== null) {
           colaboradorId = colaborador.id
         }
         // Forma 2: documentId (Strapi v5)
-        else if (colaborador.documentId) {
+        else if (colaborador.documentId !== undefined && colaborador.documentId !== null) {
           colaboradorId = colaborador.documentId
         }
-        // Forma 3: Dentro de data
+        // Forma 3: Dentro de data (estructura de respuesta de Strapi)
         else if (colaborador.data) {
           colaboradorId = colaborador.data.id || colaborador.data.documentId || null
         }
         // Forma 4: Dentro de attributes
-        else if (colaborador.attributes && colaborador.attributes.id) {
-          colaboradorId = colaborador.attributes.id
+        else if (colaborador.attributes) {
+          colaboradorId = colaborador.attributes.id || colaborador.attributes.documentId || null
+        }
+        
+        // Si aún no tenemos ID, intentar buscar recursivamente en toda la estructura
+        if (!colaboradorId) {
+          const findId = (obj: any): string | number | null => {
+            if (!obj || typeof obj !== 'object') return null
+            if (obj.id !== undefined && obj.id !== null) return obj.id
+            if (obj.documentId !== undefined && obj.documentId !== null) return obj.documentId
+            for (const key in obj) {
+              if (key === 'id' || key === 'documentId') {
+                if (obj[key] !== undefined && obj[key] !== null) return obj[key]
+              } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+                const found = findId(obj[key])
+                if (found) return found
+              }
+            }
+            return null
+          }
+          colaboradorId = findId(colaborador)
         }
         
         // Intentar obtener nombre de persona si está disponible
@@ -120,7 +139,7 @@ export async function getUserFromRequest(request: NextRequest): Promise<{
           tienePersona: !!colaborador.persona,
           nombre: nombre,
           keys: Object.keys(colaborador).join(', '),
-          colaboradorPreview: JSON.stringify(colaborador).substring(0, 300),
+          estructuraCompleta: JSON.stringify(colaborador, null, 2).substring(0, 500),
         })
         
         if (colaboradorId) {
@@ -130,11 +149,14 @@ export async function getUserFromRequest(request: NextRequest): Promise<{
             nombre: nombre,
           }
         } else {
-          console.warn('[Logging] ⚠️ No se pudo extraer ID del colaborador:', {
+          console.error('[Logging] ❌ No se pudo extraer ID del colaborador:', {
             tieneId: !!colaborador.id,
             tieneDocumentId: !!colaborador.documentId,
             tieneData: !!colaborador.data,
+            tieneAttributes: !!colaborador.attributes,
             estructura: Object.keys(colaborador).join(', '),
+            estructuraCompleta: JSON.stringify(colaborador, null, 2).substring(0, 500),
+            email_login: colaborador.email_login || colaborador.email || 'sin email',
           })
         }
       } catch (parseError: any) {
