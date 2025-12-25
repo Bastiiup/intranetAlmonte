@@ -34,8 +34,10 @@ export async function GET(request: NextRequest) {
       addDebugLog(`[API /logs/usuarios] 🔗 URL de Strapi: ${strapiUrl}`)
       addDebugLog(`[API /logs/usuarios] 🔗 Endpoint completo: ${strapiUrl}/api/activity-logs?...`)
       
+      // Populate completo del usuario con persona para obtener email_login y nombre
+      // IMPORTANTE: Usar populate[usuario]=* para obtener todos los campos del colaborador
       logsResponse = await strapiClient.get<any>(
-        `/api/activity-logs?populate[usuario][fields]=email_login&populate[usuario][populate][persona][fields]=nombres,primer_apellido,segundo_apellido,nombre_completo&pagination[pageSize]=10000&sort=fecha:desc`
+        `/api/activity-logs?populate[usuario][populate][persona]=*&populate[usuario][fields]=email_login,id,documentId&pagination[pageSize]=10000&sort=fecha:desc`
       )
       addDebugLog('[API /logs/usuarios] ✅ Respuesta de Strapi recibida')
     } catch (strapiError: any) {
@@ -134,13 +136,13 @@ export async function GET(request: NextRequest) {
       const logData = log.attributes || log
       const usuario = logData.usuario
       
-      if (index === 0) {
-        addDebugLog(`[API /logs/usuarios] 🔍 Primer log estructura completa:\n${JSON.stringify(log, null, 2).substring(0, 1500)}`)
-        addDebugLog(`[API /logs/usuarios] 🔍 logData keys: ${Object.keys(logData).join(', ')}`)
-        addDebugLog(`[API /logs/usuarios] 🔍 logData.usuario tipo: ${typeof usuario}, esObjeto: ${typeof usuario === 'object'}`)
-        if (usuario && typeof usuario === 'object') {
-          addDebugLog(`[API /logs/usuarios] 🔍 logData.usuario keys: ${Object.keys(usuario).join(', ')}`)
-          addDebugLog(`[API /logs/usuarios] 🔍 logData.usuario estructura:\n${JSON.stringify(usuario, null, 2).substring(0, 1000)}`)
+      // Logging detallado para debugging
+      if (index < 3) { // Solo los primeros 3 logs para no saturar
+        addDebugLog(`[API /logs/usuarios] 🔍 Log #${index} - usuario: ${usuario ? 'EXISTE' : 'NULL'}`)
+        if (usuario) {
+          addDebugLog(`[API /logs/usuarios] 🔍 Log #${index} - usuario estructura: ${JSON.stringify(usuario, null, 2).substring(0, 500)}`)
+        } else {
+          addDebugLog(`[API /logs/usuarios] ⚠️ Log #${index} - usuario es NULL, IP: ${logData.ip_address || 'sin IP'}`)
         }
       }
       
@@ -276,10 +278,18 @@ export async function GET(request: NextRequest) {
         ? emailLogin.toLowerCase().trim() 
         : `id_${usuarioId}`
       
+      // Logging para debugging
+      if (index < 3) {
+        addDebugLog(`[API /logs/usuarios] 🔍 Log #${index} - emailKey: "${emailKey}", emailLogin: "${emailLogin}", usuarioId: ${usuarioId}`)
+      }
+      
       // Registrar la IP con este email para evitar crear usuarios anónimos después
       if (ipAddress !== 'desconocido' && emailKey && !emailKey.startsWith('id_')) {
         ipToEmail.set(ipAddress, emailKey)
         emailToId.set(emailKey, usuarioId)
+        if (index < 3) {
+          addDebugLog(`[API /logs/usuarios] ✅ Asociando IP ${ipAddress} con email ${emailKey}`)
+        }
       }
 
       // Si el usuario ya existe (por email), actualizar último acceso si es más reciente

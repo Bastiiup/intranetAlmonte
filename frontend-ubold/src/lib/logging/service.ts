@@ -43,15 +43,25 @@ export async function getUserFromRequest(request: NextRequest): Promise<{
   nombre?: string
 } | null> {
   try {
+    console.log('[Logging] 🔍 [getUserFromRequest] Iniciando extracción de usuario...')
+    
     // Intentar obtener colaborador de las cookies
     // Primero intentar desde request.cookies (funciona cuando viene del navegador)
     let colaboradorCookie = request.cookies.get('colaboradorData')?.value || 
                            request.cookies.get('colaborador')?.value
     
+    console.log('[Logging] 🔍 [getUserFromRequest] Cookies desde request.cookies:', {
+      tieneColaboradorData: !!request.cookies.get('colaboradorData')?.value,
+      tieneColaborador: !!request.cookies.get('colaborador')?.value,
+      valorColaboradorData: request.cookies.get('colaboradorData')?.value?.substring(0, 100) || 'no hay',
+    })
+    
     // Si no hay cookies en request.cookies, intentar extraer del header Cookie
     // Esto es necesario cuando se hace fetch desde el servidor (SSR)
     if (!colaboradorCookie) {
       const cookieHeader = request.headers.get('cookie')
+      console.log('[Logging] 🔍 [getUserFromRequest] Cookie header completo:', cookieHeader ? cookieHeader.substring(0, 200) : 'no hay')
+      
       if (cookieHeader) {
         // Parsear cookies manualmente del header
         const cookies = cookieHeader.split(';').reduce((acc: Record<string, string>, cookie: string) => {
@@ -64,10 +74,11 @@ export async function getUserFromRequest(request: NextRequest): Promise<{
         
         colaboradorCookie = cookies['colaboradorData'] || cookies['colaborador']
         
-        console.log('[Logging] 🔍 Cookies extraídas del header:', {
+        console.log('[Logging] 🔍 [getUserFromRequest] Cookies extraídas del header:', {
           tieneColaboradorData: !!cookies['colaboradorData'],
           tieneColaborador: !!cookies['colaborador'],
           todasLasCookies: Object.keys(cookies).join(', '),
+          valorColaboradorData: cookies['colaboradorData']?.substring(0, 100) || 'no hay',
         })
       }
     }
@@ -257,7 +268,15 @@ export async function logActivity(
     const token = request.headers.get('authorization') || request.cookies.get('auth_token')?.value
     
     // Agregar usuario si está disponible
+    console.log('[Logging] 🔍 [logActivity] Usuario extraído:', {
+      tieneUsuario: !!user,
+      usuarioId: user?.id || 'null',
+      usuarioEmail: user?.email || 'null',
+      usuarioNombre: user?.nombre || 'null',
+    })
+    
     if (user?.id) {
+      // IMPORTANTE: Strapi espera el ID numérico o documentId, no un objeto
       logData.usuario = user.id
       console.log('[Logging] ✅ Usuario capturado para log:', {
         id: user.id,
@@ -265,6 +284,7 @@ export async function logActivity(
         nombre: user.nombre,
         accion: params.accion,
         entidad: params.entidad,
+        usuarioAsociado: logData.usuario,
       })
     } else {
       // Listar todas las cookies disponibles para debug
@@ -353,20 +373,24 @@ export async function logActivity(
     })
     
     // Log del body que se envía a Strapi (solo para debug)
+    const bodyToSend = { data: logData }
     console.log('[Logging] 📤 Enviando a Strapi:', {
       endpoint: logEndpoint,
+      bodyCompleto: JSON.stringify(bodyToSend, null, 2),
       logData: {
         accion: logData.accion,
         entidad: logData.entidad,
         usuario: logData.usuario || null, // Mostrar explícitamente si es null
         descripcion: logData.descripcion?.substring(0, 50),
         fecha: logData.fecha,
+        ip_address: logData.ip_address,
       },
       tieneUsuario: !!logData.usuario,
       usuarioId: logData.usuario || 'null',
+      tipoUsuario: typeof logData.usuario,
     })
     
-    strapiClient.post(logEndpoint, { data: logData })
+    strapiClient.post(logEndpoint, bodyToSend)
       .then((response: any) => {
         console.log('[Logging] ✅ Actividad registrada exitosamente:', {
           usuario: logData.usuario || 'null',
