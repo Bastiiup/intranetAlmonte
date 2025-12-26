@@ -1,24 +1,16 @@
-'use client'
-
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { Container } from 'react-bootstrap'
+import { Container, Row, Col } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import AddCategoriaForm from '../components/AddCategoriaForm'
 
 export default function AgregarCategoriaPage() {
-  const router = useRouter()
-
-  useEffect(() => {
-    // Redirigir a solicitudes de categorías donde se pueden crear nuevas
-    router.replace('/products/categorias/solicitudes')
-  }, [router])
-
   return (
     <Container fluid>
       <PageBreadcrumb title="Agregar Categoría" subtitle="Ecommerce" />
-      <div className="text-center py-5">
-        <p>Redirigiendo...</p>
-      </div>
+      <Row>
+        <Col xxl={8} xl={10} lg={12}>
+          <AddCategoriaForm />
+        </Col>
+      </Row>
     </Container>
   )
 }

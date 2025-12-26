@@ -131,9 +131,13 @@ export const menuItems: MenuItemType[] = [
       { key: 'product-grid', label: 'Grid de Productos', url: '/products-grid' },
       { key: 'product-details', label: 'Detalles del Producto', url: '/products/1' },
       { key: 'add-product', label: 'Agregar Producto', url: '/add-product' },
-      // Rutas de categorías y etiquetas - usar solicitudes como punto de entrada
-      { key: 'categoria-requests', label: 'Categorías', url: '/products/categorias/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
-      { key: 'etiqueta-requests', label: 'Etiquetas', url: '/products/etiquetas/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+      // Rutas de categorías y etiquetas - CRUD completo
+      { key: 'all-categories', label: 'Todas las Categorías', url: '/products/categorias/solicitudes' },
+      { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' },
+      { key: 'categoria-requests', label: 'Solicitudes de Categorías', url: '/products/categorias/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+      { key: 'all-tags', label: 'Todas las Etiquetas', url: '/products/etiquetas/solicitudes' },
+      { key: 'add-tag', label: 'Agregar Etiqueta', url: '/products/etiquetas/agregar' },
+      { key: 'etiqueta-requests', label: 'Solicitudes de Etiquetas', url: '/products/etiquetas/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
       {
         key: 'atributos',
         label: 'Atributos',
@@ -275,8 +279,13 @@ export const horizontalMenuItems: MenuItemType[] = [
           { key: 'product-grid', label: 'Grid de Productos', url: '/products-grid' },
           { key: 'product-details', label: 'Detalles del Producto', url: '/products/1' },
           { key: 'add-product', label: 'Agregar Producto', url: '/add-product' },
-          // Rutas de categorías - usar solicitudes como punto de entrada
-          { key: 'categoria-requests', label: 'Categorías', url: '/products/categorias/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+          // Rutas de categorías y etiquetas - CRUD completo
+          { key: 'all-categories', label: 'Todas las Categorías', url: '/products/categorias/solicitudes' },
+          { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' },
+          { key: 'categoria-requests', label: 'Solicitudes de Categorías', url: '/products/categorias/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+          { key: 'all-tags', label: 'Todas las Etiquetas', url: '/products/etiquetas/solicitudes' },
+          { key: 'add-tag', label: 'Agregar Etiqueta', url: '/products/etiquetas/agregar' },
+          { key: 'etiqueta-requests', label: 'Solicitudes de Etiquetas', url: '/products/etiquetas/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
           {
             key: 'atributos',
             label: 'Atributos',
