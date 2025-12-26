@@ -17,19 +17,22 @@ export async function GET(
     
     // Validar que el ID no sea una palabra reservada (categorias, etiquetas, etc.)
     // Esto previene que rutas como /api/tienda/productos/categorias sean tratadas como IDs de producto
-    const reservedWords = ['categorias', 'etiquetas', 'marcas', 'autores', 'obras', 'sellos', 'serie-coleccion']
+    const reservedWords = ['categorias', 'etiquetas', 'marcas', 'autores', 'obras', 'sellos', 'serie-coleccion', 'colecciones', 'editoriales', 'canales']
     if (reservedWords.includes(id.toLowerCase())) {
+      const rutaCorrecta = `/api/tienda/${id}`
       console.warn('[API /tienda/productos/[id] GET] ⚠️ Intento de acceso a ruta reservada:', {
         id,
-        rutaCorrecta: `/api/tienda/${id}`,
+        rutaIncorrecta: `/api/tienda/productos/${id}`,
+        rutaCorrecta,
         mensaje: 'Esta ruta no es válida para productos. Use la ruta correcta para este recurso.'
       })
       return NextResponse.json(
         { 
           success: false,
-          error: `Ruta no válida. La ruta /api/tienda/productos/${id} no existe. Use /api/tienda/${id} en su lugar.`,
+          error: `Ruta no válida. La ruta /api/tienda/productos/${id} no existe. Use ${rutaCorrecta} en su lugar.`,
           data: null,
-          hint: `Si está buscando ${id}, use el endpoint: /api/tienda/${id}`,
+          hint: `Si está buscando ${id}, use el endpoint: ${rutaCorrecta}`,
+          rutaCorrecta,
         },
         { status: 404 }
       )
