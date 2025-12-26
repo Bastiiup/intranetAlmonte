@@ -114,6 +114,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const body = await request.json()
   
+  // Variable para almacenar los datos que se enviarán (para diagnóstico de errores)
+  let strapiProductDataForError: any = null
+  
   try {
     console.log('[API POST] 📝 Creando producto:', body)
 
@@ -225,6 +228,9 @@ export async function POST(request: NextRequest) {
     // Log del body completo para debug
     console.log('[API POST] 🔍 Body completo recibido:', JSON.stringify(body, null, 2))
     console.log('[API POST] 🔍 Datos a enviar a Strapi:', JSON.stringify(strapiProductData, null, 2))
+    
+    // Guardar para diagnóstico de errores
+    strapiProductDataForError = strapiProductData
 
     // === CAMPOS NUMÉRICOS ===
     if (body.numero_edicion !== undefined && body.numero_edicion !== '') {
@@ -348,15 +354,15 @@ export async function POST(request: NextRequest) {
         
         // Identificar qué relación tiene ese ID
         const relaciones: Record<string, any> = {
-          obra: strapiProductData.data.obra,
-          autor_relacion: strapiProductData.data.autor_relacion,
-          editorial: strapiProductData.data.editorial,
-          sello: strapiProductData.data.sello,
-          coleccion: strapiProductData.data.coleccion,
-          canales: strapiProductData.data.canales,
-          marcas: strapiProductData.data.marcas,
-          etiquetas: strapiProductData.data.etiquetas,
-          categorias_producto: strapiProductData.data.categorias_producto,
+          obra: strapiProductDataForError?.data?.obra,
+          autor_relacion: strapiProductDataForError?.data?.autor_relacion,
+          editorial: strapiProductDataForError?.data?.editorial,
+          sello: strapiProductDataForError?.data?.sello,
+          coleccion: strapiProductDataForError?.data?.coleccion,
+          canales: strapiProductDataForError?.data?.canales,
+          marcas: strapiProductDataForError?.data?.marcas,
+          etiquetas: strapiProductDataForError?.data?.etiquetas,
+          categorias_producto: strapiProductDataForError?.data?.categorias_producto,
         }
         
         const relacionesProblematicas: string[] = []
