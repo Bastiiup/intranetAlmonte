@@ -316,6 +316,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Segunda pasada: procesar logs sin usuario, pero asociarlos con usuarios reales si es posible
+    let anonimoIndex = 0
     logs.forEach((log: any) => {
       const logData = log.attributes || log
       const usuario = logData.usuario
@@ -339,9 +340,10 @@ export async function GET(request: NextRequest) {
           if (fechaLog && (!usuarioExistente.ultimoAcceso || new Date(fechaLog) > new Date(usuarioExistente.ultimoAcceso))) {
             usuarioExistente.ultimoAcceso = fechaLog
           }
-          if (index < 3) {
+          if (anonimoIndex < 3) {
             addDebugLog(`[API /logs/usuarios] ✅ Log anónimo (IP: ${ipAddress}) asociado a usuario real: ${emailUsuario}`)
           }
+          anonimoIndex++
           return // No crear usuario anónimo, ya está asociado a un usuario real
         }
       }

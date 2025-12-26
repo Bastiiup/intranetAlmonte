@@ -124,12 +124,14 @@ export default function LogsList() {
 
   const columnHelper = createColumnHelper<UsuarioLog>()
 
-  const columns: ColumnDef<UsuarioLog>[] = [
-    columnHelper.accessor('id', {
+  const columns: ColumnDef<UsuarioLog, any>[] = [
+    {
+      accessorKey: 'id',
       header: 'Id',
       cell: ({ row }) => row.original.id,
-    }),
-    columnHelper.accessor('nombre', {
+    },
+    {
+      accessorKey: 'nombre',
       header: 'Nombre',
       cell: ({ row }) => {
         const nombre = row.original.nombre
@@ -141,8 +143,9 @@ export default function LogsList() {
           </div>
         )
       },
-    }),
-    columnHelper.accessor('usuario', {
+    },
+    {
+      accessorKey: 'usuario',
       header: 'Usuario / Email',
       cell: ({ row }) => {
         const usuario = row.original.usuario
@@ -170,7 +173,7 @@ export default function LogsList() {
           </div>
         )
       },
-    }),
+    },
     {
       id: 'contraseña',
       header: 'Contraseña',
@@ -189,7 +192,8 @@ export default function LogsList() {
         </div>
       ),
     },
-    columnHelper.accessor('ultimoAcceso', {
+    {
+      accessorKey: 'ultimoAcceso',
       header: 'Último acceso',
       cell: ({ row }) => {
         if (!row.original.ultimoAcceso) return '-'
@@ -207,7 +211,7 @@ export default function LogsList() {
           return row.original.ultimoAcceso
         }
       },
-    }),
+    },
     {
       id: 'acciones',
       header: 'Acciones',
