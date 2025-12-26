@@ -122,7 +122,10 @@ export async function GET(request: NextRequest) {
 
     // Mapa temporal para rastrear IPs que ya tienen email asociado
     // Esto evita crear usuarios anónimos si ya existe un usuario real con esa IP
-    const ipToEmail = new Map<string, string>()
+    const ipToEmail = new Map<string, string>() // IP -> Email (último email que usó esa IP)
+    
+    // Mapa para rastrear TODAS las IPs de cada email (más exhaustivo)
+    const emailToIps = new Map<string, Set<string>>() // Email -> Set de IPs (todas las IPs de ese email)
     
     // Mapa para mantener el ID del usuario asociado a cada email
     const emailToId = new Map<string, number>()
@@ -286,12 +289,16 @@ export async function GET(request: NextRequest) {
       // Registrar la IP con este email para evitar crear usuarios anónimos después
       // CRÍTICO: Registrar TODAS las IPs asociadas a este usuario para asociar logs anónimos después
       if (ipAddress !== 'desconocido' && emailKey && !emailKey.startsWith('id_')) {
+        // Registrar IP -> Email (la más reciente gana)
         ipToEmail.set(ipAddress, emailKey)
-        emailToId.set(emailKey, usuarioId)
-        // También registrar el emailKey como clave principal para búsquedas inversas
-        if (!emailToId.has(emailKey)) {
-          emailToId.set(emailKey, usuarioId)
+        
+        // Registrar Email -> IPs (todas las IPs de este email)
+        if (!emailToIps.has(emailKey)) {
+          emailToIps.set(emailKey, new Set())
         }
+        emailToIps.get(emailKey)!.add(ipAddress)
+        
+        emailToId.set(emailKey, usuarioId)
         if (index < 3) {
           addDebugLog(`[API /logs/usuarios] ✅ Asociando IP ${ipAddress} con email ${emailKey} (ID: ${usuarioId})`)
         }
@@ -335,33 +342,43 @@ export async function GET(request: NextRequest) {
       const userAgent = logData.user_agent || 'desconocido'
       const fechaLog = logData.fecha || logData.createdAt
       
-      // CRÍTICO: Si esta IP ya está asociada a un email de usuario real, agregar el log a ese usuario
-      // Esto asegura que logs antiguos con usuario: null se asocien con usuarios reales
+      // CRÍTICO: Buscar si hay algún usuario real con esta IP
+      // Estrategia: buscar en emailToIps para encontrar todos los emails que han usado esta IP
+      let usuarioRealEncontrado = false
+      let emailUsuarioEncontrado: string | null = null
+      
+      // Método 1: Buscar directamente en ipToEmail (más rápido)
       if (ipToEmail.has(ipAddress)) {
         const emailUsuario = ipToEmail.get(ipAddress)!
         if (usuariosMap.has(emailUsuario)) {
-          const usuarioExistente = usuariosMap.get(emailUsuario)!
-          usuarioExistente.totalAcciones++
-          if (fechaLog && (!usuarioExistente.ultimoAcceso || new Date(fechaLog) > new Date(usuarioExistente.ultimoAcceso))) {
-            usuarioExistente.ultimoAcceso = fechaLog
-          }
-          if (anonimoIndex < 3) {
-            addDebugLog(`[API /logs/usuarios] ✅ Log anónimo (IP: ${ipAddress}) asociado a usuario real: ${emailUsuario}`)
-          }
-          anonimoIndex++
-          return // No crear usuario anónimo, ya está asociado a un usuario real
+          usuarioRealEncontrado = true
+          emailUsuarioEncontrado = emailUsuario
         }
       }
       
-      // Si no hay usuario real asociado a esta IP, crear usuario anónimo SOLO si realmente no hay ningún usuario real
-      // Verificar si hay algún usuario real con esta IP en el mapa
-      const hayUsuarioRealConEstaIP = Array.from(ipToEmail.entries()).some(([ip, email]) => 
-        ip === ipAddress && usuariosMap.has(email)
-      )
+      // Método 2: Buscar en emailToIps (más exhaustivo - busca en todas las IPs de todos los usuarios)
+      if (!usuarioRealEncontrado) {
+        for (const [emailKey, ipsSet] of emailToIps.entries()) {
+          if (ipsSet.has(ipAddress) && usuariosMap.has(emailKey)) {
+            usuarioRealEncontrado = true
+            emailUsuarioEncontrado = emailKey
+            break
+          }
+        }
+      }
       
-      if (hayUsuarioRealConEstaIP) {
-        // Ya hay un usuario real con esta IP, no crear anónimo
-        return
+      // Si se encontró un usuario real, asociar este log anónimo a ese usuario
+      if (usuarioRealEncontrado && emailUsuarioEncontrado) {
+        const usuarioExistente = usuariosMap.get(emailUsuarioEncontrado)!
+        usuarioExistente.totalAcciones++
+        if (fechaLog && (!usuarioExistente.ultimoAcceso || new Date(fechaLog) > new Date(usuarioExistente.ultimoAcceso))) {
+          usuarioExistente.ultimoAcceso = fechaLog
+        }
+        if (anonimoIndex < 3) {
+          addDebugLog(`[API /logs/usuarios] ✅ Log anónimo (IP: ${ipAddress}) asociado a usuario real: ${emailUsuarioEncontrado}`)
+        }
+        anonimoIndex++
+        return // No crear usuario anónimo, ya está asociado a un usuario real
       }
       
       // Solo crear usuario anónimo si realmente no hay usuario real con esa IP
