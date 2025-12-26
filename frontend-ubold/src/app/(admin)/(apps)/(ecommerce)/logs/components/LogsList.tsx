@@ -363,6 +363,19 @@ export default function LogsList() {
             <LuBug className="me-1" />
             {showDebugPanel ? 'Ocultar' : 'Mostrar'} Logs Debug
           </Button>
+          <Button
+            variant={showLoggingPanel ? "success" : "outline-success"} 
+            size="sm"
+            onClick={async () => {
+              if (!showLoggingPanel) {
+                await fetchLoggingLogs()
+              }
+              setShowLoggingPanel(!showLoggingPanel)
+            }}
+          >
+            <LuFileText className="me-1" />
+            {showLoggingPanel ? 'Ocultar' : 'Mostrar'} Logs [LOGGING]
+          </Button>
           <Button variant="outline-secondary" size="sm" onClick={fetchUsuarios}>
             <LuRefreshCw className="me-1" />
             Actualizar
