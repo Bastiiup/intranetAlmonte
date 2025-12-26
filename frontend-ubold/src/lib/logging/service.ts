@@ -77,16 +77,32 @@ export async function getUserFromRequest(request: NextRequest | Request): Promis
       
       if (cookieHeader) {
         // Parsear cookies manualmente del header
-        const cookies = cookieHeader.split(';').reduce((acc: Record<string, string>, cookie: string) => {
-          const [name, ...valueParts] = cookie.trim().split('=')
-          if (name && valueParts.length > 0) {
-            acc[name] = decodeURIComponent(valueParts.join('='))
+        // IMPORTANTE: El valor de la cookie puede contener JSON con caracteres especiales
+        // Necesitamos parsear correctamente considerando que el valor puede tener ';' dentro del JSON
+        const cookies: Record<string, string> = {}
+        const parts = cookieHeader.split(';')
+        
+        for (const part of parts) {
+          const trimmed = part.trim()
+          const equalIndex = trimmed.indexOf('=')
+          if (equalIndex > 0) {
+            const name = trimmed.substring(0, equalIndex).trim()
+            const value = trimmed.substring(equalIndex + 1).trim()
+            // Decodificar solo si no es JSON (para evitar problemas con caracteres especiales)
+            try {
+              // Intentar parsear como JSON primero
+              JSON.parse(value)
+              cookies[name] = value
+            } catch {
+              // Si no es JSON válido, decodificar URI
+              cookies[name] = decodeURIComponent(value)
+            }
           }
-          return acc
-        }, {})
+        }
         
         colaboradorCookieValue = cookies['colaboradorData'] || cookies['colaborador']
         console.log('[LOGGING] 📋 Cookie extraída del header:', colaboradorCookieValue ? colaboradorCookieValue.substring(0, 500) : 'NO HAY COOKIE EN HEADER')
+        console.log('[LOGGING] 🔍 Cookies parseadas del header:', Object.keys(cookies).join(', '))
       }
     }
     
