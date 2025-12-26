@@ -150,42 +150,64 @@ export async function getUserFromRequest(request: NextRequest | Request): Promis
         const colaborador = JSON.parse(colaboradorCookieValue)
         console.log('[LOGGING] 👤 Colaborador parseado (estructura completa):', JSON.stringify(colaborador, null, 2))
         
-        // Extraer ID directamente del nivel superior (como se guarda en login)
+        // Extraer ID y documentId directamente del nivel superior (como se guarda en login)
         let colaboradorId: string | number | null = null
+        let colaboradorDocumentId: string | number | null = null
         
-        // Prioridad 1: ID en el nivel superior (como se guarda en login)
+        // Prioridad 1: documentId en el nivel superior (Strapi v5 prefiere documentId para relaciones)
+        if (colaborador.documentId !== undefined && colaborador.documentId !== null) {
+          colaboradorDocumentId = colaborador.documentId
+          console.log('[LOGGING] ✅ documentId encontrado en nivel superior (colaborador.documentId):', colaboradorDocumentId)
+        }
+        // Prioridad 2: ID en el nivel superior (fallback)
         if (colaborador.id !== undefined && colaborador.id !== null) {
           colaboradorId = colaborador.id
           console.log('[LOGGING] ✅ ID encontrado en nivel superior (colaborador.id):', colaboradorId)
         }
-        // Prioridad 2: documentId en el nivel superior
-        else if (colaborador.documentId !== undefined && colaborador.documentId !== null) {
-          colaboradorId = colaborador.documentId
-          console.log('[LOGGING] ✅ ID encontrado en nivel superior (colaborador.documentId):', colaboradorId)
-        }
         // Prioridad 3: Búsqueda recursiva (fallback)
-        else {
-          const findId = (obj: any): string | number | null => {
-            if (!obj || typeof obj !== 'object') return null
-            if (obj.id !== undefined && obj.id !== null) return obj.id
-            if (obj.documentId !== undefined && obj.documentId !== null) return obj.documentId
+        if (!colaboradorDocumentId && !colaboradorId) {
+          const findId = (obj: any): { id: string | number | null, documentId: string | number | null } => {
+            if (!obj || typeof obj !== 'object') return { id: null, documentId: null }
+            
+            let foundId = null
+            let foundDocumentId = null
+            
+            if (obj.id !== undefined && obj.id !== null) foundId = obj.id
+            if (obj.documentId !== undefined && obj.documentId !== null) foundDocumentId = obj.documentId
+            
+            if (foundId || foundDocumentId) {
+              return { id: foundId, documentId: foundDocumentId }
+            }
             
             for (const key in obj) {
               if (typeof obj[key] === 'object' && obj[key] !== null) {
                 const found = findId(obj[key])
-                if (found) return found
+                if (found.id || found.documentId) {
+                  if (!foundId) foundId = found.id
+                  if (!foundDocumentId) foundDocumentId = found.documentId
+                }
               }
             }
-            return null
+            return { id: foundId, documentId: foundDocumentId }
           }
-          colaboradorId = findId(colaborador)
-          console.log('[LOGGING] ✅ ID encontrado mediante búsqueda recursiva:', colaboradorId)
+          const found = findId(colaborador)
+          if (!colaboradorDocumentId) colaboradorDocumentId = found.documentId
+          if (!colaboradorId) colaboradorId = found.id
+          console.log('[LOGGING] ✅ IDs encontrados mediante búsqueda recursiva:', { id: colaboradorId, documentId: colaboradorDocumentId })
         }
 
-        console.log('[LOGGING] 🔑 ID final extraído:', colaboradorId, 'tipo:', typeof colaboradorId)
+        console.log('[LOGGING] 🔑 IDs extraídos:', { 
+          id: colaboradorId, 
+          documentId: colaboradorDocumentId,
+          tipoId: typeof colaboradorId,
+          tipoDocumentId: typeof colaboradorDocumentId,
+        })
 
-        if (!colaboradorId) {
-          console.log('[LOGGING] ❌ No se pudo encontrar ID en el colaborador')
+        // Usar documentId si está disponible, sino usar id
+        const idFinal = colaboradorDocumentId || colaboradorId
+        
+        if (!idFinal) {
+          console.log('[LOGGING] ❌ No se pudo encontrar ID ni documentId en el colaborador')
           console.log('[LOGGING] ❌ Estructura completa:', JSON.stringify(colaborador, null, 2))
           return null
         }
@@ -212,14 +234,17 @@ export async function getUserFromRequest(request: NextRequest | Request): Promis
 
         console.log('[LOGGING] ✅ Usuario extraído:', { 
           id: colaboradorId, 
+          documentId: colaboradorDocumentId,
+          idFinal: idFinal,
           email: emailLogin, 
           nombre 
         })
 
         // Retornar tanto id como documentId para poder usar el correcto según Strapi
+        // Priorizar documentId para Strapi v5
         return {
           id: colaboradorId,
-          documentId: colaborador.documentId || colaboradorId, // Priorizar documentId si existe
+          documentId: colaboradorDocumentId || colaboradorId, // Priorizar documentId si existe
           email: emailLogin,
           nombre: nombre
         }
