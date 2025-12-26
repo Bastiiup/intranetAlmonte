@@ -130,6 +130,18 @@ export type WooCommerceCategory = {
   }
 }
 
+export type WooCommerceTag = {
+  id: number
+  name: string
+  slug: string
+  description: string
+  count: number
+  _links: {
+    self: Array<{ href: string }>
+    collection: Array<{ href: string }>
+  }
+}
+
 export type WooCommerceOrder = {
   id: number
   parent_id: number
