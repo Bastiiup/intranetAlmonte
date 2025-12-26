@@ -94,13 +94,23 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
     }, 0)
   }
 
-  // Obtener precio mínimo (igual que ProductosGrid)
+  // Obtener precio: primero del campo directo, luego de la relación
   const getPrecioMinimo = (): number => {
+    // 1. Intentar obtener del campo precio directo (nuevo método)
+    const precioDirecto = getField(data, 'precio', 'PRECIO', 'precio')
+    if (precioDirecto !== undefined && precioDirecto !== null && precioDirecto !== '') {
+      const precioNum = parseFloat(precioDirecto.toString())
+      if (!isNaN(precioNum) && precioNum > 0) {
+        return precioNum
+      }
+    }
+    
+    // 2. Si no hay precio directo, buscar en la relación (método antiguo)
     const precios = data.PRECIOS?.data || data.precios?.data || []
     if (precios.length === 0) return 0
     
     const preciosNumeros = precios
-      .map((p: any) => p.attributes?.PRECIO || p.attributes?.precio)
+      .map((p: any) => p.attributes?.PRECIO || p.attributes?.precio || p.PRECIO || p.precio)
       .filter((p: any): p is number => typeof p === 'number' && p > 0)
     
     return preciosNumeros.length > 0 ? Math.min(...preciosNumeros) : 0
