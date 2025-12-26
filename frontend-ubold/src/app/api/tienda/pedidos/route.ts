@@ -160,8 +160,22 @@ export async function GET(request: NextRequest) {
     
     // Obtener TODOS los pedidos de ambas plataformas (woo_moraleja y woo_escolar)
     // Optimizar: usar populate selectivo en lugar de populate=*
+    // Construir query string de forma más segura
+    const queryParams = new URLSearchParams({
+      'populate[cliente][fields][0]': 'nombre',
+      'populate[items][fields][0]': 'nombre',
+      'populate[items][fields][1]': 'cantidad',
+      'populate[items][fields][2]': 'precio_unitario',
+      'pagination[pageSize]': '5000',
+    })
+    
+    // Agregar publicationState solo si es necesario (Strapi v5 puede requerir formato diferente)
+    if (publicationState === 'preview') {
+      queryParams.append('publicationState', 'preview')
+    }
+    
     const response = await strapiClient.get<any>(
-      `/api/wo-pedidos?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario&pagination[pageSize]=5000&publicationState=${publicationState}`
+      `/api/wo-pedidos?${queryParams.toString()}`
     )
     
     let items: any[] = []
