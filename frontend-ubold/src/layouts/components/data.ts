@@ -165,7 +165,7 @@ export const menuItems: MenuItemType[] = [
     key: 'ecommerce',
     label: 'Ecommerce',
     icon: LuShoppingBag,
-    roles: ['super_admin', 'encargado_adquisiciones'], // supervisor y soporte NO pueden ver este menú
+    roles: ['super_admin', 'encargado_adquisiciones', 'supervisor', 'soporte'], // Todos los roles pueden ver este menú
     children: [
       // { key: 'categories', label: 'Categories', url: '/categories' },
       {
@@ -316,7 +316,7 @@ export const horizontalMenuItems: MenuItemType[] = [
         key: 'ecommerce',
         label: 'Ecommerce',
         icon: TbBasket,
-        roles: ['super_admin', 'encargado_adquisiciones'], // supervisor y soporte NO pueden ver este menú
+        roles: ['super_admin', 'encargado_adquisiciones', 'supervisor', 'soporte'], // Todos los roles pueden ver este menú
         children: [
           { key: 'categories', label: 'Categories', url: '/categories' },
           {
