@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const colaboradorCookie = request.cookies.get('colaboradorData')?.value
     const cookieHeader = request.headers.get('cookie')
     
-    const debugInfo = {
+    const debugInfo: any = {
       tieneRequest: !!request,
       tieneCookies: !!request.cookies,
       tieneColaboradorCookie: !!colaboradorCookie,
