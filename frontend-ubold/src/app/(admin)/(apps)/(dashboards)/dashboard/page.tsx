@@ -26,7 +26,7 @@ const Page = async () => {
   const statCards = [
     {
       id: 1,
-      title: 'Total Sales',
+      title: 'Total de Ventas',
       value: stats.totalSales / 1000, // Convertir a miles
       suffix: 'K',
       prefix: '$',
@@ -35,21 +35,21 @@ const Page = async () => {
     },
     {
       id: 2,
-      title: 'Orders Placed',
+      title: 'Pedidos Realizados',
       value: stats.totalOrders,
       icon: TbShoppingCart,
       iconBg: 'success' as const,
     },
     {
       id: 3,
-      title: 'Active Customers',
+      title: 'Clientes Activos',
       value: stats.activeCustomers,
       icon: TbUsers,
       iconBg: 'info' as const,
     },
     {
       id: 4,
-      title: 'Refund Requests',
+      title: 'Solicitudes de Reembolso',
       value: stats.refundRequests,
       icon: TbRotateClockwise2,
       iconBg: 'warning' as const,
@@ -58,7 +58,7 @@ const Page = async () => {
 
   return (
     <Container fluid>
-      <PageBreadcrumb title={'Dashboard'} />
+      <PageBreadcrumb title={'Dashboard Principal'} />
       <Row className="row-cols-xxl-4 row-cols-md-2 row-cols-1">
         {statCards.map((item, idx) => (
           <Col key={idx}>

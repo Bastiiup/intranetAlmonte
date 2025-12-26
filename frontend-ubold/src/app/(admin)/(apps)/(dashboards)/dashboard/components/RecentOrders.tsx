@@ -77,7 +77,7 @@ const RecentOrders = ({ orders: propsOrders }: RecentOrdersProps) => {
     columnHelper.accessor('product', {
       cell: ({ row }) => (
         <>
-          <span className="text-muted fs-xs">Product</span>
+          <span className="text-muted fs-xs">Producto</span>
           <h5 className="fs-base mb-0 fw-normal">{row.original.product}</h5>
         </>
       ),
@@ -85,7 +85,7 @@ const RecentOrders = ({ orders: propsOrders }: RecentOrdersProps) => {
     columnHelper.accessor('date', {
       cell: ({ row }) => (
         <>
-          <span className="text-muted fs-xs">Date</span>
+          <span className="text-muted fs-xs">Fecha</span>
           <h5 className="fs-base mb-0 fw-normal">{row.original.date}</h5>
         </>
       ),
@@ -93,7 +93,7 @@ const RecentOrders = ({ orders: propsOrders }: RecentOrdersProps) => {
     columnHelper.accessor('amount', {
       cell: ({ row }) => (
         <>
-          <span className="text-muted fs-xs">Amount</span>
+          <span className="text-muted fs-xs">Cantidad</span>
           <h5 className="fs-base mb-0 fw-normal">{row.original.amount}</h5>
         </>
       ),
@@ -101,7 +101,7 @@ const RecentOrders = ({ orders: propsOrders }: RecentOrdersProps) => {
     columnHelper.accessor('status', {
       cell: ({ row }) => (
         <>
-          <span className="text-muted fs-xs">Status</span>
+          <span className="text-muted fs-xs">Estado</span>
           <h5 className="fs-base mb-0 fw-normal">
             <TbCircleFilled className={`fs-xs text-${row.original.statusVariant}`} /> {row.original.status}
           </h5>
@@ -149,19 +149,19 @@ const RecentOrders = ({ orders: propsOrders }: RecentOrdersProps) => {
     <Card>
       <CardHeader className="justify-content-between align-items-center border-dashed">
         <CardTitle as="h4" className="mb-0">
-          Recent Orders
+          Pedidos Recientes
         </CardTitle>
         <div className="d-flex gap-2">
           <Button variant="soft-secondary" size="sm">
-            <TbPlus className="me-1" /> Add Order
+            <TbPlus className="me-1" /> Agregar Pedido
           </Button>
           <Button variant="primary" size="sm">
-            <TbFileExport className="me-1" /> Export CSV
+            <TbFileExport className="me-1" /> Exportar CSV
           </Button>
         </div>
       </CardHeader>
       <CardBody className="p-0">
-        <DataTable<OrderType> table={table} emptyMessage="No records found" showHeaders={false} />
+        <DataTable<OrderType> table={table} emptyMessage="No hay pedidos recientes" showHeaders={false} />
       </CardBody>
       {table.getRowModel().rows.length > 0 && (
         <CardFooter className="border-0">

@@ -1,14 +1,12 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
 import { RelationSelector } from './components/RelationSelector'
 import ProductImage from './components/ProductImage'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { Alert, Button, Card, CardBody, CardHeader, Col, Container, FormCheck, FormControl, FormGroup, FormLabel, FormSelect, Row } from 'react-bootstrap'
 
 export default function AddProductPage() {
-  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -245,7 +243,7 @@ export default function AddProductPage() {
         
         // Redirigir después de un breve delay (reducido para mejor UX)
         setTimeout(() => {
-          router.push('/products')
+          window.location.href = '/products'
         }, 1000)
       } else {
         setError(data.error || 'Error al crear producto')
@@ -968,7 +966,13 @@ export default function AddProductPage() {
                 type="button" 
                 variant="secondary" 
                 className="me-2" 
-                onClick={() => router.back()}
+                onClick={() => {
+                  if (window.history.length > 1) {
+                    window.history.back()
+                  } else {
+                    window.location.href = '/products'
+                  }
+                }}
                 disabled={loading}
               >
                 Cancelar

@@ -133,6 +133,7 @@ const MenuItemWithChildren = ({
 const MenuItem = ({ item, userRole }: { item: MenuItemType; userRole?: string }) => {
   const pathname = usePathname()
   const isActive = item.url && pathname.endsWith(item.url)
+  const isOnAddProductPage = pathname.includes('/add-product')
 
   const { sidenavSize, hideBackdrop } = useLayoutContext()
 
@@ -149,11 +150,21 @@ const MenuItem = ({ item, userRole }: { item: MenuItemType; userRole?: string })
     }
   }
 
+  const handleClick = (e: React.MouseEvent) => {
+    toggleBackdrop()
+    
+    // Si estamos en /add-product, forzar navegación completa para evitar bloqueos del router
+    if (isOnAddProductPage && item.url) {
+      e.preventDefault()
+      window.location.href = item.url
+    }
+  }
+
   return (
     <li className={`side-nav-item ${isActive ? 'active' : ''}`}>
       <Link
         href={item.url ?? '/'}
-        onClick={toggleBackdrop}
+        onClick={handleClick}
         className={`side-nav-link  ${isActive ? 'active' : ''} ${item.isDisabled ? 'disabled' : ''} ${item.isSpecial ? 'special-menu' : ''}`}>
         {item.icon && (
           <span className="menu-icon">

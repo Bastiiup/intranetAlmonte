@@ -17,4 +17,6 @@ temp
 *.tsbuildinfo
 Dockerfile.backup
 frontend-ubold/Dockerfile.backup
+frontend-ubold/node_modules
+frontend-ubold/.next
 
