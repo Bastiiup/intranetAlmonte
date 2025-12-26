@@ -34,12 +34,11 @@ export async function GET(request: NextRequest) {
     
     // Intentar obtener precios desde diferentes endpoints posibles
     // El campo "precios" no existe como relación en libros, así que consultamos la colección precios directamente
+    // Si no se encuentra el endpoint, simplemente retornar array vacío (no es crítico)
     let precios: any[] = []
-    let endpointEncontrado = false
     
     for (const endpoint of POSIBLES_ENDPOINTS) {
       try {
-        console.log(`[API Precios GET] Intentando endpoint: ${endpoint}`)
         const response = await strapiClient.get<any>(
           `${endpoint}?filters[libro][id][$eq]=${libroId}&pagination[pageSize]=1000&sort=fecha_inicio:desc`
         )
@@ -56,22 +55,17 @@ export async function GET(request: NextRequest) {
         }
         
         if (precios.length > 0) {
-          endpointEncontrado = true
           console.log(`[API Precios GET] ✅ Endpoint ${endpoint} funcionó, precios encontrados:`, precios.length)
           break
         }
       } catch (error: any) {
-        // Continuar con el siguiente endpoint si este falla
-        if (error.status !== 404) {
-          console.warn(`[API Precios GET] ⚠️ Error en endpoint ${endpoint}:`, error.message)
-        }
+        // Continuar con el siguiente endpoint si este falla (404 es esperado si el endpoint no existe)
         continue
       }
     }
     
     // Si no se encontraron precios con id, intentar con documentId
-    if (precios.length === 0 && endpointEncontrado) {
-      console.log('[API Precios GET] No se encontraron precios con id, intentando con documentId...')
+    if (precios.length === 0) {
       for (const endpoint of POSIBLES_ENDPOINTS) {
         try {
           const response2 = await strapiClient.get<any>(
@@ -97,7 +91,10 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    console.log('[API Precios GET] ✅ Precios encontrados:', precios.length)
+    // Si no se encontró ningún endpoint, retornar array vacío (no es crítico)
+    if (precios.length === 0) {
+      console.log('[API Precios GET] ⚠️ No se encontró endpoint de precios en Strapi, retornando array vacío')
+    }
     
     return NextResponse.json({
       success: true,
