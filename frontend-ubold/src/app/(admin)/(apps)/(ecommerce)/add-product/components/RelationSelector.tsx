@@ -153,9 +153,12 @@ const RelationSelector = memo(function RelationSelector({
       const possibleFields = [
         'nombre_obra', 'nombreObra', 'NOMBRE_OBRA', // Obras
         'nombre_libro', 'nombreLibro', 'NOMBRE_LIBRO', // Productos
-        'nombre', 'NOMBRE', 'name', 'NAME', // Autores, Sellos, Marcas, etc.
+        'nombre_editorial', 'nombreEditorial', 'NOMBRE_EDITORIAL', // Editoriales
+        'razon_social', 'razonSocial', 'RAZON_SOCIAL', // Editoriales (alternativo)
+        'nombre_coleccion', 'nombreColeccion', 'NOMBRE_COLECCION', // Colecciones
+        'nombre_sello', 'nombreSello', 'NOMBRE_SELLO', // Sellos
+        'nombre', 'NOMBRE', 'name', 'NAME', // Autores, Sellos, Marcas, etc. (genérico)
         'titulo', 'TITULO', 'title', 'TITLE', // Obras, Productos
-        'razon_social', 'razonSocial', 'RAZON_SOCIAL', // Editoriales
       ]
       
       for (const field of possibleFields) {
@@ -172,6 +175,10 @@ const RelationSelector = memo(function RelationSelector({
       nombre = nestedData[displayField] || 
                nestedData.nombre_obra ||
                nestedData.nombre_libro ||
+               nestedData.nombre_editorial ||
+               nestedData.razon_social ||
+               nestedData.nombre_coleccion ||
+               nestedData.nombre_sello ||
                nestedData.nombre ||
                nestedData.titulo ||
                nestedData.name ||

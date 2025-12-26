@@ -639,7 +639,7 @@ export function ProductEditForm({ producto, onSave, onCancel, saving = false }: 
                 value={formData.editorial}
                 onChange={(val) => setFormData(prev => ({...prev, editorial: val as string}))}
                 endpoint="/api/tienda/editoriales"
-                displayField="nombre"
+                displayField="nombre_editorial"
               />
             </Col>
             
@@ -649,7 +649,7 @@ export function ProductEditForm({ producto, onSave, onCancel, saving = false }: 
                 value={formData.sello}
                 onChange={(val) => setFormData(prev => ({...prev, sello: val as string}))}
                 endpoint="/api/tienda/sellos"
-                displayField="nombre"
+                displayField="nombre_sello"
               />
             </Col>
           </Row>
@@ -661,7 +661,7 @@ export function ProductEditForm({ producto, onSave, onCancel, saving = false }: 
                 value={formData.coleccion}
                 onChange={(val) => setFormData(prev => ({...prev, coleccion: val as string}))}
                 endpoint="/api/tienda/colecciones"
-                displayField="nombre"
+                displayField="nombre_coleccion"
               />
             </Col>
           </Row>
