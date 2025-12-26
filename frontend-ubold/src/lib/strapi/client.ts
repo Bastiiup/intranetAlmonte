@@ -52,11 +52,18 @@ const getHeaders = (customHeaders?: HeadersInit): HeadersInit => {
 
 // Manejar errores de respuesta
 async function handleResponse<T>(response: Response): Promise<T> {
-  console.log('[Strapi Client] Response status:', response.status)
+  // No loguear status para 404 (son esperados cuando probamos múltiples endpoints)
+  if (response.status !== 404) {
+    console.log('[Strapi Client] Response status:', response.status)
+  }
   
   if (!response.ok) {
     const errorText = await response.text()
-    console.error('[Strapi Client] ❌ Error response:', errorText)
+    
+    // No loguear 404 como errores críticos (son esperados)
+    if (response.status !== 404) {
+      console.error('[Strapi Client] ❌ Error response:', errorText)
+    }
     
     let errorData
     try {
