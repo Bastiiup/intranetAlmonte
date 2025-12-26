@@ -198,19 +198,20 @@ export const menuItems: MenuItemType[] = [
   // { key: 'chat', label: 'Chat', icon: LuMessageSquareDot, url: '/chat' },
   // { key: 'calendar', label: 'Calendario', icon: LuCalendar, url: '/calendar' },
   // { key: 'file-manager', label: 'Gestor de Archivos', icon: LuFolderOpenDot, url: '/file-manager' },
-  // { key: 'equipos-section', label: 'EQUIPOS', isTitle: true },
-  // {
-  //   key: 'equipos',
-  //   label: 'Equipos',
-  //   icon: LuUsers,
-  //   children: [
-  //     { key: 'contacts', label: 'Contacts', url: '/users/contacts' },
-  //     { key: 'profile', label: 'Profile', url: '/users/profile' },
-  //     { key: 'roles', label: 'Roles', url: '/users/roles' },
-  //     { key: 'roles-details', label: 'Roles Details', url: '/users/roles-details' },
-  //     { key: 'permissions', label: 'Permissions', url: '/users/permissions' },
-  //   ],
-  // },
+  { key: 'equipos-section', label: 'EQUIPOS', isTitle: true },
+  {
+    key: 'equipos',
+    label: 'Equipos',
+    icon: LuUsers,
+    children: [
+      { key: 'colaboradores', label: 'Colaboradores', url: '/colaboradores', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+      { key: 'contacts', label: 'Contacts', url: '/users/contacts' },
+      { key: 'profile', label: 'Profile', url: '/users/profile' },
+      { key: 'roles', label: 'Roles', url: '/users/roles' },
+      { key: 'roles-details', label: 'Roles Details', url: '/users/roles-details' },
+      { key: 'permissions', label: 'Permissions', url: '/users/permissions' },
+    ],
+  },
   { key: 'tienda-section', label: 'TIENDA', isTitle: true },
   {
     key: 'tienda',
