@@ -284,26 +284,8 @@ export async function POST(request: NextRequest) {
     if (body.etiquetas && Array.isArray(body.etiquetas) && body.etiquetas.length > 0) {
       const etiquetasFiltradas = body.etiquetas.filter((e: any) => e !== null && e !== '' && e !== undefined && String(e).trim() !== '')
       if (etiquetasFiltradas.length > 0) {
-        // Intentar diferentes nombres posibles para la colección de etiquetas/tags
-        let etiquetasValidas: string[] = []
-        const posiblesNombres = ['tags', 'etiquetas', 'etiqueta', 'tag']
-        for (const nombre of posiblesNombres) {
-          try {
-            etiquetasValidas = await validateAndFilterDocumentIds(etiquetasFiltradas.map(String), nombre)
-            if (etiquetasValidas.length > 0) {
-              console.log(`[API POST] ✅ Colección de etiquetas encontrada: "${nombre}"`)
-              break
-            }
-          } catch (e) {
-            // Continuar con el siguiente nombre
-            continue
-          }
-        }
-        if (etiquetasValidas.length === 0) {
-          // Si no se encontró la colección, usar los IDs sin validar (fallback)
-          console.warn('[API POST] ⚠️ No se pudo validar etiquetas, usando IDs sin validar')
-          etiquetasValidas = etiquetasFiltradas.map(String)
-        }
+        // El endpoint correcto en Strapi es '/api/etiquetas' (confirmado en otros archivos del código)
+        const etiquetasValidas = await validateAndFilterDocumentIds(etiquetasFiltradas.map(String), 'etiquetas')
         if (etiquetasValidas.length > 0) {
           strapiProductData.data.etiquetas = etiquetasValidas
           console.log('[API POST] 🏷️ Etiquetas asignadas (validadas):', etiquetasValidas)
