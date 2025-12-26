@@ -343,8 +343,21 @@ export async function logActivity(
   
   try {
     // Obtener información del usuario, IP y User-Agent
+    // CRÍTICO: Esta es la función que debe capturar el usuario SIEMPRE
     const usuario = await getUserFromRequest(request)
     console.log('[LOGGING] 👤 Resultado de getUserFromRequest:', JSON.stringify(usuario, null, 2))
+    
+    // Si no se pudo obtener el usuario, intentar una vez más con más logging
+    if (!usuario || !usuario.id) {
+      console.warn('[LOGGING] ⚠️ No se pudo obtener usuario en primer intento, reintentando...')
+      // Pequeño delay para asegurar que las cookies estén disponibles
+      await new Promise(resolve => setTimeout(resolve, 100))
+      const usuarioReintento = await getUserFromRequest(request)
+      if (usuarioReintento && usuarioReintento.id) {
+        console.log('[LOGGING] ✅ Usuario obtenido en reintento:', JSON.stringify(usuarioReintento, null, 2))
+        Object.assign(usuario || {}, usuarioReintento)
+      }
+    }
     
     const ipAddress = getClientIP(request)
     const userAgent = getUserAgent(request)
