@@ -253,6 +253,30 @@ export default function AddProductPage() {
 
       const data = await response.json()
       setResponseData(data) // Guardar datos de respuesta para mostrar en UI
+      
+      // ════════════════════════════════════════════════════════════════
+      // LOGGING DETALLADO DE LA RESPUESTA
+      // ════════════════════════════════════════════════════════════════
+      console.log('═══════════════════════════════════════════════════════')
+      console.log('[AddProduct] ✅ Respuesta de Strapi:')
+      console.log('  - Status:', response.status)
+      console.log('  - Success:', data.success)
+      if (data.data) {
+        const producto = data.data.strapi?.data || data.data.strapi || data.data
+        const attrs = producto?.attributes || producto || {}
+        console.log('  - Libro creado ID:', producto?.id || producto?.documentId)
+        console.log('  - Libro creado DocumentId:', producto?.documentId || producto?.id)
+        console.log('  - Nombre:', attrs.nombre_libro || 'Sin nombre')
+        console.log('  - Estado:', attrs.estado_publicacion || 'Sin estado')
+        console.log('  - Canales del libro:', attrs.canales?.data?.length || attrs.canales?.length || 0, 'canales')
+        if (attrs.canales?.data) {
+          console.log('  - Canales asignados:', attrs.canales.data.map((c: any) => c.attributes?.nombre || c.nombre || c.id).join(', '))
+        }
+      }
+      if (data.error) {
+        console.error('  - Error:', data.error)
+      }
+      console.log('═══════════════════════════════════════════════════════')
 
       if (data.success) {
         setSuccess(true)
