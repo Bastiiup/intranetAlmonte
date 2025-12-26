@@ -400,6 +400,10 @@ export async function logActivity(
         })
         logData.usuario = null
       } else {
+        // En Strapi v5, para relaciones manyToOne, podemos usar:
+        // 1. Solo el ID numérico: usuario: 143 (formato simple)
+        // 2. Objeto con connect: usuario: { connect: [{ id: 143 }] } (formato explícito)
+        // Probamos primero con el formato simple (solo ID)
         logData.usuario = usuarioIdNumero
         console.log('[LOGGING] ✅ Usuario asociado al log:', {
           idOriginal: usuario.id,
@@ -411,6 +415,7 @@ export async function logActivity(
           tipoUsuario: typeof logData.usuario,
           esNumero: typeof logData.usuario === 'number',
           esNaN: isNaN(logData.usuario),
+          formatoEnviado: 'ID numérico directo (usuario: ' + logData.usuario + ')',
         })
       }
     } else {
