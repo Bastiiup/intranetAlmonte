@@ -491,6 +491,8 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
                            selectedCustomer?.meta_data?.find((m: any) => m.key === 'rut')?.value || 
                            '66666666-6'
         
+        const TASA_IVA = 0.19;
+                           
         const facturaData = {
           tipo: 'boleta', // o 'factura' según corresponda
           fecha: new Date().toISOString().split('T')[0],
@@ -506,14 +508,20 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
             rut: '66666666-6', // Consumidor final
             razon_social: 'Consumidor Final',
           },
-          items: cart.map(item => ({
-            nombre: item.product.name,
-            cantidad: item.quantity,
-            precio: parseFloat(item.product.price),
-            descuento: 0,
-            impuesto: totals.tax / cart.length, // Distribuir IVA entre items
-            codigo: item.product.sku || item.product.id.toString(),
-          })),
+          items: cart.map(item => {
+            const precioBruto = typeof item.product.price === 'string' ? parseFloat(item.product.price) : item.product.price;
+            const precioNeto = Math.round(precioBruto / (1 + TASA_IVA)); // Precio sin IVA
+            const impuestoUnitario = precioBruto - precioNeto; // IVA unitario
+
+            return {
+              nombre: item.product.name,
+              cantidad: item.quantity,
+              precio: precioNeto,
+              descuento: 0,
+              impuesto: impuestoUnitario,
+              codigo: item.product.sku || item.product.id.toString(),
+            };
+          }),
           descuento_global: totals.discount,
           observaciones: `Pedido #${order.id} - Pago: ${payments.map(p => `${p.type} $${p.amount}`).join(', ')}`,
           referencia: order.id.toString(),

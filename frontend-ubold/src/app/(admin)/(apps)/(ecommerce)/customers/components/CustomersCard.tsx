@@ -12,9 +12,9 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import Image from 'next/image'
-import Link from 'next/link'
 import { useState, useMemo, useEffect } from 'react'
-import { Button, Card, CardFooter, CardHeader, Dropdown, DropdownItem, DropdownMenu, DropdownToggle, Alert } from 'react-bootstrap'
+import { useRouter } from 'next/navigation'
+import { Button, Card, CardFooter, CardHeader, Dropdown, DropdownItem, DropdownMenu, DropdownToggle, Alert, Modal } from 'react-bootstrap'
 import { LuDownload, LuPlus, LuSearch } from 'react-icons/lu'
 import { TbChevronDown, TbEdit, TbEye, TbTrash } from 'react-icons/tb'
 
@@ -22,6 +22,8 @@ import { customers, CustomerType } from '@/app/(admin)/(apps)/(ecommerce)/custom
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
+import EditClienteModal from '@/app/(admin)/(apps)/(ecommerce)/clientes/components/EditClienteModal'
+import AddClienteForm from '@/app/(admin)/(apps)/(ecommerce)/clientes/components/AddClienteForm'
 import { currency } from '@/helpers'
 import { format } from 'date-fns'
 import user1 from '@/assets/images/users/user-1.jpg'
@@ -31,8 +33,16 @@ import usFlag from '@/assets/images/flags/us.svg'
 const defaultAvatar = user1
 const defaultCountryFlag = usFlag
 
+// Extender CustomerType para incluir datos de WooCommerce
+type ExtendedCustomerType = CustomerType & {
+  id?: number
+  woocommerce_id?: number | string
+  correo_electronico?: string
+  telefono?: string
+}
+
 // Función para mapear clientes de WooCommerce al formato CustomerType
-const mapWooCommerceCustomerToCustomerType = (cliente: any): CustomerType => {
+const mapWooCommerceCustomerToCustomerType = (cliente: any): ExtendedCustomerType => {
   const name = `${cliente.first_name || ''} ${cliente.last_name || ''}`.trim() || 'Sin nombre'
   const email = cliente.email || 'Sin email'
   const phone = cliente.billing?.phone || cliente.phone || 'Sin teléfono'
@@ -50,6 +60,9 @@ const mapWooCommerceCustomerToCustomerType = (cliente: any): CustomerType => {
   const orders = cliente.orders_count || 0
   const totalSpends = parseFloat(cliente.total_spent || '0')
 
+  // Extraer teléfono real (sin el texto "Sin teléfono")
+  const telefonoReal = phone === 'Sin teléfono' ? '' : phone
+
   return {
     name,
     email,
@@ -63,6 +76,10 @@ const mapWooCommerceCustomerToCustomerType = (cliente: any): CustomerType => {
     },
     orders,
     totalSpends,
+    id: cliente.id,
+    woocommerce_id: cliente.id,
+    correo_electronico: email,
+    telefono: telefonoReal,
   }
 }
 
@@ -71,13 +88,18 @@ interface CustomersCardProps {
   error?: string | null
 }
 
-const columnHelper = createColumnHelper<CustomerType>()
+const columnHelper = createColumnHelper<ExtendedCustomerType>()
 
 const CustomersCard = ({ clientes, error }: CustomersCardProps = {}) => {
+  const router = useRouter()
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [selectedCliente, setSelectedCliente] = useState<ExtendedCustomerType | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const columns = [
     {
       id: 'select',
-      header: ({ table }: { table: TableType<CustomerType> }) => (
+      header: ({ table }: { table: TableType<ExtendedCustomerType> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -85,7 +107,7 @@ const CustomersCard = ({ clientes, error }: CustomersCardProps = {}) => {
           onChange={table.getToggleAllRowsSelectedHandler()}
         />
       ),
-      cell: ({ row }: { row: TableRow<CustomerType> }) => (
+      cell: ({ row }: { row: TableRow<ExtendedCustomerType> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -100,14 +122,9 @@ const CustomersCard = ({ clientes, error }: CustomersCardProps = {}) => {
       header: 'Nombre del Cliente',
       cell: ({ row }) => (
         <div className="d-flex align-items-center gap-2">
-          <div className="avatar avatar-sm">
-            <Image src={row.original.avatar.src} alt="" height={32} width={32} className="img-fluid rounded-circle" />
-          </div>
           <div>
             <h5 className="mb-0">
-              <Link href="/users/profile" className="link-reset">
-                {row.original.name}
-              </Link>
+              {row.original.name}
             </h5>
           </div>
         </div>
@@ -143,12 +160,16 @@ const CustomersCard = ({ clientes, error }: CustomersCardProps = {}) => {
     }),
     {
       header: 'Acciones',
-      cell: ({ row }: { row: TableRow<CustomerType> }) => (
-        <div className="d-flex  gap-1">
-          <Button variant="default" size="sm" className="btn-icon rounded-circle">
-            <TbEye className="fs-lg" />
-          </Button>
-          <Button variant="default" size="sm" className="btn-icon rounded-circle">
+      cell: ({ row }: { row: TableRow<ExtendedCustomerType> }) => (
+        <div className="d-flex gap-1">
+          <Button
+            variant="default"
+            size="sm"
+            className="btn-icon rounded-circle"
+            onClick={() => {
+              setSelectedCliente(row.original)
+              setShowEditModal(true)
+            }}>
             <TbEdit className="fs-lg" />
           </Button>
           <Button
@@ -156,8 +177,8 @@ const CustomersCard = ({ clientes, error }: CustomersCardProps = {}) => {
             size="sm"
             className="btn-icon rounded-circle"
             onClick={() => {
+              setSelectedCliente(row.original)
               toggleDeleteModal()
-              setSelectedRowIds({ [row.id]: true })
             }}>
             <TbTrash className="fs-lg" />
           </Button>
@@ -176,7 +197,7 @@ const CustomersCard = ({ clientes, error }: CustomersCardProps = {}) => {
     return customers
   }, [clientes])
 
-  const [data, setData] = useState<CustomerType[]>(() => mappedCustomers)
+  const [data, setData] = useState<ExtendedCustomerType[]>(() => mappedCustomers)
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
@@ -218,12 +239,42 @@ const CustomersCard = ({ clientes, error }: CustomersCardProps = {}) => {
     setShowDeleteModal(!showDeleteModal)
   }
 
-  const handleDelete = () => {
-    const selectedIds = new Set(Object.keys(selectedRowIds))
-    setData((old) => old.filter((_, idx) => !selectedIds.has(idx.toString())))
-    setSelectedRowIds({})
-    setPagination({ ...pagination, pageIndex: 0 })
-    setShowDeleteModal(false)
+  const handleDelete = async () => {
+    if (!selectedCliente) return
+
+    setDeleting(true)
+    try {
+      // Usar ID o email como identificador
+      const identifier = selectedCliente.id || selectedCliente.email
+      if (!identifier) {
+        throw new Error('No se puede eliminar: el cliente no tiene ID ni email')
+      }
+
+      const response = await fetch(`/api/woocommerce/customers/${identifier}`, {
+        method: 'DELETE',
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Error al eliminar el cliente')
+      }
+
+      // Refrescar la página para actualizar la lista
+      router.refresh()
+      setSelectedCliente(null)
+      setShowDeleteModal(false)
+    } catch (err: any) {
+      console.error('Error al eliminar cliente:', err)
+      alert(err.message || 'Error al eliminar el cliente')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const handleEditSave = () => {
+    // Refrescar la página después de editar
+    router.refresh()
   }
 
   // Si hay error, mostrarlo
@@ -292,7 +343,7 @@ const CustomersCard = ({ clientes, error }: CustomersCardProps = {}) => {
             </DropdownMenu>
           </Dropdown>
 
-          <Button variant="primary">
+          <Button variant="primary" onClick={() => setShowCreateModal(true)}>
             <LuPlus className="fs-sm me-1" /> Agregar Cliente
           </Button>
         </div>
@@ -320,11 +371,47 @@ const CustomersCard = ({ clientes, error }: CustomersCardProps = {}) => {
 
       <DeleteConfirmationModal
         show={showDeleteModal}
-        onHide={toggleDeleteModal}
+        onHide={() => {
+          toggleDeleteModal()
+          setSelectedCliente(null)
+        }}
         onConfirm={handleDelete}
-        selectedCount={Object.keys(selectedRowIds).length}
-        itemName="customers"
+        selectedCount={selectedCliente ? 1 : 0}
+        itemName="cliente"
       />
+
+      {/* Modal para crear cliente */}
+      <Modal show={showCreateModal} onHide={() => setShowCreateModal(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Agregar Cliente</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <AddClienteForm
+            showCard={false}
+            onSave={() => setShowCreateModal(false)}
+            onCancel={() => setShowCreateModal(false)}
+          />
+        </Modal.Body>
+      </Modal>
+
+      {/* Modal para editar cliente */}
+      {selectedCliente && (
+        <EditClienteModal
+          show={showEditModal}
+          onHide={() => {
+            setShowEditModal(false)
+            setSelectedCliente(null)
+          }}
+          cliente={{
+            id: selectedCliente.id || 0,
+            woocommerce_id: selectedCliente.woocommerce_id,
+            nombre: selectedCliente.name,
+            correo_electronico: selectedCliente.correo_electronico || selectedCliente.email,
+            telefono: selectedCliente.telefono || (selectedCliente.phone && selectedCliente.phone !== 'Sin teléfono' ? selectedCliente.phone : ''),
+          }}
+          onSave={handleEditSave}
+        />
+      )}
     </Card>
   )
 }

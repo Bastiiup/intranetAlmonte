@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import { requireAuth } from '@/lib/auth/middleware'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +29,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Verificar autenticación
+  const authError = await requireAuth(request)
+  if (authError) return authError
+
   try {
     const { id } = await params
     console.log('[API /colaboradores/[id] GET] Buscando colaborador con ID:', id)
@@ -109,6 +114,10 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Verificar autenticación
+  const authError = await requireAuth(request)
+  if (authError) return authError
+
   try {
     const { id } = await params
     const body = await request.json()
@@ -197,6 +206,10 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Verificar autenticación
+  const authError = await requireAuth(request)
+  if (authError) return authError
+
   try {
     const { id } = await params
     console.log('[API /colaboradores/[id] DELETE] Eliminando colaborador:', id)

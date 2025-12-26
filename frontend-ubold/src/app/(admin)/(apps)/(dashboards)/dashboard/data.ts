@@ -163,7 +163,7 @@ const totalSales = generateRandomData(2500, 3500)
 
 export const salesAnalyticsChart: () => ChartJSOptionsType = () => ({
   data: {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+    labels: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
     datasets: [
       {
         type: 'bar',

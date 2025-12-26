@@ -134,3 +134,7 @@
 @import "plugins/wizard";
 @import "plugins/react-select";
 @import "plugins/react-slider";
+
+.sidenav-menu, .topbar-custom {
+    z-index: 9999 !important;
+}

@@ -23,8 +23,14 @@ export default async function Page() {
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
     const baseUrl = `${protocol}://${host}`
     
+    // Obtener todas las cookies para pasarlas al fetch
+    const cookieHeader = headersList.get('cookie') || ''
+    
     const response = await fetch(`${baseUrl}/api/colaboradores?pageSize=1000`, {
       cache: 'no-store', // Forzar fetch dinámico
+      headers: {
+        'Cookie': cookieHeader, // Pasar las cookies para autenticación
+      },
     })
     
     const data = await response.json()

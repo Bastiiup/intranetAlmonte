@@ -134,13 +134,13 @@ export async function getRecentOrders(limit: number = 10): Promise<DashboardOrde
       let statusVariant: 'success' | 'warning' | 'danger' = 'warning'
       
       if (status === 'completed' || status === 'processing') {
-        status = 'Completed'
+        status = 'Completado'
         statusVariant = 'success'
       } else if (status === 'pending' || status === 'on-hold') {
-        status = 'Pending'
+        status = 'Pendiente'
         statusVariant = 'warning'
       } else if (status === 'cancelled' || status === 'refunded') {
-        status = 'Cancelled'
+        status = 'Cancelado'
         statusVariant = 'danger'
       } else {
         status = status.charAt(0).toUpperCase() + status.slice(1)
@@ -223,10 +223,10 @@ export async function getProducts(limit: number = 9): Promise<DashboardProduct[]
       let statusVariant: 'success' | 'warning' | 'danger' = 'success'
       
       if (stock === 0) {
-        status = 'Out of Stock'
+        status = 'Agotado'
         statusVariant = 'danger'
       } else if (stock < 10) {
-        status = 'Low Stock'
+        status = 'Stock bajo'
         statusVariant = 'warning'
       }
       

@@ -37,11 +37,17 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
       const firstName = partes[0] || ''
       const lastName = partes.slice(1).join(' ') || ''
 
+      // Extraer teléfono, manejando casos como "Sin teléfono"
+      let phoneValue = cliente.telefono || ''
+      if (phoneValue === 'Sin teléfono') {
+        phoneValue = ''
+      }
+
       setFormData({
         first_name: firstName,
         last_name: lastName,
         email: cliente.correo_electronico || '',
-        phone: cliente.telefono || '',
+        phone: phoneValue,
       })
       setError(null)
     }
@@ -87,11 +93,9 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
         last_name: formData.last_name.trim() || '',
       }
 
-      // Agregar teléfono si existe
-      if (formData.phone.trim()) {
-        updateData.billing = {
-          phone: formData.phone.trim(),
-        }
+      // Agregar teléfono directamente (la API lo manejará correctamente)
+      if (formData.phone.trim() && formData.phone.trim() !== 'Sin teléfono') {
+        updateData.phone = formData.phone.trim()
       }
 
       // Actualizar el cliente (usar email como identificador si no hay woocommerce_id)

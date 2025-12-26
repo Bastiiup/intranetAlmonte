@@ -84,6 +84,16 @@ export async function PUT(
     if (body.last_name !== undefined) updateData.last_name = body.last_name
     if (body.email !== undefined) updateData.email = body.email
 
+    // Obtener cliente actual para preservar datos de billing si solo viene phone
+    let currentCustomer: any = null
+    if (body.phone && !body.billing) {
+      try {
+        currentCustomer = await wooCommerceClient.get(`customers/${customerId}`)
+      } catch (error) {
+        console.warn('[API PUT] No se pudo obtener cliente actual para preservar billing')
+      }
+    }
+
     // Actualizar billing si viene
     if (body.billing) {
       updateData.billing = {
@@ -98,6 +108,22 @@ export async function PUT(
         country: body.billing.country || 'CL',
         email: body.billing.email || '',
         phone: body.billing.phone || '',
+      }
+    } else if (body.phone !== undefined && currentCustomer) {
+      // Si solo viene phone sin billing, preservar el billing existente y actualizar solo el phone
+      const existingBilling = (currentCustomer as any).billing || {}
+      updateData.billing = {
+        first_name: existingBilling.first_name || body.first_name || '',
+        last_name: existingBilling.last_name || body.last_name || '',
+        company: existingBilling.company || '',
+        address_1: existingBilling.address_1 || '',
+        address_2: existingBilling.address_2 || '',
+        city: existingBilling.city || '',
+        state: existingBilling.state || '',
+        postcode: existingBilling.postcode || '',
+        country: existingBilling.country || 'CL',
+        email: existingBilling.email || body.email || '',
+        phone: body.phone || '',
       }
     }
 
