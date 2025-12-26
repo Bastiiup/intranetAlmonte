@@ -311,10 +311,24 @@ export async function logActivity(
   request: NextRequest | Request,
   params: Omit<LogActivityParams, 'usuarioId' | 'ipAddress' | 'userAgent'>
 ): Promise<void> {
-  console.log('[LOGGING] 🚀 Iniciando logActivity')
+  // LOG CRÍTICO AL INICIO - Debe aparecer SIEMPRE
+  console.log('[LOGGING] ==========================================')
+  console.log('[LOGGING] 🚀 INICIANDO logActivity')
   console.log('[LOGGING] 🔍 Request tipo:', typeof request)
   console.log('[LOGGING] 🔍 Request es NextRequest?:', request instanceof NextRequest)
-  console.log('[LOGGING] 🚀 Iniciando logActivity para:', params.accion, params.entidad)
+  console.log('[LOGGING] 🚀 Acción:', params.accion, '| Entidad:', params.entidad)
+  
+  // Verificar cookies INMEDIATAMENTE
+  if (isNextRequest(request)) {
+    const cookieValue = request.cookies.get('colaboradorData')?.value
+    console.log('[LOGGING] 🍪 Cookie colaboradorData disponible?:', !!cookieValue)
+    console.log('[LOGGING] 🍪 Cookie preview:', cookieValue ? cookieValue.substring(0, 200) : 'NO HAY COOKIE')
+  } else {
+    const cookieHeader = request.headers.get('cookie')
+    console.log('[LOGGING] 🍪 Cookie header disponible?:', !!cookieHeader)
+    console.log('[LOGGING] 🍪 Cookie header preview:', cookieHeader ? cookieHeader.substring(0, 200) : 'NO HAY HEADER')
+  }
+  console.log('[LOGGING] ==========================================')
   
   if (!request) {
     console.error('[LOGGING] ❌ No se recibió request en logActivity')
