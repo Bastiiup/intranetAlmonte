@@ -572,7 +572,7 @@ export async function logActivity(
           })
         }
       })
-      .catch((error) => {
+      .catch(async (error) => {
         // Solo loggear errores, no lanzar excepciones para no afectar el flujo principal
         console.error('[LOGGING] ❌ ==========================================')
         console.error('[LOGGING] ❌ ERROR AL REGISTRAR ACTIVIDAD EN STRAPI')
@@ -580,7 +580,21 @@ export async function logActivity(
         console.error('[LOGGING] ❌ Status:', error.status)
         console.error('[LOGGING] ❌ Endpoint:', logEndpoint)
         console.error('[LOGGING] ❌ Details:', error.details)
+        
+        // Intentar obtener más detalles del error si está disponible
+        let errorResponse = null
+        if (error.response) {
+          try {
+            errorResponse = await error.response.text()
+          } catch (e) {
+            // Ignorar si no se puede leer
+          }
+        }
+        
         console.error('[LOGGING] ❌ Error completo:', JSON.stringify(error, null, 2).substring(0, 1000))
+        if (errorResponse) {
+          console.error('[LOGGING] ❌ Respuesta de error de Strapi:', errorResponse.substring(0, 1000))
+        }
         console.error('[LOGGING] ❌ LogData enviado:', {
           accion: logData.accion,
           entidad: logData.entidad,
@@ -588,6 +602,7 @@ export async function logActivity(
           tipoUsuario: typeof logData.usuario,
           descripcion: logData.descripcion?.substring(0, 50),
           tieneUsuario: !!logData.usuario,
+          bodyCompleto: JSON.stringify(bodyToSend, null, 2).substring(0, 500),
         })
         console.error('[LOGGING] ❌ ==========================================')
       })
