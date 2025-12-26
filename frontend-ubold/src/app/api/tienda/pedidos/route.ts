@@ -179,20 +179,44 @@ export async function GET(request: NextRequest) {
     console.log('[API GET pedidos] ✅ Items obtenidos:', items.length, 'Por plataforma:', porPlataforma)
     
     // Registrar log de visualización (asíncrono, no bloquea)
-    logActivity(request, {
-      accion: 'ver',
-      entidad: 'pedidos',
-      descripcion: createLogDescription('ver', 'pedidos', null, `${items.length} pedidos`),
-      metadata: { cantidad: items.length, porPlataforma },
-    }).catch(() => {}) // Ignorar errores de logging
+    // IMPORTANTE: No esperar ni bloquear la respuesta por el logging
+    try {
+      logActivity(request, {
+        accion: 'ver',
+        entidad: 'pedidos',
+        descripcion: createLogDescription('ver', 'pedidos', null, `${items.length} pedidos`),
+        metadata: { cantidad: items.length, porPlataforma },
+      }).catch((err) => {
+        // Solo loggear errores de logging, no afectar la respuesta
+        console.warn('[API GET pedidos] ⚠️ Error al registrar log (ignorado):', err.message)
+      })
+    } catch (logError: any) {
+      // Si hay error síncrono en logActivity, ignorarlo
+      console.warn('[API GET pedidos] ⚠️ Error síncrono al registrar log (ignorado):', logError.message)
+    }
     
     return NextResponse.json({
       success: true,
       data: items
     })
   } catch (error: any) {
-    console.error('[API GET pedidos] ❌ Error:', error.message)
+    console.error('[API GET pedidos] ❌ Error:', {
+      message: error.message,
+      status: error.status,
+      details: error.details,
+      stack: error.stack?.substring(0, 500)
+    })
     
+    // Si es un error 400 de Strapi, devolver un error 400 también
+    if (error.status === 400 || error.message?.includes('400')) {
+      return NextResponse.json({
+        success: false,
+        error: `Error al obtener pedidos: ${error.message || 'Bad Request'}`,
+        data: []
+      }, { status: 400 })
+    }
+    
+    // Para otros errores, devolver 200 con warning (comportamiento anterior)
     return NextResponse.json({
       success: true,
       data: [],
