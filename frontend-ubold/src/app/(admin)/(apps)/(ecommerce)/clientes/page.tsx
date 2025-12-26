@@ -23,8 +23,17 @@ export default async function Page() {
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
     const baseUrl = `${protocol}://${host}`
     
+    // Obtener cookies del request para pasarlas al fetch interno
+    const cookieStore = await import('next/headers').then(m => m.cookies())
+    const cookieString = cookieStore.getAll()
+      .map(cookie => `${cookie.name}=${cookie.value}`)
+      .join('; ')
+
     const response = await fetch(`${baseUrl}/api/woocommerce/customers?per_page=100`, {
       cache: 'no-store', // Forzar fetch dinámico
+      headers: {
+        'Cookie': cookieString, // Pasar cookies al fetch interno
+      },
     })
     
     const data = await response.json()

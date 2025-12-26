@@ -336,10 +336,60 @@ export async function POST(request: NextRequest) {
       details: error.details,
     })
     
+    // Si el error es de "locale null" o "document not found", identificar qué relación está causando el problema
+    if (error.message && (error.message.includes('locale') || error.message.includes('not found'))) {
+      const documentIdMatch = error.message.match(/id "([^"]+)"/)
+      if (documentIdMatch) {
+        const problematicId = documentIdMatch[1]
+        console.error('[API POST] 🔍 ==========================================')
+        console.error('[API POST] 🔍 DocumentId problemático encontrado:', problematicId)
+        console.error('[API POST] 🔍 Verificar en Strapi si este documentId existe:')
+        console.error('[API POST] 🔍 ==========================================')
+        
+        // Identificar qué relación tiene ese ID
+        const relaciones: Record<string, any> = {
+          obra: strapiProductData.data.obra,
+          autor_relacion: strapiProductData.data.autor_relacion,
+          editorial: strapiProductData.data.editorial,
+          sello: strapiProductData.data.sello,
+          coleccion: strapiProductData.data.coleccion,
+          canales: strapiProductData.data.canales,
+          marcas: strapiProductData.data.marcas,
+          etiquetas: strapiProductData.data.etiquetas,
+          categorias_producto: strapiProductData.data.categorias_producto,
+        }
+        
+        const relacionesProblematicas: string[] = []
+        for (const [campo, valor] of Object.entries(relaciones)) {
+          if (Array.isArray(valor)) {
+            if (valor.includes(problematicId)) {
+              relacionesProblematicas.push(`${campo} (array)`)
+              console.error(`[API POST] ⚠️ El documentId "${problematicId}" está en el campo "${campo}" (array)`)
+            }
+          } else if (valor === problematicId) {
+            relacionesProblematicas.push(campo)
+            console.error(`[API POST] ⚠️ El documentId "${problematicId}" está en el campo "${campo}"`)
+          }
+        }
+        
+        if (relacionesProblematicas.length > 0) {
+          console.error(`[API POST] 🔍 Campos problemáticos: ${relacionesProblematicas.join(', ')}`)
+          console.error(`[API POST] 💡 SOLUCIÓN: Elimina o corrige estos campos antes de crear el producto`)
+        } else {
+          console.error(`[API POST] ⚠️ No se pudo identificar qué campo tiene el documentId problemático`)
+          console.error(`[API POST] 🔍 Revisa todos los campos de relaciones en el body`)
+        }
+        console.error('[API POST] 🔍 ==========================================')
+      }
+    }
+    
     return NextResponse.json({
       success: false,
       error: error.message || 'Error al crear el producto en Strapi',
-      details: error.details
+      details: error.details,
+      message: error.message?.includes('locale') 
+        ? 'Error: Uno de los documentIds de las relaciones no existe o tiene problema de locale en Strapi. Revisa los logs del servidor para identificar cuál.'
+        : undefined
     }, { status: error.status || 500 })
   }
 }
