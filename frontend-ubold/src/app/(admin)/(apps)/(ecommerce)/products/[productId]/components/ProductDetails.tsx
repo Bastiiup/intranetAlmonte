@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Card, CardBody, Button, Alert, Form, Row, Col, Spinner } from 'react-bootstrap'
+import { useState } from 'react'
+import { Card, CardBody, Button, Alert, Form, Row, Col } from 'react-bootstrap'
 import { TbPencil } from 'react-icons/tb'
 import ProductEditForm from './ProductEditForm'
 
@@ -141,7 +141,7 @@ export function ProductDetails({ producto, onUpdate, onProductoUpdate }: Product
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h5 className="card-title mb-0">Detalles del Producto</h5>
           
-          {!isEditing ? (
+          {!isEditing && (
             <Button
               variant="primary"
               onClick={handleEdit}
@@ -149,34 +149,6 @@ export function ProductDetails({ producto, onUpdate, onProductoUpdate }: Product
               <TbPencil className="me-1" />
               Editar Producto
             </Button>
-          ) : (
-            <div className="btn-group">
-              <Button
-                variant="success"
-                onClick={handleSaveAll}
-                disabled={saving}
-              >
-                {saving ? (
-                  <>
-                    <Spinner animation="border" size="sm" className="me-2" />
-                    Guardando...
-                  </>
-                ) : (
-                  <>
-                    <TbCheck className="me-1" />
-                    Guardar Cambios
-                  </>
-                )}
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={handleCancel}
-                disabled={saving}
-              >
-                <TbX className="me-1" />
-                Cancelar
-              </Button>
-            </div>
           )}
         </div>
 
