@@ -191,6 +191,7 @@ export default function Page() {
                     <ProductPricing 
                       producto={producto} 
                       onUpdate={handleUpdate}
+                      onProductoUpdate={updateProductoLocal}
                     />
 
                     <ProductReviews producto={producto} />

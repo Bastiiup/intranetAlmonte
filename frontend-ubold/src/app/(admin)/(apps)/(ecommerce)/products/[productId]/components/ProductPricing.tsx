@@ -1,323 +1,640 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardBody, Button, Alert, Spinner } from 'react-bootstrap'
-import { TbPlus, TbCheck, TbX } from 'react-icons/tb'
+import { Card, CardBody, Form, Row, Col, FormGroup, FormLabel, FormControl, FormSelect, FormCheck, Alert, Spinner, Button } from 'react-bootstrap'
+import { TbPencil, TbCheck, TbX } from 'react-icons/tb'
 
 interface ProductPricingProps {
   producto: any
   onUpdate?: () => Promise<void> | void
+  onProductoUpdate?: (updates: any) => void
 }
 
-export function ProductPricing({ producto, onUpdate }: ProductPricingProps) {
-  const [precios, setPrecios] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [isAddingPrice, setIsAddingPrice] = useState(false)
-  const [precioVenta, setPrecioVenta] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-
-  const productId = producto.id?.toString() || producto.documentId
-
-  useEffect(() => {
-    if (productId) {
-      fetchPrecios()
-    }
-  }, [productId])
-
-  const fetchPrecios = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      
-      const response = await fetch(`/api/tienda/precios?libro=${productId}`)
-      const data = await response.json()
-      
-      if (data.success) {
-        setPrecios(data.data || [])
-      } else {
-        setError(data.error || 'Error al cargar precios')
-      }
-    } catch (err: any) {
-      console.error('Error fetching precios:', err)
-      setError('Error de conexión al cargar precios')
-    } finally {
-      setLoading(false)
+// Helper para obtener campo con múltiples variaciones
+const getField = (obj: any, ...fieldNames: string[]): any => {
+  for (const fieldName of fieldNames) {
+    if (obj[fieldName] !== undefined && obj[fieldName] !== null && obj[fieldName] !== '') {
+      return obj[fieldName]
     }
   }
+  return undefined
+}
 
-  const handleAddPrice = async () => {
-    const precioVentaNumero = parseFloat(precioVenta)
+export function ProductPricing({ producto, onUpdate, onProductoUpdate }: ProductPricingProps) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
+  
+  // Obtener datos del producto (puede venir de attributes o directamente)
+  const attrs = producto.attributes || {}
+  const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (producto as any)
+  
+  // Estados para campos de WooCommerce
+  const [formData, setFormData] = useState({
+    precio: getField(data, 'precio', 'PRECIO', 'precio') || '',
+    precio_oferta: getField(data, 'precio_oferta', 'PRECIO_OFERTA', 'precioOferta') || '',
+    type: getField(data, 'type', 'TYPE', 'type') || 'simple',
+    stock_quantity: getField(data, 'stock_quantity', 'STOCK_QUANTITY', 'stockQuantity') || '',
+    stock_status: getField(data, 'stock_status', 'STOCK_STATUS', 'stockStatus') || 'instock',
+    backorders: getField(data, 'backorders', 'BACKORDERS', 'backorders') || 'no',
+    manage_stock: getField(data, 'manage_stock', 'MANAGE_STOCK', 'manageStock') !== undefined 
+      ? Boolean(getField(data, 'manage_stock', 'MANAGE_STOCK', 'manageStock'))
+      : true,
+    sold_individually: getField(data, 'sold_individually', 'SOLD_INDIVIDUALLY', 'soldIndividually') !== undefined
+      ? Boolean(getField(data, 'sold_individually', 'SOLD_INDIVIDUALLY', 'soldIndividually'))
+      : false,
+    weight: getField(data, 'weight', 'WEIGHT', 'weight') || '',
+    length: getField(data, 'length', 'LENGTH', 'length') || '',
+    width: getField(data, 'width', 'WIDTH', 'width') || '',
+    height: getField(data, 'height', 'HEIGHT', 'height') || '',
+  })
+
+  // Resetear form cuando cambia el producto
+  useEffect(() => {
+    const attrs = producto.attributes || {}
+    const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (producto as any)
     
-    if (!precioVenta || isNaN(precioVentaNumero) || precioVentaNumero <= 0) {
-      setError('Ingresa un precio válido mayor a 0')
-      return
-    }
+    setFormData({
+      precio: getField(data, 'precio', 'PRECIO', 'precio') || '',
+      precio_oferta: getField(data, 'precio_oferta', 'PRECIO_OFERTA', 'precioOferta') || '',
+      type: getField(data, 'type', 'TYPE', 'type') || 'simple',
+      stock_quantity: getField(data, 'stock_quantity', 'STOCK_QUANTITY', 'stockQuantity') || '',
+      stock_status: getField(data, 'stock_status', 'STOCK_STATUS', 'stockStatus') || 'instock',
+      backorders: getField(data, 'backorders', 'BACKORDERS', 'backorders') || 'no',
+      manage_stock: getField(data, 'manage_stock', 'MANAGE_STOCK', 'manageStock') !== undefined 
+        ? Boolean(getField(data, 'manage_stock', 'MANAGE_STOCK', 'manageStock'))
+        : true,
+      sold_individually: getField(data, 'sold_individually', 'SOLD_INDIVIDUALLY', 'soldIndividually') !== undefined
+        ? Boolean(getField(data, 'sold_individually', 'SOLD_INDIVIDUALLY', 'soldIndividually'))
+        : false,
+      weight: getField(data, 'weight', 'WEIGHT', 'weight') || '',
+      length: getField(data, 'length', 'LENGTH', 'length') || '',
+      width: getField(data, 'width', 'WIDTH', 'width') || '',
+      height: getField(data, 'height', 'HEIGHT', 'height') || '',
+    })
+  }, [producto])
 
+  const resetForm = () => {
+    const attrs = producto.attributes || {}
+    const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (producto as any)
+    
+    setFormData({
+      precio: getField(data, 'precio', 'PRECIO', 'precio') || '',
+      precio_oferta: getField(data, 'precio_oferta', 'PRECIO_OFERTA', 'precioOferta') || '',
+      type: getField(data, 'type', 'TYPE', 'type') || 'simple',
+      stock_quantity: getField(data, 'stock_quantity', 'STOCK_QUANTITY', 'stockQuantity') || '',
+      stock_status: getField(data, 'stock_status', 'STOCK_STATUS', 'stockStatus') || 'instock',
+      backorders: getField(data, 'backorders', 'BACKORDERS', 'backorders') || 'no',
+      manage_stock: getField(data, 'manage_stock', 'MANAGE_STOCK', 'manageStock') !== undefined 
+        ? Boolean(getField(data, 'manage_stock', 'MANAGE_STOCK', 'manageStock'))
+        : true,
+      sold_individually: getField(data, 'sold_individually', 'SOLD_INDIVIDUALLY', 'soldIndividually') !== undefined
+        ? Boolean(getField(data, 'sold_individually', 'SOLD_INDIVIDUALLY', 'soldIndividually'))
+        : false,
+      weight: getField(data, 'weight', 'WEIGHT', 'weight') || '',
+      length: getField(data, 'length', 'LENGTH', 'length') || '',
+      width: getField(data, 'width', 'WIDTH', 'width') || '',
+      height: getField(data, 'height', 'HEIGHT', 'height') || '',
+    })
+  }
+
+  const handleEdit = () => {
+    resetForm()
+    setIsEditing(true)
+    setError(null)
+    setSuccess(false)
+  }
+
+  const handleCancel = () => {
+    resetForm()
+    setIsEditing(false)
+    setError(null)
+    setSuccess(false)
+  }
+
+  const handleSaveAll = async () => {
     try {
-      setError(null)
       setSaving(true)
+      setError(null)
+      setSuccess(false)
+
+      const productId = producto.id?.toString() || producto.documentId
       
-      // Usar fecha actual automáticamente
-      const fechaActual = new Date().toISOString()
-      
-      // Payload simplificado: solo precio_venta con fecha automática
-      const payload: any = {
-        precio_venta: precioVentaNumero,
-        libroId: productId,
-        fecha_inicio: fechaActual,
-        activo: true,
-        precio_costo: null,
-        fecha_fin: null
+      if (!productId || productId === 'unknown') {
+        throw new Error('No se pudo obtener el ID del producto')
       }
-      
-      console.log('[ProductPricing] Creando precio:', {
-        precio: precioVentaNumero,
-        libro: productId,
-        fecha: fechaActual
-      })
-      
-      const response = await fetch('/api/tienda/precios', {
-        method: 'POST',
+
+      // Preparar datos WooCommerce
+      const dataToSend: any = {}
+
+      // Precio
+      if (formData.precio !== undefined && formData.precio !== '') {
+        dataToSend.precio = parseFloat(formData.precio.toString()) || 0
+      }
+      if (formData.precio_oferta !== undefined && formData.precio_oferta !== '') {
+        dataToSend.precio_oferta = parseFloat(formData.precio_oferta.toString()) || 0
+      }
+
+      // Tipo de producto
+      if (formData.type) {
+        dataToSend.type = formData.type
+      }
+
+      // Inventario
+      if (formData.stock_quantity !== undefined && formData.stock_quantity !== '') {
+        dataToSend.stock_quantity = parseInt(formData.stock_quantity.toString()) || 0
+      }
+      if (formData.stock_status) {
+        dataToSend.stock_status = formData.stock_status
+      }
+      if (formData.backorders) {
+        dataToSend.backorders = formData.backorders
+      }
+      dataToSend.manage_stock = formData.manage_stock
+      dataToSend.sold_individually = formData.sold_individually
+
+      // Peso y dimensiones
+      if (formData.weight !== undefined && formData.weight !== '') {
+        dataToSend.weight = parseFloat(formData.weight.toString()) || 0
+      }
+      if (formData.length !== undefined && formData.length !== '') {
+        dataToSend.length = parseFloat(formData.length.toString()) || 0
+      }
+      if (formData.width !== undefined && formData.width !== '') {
+        dataToSend.width = parseFloat(formData.width.toString()) || 0
+      }
+      if (formData.height !== undefined && formData.height !== '') {
+        dataToSend.height = parseFloat(formData.height.toString()) || 0
+      }
+
+      console.log('[ProductPricing] 📤 Enviando:', dataToSend)
+
+      // Llamada al API
+      const response = await fetch(`/api/tienda/productos/${productId}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(dataToSend)
       })
 
       const data = await response.json()
 
-      if (data.success) {
-        console.log('[ProductPricing] ✅ Precio creado')
-        
-        // Mostrar qué endpoint funcionó (si viene en la respuesta)
-        if (data.endpoint_usado) {
-          console.log('[ProductPricing] 📍 Endpoint usado:', data.endpoint_usado)
-          console.log('[ProductPricing] 💡 Guarda este endpoint para futuras referencias')
-        }
-        
-        // Resetear formulario
-        setPrecioVenta('')
-        setIsAddingPrice(false)
-        
-        // Actualizar lista de precios inmediatamente (optimistic update)
-        if (data.data) {
-          setPrecios((prev) => [...prev, data.data])
-        }
-        
-        // Refrescar desde servidor en segundo plano
-        fetchPrecios().catch((err) => {
-          console.error('[ProductPricing] Error al refrescar precios:', err)
-        })
-        
-        if (onUpdate) {
-          const updateResult = onUpdate()
-          if (updateResult && typeof updateResult.catch === 'function') {
-            updateResult.catch((err: any) => {
-              console.error('[ProductPricing] Error al refrescar producto:', err)
-            })
-          }
-        }
-      } else {
-        setError(data.error || 'Error al agregar precio')
-        
-        // Si hay ayuda, mostrarla en consola
-        if (data.ayuda) {
-          console.error('[ProductPricing] ❌ Ayuda:', data.ayuda)
-          console.error('[ProductPricing] 📋 Endpoints probados:', data.endpoints_probados)
-          console.error('[ProductPricing] 🔍 Último error:', data.ultimo_error)
+      if (!data.success) {
+        throw new Error(data.error || 'Error al actualizar')
+      }
+
+      console.log('[ProductPricing] ✅ Guardado exitoso')
+
+      // Actualizar estado local inmediatamente
+      if (onProductoUpdate) {
+        onProductoUpdate(dataToSend)
+      }
+      
+      setSuccess(true)
+      setIsEditing(false)
+      
+      // Refrescar desde servidor en segundo plano
+      if (onUpdate) {
+        const updateResult = onUpdate()
+        if (updateResult && typeof updateResult.catch === 'function') {
+          updateResult.catch((err: any) => {
+            console.error('[ProductPricing] Error al refrescar:', err)
+          })
         }
       }
+      
+      // Ocultar mensaje de éxito después de 2 segundos
+      setTimeout(() => {
+        setSuccess(false)
+      }, 2000)
+
     } catch (err: any) {
       console.error('[ProductPricing] Error:', err)
-      setError('Error de conexión al agregar precio')
+      setError(err.message || 'Error al guardar cambios')
     } finally {
       setSaving(false)
     }
   }
 
-  // Helper para obtener valores de precio desde diferentes estructuras posibles
-  const getPrecioVenta = (precio: any): number => {
-    const attrs = precio.attributes || {}
-    return attrs.precio_venta || attrs.PRECIO_VENTA || precio.precio_venta || precio.PRECIO_VENTA || 0
+  // Obtener valores para mostrar en modo vista
+  const displayValues = {
+    precio: getField(data, 'precio', 'PRECIO', 'precio') || '0.00',
+    precio_oferta: getField(data, 'precio_oferta', 'PRECIO_OFERTA', 'precioOferta') || '0.00',
+    type: getField(data, 'type', 'TYPE', 'type') || 'simple',
+    stock_quantity: getField(data, 'stock_quantity', 'STOCK_QUANTITY', 'stockQuantity') || '0',
+    stock_status: getField(data, 'stock_status', 'STOCK_STATUS', 'stockStatus') || 'instock',
+    backorders: getField(data, 'backorders', 'BACKORDERS', 'backorders') || 'no',
+    manage_stock: getField(data, 'manage_stock', 'MANAGE_STOCK', 'manageStock') !== undefined
+      ? Boolean(getField(data, 'manage_stock', 'MANAGE_STOCK', 'manageStock'))
+      : true,
+    sold_individually: getField(data, 'sold_individually', 'SOLD_INDIVIDUALLY', 'soldIndividually') !== undefined
+      ? Boolean(getField(data, 'sold_individually', 'SOLD_INDIVIDUALLY', 'soldIndividually'))
+      : false,
+    weight: getField(data, 'weight', 'WEIGHT', 'weight') || '0.00',
+    length: getField(data, 'length', 'LENGTH', 'length') || '0.00',
+    width: getField(data, 'width', 'WIDTH', 'width') || '0.00',
+    height: getField(data, 'height', 'HEIGHT', 'height') || '0.00',
   }
-  
-  const getPrecioCosto = (precio: any): number | null => {
-    const attrs = precio.attributes || {}
-    const costo = attrs.precio_costo || attrs.PRECIO_COSTO || precio.precio_costo || precio.PRECIO_COSTO
-    return costo !== undefined && costo !== null ? costo : null
-  }
-  
-  const getFechaInicio = (precio: any): string => {
-    const attrs = precio.attributes || {}
-    const fecha = attrs.fecha_inicio || attrs.FECHA_INICIO || precio.fecha_inicio || precio.FECHA_INICIO
-    if (!fecha) return 'N/A'
-    try {
-      return new Date(fecha).toLocaleDateString('es-CL')
-    } catch {
-      return fecha
+
+  const getStockStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      instock: 'En Stock',
+      outofstock: 'Sin Stock',
+      onbackorder: 'Pedido Pendiente'
     }
+    return labels[status] || status
   }
-  
-  const getFechaFin = (precio: any): string | null => {
-    const attrs = precio.attributes || {}
-    const fecha = attrs.fecha_fin || attrs.FECHA_FIN || precio.fecha_fin || precio.FECHA_FIN
-    if (!fecha) return null
-    try {
-      return new Date(fecha).toLocaleDateString('es-CL')
-    } catch {
-      return fecha
+
+  const getBackordersLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      no: 'No Permitir',
+      notify: 'Permitir, Notificar Cliente',
+      yes: 'Permitir'
     }
-  }
-  
-  const getActivo = (precio: any): boolean => {
-    const attrs = precio.attributes || {}
-    const activoValue = attrs.activo !== undefined ? attrs.activo : (precio.activo !== undefined ? precio.activo : true)
-    return Boolean(activoValue)
+    return labels[value] || value
   }
 
   return (
-    <Card className="mt-4">
-      <CardBody>
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h5 className="card-title mb-0">Precios</h5>
-          {!isAddingPrice && (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setIsAddingPrice(true)}
-            >
-              <TbPlus className="me-1" />
-              Agregar Precio
-            </Button>
-          )}
-        </div>
-
-        {error && (
-          <Alert variant="danger" dismissible onClose={() => setError(null)}>
-            {error}
-          </Alert>
-        )}
-
-        {/* Form para agregar precio - Solo precio */}
-        {isAddingPrice && (
-          <div className="border rounded p-3 mb-3 bg-light">
-            <h6 className="mb-3">Agregar Nuevo Precio</h6>
+    <>
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* SECCIÓN: WOOCOMMERCE - PRECIO E INVENTARIO */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      <Card className="mt-4">
+        <CardBody>
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <h5 className="card-title mb-0">WooCommerce - Precio e Inventario</h5>
             
-            <div className="mb-3">
-              <label className="form-label">Precio de Venta</label>
-              <div className="input-group">
-                <span className="input-group-text">$</span>
-                <input
-                  type="number"
-                  className="form-control"
-                  placeholder="Ingresa el precio"
-                  value={precioVenta}
-                  onChange={(e) => setPrecioVenta(e.target.value)}
-                  step="0.01"
-                  min="0"
+            {!isEditing ? (
+              <Button
+                variant="primary"
+                onClick={handleEdit}
+              >
+                <TbPencil className="me-1" />
+                Editar
+              </Button>
+            ) : (
+              <div className="btn-group">
+                <Button
+                  variant="success"
+                  onClick={handleSaveAll}
                   disabled={saving}
-                  autoFocus
-                />
+                >
+                  {saving ? (
+                    <>
+                      <Spinner animation="border" size="sm" className="me-2" />
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <TbCheck className="me-1" />
+                      Guardar Cambios
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={handleCancel}
+                  disabled={saving}
+                >
+                  <TbX className="me-1" />
+                  Cancelar
+                </Button>
               </div>
-              <small className="text-muted">
-                <i className="mdi mdi-information-outline me-1"></i>
-                La fecha se asignará automáticamente
-              </small>
-            </div>
-            
-            <div className="d-flex gap-2">
-              <Button
-                variant="success"
-                size="sm"
-                onClick={handleAddPrice}
-                disabled={saving || !precioVenta}
-                className="flex-grow-1"
-              >
-                {saving ? (
-                  <>
-                    <Spinner animation="border" size="sm" className="me-2" />
-                    Guardando...
-                  </>
-                ) : (
-                  <>
-                    <TbCheck className="me-1" />
-                    Guardar Precio
-                  </>
-                )}
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setIsAddingPrice(false)
-                  setPrecioVenta('')
-                  setError(null)
-                }}
-                disabled={saving}
-              >
-                <TbX className="me-1" />
-                Cancelar
-              </Button>
-            </div>
+            )}
           </div>
-        )}
 
-        {/* Lista de precios */}
-        {loading ? (
-          <div className="text-center py-3">
-            <Spinner animation="border" size="sm" className="me-2" />
-            Cargando precios...
-          </div>
-        ) : precios.length === 0 ? (
-          <div className="text-muted text-center py-3">
-            No hay precios registrados. Haz clic en "Agregar Precio" para crear uno.
-          </div>
-        ) : (
-          <div className="list-group">
-            {precios.map((precio: any, index: number) => {
-              const precioVentaValue = getPrecioVenta(precio)
-              const precioCostoValue = getPrecioCosto(precio)
-              const fechaInicioValue = getFechaInicio(precio)
-              const fechaFinValue = getFechaFin(precio)
-              const activoValue = getActivo(precio)
-              const precioId = precio.id || precio.documentId || index
-              
-              return (
-                <div key={precioId} className="list-group-item">
-                  <div className="d-flex justify-content-between align-items-start">
-                    <div className="flex-grow-1">
-                      <div className="d-flex align-items-center gap-3 mb-2">
-                        <div>
-                          <h6 className="mb-0">
-                            Venta: <span className="text-success">${precioVentaValue.toFixed(2)}</span>
-                          </h6>
-                          {precioCostoValue !== null && (
-                            <small className="text-muted">
-                              Costo: ${precioCostoValue.toFixed(2)}
-                            </small>
-                          )}
-                        </div>
-                        <div>
-                          {activoValue ? (
-                            <span className="badge bg-success">Activo</span>
-                          ) : (
-                            <span className="badge bg-secondary">Inactivo</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="small text-muted">
-                        <div>Inicio: {fechaInicioValue}</div>
-                        {fechaFinValue && <div>Fin: {fechaFinValue}</div>}
-                      </div>
-                    </div>
-                    {/* TODO: Agregar botones de editar/eliminar cuando tengamos los endpoints */}
-                  </div>
+          {error && (
+            <Alert variant="danger" dismissible onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          )}
+
+          {success && (
+            <Alert variant="success">
+              ✅ Configuración de WooCommerce actualizada exitosamente
+            </Alert>
+          )}
+
+          {saving && (
+            <Alert variant="info" className="mt-3">
+              <div className="d-flex align-items-center">
+                <Spinner animation="border" size="sm" className="me-2" />
+                <div>Guardando cambios...</div>
+              </div>
+            </Alert>
+          )}
+
+          {/* MODO VISTA */}
+          {!isEditing ? (
+            <Row>
+              <Col md={4}>
+                <div className="mb-3">
+                  <Form.Label className="text-muted">Precio Regular</Form.Label>
+                  <div className="fw-medium">${parseFloat(displayValues.precio.toString()).toFixed(2)}</div>
                 </div>
-              )
-            })}
+              </Col>
+              
+              <Col md={4}>
+                <div className="mb-3">
+                  <Form.Label className="text-muted">Precio de Oferta</Form.Label>
+                  <div className="fw-medium">${parseFloat(displayValues.precio_oferta.toString()).toFixed(2)}</div>
+                </div>
+              </Col>
+              
+              <Col md={4}>
+                <div className="mb-3">
+                  <Form.Label className="text-muted">Tipo de Producto</Form.Label>
+                  <div className="fw-medium">{displayValues.type}</div>
+                </div>
+              </Col>
+              
+              <Col md={4}>
+                <div className="mb-3">
+                  <Form.Label className="text-muted">Stock</Form.Label>
+                  <div className="fw-medium">{displayValues.stock_quantity}</div>
+                </div>
+              </Col>
+              
+              <Col md={4}>
+                <div className="mb-3">
+                  <Form.Label className="text-muted">Estado de Stock</Form.Label>
+                  <div className="fw-medium">{getStockStatusLabel(displayValues.stock_status)}</div>
+                </div>
+              </Col>
+              
+              <Col md={4}>
+                <div className="mb-3">
+                  <Form.Label className="text-muted">Backorders</Form.Label>
+                  <div className="fw-medium">{getBackordersLabel(displayValues.backorders)}</div>
+                </div>
+              </Col>
+              
+              <Col md={6}>
+                <div className="mb-3">
+                  <Form.Label className="text-muted">Gestionar Stock</Form.Label>
+                  <div className="fw-medium">{displayValues.manage_stock ? 'Sí' : 'No'}</div>
+                </div>
+              </Col>
+              
+              <Col md={6}>
+                <div className="mb-3">
+                  <Form.Label className="text-muted">Vender Individualmente</Form.Label>
+                  <div className="fw-medium">{displayValues.sold_individually ? 'Sí' : 'No'}</div>
+                </div>
+              </Col>
+            </Row>
+          ) : (
+            /* MODO EDICIÓN */
+            <>
+              <Alert variant="info" className="mb-3">
+                <strong>ℹ️ Nota:</strong> Revisa todos los campos antes de guardar. Los cambios se aplicarán al presionar "Guardar Cambios".
+              </Alert>
+              
+              <Row>
+                <Col md={4}>
+                  <FormGroup className="mb-3">
+                    <FormLabel>
+                      Precio Regular <span className="text-danger">*</span>
+                    </FormLabel>
+                    <FormControl
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      required
+                      placeholder="0.00"
+                      value={formData.precio}
+                      onChange={(e) => {
+                        setFormData(prev => ({...prev, precio: e.target.value}))
+                      }}
+                    />
+                  </FormGroup>
+                </Col>
+                
+                <Col md={4}>
+                  <FormGroup className="mb-3">
+                    <FormLabel>Precio de Oferta</FormLabel>
+                    <FormControl
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={formData.precio_oferta}
+                      onChange={(e) => {
+                        setFormData(prev => ({...prev, precio_oferta: e.target.value}))
+                      }}
+                    />
+                  </FormGroup>
+                </Col>
+                
+                <Col md={4}>
+                  <FormGroup className="mb-3">
+                    <FormLabel>Tipo de Producto</FormLabel>
+                    <FormSelect
+                      value={formData.type}
+                      onChange={(e) => {
+                        setFormData(prev => ({...prev, type: e.target.value as any}))
+                      }}
+                    >
+                      <option value="simple">Simple</option>
+                      <option value="grouped">Agrupado</option>
+                      <option value="external">Externo</option>
+                      <option value="variable">Variable</option>
+                    </FormSelect>
+                  </FormGroup>
+                </Col>
+              </Row>
+              
+              <Row>
+                <Col md={4}>
+                  <FormGroup className="mb-3">
+                    <FormLabel>Stock</FormLabel>
+                    <FormControl
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={formData.stock_quantity}
+                      onChange={(e) => {
+                        setFormData(prev => ({...prev, stock_quantity: e.target.value}))
+                      }}
+                    />
+                  </FormGroup>
+                </Col>
+                
+                <Col md={4}>
+                  <FormGroup className="mb-3">
+                    <FormLabel>Estado de Stock</FormLabel>
+                    <FormSelect
+                      value={formData.stock_status}
+                      onChange={(e) => {
+                        setFormData(prev => ({...prev, stock_status: e.target.value as any}))
+                      }}
+                    >
+                      <option value="instock">En Stock</option>
+                      <option value="outofstock">Sin Stock</option>
+                      <option value="onbackorder">Pedido Pendiente</option>
+                    </FormSelect>
+                  </FormGroup>
+                </Col>
+                
+                <Col md={4}>
+                  <FormGroup className="mb-3">
+                    <FormLabel>Backorders</FormLabel>
+                    <FormSelect
+                      value={formData.backorders}
+                      onChange={(e) => {
+                        setFormData(prev => ({...prev, backorders: e.target.value as any}))
+                      }}
+                    >
+                      <option value="no">No Permitir</option>
+                      <option value="notify">Permitir, Notificar Cliente</option>
+                      <option value="yes">Permitir</option>
+                    </FormSelect>
+                  </FormGroup>
+                </Col>
+              </Row>
+              
+              <Row>
+                <Col md={6}>
+                  <FormGroup className="mb-3">
+                    <FormCheck
+                      type="checkbox"
+                      checked={formData.manage_stock}
+                      onChange={(e) => {
+                        setFormData(prev => ({...prev, manage_stock: e.target.checked}))
+                      }}
+                      label="Gestionar Stock"
+                    />
+                  </FormGroup>
+                </Col>
+                
+                <Col md={6}>
+                  <FormGroup className="mb-3">
+                    <FormCheck
+                      type="checkbox"
+                      checked={formData.sold_individually}
+                      onChange={(e) => {
+                        setFormData(prev => ({...prev, sold_individually: e.target.checked}))
+                      }}
+                      label="Vender Individualmente"
+                    />
+                  </FormGroup>
+                </Col>
+              </Row>
+            </>
+          )}
+        </CardBody>
+      </Card>
+
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* SECCIÓN: WOOCOMMERCE - PESO Y DIMENSIONES */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      <Card className="mt-4">
+        <CardBody>
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <h5 className="card-title mb-0">WooCommerce - Peso y Dimensiones</h5>
           </div>
-        )}
-      </CardBody>
-    </Card>
+
+          {/* MODO VISTA */}
+          {!isEditing ? (
+            <Row>
+              <Col md={3}>
+                <div className="mb-3">
+                  <Form.Label className="text-muted">Peso (kg)</Form.Label>
+                  <div className="fw-medium">{parseFloat(displayValues.weight.toString()).toFixed(2)}</div>
+                </div>
+              </Col>
+              
+              <Col md={3}>
+                <div className="mb-3">
+                  <Form.Label className="text-muted">Largo (cm)</Form.Label>
+                  <div className="fw-medium">{parseFloat(displayValues.length.toString()).toFixed(2)}</div>
+                </div>
+              </Col>
+              
+              <Col md={3}>
+                <div className="mb-3">
+                  <Form.Label className="text-muted">Ancho (cm)</Form.Label>
+                  <div className="fw-medium">{parseFloat(displayValues.width.toString()).toFixed(2)}</div>
+                </div>
+              </Col>
+              
+              <Col md={3}>
+                <div className="mb-3">
+                  <Form.Label className="text-muted">Alto (cm)</Form.Label>
+                  <div className="fw-medium">{parseFloat(displayValues.height.toString()).toFixed(2)}</div>
+                </div>
+              </Col>
+            </Row>
+          ) : (
+            /* MODO EDICIÓN */
+            <Row>
+              <Col md={3}>
+                <FormGroup className="mb-3">
+                  <FormLabel>Peso (kg)</FormLabel>
+                  <FormControl
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={formData.weight}
+                    onChange={(e) => {
+                      setFormData(prev => ({...prev, weight: e.target.value}))
+                    }}
+                  />
+                </FormGroup>
+              </Col>
+              
+              <Col md={3}>
+                <FormGroup className="mb-3">
+                  <FormLabel>Largo (cm)</FormLabel>
+                  <FormControl
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={formData.length}
+                    onChange={(e) => {
+                      setFormData(prev => ({...prev, length: e.target.value}))
+                    }}
+                  />
+                </FormGroup>
+              </Col>
+              
+              <Col md={3}>
+                <FormGroup className="mb-3">
+                  <FormLabel>Ancho (cm)</FormLabel>
+                  <FormControl
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={formData.width}
+                    onChange={(e) => {
+                      setFormData(prev => ({...prev, width: e.target.value}))
+                    }}
+                  />
+                </FormGroup>
+              </Col>
+              
+              <Col md={3}>
+                <FormGroup className="mb-3">
+                  <FormLabel>Alto (cm)</FormLabel>
+                  <FormControl
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={formData.height}
+                    onChange={(e) => {
+                      setFormData(prev => ({...prev, height: e.target.value}))
+                    }}
+                  />
+                </FormGroup>
+              </Col>
+            </Row>
+          )}
+        </CardBody>
+      </Card>
+    </>
   )
 }
-

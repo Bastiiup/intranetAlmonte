@@ -386,6 +386,54 @@ export async function PUT(
     if (body.id_coleccion) updateData.data.id_coleccion = parseInt(body.id_coleccion)
     if (body.id_obra) updateData.data.id_obra = parseInt(body.id_obra)
 
+    // === CAMPOS WOOCOMMERCE ===
+    // Precio
+    if (body.precio !== undefined) {
+      updateData.data.precio = parseFloat(body.precio.toString()) || 0
+    }
+    if (body.precio_regular !== undefined) {
+      updateData.data.precio_regular = parseFloat(body.precio_regular.toString()) || 0
+    }
+    if (body.precio_oferta !== undefined) {
+      updateData.data.precio_oferta = parseFloat(body.precio_oferta.toString()) || 0
+    }
+    
+    // Tipo de producto
+    if (body.type !== undefined) {
+      updateData.data.type = body.type
+    }
+    
+    // Inventario
+    if (body.stock_quantity !== undefined) {
+      updateData.data.stock_quantity = parseInt(body.stock_quantity.toString()) || 0
+    }
+    if (body.stock_status !== undefined) {
+      updateData.data.stock_status = body.stock_status
+    }
+    if (body.backorders !== undefined) {
+      updateData.data.backorders = body.backorders
+    }
+    if (body.manage_stock !== undefined) {
+      updateData.data.manage_stock = Boolean(body.manage_stock)
+    }
+    if (body.sold_individually !== undefined) {
+      updateData.data.sold_individually = Boolean(body.sold_individually)
+    }
+    
+    // Peso y dimensiones
+    if (body.weight !== undefined) {
+      updateData.data.weight = parseFloat(body.weight.toString()) || 0
+    }
+    if (body.length !== undefined) {
+      updateData.data.length = parseFloat(body.length.toString()) || 0
+    }
+    if (body.width !== undefined) {
+      updateData.data.width = parseFloat(body.width.toString()) || 0
+    }
+    if (body.height !== undefined) {
+      updateData.data.height = parseFloat(body.height.toString()) || 0
+    }
+
     // VERIFICACIÓN FINAL antes de enviar
     const finalKeys = Object.keys(updateData.data)
     const stillHasUppercase = finalKeys.some(k => k !== k.toLowerCase())
