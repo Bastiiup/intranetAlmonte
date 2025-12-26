@@ -23,11 +23,12 @@ ENV NODE_ENV=production
 # Construir la aplicación
 RUN npm run build
 
-# Exponer el puerto
+# Exponer el puerto (Railway usa variable PORT)
 EXPOSE 3000
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+ENV NODE_ENV=production
 
 # Comando para iniciar la aplicación
 CMD ["node", "server.js"]
