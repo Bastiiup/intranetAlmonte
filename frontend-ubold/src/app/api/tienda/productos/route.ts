@@ -416,10 +416,16 @@ export async function POST(request: NextRequest) {
     )
     
     const strapiProduct = await Promise.race([strapiPromise, timeoutPromise]) as any
-    console.log('[API POST] ✅ Producto creado en Strapi:', {
-      id: strapiProduct.data?.id,
-      documentId: strapiProduct.data?.documentId
-    })
+    console.log('[API POST] ==========================================')
+    console.log('[API POST] ✅ PRODUCTO CREADO EXITOSAMENTE EN STRAPI')
+    const attrs = strapiProduct.data?.attributes || strapiProduct.attributes || {}
+    console.log('[API POST] ID:', strapiProduct.data?.id || strapiProduct.id)
+    console.log('[API POST] DocumentId:', strapiProduct.data?.documentId || strapiProduct.documentId)
+    console.log('[API POST] Nombre:', attrs.nombre_libro || attrs.NOMBRE_LIBRO || 'Sin nombre')
+    console.log('[API POST] Estado:', attrs.estado_publicacion || attrs.ESTADO_PUBLICACION || 'Sin estado')
+    console.log('[API POST] Canales:', attrs.canales?.data?.length || attrs.canales?.length || 0, 'canales asignados')
+    console.log('[API POST] Estructura completa (primeros 2000 chars):', JSON.stringify(strapiProduct, null, 2).substring(0, 2000))
+    console.log('[API POST] ==========================================')
     console.log('[API POST] Estado: ⏸️ Solo guardado en Strapi (pendiente), no se publica en WordPress')
     console.log('[API POST] Para publicar en WordPress:')
     console.log('[API POST]   1. Ir a la página de Solicitudes')
