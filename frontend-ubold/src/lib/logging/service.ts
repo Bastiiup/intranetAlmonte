@@ -43,11 +43,13 @@ export async function getUserFromRequest(request: NextRequest): Promise<{
   nombre?: string
 } | null> {
   try {
-    console.log('[Logging] 🔍 [getUserFromRequest] Iniciando extracción de usuario...')
+    console.log('[LOGGING] 🔍 [getUserFromRequest] Iniciando extracción de usuario...')
+    const colaboradorCookie = request.cookies.get('colaboradorData')?.value
+    console.log('[LOGGING] 📋 Cookie colaboradorData:', colaboradorCookie ? colaboradorCookie.substring(0, 500) : 'NO HAY COOKIE')
     
     // Intentar obtener colaborador de las cookies
     // Primero intentar desde request.cookies (funciona cuando viene del navegador)
-    let colaboradorCookie = request.cookies.get('colaboradorData')?.value || 
+    let colaboradorCookieValue = colaboradorCookie || 
                            request.cookies.get('colaborador')?.value
     
     console.log('[Logging] 🔍 [getUserFromRequest] Cookies desde request.cookies:', {
@@ -58,7 +60,7 @@ export async function getUserFromRequest(request: NextRequest): Promise<{
     
     // Si no hay cookies en request.cookies, intentar extraer del header Cookie
     // Esto es necesario cuando se hace fetch desde el servidor (SSR)
-    if (!colaboradorCookie) {
+    if (!colaboradorCookieValue) {
       const cookieHeader = request.headers.get('cookie')
       console.log('[Logging] 🔍 [getUserFromRequest] Cookie header completo:', cookieHeader ? cookieHeader.substring(0, 200) : 'no hay')
       
@@ -72,7 +74,7 @@ export async function getUserFromRequest(request: NextRequest): Promise<{
           return acc
         }, {})
         
-        colaboradorCookie = cookies['colaboradorData'] || cookies['colaborador']
+        colaboradorCookieValue = cookies['colaboradorData'] || cookies['colaborador']
         
         console.log('[Logging] 🔍 [getUserFromRequest] Cookies extraídas del header:', {
           tieneColaboradorData: !!cookies['colaboradorData'],
@@ -83,11 +85,9 @@ export async function getUserFromRequest(request: NextRequest): Promise<{
       }
     }
     
-    if (colaboradorCookie) {
+    if (colaboradorCookieValue) {
       try {
-        console.log('[LOGGING] 📋 Cookie colaboradorData (primeros 500 chars):', colaboradorCookie.substring(0, 500))
-        
-        const colaborador = JSON.parse(colaboradorCookie)
+        const colaborador = JSON.parse(colaboradorCookieValue)
         console.log('[LOGGING] 👤 Colaborador parseado (estructura completa):', JSON.stringify(colaborador, null, 2))
         
         // Extraer ID directamente del nivel superior (como se guarda en login)
@@ -248,26 +248,14 @@ export async function logActivity(
   params: Omit<LogActivityParams, 'usuarioId' | 'ipAddress' | 'userAgent'>
 ): Promise<void> {
   try {
-    console.log('[LOGGING] 🚀 Iniciando logActivity:', {
-      accion: params.accion,
-      entidad: params.entidad,
-      url: request.url,
-      method: request.method,
-      tieneCookies: !!request.cookies.get('colaboradorData')?.value,
-      cookiePreview: request.cookies.get('colaboradorData')?.value?.substring(0, 100) || 'no hay',
-    })
+    console.log('[LOGGING] 🚀 Iniciando logActivity para:', params.accion, params.entidad)
     
     // Obtener información del usuario, IP y User-Agent
-    const user = await getUserFromRequest(request)
+    const usuario = await getUserFromRequest(request)
+    console.log('[LOGGING] 👤 Resultado de getUserFromRequest:', JSON.stringify(usuario, null, 2))
+    
     const ipAddress = getClientIP(request)
     const userAgent = getUserAgent(request)
-    
-    console.log('[LOGGING] 👤 Resultado de getUserFromRequest:', {
-      tieneUser: !!user,
-      userId: user?.id || 'null',
-      userEmail: user?.email || 'null',
-      userNombre: user?.nombre || 'null',
-    })
 
     // Preparar datos para Strapi
     const logData: any = {
@@ -282,17 +270,15 @@ export async function logActivity(
     const token = request.headers.get('authorization') || request.cookies.get('auth_token')?.value
     
     // Agregar usuario si está disponible
-    console.log('[LOGGING] 🎯 Usuario obtenido para log:', user)
-    
-    if (user?.id) {
+    if (usuario?.id) {
       // CRÍTICO: El campo usuario debe ser solo el ID numérico, NO un objeto
       // Convertir explícitamente a número para asegurar el formato correcto
-      logData.usuario = Number(user.id) || null
+      logData.usuario = Number(usuario.id) || null
       console.log('[LOGGING] ✅ Usuario asociado al log:', {
-        idOriginal: user.id,
+        idOriginal: usuario.id,
         idConvertido: logData.usuario,
-        email: user.email,
-        nombre: user.nombre,
+        email: usuario.email,
+        nombre: usuario.nombre,
         accion: params.accion,
         entidad: params.entidad,
         tipoUsuario: typeof logData.usuario,
@@ -375,9 +361,9 @@ export async function logActivity(
     console.log('[Logging] 📝 Registrando actividad:', {
       accion: params.accion,
       entidad: params.entidad,
-      usuario: user?.id || 'sin usuario',
-      usuarioEmail: user?.email || 'sin email',
-      usuarioNombre: user?.nombre || 'sin nombre',
+      usuario: usuario?.id || 'sin usuario',
+      usuarioEmail: usuario?.email || 'sin email',
+      usuarioNombre: usuario?.nombre || 'sin nombre',
       descripcion: params.descripcion.substring(0, 50),
       tieneColaboradorCookie: !!colaboradorCookie,
       tieneToken: !!token,
@@ -386,18 +372,12 @@ export async function logActivity(
     
     // Log del body que se envía a Strapi (solo para debug)
     const bodyToSend = { data: logData }
-    console.log('[LOGGING] 📤 Log a enviar a Strapi:', JSON.stringify(bodyToSend, null, 2))
-    console.log('[LOGGING] 🔍 Verificación del usuario en logData:', {
-      tieneUsuario: !!logData.usuario,
-      valorUsuario: logData.usuario,
-      tipoUsuario: typeof logData.usuario,
-      esNumero: typeof logData.usuario === 'number',
-      esNull: logData.usuario === null,
-      esUndefined: logData.usuario === undefined,
-    })
+    console.log('[LOGGING] 📤 Log a enviar a Strapi:', JSON.stringify(logData, null, 2))
     
     strapiClient.post(logEndpoint, bodyToSend)
-      .then((response: any) => {
+      .then(async (response: any) => {
+        const responseText = JSON.stringify(response, null, 2)
+        console.log('[LOGGING] 📥 Respuesta de Strapi:', responseText.substring(0, 1000))
         const logId = response?.data?.id || response?.id || response?.data?.documentId || 'unknown'
         // En Strapi v5, las relaciones no siempre se devuelven en la respuesta de creación
         // Verificar en diferentes estructuras posibles
