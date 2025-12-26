@@ -194,10 +194,33 @@ export default function AddProductPage() {
       if (formData.coleccion) dataToSend.coleccion = formData.coleccion
       
       // === RELACIONES MÚLTIPLES (enviar array si tiene elementos) ===
-      if (formData.canales.length > 0) dataToSend.canales = formData.canales
+      // CRÍTICO: Los canales son necesarios para sincronizar con WordPress
+      if (formData.canales.length > 0) {
+        dataToSend.canales = formData.canales
+      } else {
+        console.warn('[AddProduct] ⚠️ ADVERTENCIA: No se han seleccionado canales. El producto NO se sincronizará con WordPress hasta que se asignen canales.')
+      }
       if (formData.marcas.length > 0) dataToSend.marcas = formData.marcas
       if (formData.etiquetas.length > 0) dataToSend.etiquetas = formData.etiquetas
       if (formData.categorias_producto.length > 0) dataToSend.categorias_producto = formData.categorias_producto
+      
+      // === ESTADO DE PUBLICACIÓN ===
+      // Nota: Por defecto se crea como "Pendiente" en el backend
+      // Si se quiere crear directamente como "Publicado", descomentar:
+      // dataToSend.estado_publicacion = 'Publicado'
+      
+      // ════════════════════════════════════════════════════════════════
+      // LOGGING DETALLADO DEL PAYLOAD
+      // ════════════════════════════════════════════════════════════════
+      console.log('═══════════════════════════════════════════════════════')
+      console.log('[AddProduct] 📦 Payload que se envía a Strapi:')
+      console.log(JSON.stringify(dataToSend, null, 2))
+      console.log('[AddProduct] 🔍 Campos críticos:')
+      console.log('  - Canales incluidos:', dataToSend.canales || '❌ NO HAY CANALES (el producto NO se sincronizará con WordPress)')
+      console.log('  - Estado de publicación:', dataToSend.estado_publicacion || 'Pendiente (por defecto)')
+      console.log('  - Nombre:', dataToSend.nombre_libro)
+      console.log('  - ISBN:', dataToSend.isbn_libro || 'No especificado')
+      console.log('═══════════════════════════════════════════════════════')
       
       // === IDS NUMÉRICOS ===
       if (formData.id_autor) dataToSend.id_autor = parseInt(formData.id_autor)
