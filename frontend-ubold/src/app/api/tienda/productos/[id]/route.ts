@@ -444,8 +444,17 @@ export async function PUT(
     
     // Registrar log de actualización
     const nombreNuevo = updateData.data.nombre_libro || nombreAnterior
+    // Logging detallado de cookies antes de llamar logActivity
+    const todasLasCookies = request.cookies.getAll()
+    const colaboradorCookie = request.cookies.get('colaboradorData')?.value
+    const cookieHeader = request.headers.get('cookie')
+    
     console.log('[API PUT] 📝 Llamando logActivity con request:', {
-      tieneCookies: !!request.cookies.get('colaboradorData')?.value,
+      tieneCookies: !!colaboradorCookie,
+      totalCookies: todasLasCookies.length,
+      nombresCookies: todasLasCookies.map(c => c.name).join(', '),
+      colaboradorDataPreview: colaboradorCookie?.substring(0, 200) || 'no hay',
+      cookieHeaderPreview: cookieHeader?.substring(0, 200) || 'no hay',
       url: request.url,
       method: request.method,
     })

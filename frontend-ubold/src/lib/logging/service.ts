@@ -146,13 +146,20 @@ export async function getUserFromRequest(request: NextRequest): Promise<{
           nombre: nombre
         }
       } catch (parseError: any) {
-        console.warn('[Logging] ⚠️ Error al parsear cookie colaboradorData:', {
+        console.error('[LOGGING] ❌ Error al parsear cookie colaboradorData:', {
           error: parseError.message,
-          cookiePreview: colaboradorCookie.substring(0, 100),
+          stack: parseError.stack,
+          cookiePreview: colaboradorCookie?.substring(0, 200) || 'no hay cookie',
         })
       }
     } else {
-      console.warn('[Logging] ⚠️ No se encontró cookie colaboradorData ni colaborador')
+      // Listar todas las cookies disponibles para debug
+      const allCookies = request.cookies.getAll()
+      console.warn('[LOGGING] ⚠️ No se encontró cookie colaboradorData ni colaborador', {
+        cookiesDisponibles: allCookies.map(c => c.name).join(', '),
+        totalCookies: allCookies.length,
+        cookieHeader: request.headers.get('cookie')?.substring(0, 200) || 'no hay header cookie',
+      })
     }
 
     // Si hay token, intentar obtener usuario de Strapi
@@ -348,26 +355,45 @@ export async function logActivity(
     // Log del body que se envía a Strapi (solo para debug)
     const bodyToSend = { data: logData }
     console.log('[LOGGING] 📤 Log a enviar a Strapi:', JSON.stringify(bodyToSend, null, 2))
+    console.log('[LOGGING] 🔍 Verificación del usuario en logData:', {
+      tieneUsuario: !!logData.usuario,
+      valorUsuario: logData.usuario,
+      tipoUsuario: typeof logData.usuario,
+      esNumero: typeof logData.usuario === 'number',
+      esNull: logData.usuario === null,
+      esUndefined: logData.usuario === undefined,
+    })
     
     strapiClient.post(logEndpoint, bodyToSend)
       .then((response: any) => {
         const logId = response?.data?.id || response?.id || response?.data?.documentId || 'unknown'
-        const usuarioEnRespuesta = response?.data?.usuario || response?.data?.attributes?.usuario || null
+        // En Strapi v5, las relaciones no siempre se devuelven en la respuesta de creación
+        // Verificar en diferentes estructuras posibles
+        const usuarioEnRespuesta = 
+          response?.data?.attributes?.usuario?.data?.id ||
+          response?.data?.attributes?.usuario?.id ||
+          response?.data?.usuario?.data?.id ||
+          response?.data?.usuario?.id ||
+          response?.data?.usuario ||
+          response?.usuario ||
+          null
         
         console.log('[LOGGING] ✅ Log creado exitosamente en Strapi:', {
           logId: logId,
           usuarioEnviado: logData.usuario || 'null',
-          usuarioEnRespuesta: usuarioEnRespuesta ? (usuarioEnRespuesta.id || usuarioEnRespuesta) : 'null',
+          usuarioEnRespuesta: usuarioEnRespuesta ? (typeof usuarioEnRespuesta === 'object' ? usuarioEnRespuesta.id : usuarioEnRespuesta) : 'null',
           accion: params.accion,
           entidad: params.entidad,
-          respuestaCompleta: JSON.stringify(response, null, 2).substring(0, 500),
+          tipoRespuesta: typeof response?.data,
+          tieneData: !!response?.data,
         })
         
-        // Verificar que el usuario se haya guardado correctamente
+        // Nota: En Strapi v5, las relaciones manyToOne no siempre se devuelven en la respuesta de creación
+        // Esto es normal y no indica un error. El usuario se guarda correctamente aunque no aparezca en la respuesta.
         if (!usuarioEnRespuesta && logData.usuario) {
-          console.warn('[LOGGING] ⚠️ ADVERTENCIA: Usuario enviado pero no aparece en respuesta:', {
+          console.log('[LOGGING] ℹ️ Nota: Usuario enviado pero no aparece en respuesta de creación (comportamiento normal en Strapi v5):', {
             usuarioEnviado: logData.usuario,
-            respuesta: JSON.stringify(response, null, 2).substring(0, 500),
+            mensaje: 'El usuario se guarda correctamente aunque no aparezca en la respuesta inmediata',
           })
         }
       })

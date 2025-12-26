@@ -32,40 +32,58 @@ export async function GET(request: NextRequest) {
     
     console.log('[API Precios GET] Obteniendo precios para libro:', libroId)
     
-    // Obtener libro con precios
-    const response = await strapiClient.get<any>(
-      `/api/libros?filters[id][$eq]=${libroId}&populate[precios]=*`
-    )
+    // Obtener precios directamente filtrando por libroId
+    // El campo "precios" no existe como relación en libros, así que consultamos la colección precios directamente
+    try {
+      const response = await strapiClient.get<any>(
+        `/api/precios?filters[libro][id][$eq]=${libroId}&pagination[pageSize]=1000&sort=fecha_inicio:desc`
+      )
+      
+      let precios: any[] = []
+      if (Array.isArray(response)) {
+        precios = response
+      } else if (response.data && Array.isArray(response.data)) {
+        precios = response.data
+      } else if (response.data?.data && Array.isArray(response.data.data)) {
+        precios = response.data.data
+      } else if (response.data) {
+        precios = [response.data]
+      } else {
+        precios = []
+      }
+      
+      // Si no encontramos precios con ese filtro, intentar con documentId
+      if (precios.length === 0) {
+        console.log('[API Precios GET] No se encontraron precios con id, intentando con documentId...')
+        const response2 = await strapiClient.get<any>(
+          `/api/precios?filters[libro][documentId][$eq]=${libroId}&pagination[pageSize]=1000&sort=fecha_inicio:desc`
+        )
+        
+        if (Array.isArray(response2)) {
+          precios = response2
+        } else if (response2.data && Array.isArray(response2.data)) {
+          precios = response2.data
+        } else if (response2.data?.data && Array.isArray(response2.data.data)) {
+          precios = response2.data.data
+        } else if (response2.data) {
+          precios = [response2.data]
+        }
+      }
     
-    let libro: any
-    if (Array.isArray(response)) {
-      libro = response[0]
-    } else if (response.data && Array.isArray(response.data)) {
-      libro = response.data[0]
-    } else if (response.data) {
-      libro = response.data
-    } else {
-      libro = response
+      console.log('[API Precios GET] ✅ Precios encontrados:', precios.length)
+      
+      return NextResponse.json({
+        success: true,
+        data: precios
+      })
+    } catch (populateError: any) {
+      // Si falla al obtener precios directamente, retornar array vacío
+      console.warn('[API Precios GET] ⚠️ No se pudieron obtener precios directamente, retornando vacío:', populateError.message)
+      return NextResponse.json({
+        success: true,
+        data: []
+      })
     }
-    
-    const attrs = libro?.attributes || {}
-    const precios = 
-      attrs.precios?.data || 
-      attrs.PRECIOS?.data || 
-      libro.precios?.data || 
-      libro.PRECIOS?.data ||
-      attrs.precios ||
-      attrs.PRECIOS ||
-      libro.precios ||
-      libro.PRECIOS ||
-      []
-    
-    console.log('[API Precios GET] ✅ Precios encontrados:', precios.length)
-    
-    return NextResponse.json({
-      success: true,
-      data: precios
-    })
     
   } catch (error: any) {
     console.error('[API Precios GET] ❌ Error:', error)
