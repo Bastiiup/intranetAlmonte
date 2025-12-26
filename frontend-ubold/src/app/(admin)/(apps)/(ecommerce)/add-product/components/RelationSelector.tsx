@@ -133,26 +133,71 @@ const RelationSelector = memo(function RelationSelector({
     // Obtener el ID del producto
     const productId = option.id || option.documentId || data.id || data.documentId
     
-    // Intentar obtener el nombre/título del producto (incluyendo nombre_libro que es el campo real)
-    const nombre = data[displayField] || 
-                   option[displayField] ||
-                   data.nombre_libro ||
-                   option.nombre_libro ||
-                   data.nombre || 
-                   option.nombre || 
-                   data.titulo ||
-                   option.titulo || 
-                   data.name ||
-                   option.name ||
-                   data.title ||
-                   option.title ||
-                   null
-    
-    // Si hay nombre, mostrar "Nombre (ID)", si no solo "Item ID"
-    if (nombre) {
-      return `${nombre} (${productId})`
+    // Helper para buscar campo con múltiples variaciones (similar a getField usado en otros lugares)
+    const getFieldValue = (fieldName: string): string | null => {
+      // Intentar múltiples variaciones del nombre del campo
+      const variations = [
+        fieldName,
+        fieldName.toLowerCase(),
+        fieldName.toUpperCase(),
+        // Para campos compuestos, intentar con guiones bajos y camelCase
+        fieldName.replace(/_/g, ''),
+        fieldName.replace(/([A-Z])/g, '_$1').toLowerCase(),
+      ]
+      
+      // Buscar en data primero
+      for (const variation of variations) {
+        if (data[variation] !== undefined && data[variation] !== null && data[variation] !== '') {
+          return String(data[variation])
+        }
+      }
+      
+      // Buscar en option
+      for (const variation of variations) {
+        if (option[variation] !== undefined && option[variation] !== null && option[variation] !== '') {
+          return String(option[variation])
+        }
+      }
+      
+      return null
     }
     
+    // Intentar obtener el nombre usando el displayField
+    let nombre = getFieldValue(displayField)
+    
+    // Si no se encontró con displayField, intentar campos comunes según el tipo de relación
+    if (!nombre) {
+      // Campos específicos por tipo de entidad
+      const commonFields = [
+        // Autores
+        'nombre_completo_autor', 'nombreCompletoAutor', 'NOMBRE_COMPLETO_AUTOR',
+        // Sellos
+        'nombre_sello', 'nombreSello', 'NOMBRE_SELLO',
+        // Editoriales
+        'nombre_editorial', 'nombreEditorial', 'NOMBRE_EDITORIAL',
+        // Obras
+        'titulo', 'TITULO', 'title',
+        // Productos/Libros
+        'nombre_libro', 'nombreLibro', 'NOMBRE_LIBRO',
+        // Colecciones
+        'nombre_coleccion', 'nombreColeccion', 'NOMBRE_COLECCION',
+        // Campos genéricos
+        'nombre', 'NOMBRE', 'name', 'NAME',
+        'titulo', 'TITULO', 'title', 'TITLE',
+      ]
+      
+      for (const field of commonFields) {
+        nombre = getFieldValue(field)
+        if (nombre) break
+      }
+    }
+    
+    // Si hay nombre, mostrar solo el nombre (sin ID para mejor legibilidad)
+    if (nombre) {
+      return nombre
+    }
+    
+    // Si no hay nombre, mostrar "Item ID"
     return `Item ${productId}`
   }
 
