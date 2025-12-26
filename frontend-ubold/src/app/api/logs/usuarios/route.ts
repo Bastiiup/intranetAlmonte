@@ -71,15 +71,11 @@ export async function GET(request: NextRequest) {
 
     let logs: any[] = []
     
-    // Manejar estructura de Strapi v5: { data: [...], meta: { pagination: {...} } }
-    if (Array.isArray(logsResponse)) {
-      logs = logsResponse
-      addDebugLog(`[API /logs/usuarios] 📦 Respuesta es array directo, logs: ${logs.length}`)
-    } else if (logsResponse.data !== undefined) {
-      // Strapi v5 devuelve { data: [...], meta: {...} }
+    // El endpoint personalizado devuelve { data: [...], meta: { pagination: {...} } }
+    if (logsResponse.data !== undefined) {
       if (Array.isArray(logsResponse.data)) {
         logs = logsResponse.data
-        addDebugLog(`[API /logs/usuarios] 📦 Respuesta tiene data como array, logs: ${logs.length}`)
+        addDebugLog(`[API /logs/usuarios] 📦 Respuesta del endpoint personalizado, logs: ${logs.length}`)
         if (logsResponse.meta) {
           addDebugLog(`[API /logs/usuarios] 📊 Meta paginación: ${JSON.stringify(logsResponse.meta.pagination)}`)
         }
@@ -87,10 +83,13 @@ export async function GET(request: NextRequest) {
         logs = [logsResponse.data]
         addDebugLog('[API /logs/usuarios] 📦 Respuesta tiene data como objeto único')
       } else {
-        // data es null o undefined
         logs = []
         addDebugLog('[API /logs/usuarios] ⚠️ Respuesta tiene data pero es null/undefined')
       }
+    } else if (Array.isArray(logsResponse)) {
+      // Fallback: si viene como array directo
+      logs = logsResponse
+      addDebugLog(`[API /logs/usuarios] 📦 Respuesta es array directo, logs: ${logs.length}`)
     } else {
       // Si no tiene estructura conocida, intentar como objeto único
       logs = [logsResponse]
