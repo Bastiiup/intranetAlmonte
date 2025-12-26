@@ -17,7 +17,7 @@ import Link from 'next/link'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert } from 'react-bootstrap'
 import { LuBox, LuSearch } from 'react-icons/lu'
-import { TbEdit, TbEye, TbList, TbTrash, TbCheck } from 'react-icons/tb'
+import { TbEdit, TbEye, TbList, TbTrash, TbCheck, TbPlus } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
@@ -371,6 +371,37 @@ const CategoriaRequestsListing = ({ categorias, error }: CategoriaRequestsListin
     }
   }
 
+  const handleCreateCategoria = async (nombre: string) => {
+    try {
+      const response = await fetch('/api/tienda/categorias', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          data: {
+            name: nombre,
+            descripcion: '',
+          }
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Error al crear la categoría')
+      }
+
+      const result = await response.json()
+      console.log('[CategoriaRequestsListing] Categoría creada:', result)
+      
+      // Recargar la página para mostrar la nueva categoría
+      router.refresh()
+    } catch (err: any) {
+      console.error('[CategoriaRequestsListing] Error al crear categoría:', err)
+      alert(`Error al crear categoría: ${err.message}`)
+    }
+  }
+
   const handleStatusChange = async () => {
     if (!selectedCategoria?.strapiId) return
 
@@ -441,6 +472,20 @@ const CategoriaRequestsListing = ({ categorias, error }: CategoriaRequestsListin
                 />
                 <LuSearch className="app-search-icon text-muted" />
               </div>
+
+              <Button 
+                variant="primary" 
+                size="sm" 
+                onClick={() => {
+                  // Crear nueva categoría directamente
+                  const nombre = prompt('Ingrese el nombre de la nueva categoría:')
+                  if (nombre && nombre.trim()) {
+                    handleCreateCategoria(nombre.trim())
+                  }
+                }}
+              >
+                <TbPlus className="me-1" /> Agregar Categoría
+              </Button>
 
               {Object.keys(selectedRowIds).length > 0 && canDelete && (
                 <Button variant="danger" size="sm" onClick={toggleDeleteModal}>

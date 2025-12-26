@@ -14,6 +14,11 @@ import { useAuth } from '@/hooks/useAuth'
 
 // Función helper para verificar si el usuario tiene acceso a un item del menú
 const hasAccess = (item: MenuItemType, userRole?: string): boolean => {
+  // SUPER_ADMIN siempre tiene acceso a todo
+  if (userRole === 'super_admin') {
+    return true
+  }
+  
   // Si no tiene restricción de roles, todos pueden acceder
   if (!item.roles || item.roles.length === 0) {
     return true

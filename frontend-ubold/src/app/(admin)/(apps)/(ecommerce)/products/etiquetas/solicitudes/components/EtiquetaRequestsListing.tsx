@@ -17,7 +17,7 @@ import Link from 'next/link'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert } from 'react-bootstrap'
 import { LuBox, LuSearch } from 'react-icons/lu'
-import { TbEdit, TbEye, TbList, TbTrash, TbCheck } from 'react-icons/tb'
+import { TbEdit, TbEye, TbList, TbTrash, TbCheck, TbPlus } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
@@ -335,6 +335,37 @@ const EtiquetaRequestsListing = ({ etiquetas, error }: EtiquetaRequestsListingPr
     }
   }
 
+  const handleCreateEtiqueta = async (nombre: string) => {
+    try {
+      const response = await fetch('/api/tienda/etiquetas', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          data: {
+            name: nombre,
+            descripcion: '',
+          }
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Error al crear la etiqueta')
+      }
+
+      const result = await response.json()
+      console.log('[EtiquetaRequestsListing] Etiqueta creada:', result)
+      
+      // Recargar la página para mostrar la nueva etiqueta
+      router.refresh()
+    } catch (err: any) {
+      console.error('[EtiquetaRequestsListing] Error al crear etiqueta:', err)
+      alert(`Error al crear etiqueta: ${err.message}`)
+    }
+  }
+
   const handleStatusChange = async () => {
     if (!selectedEtiqueta?.strapiId) return
 
@@ -405,6 +436,20 @@ const EtiquetaRequestsListing = ({ etiquetas, error }: EtiquetaRequestsListingPr
                 />
                 <LuSearch className="app-search-icon text-muted" />
               </div>
+
+              <Button 
+                variant="primary" 
+                size="sm" 
+                onClick={() => {
+                  // Crear nueva etiqueta directamente
+                  const nombre = prompt('Ingrese el nombre de la nueva etiqueta:')
+                  if (nombre && nombre.trim()) {
+                    handleCreateEtiqueta(nombre.trim())
+                  }
+                }}
+              >
+                <TbPlus className="me-1" /> Agregar Etiqueta
+              </Button>
 
               {Object.keys(selectedRowIds).length > 0 && canDelete && (
                 <Button variant="danger" size="sm" onClick={toggleDeleteModal}>
