@@ -267,6 +267,25 @@ export default function LogsList() {
     fetchUsuarios()
   }, [])
 
+  // Función para obtener logs de LOGGING del servidor
+  const fetchLoggingLogs = async () => {
+    try {
+      const response = await fetch('/api/logs/logging-logs', {
+        cache: 'no-store',
+      })
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${await response.text()}`)
+      }
+      const data = await response.json()
+      if (data.success && data.logs) {
+        setLoggingLogs(data.logs)
+      }
+    } catch (err: any) {
+      console.error('[LogsList] ❌ Error al obtener logs de LOGGING:', err)
+      setLoggingLogs([`Error al obtener logs: ${err.message}`])
+    }
+  }
+
   const table = useReactTable({
     data: usuarios,
     columns,
