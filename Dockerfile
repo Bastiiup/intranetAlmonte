@@ -31,6 +31,6 @@ ENV HOSTNAME="0.0.0.0"
 ENV NODE_ENV=production
 
 # Comando para iniciar la aplicación
-# Usar el script de inicio que verifica que el servidor esté escuchando
+# Ejecutar server.js desde /app (como en rama-Gonza2 que funciona)
 WORKDIR /app
-CMD ["node", "start-server.js"]
+CMD ["node", "server.js"]

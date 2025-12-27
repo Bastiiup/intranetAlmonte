@@ -19,11 +19,9 @@ console.log(`📦 NODE_ENV: ${process.env.NODE_ENV}`)
 // El servidor standalone de Next.js se inicia automáticamente al requerirlo
 // y respeta las variables de entorno PORT y HOSTNAME
 try {
-  // Cambiar al directorio standalone para que los módulos relativos funcionen
   const path = require('path')
   const fs = require('fs')
-  const standaloneDir = path.join(__dirname, '.next/standalone')
-  const serverPath = path.join(standaloneDir, 'server.js')
+  const serverPath = path.join(__dirname, '.next/standalone/server.js')
   
   // Verificar que el servidor standalone existe
   if (!fs.existsSync(serverPath)) {
@@ -33,18 +31,11 @@ try {
     process.exit(1)
   }
   
-  // Cambiar al directorio standalone
-  const originalCwd = process.cwd()
-  process.chdir(standaloneDir)
+  console.log(`📄 Cargando servidor desde: ${serverPath}`)
   
-  console.log(`📁 Directorio de trabajo original: ${originalCwd}`)
-  console.log(`📁 Directorio de trabajo actual: ${process.cwd()}`)
-  console.log(`📄 Cargando servidor desde: ./server.js`)
-  
-  // Cargar el servidor standalone (se inicia automáticamente)
-  // El servidor standalone de Next.js crea un servidor HTTP que se inicia automáticamente
-  // y respeta las variables de entorno PORT y HOSTNAME
-  require('./server.js')
+  // Cargar el servidor standalone desde la ruta absoluta
+  // Esto evita problemas con módulos relativos
+  require(serverPath)
   
   console.log('✅ Servidor standalone cargado e iniciado')
   console.log(`🌐 Servidor disponible en http://${hostname}:${port}`)
