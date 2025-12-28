@@ -147,3 +147,4 @@ Los warnings de logging que estás viendo:
 3. Ve a Railway → Proyecto **Strapi** → Busca `[pedido] 🔍 afterCreate/afterUpdate`
 4. Comparte lo que encuentres
 
+

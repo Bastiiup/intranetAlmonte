@@ -159,3 +159,4 @@ Si después de seguir estos pasos el problema persiste, comparte con el encargad
    - Qué debería pasar: El pedido debería aparecer/actualizarse en WooCommerce
    - Qué pasa realmente: El pedido no aparece/no se actualiza en WooCommerce
 
+

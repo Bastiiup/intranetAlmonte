@@ -184,7 +184,7 @@ async function sincronizarPedidoEspecifico(orderNumber: string, platform: 'woo_m
   // PRIMERO: Verificar si ya existe en Strapi
   try {
     const strapiCheckResponse = await strapiClient.get<any>(
-      `/api/wo-pedidos?filters[numero_pedido][$eq]=${orderNumber}&populate=*&publicationState=preview`
+      `/api/pedidos?filters[numero_pedido][$eq]=${orderNumber}&populate=*&publicationState=preview`
     )
     
     let strapiCheckItems: any[] = []
@@ -217,7 +217,7 @@ async function sincronizarPedidoEspecifico(orderNumber: string, platform: 'woo_m
     // Verificar si existe en Strapi aunque no esté en WooCommerce
     try {
       const strapiCheckResponse = await strapiClient.get<any>(
-        `/api/wo-pedidos?filters[numero_pedido][$eq]=${orderNumber}&populate=*&publicationState=preview`
+        `/api/pedidos?filters[numero_pedido][$eq]=${orderNumber}&populate=*&publicationState=preview`
       )
       
       let strapiCheckItems: any[] = []
@@ -276,12 +276,12 @@ async function sincronizarPedidoEspecifico(orderNumber: string, platform: 'woo_m
   
   // Verificar si ya existe en Strapi
   const orderNumberStr = String(wooOrder.number || wooOrder.id)
-  const wooId = wooOrder.id
+  const woocommerceId = wooOrder.id
   
   try {
     // Buscar en Strapi por número de pedido y plataforma
     const strapiResponse = await strapiClient.get<any>(
-      `/api/wo-pedidos?filters[$or][0][numero_pedido][$eq]=${orderNumberStr}&filters[$or][1][wooId][$eq]=${wooId}&populate=*&publicationState=preview`
+      `/api/pedidos?filters[$or][0][numero_pedido][$eq]=${orderNumberStr}&filters[$or][1][woocommerce_id][$eq]=${woocommerceId}&populate=*&publicationState=preview`
     )
     
     let strapiItems: any[] = []
@@ -300,7 +300,7 @@ async function sincronizarPedidoEspecifico(orderNumber: string, platform: 'woo_m
     })
     
     // Preparar datos del pedido
-    const prepareOrderData = (wooOrder: any, orderNumber: string, wooId: number) => ({
+    const prepareOrderData = (wooOrder: any, orderNumber: string, woocommerceId: number) => ({
       data: {
         numero_pedido: orderNumber,
         fecha_pedido: wooOrder.date_created || wooOrder.date_created_gmt,
@@ -328,11 +328,11 @@ async function sincronizarPedidoEspecifico(orderNumber: string, platform: 'woo_m
           metadata: item.meta_data || null,
         })),
         originPlatform: platform,
-        wooId: wooId,
+        woocommerce_id: woocommerceId,
         rawWooData: wooOrder,
         externalIds: {
           wooCommerce: {
-            id: wooId,
+            id: woocommerceId,
             number: orderNumber,
           },
           originPlatform: platform,
@@ -346,8 +346,8 @@ async function sincronizarPedidoEspecifico(orderNumber: string, platform: 'woo_m
       const data = (attrs && Object.keys(attrs).length > 0) ? attrs : existingPedido
       const documentId = existingPedido.documentId || existingPedido.id
       
-      const updateData = prepareOrderData(wooOrder, orderNumberStr, wooId)
-      await strapiClient.put<any>(`/api/wo-pedidos/${documentId}`, updateData)
+      const updateData = prepareOrderData(wooOrder, orderNumberStr, woocommerceId)
+      await strapiClient.put<any>(`/api/pedidos/${documentId}`, updateData)
       
       console.log(`[Sync Specific] ✅ Pedido #${orderNumber} actualizado en Strapi`)
       
@@ -360,8 +360,8 @@ async function sincronizarPedidoEspecifico(orderNumber: string, platform: 'woo_m
       }
     } else {
       // Crear nuevo pedido
-      const createData = prepareOrderData(wooOrder, orderNumberStr, wooId)
-      const response = await strapiClient.post<any>('/api/wo-pedidos', createData)
+      const createData = prepareOrderData(wooOrder, orderNumberStr, woocommerceId)
+      const response = await strapiClient.post<any>('/api/pedidos', createData)
       const documentId = response.data?.documentId || response.documentId
       
       console.log(`[Sync Specific] ✅ Pedido #${orderNumber} creado en Strapi`)

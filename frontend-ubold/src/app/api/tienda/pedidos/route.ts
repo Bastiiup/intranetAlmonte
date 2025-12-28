@@ -156,14 +156,14 @@ export async function GET(request: NextRequest) {
     let response: any
     try {
       response = await strapiClient.get<any>(
-        `/api/wo-pedidos?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario&pagination[pageSize]=5000&publicationState=${publicationState}`
+        `/api/pedidos?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario&pagination[pageSize]=5000&publicationState=${publicationState}`
       )
     } catch (pubStateError: any) {
       // Si falla con publicationState, intentar sin él
       if (pubStateError.status === 400 || pubStateError.message?.includes('400')) {
         console.warn('[API /tienda/pedidos GET] ⚠️ Error con publicationState, intentando sin él:', pubStateError.message)
         response = await strapiClient.get<any>(
-          `/api/wo-pedidos?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario&pagination[pageSize]=5000`
+          `/api/pedidos?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario&pagination[pageSize]=5000`
         )
       } else {
         throw pubStateError
@@ -263,7 +263,7 @@ export async function POST(request: NextRequest) {
     }
 
     const numeroPedido = body.data.numero_pedido.trim()
-    const pedidoEndpoint = '/api/wo-pedidos'
+    const pedidoEndpoint = '/api/pedidos'
     console.log('[API Pedidos POST] Usando endpoint Strapi:', pedidoEndpoint)
 
     // Crear en Strapi - Los lifecycles (afterCreate) se encargarán de sincronizar con WooCommerce

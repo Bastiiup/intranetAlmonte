@@ -153,7 +153,7 @@ export async function GET(
     // PASO 1: Intentar con filtro por documentId primero (más común)
     try {
       const filteredResponse = await strapiClient.get<any>(
-        `/api/wo-pedidos?filters[documentId][$eq]=${id}&populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+        `/api/pedidos?filters[documentId][$eq]=${id}&populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
       )
       
       let pedido: any
@@ -184,7 +184,7 @@ export async function GET(
     // PASO 1b: Intentar con filtro por numero_pedido si es numérico o string
     try {
       const filteredResponse = await strapiClient.get<any>(
-        `/api/wo-pedidos?filters[numero_pedido][$eq]=${id}&populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+        `/api/pedidos?filters[numero_pedido][$eq]=${id}&populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
       )
       
       let pedido: any
@@ -211,11 +211,11 @@ export async function GET(
       }
     }
     
-    // PASO 1c: Intentar con filtro por wooId si es numérico
+    // PASO 1c: Intentar con filtro por woocommerce_id si es numérico
     if (!isNaN(parseInt(id))) {
       try {
         const filteredResponse = await strapiClient.get<any>(
-          `/api/wo-pedidos?filters[wooId][$eq]=${id}&populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+          `/api/pedidos?filters[woocommerce_id][$eq]=${id}&populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
         )
         
         let pedido: any
@@ -230,7 +230,7 @@ export async function GET(
         }
         
         if (pedido && (pedido.id || pedido.documentId)) {
-          console.log('[API /tienda/pedidos/[id] GET] ✅ Pedido encontrado con filtro por wooId')
+          console.log('[API /tienda/pedidos/[id] GET] ✅ Pedido encontrado con filtro por woocommerce_id')
           return NextResponse.json({
             success: true,
             data: pedido
@@ -238,7 +238,7 @@ export async function GET(
         }
       } catch (filterError: any) {
         if (filterError.status !== 500) {
-          console.warn('[API /tienda/pedidos/[id] GET] ⚠️ Error al obtener con filtro por wooId:', filterError.message)
+          console.warn('[API /tienda/pedidos/[id] GET] ⚠️ Error al obtener con filtro por woocommerce_id:', filterError.message)
         }
       }
     }
@@ -246,7 +246,7 @@ export async function GET(
     // PASO 2: Buscar en lista completa
     try {
       const allPedidos = await strapiClient.get<any>(
-        `/api/wo-pedidos?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario&pagination[pageSize]=1000`
+        `/api/pedidos?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario&pagination[pageSize]=1000`
       )
       
       let pedidos: any[] = []
@@ -299,7 +299,7 @@ export async function GET(
     // PASO 3: Intentar endpoint directo
     try {
       const response = await strapiClient.get<any>(
-        `/api/wo-pedidos/${id}?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+        `/api/pedidos/${id}?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
       )
       
       let pedido: any
@@ -315,7 +315,7 @@ export async function GET(
         // Registrar log de visualización
         const attrs = pedido.attributes || {}
         const data = (attrs && Object.keys(attrs).length > 0) ? attrs : pedido
-        const numeroPedido = data.numero_pedido || data.wooId || id
+        const numeroPedido = data.numero_pedido || data.woocommerce_id || id
         
         logActivity(request, {
           accion: 'ver',
@@ -356,11 +356,11 @@ export async function DELETE(
     const { id } = await params
     console.log('[API Pedidos DELETE] 🗑️ Eliminando pedido:', id)
 
-    const pedidoEndpoint = '/api/wo-pedidos'
+    const pedidoEndpoint = '/api/pedidos'
     
-    // Primero obtener el pedido de Strapi para obtener el documentId y wooId
+    // Primero obtener el pedido de Strapi para obtener el documentId y woocommerce_id
     let documentId: string | null = null
-    let wooId: number | null = null
+    let woocommerceId: number | null = null
     let originPlatform: string = 'woo_moraleja'
     let pedidoStrapi: any = null // Declarar pedidoStrapi antes de usarlo
     
@@ -378,7 +378,7 @@ export async function DELETE(
         documentId = pedidoStrapi?.documentId || pedidoStrapi?.id || id
         const attrs = pedidoStrapi?.attributes || {}
         const data = (attrs && Object.keys(attrs).length > 0) ? attrs : pedidoStrapi
-        wooId = data?.wooId || pedidoStrapi?.wooId || null
+        woocommerceId = data?.woocommerce_id || pedidoStrapi?.woocommerce_id || null
         originPlatform = data?.originPlatform || pedidoStrapi?.originPlatform || 'woo_moraleja'
       } catch (directError: any) {
         console.warn('[API Pedidos DELETE] ⚠️ Error al obtener pedido con endpoint directo:', directError.message)
@@ -402,7 +402,7 @@ export async function DELETE(
           documentId = pedidoStrapi?.documentId || pedidoStrapi?.id || id
           const attrs = pedidoStrapi?.attributes || {}
           const data = (attrs && Object.keys(attrs).length > 0) ? attrs : pedidoStrapi
-          wooId = data?.wooId || pedidoStrapi?.wooId || null
+          woocommerceId = data?.woocommerce_id || pedidoStrapi?.woocommerce_id || null
           originPlatform = data?.originPlatform || pedidoStrapi?.originPlatform || 'woo_moraleja'
         }
       } catch (filterError: any) {
@@ -417,11 +417,11 @@ export async function DELETE(
 
     // Eliminar en WooCommerce primero si tenemos el ID (solo si no es "otros")
     let wooCommerceDeleted = false
-    if (wooId && originPlatform !== 'otros') {
+    if (woocommerceId && originPlatform !== 'otros') {
       try {
         const wcClient = getWooCommerceClientForPlatform(originPlatform)
-        console.log('[API Pedidos DELETE] 🛒 Eliminando pedido en WooCommerce:', wooId)
-        await wcClient.delete<any>(`orders/${wooId}`, true)
+        console.log('[API Pedidos DELETE] 🛒 Eliminando pedido en WooCommerce:', woocommerceId)
+        await wcClient.delete<any>(`orders/${woocommerceId}`, true)
         wooCommerceDeleted = true
         console.log('[API Pedidos DELETE] ✅ Pedido eliminado en WooCommerce')
       } catch (wooError: any) {
@@ -449,7 +449,7 @@ export async function DELETE(
     // Registrar log de eliminación
     const attrs = pedidoStrapi?.attributes || {}
     const data = (attrs && Object.keys(attrs).length > 0) ? attrs : pedidoStrapi
-    const numeroPedido = data?.numero_pedido || data?.wooId || id
+    const numeroPedido = data?.numero_pedido || data?.woocommerce_id || id
     
     logActivity(request, {
       accion: 'eliminar',
@@ -490,12 +490,12 @@ export async function PUT(
     const body = await request.json()
     console.log('[API Pedidos PUT] ✏️ Actualizando pedido:', id, body)
 
-    const pedidoEndpoint = '/api/wo-pedidos'
+    const pedidoEndpoint = '/api/pedidos'
     
-    // Primero obtener el pedido de Strapi para obtener el documentId y wooId
+    // Primero obtener el pedido de Strapi para obtener el documentId y woocommerce_id
     let cuponStrapi: any
     let documentId: string | null = null
-    let wooId: number | null = null
+    let woocommerceId: number | null = null
     let originPlatform: string = 'woo_moraleja'
     
     // Intentar obtener el pedido - si el ID parece ser un documentId (string), usar endpoint directo
@@ -545,7 +545,7 @@ export async function PUT(
     if (cuponStrapi) {
       const attrs = cuponStrapi?.attributes || {}
       const data = (attrs && Object.keys(attrs).length > 0) ? attrs : cuponStrapi
-      wooId = data?.wooId || cuponStrapi?.wooId || null
+      woocommerceId = data?.woocommerce_id || cuponStrapi?.woocommerce_id || null
       
       // CORRECCIÓN: Buscar originPlatform en todos los lugares posibles
       // Puede estar en: data.originPlatform, externalIds.originPlatform, o en el objeto raíz
@@ -562,7 +562,7 @@ export async function PUT(
         fromData: originPlatformFromData,
         fromExternalIds: originPlatformFromExternalIds,
         final: originPlatform,
-        wooId
+        woocommerceId
       })
     }
 
@@ -580,7 +580,7 @@ export async function PUT(
     // Strapi se encargará de sincronizar mediante el lifecycle afterUpdate
     console.log('[API Pedidos PUT] 📝 Actualizando pedido en Strapi (los lifecycles sincronizarán con WooCommerce)...')
     console.log('Origin Platform:', originPlatform)
-    console.log('WooId:', wooId)
+    console.log('WooCommerce ID:', woocommerceId)
 
     // Actualizar en Strapi usando documentId si está disponible
     const strapiEndpoint = documentId ? `${pedidoEndpoint}/${documentId}` : `${pedidoEndpoint}/${id}`
@@ -723,7 +723,7 @@ export async function PUT(
       // Guardar datos anteriores para el log
       const attrsAnteriores = cuponStrapi?.attributes || {}
       const datosAnteriores = (attrsAnteriores && Object.keys(attrsAnteriores).length > 0) ? attrsAnteriores : cuponStrapi
-      const numeroPedido = datosAnteriores?.numero_pedido || datosAnteriores?.wooId || id
+      const numeroPedido = datosAnteriores?.numero_pedido || datosAnteriores?.woocommerce_id || id
       
       let strapiResponse: any
       try {

@@ -3,7 +3,7 @@
 ## ✅ 1. CONTENT TYPE DE STRAPI
 
 **Content Type:** `api::pedido.pedido`  
-**Endpoint REST:** `/api/wo-pedidos`
+**Endpoint REST:** `/api/pedidos`
 
 ### Nota Importante:
 - El Content Type interno de Strapi es `api::pedido.pedido`
@@ -27,11 +27,11 @@ GET /api/tienda/pedidos
 // frontend-ubold/src/app/api/tienda/pedidos/route.ts
 
 // Con filtros y populate optimizado
-GET /api/wo-pedidos?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario&pagination[pageSize]=5000&publicationState=live
+GET /api/pedidos?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario&pagination[pageSize]=5000&publicationState=live
 ```
 
 ### Características
-- ✅ **Filtros:** Soporta filtros por `documentId`, `numero_pedido`, `wooId`
+- ✅ **Filtros:** Soporta filtros por `documentId`, `numero_pedido`, `woocommerce_id`
 - ✅ **Populate:** Popula relaciones `cliente` e `items` con campos específicos (optimizado)
 - ✅ **Paginación:** Soporta paginación con `pagination[pageSize]`
 - ✅ **Publication State:** Soporta `live` (publicados) y `preview` (incluye drafts)
@@ -179,7 +179,7 @@ PUT /api/tienda/pedidos/[id]
 ```
 
 ### Parámetros
-- `id`: Puede ser `documentId`, `numero_pedido`, o `wooId`
+- `id`: Puede ser `documentId`, `numero_pedido`, o `woocommerce_id`
 
 ### Estructura del Payload
 
@@ -206,7 +206,7 @@ PUT /api/tienda/pedidos/[id]
 - ✅ **Items condicionales:** Si solo se actualiza el estado, NO se envían items para evitar errores en el hook `afterUpdate` de Strapi
 
 ### Flujo de Actualización
-1. **Obtener pedido existente** de Strapi para obtener `documentId`, `wooId`, `originPlatform`
+1. **Obtener pedido existente** de Strapi para obtener `documentId`, `woocommerce_id`, `originPlatform`
 2. **Validar `originPlatform`** si se proporciona
 3. **Preparar datos** (mapear estado, normalizar valores)
 4. **Corregir valores inválidos** si solo se actualiza el estado
@@ -243,11 +243,11 @@ DELETE /api/tienda/pedidos/[id]
 ```
 
 ### Parámetros
-- `id`: Puede ser `documentId`, `numero_pedido`, o `wooId`
+- `id`: Puede ser `documentId`, `numero_pedido`, o `woocommerce_id`
 
 ### Flujo de Eliminación
-1. **Obtener pedido existente** de Strapi para obtener `documentId`, `wooId`, `originPlatform`
-2. **Eliminar en WooCommerce** (si `wooId` existe y `originPlatform !== 'otros'`)
+1. **Obtener pedido existente** de Strapi para obtener `documentId`, `woocommerce_id`, `originPlatform`
+2. **Eliminar en WooCommerce** (si `woocommerce_id` existe y `originPlatform !== 'otros'`)
 3. **Eliminar en Strapi** mediante `DELETE /api/wo-pedidos/{documentId}`
 4. **Retornar respuesta** de éxito
 
@@ -288,7 +288,7 @@ DELETE /api/tienda/pedidos/[id]
 | `metodo_pago_titulo` | String | ❌ No | Título del método de pago |
 | `nota_cliente` | Text | ❌ No | Nota del cliente |
 | `originPlatform` | Enumeration | ✅ Sí | Plataforma de origen (ver sección 7) |
-| `wooId` | Integer | ❌ No | ID del pedido en WooCommerce |
+| `woocommerce_id` | Integer | ❌ No | ID del pedido en WooCommerce |
 | `externalIds` | JSON | ❌ No | IDs externos y metadata |
 
 ### Relaciones
@@ -389,13 +389,13 @@ if (!validPlatforms.includes(originPlatform)) {
    └─ Mapear estado (español → inglés)
    └─ Normalizar origen, metodo_pago
 
-4. Intranet API → POST /api/wo-pedidos (Strapi)
+4. Intranet API → POST /api/pedidos (Strapi)
    └─ Crear pedido en Strapi
 
 5. Strapi → Ejecutar lifecycle afterCreate
    └─ Si originPlatform !== 'otros':
       └─ Sincronizar con WooCommerce automáticamente
-      └─ Actualizar wooId y externalIds en Strapi
+      └─ Actualizar woocommerce_id y externalIds en Strapi
 
 6. Intranet API → Retornar respuesta
    └─ { success: true, data: { strapi: {...} } }
@@ -409,7 +409,7 @@ if (!validPlatforms.includes(originPlatform)) {
 
 2. Intranet API → Obtener pedido existente
    └─ GET /api/wo-pedidos/{documentId}
-   └─ Extraer: documentId, wooId, originPlatform
+   └─ Extraer: documentId, woocommerce_id, originPlatform
 
 3. Intranet API → Preparar datos
    └─ Mapear estado (español → inglés)
@@ -420,7 +420,7 @@ if (!validPlatforms.includes(originPlatform)) {
    └─ Actualizar pedido en Strapi
 
 5. Strapi → Ejecutar lifecycle afterUpdate
-   └─ Si originPlatform !== 'otros' y wooId existe:
+   └─ Si originPlatform !== 'otros' y woocommerce_id existe:
       └─ Actualizar pedido en WooCommerce automáticamente
 
 6. Intranet API → Retornar respuesta
@@ -434,11 +434,11 @@ if (!validPlatforms.includes(originPlatform)) {
 
 2. Intranet API → Obtener pedido existente
    └─ GET /api/wo-pedidos/{documentId}
-   └─ Extraer: documentId, wooId, originPlatform
+   └─ Extraer: documentId, woocommerce_id, originPlatform
 
 3. Intranet API → Eliminar en WooCommerce (si aplica)
-   └─ DELETE /wp-json/wc/v3/orders/{wooId}
-   └─ Solo si wooId existe y originPlatform !== 'otros'
+   └─ DELETE /wp-json/wc/v3/orders/{woocommerce_id}
+   └─ Solo si woocommerce_id existe y originPlatform !== 'otros'
 
 4. Intranet API → DELETE /api/wo-pedidos/{documentId} (Strapi)
    └─ Eliminar pedido en Strapi
@@ -602,7 +602,7 @@ Si hay problemas con la sincronización:
 3. **Verificar en Strapi Admin:**
    - ¿El pedido se crea/actualiza correctamente?
    - ¿El campo `originPlatform` tiene el valor correcto?
-   - ¿Existe `wooId` después de la sincronización?
+   - ¿Existe `woocommerce_id` después de la sincronización?
 
 ---
 
