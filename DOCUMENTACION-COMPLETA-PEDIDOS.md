@@ -7,7 +7,7 @@
 
 ### Nota Importante:
 - El Content Type interno de Strapi es `api::pedido.pedido`
-- El endpoint REST que usa la Intranet es `/api/wo-pedidos` (basado en el nombre del Content Type)
+- El endpoint REST que usa la Intranet es `/api/pedidos` (basado en el nombre del Content Type)
 - Ambos se refieren al mismo modelo de datos
 
 ---
@@ -146,7 +146,7 @@ POST /api/tienda/pedidos
 1. **Validar campos obligatorios** (`numero_pedido`, `originPlatform`)
 2. **Preparar items** (validar estructura)
 3. **Normalizar valores** (estado, origen, metodo_pago)
-4. **Crear en Strapi** mediante `POST /api/wo-pedidos`
+4. **Crear en Strapi** mediante `POST /api/pedidos`
 5. **Strapi ejecuta lifecycle `afterCreate`** que sincroniza con WooCommerce automáticamente
 6. **Retornar respuesta** con el pedido creado
 
@@ -210,7 +210,7 @@ PUT /api/tienda/pedidos/[id]
 2. **Validar `originPlatform`** si se proporciona
 3. **Preparar datos** (mapear estado, normalizar valores)
 4. **Corregir valores inválidos** si solo se actualiza el estado
-5. **Actualizar en Strapi** mediante `PUT /api/wo-pedidos/{documentId}`
+5. **Actualizar en Strapi** mediante `PUT /api/pedidos/{documentId}`
 6. **Strapi ejecuta lifecycle `afterUpdate`** que sincroniza con WooCommerce automáticamente
 7. **Retornar respuesta** con el pedido actualizado
 
@@ -248,7 +248,7 @@ DELETE /api/tienda/pedidos/[id]
 ### Flujo de Eliminación
 1. **Obtener pedido existente** de Strapi para obtener `documentId`, `woocommerce_id`, `originPlatform`
 2. **Eliminar en WooCommerce** (si `woocommerce_id` existe y `originPlatform !== 'otros'`)
-3. **Eliminar en Strapi** mediante `DELETE /api/wo-pedidos/{documentId}`
+3. **Eliminar en Strapi** mediante `DELETE /api/pedidos/{documentId}`
 4. **Retornar respuesta** de éxito
 
 ### Ejemplo de Respuesta
@@ -408,7 +408,7 @@ if (!validPlatforms.includes(originPlatform)) {
    └─ Payload: { data: { estado: "procesando", ... } }
 
 2. Intranet API → Obtener pedido existente
-   └─ GET /api/wo-pedidos/{documentId}
+   └─ GET /api/pedidos/{documentId}
    └─ Extraer: documentId, woocommerce_id, originPlatform
 
 3. Intranet API → Preparar datos
@@ -416,7 +416,7 @@ if (!validPlatforms.includes(originPlatform)) {
    └─ Normalizar valores
    └─ Corregir valores inválidos si solo se actualiza estado
 
-4. Intranet API → PUT /api/wo-pedidos/{documentId} (Strapi)
+4. Intranet API → PUT /api/pedidos/{documentId} (Strapi)
    └─ Actualizar pedido en Strapi
 
 5. Strapi → Ejecutar lifecycle afterUpdate
@@ -433,14 +433,14 @@ if (!validPlatforms.includes(originPlatform)) {
 1. Frontend → DELETE /api/tienda/pedidos/[id]
 
 2. Intranet API → Obtener pedido existente
-   └─ GET /api/wo-pedidos/{documentId}
+   └─ GET /api/pedidos/{documentId}
    └─ Extraer: documentId, woocommerce_id, originPlatform
 
 3. Intranet API → Eliminar en WooCommerce (si aplica)
    └─ DELETE /wp-json/wc/v3/orders/{woocommerce_id}
    └─ Solo si woocommerce_id existe y originPlatform !== 'otros'
 
-4. Intranet API → DELETE /api/wo-pedidos/{documentId} (Strapi)
+4. Intranet API → DELETE /api/pedidos/{documentId} (Strapi)
    └─ Eliminar pedido en Strapi
 
 5. Intranet API → Retornar respuesta
@@ -558,7 +558,7 @@ console.error('[API Pedidos PUT] ❌ ERROR al actualizar en Strapi:')
 
 ### Checklist de Verificación
 
-- [x] ✅ Content Type correcto: `/api/wo-pedidos`
+- [x] ✅ Content Type correcto: `/api/pedidos`
 - [x] ✅ Listar pedidos con filtros, populate, paginación
 - [x] ✅ Crear pedidos con estructura completa + `originPlatform`
 - [x] ✅ Actualizar pedidos (parcial y completo)
