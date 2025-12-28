@@ -226,9 +226,10 @@ const AddPedidoForm = () => {
                 <FormControl
                   as="select"
                   value={formData.originPlatform}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, originPlatform: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    const value = e.target.value as 'woo_moraleja' | 'woo_escolar' | 'otros'
+                    setFormData((prev) => ({ ...prev, originPlatform: value }))
+                  }}
                   required
                 >
                   <option value="woo_moraleja">WooCommerce Moraleja</option>
