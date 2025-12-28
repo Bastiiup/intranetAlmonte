@@ -293,10 +293,15 @@ export async function POST(request: NextRequest) {
       metadata: item.metadata || null,
     }))
     
+    // Preparar fecha_pedido y fecha_creacion
+    const fechaPedido = body.data.fecha_pedido || new Date().toISOString()
+    const fechaCreacion = body.data.fecha_creacion || body.data.fecha_pedido || new Date().toISOString()
+    
     const pedidoData: any = {
       data: {
         numero_pedido: numeroPedido,
-        fecha_pedido: body.data.fecha_pedido || new Date().toISOString(),
+        fecha_pedido: fechaPedido,
+        fecha_creacion: fechaCreacion, // ⚠️ REQUERIDO por Strapi
         // Strapi espera valores en inglés, mapear de español a inglés
         estado: body.data.estado ? mapWooStatus(body.data.estado) : 'pending',
         total: body.data.total ? parseFloat(body.data.total) : null,
