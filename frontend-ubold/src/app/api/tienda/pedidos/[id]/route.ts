@@ -541,9 +541,10 @@ export async function PUT(
         documentId = pedido.documentId || pedido.id || id
         console.log('[API Pedidos PUT] ✅ Pedido encontrado con filtro por documentId')
       }
-    } catch (filterError: any) {
-      if (filterError.status !== 500) {
-        console.warn('[API Pedidos PUT] ⚠️ Error al obtener con filtro por documentId:', filterError.message)
+      } catch (filterError: any) {
+        if (filterError.status !== 500) {
+          console.warn('[API Pedidos PUT] ⚠️ Error al obtener con filtro por documentId:', filterError.message)
+        }
       }
     }
     
