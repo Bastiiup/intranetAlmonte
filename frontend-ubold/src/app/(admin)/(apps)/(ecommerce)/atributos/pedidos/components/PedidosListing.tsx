@@ -166,7 +166,7 @@ const mapStrapiPedidoToPedidoType = (pedido: any): PedidoType => {
   }
   
   // Obtener fechas
-  const createdAt = attrs.createdAt || (pedido as any).createdAt || fechaPedido || new Date().toISOString()
+  const createdAt = attrs.createdAt || pedidoReal.createdAt || (pedido as any).createdAt || fechaPedido || new Date().toISOString()
   const createdDate = new Date(createdAt)
   
   // Priorizar documentId sobre id numérico (Strapi v5 requiere documentId para endpoints)
