@@ -151,20 +151,32 @@ export async function GET(request: NextRequest) {
     console.log('[API /tienda/pedidos GET] Obteniendo pedidos', { includeHidden, publicationState })
     
     // Obtener TODOS los pedidos de ambas plataformas (woo_moraleja y woo_escolar)
-    // Optimizar: usar populate selectivo en lugar de populate=*
-    // Intentar primero con publicationState, si falla, intentar sin él
+    // Intentar primero con populate simple, si falla, intentar sin populate
     let response: any
     try {
+      // Primero intentar con populate simple (sin campos específicos que pueden no existir)
       response = await strapiClient.get<any>(
-        `/api/pedidos?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario&pagination[pageSize]=5000&publicationState=${publicationState}`
+        `/api/pedidos?populate=*&pagination[pageSize]=5000&publicationState=${publicationState}`
       )
     } catch (pubStateError: any) {
       // Si falla con publicationState, intentar sin él
       if (pubStateError.status === 400 || pubStateError.message?.includes('400')) {
         console.warn('[API /tienda/pedidos GET] ⚠️ Error con publicationState, intentando sin él:', pubStateError.message)
-        response = await strapiClient.get<any>(
-          `/api/pedidos?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario&pagination[pageSize]=5000`
-        )
+        try {
+          response = await strapiClient.get<any>(
+            `/api/pedidos?populate=*&pagination[pageSize]=5000`
+          )
+        } catch (populateError: any) {
+          // Si también falla con populate, intentar sin populate
+          if (populateError.status === 400 || populateError.message?.includes('400')) {
+            console.warn('[API /tienda/pedidos GET] ⚠️ Error con populate, intentando sin populate:', populateError.message)
+            response = await strapiClient.get<any>(
+              `/api/pedidos?pagination[pageSize]=5000&publicationState=${publicationState}`
+            )
+          } else {
+            throw populateError
+          }
+        }
       } else {
         throw pubStateError
       }

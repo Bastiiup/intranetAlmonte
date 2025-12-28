@@ -153,7 +153,7 @@ export async function GET(
     // PASO 1: Intentar con filtro por documentId primero (más común)
     try {
       const filteredResponse = await strapiClient.get<any>(
-        `/api/pedidos?filters[documentId][$eq]=${id}&populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+        `/api/pedidos?filters[documentId][$eq]=${id}&populate=*`
       )
       
       let pedido: any
@@ -184,7 +184,7 @@ export async function GET(
     // PASO 1b: Intentar con filtro por numero_pedido si es numérico o string
     try {
       const filteredResponse = await strapiClient.get<any>(
-        `/api/pedidos?filters[numero_pedido][$eq]=${id}&populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+        `/api/pedidos?filters[numero_pedido][$eq]=${id}&populate=*`
       )
       
       let pedido: any
@@ -215,7 +215,7 @@ export async function GET(
     if (!isNaN(parseInt(id))) {
       try {
         const filteredResponse = await strapiClient.get<any>(
-          `/api/pedidos?filters[woocommerce_id][$eq]=${id}&populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+          `/api/pedidos?filters[woocommerce_id][$eq]=${id}&populate=*`
         )
         
         let pedido: any
@@ -246,7 +246,7 @@ export async function GET(
     // PASO 2: Buscar en lista completa
     try {
       const allPedidos = await strapiClient.get<any>(
-        `/api/pedidos?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario&pagination[pageSize]=1000`
+        `/api/pedidos?populate=*&pagination[pageSize]=1000`
       )
       
       let pedidos: any[] = []
@@ -299,7 +299,7 @@ export async function GET(
     // PASO 3: Intentar endpoint directo
     try {
       const response = await strapiClient.get<any>(
-        `/api/pedidos/${id}?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+        `/api/pedidos/${id}?populate=*`
       )
       
       let pedido: any
@@ -372,7 +372,7 @@ export async function DELETE(
       // Si es documentId, usar endpoint directo
       try {
         const directResponse = await strapiClient.get<any>(
-          `${pedidoEndpoint}/${id}?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+          `${pedidoEndpoint}/${id}?populate=*`
         )
         pedidoStrapi = directResponse.data || directResponse
         documentId = pedidoStrapi?.documentId || pedidoStrapi?.id || id
@@ -387,7 +387,7 @@ export async function DELETE(
       // Si es numérico, intentar con filtro
       try {
         const pedidoResponse = await strapiClient.get<any>(
-          `${pedidoEndpoint}?filters[documentId][$eq]=${id}&populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+          `${pedidoEndpoint}?filters[documentId][$eq]=${id}&populate=*`
         )
         let pedidos: any[] = []
         if (Array.isArray(pedidoResponse)) {
@@ -506,7 +506,7 @@ export async function PUT(
       // Si es documentId, usar endpoint directo
       try {
         const directResponse = await strapiClient.get<any>(
-          `${pedidoEndpoint}/${id}?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+          `${pedidoEndpoint}/${id}?populate=*`
         )
         cuponStrapi = directResponse.data || directResponse
         documentId = cuponStrapi?.documentId || cuponStrapi?.id || id
@@ -517,7 +517,7 @@ export async function PUT(
       // Si es numérico, intentar con filtro
       try {
         const pedidoResponse = await strapiClient.get<any>(
-          `${pedidoEndpoint}?filters[documentId][$eq]=${id}&populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+          `${pedidoEndpoint}?filters[documentId][$eq]=${id}&populate=*`
         )
         let pedidos: any[] = []
         if (Array.isArray(pedidoResponse)) {
@@ -599,7 +599,7 @@ export async function PUT(
       // Obtener el pedido completo para verificar valores inválidos
       try {
         const pedidoCompleto = cuponStrapi || (await strapiClient.get<any>(
-          `${pedidoEndpoint}/${documentId || id}?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+          `${pedidoEndpoint}/${documentId || id}?populate=*`
         ))
         const attrs = pedidoCompleto?.attributes || {}
         const pedidoDataCompleto = (attrs && Object.keys(attrs).length > 0) ? attrs : pedidoCompleto
