@@ -1,16 +1,25 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardHeader, CardBody, Form, Button, Row, Col, FormGroup, FormLabel, FormControl, Alert } from 'react-bootstrap'
 import { LuSave, LuX } from 'react-icons/lu'
 import { RelationSelector } from '@/app/(admin)/(apps)/(ecommerce)/add-product/components/RelationSelector'
+import ProductSelector from './ProductSelector'
 
 const AddPedidoForm = () => {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [selectedProducts, setSelectedProducts] = useState<Array<{
+    id: number
+    name: string
+    price: number
+    quantity: number
+    subtotal: number
+  }>>([])
+
   const [formData, setFormData] = useState({
     numero_pedido: '',
     fecha_pedido: new Date().toISOString().slice(0, 16),
@@ -27,8 +36,23 @@ const AddPedidoForm = () => {
     metodo_pago: '',
     metodo_pago_titulo: '',
     nota_cliente: '',
-    originPlatform: 'woo_moraleja',
+    originPlatform: 'woo_moraleja' as 'woo_moraleja' | 'woo_escolar' | 'otros',
   })
+
+  // Calcular subtotal y total cuando cambian los productos
+  useEffect(() => {
+    const subtotal = selectedProducts.reduce((sum, p) => sum + p.subtotal, 0)
+    const impuestos = formData.impuestos ? parseFloat(formData.impuestos) : 0
+    const envio = formData.envio ? parseFloat(formData.envio) : 0
+    const descuento = formData.descuento ? parseFloat(formData.descuento) : 0
+    const total = subtotal + impuestos + envio - descuento
+
+    setFormData((prev) => ({
+      ...prev,
+      subtotal: subtotal.toFixed(2),
+      total: total.toFixed(2),
+    }))
+  }, [selectedProducts, formData.impuestos, formData.envio, formData.descuento])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,6 +65,15 @@ const AddPedidoForm = () => {
       if (!formData.numero_pedido.trim()) {
         throw new Error('El número de pedido es obligatorio')
       }
+
+      // Convertir productos seleccionados al formato de items de Strapi
+      const items = selectedProducts.map((product) => ({
+        nombre: product.name,
+        cantidad: product.quantity,
+        precio_unitario: product.price,
+        subtotal: product.subtotal,
+        producto_id: product.id, // ID de WooCommerce
+      }))
 
       const pedidoData: any = {
         data: {
@@ -55,7 +88,7 @@ const AddPedidoForm = () => {
           moneda: formData.moneda || 'CLP',
           origen: formData.origen || 'woocommerce',
           cliente: formData.cliente || null,
-          items: formData.items || [],
+          items: items.length > 0 ? items : [],
           metodo_pago: formData.metodo_pago || null,
           metodo_pago_titulo: formData.metodo_pago_titulo || null,
           nota_cliente: formData.nota_cliente || null,
@@ -338,6 +371,14 @@ const AddPedidoForm = () => {
                   }
                 />
               </FormGroup>
+            </Col>
+
+            <Col md={12}>
+              <ProductSelector
+                originPlatform={formData.originPlatform}
+                selectedProducts={selectedProducts}
+                onProductsChange={setSelectedProducts}
+              />
             </Col>
           </Row>
 
