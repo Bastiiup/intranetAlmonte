@@ -21,6 +21,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 # Aumentar memoria disponible para evitar SIGBUS
 ENV NODE_OPTIONS="--max-old-space-size=4096"
+# Deshabilitar Turbopack si causa problemas de memoria (Next.js 16 usa Turbopack por defecto)
+ENV NEXT_PRIVATE_STANDALONE=true
 
 # Construir la aplicación
 RUN npm run build
