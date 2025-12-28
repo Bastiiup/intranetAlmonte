@@ -813,13 +813,16 @@ export async function PUT(
     if (body.data.metodo_pago_titulo !== undefined) pedidoData.data.metodo_pago_titulo = body.data.metodo_pago_titulo || null
     if (body.data.nota_cliente !== undefined) pedidoData.data.nota_cliente = body.data.nota_cliente || null
     
-    // Solo actualizar originPlatform si se proporcionó explícitamente en body.data
-    // No usar el valor por defecto para evitar sobrescribir datos existentes
-    if (body.data.originPlatform !== undefined || body.data.origin_platform !== undefined) {
-      const platformToSave = body.data.originPlatform || body.data.origin_platform
-      if (platformToSave) {
-        pedidoData.data.originPlatform = platformToSave
-      }
+    // IMPORTANTE: Siempre incluir originPlatform en el payload para que Strapi sepa a qué WooCommerce sincronizar
+    // Si se proporciona en body.data, usarlo; si no, usar el detectado del pedido existente
+    const platformToSave = body.data.originPlatform || 
+                          body.data.origin_platform || 
+                          originPlatform
+    if (platformToSave) {
+      pedidoData.data.originPlatform = platformToSave
+      console.log('[API Pedidos PUT] 📌 originPlatform incluido en payload:', platformToSave)
+    } else {
+      console.warn('[API Pedidos PUT] ⚠️ No se pudo determinar originPlatform, Strapi puede no sincronizar correctamente')
     }
     
     // Log detallado del payload que se envía a Strapi
