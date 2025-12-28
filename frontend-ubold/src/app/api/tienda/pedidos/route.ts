@@ -316,6 +316,53 @@ export async function POST(request: NextRequest) {
     const fechaPedido = body.data.fecha_pedido || new Date().toISOString()
     const fechaCreacion = body.data.fecha_creacion || body.data.fecha_pedido || new Date().toISOString()
     
+    // Preparar información de billing/shipping
+    const billingInfo = body.data.billing || (originPlatform !== 'otros' ? {
+      first_name: 'Cliente',
+      last_name: 'Invitado',
+      email: '',
+      address_1: '',
+      city: '',
+      state: '',
+      postcode: '',
+      country: 'CL',
+    } : null)
+    
+    const shippingInfo = body.data.shipping || (originPlatform !== 'otros' ? {
+      first_name: 'Cliente',
+      last_name: 'Invitado',
+      address_1: '',
+      city: '',
+      state: '',
+      postcode: '',
+      country: 'CL',
+    } : null)
+    
+    // Preparar datos en formato WooCommerce para que Strapi los use directamente
+    // Esto ayuda a que el lifecycle hook de Strapi pueda sincronizar correctamente
+    const rawWooData = originPlatform !== 'otros' ? {
+      payment_method: normalizeMetodoPago(body.data.metodo_pago) || 'bacs',
+      payment_method_title: body.data.metodo_pago_titulo || 'Transferencia bancaria directa',
+      set_paid: body.data.estado === 'completed' || body.data.estado === 'completado',
+      status: body.data.estado ? mapWooStatus(body.data.estado) : 'pending',
+      customer_id: 0, // Cliente invitado
+      billing: billingInfo,
+      shipping: shippingInfo,
+      line_items: itemsValidos.map((item: any) => ({
+        product_id: item.producto_id || item.product_id,
+        quantity: item.cantidad || item.quantity,
+        // WooCommerce normalmente calcula el precio del producto, pero podemos especificarlo
+        ...(item.precio_unitario && { price: item.precio_unitario.toString() }),
+      })),
+      customer_note: body.data.nota_cliente || '',
+      // Totales - WooCommerce los calculará, pero podemos especificarlos
+      total: body.data.total ? body.data.total.toString() : undefined,
+      subtotal: body.data.subtotal ? body.data.subtotal.toString() : undefined,
+      shipping_total: body.data.envio ? body.data.envio.toString() : '0',
+      total_tax: body.data.impuestos ? body.data.impuestos.toString() : '0',
+      discount_total: body.data.descuento ? body.data.descuento.toString() : '0',
+    } : null
+    
     const pedidoData: any = {
       data: {
         numero_pedido: numeroPedido,
@@ -332,30 +379,14 @@ export async function POST(request: NextRequest) {
         origen: normalizeOrigen(body.data.origen),
         cliente: body.data.cliente || null,
         items: itemsValidos.length > 0 ? itemsValidos : itemsPreparados, // Usar items válidos si hay
-        // Agregar información mínima de billing/shipping si no existe (WooCommerce puede requerirlo)
-        billing: body.data.billing || (originPlatform !== 'otros' ? {
-          first_name: 'Cliente',
-          last_name: 'Invitado',
-          email: '',
-          address_1: '',
-          city: '',
-          state: '',
-          postcode: '',
-          country: 'CL',
-        } : null),
-        shipping: body.data.shipping || (originPlatform !== 'otros' ? {
-          first_name: 'Cliente',
-          last_name: 'Invitado',
-          address_1: '',
-          city: '',
-          state: '',
-          postcode: '',
-          country: 'CL',
-        } : null),
+        billing: billingInfo,
+        shipping: shippingInfo,
         metodo_pago: normalizeMetodoPago(body.data.metodo_pago),
         metodo_pago_titulo: body.data.metodo_pago_titulo || null,
         nota_cliente: body.data.nota_cliente || null,
         originPlatform: originPlatform, // ⚠️ REQUERIDO para que Strapi sepa a qué plataforma sincronizar
+        // Agregar rawWooData con formato WooCommerce puro para que Strapi lo use directamente
+        rawWooData: rawWooData, // ⚠️ Datos en formato WooCommerce para sincronización
       }
     }
     
