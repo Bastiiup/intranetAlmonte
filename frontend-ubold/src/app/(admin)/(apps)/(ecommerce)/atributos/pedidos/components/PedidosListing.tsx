@@ -28,7 +28,8 @@ import { useRouter } from 'next/navigation'
 
 // Tipo para la tabla
 type PedidoType = {
-  id: number
+  id: string | number  // Puede ser documentId (string) o id numérico
+  documentId?: string  // documentId de Strapi (preferido)
   numero_pedido: string
   nombre_cliente: string
   fecha_pedido: string | null
@@ -165,8 +166,14 @@ const mapStrapiPedidoToPedidoType = (pedido: any): PedidoType => {
   const createdAt = attrs.createdAt || (pedido as any).createdAt || fechaPedido || new Date().toISOString()
   const createdDate = new Date(createdAt)
   
+  // Priorizar documentId sobre id numérico (Strapi v5 requiere documentId para endpoints)
+  const pedidoDocumentId = pedido.documentId || (pedido as any).documentId
+  const pedidoId = pedido.id || (pedido as any).id
+  const idFinal = pedidoDocumentId || pedidoId || 'unknown'
+  
   return {
-    id: pedido.id || pedido.documentId || pedido.id,
+    id: idFinal,
+    documentId: pedidoDocumentId || undefined,
     numero_pedido: numeroPedido,
     nombre_cliente: nombreCliente || 'Sin cliente',
     fecha_pedido: fechaPedido || null,
@@ -551,7 +558,7 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
     }
   }
 
-  const handleEstadoChange = async (pedidoId: number, nuevoEstado: string) => {
+  const handleEstadoChange = async (pedidoId: string | number, nuevoEstado: string) => {
     setUpdatingStates((prev) => ({ ...prev, [pedidoId]: true }))
     
     try {

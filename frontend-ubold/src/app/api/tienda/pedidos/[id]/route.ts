@@ -499,11 +499,31 @@ export async function PUT(
     let woocommerceId: number | null = null
     let originPlatform: string = 'woo_moraleja'
     
-    // PASO 1: Intentar con filtro por documentId primero (más común)
-    try {
-      const filteredResponse = await strapiClient.get<any>(
-        `${pedidoEndpoint}?filters[documentId][$eq]=${id}&populate=*`
-      )
+    // PASO 1: Si el ID parece ser un documentId (string no numérico), intentar endpoint directo primero
+    const isDocumentIdFormat = typeof id === 'string' && !/^\d+$/.test(id)
+    
+    if (isDocumentIdFormat) {
+      try {
+        const directResponse = await strapiClient.get<any>(
+          `${pedidoEndpoint}/${id}?populate=*`
+        )
+        cuponStrapi = directResponse.data || directResponse
+        if (cuponStrapi && (cuponStrapi.id || cuponStrapi.documentId)) {
+          documentId = cuponStrapi.documentId || cuponStrapi.id || id
+          console.log('[API Pedidos PUT] ✅ Pedido encontrado con endpoint directo (documentId)')
+        }
+      } catch (directError: any) {
+        // Continuar con otros métodos si falla
+        console.log('[API Pedidos PUT] ℹ️ No se encontró con endpoint directo, intentando filtros...')
+      }
+    }
+    
+    // PASO 2: Intentar con filtro por documentId (si no se encontró en paso 1)
+    if (!cuponStrapi) {
+      try {
+        const filteredResponse = await strapiClient.get<any>(
+          `${pedidoEndpoint}?filters[documentId][$eq]=${id}&populate=*`
+        )
       
       let pedido: any
       if (Array.isArray(filteredResponse)) {
@@ -587,7 +607,37 @@ export async function PUT(
       }
     }
     
-    // PASO 4: Si aún no se encontró, intentar endpoint directo (puede ser documentId)
+    // PASO 4: Si es numérico y aún no se encontró, intentar buscar por ID numérico
+    if (!cuponStrapi && !isNaN(parseInt(id))) {
+      try {
+        const filteredResponse = await strapiClient.get<any>(
+          `${pedidoEndpoint}?filters[id][$eq]=${id}&populate=*`
+        )
+        
+        let pedido: any
+        if (Array.isArray(filteredResponse)) {
+          pedido = filteredResponse[0]
+        } else if (filteredResponse.data && Array.isArray(filteredResponse.data)) {
+          pedido = filteredResponse.data[0]
+        } else if (filteredResponse.data) {
+          pedido = filteredResponse.data
+        } else {
+          pedido = filteredResponse
+        }
+        
+        if (pedido && (pedido.id || pedido.documentId)) {
+          cuponStrapi = pedido
+          documentId = pedido.documentId || pedido.id || id
+          console.log('[API Pedidos PUT] ✅ Pedido encontrado con filtro por ID numérico')
+        }
+      } catch (filterError: any) {
+        if (filterError.status !== 500) {
+          console.warn('[API Pedidos PUT] ⚠️ Error al obtener con filtro por ID numérico:', filterError.message)
+        }
+      }
+    }
+    
+    // PASO 5: Si aún no se encontró, intentar endpoint directo (puede ser documentId)
     if (!cuponStrapi) {
       try {
         const directResponse = await strapiClient.get<any>(
@@ -599,7 +649,8 @@ export async function PUT(
           console.log('[API Pedidos PUT] ✅ Pedido encontrado con endpoint directo')
         }
       } catch (directError: any) {
-        console.warn('[API Pedidos PUT] ⚠️ Error al obtener pedido con endpoint directo:', directError.message)
+        // No mostrar warning aquí - es el último intento
+        console.log('[API Pedidos PUT] ℹ️ No se encontró con endpoint directo')
       }
     }
     
