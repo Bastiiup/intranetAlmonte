@@ -264,6 +264,34 @@ const AddPedidoForm = () => {
         }))
       })
 
+      // Obtener información del cliente seleccionado si existe
+      let billingInfo = null
+      let clienteSeleccionado = null
+      
+      if (formData.cliente && formData.cliente !== 'invitado') {
+        clienteSeleccionado = clientes.find(c => 
+          (c.documentId || c.id) === formData.cliente
+        )
+        
+        if (clienteSeleccionado && clienteSeleccionado.email) {
+          // Construir información de billing desde el cliente
+          const nombreCompleto = clienteSeleccionado.nombre.split(' ')
+          const firstName = nombreCompleto[0] || ''
+          const lastName = nombreCompleto.slice(1).join(' ') || ''
+          
+          billingInfo = {
+            first_name: firstName,
+            last_name: lastName,
+            email: clienteSeleccionado.email,
+            address_1: '',
+            city: '',
+            state: '',
+            postcode: '',
+            country: 'CL',
+          }
+        }
+      }
+
       const pedidoData: any = {
         data: {
           numero_pedido: formData.numero_pedido.trim(),
@@ -276,7 +304,8 @@ const AddPedidoForm = () => {
           descuento: formData.descuento ? parseFloat(formData.descuento) : null,
           moneda: formData.moneda || 'CLP',
           origen: formData.origen || 'woocommerce',
-          cliente: formData.cliente || null,
+          cliente: formData.cliente && formData.cliente !== 'invitado' ? formData.cliente : null,
+          billing: billingInfo,
           items: items.length > 0 ? items : [],
           metodo_pago: formData.metodo_pago || null,
           metodo_pago_titulo: formData.metodo_pago_titulo || null,
