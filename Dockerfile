@@ -19,6 +19,8 @@ COPY frontend-ubold/ .
 # Variables de entorno para optimizar build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+# Aumentar memoria disponible para evitar SIGBUS
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 # Construir la aplicación
 RUN npm run build
