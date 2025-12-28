@@ -79,8 +79,11 @@ const mapEstadoFromWoo = (wooStatus: string): string => {
 
 // Función para mapear pedidos de Strapi al formato PedidoType
 const mapStrapiPedidoToPedidoType = (pedido: any): PedidoType => {
-  const attrs = pedido.attributes || {}
-  const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (pedido as any)
+  // Strapi v5 devuelve: { id: number, documentId: string, attributes: {...} }
+  // O en algunos casos: { data: { id, documentId, attributes } }
+  const pedidoReal = pedido.data || pedido
+  const attrs = pedidoReal.attributes || {}
+  const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (pedidoReal as any)
 
   // Buscar numero_pedido en múltiples lugares
   let numeroPedido = getField(data, 'numero_pedido', 'numeroPedido', 'NUMERO_PEDIDO')
@@ -167,9 +170,20 @@ const mapStrapiPedidoToPedidoType = (pedido: any): PedidoType => {
   const createdDate = new Date(createdAt)
   
   // Priorizar documentId sobre id numérico (Strapi v5 requiere documentId para endpoints)
-  const pedidoDocumentId = pedido.documentId || (pedido as any).documentId
-  const pedidoId = pedido.id || (pedido as any).id
+  // Strapi v5 estructura: { id: number, documentId: string, attributes: {...} }
+  const pedidoDocumentId = pedidoReal.documentId || pedido.documentId || (pedidoReal as any).documentId
+  const pedidoId = pedidoReal.id || pedido.id || (pedidoReal as any).id
+  // IMPORTANTE: Si no hay documentId, usar el ID numérico (puede funcionar en algunos casos)
+  // Pero preferir documentId siempre que esté disponible
   const idFinal = pedidoDocumentId || pedidoId || 'unknown'
+  
+  console.log('[mapStrapiPedidoToPedidoType] IDs extraídos:', {
+    pedidoDocumentId,
+    pedidoId,
+    idFinal,
+    tieneDocumentId: !!pedidoDocumentId,
+    tieneId: !!pedidoId
+  })
   
   return {
     id: idFinal,
@@ -189,7 +203,7 @@ const mapStrapiPedidoToPedidoType = (pedido: any): PedidoType => {
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
     url: `/atributos/pedidos/${idFinal}`,
-    rawData: pedido, // Guardar datos completos para la vista expandida
+    rawData: pedidoReal || pedido, // Guardar datos completos para la vista expandida
   }
 }
 
