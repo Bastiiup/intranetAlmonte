@@ -396,7 +396,25 @@ export async function POST(request: NextRequest) {
     console.log(JSON.stringify(pedidoData, null, 2))
     console.log('Origin Platform:', originPlatform)
     console.log('Items preparados:', itemsPreparados.length, 'items')
+    console.log('Items válidos:', itemsValidos.length, 'items')
     console.log('═══════════════════════════════════════════════════════')
+    console.log('[API Pedidos POST] 🔍 rawWooData para sincronización:')
+    console.log(JSON.stringify(rawWooData, null, 2))
+    console.log('═══════════════════════════════════════════════════════')
+    
+    // Validar que rawWooData tiene line_items
+    if (rawWooData && (!rawWooData.line_items || rawWooData.line_items.length === 0)) {
+      console.error('[API Pedidos POST] ⚠️ ADVERTENCIA: rawWooData no tiene line_items!')
+      console.error('Esto puede causar que el pedido no se sincronice correctamente con WooCommerce')
+    }
+    
+    // Validar que los line_items tienen product_id
+    if (rawWooData && rawWooData.line_items) {
+      const itemsSinProductId = rawWooData.line_items.filter((item: any) => !item.product_id)
+      if (itemsSinProductId.length > 0) {
+        console.error('[API Pedidos POST] ⚠️ ADVERTENCIA: Algunos line_items no tienen product_id:', itemsSinProductId)
+      }
+    }
 
     let strapiPedido: any
     try {
