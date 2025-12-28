@@ -725,15 +725,48 @@ export async function PUT(
       const datosAnteriores = (attrsAnteriores && Object.keys(attrsAnteriores).length > 0) ? attrsAnteriores : cuponStrapi
       const numeroPedido = datosAnteriores?.numero_pedido || datosAnteriores?.wooId || id
       
-      const strapiResponse = await strapiClient.put<any>(strapiEndpoint, pedidoData)
+      let strapiResponse: any
+      try {
+        strapiResponse = await strapiClient.put<any>(strapiEndpoint, pedidoData)
+      } catch (strapiError: any) {
+        console.error('═══════════════════════════════════════════════════════')
+        console.error('[API Pedidos PUT] ❌ ERROR al actualizar en Strapi:')
+        console.error('Status:', strapiError.status)
+        console.error('Message:', strapiError.message)
+        console.error('Details:', strapiError.details)
+        console.error('Response:', strapiError.response)
+        console.error('Payload enviado:', JSON.stringify(pedidoData, null, 2))
+        console.error('Endpoint:', strapiEndpoint)
+        console.error('═══════════════════════════════════════════════════════')
+        throw strapiError
+      }
+      
+      const strapiResponseData = strapiResponse.data || strapiResponse
+      const originPlatformEnStrapi = strapiResponseData?.attributes?.originPlatform || 
+                                     strapiResponseData?.originPlatform ||
+                                     strapiResponseData?.data?.originPlatform
       
       console.log('═══════════════════════════════════════════════════════')
       console.log('[API Pedidos PUT] ✅ Pedido actualizado en Strapi')
       console.log('DocumentId:', documentId || id)
-      console.log('Origin Platform:', originPlatform)
+      console.log('Origin Platform enviado:', originPlatform)
+      console.log('Origin Platform en Strapi:', originPlatformEnStrapi)
+      console.log('Estado actualizado:', pedidoData.data.estado || 'N/A')
       console.log('═══════════════════════════════════════════════════════')
+      
+      // Verificar que originPlatform se guardó correctamente
+      if (originPlatformEnStrapi !== originPlatform && originPlatform !== 'otros') {
+        console.warn('⚠️ ADVERTENCIA: originPlatform no coincide!')
+        console.warn('Enviado:', originPlatform)
+        console.warn('Guardado en Strapi:', originPlatformEnStrapi)
+        console.warn('Esto puede impedir la sincronización con WooCommerce')
+      }
+      
       console.log('⏳ Esperando que Strapi sincronice con WooCommerce mediante afterUpdate lifecycle...')
       console.log('📋 Revisa los logs de Strapi en Railway para ver la sincronización')
+      console.log('🔍 Busca estos mensajes en los logs de Strapi:')
+      console.log('   - [pedido] 🔍 afterUpdate ejecutado')
+      console.log('   - [pedido] ✅ Iniciando actualización en', originPlatform)
       console.log('═══════════════════════════════════════════════════════')
       
       // Determinar tipo de acción para el log

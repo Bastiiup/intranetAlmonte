@@ -313,22 +313,61 @@ export async function POST(request: NextRequest) {
     console.log('Items preparados:', itemsPreparados.length, 'items')
     console.log('═══════════════════════════════════════════════════════')
 
-    const strapiPedido = await strapiClient.post<any>(pedidoEndpoint, pedidoData)
+    let strapiPedido: any
+    try {
+      strapiPedido = await strapiClient.post<any>(pedidoEndpoint, pedidoData)
+    } catch (strapiError: any) {
+      console.error('═══════════════════════════════════════════════════════')
+      console.error('[API Pedidos POST] ❌ ERROR al crear en Strapi:')
+      console.error('Status:', strapiError.status)
+      console.error('Message:', strapiError.message)
+      console.error('Details:', strapiError.details)
+      console.error('Response:', strapiError.response)
+      console.error('Payload enviado:', JSON.stringify(pedidoData, null, 2))
+      console.error('═══════════════════════════════════════════════════════')
+      throw strapiError
+    }
+    
     const documentId = strapiPedido.data?.documentId || strapiPedido.documentId
+    const strapiResponseData = strapiPedido.data || strapiPedido
     
     if (!documentId) {
+      console.error('═══════════════════════════════════════════════════════')
+      console.error('[API Pedidos POST] ❌ No se pudo obtener el documentId de Strapi')
+      console.error('Respuesta completa de Strapi:', JSON.stringify(strapiPedido, null, 2))
+      console.error('═══════════════════════════════════════════════════════')
       throw new Error('No se pudo obtener el documentId de Strapi')
     }
     
+    // Verificar que originPlatform se guardó correctamente en Strapi
+    const originPlatformEnStrapi = strapiResponseData?.attributes?.originPlatform || 
+                                   strapiResponseData?.originPlatform ||
+                                   strapiResponseData?.data?.originPlatform
+    
     console.log('═══════════════════════════════════════════════════════')
     console.log('[API Pedidos POST] ✅ Pedido creado en Strapi:')
-    console.log('ID:', strapiPedido.data?.id || strapiPedido.id)
+    console.log('ID:', strapiResponseData?.id || strapiPedido.id)
     console.log('DocumentId:', documentId)
     console.log('Número de pedido:', numeroPedido)
-    console.log('Origin Platform:', originPlatform)
+    console.log('Origin Platform enviado:', originPlatform)
+    console.log('Origin Platform en Strapi:', originPlatformEnStrapi)
+    console.log('Estado:', strapiResponseData?.attributes?.estado || strapiResponseData?.estado)
+    console.log('Items:', strapiResponseData?.attributes?.items?.length || strapiResponseData?.items?.length || 0)
     console.log('═══════════════════════════════════════════════════════')
+    
+    // Verificar que originPlatform se guardó correctamente
+    if (originPlatformEnStrapi !== originPlatform && originPlatform !== 'otros') {
+      console.warn('⚠️ ADVERTENCIA: originPlatform no coincide!')
+      console.warn('Enviado:', originPlatform)
+      console.warn('Guardado en Strapi:', originPlatformEnStrapi)
+      console.warn('Esto puede impedir la sincronización con WooCommerce')
+    }
+    
     console.log('⏳ Esperando que Strapi sincronice con WooCommerce mediante afterCreate lifecycle...')
     console.log('📋 Revisa los logs de Strapi en Railway para ver la sincronización')
+    console.log('🔍 Busca estos mensajes en los logs de Strapi:')
+    console.log('   - [pedido] 🔍 afterCreate ejecutado')
+    console.log('   - [pedido] ✅ Iniciando sincronización a', originPlatform)
     console.log('═══════════════════════════════════════════════════════')
 
     // Registrar log de creación (asíncrono, no bloquea)
