@@ -818,12 +818,33 @@ export async function PUT(
     const platformToSave = body.data.originPlatform || 
                           body.data.origin_platform || 
                           originPlatform
-    if (platformToSave) {
-      pedidoData.data.originPlatform = platformToSave
-      console.log('[API Pedidos PUT] 📌 originPlatform incluido en payload:', platformToSave)
-    } else {
-      console.warn('[API Pedidos PUT] ⚠️ No se pudo determinar originPlatform, Strapi puede no sincronizar correctamente')
+    
+    // Validar que tenemos un originPlatform válido
+    if (!platformToSave || !['woo_moraleja', 'woo_escolar', 'otros'].includes(platformToSave)) {
+      console.error('[API Pedidos PUT] ❌ ERROR CRÍTICO: No se pudo determinar originPlatform válido!', {
+        fromBody: body.data.originPlatform || body.data.origin_platform,
+        detected: originPlatform,
+        cuponStrapi: cuponStrapi ? 'existe' : 'no existe'
+      })
+      // Si no tenemos originPlatform, no podemos sincronizar - esto es crítico
+      return NextResponse.json({
+        success: false,
+        error: `No se pudo determinar originPlatform. El pedido debe tener originPlatform: 'woo_moraleja' o 'woo_escolar' para sincronizar con WooCommerce.`,
+        details: {
+          detected: originPlatform,
+          fromBody: body.data.originPlatform || body.data.origin_platform
+        }
+      }, { status: 400 })
     }
+    
+    // Incluir originPlatform en el payload
+    pedidoData.data.originPlatform = platformToSave
+    console.log('[API Pedidos PUT] 📌 originPlatform incluido en payload:', {
+      platform: platformToSave,
+      source: body.data.originPlatform || body.data.origin_platform ? 'body' : 'detected',
+      willSyncTo: platformToSave === 'woo_escolar' ? 'https://staging.escolar.cl' : 
+                  platformToSave === 'woo_moraleja' ? 'https://staging.moraleja.cl' : 'N/A'
+    })
     
     // Log detallado del payload que se envía a Strapi
     console.log('═══════════════════════════════════════════════════════')
