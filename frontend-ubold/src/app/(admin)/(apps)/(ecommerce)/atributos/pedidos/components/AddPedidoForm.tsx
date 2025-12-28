@@ -66,14 +66,56 @@ const AddPedidoForm = () => {
         throw new Error('El número de pedido es obligatorio')
       }
 
+      // Validar que hay productos seleccionados
+      if (selectedProducts.length === 0) {
+        throw new Error('Debes agregar al menos un producto al pedido')
+      }
+
       // Convertir productos seleccionados al formato de items de Strapi
-      const items = selectedProducts.map((product) => ({
-        nombre: product.name,
-        cantidad: product.quantity,
-        precio_unitario: product.price,
-        subtotal: product.subtotal,
-        producto_id: product.id, // ID de WooCommerce
-      }))
+      // IMPORTANTE: Cada item DEBE tener nombre, cantidad, precio_unitario y total
+      const items = selectedProducts.map((product) => {
+        if (!product.name || !product.quantity || product.price === undefined) {
+          throw new Error(`Producto inválido: ${JSON.stringify(product)}`)
+        }
+        
+        return {
+          nombre: product.name, // ⚠️ OBLIGATORIO
+          cantidad: product.quantity, // ⚠️ OBLIGATORIO
+          precio_unitario: product.price, // ⚠️ OBLIGATORIO
+          total: product.subtotal, // ⚠️ OBLIGATORIO (total del item = precio_unitario * cantidad)
+          producto_id: product.id, // ID de WooCommerce (recomendado)
+          product_id: product.id, // Para WooCommerce
+          quantity: product.quantity, // Para WooCommerce
+          price: product.price.toString(), // Para WooCommerce
+        }
+      })
+      
+      // Validar que todos los items tienen los campos obligatorios
+      const itemsInvalidos = items.filter(item => 
+        !item.nombre || 
+        !item.cantidad || 
+        item.cantidad <= 0 || 
+        item.precio_unitario === undefined || 
+        item.precio_unitario < 0 ||
+        item.total === undefined ||
+        item.total < 0
+      )
+      
+      if (itemsInvalidos.length > 0) {
+        console.error('❌ Items inválidos:', itemsInvalidos)
+        throw new Error(`Hay ${itemsInvalidos.length} producto(s) con datos inválidos`)
+      }
+      
+      console.log('[AddPedidoForm] ✅ Validación de items exitosa:', {
+        totalItems: items.length,
+        items: items.map(i => ({
+          nombre: i.nombre,
+          cantidad: i.cantidad,
+          precio_unitario: i.precio_unitario,
+          total: i.total,
+          producto_id: i.producto_id
+        }))
+      })
 
       const pedidoData: any = {
         data: {

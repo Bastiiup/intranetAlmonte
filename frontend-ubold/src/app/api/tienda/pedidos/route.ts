@@ -263,6 +263,54 @@ export async function POST(request: NextRequest) {
         error: 'El número de pedido es obligatorio'
       }, { status: 400 })
     }
+    
+    // ⚠️ VALIDACIÓN CRÍTICA: Verificar que hay items
+    const itemsRecibidos = body.data.items || []
+    if (!Array.isArray(itemsRecibidos)) {
+      return NextResponse.json({
+        success: false,
+        error: 'El campo "items" debe ser un array'
+      }, { status: 400 })
+    }
+    
+    if (itemsRecibidos.length === 0) {
+      return NextResponse.json({
+        success: false,
+        error: 'El pedido debe tener al menos un producto. Agrega productos antes de crear el pedido.'
+      }, { status: 400 })
+    }
+    
+    // Validar que cada item tiene los campos obligatorios
+    const itemsInvalidos = itemsRecibidos.filter((item: any, index: number) => {
+      const tieneNombre = item.nombre || item.name
+      const tieneCantidad = (item.cantidad || item.quantity) > 0
+      const tienePrecio = (item.precio_unitario || item.price) !== undefined && (item.precio_unitario || item.price) >= 0
+      const tieneTotal = (item.total || item.subtotal) !== undefined && (item.total || item.subtotal) >= 0
+      
+      if (!tieneNombre || !tieneCantidad || !tienePrecio || !tieneTotal) {
+        console.error(`[API Pedidos POST] ❌ Item ${index + 1} inválido:`, {
+          tieneNombre: !!tieneNombre,
+          tieneCantidad,
+          tienePrecio,
+          tieneTotal,
+          item
+        })
+        return true
+      }
+      return false
+    })
+    
+    if (itemsInvalidos.length > 0) {
+      return NextResponse.json({
+        success: false,
+        error: `Hay ${itemsInvalidos.length} producto(s) con datos inválidos. Cada producto debe tener: nombre, cantidad > 0, precio_unitario >= 0, y total >= 0.`
+      }, { status: 400 })
+    }
+    
+    console.log('[API Pedidos POST] ✅ Validación de items exitosa:', {
+      totalItems: itemsRecibidos.length,
+      itemsValidos: itemsRecibidos.length - itemsInvalidos.length
+    })
 
     // Validar originPlatform
     const validPlatforms = ['woo_moraleja', 'woo_escolar', 'otros']
