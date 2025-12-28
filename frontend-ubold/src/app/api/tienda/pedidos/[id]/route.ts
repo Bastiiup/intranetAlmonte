@@ -493,52 +493,122 @@ export async function PUT(
     const pedidoEndpoint = '/api/pedidos'
     
     // Primero obtener el pedido de Strapi para obtener el documentId y woocommerce_id
+    // Usar la misma lógica que GET para encontrar el pedido
     let cuponStrapi: any
     let documentId: string | null = null
     let woocommerceId: number | null = null
     let originPlatform: string = 'woo_moraleja'
     
-    // Intentar obtener el pedido - si el ID parece ser un documentId (string), usar endpoint directo
-    // Si es numérico, intentar con filtro primero
-    const isDocumentId = typeof id === 'string' && !/^\d+$/.test(id)
+    // PASO 1: Intentar con filtro por documentId primero (más común)
+    try {
+      const filteredResponse = await strapiClient.get<any>(
+        `${pedidoEndpoint}?filters[documentId][$eq]=${id}&populate=*`
+      )
+      
+      let pedido: any
+      if (Array.isArray(filteredResponse)) {
+        pedido = filteredResponse[0]
+      } else if (filteredResponse.data && Array.isArray(filteredResponse.data)) {
+        pedido = filteredResponse.data[0]
+      } else if (filteredResponse.data) {
+        pedido = filteredResponse.data
+      } else {
+        pedido = filteredResponse
+      }
+      
+      if (pedido && (pedido.id || pedido.documentId)) {
+        cuponStrapi = pedido
+        documentId = pedido.documentId || pedido.id || id
+        console.log('[API Pedidos PUT] ✅ Pedido encontrado con filtro por documentId')
+      }
+    } catch (filterError: any) {
+      if (filterError.status !== 500) {
+        console.warn('[API Pedidos PUT] ⚠️ Error al obtener con filtro por documentId:', filterError.message)
+      }
+    }
     
-    if (isDocumentId) {
-      // Si es documentId, usar endpoint directo
+    // PASO 2: Si no se encontró, intentar con filtro por numero_pedido
+    if (!cuponStrapi) {
+      try {
+        const filteredResponse = await strapiClient.get<any>(
+          `${pedidoEndpoint}?filters[numero_pedido][$eq]=${id}&populate=*`
+        )
+        
+        let pedido: any
+        if (Array.isArray(filteredResponse)) {
+          pedido = filteredResponse[0]
+        } else if (filteredResponse.data && Array.isArray(filteredResponse.data)) {
+          pedido = filteredResponse.data[0]
+        } else if (filteredResponse.data) {
+          pedido = filteredResponse.data
+        } else {
+          pedido = filteredResponse
+        }
+        
+        if (pedido && (pedido.id || pedido.documentId)) {
+          cuponStrapi = pedido
+          documentId = pedido.documentId || pedido.id || id
+          console.log('[API Pedidos PUT] ✅ Pedido encontrado con filtro por numero_pedido')
+        }
+      } catch (filterError: any) {
+        if (filterError.status !== 500) {
+          console.warn('[API Pedidos PUT] ⚠️ Error al obtener con filtro por numero_pedido:', filterError.message)
+        }
+      }
+    }
+    
+    // PASO 3: Si es numérico y aún no se encontró, intentar con filtro por woocommerce_id
+    if (!cuponStrapi && !isNaN(parseInt(id))) {
+      try {
+        const filteredResponse = await strapiClient.get<any>(
+          `${pedidoEndpoint}?filters[woocommerce_id][$eq]=${id}&populate=*`
+        )
+        
+        let pedido: any
+        if (Array.isArray(filteredResponse)) {
+          pedido = filteredResponse[0]
+        } else if (filteredResponse.data && Array.isArray(filteredResponse.data)) {
+          pedido = filteredResponse.data[0]
+        } else if (filteredResponse.data) {
+          pedido = filteredResponse.data
+        } else {
+          pedido = filteredResponse
+        }
+        
+        if (pedido && (pedido.id || pedido.documentId)) {
+          cuponStrapi = pedido
+          documentId = pedido.documentId || pedido.id || id
+          console.log('[API Pedidos PUT] ✅ Pedido encontrado con filtro por woocommerce_id')
+        }
+      } catch (filterError: any) {
+        if (filterError.status !== 500) {
+          console.warn('[API Pedidos PUT] ⚠️ Error al obtener con filtro por woocommerce_id:', filterError.message)
+        }
+      }
+    }
+    
+    // PASO 4: Si aún no se encontró, intentar endpoint directo (puede ser documentId)
+    if (!cuponStrapi) {
       try {
         const directResponse = await strapiClient.get<any>(
           `${pedidoEndpoint}/${id}?populate=*`
         )
         cuponStrapi = directResponse.data || directResponse
-        documentId = cuponStrapi?.documentId || cuponStrapi?.id || id
+        if (cuponStrapi && (cuponStrapi.id || cuponStrapi.documentId)) {
+          documentId = cuponStrapi.documentId || cuponStrapi.id || id
+          console.log('[API Pedidos PUT] ✅ Pedido encontrado con endpoint directo')
+        }
       } catch (directError: any) {
         console.warn('[API Pedidos PUT] ⚠️ Error al obtener pedido con endpoint directo:', directError.message)
       }
-    } else {
-      // Si es numérico, intentar con filtro
-      try {
-        const pedidoResponse = await strapiClient.get<any>(
-          `${pedidoEndpoint}?filters[documentId][$eq]=${id}&populate=*`
-        )
-        let pedidos: any[] = []
-        if (Array.isArray(pedidoResponse)) {
-          pedidos = pedidoResponse
-        } else if (pedidoResponse.data && Array.isArray(pedidoResponse.data)) {
-          pedidos = pedidoResponse.data
-        } else if (pedidoResponse.data) {
-          pedidos = [pedidoResponse.data]
-        }
-        cuponStrapi = pedidos[0]
-        if (cuponStrapi) {
-          documentId = cuponStrapi?.documentId || cuponStrapi?.id || id
-        }
-      } catch (filterError: any) {
-        console.warn('[API Pedidos PUT] ⚠️ Error al obtener pedido con filtro:', filterError.message)
-      }
     }
     
-    // Si aún no tenemos documentId, usar el id recibido
-    if (!documentId) {
-      documentId = id
+    // Si aún no tenemos documentId, el pedido no existe
+    if (!documentId || !cuponStrapi) {
+      return NextResponse.json({
+        success: false,
+        error: `Pedido no encontrado con ID: ${id}. Verifica que el pedido exista en Strapi.`
+      }, { status: 404 })
     }
     
     // Leer campos usando camelCase como en el schema de Strapi (si tenemos cuponStrapi)
@@ -597,10 +667,9 @@ export async function PUT(
     
     if (soloActualizandoEstado) {
       // Obtener el pedido completo para verificar valores inválidos
+      // Ya tenemos cuponStrapi, no necesitamos hacer otra petición
       try {
-        const pedidoCompleto = cuponStrapi || (await strapiClient.get<any>(
-          `${pedidoEndpoint}/${documentId || id}?populate=*`
-        ))
+        const pedidoCompleto = cuponStrapi
         const attrs = pedidoCompleto?.attributes || {}
         const pedidoDataCompleto = (attrs && Object.keys(attrs).length > 0) ? attrs : pedidoCompleto
         
