@@ -112,9 +112,10 @@ const mapStrapiPedidoToPedidoType = (pedido: any): PedidoType => {
     }
   }
   
-  // Si definitivamente no hay número, usar documentId como último recurso
-  if (!numeroPedido || numeroPedido === 'Sin número') {
-    numeroPedido = pedido.documentId || pedido.id || 'Sin número'
+  // NO usar documentId como fallback para numero_pedido - debe ser el número real del pedido
+  // Si no hay número real, dejar como null/undefined para que se muestre "Sin número"
+  if (!numeroPedido) {
+    numeroPedido = 'Sin número'
   }
   const fechaPedido = getField(data, 'fecha_pedido', 'fechaPedido', 'FECHA_PEDIDO')
   // Mapear estado de inglés (WooCommerce) a español para el frontend
@@ -253,9 +254,28 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
       enableSorting: false,
       enableColumnFilter: false,
     },
+    columnHelper.accessor((row) => row.id || '', {
+      id: 'id_pedido',
+      header: 'ID PEDIDO',
+      cell: ({ row }) => {
+        const pedidoId = row.original.id || 'Sin ID'
+        return (
+          <div className="d-flex align-items-center">
+            <div className="avatar-md me-3 bg-light d-flex align-items-center justify-center rounded">
+              <span className="text-muted fs-xs">🔑</span>
+            </div>
+            <div>
+              <span className="text-muted small" style={{ cursor: 'pointer' }} onClick={() => row.toggleExpanded()}>
+                {String(pedidoId).substring(0, 12)}...
+              </span>
+            </div>
+          </div>
+        )
+      },
+    }),
     columnHelper.accessor((row) => row.numero_pedido || '', {
       id: 'numero_pedido',
-      header: 'ID PEDIDO',
+      header: 'NUMERO DE PEDIDO',
       cell: ({ row }) => {
         const numeroPedido = row.original.numero_pedido || 'Sin número'
         return (
@@ -265,7 +285,7 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
             </div>
             <div>
               <h5 className="mb-0">
-                <span className="link-reset" style={{ cursor: 'pointer' }} onClick={() => row.toggleExpanded()}>
+                <span className="link-reset fw-semibold" style={{ cursor: 'pointer' }} onClick={() => row.toggleExpanded()}>
                   #{numeroPedido}
                 </span>
               </h5>
