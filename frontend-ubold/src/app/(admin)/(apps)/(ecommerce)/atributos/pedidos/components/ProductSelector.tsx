@@ -80,6 +80,15 @@ const ProductSelector = ({ originPlatform, selectedProducts, onProductsChange }:
 
   // Agregar producto al pedido
   const handleAddProduct = (product: WooCommerceProduct) => {
+    // ⚠️ VALIDACIÓN CRÍTICA: Obtener y validar el precio
+    const price = parseFloat(product.price || '0')
+    
+    if (!price || price <= 0) {
+      setError(`El producto "${product.name}" no tiene un precio válido (precio: ${product.price}). No se puede agregar al pedido.`)
+      setTimeout(() => setError(null), 5000)
+      return
+    }
+    
     const existingProduct = selectedProducts.find((p) => p.id === product.id)
 
     if (existingProduct) {
@@ -95,15 +104,23 @@ const ProductSelector = ({ originPlatform, selectedProducts, onProductsChange }:
       )
       onProductsChange(updated)
     } else {
-      // Si no existe, agregar nuevo
-      const price = parseFloat(product.price) || 0
+      // Si no existe, agregar nuevo con precio validado
       const newProduct: SelectedProduct = {
         id: product.id,
         name: product.name,
-        price,
+        price: price, // ✅ Precio validado (> 0)
         quantity: 1,
-        subtotal: price,
+        subtotal: price, // ✅ Precio * cantidad
       }
+      
+      console.log('[ProductSelector] ✅ Agregando producto con precio válido:', {
+        id: newProduct.id,
+        name: newProduct.name,
+        price: newProduct.price,
+        quantity: newProduct.quantity,
+        subtotal: newProduct.subtotal
+      })
+      
       onProductsChange([...selectedProducts, newProduct])
     }
   }
@@ -307,7 +324,16 @@ const ProductSelector = ({ originPlatform, selectedProducts, onProductsChange }:
                               variant={isSelected ? 'success' : 'primary'}
                               size="sm"
                               onClick={() => handleAddProduct(product)}
-                              disabled={stockStatus === 'outofstock' && stockQuantity === 0}
+                              disabled={
+                                (stockStatus === 'outofstock' && stockQuantity === 0) ||
+                                !parseFloat(product.price || '0') ||
+                                parseFloat(product.price || '0') <= 0
+                              }
+                              title={
+                                !parseFloat(product.price || '0') || parseFloat(product.price || '0') <= 0
+                                  ? 'Este producto no tiene precio válido'
+                                  : ''
+                              }
                             >
                               {isSelected ? '✓ Agregado' : <TbPlus />}
                             </Button>

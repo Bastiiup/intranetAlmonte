@@ -74,40 +74,95 @@ const AddPedidoForm = () => {
       // Convertir productos seleccionados al formato de items de Strapi
       // IMPORTANTE: Cada item DEBE tener nombre, cantidad, precio_unitario y total
       const items = selectedProducts.map((product) => {
-        if (!product.name || !product.quantity || product.price === undefined) {
-          throw new Error(`Producto inválido: ${JSON.stringify(product)}`)
+        // Validar que el producto tiene todos los campos necesarios
+        if (!product.name) {
+          throw new Error(`Producto inválido: falta nombre - ${JSON.stringify(product)}`)
         }
         
-        return {
+        if (!product.quantity || product.quantity <= 0) {
+          throw new Error(`Producto "${product.name}": cantidad inválida (${product.quantity})`)
+        }
+        
+        // ⚠️ VALIDACIÓN CRÍTICA: Precio debe ser > 0
+        if (product.price === undefined || product.price === null || product.price <= 0) {
+          throw new Error(`Producto "${product.name}": precio inválido (${product.price}). El precio debe ser mayor a 0.`)
+        }
+        
+        // Calcular total del item (precio_unitario * cantidad)
+        const precioUnitario = product.price
+        const cantidad = product.quantity
+        const totalItem = precioUnitario * cantidad
+        
+        // Validar que el total calculado coincide con el subtotal
+        if (Math.abs(totalItem - product.subtotal) > 0.01) {
+          console.warn(`[AddPedidoForm] ⚠️ Total calculado (${totalItem}) no coincide con subtotal (${product.subtotal}), usando total calculado`)
+        }
+        
+        const item = {
           nombre: product.name, // ⚠️ OBLIGATORIO
-          cantidad: product.quantity, // ⚠️ OBLIGATORIO
-          precio_unitario: product.price, // ⚠️ OBLIGATORIO
-          total: product.subtotal, // ⚠️ OBLIGATORIO (total del item = precio_unitario * cantidad)
+          cantidad: cantidad, // ⚠️ OBLIGATORIO
+          precio_unitario: precioUnitario, // ⚠️ OBLIGATORIO (> 0)
+          total: totalItem, // ⚠️ OBLIGATORIO (precio_unitario * cantidad)
           producto_id: product.id, // ID de WooCommerce (recomendado)
           product_id: product.id, // Para WooCommerce
-          quantity: product.quantity, // Para WooCommerce
-          price: product.price.toString(), // Para WooCommerce
+          quantity: cantidad, // Para WooCommerce
+          price: precioUnitario.toString(), // Para WooCommerce
         }
+        
+        console.log(`[AddPedidoForm] ✅ Item construido:`, {
+          nombre: item.nombre,
+          cantidad: item.cantidad,
+          precio_unitario: item.precio_unitario,
+          total: item.total,
+          producto_id: item.producto_id,
+          validacion: {
+            precioValido: item.precio_unitario > 0,
+            totalValido: item.total > 0,
+            totalCoincide: Math.abs(item.total - (item.precio_unitario * item.cantidad)) < 0.01
+          }
+        })
+        
+        return item
       })
       
-      // Validar que todos los items tienen los campos obligatorios
-      const itemsInvalidos = items.filter(item => 
-        !item.nombre || 
-        !item.cantidad || 
-        item.cantidad <= 0 || 
-        item.precio_unitario === undefined || 
-        item.precio_unitario < 0 ||
-        item.total === undefined ||
-        item.total < 0
-      )
+      // Validar que todos los items tienen los campos obligatorios y precios válidos
+      const itemsInvalidos = items.filter(item => {
+        const tieneNombre = !!item.nombre
+        const tieneCantidad = item.cantidad > 0
+        const tienePrecio = item.precio_unitario > 0
+        const tieneTotal = item.total > 0
+        const totalCoincide = Math.abs(item.total - (item.precio_unitario * item.cantidad)) < 0.01
+        
+        if (!tieneNombre || !tieneCantidad || !tienePrecio || !tieneTotal || !totalCoincide) {
+          console.error(`[AddPedidoForm] ❌ Item inválido:`, {
+            item,
+            validaciones: { tieneNombre, tieneCantidad, tienePrecio, tieneTotal, totalCoincide }
+          })
+          return true
+        }
+        return false
+      })
       
       if (itemsInvalidos.length > 0) {
-        console.error('❌ Items inválidos:', itemsInvalidos)
-        throw new Error(`Hay ${itemsInvalidos.length} producto(s) con datos inválidos`)
+        console.error('[AddPedidoForm] ❌ Items inválidos:', itemsInvalidos)
+        throw new Error(`Hay ${itemsInvalidos.length} producto(s) con datos inválidos. Verifica que todos tengan precio > 0.`)
+      }
+      
+      // Validar que el total del pedido NO sea 0
+      const sumaItems = items.reduce((sum, item) => sum + item.total, 0)
+      const totalCalculado = sumaItems + 
+        (formData.impuestos ? parseFloat(formData.impuestos) : 0) +
+        (formData.envio ? parseFloat(formData.envio) : 0) -
+        (formData.descuento ? parseFloat(formData.descuento) : 0)
+      
+      if (totalCalculado <= 0) {
+        throw new Error(`El total del pedido es $${totalCalculado}. Verifica que los productos tengan precios válidos.`)
       }
       
       console.log('[AddPedidoForm] ✅ Validación de items exitosa:', {
         totalItems: items.length,
+        sumaItems,
+        totalCalculado,
         items: items.map(i => ({
           nombre: i.nombre,
           cantidad: i.cantidad,
