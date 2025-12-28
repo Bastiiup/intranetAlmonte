@@ -219,12 +219,11 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
       enableSorting: false,
       enableColumnFilter: false,
     },
-    columnHelper.accessor((row) => `${row.numero_pedido || ''} ${row.nombre_cliente || ''}`.toLowerCase(), {
+    columnHelper.accessor((row) => row.numero_pedido || '', {
       id: 'numero_pedido',
-      header: 'Pedido',
+      header: 'ID PEDIDO',
       cell: ({ row }) => {
         const numeroPedido = row.original.numero_pedido || 'Sin número'
-        const nombreCliente = row.original.nombre_cliente || 'Sin cliente'
         return (
           <div className="d-flex align-items-center">
             <div className="avatar-md me-3 bg-light d-flex align-items-center justify-center rounded">
@@ -233,7 +232,7 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
             <div>
               <h5 className="mb-0">
                 <span className="link-reset" style={{ cursor: 'pointer' }} onClick={() => row.toggleExpanded()}>
-                  #{numeroPedido} {nombreCliente}
+                  #{numeroPedido}
                 </span>
               </h5>
             </div>
@@ -411,7 +410,37 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    globalFilterFn: 'includesString',
+    globalFilterFn: (row, columnId, filterValue) => {
+      const searchValue = String(filterValue || '').toLowerCase().trim()
+      if (!searchValue) return true
+      
+      // Buscar en número de pedido
+      const numeroPedido = String(row.original.numero_pedido || '').toLowerCase()
+      if (numeroPedido.includes(searchValue)) return true
+      
+      // Buscar en nombre del cliente
+      const nombreCliente = String(row.original.nombre_cliente || '').toLowerCase()
+      if (nombreCliente.includes(searchValue)) return true
+      
+      // Buscar en fecha (formato: dd MMM, yyyy)
+      const fecha = row.original.date || ''
+      if (fecha.toLowerCase().includes(searchValue)) return true
+      
+      // Buscar en fecha_pedido (formato ISO)
+      if (row.original.fecha_pedido) {
+        const fechaPedido = new Date(row.original.fecha_pedido)
+        const fechaFormateada = format(fechaPedido, 'dd MMM, yyyy').toLowerCase()
+        if (fechaFormateada.includes(searchValue)) return true
+        
+        // También buscar por año, mes, día
+        const año = fechaPedido.getFullYear().toString()
+        const mes = (fechaPedido.getMonth() + 1).toString().padStart(2, '0')
+        const dia = fechaPedido.getDate().toString().padStart(2, '0')
+        if (año.includes(searchValue) || mes.includes(searchValue) || dia.includes(searchValue)) return true
+      }
+      
+      return false
+    },
     enableColumnFilters: true,
     enableRowSelection: true,
   })
@@ -793,7 +822,7 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
                 <input
                   type="search"
                   className="form-control"
-                  placeholder="Buscar número de pedido o cliente..."
+                  placeholder="Buscar por número de pedido, nombre o fecha..."
                   value={globalFilter ?? ''}
                   onChange={(e) => setGlobalFilter(e.target.value)}
                 />
