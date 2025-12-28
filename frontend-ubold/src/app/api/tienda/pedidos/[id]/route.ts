@@ -607,33 +607,38 @@ export async function PUT(
       }
     }
     
-    // PASO 4: Si es numérico y aún no se encontró, intentar buscar por ID numérico
+    // PASO 4: Si es numérico y aún no se encontró, buscar en lista completa y filtrar por ID
+    // Strapi v5 puede no permitir filters[id] directamente, así que buscamos manualmente
     if (!cuponStrapi && !isNaN(parseInt(id))) {
       try {
-        const filteredResponse = await strapiClient.get<any>(
-          `${pedidoEndpoint}?filters[id][$eq]=${id}&populate=*`
+        const idNum = parseInt(id)
+        // Obtener lista de pedidos y buscar por ID numérico
+        const allResponse = await strapiClient.get<any>(
+          `${pedidoEndpoint}?populate=*&pagination[pageSize]=1000`
         )
         
-        let pedido: any
-        if (Array.isArray(filteredResponse)) {
-          pedido = filteredResponse[0]
-        } else if (filteredResponse.data && Array.isArray(filteredResponse.data)) {
-          pedido = filteredResponse.data[0]
-        } else if (filteredResponse.data) {
-          pedido = filteredResponse.data
-        } else {
-          pedido = filteredResponse
+        let pedidos: any[] = []
+        if (Array.isArray(allResponse)) {
+          pedidos = allResponse
+        } else if (allResponse.data && Array.isArray(allResponse.data)) {
+          pedidos = allResponse.data
+        } else if (allResponse.data) {
+          pedidos = [allResponse.data]
         }
         
-        if (pedido && (pedido.id || pedido.documentId)) {
-          cuponStrapi = pedido
-          documentId = pedido.documentId || pedido.id || id
-          console.log('[API Pedidos PUT] ✅ Pedido encontrado con filtro por ID numérico')
+        // Buscar pedido con ID numérico coincidente
+        const pedidoEncontrado = pedidos.find((p: any) => {
+          const pId = p.id || (p.data && p.data.id)
+          return pId === idNum || pId === id
+        })
+        
+        if (pedidoEncontrado) {
+          cuponStrapi = pedidoEncontrado
+          documentId = pedidoEncontrado.documentId || pedidoEncontrado.id || id
+          console.log('[API Pedidos PUT] ✅ Pedido encontrado buscando en lista completa por ID numérico:', idNum)
         }
-      } catch (filterError: any) {
-        if (filterError.status !== 500) {
-          console.warn('[API Pedidos PUT] ⚠️ Error al obtener con filtro por ID numérico:', filterError.message)
-        }
+      } catch (searchError: any) {
+        console.warn('[API Pedidos PUT] ⚠️ Error al buscar en lista completa:', searchError.message)
       }
     }
     
