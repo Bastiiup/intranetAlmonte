@@ -81,7 +81,41 @@ const mapStrapiPedidoToPedidoType = (pedido: any): PedidoType => {
   const attrs = pedido.attributes || {}
   const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (pedido as any)
 
-  const numeroPedido = getField(data, 'numero_pedido', 'numeroPedido', 'NUMERO_PEDIDO') || 'Sin número'
+  // Buscar numero_pedido en múltiples lugares
+  let numeroPedido = getField(data, 'numero_pedido', 'numeroPedido', 'NUMERO_PEDIDO')
+  
+  // Si no está en el campo directo, buscar en externalIds
+  if (!numeroPedido || numeroPedido === 'Sin número') {
+    const externalIds = data?.externalIds || {}
+    if (externalIds.wooCommerce?.number) {
+      numeroPedido = externalIds.wooCommerce.number
+    } else if (externalIds.wooCommerce?.id) {
+      numeroPedido = String(externalIds.wooCommerce.id)
+    }
+  }
+  
+  // Si aún no hay número, intentar desde rawWooData
+  if (!numeroPedido || numeroPedido === 'Sin número') {
+    const rawWooData = getField(data, 'rawWooData', 'rawWooData')
+    if (rawWooData && rawWooData.number) {
+      numeroPedido = String(rawWooData.number)
+    } else if (rawWooData && rawWooData.id) {
+      numeroPedido = String(rawWooData.id)
+    }
+  }
+  
+  // Si aún no hay número, usar woocommerce_id como último recurso
+  if (!numeroPedido || numeroPedido === 'Sin número') {
+    const woocommerceId = getField(data, 'woocommerce_id', 'woocommerceId', 'WOCOMMERCE_ID')
+    if (woocommerceId) {
+      numeroPedido = String(woocommerceId)
+    }
+  }
+  
+  // Si definitivamente no hay número, usar documentId como último recurso
+  if (!numeroPedido || numeroPedido === 'Sin número') {
+    numeroPedido = pedido.documentId || pedido.id || 'Sin número'
+  }
   const fechaPedido = getField(data, 'fecha_pedido', 'fechaPedido', 'FECHA_PEDIDO')
   // Mapear estado de inglés (WooCommerce) a español para el frontend
   const estadoRaw = getField(data, 'estado', 'ESTADO') || 'pending'
