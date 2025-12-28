@@ -188,7 +188,7 @@ const mapStrapiPedidoToPedidoType = (pedido: any): PedidoType => {
     originPlatform,
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
-    url: `/atributos/pedidos/${pedido.id || pedido.documentId || pedido.id}`,
+    url: `/atributos/pedidos/${idFinal}`,
     rawData: pedido, // Guardar datos completos para la vista expandida
   }
 }
