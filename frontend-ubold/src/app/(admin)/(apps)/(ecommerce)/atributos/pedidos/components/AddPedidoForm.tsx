@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardHeader, CardBody, Form, Button, Row, Col, FormGroup, FormLabel, FormControl, Alert } from 'react-bootstrap'
+import { Card, CardHeader, CardBody, Form, Button, Row, Col, FormGroup, FormLabel, FormControl, Alert, Spinner } from 'react-bootstrap'
 import { LuSave, LuX } from 'react-icons/lu'
 import { RelationSelector } from '@/app/(admin)/(apps)/(ecommerce)/add-product/components/RelationSelector'
 import ProductSelector from './ProductSelector'
@@ -19,6 +19,15 @@ const AddPedidoForm = () => {
     quantity: number
     subtotal: number
   }>>([])
+
+  const [clientes, setClientes] = useState<Array<{
+    id: string | number
+    documentId?: string
+    nombre: string
+    email?: string
+    displayName: string
+  }>>([])
+  const [loadingClientes, setLoadingClientes] = useState(false)
 
   const [formData, setFormData] = useState({
     numero_pedido: '',
@@ -38,6 +47,89 @@ const AddPedidoForm = () => {
     nota_cliente: '',
     originPlatform: 'woo_moraleja' as 'woo_moraleja' | 'woo_escolar' | 'otros',
   })
+
+  // Cargar clientes cuando cambia la plataforma
+  useEffect(() => {
+    const fetchClientes = async () => {
+      if (formData.originPlatform === 'otros') {
+        setClientes([])
+        return
+      }
+
+      setLoadingClientes(true)
+      try {
+        // Obtener clientes desde Strapi (WO-Clientes)
+        const response = await fetch('/api/tienda/clientes?pagination[pageSize]=500')
+        const data = await response.json()
+
+        if (data.success && data.data) {
+          const clientesMapeados = data.data.map((cliente: any) => {
+            const attrs = cliente.attributes || {}
+            const clienteData = (attrs && Object.keys(attrs).length > 0) ? attrs : cliente
+            
+            // Obtener nombre del cliente
+            let nombre = 'Cliente sin nombre'
+            if (clienteData.persona?.data?.attributes) {
+              const persona = clienteData.persona.data.attributes
+              const nombreCompleto = `${persona.nombre || ''} ${persona.apellido || ''}`.trim()
+              nombre = nombreCompleto || persona.nombre || persona.apellido || 'Cliente sin nombre'
+            } else if (clienteData.nombre) {
+              nombre = clienteData.nombre
+            } else if (clienteData.correo_electronico) {
+              nombre = clienteData.correo_electronico.split('@')[0]
+            }
+
+            const email = clienteData.correo_electronico || ''
+            const displayName = email ? `${nombre} (${email})` : nombre
+
+            return {
+              id: cliente.id || cliente.documentId || cliente.id,
+              documentId: cliente.documentId || cliente.id,
+              nombre,
+              email,
+              displayName,
+            }
+          })
+
+          // Agregar opción "Invitado" al inicio
+          setClientes([
+            {
+              id: 'invitado',
+              nombre: 'Invitado',
+              email: '',
+              displayName: 'Invitado',
+            },
+            ...clientesMapeados,
+          ])
+        } else {
+          // Si no hay clientes, al menos mostrar "Invitado"
+          setClientes([
+            {
+              id: 'invitado',
+              nombre: 'Invitado',
+              email: '',
+              displayName: 'Invitado',
+            },
+          ])
+        }
+      } catch (error: any) {
+        console.error('[AddPedidoForm] Error al cargar clientes:', error)
+        // Al menos mostrar "Invitado" si hay error
+        setClientes([
+          {
+            id: 'invitado',
+            nombre: 'Invitado',
+            email: '',
+            displayName: 'Invitado',
+          },
+        ])
+      } finally {
+        setLoadingClientes(false)
+      }
+    }
+
+    fetchClientes()
+  }, [formData.originPlatform])
 
   // Calcular subtotal y total cuando cambian los productos
   useEffect(() => {
@@ -335,6 +427,38 @@ const AddPedidoForm = () => {
                 </FormControl>
                 <small className="text-muted">
                   Plataforma de origen del pedido.
+                </small>
+              </FormGroup>
+            </Col>
+
+            <Col md={6}>
+              <FormGroup>
+                <FormLabel>
+                  Cliente
+                </FormLabel>
+                {loadingClientes ? (
+                  <div className="d-flex align-items-center">
+                    <Spinner size="sm" className="me-2" />
+                    <span className="text-muted">Cargando clientes...</span>
+                  </div>
+                ) : (
+                  <FormControl
+                    as="select"
+                    value={formData.cliente || 'invitado'}
+                    onChange={(e) => {
+                      const clienteId = e.target.value
+                      setFormData((prev) => ({ ...prev, cliente: clienteId === 'invitado' ? null : clienteId }))
+                    }}
+                  >
+                    {clientes.map((cliente) => (
+                      <option key={cliente.id} value={cliente.id === 'invitado' ? 'invitado' : cliente.documentId || cliente.id}>
+                        {cliente.displayName}
+                      </option>
+                    ))}
+                  </FormControl>
+                )}
+                <small className="text-muted">
+                  Selecciona el cliente del pedido. Si no hay cliente, selecciona "Invitado".
                 </small>
               </FormGroup>
             </Col>
