@@ -940,12 +940,9 @@ export async function PUT(
         dataEnviada: pedidoData
       })
       
-      // Si Strapi falló, lanzar el error
-      
-      // Si ambos fallaron, lanzar el error
+      // Si Strapi falló, lanzar el error para que lo capture el catch externo
       throw strapiError
     }
-
   } catch (error: any) {
     console.error('[API Pedidos PUT] ❌ ERROR al actualizar pedido:', {
       message: error.message,
