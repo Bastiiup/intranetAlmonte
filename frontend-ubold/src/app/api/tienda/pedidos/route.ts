@@ -281,17 +281,36 @@ export async function POST(request: NextRequest) {
     // Crear en Strapi - Los lifecycles (afterCreate) se encargarán de sincronizar con WooCommerce
     console.log('[API Pedidos POST] 📚 Creando pedido en Strapi (los lifecycles sincronizarán con WooCommerce)...')
     
-    // Validar y preparar items - asegurar que tengan la estructura correcta
-    const itemsPreparados = (body.data.items || []).map((item: any) => ({
-      producto_id: item.producto_id || item.product_id || item.libro_id || null,
-      sku: item.sku || '',
-      nombre: item.nombre || item.name || '',
-      cantidad: item.cantidad || item.quantity || 1,
-      precio_unitario: item.precio_unitario || item.price || 0,
-      total: item.total || (item.precio_unitario || item.price) * (item.cantidad || item.quantity || 1),
-      item_id: item.item_id || null,
-      metadata: item.metadata || null,
-    }))
+    // Validar y preparar items - asegurar que tengan la estructura correcta para Strapi y WooCommerce
+    const itemsPreparados = (body.data.items || []).map((item: any) => {
+      const productoId = item.producto_id || item.product_id || item.libro_id || null
+      const cantidad = item.cantidad || item.quantity || 1
+      const precioUnitario = item.precio_unitario || item.price || 0
+      const total = item.total || precioUnitario * cantidad
+      
+      return {
+        producto_id: productoId, // Para Strapi
+        product_id: productoId, // Para WooCommerce (Strapi lo usará en el lifecycle)
+        sku: item.sku || '',
+        nombre: item.nombre || item.name || '',
+        cantidad: cantidad,
+        quantity: cantidad, // Para WooCommerce
+        precio_unitario: precioUnitario,
+        price: precioUnitario.toString(), // Para WooCommerce
+        total: total,
+        item_id: item.item_id || null,
+        metadata: item.metadata || null,
+      }
+    })
+    
+    // Validar que los items tengan producto_id válido
+    const itemsValidos = itemsPreparados.filter((item: any) => item.producto_id && item.producto_id > 0)
+    if (itemsPreparados.length > 0 && itemsValidos.length === 0) {
+      return NextResponse.json({
+        success: false,
+        error: 'Los items deben tener un producto_id válido para sincronizar con WooCommerce'
+      }, { status: 400 })
+    }
     
     // Preparar fecha_pedido y fecha_creacion
     const fechaPedido = body.data.fecha_pedido || new Date().toISOString()
@@ -312,9 +331,27 @@ export async function POST(request: NextRequest) {
         moneda: body.data.moneda || 'CLP',
         origen: normalizeOrigen(body.data.origen),
         cliente: body.data.cliente || null,
-        items: itemsPreparados,
-        billing: body.data.billing || null,
-        shipping: body.data.shipping || null,
+        items: itemsValidos.length > 0 ? itemsValidos : itemsPreparados, // Usar items válidos si hay
+        // Agregar información mínima de billing/shipping si no existe (WooCommerce puede requerirlo)
+        billing: body.data.billing || (originPlatform !== 'otros' ? {
+          first_name: 'Cliente',
+          last_name: 'Invitado',
+          email: '',
+          address_1: '',
+          city: '',
+          state: '',
+          postcode: '',
+          country: 'CL',
+        } : null),
+        shipping: body.data.shipping || (originPlatform !== 'otros' ? {
+          first_name: 'Cliente',
+          last_name: 'Invitado',
+          address_1: '',
+          city: '',
+          state: '',
+          postcode: '',
+          country: 'CL',
+        } : null),
         metodo_pago: normalizeMetodoPago(body.data.metodo_pago),
         metodo_pago_titulo: body.data.metodo_pago_titulo || null,
         nota_cliente: body.data.nota_cliente || null,
