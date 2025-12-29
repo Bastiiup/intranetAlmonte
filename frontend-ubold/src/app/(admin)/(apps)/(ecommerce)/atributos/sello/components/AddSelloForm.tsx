@@ -198,7 +198,7 @@ const AddSelloForm = () => {
 
             <Col md={6}>
               <FormGroup>
-                <FormLabel>Sitio Web</FormLabel>
+                <FormLabel>Website</FormLabel>
                 <FormControl
                   type="url"
                   placeholder="https://ejemplo.com"

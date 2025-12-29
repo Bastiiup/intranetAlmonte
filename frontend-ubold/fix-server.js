@@ -28,6 +28,11 @@ if (!fs.existsSync(serverPath)) {
 let serverCode = fs.readFileSync(serverPath, 'utf8')
 const originalCode = serverCode
 
+<<<<<<< HEAD
+=======
+console.log('📝 Modificando servidor standalone...')
+
+>>>>>>> origin/mati-integracion
 // Reemplazar localhost y 127.0.0.1 con 0.0.0.0
 serverCode = serverCode.replace(/localhost/g, '0.0.0.0')
 serverCode = serverCode.replace(/127\.0\.0\.1/g, '0.0.0.0')
@@ -37,9 +42,25 @@ serverCode = serverCode.replace(/\.listen\(([^,]+),\s*['"](?:localhost|127\.0\.0
 serverCode = serverCode.replace(/\.listen\((\w+)\)(?!\s*,\s*(?:['"]0\.0\.0\.0['"]|function|\([^)]*\)\s*=>))/g, ".listen($1, '0.0.0.0')")
 serverCode = serverCode.replace(/\.listen\((\w+),\s*(function|\([^)]*\)\s*=>)/g, ".listen($1, '0.0.0.0', $2")
 
+<<<<<<< HEAD
 if (serverCode !== originalCode) {
   fs.writeFileSync(serverPath, serverCode)
   console.log('✓ Servidor standalone modificado para escuchar en 0.0.0.0')
+=======
+// Asegurar que se use process.env.PORT si está disponible
+// Buscar patrones como .listen(3000) o .listen(port) y reemplazarlos
+if (serverCode.includes('.listen(')) {
+  // Si hay una llamada a listen con un número fijo, intentar reemplazarla
+  serverCode = serverCode.replace(/\.listen\((\d+)\)/g, (match, port) => {
+    return `.listen(parseInt(process.env.PORT || '${port}', 10), '0.0.0.0')`
+  })
+}
+
+if (serverCode !== originalCode) {
+  fs.writeFileSync(serverPath, serverCode)
+  console.log('✓ Servidor standalone modificado para escuchar en 0.0.0.0')
+  console.log('✓ Variables de entorno PORT y HOSTNAME serán respetadas')
+>>>>>>> origin/mati-integracion
 } else {
   console.log('ℹ No se encontraron cambios necesarios en el servidor standalone')
 }

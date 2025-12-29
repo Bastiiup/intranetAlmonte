@@ -1,8 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+<<<<<<< HEAD
 import { Card, CardBody, Button, Alert, Form, Row, Col, Spinner } from 'react-bootstrap'
 import { TbPencil, TbCheck, TbX } from 'react-icons/tb'
+=======
+import { useRouter } from 'next/navigation'
+import { Card, CardBody, Button, Alert, Form, Row, Col, Spinner } from 'react-bootstrap'
+import { TbPencil, TbCheck, TbX, TbEdit } from 'react-icons/tb'
+>>>>>>> origin/mati-integracion
 
 interface ProductDetailsProps {
   producto: any
@@ -20,32 +26,71 @@ const getField = (obj: any, ...fieldNames: string[]): any => {
   return undefined
 }
 
+<<<<<<< HEAD
 // Helper para extraer texto de descripción (puede venir en formato blocks o string)
 const extractDescriptionText = (descripcion: any): string => {
   if (!descripcion) return ''
   if (typeof descripcion === 'string') return descripcion
+=======
+// Helper para extraer texto de descripción (puede venir en formato blocks, string HTML, o string plano)
+const extractDescriptionText = (descripcion: any): string => {
+  if (!descripcion) return ''
+  if (typeof descripcion === 'string') {
+    // Si es string, puede ser HTML o texto plano
+    // Si contiene HTML, extraer solo el texto
+    if (descripcion.includes('<')) {
+      return descripcion.replace(/<[^>]+>/g, '').trim()
+    }
+    return descripcion
+  }
+>>>>>>> origin/mati-integracion
   if (Array.isArray(descripcion)) {
     // Formato blocks de Strapi
     return descripcion
       .map((block: any) => {
+<<<<<<< HEAD
         if (block.children) {
           return block.children
             .map((child: any) => child.text || '')
+=======
+        if (block.type === 'paragraph' && block.children) {
+          return block.children
+            .map((child: any) => {
+              if (child.type === 'text') {
+                return child.text || ''
+              }
+              return ''
+            })
+>>>>>>> origin/mati-integracion
             .join('')
         }
         return ''
       })
+<<<<<<< HEAD
+=======
+      .filter((text: string) => text.trim() !== '')
+>>>>>>> origin/mati-integracion
       .join('\n')
   }
   return ''
 }
 
 export function ProductDetails({ producto, onUpdate, onProductoUpdate }: ProductDetailsProps) {
+<<<<<<< HEAD
+=======
+  const router = useRouter()
+>>>>>>> origin/mati-integracion
   const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   
+<<<<<<< HEAD
+=======
+  // Obtener ID del producto para redirigir a editar
+  const productId = producto.id?.toString() || producto.documentId || (producto as any).documentId || ''
+  
+>>>>>>> origin/mati-integracion
   // Obtener datos del producto (puede venir de attributes o directamente)
   const attrs = producto.attributes || {}
   const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (producto as any)
@@ -239,6 +284,7 @@ export function ProductDetails({ producto, onUpdate, onProductoUpdate }: Product
           <h5 className="card-title mb-0">Detalles del Producto</h5>
           
           {!isEditing ? (
+<<<<<<< HEAD
             <Button
               variant="primary"
               onClick={handleEdit}
@@ -246,6 +292,21 @@ export function ProductDetails({ producto, onUpdate, onProductoUpdate }: Product
               <TbPencil className="me-1" />
               Editar Producto
             </Button>
+=======
+            <div className="d-flex gap-2">
+              <Button 
+                variant="primary" 
+                onClick={() => router.push(`/edit-product/${productId}`)}
+              >
+                <TbEdit className="me-1" />
+                Editar Producto Completo
+              </Button>
+              <Button variant="outline-primary" onClick={handleEdit}>
+                <TbPencil className="me-1" />
+                Edición Rápida
+              </Button>
+            </div>
+>>>>>>> origin/mati-integracion
           ) : (
             <div className="btn-group">
               <Button

@@ -10,7 +10,11 @@
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10,
     "healthcheckPath": "/api/health",
+<<<<<<< HEAD
     "healthcheckTimeout": 100
+=======
+    "healthcheckTimeout": 300
+>>>>>>> origin/mati-integracion
   }
 }
 

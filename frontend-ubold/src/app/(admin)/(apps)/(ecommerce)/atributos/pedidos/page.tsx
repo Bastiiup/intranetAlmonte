@@ -4,7 +4,11 @@ import type { Metadata } from 'next'
 
 import OrdersStats from '@/app/(admin)/(apps)/(ecommerce)/orders/components/OrdersStats'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+<<<<<<< HEAD
 import OrdersList from '@/app/(admin)/(apps)/(ecommerce)/orders/components/OrdersList'
+=======
+import PedidosListing from '@/app/(admin)/(apps)/(ecommerce)/atributos/pedidos/components/PedidosListing'
+>>>>>>> origin/mati-integracion
 
 // Forzar renderizado dinámico
 export const dynamic = 'force-dynamic'
@@ -13,12 +17,40 @@ export const metadata: Metadata = {
   title: 'Pedidos',
 }
 
+<<<<<<< HEAD
+=======
+// Helper para extraer datos de pedidos de Strapi (soporta múltiples formatos)
+const extractPedidoData = (pedido: any): any => {
+  // Strapi v5 puede devolver: { id, documentId, attributes: {...} }
+  // O: { data: { id, documentId, attributes } }
+  const pedidoReal = pedido.data || pedido
+  const attrs = pedidoReal.attributes || {}
+  
+  // Si tiene attributes, usar esos datos, sino usar el objeto directamente
+  const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (pedidoReal as any)
+  
+  // Extraer campos relevantes para estadísticas
+  return {
+    estado: data.estado || data.status || 'pendiente',
+    fecha_pedido: data.fecha_pedido || data.date_created || null,
+    createdAt: data.createdAt || pedidoReal.createdAt || null,
+    // Mantener estructura original para compatibilidad
+    ...pedidoReal,
+    attributes: data,
+  }
+}
+
+>>>>>>> origin/mati-integracion
 export default async function Page() {
   let pedidos: any[] = []
   let error: string | null = null
 
   try {
+<<<<<<< HEAD
     // Usar API Route como proxy - mapear pedidos de Strapi al formato de WooCommerce para OrdersList
+=======
+    // Usar API Route para obtener pedidos de Strapi
+>>>>>>> origin/mati-integracion
     const headersList = await headers()
     const host = headersList.get('host') || 'localhost:3000'
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
@@ -32,6 +64,7 @@ export default async function Page() {
     const data = await response.json()
     
     if (data.success && data.data) {
+<<<<<<< HEAD
       const strapiPedidos = Array.isArray(data.data) ? data.data : [data.data]
       
       // Mapear pedidos de Strapi al formato de WooCommerce que espera OrdersList
@@ -71,6 +104,13 @@ export default async function Page() {
       })
       
       console.log('[Pedidos Page] Pedidos obtenidos y mapeados:', pedidos.length)
+=======
+      // Normalizar datos de Strapi para estadísticas y lista
+      const pedidosRaw = Array.isArray(data.data) ? data.data : [data.data]
+      pedidos = pedidosRaw.map(extractPedidoData)
+      console.log('[Pedidos Page] Pedidos obtenidos de Strapi:', pedidos.length)
+      console.log('[Pedidos Page] Primer pedido (ejemplo):', JSON.stringify(pedidos[0], null, 2))
+>>>>>>> origin/mati-integracion
     } else {
       error = data.error || 'Error al obtener pedidos'
       console.error('[Pedidos Page] Error en respuesta:', data)
@@ -87,8 +127,13 @@ export default async function Page() {
       <OrdersStats pedidos={pedidos} />
 
       <Row>
+<<<<<<< HEAD
         <Col cols={12}>
           <OrdersList pedidos={pedidos} error={error} basePath="/atributos/pedidos" />
+=======
+        <Col xs={12}>
+          <PedidosListing pedidos={pedidos} error={error} />
+>>>>>>> origin/mati-integracion
         </Col>
       </Row>
     </Container>

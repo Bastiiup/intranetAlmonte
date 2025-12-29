@@ -156,7 +156,7 @@ const AddMarcaForm = () => {
 
             <Col md={12}>
               <FormGroup>
-                <FormLabel>Sitio Web</FormLabel>
+                <FormLabel>Website</FormLabel>
                 <FormControl
                   type="url"
                   placeholder="https://ejemplo.com"

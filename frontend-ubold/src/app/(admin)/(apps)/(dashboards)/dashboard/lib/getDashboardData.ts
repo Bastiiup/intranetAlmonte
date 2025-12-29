@@ -52,11 +52,24 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   try {
     const baseUrl = await getBaseUrl()
     
+<<<<<<< HEAD
+=======
+    // Obtener todos los pedidos de Strapi
+    const ordersResponse = await fetch(
+      `${baseUrl}/api/tienda/pedidos?pagination[pageSize]=5000`,
+      { cache: 'no-store' }
+    )
+    
+    const ordersData = await ordersResponse.json()
+    const allOrders = ordersData.success && ordersData.data ? ordersData.data : []
+    
+>>>>>>> origin/mati-integracion
     // Obtener pedidos completados del mes actual
     const now = new Date()
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
     const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
     
+<<<<<<< HEAD
     const ordersResponse = await fetch(
       `${baseUrl}/api/woocommerce/orders?per_page=100&status=completed&after=${firstDayOfMonth.toISOString()}&before=${lastDayOfMonth.toISOString()}`,
       { cache: 'no-store' }
@@ -94,11 +107,56 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     const refundRequests = allOrders.filter((order: any) => 
       order.status === 'refunded' || order.status === 'cancelled'
     ).length
+=======
+    const completedOrders = allOrders.filter((order: any) => {
+      const attrs = order.attributes || {}
+      const pedidoData = (attrs && Object.keys(attrs).length > 0) ? attrs : order
+      const estado = pedidoData.estado || ''
+      const fechaPedido = pedidoData.fecha_pedido || pedidoData.createdAt
+      
+      if (estado !== 'completed' && estado !== 'completado') return false
+      if (!fechaPedido) return false
+      
+      const fecha = new Date(fechaPedido)
+      return fecha >= firstDayOfMonth && fecha <= lastDayOfMonth
+    })
+    
+    // Calcular ventas totales del mes
+    const totalSales = completedOrders.reduce((sum: number, order: any) => {
+      const attrs = order.attributes || {}
+      const pedidoData = (attrs && Object.keys(attrs).length > 0) ? attrs : order
+      return sum + parseFloat(pedidoData.total || 0)
+    }, 0)
+    
+    // Contar clientes únicos (por email de billing)
+    const customerEmails = new Set<string>()
+    allOrders.forEach((order: any) => {
+      const attrs = order.attributes || {}
+      const pedidoData = (attrs && Object.keys(attrs).length > 0) ? attrs : order
+      const billing = pedidoData.billing
+      if (billing && typeof billing === 'object' && billing.email) {
+        customerEmails.add(billing.email)
+      }
+    })
+    
+    // Refund requests (pedidos con estado refunded o cancelled)
+    const refundRequests = allOrders.filter((order: any) => {
+      const attrs = order.attributes || {}
+      const pedidoData = (attrs && Object.keys(attrs).length > 0) ? attrs : order
+      const estado = pedidoData.estado || ''
+      return estado === 'refunded' || estado === 'reembolsado' || 
+             estado === 'cancelled' || estado === 'cancelado'
+    }).length
+>>>>>>> origin/mati-integracion
     
     return {
       totalSales,
       totalOrders: allOrders.length,
+<<<<<<< HEAD
       activeCustomers: activeCustomers || customers.length,
+=======
+      activeCustomers: customerEmails.size,
+>>>>>>> origin/mati-integracion
       refundRequests,
     }
   } catch (error) {
@@ -114,18 +172,29 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 }
 
 /**
+<<<<<<< HEAD
  * Obtiene los pedidos recientes
+=======
+ * Obtiene los pedidos recientes desde Strapi
+>>>>>>> origin/mati-integracion
  */
 export async function getRecentOrders(limit: number = 10): Promise<DashboardOrder[]> {
   try {
     const baseUrl = await getBaseUrl()
     
+<<<<<<< HEAD
     const response = await fetch(
       `${baseUrl}/api/woocommerce/orders?per_page=${limit}&status=any&orderby=date&order=desc`,
+=======
+    // Usar el endpoint de pedidos de Strapi
+    const response = await fetch(
+      `${baseUrl}/api/tienda/pedidos?pagination[pageSize]=${limit}&sort=fecha_pedido:desc`,
+>>>>>>> origin/mati-integracion
       { cache: 'no-store' }
     )
     
     const data = await response.json()
+<<<<<<< HEAD
     const orders = data.success ? data.data : []
     
     return orders.slice(0, limit).map((order: any) => {
@@ -141,11 +210,43 @@ export async function getRecentOrders(limit: number = 10): Promise<DashboardOrde
         statusVariant = 'warning'
       } else if (status === 'cancelled' || status === 'refunded') {
         status = 'Cancelled'
+=======
+    const orders = data.success && data.data ? data.data : []
+    
+    return orders.slice(0, limit).map((order: any) => {
+      // Extraer datos del pedido de Strapi
+      const attrs = order.attributes || {}
+      const pedidoData = (attrs && Object.keys(attrs).length > 0) ? attrs : order
+      
+      // Mapear estado de Strapi a formato del dashboard
+      let status = pedidoData.estado || 'pending'
+      let statusVariant: 'success' | 'warning' | 'danger' = 'warning'
+      
+      // Mapear estados de inglés a español para mostrar
+      if (status === 'completed' || status === 'completado') {
+        status = 'Completado'
+        statusVariant = 'success'
+      } else if (status === 'processing' || status === 'procesando') {
+        status = 'Procesando'
+        statusVariant = 'success'
+      } else if (status === 'pending' || status === 'pendiente') {
+        status = 'Pendiente'
+        statusVariant = 'warning'
+      } else if (status === 'on-hold' || status === 'en_espera') {
+        status = 'En Espera'
+        statusVariant = 'warning'
+      } else if (status === 'cancelled' || status === 'cancelado') {
+        status = 'Cancelado'
+        statusVariant = 'danger'
+      } else if (status === 'refunded' || status === 'reembolsado') {
+        status = 'Reembolsado'
+>>>>>>> origin/mati-integracion
         statusVariant = 'danger'
       } else {
         status = status.charAt(0).toUpperCase() + status.slice(1)
       }
       
+<<<<<<< HEAD
       // Obtener nombre del cliente
       const firstName = order.billing?.first_name || ''
       const lastName = order.billing?.last_name || ''
@@ -171,6 +272,44 @@ export async function getRecentOrders(limit: number = 10): Promise<DashboardOrde
         product,
         date,
         amount: `$${parseFloat(order.total || 0).toLocaleString('es-CL')}`,
+=======
+      // Obtener nombre del cliente desde billing o cliente
+      let userName = 'Cliente'
+      const billing = pedidoData.billing
+      if (billing && typeof billing === 'object') {
+        const firstName = billing.first_name || ''
+        const lastName = billing.last_name || ''
+        userName = `${firstName} ${lastName}`.trim() || 'Cliente'
+      } else if (pedidoData.cliente) {
+        if (typeof pedidoData.cliente === 'object') {
+          userName = pedidoData.cliente.nombre || pedidoData.cliente.name || 'Cliente'
+        } else {
+          userName = String(pedidoData.cliente)
+        }
+      }
+      
+      // Obtener primer producto del pedido
+      const firstItem = pedidoData.items?.[0]
+      const product = firstItem?.nombre || firstItem?.name || 'Producto'
+      
+      // Formatear fecha
+      const fechaPedido = pedidoData.fecha_pedido || pedidoData.createdAt || new Date().toISOString()
+      const date = new Date(fechaPedido).toISOString().split('T')[0]
+      
+      // Obtener avatar del cliente
+      const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=random&size=128`
+      
+      // Obtener total
+      const total = pedidoData.total || 0
+      const moneda = pedidoData.moneda || 'CLP'
+
+      return {
+        id: order.documentId || order.id || `ORD-${order.id}`,
+        userName,
+        product,
+        date,
+        amount: `${moneda === 'CLP' ? '$' : ''}${parseFloat(total.toString()).toLocaleString('es-CL')}`,
+>>>>>>> origin/mati-integracion
         status,
         statusVariant,
         userImage: avatarUrl,

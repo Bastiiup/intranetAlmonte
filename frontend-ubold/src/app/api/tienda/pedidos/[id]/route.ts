@@ -153,7 +153,11 @@ export async function GET(
     // PASO 1: Intentar con filtro por documentId primero (más común)
     try {
       const filteredResponse = await strapiClient.get<any>(
+<<<<<<< HEAD
         `/api/wo-pedidos?filters[documentId][$eq]=${id}&populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+=======
+        `/api/pedidos?filters[documentId][$eq]=${id}&populate=*`
+>>>>>>> origin/mati-integracion
       )
       
       let pedido: any
@@ -184,7 +188,11 @@ export async function GET(
     // PASO 1b: Intentar con filtro por numero_pedido si es numérico o string
     try {
       const filteredResponse = await strapiClient.get<any>(
+<<<<<<< HEAD
         `/api/wo-pedidos?filters[numero_pedido][$eq]=${id}&populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+=======
+        `/api/pedidos?filters[numero_pedido][$eq]=${id}&populate=*`
+>>>>>>> origin/mati-integracion
       )
       
       let pedido: any
@@ -211,11 +219,19 @@ export async function GET(
       }
     }
     
+<<<<<<< HEAD
     // PASO 1c: Intentar con filtro por wooId si es numérico
     if (!isNaN(parseInt(id))) {
       try {
         const filteredResponse = await strapiClient.get<any>(
           `/api/wo-pedidos?filters[wooId][$eq]=${id}&populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+=======
+    // PASO 1c: Intentar con filtro por woocommerce_id si es numérico
+    if (!isNaN(parseInt(id))) {
+      try {
+        const filteredResponse = await strapiClient.get<any>(
+          `/api/pedidos?filters[woocommerce_id][$eq]=${id}&populate=*`
+>>>>>>> origin/mati-integracion
         )
         
         let pedido: any
@@ -230,7 +246,11 @@ export async function GET(
         }
         
         if (pedido && (pedido.id || pedido.documentId)) {
+<<<<<<< HEAD
           console.log('[API /tienda/pedidos/[id] GET] ✅ Pedido encontrado con filtro por wooId')
+=======
+          console.log('[API /tienda/pedidos/[id] GET] ✅ Pedido encontrado con filtro por woocommerce_id')
+>>>>>>> origin/mati-integracion
           return NextResponse.json({
             success: true,
             data: pedido
@@ -238,7 +258,11 @@ export async function GET(
         }
       } catch (filterError: any) {
         if (filterError.status !== 500) {
+<<<<<<< HEAD
           console.warn('[API /tienda/pedidos/[id] GET] ⚠️ Error al obtener con filtro por wooId:', filterError.message)
+=======
+          console.warn('[API /tienda/pedidos/[id] GET] ⚠️ Error al obtener con filtro por woocommerce_id:', filterError.message)
+>>>>>>> origin/mati-integracion
         }
       }
     }
@@ -246,7 +270,11 @@ export async function GET(
     // PASO 2: Buscar en lista completa
     try {
       const allPedidos = await strapiClient.get<any>(
+<<<<<<< HEAD
         `/api/wo-pedidos?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario&pagination[pageSize]=1000`
+=======
+        `/api/pedidos?populate=*&pagination[pageSize]=1000`
+>>>>>>> origin/mati-integracion
       )
       
       let pedidos: any[] = []
@@ -299,7 +327,11 @@ export async function GET(
     // PASO 3: Intentar endpoint directo
     try {
       const response = await strapiClient.get<any>(
+<<<<<<< HEAD
         `/api/wo-pedidos/${id}?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+=======
+        `/api/pedidos/${id}?populate=*`
+>>>>>>> origin/mati-integracion
       )
       
       let pedido: any
@@ -315,7 +347,11 @@ export async function GET(
         // Registrar log de visualización
         const attrs = pedido.attributes || {}
         const data = (attrs && Object.keys(attrs).length > 0) ? attrs : pedido
+<<<<<<< HEAD
         const numeroPedido = data.numero_pedido || data.wooId || id
+=======
+        const numeroPedido = data.numero_pedido || data.woocommerce_id || id
+>>>>>>> origin/mati-integracion
         
         logActivity(request, {
           accion: 'ver',
@@ -356,11 +392,19 @@ export async function DELETE(
     const { id } = await params
     console.log('[API Pedidos DELETE] 🗑️ Eliminando pedido:', id)
 
+<<<<<<< HEAD
     const pedidoEndpoint = '/api/wo-pedidos'
     
     // Primero obtener el pedido de Strapi para obtener el documentId y wooId
     let documentId: string | null = null
     let wooId: number | null = null
+=======
+    const pedidoEndpoint = '/api/pedidos'
+    
+    // Primero obtener el pedido de Strapi para obtener el documentId y woocommerce_id
+    let documentId: string | null = null
+    let woocommerceId: number | null = null
+>>>>>>> origin/mati-integracion
     let originPlatform: string = 'woo_moraleja'
     let pedidoStrapi: any = null // Declarar pedidoStrapi antes de usarlo
     
@@ -372,13 +416,21 @@ export async function DELETE(
       // Si es documentId, usar endpoint directo
       try {
         const directResponse = await strapiClient.get<any>(
+<<<<<<< HEAD
           `${pedidoEndpoint}/${id}?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+=======
+          `${pedidoEndpoint}/${id}?populate=*`
+>>>>>>> origin/mati-integracion
         )
         pedidoStrapi = directResponse.data || directResponse
         documentId = pedidoStrapi?.documentId || pedidoStrapi?.id || id
         const attrs = pedidoStrapi?.attributes || {}
         const data = (attrs && Object.keys(attrs).length > 0) ? attrs : pedidoStrapi
+<<<<<<< HEAD
         wooId = data?.wooId || pedidoStrapi?.wooId || null
+=======
+        woocommerceId = data?.woocommerce_id || pedidoStrapi?.woocommerce_id || null
+>>>>>>> origin/mati-integracion
         originPlatform = data?.originPlatform || pedidoStrapi?.originPlatform || 'woo_moraleja'
       } catch (directError: any) {
         console.warn('[API Pedidos DELETE] ⚠️ Error al obtener pedido con endpoint directo:', directError.message)
@@ -387,7 +439,11 @@ export async function DELETE(
       // Si es numérico, intentar con filtro
       try {
         const pedidoResponse = await strapiClient.get<any>(
+<<<<<<< HEAD
           `${pedidoEndpoint}?filters[documentId][$eq]=${id}&populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
+=======
+          `${pedidoEndpoint}?filters[documentId][$eq]=${id}&populate=*`
+>>>>>>> origin/mati-integracion
         )
         let pedidos: any[] = []
         if (Array.isArray(pedidoResponse)) {
@@ -402,7 +458,11 @@ export async function DELETE(
           documentId = pedidoStrapi?.documentId || pedidoStrapi?.id || id
           const attrs = pedidoStrapi?.attributes || {}
           const data = (attrs && Object.keys(attrs).length > 0) ? attrs : pedidoStrapi
+<<<<<<< HEAD
           wooId = data?.wooId || pedidoStrapi?.wooId || null
+=======
+          woocommerceId = data?.woocommerce_id || pedidoStrapi?.woocommerce_id || null
+>>>>>>> origin/mati-integracion
           originPlatform = data?.originPlatform || pedidoStrapi?.originPlatform || 'woo_moraleja'
         }
       } catch (filterError: any) {
@@ -417,11 +477,19 @@ export async function DELETE(
 
     // Eliminar en WooCommerce primero si tenemos el ID (solo si no es "otros")
     let wooCommerceDeleted = false
+<<<<<<< HEAD
     if (wooId && originPlatform !== 'otros') {
       try {
         const wcClient = getWooCommerceClientForPlatform(originPlatform)
         console.log('[API Pedidos DELETE] 🛒 Eliminando pedido en WooCommerce:', wooId)
         await wcClient.delete<any>(`orders/${wooId}`, true)
+=======
+    if (woocommerceId && originPlatform !== 'otros') {
+      try {
+        const wcClient = getWooCommerceClientForPlatform(originPlatform)
+        console.log('[API Pedidos DELETE] 🛒 Eliminando pedido en WooCommerce:', woocommerceId)
+        await wcClient.delete<any>(`orders/${woocommerceId}`, true)
+>>>>>>> origin/mati-integracion
         wooCommerceDeleted = true
         console.log('[API Pedidos DELETE] ✅ Pedido eliminado en WooCommerce')
       } catch (wooError: any) {
@@ -449,7 +517,11 @@ export async function DELETE(
     // Registrar log de eliminación
     const attrs = pedidoStrapi?.attributes || {}
     const data = (attrs && Object.keys(attrs).length > 0) ? attrs : pedidoStrapi
+<<<<<<< HEAD
     const numeroPedido = data?.numero_pedido || data?.wooId || id
+=======
+    const numeroPedido = data?.numero_pedido || data?.woocommerce_id || id
+>>>>>>> origin/mati-integracion
     
     logActivity(request, {
       accion: 'eliminar',
@@ -490,6 +562,7 @@ export async function PUT(
     const body = await request.json()
     console.log('[API Pedidos PUT] ✏️ Actualizando pedido:', id, body)
 
+<<<<<<< HEAD
     const pedidoEndpoint = '/api/wo-pedidos'
     
     // Primero obtener el pedido de Strapi para obtener el documentId y wooId
@@ -539,13 +612,195 @@ export async function PUT(
     // Si aún no tenemos documentId, usar el id recibido
     if (!documentId) {
       documentId = id
+=======
+    const pedidoEndpoint = '/api/pedidos'
+    
+    // Primero obtener el pedido de Strapi para obtener el documentId y woocommerce_id
+    // Usar la misma lógica que GET para encontrar el pedido
+    let cuponStrapi: any
+    let documentId: string | null = null
+    let woocommerceId: number | null = null
+    let originPlatform: string = 'woo_moraleja'
+    
+    // PASO 1: Si el ID parece ser un documentId (string no numérico), intentar endpoint directo primero
+    const isDocumentIdFormat = typeof id === 'string' && !/^\d+$/.test(id)
+    
+    if (isDocumentIdFormat) {
+      try {
+        const directResponse = await strapiClient.get<any>(
+          `${pedidoEndpoint}/${id}?populate=*`
+        )
+        cuponStrapi = directResponse.data || directResponse
+        if (cuponStrapi && (cuponStrapi.id || cuponStrapi.documentId)) {
+          documentId = cuponStrapi.documentId || cuponStrapi.id || id
+          console.log('[API Pedidos PUT] ✅ Pedido encontrado con endpoint directo (documentId)')
+        }
+      } catch (directError: any) {
+        // Continuar con otros métodos si falla
+        console.log('[API Pedidos PUT] ℹ️ No se encontró con endpoint directo, intentando filtros...')
+      }
+    }
+    
+    // PASO 2: Intentar con filtro por documentId (si no se encontró en paso 1)
+    if (!cuponStrapi) {
+      try {
+        const filteredResponse = await strapiClient.get<any>(
+          `${pedidoEndpoint}?filters[documentId][$eq]=${id}&populate=*`
+        )
+      
+      let pedido: any
+      if (Array.isArray(filteredResponse)) {
+        pedido = filteredResponse[0]
+      } else if (filteredResponse.data && Array.isArray(filteredResponse.data)) {
+        pedido = filteredResponse.data[0]
+      } else if (filteredResponse.data) {
+        pedido = filteredResponse.data
+      } else {
+        pedido = filteredResponse
+      }
+      
+      if (pedido && (pedido.id || pedido.documentId)) {
+        cuponStrapi = pedido
+        documentId = pedido.documentId || pedido.id || id
+        console.log('[API Pedidos PUT] ✅ Pedido encontrado con filtro por documentId')
+      }
+    } catch (filterError: any) {
+      if (filterError.status !== 500) {
+        console.warn('[API Pedidos PUT] ⚠️ Error al obtener con filtro por documentId:', filterError.message)
+      }
+    }
+    }
+    
+    // PASO 2: Si no se encontró, intentar con filtro por numero_pedido
+    if (!cuponStrapi) {
+      try {
+        const filteredResponse = await strapiClient.get<any>(
+          `${pedidoEndpoint}?filters[numero_pedido][$eq]=${id}&populate=*`
+        )
+        
+        let pedido: any
+        if (Array.isArray(filteredResponse)) {
+          pedido = filteredResponse[0]
+        } else if (filteredResponse.data && Array.isArray(filteredResponse.data)) {
+          pedido = filteredResponse.data[0]
+        } else if (filteredResponse.data) {
+          pedido = filteredResponse.data
+        } else {
+          pedido = filteredResponse
+        }
+        
+        if (pedido && (pedido.id || pedido.documentId)) {
+          cuponStrapi = pedido
+          documentId = pedido.documentId || pedido.id || id
+          console.log('[API Pedidos PUT] ✅ Pedido encontrado con filtro por numero_pedido')
+        }
+      } catch (filterError: any) {
+        if (filterError.status !== 500) {
+          console.warn('[API Pedidos PUT] ⚠️ Error al obtener con filtro por numero_pedido:', filterError.message)
+        }
+      }
+    }
+    
+    // PASO 3: Si es numérico y aún no se encontró, intentar con filtro por woocommerce_id
+    if (!cuponStrapi && !isNaN(parseInt(id))) {
+      try {
+        const filteredResponse = await strapiClient.get<any>(
+          `${pedidoEndpoint}?filters[woocommerce_id][$eq]=${id}&populate=*`
+        )
+        
+        let pedido: any
+        if (Array.isArray(filteredResponse)) {
+          pedido = filteredResponse[0]
+        } else if (filteredResponse.data && Array.isArray(filteredResponse.data)) {
+          pedido = filteredResponse.data[0]
+        } else if (filteredResponse.data) {
+          pedido = filteredResponse.data
+        } else {
+          pedido = filteredResponse
+        }
+        
+        if (pedido && (pedido.id || pedido.documentId)) {
+          cuponStrapi = pedido
+          documentId = pedido.documentId || pedido.id || id
+          console.log('[API Pedidos PUT] ✅ Pedido encontrado con filtro por woocommerce_id')
+        }
+      } catch (filterError: any) {
+        if (filterError.status !== 500) {
+          console.warn('[API Pedidos PUT] ⚠️ Error al obtener con filtro por woocommerce_id:', filterError.message)
+        }
+      }
+    }
+    
+    // PASO 4: Si es numérico y aún no se encontró, buscar en lista completa y filtrar por ID
+    // Strapi v5 puede no permitir filters[id] directamente, así que buscamos manualmente
+    if (!cuponStrapi && !isNaN(parseInt(id))) {
+      try {
+        const idNum = parseInt(id)
+        // Obtener lista de pedidos y buscar por ID numérico
+        const allResponse = await strapiClient.get<any>(
+          `${pedidoEndpoint}?populate=*&pagination[pageSize]=1000`
+        )
+        
+        let pedidos: any[] = []
+        if (Array.isArray(allResponse)) {
+          pedidos = allResponse
+        } else if (allResponse.data && Array.isArray(allResponse.data)) {
+          pedidos = allResponse.data
+        } else if (allResponse.data) {
+          pedidos = [allResponse.data]
+        }
+        
+        // Buscar pedido con ID numérico coincidente
+        const pedidoEncontrado = pedidos.find((p: any) => {
+          const pId = p.id || (p.data && p.data.id)
+          return pId === idNum || pId === id
+        })
+        
+        if (pedidoEncontrado) {
+          cuponStrapi = pedidoEncontrado
+          documentId = pedidoEncontrado.documentId || pedidoEncontrado.id || id
+          console.log('[API Pedidos PUT] ✅ Pedido encontrado buscando en lista completa por ID numérico:', idNum)
+        }
+      } catch (searchError: any) {
+        console.warn('[API Pedidos PUT] ⚠️ Error al buscar en lista completa:', searchError.message)
+      }
+    }
+    
+    // PASO 5: Si aún no se encontró, intentar endpoint directo (puede ser documentId)
+    if (!cuponStrapi) {
+      try {
+        const directResponse = await strapiClient.get<any>(
+          `${pedidoEndpoint}/${id}?populate=*`
+        )
+        cuponStrapi = directResponse.data || directResponse
+        if (cuponStrapi && (cuponStrapi.id || cuponStrapi.documentId)) {
+          documentId = cuponStrapi.documentId || cuponStrapi.id || id
+          console.log('[API Pedidos PUT] ✅ Pedido encontrado con endpoint directo')
+        }
+      } catch (directError: any) {
+        // No mostrar warning aquí - es el último intento
+        console.log('[API Pedidos PUT] ℹ️ No se encontró con endpoint directo')
+      }
+    }
+    
+    // Si aún no tenemos documentId, el pedido no existe
+    if (!documentId || !cuponStrapi) {
+      return NextResponse.json({
+        success: false,
+        error: `Pedido no encontrado con ID: ${id}. Verifica que el pedido exista en Strapi.`
+      }, { status: 404 })
+>>>>>>> origin/mati-integracion
     }
     
     // Leer campos usando camelCase como en el schema de Strapi (si tenemos cuponStrapi)
     if (cuponStrapi) {
       const attrs = cuponStrapi?.attributes || {}
       const data = (attrs && Object.keys(attrs).length > 0) ? attrs : cuponStrapi
+<<<<<<< HEAD
       wooId = data?.wooId || cuponStrapi?.wooId || null
+=======
+      woocommerceId = data?.woocommerce_id || cuponStrapi?.woocommerce_id || null
+>>>>>>> origin/mati-integracion
       
       // CORRECCIÓN: Buscar originPlatform en todos los lugares posibles
       // Puede estar en: data.originPlatform, externalIds.originPlatform, o en el objeto raíz
@@ -562,7 +817,11 @@ export async function PUT(
         fromData: originPlatformFromData,
         fromExternalIds: originPlatformFromExternalIds,
         final: originPlatform,
+<<<<<<< HEAD
         wooId
+=======
+        woocommerceId
+>>>>>>> origin/mati-integracion
       })
     }
 
@@ -576,6 +835,7 @@ export async function PUT(
       }, { status: 400 })
     }
 
+<<<<<<< HEAD
     // Actualizar en WooCommerce primero si tenemos el ID y no es "otros"
     let wooCommercePedido = null
     let wooCommercePedidoData: any = {}
@@ -699,6 +959,13 @@ export async function PUT(
     } else if (wooId && !wooIdValido) {
       console.warn(`[API Pedidos PUT] ⚠️ wooId inválido (${wooId}), omitiendo actualización en WooCommerce`)
     }
+=======
+    // NOTA: Ya no actualizamos directamente en WooCommerce
+    // Strapi se encargará de sincronizar mediante el lifecycle afterUpdate
+    console.log('[API Pedidos PUT] 📝 Actualizando pedido en Strapi (los lifecycles sincronizarán con WooCommerce)...')
+    console.log('Origin Platform:', originPlatform)
+    console.log('WooCommerce ID:', woocommerceId)
+>>>>>>> origin/mati-integracion
 
     // Actualizar en Strapi usando documentId si está disponible
     const strapiEndpoint = documentId ? `${pedidoEndpoint}/${documentId}` : `${pedidoEndpoint}/${id}`
@@ -715,10 +982,16 @@ export async function PUT(
     
     if (soloActualizandoEstado) {
       // Obtener el pedido completo para verificar valores inválidos
+<<<<<<< HEAD
       try {
         const pedidoCompleto = cuponStrapi || (await strapiClient.get<any>(
           `${pedidoEndpoint}/${documentId || id}?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario`
         ))
+=======
+      // Ya tenemos cuponStrapi, no necesitamos hacer otra petición
+      try {
+        const pedidoCompleto = cuponStrapi
+>>>>>>> origin/mati-integracion
         const attrs = pedidoCompleto?.attributes || {}
         const pedidoDataCompleto = (attrs && Object.keys(attrs).length > 0) ? attrs : pedidoCompleto
         
@@ -805,6 +1078,7 @@ export async function PUT(
     if (body.data.metodo_pago_titulo !== undefined) pedidoData.data.metodo_pago_titulo = body.data.metodo_pago_titulo || null
     if (body.data.nota_cliente !== undefined) pedidoData.data.nota_cliente = body.data.nota_cliente || null
     
+<<<<<<< HEAD
     // Actualizar campos - Strapi espera camelCase según el schema
     // Solo actualizar externalIds si se actualizó en WooCommerce
     // NO enviar wooId, rawWooData directamente - no son campos del schema principal
@@ -827,6 +1101,47 @@ export async function PUT(
         pedidoData.data.originPlatform = platformToSave
       }
     }
+=======
+    // IMPORTANTE: Siempre incluir originPlatform en el payload para que Strapi sepa a qué WooCommerce sincronizar
+    // Si se proporciona en body.data, usarlo; si no, usar el detectado del pedido existente
+    const platformToSave = body.data.originPlatform || 
+                          body.data.origin_platform || 
+                          originPlatform
+    
+    // Validar que tenemos un originPlatform válido
+    if (!platformToSave || !['woo_moraleja', 'woo_escolar', 'otros'].includes(platformToSave)) {
+      console.error('[API Pedidos PUT] ❌ ERROR CRÍTICO: No se pudo determinar originPlatform válido!', {
+        fromBody: body.data.originPlatform || body.data.origin_platform,
+        detected: originPlatform,
+        cuponStrapi: cuponStrapi ? 'existe' : 'no existe'
+      })
+      // Si no tenemos originPlatform, no podemos sincronizar - esto es crítico
+      return NextResponse.json({
+        success: false,
+        error: `No se pudo determinar originPlatform. El pedido debe tener originPlatform: 'woo_moraleja' o 'woo_escolar' para sincronizar con WooCommerce.`,
+        details: {
+          detected: originPlatform,
+          fromBody: body.data.originPlatform || body.data.origin_platform
+        }
+      }, { status: 400 })
+    }
+    
+    // Incluir originPlatform en el payload
+    pedidoData.data.originPlatform = platformToSave
+    console.log('[API Pedidos PUT] 📌 originPlatform incluido en payload:', {
+      platform: platformToSave,
+      source: body.data.originPlatform || body.data.origin_platform ? 'body' : 'detected',
+      willSyncTo: platformToSave === 'woo_escolar' ? 'https://staging.escolar.cl' : 
+                  platformToSave === 'woo_moraleja' ? 'https://staging.moraleja.cl' : 'N/A'
+    })
+    
+    // Log detallado del payload que se envía a Strapi
+    console.log('═══════════════════════════════════════════════════════')
+    console.log('[API Pedidos PUT] 📦 Payload que se envía a Strapi:')
+    console.log(JSON.stringify(pedidoData, null, 2))
+    console.log('Origin Platform:', originPlatform)
+    console.log('═══════════════════════════════════════════════════════')
+>>>>>>> origin/mati-integracion
     
     // NOTA: Los campos originPlatform, externalIds están en camelCase que es correcto para Strapi
     // El warning del cliente de Strapi es solo informativo - Strapi acepta camelCase
@@ -837,7 +1152,11 @@ export async function PUT(
       return NextResponse.json({
         success: true,
         message: 'No hay campos para actualizar',
+<<<<<<< HEAD
         data: { woocommerce: wooCommercePedido }
+=======
+        data: {}
+>>>>>>> origin/mati-integracion
       })
     }
     
@@ -848,10 +1167,58 @@ export async function PUT(
       // Guardar datos anteriores para el log
       const attrsAnteriores = cuponStrapi?.attributes || {}
       const datosAnteriores = (attrsAnteriores && Object.keys(attrsAnteriores).length > 0) ? attrsAnteriores : cuponStrapi
+<<<<<<< HEAD
       const numeroPedido = datosAnteriores?.numero_pedido || datosAnteriores?.wooId || id
       
       const strapiResponse = await strapiClient.put<any>(strapiEndpoint, pedidoData)
       console.log('[API Pedidos PUT] ✅ Pedido actualizado en Strapi')
+=======
+      const numeroPedido = datosAnteriores?.numero_pedido || datosAnteriores?.woocommerce_id || id
+      
+      let strapiResponse: any
+      try {
+        strapiResponse = await strapiClient.put<any>(strapiEndpoint, pedidoData)
+      } catch (strapiError: any) {
+        console.error('═══════════════════════════════════════════════════════')
+        console.error('[API Pedidos PUT] ❌ ERROR al actualizar en Strapi:')
+        console.error('Status:', strapiError.status)
+        console.error('Message:', strapiError.message)
+        console.error('Details:', strapiError.details)
+        console.error('Response:', strapiError.response)
+        console.error('Payload enviado:', JSON.stringify(pedidoData, null, 2))
+        console.error('Endpoint:', strapiEndpoint)
+        console.error('═══════════════════════════════════════════════════════')
+        throw strapiError
+      }
+      
+      const strapiResponseData = strapiResponse.data || strapiResponse
+      const originPlatformEnStrapi = strapiResponseData?.attributes?.originPlatform || 
+                                     strapiResponseData?.originPlatform ||
+                                     strapiResponseData?.data?.originPlatform
+      
+      console.log('═══════════════════════════════════════════════════════')
+      console.log('[API Pedidos PUT] ✅ Pedido actualizado en Strapi')
+      console.log('DocumentId:', documentId || id)
+      console.log('Origin Platform enviado:', originPlatform)
+      console.log('Origin Platform en Strapi:', originPlatformEnStrapi)
+      console.log('Estado actualizado:', pedidoData.data.estado || 'N/A')
+      console.log('═══════════════════════════════════════════════════════')
+      
+      // Verificar que originPlatform se guardó correctamente
+      if (originPlatformEnStrapi !== originPlatform && originPlatform !== 'otros') {
+        console.warn('⚠️ ADVERTENCIA: originPlatform no coincide!')
+        console.warn('Enviado:', originPlatform)
+        console.warn('Guardado en Strapi:', originPlatformEnStrapi)
+        console.warn('Esto puede impedir la sincronización con WooCommerce')
+      }
+      
+      console.log('⏳ Esperando que Strapi sincronice con WooCommerce mediante afterUpdate lifecycle...')
+      console.log('📋 Revisa los logs de Strapi en Railway para ver la sincronización')
+      console.log('🔍 Busca estos mensajes en los logs de Strapi:')
+      console.log('   - [pedido] 🔍 afterUpdate ejecutado')
+      console.log('   - [pedido] ✅ Iniciando actualización en', originPlatform)
+      console.log('═══════════════════════════════════════════════════════')
+>>>>>>> origin/mati-integracion
       
       // Determinar tipo de acción para el log
       let accion: 'actualizar' | 'cambiar_estado' | 'ocultar' | 'mostrar' = 'actualizar'
@@ -867,9 +1234,15 @@ export async function PUT(
         accion = 'cambiar_estado'
         const estadoAnterior = datosAnteriores?.estado || 'desconocido'
         const estadoNuevo = pedidoData.data.estado || body.data.estado
+<<<<<<< HEAD
         descripcionDetalle = `Estado: ${estadoAnterior} → ${estadoNuevo}`
       } else {
         descripcionDetalle = 'Datos actualizados'
+=======
+        descripcionDetalle = `Estado: ${estadoAnterior} → ${estadoNuevo} - Strapi sincronizará con WooCommerce automáticamente`
+      } else {
+        descripcionDetalle = 'Datos actualizados - Strapi sincronizará con WooCommerce automáticamente'
+>>>>>>> origin/mati-integracion
       }
       
       // Registrar log de actualización
@@ -880,16 +1253,26 @@ export async function PUT(
         descripcion: createLogDescription(accion, 'pedido', numeroPedido, descripcionDetalle),
         datosAnteriores: datosAnteriores ? { estado: datosAnteriores.estado, publishedAt: datosAnteriores.publishedAt } : undefined,
         datosNuevos: pedidoData.data,
+<<<<<<< HEAD
         metadata: { wooCommerceActualizado: !!wooCommercePedido, originPlatform },
+=======
+        metadata: { originPlatform, sincronizacionAutomatica: true },
+>>>>>>> origin/mati-integracion
       }).catch(() => {})
       
       return NextResponse.json({
         success: true,
         data: {
+<<<<<<< HEAD
           woocommerce: wooCommercePedido,
           strapi: strapiResponse.data || strapiResponse,
         },
         message: 'Pedido actualizado exitosamente' + (wooCommercePedido ? ' en WooCommerce y Strapi' : ' en Strapi')
+=======
+          strapi: strapiResponse.data || strapiResponse,
+        },
+        message: `Pedido actualizado exitosamente en Strapi. Strapi sincronizará automáticamente con WooCommerce (${originPlatform}) mediante el lifecycle afterUpdate.`
+>>>>>>> origin/mati-integracion
       })
     } catch (strapiError: any) {
       console.error('[API Pedidos PUT] ❌ Error al actualizar en Strapi:', {
@@ -900,6 +1283,7 @@ export async function PUT(
         dataEnviada: pedidoData
       })
       
+<<<<<<< HEAD
       // Si WooCommerce se actualizó pero Strapi falló, aún retornar éxito parcial
       if (wooCommercePedido) {
         console.warn('[API Pedidos PUT] ⚠️ WooCommerce actualizado pero Strapi falló')
@@ -917,6 +1301,11 @@ export async function PUT(
       throw strapiError
     }
 
+=======
+      // Si Strapi falló, lanzar el error para que lo capture el catch externo
+      throw strapiError
+    }
+>>>>>>> origin/mati-integracion
   } catch (error: any) {
     console.error('[API Pedidos PUT] ❌ ERROR al actualizar pedido:', {
       message: error.message,

@@ -34,12 +34,17 @@ interface OrdersStatsProps {
 }
 
 const OrdersStats = ({ pedidos }: OrdersStatsProps = {}) => {
+<<<<<<< HEAD
   // Calcular estadísticas desde pedidos reales de WooCommerce
+=======
+  // Calcular estadísticas desde pedidos reales de Strapi
+>>>>>>> origin/mati-integracion
   const calculatedStats = useMemo(() => {
     if (!pedidos || pedidos.length === 0) {
       return orderStats
     }
 
+<<<<<<< HEAD
     const completed = pedidos.filter((p: any) => p.status === 'completed').length
     const pending = pedidos.filter((p: any) => 
       p.status === 'pending' || p.status === 'processing' || p.status === 'on-hold'
@@ -47,19 +52,89 @@ const OrdersStats = ({ pedidos }: OrdersStatsProps = {}) => {
     const cancelled = pedidos.filter((p: any) => 
       p.status === 'cancelled' || p.status === 'refunded'
     ).length
+=======
+    // Normalizar estado: puede venir de Strapi (español) o WooCommerce (inglés)
+    const normalizeEstado = (estado: string): string => {
+      if (!estado) return 'pendiente'
+      const estadoLower = estado.toLowerCase().trim()
+      
+      // Mapeo de estados en español a inglés para comparación
+      const estadoMap: Record<string, string> = {
+        'pendiente': 'pending',
+        'procesando': 'processing',
+        'en_espera': 'on-hold',
+        'completado': 'completed',
+        'cancelado': 'cancelled',
+        'reembolsado': 'refunded',
+        'fallido': 'failed',
+      }
+      
+      // Si ya está en inglés, devolverlo
+      if (['pending', 'processing', 'on-hold', 'completed', 'cancelled', 'refunded', 'failed'].includes(estadoLower)) {
+        return estadoLower
+      }
+      
+      // Si está en español, mapearlo
+      return estadoMap[estadoLower] || estadoLower
+    }
+
+    // Obtener estado del pedido (puede estar en diferentes lugares según la estructura)
+    const getEstado = (p: any): string => {
+      // Intentar obtener de diferentes lugares
+      const estado = p.estado || p.status || p.attributes?.estado || p.data?.attributes?.estado || 'pendiente'
+      return normalizeEstado(estado)
+    }
+
+    // Obtener fecha de creación (puede estar en diferentes lugares)
+    const getFechaCreacion = (p: any): Date | null => {
+      const fecha = p.fecha_pedido || p.date_created || p.createdAt || 
+                   p.attributes?.fecha_pedido || p.data?.attributes?.fecha_pedido ||
+                   p.attributes?.createdAt || p.data?.attributes?.createdAt
+      
+      if (!fecha) return null
+      
+      try {
+        return new Date(fecha)
+      } catch {
+        return null
+      }
+    }
+
+    // Contar por estado
+    const completed = pedidos.filter((p: any) => getEstado(p) === 'completed').length
+    const pending = pedidos.filter((p: any) => {
+      const estado = getEstado(p)
+      return estado === 'pending' || estado === 'processing' || estado === 'on-hold'
+    }).length
+    const cancelled = pedidos.filter((p: any) => {
+      const estado = getEstado(p)
+      return estado === 'cancelled' || estado === 'refunded'
+    }).length
+>>>>>>> origin/mati-integracion
     
     // Pedidos nuevos (creados hoy)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const newOrders = pedidos.filter((p: any) => {
+<<<<<<< HEAD
       if (!p.date_created) return false
       const orderDate = new Date(p.date_created)
+=======
+      const fechaCreacion = getFechaCreacion(p)
+      if (!fechaCreacion) return false
+      const orderDate = new Date(fechaCreacion)
+>>>>>>> origin/mati-integracion
       orderDate.setHours(0, 0, 0, 0)
       return orderDate.getTime() === today.getTime()
     }).length
 
+<<<<<<< HEAD
     // Pedidos devueltos (simplificado, usar refunded)
     const returned = pedidos.filter((p: any) => p.status === 'refunded').length
+=======
+    // Pedidos devueltos (reembolsados)
+    const returned = pedidos.filter((p: any) => getEstado(p) === 'refunded').length
+>>>>>>> origin/mati-integracion
 
     return [
       {
