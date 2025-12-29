@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import QuillClient from '@/components/client-wrapper/QuillClient'
 import ProductImage from '../../add-product/components/ProductImage'
 import ProductTabs, { TabType } from '../../add-product/components/ProductTabs'
 import PlatformSelector from '../../add-product/components/PlatformSelector'
@@ -13,6 +14,29 @@ import AtributosTab from '../../add-product/components/tabs/AtributosTab'
 import AvanzadoTab from '../../add-product/components/tabs/AvanzadoTab'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { Alert, Button, Card, CardBody, Col, Container, FormControl, FormGroup, FormLabel, FormSelect, Row } from 'react-bootstrap'
+
+// Configuración del editor Quill para descripción
+const quillModules = {
+  toolbar: [
+    [{ header: [false, 1, 2, 3] }],
+    ['bold', 'italic', 'underline', 'strike'],
+    [{ list: 'ordered' }, { list: 'bullet' }],
+    ['blockquote', 'code-block'],
+    [{ align: [] }],
+    ['link', 'image'],
+    ['clean'],
+  ],
+}
+
+// Configuración del editor Quill para descripción corta (más simple)
+const quillModulesShort = {
+  toolbar: [
+    ['bold', 'italic', 'underline'],
+    [{ list: 'ordered' }, { list: 'bullet' }],
+    ['link'],
+    ['clean'],
+  ],
+}
 
 interface EditProductPageProps {
   params: Promise<{ id: string }>
@@ -456,34 +480,38 @@ export default function EditProductPage({ params }: EditProductPageProps) {
           onChange={setSelectedPlatforms}
         />
 
-        {/* Descripción del producto */}
+        {/* Descripción del producto - Editor de texto rico */}
         <Card className="mb-3">
           <CardBody>
             <FormGroup>
-              <FormLabel className="fw-bold">Descripción del producto</FormLabel>
-              <FormControl
-                as="textarea"
-                rows={8}
-                placeholder="Describe el producto..."
-                value={formData.descripcion}
-                onChange={(e) => updateField('descripcion', e.target.value)}
-              />
+              <FormLabel className="fw-bold mb-3">Descripción del producto</FormLabel>
+              <div id="descripcion-editor" style={{ minHeight: '200px' }}>
+                <QuillClient
+                  theme="snow"
+                  modules={quillModules}
+                  value={formData.descripcion || ''}
+                  onChange={(value: string) => updateField('descripcion', value)}
+                  placeholder="Describe el producto..."
+                />
+              </div>
             </FormGroup>
           </CardBody>
         </Card>
 
-        {/* Descripción corta */}
+        {/* Descripción corta - Editor de texto rico */}
         <Card className="mb-3">
           <CardBody>
             <FormGroup>
-              <FormLabel className="fw-bold">Descripción corta del producto</FormLabel>
-              <FormControl
-                as="textarea"
-                rows={4}
-                placeholder="Breve descripción que aparecerá en listados y carrito..."
-                value={formData.descripcion_corta}
-                onChange={(e) => updateField('descripcion_corta', e.target.value)}
-              />
+              <FormLabel className="fw-bold mb-3">Descripción corta del producto</FormLabel>
+              <div id="descripcion-corta-editor" style={{ minHeight: '150px' }}>
+                <QuillClient
+                  theme="snow"
+                  modules={quillModulesShort}
+                  value={formData.descripcion_corta || ''}
+                  onChange={(value: string) => updateField('descripcion_corta', value)}
+                  placeholder="Breve descripción que aparecerá en listados y carrito..."
+                />
+              </div>
             </FormGroup>
           </CardBody>
         </Card>
