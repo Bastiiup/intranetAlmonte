@@ -502,25 +502,21 @@ export async function PUT(
     //   updateData.data.shipping_class = body.shipping_class || ''
     // }
 
-    // ⚠️ IMPORTANTE: raw_woo_data se envía como campo adicional
-    // Si Strapi lo rechaza (porque no está en el schema), se construirá en los lifecycles
-    // Si Strapi lo acepta, se usará directamente en los lifecycles
-    if (body.raw_woo_data) {
-      // Intentar incluir raw_woo_data en el payload
-      // Si Strapi lo rechaza, se construirá en los lifecycles basándose en los campos individuales
-      updateData.data.raw_woo_data = body.raw_woo_data
-      console.log('[API PUT] ✅ raw_woo_data incluido en payload')
-      console.log('[API PUT] 📝 Descripción completa:', body.raw_woo_data.description?.substring(0, 100) || 'VACÍA')
-      console.log('[API PUT] 📝 Descripción corta:', body.raw_woo_data.short_description?.substring(0, 100) || 'VACÍA')
-      console.log('[API PUT] 🔍 Verificación raw_woo_data:', {
-        tieneDescription: !!body.raw_woo_data.description && body.raw_woo_data.description.length > 0,
-        tieneShortDescription: !!body.raw_woo_data.short_description && body.raw_woo_data.short_description.length > 0,
-        longitudDescription: body.raw_woo_data.description?.length || 0,
-        longitudShortDescription: body.raw_woo_data.short_description?.length || 0
-      })
-    } else {
-      console.warn('[API PUT] ⚠️ raw_woo_data NO viene en el body. Strapi debe construirlo en lifecycles.')
-    }
+    // ⚠️ IMPORTANTE: raw_woo_data NO se envía a Strapi porque no está en el schema
+    // Strapi debe construir raw_woo_data en sus lifecycles basándose en los campos individuales
+    // Los campos individuales (descripcion, subtitulo_libro, precio, etc.) ya están en updateData.data
+    // Strapi usará estos campos para construir raw_woo_data en afterUpdate
+    
+    // NOTA: Si necesitas que Strapi use raw_woo_data directamente, debes agregarlo al schema de Strapi
+    // Por ahora, NO lo incluimos para evitar el error "Invalid key raw_woo_data"
+    // if (body.raw_woo_data) {
+    //   updateData.data.raw_woo_data = body.raw_woo_data  // ❌ Comentado - Strapi lo rechaza
+    // }
+    
+    console.log('[API PUT] ℹ️ raw_woo_data NO se envía. Strapi debe construirlo en lifecycles desde:')
+    console.log('[API PUT]   - descripcion:', updateData.data.descripcion ? '✅ Presente' : '❌ Vacío')
+    console.log('[API PUT]   - subtitulo_libro:', updateData.data.subtitulo_libro ? '✅ Presente' : '❌ Vacío')
+    console.log('[API PUT]   - precio:', updateData.data.precio ? '✅ Presente' : '❌ Vacío')
 
     // VERIFICACIÓN FINAL antes de enviar
     const finalKeys = Object.keys(updateData.data)

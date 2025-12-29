@@ -284,10 +284,14 @@ export default function AddProductPage() {
         sku: formData.isbn_libro?.trim() || '',
       }
 
-      // Agregar raw_woo_data al payload (Strapi puede usarlo en lifecycles aunque no esté en schema)
-      // Si Strapi lo rechaza, se construirá en los lifecycles basándose en los campos individuales
-      // ⚠️ IMPORTANTE: Usar minúsculas para pasar la validación del backend
-      dataToSend.raw_woo_data = rawWooData
+      // ⚠️ IMPORTANTE: raw_woo_data NO se envía directamente a Strapi porque no está en el schema
+      // Strapi debe construir raw_woo_data en sus lifecycles basándose en los campos individuales
+      // Los campos individuales (descripcion, subtitulo_libro, precio, etc.) ya están en dataToSend
+      // Strapi usará estos campos para construir raw_woo_data en afterCreate/afterUpdate
+      
+      // NOTA: Si necesitas que Strapi use raw_woo_data directamente, debes agregarlo al schema de Strapi
+      // Por ahora, NO lo incluimos para evitar el error "Invalid key raw_woo_data"
+      // dataToSend.raw_woo_data = rawWooData  // ❌ Comentado - Strapi lo rechaza
       
       console.log('[AddProduct] 📦 Datos preparados para Strapi:', JSON.stringify(dataToSend, null, 2))
       console.log('[AddProduct] 🖼️ raw_woo_data construido:', JSON.stringify(rawWooData, null, 2))
