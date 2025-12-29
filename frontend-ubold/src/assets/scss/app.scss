@@ -7,10 +7,10 @@
 
 // Core files
 @import "bootstrap/scss/functions";
-@import "bootstrap/scss/variables";
 
 @import "variables";
 @import "variables-dark"; // Necesario para que maps.scss tenga las variables dark definidas
+@import "bootstrap/scss/variables";
 
 // Bootstrap - Importación directa de componentes para evitar problemas de resolución de rutas
 @import "bootstrap/scss/maps";
