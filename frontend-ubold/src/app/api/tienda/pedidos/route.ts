@@ -427,7 +427,7 @@ export async function POST(request: NextRequest) {
     } : null)
     
     // Calcular totales desde los items para asegurar consistencia
-    const subtotalCalculado = itemsValidos.reduce((sum, item) => sum + (item.total || 0), 0)
+    const subtotalCalculado = itemsValidos.reduce((sum: number, item: any) => sum + (item.total || 0), 0)
     const impuestos = body.data.impuestos ? parseFloat(body.data.impuestos) : 0
     const envio = body.data.envio ? parseFloat(body.data.envio) : 0
     const descuento = body.data.descuento ? parseFloat(body.data.descuento) : 0
