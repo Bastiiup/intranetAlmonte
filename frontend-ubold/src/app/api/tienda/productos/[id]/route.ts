@@ -444,74 +444,10 @@ export async function PUT(
       updateData.data.shipping_class = body.shipping_class || ''
     }
 
-    // ⚠️ CRÍTICO: Construir rawWooData para sincronización con WooCommerce
-    // Obtener datos actuales del producto para construir rawWooData completo
-    const productoActual = producto.attributes || producto
-    const nombreProducto = body.nombre_libro || productoActual.nombre_libro || ''
-    const descripcionProducto = body.descripcion || productoActual.descripcion || ''
-    const descripcionCorta = body.descripcion_corta || productoActual.descripcion_corta || ''
-    const precioRegular = body.precio !== undefined ? parseFloat(body.precio.toString()) : (productoActual.precio || 0)
-    const precioOferta = body.precio_oferta !== undefined && body.precio_oferta !== '' 
-      ? parseFloat(body.precio_oferta.toString()) 
-      : (productoActual.precio_oferta || null)
-    const skuProducto = body.sku || body.isbn_libro || productoActual.sku || productoActual.isbn_libro || ''
-    const pesoProducto = body.weight !== undefined ? body.weight : (productoActual.weight || '')
-    const largoProducto = body.length !== undefined ? body.length : (productoActual.length || '')
-    const anchoProducto = body.width !== undefined ? body.width : (productoActual.width || '')
-    const altoProducto = body.height !== undefined ? body.height : (productoActual.height || '')
-    const claseEnvio = body.shipping_class !== undefined ? body.shipping_class : (productoActual.shipping_class || '')
-    const stockQuantity = body.stock_quantity !== undefined ? parseInt(body.stock_quantity.toString()) : (productoActual.stock_quantity || 0)
-    const manageStock = body.manage_stock !== undefined ? body.manage_stock : (productoActual.manage_stock !== false)
-    const stockStatus = body.stock_status || productoActual.stock_status || 'instock'
-    const tipoProducto = body.type || productoActual.type || 'simple'
-    const virtualProducto = body.virtual !== undefined ? body.virtual : (productoActual.virtual || false)
-    const downloadableProducto = body.downloadable !== undefined ? body.downloadable : (productoActual.downloadable || false)
-    const reviewsAllowed = body.reviews_allowed !== undefined ? body.reviews_allowed : (productoActual.reviews_allowed !== false)
-    const menuOrder = body.menu_order !== undefined ? parseInt(body.menu_order.toString()) : (parseInt(productoActual.menu_order) || 0)
-    const purchaseNote = body.purchase_note !== undefined ? body.purchase_note : (productoActual.purchase_note || '')
-
-    // Construir rawWooData con formato WooCommerce
-    // IMPORTANTE: Precios, peso y dimensiones como STRINGS con 2 decimales
-    const pesoNum = pesoProducto ? parseFloat(pesoProducto.toString()) : null
-    const largoNum = largoProducto ? parseFloat(largoProducto.toString()) : null
-    const anchoNum = anchoProducto ? parseFloat(anchoProducto.toString()) : null
-    const altoNum = altoProducto ? parseFloat(altoProducto.toString()) : null
-    
-    // ⚠️ CRÍTICO: raw_woo_data se maneja de forma especial - NO se envía directamente a Strapi
-    // Strapi lo procesa internamente en los lifecycles, así que lo guardamos en un campo temporal
-    // o lo pasamos como metadata. Por ahora, lo construimos pero NO lo enviamos en el PUT
-    // ya que Strapi no tiene ese campo en el schema. Se usará en los lifecycles de Strapi.
-    const rawWooDataForSync = {
-      name: nombreProducto,
-      type: tipoProducto,
-      status: 'publish',
-      featured: false,
-      catalog_visibility: 'visible',
-      description: typeof descripcionProducto === 'string' ? descripcionProducto : '',
-      short_description: descripcionCorta, // ⚠️ CRÍTICO: Descripción corta
-      sku: skuProducto,
-      regular_price: precioRegular > 0 ? precioRegular.toFixed(2) : '', // String con 2 decimales
-      sale_price: precioOferta && precioOferta > 0 ? precioOferta.toFixed(2) : '', // String con 2 decimales
-      manage_stock: manageStock,
-      stock_quantity: manageStock ? stockQuantity : null,
-      stock_status: stockStatus,
-      backorders: 'no',
-      sold_individually: body.sold_individually !== undefined ? body.sold_individually : (productoActual.sold_individually || false),
-      weight: pesoNum && pesoNum > 0 ? pesoNum.toFixed(2) : '', // String con 2 decimales
-      dimensions: {
-        length: largoNum && largoNum > 0 ? largoNum.toFixed(2) : '', // String con 2 decimales
-        width: anchoNum && anchoNum > 0 ? anchoNum.toFixed(2) : '', // String con 2 decimales
-        height: altoNum && altoNum > 0 ? altoNum.toFixed(2) : '', // String con 2 decimales
-      },
-      shipping_class: claseEnvio, // ⚠️ CRÍTICO: Clase de envío
-      virtual: virtualProducto,
-      downloadable: downloadableProducto,
-      reviews_allowed: reviewsAllowed,
-      menu_order: menuOrder,
-      purchase_note: purchaseNote,
-    }
-
-    console.log('[API PUT] 📦 raw_woo_data construido para actualización:', JSON.stringify(updateData.data.raw_woo_data, null, 2))
+    // ⚠️ IMPORTANTE: raw_woo_data NO se envía a Strapi porque no está en el schema
+    // Strapi debe construir raw_woo_data en sus lifecycles basándose en los campos individuales
+    // Solo enviamos los campos que Strapi acepta (precio, descripcion, etc.)
+    // El raw_woo_data se construye en Strapi automáticamente cuando se actualiza el producto
 
     // VERIFICACIÓN FINAL antes de enviar
     const finalKeys = Object.keys(updateData.data)
