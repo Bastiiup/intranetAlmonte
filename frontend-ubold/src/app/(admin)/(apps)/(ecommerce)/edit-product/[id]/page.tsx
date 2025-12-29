@@ -21,8 +21,8 @@ interface EditProductPageProps {
 export default function EditProductPage({ params }: EditProductPageProps) {
   const router = useRouter()
   const [productId, setProductId] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true) // Carga inicial de datos
+  const [loading, setLoading] = useState(false) // Carga del submit (igual que add-product)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [responseData, setResponseData] = useState<any>(null)
@@ -84,13 +84,13 @@ export default function EditProductPage({ params }: EditProductPageProps) {
     })
   }, [params])
 
-  // Cargar datos del producto
+  // Cargar datos del producto (precarga)
   useEffect(() => {
     if (!productId) return
 
     async function fetchProducto() {
       try {
-        setLoading(true)
+        setInitialLoading(true)
         setError(null)
         const response = await fetch(`/api/tienda/productos/${productId}`)
         
@@ -182,7 +182,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         console.error('[EditProduct] Error al cargar producto:', err)
         setError(err.message || 'Error al cargar el producto')
       } finally {
-        setLoading(false)
+        setInitialLoading(false)
       }
     }
 
@@ -234,7 +234,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSaving(true)
+    setLoading(true)
     setError(null)
     setSuccess(false)
 
@@ -246,14 +246,14 @@ export default function EditProductPage({ params }: EditProductPageProps) {
       // Validar nombre requerido
       if (!formData.nombre_libro.trim()) {
         setError('El nombre del producto es obligatorio')
-        setSaving(false)
+        setLoading(false)
         return
       }
 
       // Validar precio
       if (!formData.precio || parseFloat(formData.precio) <= 0) {
         setError('El precio es obligatorio y debe ser mayor a 0')
-        setSaving(false)
+        setLoading(false)
         return
       }
 
@@ -280,17 +280,11 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         console.log('[EditProduct] Imagen subida:', { id: portadaLibroId, url: portadaLibroUrl })
       }
 
-      // ⚠️ NUEVO MÉTODO SIMPLIFICADO (Strapi actualizado):
-      // - Strapi preserva automáticamente los externalIds (IDs de WooCommerce)
-      // - NO necesitas incluir externalIds en el payload
-      // - Solo envía los campos que cambien
-      // - NO necesitas obtener el producto completo antes de actualizar
-      
-      // Construir payload - Solo campos que se están actualizando
+      // Construir payload - EXACTAMENTE igual que add-product
       const dataToSend: any = {
         nombre_libro: formData.nombre_libro.trim(),
         descripcion: formData.descripcion?.trim() || '',
-        descripcion_corta: formData.descripcion_corta?.trim() || '',
+        descripcion_corta: formData.descripcion_corta?.trim() || '', // ⚠️ CRÍTICO: Descripción corta
         isbn_libro: formData.isbn_libro?.trim() || '',
         precio: formData.precio,
         precio_oferta: formData.precio_oferta || '',
@@ -310,12 +304,14 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         menu_order: formData.menu_order || '0',
         sku: formData.sku || formData.isbn_libro || '',
         purchase_note: formData.purchase_note || '',
-        // ✅ NO incluir externalIds - Strapi los preserva automáticamente
       }
 
       // ⚠️ IMPORTANTE: raw_woo_data NO se envía a Strapi porque no está en el schema
       // Strapi debe construir raw_woo_data en sus lifecycles basándose en los campos individuales
       // Solo enviamos los campos que Strapi acepta (precio, descripcion, etc.)
+      // El raw_woo_data se construye en Strapi automáticamente cuando se actualiza el producto
+      
+      console.log('[EditProduct] 📦 Datos preparados para Strapi (raw_woo_data se construirá en Strapi):', JSON.stringify(dataToSend, null, 2))
 
       // Agregar imagen si hay una nueva
       if (portadaLibroUrl) {
@@ -380,7 +376,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         setSuccess(true)
         setError(null)
         setTimeout(() => {
-          router.push('/products')
+          window.location.href = '/products'
         }, 1500)
       } else {
         setError(data.error || 'Error al actualizar producto')
@@ -391,11 +387,12 @@ export default function EditProductPage({ params }: EditProductPageProps) {
       setError(err.message || 'Error de conexión al actualizar producto')
       setSuccess(false)
     } finally {
-      setSaving(false)
+      setLoading(false)
     }
   }
 
-  if (loading) {
+  // Estado de carga inicial (precarga de datos)
+  if (initialLoading) {
     return (
       <Container fluid>
         <PageBreadcrumb title="Editar producto" subtitle="Ecommerce" />
@@ -404,6 +401,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
     )
   }
 
+  // Error al cargar producto inicial
   if (error && !formData.nombre_libro) {
     return (
       <Container fluid>
@@ -542,8 +540,8 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         <div className="d-flex justify-content-between align-items-center mb-4">
           <Button
             variant="outline-secondary"
-            onClick={() => router.back()}
-            disabled={saving}
+            onClick={() => window.history.back()}
+            disabled={loading}
           >
             Cancelar
           </Button>
@@ -551,7 +549,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
             <Button
               variant="outline-primary"
               type="button"
-              disabled={saving}
+              disabled={loading}
               onClick={() => {
                 // Guardar como borrador (implementar si es necesario)
                 console.log('Guardar como borrador')
@@ -562,9 +560,9 @@ export default function EditProductPage({ params }: EditProductPageProps) {
             <Button
               variant="primary"
               type="submit"
-              disabled={saving}
+              disabled={loading}
             >
-              {saving ? 'Guardando...' : 'Actualizar'}
+              {loading ? 'Publicando...' : 'Publicar'}
             </Button>
           </div>
         </div>
