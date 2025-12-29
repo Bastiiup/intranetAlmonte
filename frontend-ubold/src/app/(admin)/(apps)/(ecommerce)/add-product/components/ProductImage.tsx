@@ -8,9 +8,10 @@ import { FileType } from '@/types'
 
 interface ProductImageProps {
   onImageChange?: (file: File | null) => void
+  currentImageUrl?: string | null
 }
 
-const ProductImage = ({ onImageChange }: ProductImageProps) => {
+const ProductImage = ({ onImageChange, currentImageUrl }: ProductImageProps) => {
   const [files, setFiles] = useState<FileType[]>([])
 
   useEffect(() => {
@@ -29,6 +30,17 @@ const ProductImage = ({ onImageChange }: ProductImageProps) => {
         <p className="text-muted mb-0">Sube la imagen de portada del libro. Formatos aceptados: PNG, JPG, JPEG, GIF, WEBP.</p>
       </CardHeader>
       <CardBody>
+        {currentImageUrl && (
+          <div className="mb-3 text-center">
+            <p className="text-muted mb-2">Imagen actual:</p>
+            <img
+              src={currentImageUrl}
+              alt="Imagen actual del producto"
+              style={{ maxWidth: '200px', maxHeight: '200px', objectFit: 'contain' }}
+              className="border rounded"
+            />
+          </div>
+        )}
         <Row>
           <Col xs={12}>
             <FileUploader
@@ -42,6 +54,11 @@ const ProductImage = ({ onImageChange }: ProductImageProps) => {
               multiple={false}
               className="mb-3"
             />
+            {currentImageUrl && (
+              <p className="text-muted small">
+                Selecciona una nueva imagen para reemplazar la actual
+              </p>
+            )}
           </Col>
         </Row>
       </CardBody>
