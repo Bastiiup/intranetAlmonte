@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardHeader, CardBody, Form, Button, Row, Col, FormGroup, FormLabel, FormControl, Alert } from 'react-bootstrap'
 import { LuSave, LuX } from 'react-icons/lu'
+import PlatformSelector from './PlatformSelector'
 
 interface AddClienteFormProps {
   onSave?: () => void
@@ -16,6 +17,7 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -51,28 +53,89 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
         throw new Error('El correo electrónico no tiene un formato válido')
       }
 
-      // Preparar datos para la API
-      const clienteData: any = {
-        email: formData.email.trim(),
-        first_name: formData.first_name.trim(),
-        last_name: formData.last_name.trim() || '',
+      // Preparar datos para la API en formato Strapi
+      const nombreCompleto = `${formData.first_name.trim()} ${formData.last_name.trim()}`.trim()
+      const personaData: any = {
+        nombre_completo: nombreCompleto,
+        nombres: formData.first_name.trim(),
+        primer_apellido: formData.last_name.trim() || null,
+        emails: [
+          {
+            email: formData.email.trim(),
+            tipo: 'principal',
+          },
+        ],
       }
 
       // Agregar teléfono si existe
       if (formData.phone.trim()) {
-        clienteData.phone = formData.phone.trim()
-        clienteData.billing = {
-          phone: formData.phone.trim(),
+        personaData.telefonos = [
+          {
+            telefono: formData.phone.trim(),
+            tipo: 'principal',
+          },
+        ]
+      }
+
+      const dataToSend: any = {
+        data: {
+          persona: personaData,
+        },
+      }
+
+      // Agregar canales basados en plataformas seleccionadas
+      if (selectedPlatforms.length > 0) {
+        // Obtener IDs de canales desde Strapi
+        try {
+          const canalesResponse = await fetch('/api/tienda/canales', {
+            // Agregar timeout para evitar esperar demasiado
+            signal: AbortSignal.timeout(5000) // 5 segundos timeout
+          })
+          
+          if (!canalesResponse.ok) {
+            throw new Error(`Error ${canalesResponse.status}: ${canalesResponse.statusText}`)
+          }
+          
+          const canalesData = await canalesResponse.json()
+          
+          if (canalesData.success && canalesData.data) {
+            const canalesIds: string[] = []
+            
+            selectedPlatforms.forEach((platform) => {
+              const canal = canalesData.data.find((c: any) => {
+                const attrs = c.attributes || c
+                const key = attrs.key || attrs.nombre?.toLowerCase()
+                return (
+                  (platform === 'woo_moraleja' && (key === 'moraleja' || key === 'woo_moraleja')) ||
+                  (platform === 'woo_escolar' && (key === 'escolar' || key === 'woo_escolar'))
+                )
+              })
+              
+              if (canal) {
+                const docId = canal.documentId || canal.id
+                if (docId) canalesIds.push(String(docId))
+              }
+            })
+            
+            if (canalesIds.length > 0) {
+              dataToSend.data.canales = canalesIds
+              console.log('[AddCliente] ✅ Canales obtenidos exitosamente:', canalesIds)
+            }
+          }
+        } catch (err: any) {
+          // Si hay error al obtener canales (502, timeout, etc.), usar valores por defecto
+          console.warn('[AddCliente] ⚠️ No se pudieron obtener canales desde Strapi:', err.message)
+          console.warn('[AddCliente] ⚠️ El cliente se creará sin canales específicos, se asignarán ambos por defecto en el servidor')
         }
       }
 
-      // Crear el cliente (esto creará en Persona, WO-Clientes y ambos WordPress)
-      const response = await fetch('/api/woocommerce/customers', {
+      // Crear el cliente en Strapi (se sincronizará con WordPress según los canales)
+      const response = await fetch('/api/tienda/clientes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(clienteData),
+        body: JSON.stringify(dataToSend),
       })
 
       const result = await response.json()
@@ -111,11 +174,16 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
             )}
             {success && (
               <Alert variant="success">
-                Cliente creado exitosamente. Se ha agregado a Librería Escolar y Editorial Moraleja. Redirigiendo...
+                Cliente creado exitosamente. Se sincronizará con las plataformas seleccionadas según los canales asignados. Redirigiendo...
               </Alert>
             )}
 
             <Form onSubmit={handleSubmit}>
+              <PlatformSelector
+                selectedPlatforms={selectedPlatforms}
+                onChange={setSelectedPlatforms}
+              />
+
               <Row>
                 <Col md={6}>
                   <FormGroup className="mb-3">

@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
-import { parseNombreCompleto, enviarClienteABothWordPress } from '@/lib/clientes/utils'
+import { parseNombreCompleto } from '@/lib/clientes/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -188,35 +188,77 @@ export async function POST(request: NextRequest) {
       woClienteData.data.ultima_actividad = body.data.ultima_actividad
     }
 
+    // === RELACIONES MÚLTIPLES: CANALES ===
+    // CRÍTICO: Los canales son necesarios para sincronizar con WordPress
+    // Si no se especifican canales, asignar automáticamente ambos (Moraleja y Escolar)
+    if (body.data.canales && Array.isArray(body.data.canales) && body.data.canales.length > 0) {
+      woClienteData.data.canales = body.data.canales
+      console.log('[API Clientes POST] 📡 Canales asignados (desde formulario):', body.data.canales)
+    } else {
+      // ⚠️ ASIGNAR AMBOS CANALES POR DEFECTO
+      // Obtener IDs de canales dinámicamente
+      try {
+        const canalesResponse = await strapiClient.get<any>('/api/canales?populate=*&pagination[pageSize]=1000')
+        let canalesItems: any[] = []
+        
+        if (Array.isArray(canalesResponse)) {
+          canalesItems = canalesResponse
+        } else if (canalesResponse.data && Array.isArray(canalesResponse.data)) {
+          canalesItems = canalesResponse.data
+        } else if (canalesResponse.data) {
+          canalesItems = [canalesResponse.data]
+        } else {
+          canalesItems = [canalesResponse]
+        }
+        
+        // Buscar canales por key o nombre
+        const canalMoraleja = canalesItems.find((c: any) => {
+          const attrs = c.attributes || c
+          const key = attrs.key || attrs.nombre?.toLowerCase()
+          return key === 'moraleja' || key === 'woo_moraleja' || attrs.nombre?.toLowerCase().includes('moraleja')
+        })
+        
+        const canalEscolar = canalesItems.find((c: any) => {
+          const attrs = c.attributes || c
+          const key = attrs.key || attrs.nombre?.toLowerCase()
+          return key === 'escolar' || key === 'woo_escolar' || attrs.nombre?.toLowerCase().includes('escolar')
+        })
+        
+        const canalesDefault: string[] = []
+        
+        if (canalMoraleja) {
+          const docId = canalMoraleja.documentId || canalMoraleja.id
+          if (docId) canalesDefault.push(String(docId))
+        }
+        
+        if (canalEscolar) {
+          const docId = canalEscolar.documentId || canalEscolar.id
+          if (docId) canalesDefault.push(String(docId))
+        }
+        
+        if (canalesDefault.length > 0) {
+          woClienteData.data.canales = canalesDefault
+          console.log('[API Clientes POST] 📡 Canales asignados automáticamente (por defecto):', canalesDefault)
+          console.log('[API Clientes POST] ✅ Cliente se sincronizará con ambos canales: Moraleja y Escolar')
+        } else {
+          console.warn('[API Clientes POST] ⚠️ No se pudieron obtener los canales por defecto. El cliente no se sincronizará con WordPress hasta que se asignen canales.')
+        }
+      } catch (canalesError: any) {
+        console.error('[API Clientes POST] ❌ Error al obtener canales por defecto:', canalesError.message)
+        console.warn('[API Clientes POST] ⚠️ No se asignaron canales. El cliente no se sincronizará con WordPress hasta que se asignen canales.')
+      }
+    }
+
     const woClienteResponse = await strapiClient.post('/api/wo-clientes', woClienteData) as any
     console.log('[API Clientes POST] ✅ Cliente creado en WO-Clientes:', woClienteResponse.id || woClienteResponse.documentId || woClienteResponse.data?.id || woClienteResponse.data?.documentId)
-    
-    // 3. Enviar a ambos WordPress
-    let wordPressResults: any = null
-    try {
-      // Usar nombres de Persona para WordPress
-      const nombresWordPress = personaData.nombres?.trim() || personaData.nombre_completo.trim()
-      const apellidoWordPress = personaData.primer_apellido?.trim() || ''
-      
-      wordPressResults = await enviarClienteABothWordPress({
-        email: emailPrincipal.email.trim(),
-        first_name: nombresWordPress,
-        last_name: apellidoWordPress,
-      })
-      console.log('[API Clientes POST] ✅ Cliente enviado a WordPress:', {
-        escolar: wordPressResults.escolar.success,
-        moraleja: wordPressResults.moraleja.success,
-      })
-    } catch (wpError: any) {
-      console.error('[API Clientes POST] ⚠️ Error al enviar a WordPress (no crítico):', wpError.message)
-      // No fallar si WordPress falla
-    }
+    console.log('[API Clientes POST] Estado: ⏸️ Solo guardado en Strapi, Strapi sincronizará con WordPress según los canales asignados')
+    console.log('[API Clientes POST] La sincronización con WordPress se maneja en los lifecycles de Strapi basándose en los canales asignados')
     
     return NextResponse.json({
       success: true,
       data: woClienteResponse,
       persona: personaResponse,
-      wordpress: wordPressResults || null,
+      message: 'Cliente creado en Strapi. Se sincronizará automáticamente con WooCommerce (Moraleja y Escolar) según los canales asignados mediante los lifecycles de Strapi.'
     })
   } catch (error: any) {
     console.error('[API Clientes POST] ❌ Error:', error.message)

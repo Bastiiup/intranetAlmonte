@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
-import { parseNombreCompleto, enviarClienteABothWordPress } from '@/lib/clientes/utils'
+import { parseNombreCompleto } from '@/lib/clientes/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -156,9 +156,23 @@ export async function PUT(
       updateData.data.ultima_actividad = body.data.ultima_actividad
     }
 
+    // === RELACIONES MÚLTIPLES: CANALES ===
+    // Si se especifican canales, actualizar la relación
+    if (body.data.canales !== undefined) {
+      if (Array.isArray(body.data.canales) && body.data.canales.length > 0) {
+        updateData.data.canales = body.data.canales
+        console.log('[API Clientes PUT] 📡 Canales actualizados:', body.data.canales)
+      } else {
+        // Si viene un array vacío, no actualizar (mantener los existentes)
+        console.log('[API Clientes PUT] 📡 Canales no especificados, manteniendo los existentes')
+      }
+    }
+
     // 1. Actualizar en WO-Clientes
     const woClienteResponse = await strapiClient.put(`/api/wo-clientes/${clienteDocumentId}`, updateData)
     console.log('[API Clientes PUT] ✅ Cliente actualizado en WO-Clientes:', clienteDocumentId)
+    console.log('[API Clientes PUT] Estado: ⏸️ Solo actualizado en Strapi, Strapi sincronizará con WordPress según los canales asignados')
+    console.log('[API Clientes PUT] La sincronización con WordPress se maneja en los lifecycles de Strapi basándose en los canales asignados')
     
     // 2. Si se actualizó nombre o correo, actualizar también en Persona y WordPress
     if (body.data.nombre !== undefined || body.data.correo_electronico !== undefined) {
@@ -242,21 +256,9 @@ export async function PUT(
         }
       }
       
-      // Actualizar en WordPress (buscará por email y actualizará o creará según corresponda)
-      try {
-        const nombreParseado = parseNombreCompleto(nombreFinal.trim())
-        const wpResults = await enviarClienteABothWordPress({
-          email: correoFinal.trim(),
-          first_name: nombreParseado.nombres || nombreFinal.trim(),
-          last_name: nombreParseado.primer_apellido || '',
-        })
-        console.log('[API Clientes PUT] ✅ Cliente sincronizado con WordPress:', {
-          escolar: wpResults.escolar.success,
-          moraleja: wpResults.moraleja.success,
-        })
-      } catch (wpError: any) {
-        console.error('[API Clientes PUT] ⚠️ Error al sincronizar con WordPress (no crítico):', wpError.message)
-      }
+      // NOTA: La sincronización con WordPress se maneja en los lifecycles de Strapi
+      // basándose en los canales asignados al cliente. No es necesario enviar directamente desde aquí.
+      console.log('[API Clientes PUT] 📡 La sincronización con WordPress se manejará automáticamente mediante los lifecycles de Strapi')
     }
     
     return NextResponse.json({

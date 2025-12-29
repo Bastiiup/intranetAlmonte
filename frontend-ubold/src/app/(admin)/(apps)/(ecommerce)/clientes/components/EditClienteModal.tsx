@@ -80,30 +80,25 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
         throw new Error('El correo electrónico no tiene un formato válido')
       }
 
-      // Usar email como identificador (la API buscará por email si no es un ID numérico)
-      const clienteIdentifier = cliente?.woocommerce_id || cliente?.correo_electronico || formData.email.trim()
-      if (!clienteIdentifier) {
-        throw new Error('No se puede editar: el cliente no tiene email ni ID de WooCommerce')
+      // Usar el ID del cliente de Strapi
+      const clienteId = cliente?.id
+      if (!clienteId) {
+        throw new Error('No se puede editar: el cliente no tiene ID válido')
       }
 
-      // Preparar datos para la API
+      // Preparar datos para la API en formato Strapi
+      const nombreCompleto = `${formData.first_name.trim()} ${formData.last_name.trim()}`.trim()
       const updateData: any = {
-        email: formData.email.trim(),
-        first_name: formData.first_name.trim(),
-        last_name: formData.last_name.trim() || '',
+        data: {
+          nombre: nombreCompleto,
+          correo_electronico: formData.email.trim(),
+        },
       }
 
-      // Agregar teléfono directamente (la API lo manejará correctamente)
-      if (formData.phone.trim() && formData.phone.trim() !== 'Sin teléfono') {
-        updateData.phone = formData.phone.trim()
-      }
-
-      // Actualizar el cliente (usar email como identificador si no hay woocommerce_id)
-      const identifier = typeof clienteIdentifier === 'number' || typeof clienteIdentifier === 'string' && !clienteIdentifier.includes('@')
-        ? clienteIdentifier.toString()
-        : formData.email.trim()
+      // NOTA: El teléfono no está en el schema de WO-Clientes, se maneja en Persona
+      // La actualización de teléfono se manejará automáticamente en el endpoint si es necesario
       
-      const response = await fetch(`/api/woocommerce/customers/${identifier}`, {
+      const response = await fetch(`/api/tienda/clientes/${clienteId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
