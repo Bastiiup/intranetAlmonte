@@ -181,48 +181,11 @@ export default function AddProductPage() {
         purchase_note: formData.purchase_note || '',
       }
 
-      // ⚠️ CRÍTICO: Construir rawWooData con formato WooCommerce para sincronización
-      // IMPORTANTE: Precios, peso y dimensiones como STRINGS con 2 decimales
-      const precioRegular = parseFloat(formData.precio) || 0
-      const precioOferta = formData.precio_oferta ? parseFloat(formData.precio_oferta) : null
-      const peso = formData.weight ? parseFloat(formData.weight.toString()) : null
-      const largo = formData.length ? parseFloat(formData.length.toString()) : null
-      const ancho = formData.width ? parseFloat(formData.width.toString()) : null
-      const alto = formData.height ? parseFloat(formData.height.toString()) : null
-      
-      dataToSend.raw_woo_data = {
-        name: formData.nombre_libro.trim(),
-        type: formData.type || 'simple',
-        status: 'publish',
-        featured: false,
-        catalog_visibility: 'visible',
-        description: formData.descripcion?.trim() || '',
-        short_description: formData.descripcion_corta?.trim() || '', // ⚠️ CRÍTICO: Descripción corta
-        sku: formData.sku || formData.isbn_libro || '',
-        regular_price: precioRegular > 0 ? precioRegular.toFixed(2) : '', // String con 2 decimales
-        sale_price: precioOferta && precioOferta > 0 ? precioOferta.toFixed(2) : '', // String con 2 decimales
-        manage_stock: formData.manage_stock !== false,
-        stock_quantity: formData.manage_stock !== false ? parseInt(formData.stock_quantity || '0') : null,
-        stock_status: formData.stock_status || 'instock',
-        backorders: 'no',
-        sold_individually: formData.sold_individually || false,
-        weight: peso && peso > 0 ? peso.toFixed(2) : '', // String con 2 decimales
-        dimensions: {
-          length: largo && largo > 0 ? largo.toFixed(2) : '', // String con 2 decimales
-          width: ancho && ancho > 0 ? ancho.toFixed(2) : '', // String con 2 decimales
-          height: alto && alto > 0 ? alto.toFixed(2) : '', // String con 2 decimales
-        },
-        shipping_class: formData.shipping_class || '',
-        virtual: formData.virtual || false,
-        downloadable: formData.downloadable || false,
-        reviews_allowed: formData.reviews_allowed !== false,
-        menu_order: parseInt(formData.menu_order || '0'),
-        purchase_note: formData.purchase_note || '',
-      }
-
       // ⚠️ IMPORTANTE: raw_woo_data NO se envía a Strapi porque no está en el schema
       // Strapi debe construir raw_woo_data en sus lifecycles basándose en los campos individuales
       // Solo enviamos los campos que Strapi acepta (precio, descripcion, etc.)
+      // El raw_woo_data se construye en Strapi automáticamente cuando se crea el producto
+      
       console.log('[AddProduct] 📦 Datos preparados para Strapi (raw_woo_data se construirá en Strapi):', JSON.stringify(dataToSend, null, 2))
 
       // Agregar imagen
