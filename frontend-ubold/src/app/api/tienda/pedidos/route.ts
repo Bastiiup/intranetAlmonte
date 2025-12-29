@@ -254,7 +254,23 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    console.log('[API Pedidos POST] 📝 Creando pedido:', body)
+    
+    // ⚠️ DEBUGGING DETALLADO: Imprimir payload recibido
+    console.log('═══════════════════════════════════════════════════════')
+    console.log('[API Pedidos POST] 📝 Payload recibido del frontend:')
+    console.log('═══════════════════════════════════════════════════════')
+    console.log(JSON.stringify(body, null, 2))
+    console.log('═══════════════════════════════════════════════════════')
+    console.log('[API Pedidos POST] Verificaciones del payload recibido:')
+    console.log('- body existe?', !!body)
+    console.log('- body.data existe?', !!body.data)
+    console.log('- body.data.items existe?', !!body.data?.items)
+    console.log('- body.data.items es array?', Array.isArray(body.data?.items))
+    console.log('- body.data.items.length:', body.data?.items?.length || 0)
+    if (body.data?.items && body.data.items.length > 0) {
+      console.log('- body.data.items[0]:', JSON.stringify(body.data.items[0], null, 2))
+    }
+    console.log('═══════════════════════════════════════════════════════')
 
     // Validar campos obligatorios
     if (!body.data?.numero_pedido) {
@@ -266,19 +282,43 @@ export async function POST(request: NextRequest) {
     
     // ⚠️ VALIDACIÓN CRÍTICA: Verificar que hay items
     const itemsRecibidos = body.data.items || []
-    if (!Array.isArray(itemsRecibidos)) {
+    
+    if (!body.data.items) {
+      console.error('[API Pedidos POST] ❌ ERROR: body.data.items NO existe!')
+      console.error('[API Pedidos POST] body.data keys:', Object.keys(body.data || {}))
       return NextResponse.json({
         success: false,
-        error: 'El campo "items" debe ser un array'
+        error: 'El campo "items" es obligatorio y no se encontró en el payload. Verifica que estés enviando items en el payload.'
+      }, { status: 400 })
+    }
+    
+    if (!Array.isArray(itemsRecibidos)) {
+      console.error('[API Pedidos POST] ❌ ERROR: body.data.items NO es un array!', typeof itemsRecibidos)
+      return NextResponse.json({
+        success: false,
+        error: `El campo "items" debe ser un array, pero se recibió: ${typeof itemsRecibidos}`
       }, { status: 400 })
     }
     
     if (itemsRecibidos.length === 0) {
+      console.error('[API Pedidos POST] ❌ ERROR: body.data.items está VACÍO!')
       return NextResponse.json({
         success: false,
         error: 'El pedido debe tener al menos un producto. Agrega productos antes de crear el pedido.'
       }, { status: 400 })
     }
+    
+    console.log('[API Pedidos POST] ✅ Items recibidos correctamente:', {
+      count: itemsRecibidos.length,
+      items: itemsRecibidos.map((item: any, index: number) => ({
+        index: index + 1,
+        nombre: item.nombre || item.name,
+        cantidad: item.cantidad || item.quantity,
+        precio_unitario: item.precio_unitario || item.price,
+        total: item.total,
+        producto_id: item.producto_id || item.product_id
+      }))
+    })
     
     // Validar que cada item tiene los campos obligatorios
     const itemsInvalidos = itemsRecibidos.filter((item: any, index: number) => {
