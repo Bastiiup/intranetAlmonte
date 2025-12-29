@@ -386,6 +386,28 @@ export async function POST(request: NextRequest) {
       country: 'CL',
     } : null)
     
+    // Calcular totales desde los items para asegurar consistencia
+    const subtotalCalculado = itemsValidos.reduce((sum, item) => sum + (item.total || 0), 0)
+    const impuestos = body.data.impuestos ? parseFloat(body.data.impuestos) : 0
+    const envio = body.data.envio ? parseFloat(body.data.envio) : 0
+    const descuento = body.data.descuento ? parseFloat(body.data.descuento) : 0
+    const totalCalculado = subtotalCalculado + impuestos + envio - descuento
+    
+    // Usar totales del body si existen, sino usar los calculados
+    const totalFinal = body.data.total ? parseFloat(body.data.total) : totalCalculado
+    const subtotalFinal = body.data.subtotal ? parseFloat(body.data.subtotal) : subtotalCalculado
+    
+    console.log('[API Pedidos POST] 💰 Cálculo de totales:', {
+      subtotalCalculado,
+      subtotalFinal,
+      impuestos,
+      envio,
+      descuento,
+      totalCalculado,
+      totalFinal,
+      itemsCount: itemsValidos.length
+    })
+    
     // Preparar datos en formato WooCommerce para que Strapi los use directamente
     // Esto ayuda a que el lifecycle hook de Strapi pueda sincronizar correctamente
     const rawWooData = originPlatform !== 'otros' ? {
@@ -399,16 +421,19 @@ export async function POST(request: NextRequest) {
       line_items: itemsValidos.map((item: any) => ({
         product_id: item.producto_id || item.product_id,
         quantity: item.cantidad || item.quantity,
-        // WooCommerce normalmente calcula el precio del producto, pero podemos especificarlo
-        ...(item.precio_unitario && { price: item.precio_unitario.toString() }),
+        // ⚠️ IMPORTANTE: Especificar el precio para que WooCommerce calcule correctamente
+        price: item.precio_unitario ? item.precio_unitario.toString() : undefined,
+        // También especificar el subtotal del item
+        subtotal: item.total ? item.total.toString() : undefined,
       })),
       customer_note: body.data.nota_cliente || '',
-      // Totales - WooCommerce los calculará, pero podemos especificarlos
-      total: body.data.total ? body.data.total.toString() : undefined,
-      subtotal: body.data.subtotal ? body.data.subtotal.toString() : undefined,
-      shipping_total: body.data.envio ? body.data.envio.toString() : '0',
-      total_tax: body.data.impuestos ? body.data.impuestos.toString() : '0',
-      discount_total: body.data.descuento ? body.data.descuento.toString() : '0',
+      // ⚠️ CRÍTICO: Especificar todos los totales explícitamente con formato decimal
+      // WooCommerce puede calcularlos, pero es mejor especificarlos para evitar discrepancias
+      total: totalFinal > 0 ? totalFinal.toFixed(2) : undefined,
+      subtotal: subtotalFinal > 0 ? subtotalFinal.toFixed(2) : undefined,
+      shipping_total: envio > 0 ? envio.toFixed(2) : '0.00',
+      total_tax: impuestos > 0 ? impuestos.toFixed(2) : '0.00',
+      discount_total: descuento > 0 ? descuento.toFixed(2) : '0.00',
     } : null
     
     const pedidoData: any = {
