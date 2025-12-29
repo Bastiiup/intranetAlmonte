@@ -152,21 +152,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ⚠️ IMPORTANTE: raw_woo_data NO se envía a Strapi porque no está en el schema
-    // Strapi debe construir raw_woo_data en sus lifecycles basándose en los campos individuales
-    // Los campos individuales (descripcion, subtitulo_libro, precio, etc.) ya están en strapiProductData.data
-    // Strapi usará estos campos para construir raw_woo_data en afterCreate
+    // ✅ CRÍTICO: rawWooData DEBE enviarse a Strapi según el fix implementado
+    // Strapi ahora acepta rawWooData y lo usa directamente para sincronizar con WooCommerce
+    // Esto asegura que description y short_description se envíen correctamente a WordPress
+    if (body.rawWooData || body.raw_woo_data) {
+      const rawWooData = body.rawWooData || body.raw_woo_data
+      strapiProductData.data.rawWooData = rawWooData
+      console.log('[API POST] ✅ rawWooData incluido en payload:', {
+        tieneDescription: !!rawWooData?.description,
+        tieneShortDescription: !!rawWooData?.short_description,
+        descriptionLength: rawWooData?.description?.length || 0,
+        shortDescriptionLength: rawWooData?.short_description?.length || 0,
+      })
+    } else {
+      console.log('[API POST] ⚠️ rawWooData NO está presente en el body')
+    }
     
-    // NOTA: Si necesitas que Strapi use raw_woo_data directamente, debes agregarlo al schema de Strapi
-    // Por ahora, NO lo incluimos para evitar el error "Invalid key raw_woo_data"
-    // if (body.raw_woo_data) {
-    //   strapiProductData.data.raw_woo_data = body.raw_woo_data  // ❌ Comentado - Strapi lo rechaza
-    // }
-    
-    console.log('[API POST] ℹ️ raw_woo_data NO se envía. Strapi debe construirlo en lifecycles desde:')
+    console.log('[API POST] ℹ️ Datos que se enviarán a Strapi:')
     console.log('[API POST]   - descripcion:', strapiProductData.data.descripcion ? '✅ Presente' : '❌ Vacío')
     console.log('[API POST]   - subtitulo_libro:', strapiProductData.data.subtitulo_libro ? '✅ Presente' : '❌ Vacío')
     console.log('[API POST]   - precio:', strapiProductData.data.precio ? '✅ Presente' : '❌ Vacío')
+    console.log('[API POST]   - rawWooData:', strapiProductData.data.rawWooData ? '✅ Presente' : '❌ Vacío')
 
     // Agregar imagen si existe - usar ID de Strapi si está disponible
     if (body.portada_libro_id) {

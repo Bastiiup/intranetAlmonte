@@ -502,21 +502,27 @@ export async function PUT(
     //   updateData.data.shipping_class = body.shipping_class || ''
     // }
 
-    // ⚠️ IMPORTANTE: raw_woo_data NO se envía a Strapi porque no está en el schema
-    // Strapi debe construir raw_woo_data en sus lifecycles basándose en los campos individuales
-    // Los campos individuales (descripcion, subtitulo_libro, precio, etc.) ya están en updateData.data
-    // Strapi usará estos campos para construir raw_woo_data en afterUpdate
+    // ✅ CRÍTICO: rawWooData DEBE enviarse a Strapi según el fix implementado
+    // Strapi ahora acepta rawWooData y lo usa directamente para sincronizar con WooCommerce
+    // Esto asegura que description y short_description se envíen correctamente a WordPress
+    if (body.rawWooData || body.raw_woo_data) {
+      const rawWooData = body.rawWooData || body.raw_woo_data
+      updateData.data.rawWooData = rawWooData
+      console.log('[API PUT] ✅ rawWooData incluido en payload:', {
+        tieneDescription: !!rawWooData?.description,
+        tieneShortDescription: !!rawWooData?.short_description,
+        descriptionLength: rawWooData?.description?.length || 0,
+        shortDescriptionLength: rawWooData?.short_description?.length || 0,
+      })
+    } else {
+      console.log('[API PUT] ⚠️ rawWooData NO está presente en el body')
+    }
     
-    // NOTA: Si necesitas que Strapi use raw_woo_data directamente, debes agregarlo al schema de Strapi
-    // Por ahora, NO lo incluimos para evitar el error "Invalid key raw_woo_data"
-    // if (body.raw_woo_data) {
-    //   updateData.data.raw_woo_data = body.raw_woo_data  // ❌ Comentado - Strapi lo rechaza
-    // }
-    
-    console.log('[API PUT] ℹ️ raw_woo_data NO se envía. Strapi debe construirlo en lifecycles desde:')
+    console.log('[API PUT] ℹ️ Datos que se enviarán a Strapi:')
     console.log('[API PUT]   - descripcion:', updateData.data.descripcion ? '✅ Presente' : '❌ Vacío')
     console.log('[API PUT]   - subtitulo_libro:', updateData.data.subtitulo_libro ? '✅ Presente' : '❌ Vacío')
     console.log('[API PUT]   - precio:', updateData.data.precio ? '✅ Presente' : '❌ Vacío')
+    console.log('[API PUT]   - rawWooData:', updateData.data.rawWooData ? '✅ Presente' : '❌ Vacío')
 
     // VERIFICACIÓN FINAL antes de enviar
     const finalKeys = Object.keys(updateData.data)
