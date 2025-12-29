@@ -273,18 +273,18 @@ export default function AddProductPage() {
       // 🔍 DEBUG: PROCESAR DESCRIPCIONES
       // ═══════════════════════════════════════════════════════════════════
       // ✅ CRÍTICO: descripcion SIEMPRE usa formData.descripcion (NUNCA descripcion_corta)
+      // Según el fix de Strapi: description usa SOLO libro.descripcion
       const descripcionHTML = formData.descripcion?.trim()
         ? textoAHTML(formData.descripcion)
-        : '<p>Sin descripción</p>'
+        : ''
       
-      // ✅ CRÍTICO: descripcion_corta usa formData.descripcion_corta si existe
-      // Si no existe, generar desde formData.descripcion (solo para rawWooData, NO para Strapi)
-      // Pero NUNCA usar descripcion_corta para descripcion
+      // ✅ CRÍTICO: descripcion_corta usa SOLO formData.descripcion_corta
+      // Según el fix de Strapi: short_description usa SOLO libro.subtitulo_libro
+      // NO generar automáticamente desde descripcion para evitar duplicados
+      // Si está vacío, enviar vacío (Strapi ya no tiene fallbacks cruzados)
       const descripcionCortaHTML = formData.descripcion_corta?.trim()
         ? textoAHTML(formData.descripcion_corta)
-        : (formData.descripcion?.trim()
-            ? generarDescripcionCorta(formData.descripcion, 150)
-            : '<p>Sin descripción</p>')
+        : ''
       
       // Extraer solo el texto (sin HTML) para comparar
       const descripcionTexto = descripcionHTML.replace(/<[^>]+>/g, '').trim()
@@ -301,11 +301,17 @@ export default function AddProductPage() {
       console.log('¿Son diferentes?', descripcionTexto !== descripcionCortaTexto)
       console.log('¿Short es más corta?', descripcionCortaTexto.length < descripcionTexto.length)
       
-      // ⚠️ ALERTA SI SON IGUALES
-      if (descripcionTexto === descripcionCortaTexto && descripcionTexto.length > 150) {
-        console.error('❌ ERROR: Las descripciones son IDÉNTICAS')
-        console.error('❌ Ambas tienen', descripcionTexto.length, 'caracteres')
-        console.error('❌ La descripción corta NO se está limitando correctamente')
+      // ⚠️ ALERTA SI SON IGUALES (no debería pasar si el usuario llenó campos diferentes)
+      if (descripcionTexto && descripcionCortaTexto && descripcionTexto === descripcionCortaTexto && descripcionTexto.length > 150) {
+        console.warn('⚠️ ADVERTENCIA: Las descripciones son IDÉNTICAS')
+        console.warn('⚠️ Ambas tienen', descripcionTexto.length, 'caracteres')
+        console.warn('⚠️ Verificar que el usuario haya llenado campos diferentes')
+      }
+      
+      // ✅ Validar que short_description no exceda 160 caracteres (recomendado para SEO)
+      if (descripcionCortaTexto && descripcionCortaTexto.length > 160) {
+        console.warn('⚠️ ADVERTENCIA: short_description excede 160 caracteres (recomendado para SEO)')
+        console.warn('⚠️ Longitud actual:', descripcionCortaTexto.length, 'caracteres')
       }
       
       console.log('═══════════════════════════════════════════════════════')
@@ -362,8 +368,8 @@ export default function AddProductPage() {
       console.log('¿Payload tiene rawWooData?', !!dataToSend.rawWooData)
       console.log('¿rawWooData tiene description?', !!dataToSend.rawWooData?.description)
       console.log('¿rawWooData tiene short_description?', !!dataToSend.rawWooData?.short_description)
-      console.log('¿description está vacía?', dataToSend.rawWooData?.description === '<p>Sin descripción</p>')
-      console.log('¿short_description está vacía?', dataToSend.rawWooData?.short_description === '<p>Sin descripción</p>')
+      console.log('¿description está vacía?', !dataToSend.rawWooData?.description || dataToSend.rawWooData?.description === '')
+      console.log('¿short_description está vacía?', !dataToSend.rawWooData?.short_description || dataToSend.rawWooData?.short_description === '')
       console.log('Longitud description (texto):', descripcionTexto.length)
       console.log('Longitud short_description (texto):', descripcionCortaTexto.length)
       console.log('¿Son diferentes?', descripcionTexto !== descripcionCortaTexto)
