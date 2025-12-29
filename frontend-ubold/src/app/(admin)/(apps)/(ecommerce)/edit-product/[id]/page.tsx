@@ -25,6 +25,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [responseData, setResponseData] = useState<any>(null)
   const [activeTab, setActiveTab] = useState<TabType>('general')
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null)
@@ -90,6 +91,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
     async function fetchProducto() {
       try {
         setLoading(true)
+        setError(null)
         const response = await fetch(`/api/tienda/productos/${productId}`)
         
         if (!response.ok) {
@@ -144,7 +146,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         })
         setSelectedPlatforms(platformIds)
 
-        // Precargar datos del formulario
+        // Precargar datos del formulario - EXACTAMENTE igual que agregar producto
         setFormData({
           nombre_libro: attrs.nombre_libro || attrs.NOMBRE_LIBRO || '',
           descripcion: descripcion,
@@ -190,10 +192,23 @@ export default function EditProductPage({ params }: EditProductPageProps) {
   // ⚡ OPTIMIZACIÓN: Función memoizada para actualizar campos individuales
   const updateField = useCallback((field: string, value: any) => {
     setFormData((prev) => {
+      // Solo actualizar si el valor realmente cambió
       if (prev[field as keyof typeof prev] === value) {
         return prev
       }
       return { ...prev, [field]: value }
+    })
+  }, [])
+
+  // ⚡ OPTIMIZACIÓN: Función memoizada para actualizar múltiples campos
+  const updateFields = useCallback((updates: Partial<typeof formData>) => {
+    setFormData((prev) => {
+      // Verificar si hay cambios reales
+      const hasChanges = Object.keys(updates).some(
+        (key) => prev[key as keyof typeof prev] !== updates[key as keyof typeof updates]
+      )
+      if (!hasChanges) return prev
+      return { ...prev, ...updates }
     })
   }, [])
 
@@ -231,6 +246,13 @@ export default function EditProductPage({ params }: EditProductPageProps) {
       // Validar nombre requerido
       if (!formData.nombre_libro.trim()) {
         setError('El nombre del producto es obligatorio')
+        setSaving(false)
+        return
+      }
+
+      // Validar precio
+      if (!formData.precio || parseFloat(formData.precio) <= 0) {
+        setError('El precio es obligatorio y debe ser mayor a 0')
         setSaving(false)
         return
       }
@@ -305,6 +327,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
 
       // Agregar canales basados en plataformas seleccionadas
       if (selectedPlatforms.length > 0) {
+        // Obtener IDs de canales desde Strapi
         try {
           const canalesResponse = await fetch('/api/tienda/canales')
           const canalesData = await canalesResponse.json()
@@ -333,11 +356,11 @@ export default function EditProductPage({ params }: EditProductPageProps) {
             }
           }
         } catch (err) {
-          console.warn('[EditProduct] No se pudieron obtener canales')
+          console.warn('[EditProduct] No se pudieron obtener canales, se asignarán automáticamente')
         }
       }
 
-      console.log('[EditProduct] Enviando datos de actualización:', dataToSend)
+      console.log('[EditProduct] Enviando datos:', dataToSend)
 
       const response = await fetch(`/api/tienda/productos/${productId}`, {
         method: 'PUT',
@@ -351,6 +374,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
       }
 
       const data = await response.json()
+      setResponseData(data)
 
       if (data.success) {
         setSuccess(true)
@@ -548,4 +572,3 @@ export default function EditProductPage({ params }: EditProductPageProps) {
     </Container>
   )
 }
-
