@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardBody, Button, Alert, Form, Row, Col, Spinner } from 'react-bootstrap'
-import { TbPencil, TbCheck, TbX } from 'react-icons/tb'
+import { TbPencil, TbCheck, TbX, TbEdit } from 'react-icons/tb'
 
 interface ProductDetailsProps {
   producto: any
