@@ -447,9 +447,11 @@ export async function PUT(
     }
 
     // Descripción corta
-    if (body.descripcion_corta !== undefined) {
-      updateData.data.descripcion_corta = body.descripcion_corta?.trim() || ''
-    }
+    // ❌ NO incluir descripcion_corta - no está en schema de Strapi
+    // Este campo se maneja en Strapi a través de raw_woo_data en los lifecycles
+    // if (body.descripcion_corta !== undefined) {
+    //   updateData.data.descripcion_corta = body.descripcion_corta?.trim() || ''
+    // }
 
     // Clase de envío
     if (body.shipping_class !== undefined) {

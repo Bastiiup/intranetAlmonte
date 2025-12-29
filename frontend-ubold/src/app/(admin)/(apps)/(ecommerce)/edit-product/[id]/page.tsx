@@ -321,11 +321,12 @@ export default function EditProductPage({ params }: EditProductPageProps) {
       // ⚠️ IMPORTANTE: NO incluir campos que no están en el schema de Strapi:
       // - type, virtual, downloadable, reviews_allowed, menu_order, purchase_note, sku
       // - sold_individually, manage_stock, stock_status (campos WooCommerce que no están en schema)
+      // - descripcion_corta (no está en schema de Strapi, se maneja en raw_woo_data)
       // Estos campos se manejan en Strapi a través de raw_woo_data en los lifecycles
       const dataToSend: any = {
         nombre_libro: formData.nombre_libro.trim(),
         descripcion: formData.descripcion?.trim() || '',
-        descripcion_corta: formData.descripcion_corta?.trim() || '', // ⚠️ CRÍTICO: Descripción corta
+        // descripcion_corta: formData.descripcion_corta?.trim() || '', // ❌ NO se envía - no está en schema de Strapi
         isbn_libro: formData.isbn_libro?.trim() || '',
         precio: formData.precio,
         precio_oferta: formData.precio_oferta || '',
