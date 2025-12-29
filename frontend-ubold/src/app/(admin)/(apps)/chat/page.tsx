@@ -43,8 +43,12 @@ const Page = () => {
 
         // 2. Obtener API Key
         const apiKey = process.env.NEXT_PUBLIC_STREAM_CHAT_API_KEY
+        console.log('[Chat] API Key disponible:', apiKey ? 'Sí (oculta)' : 'NO')
         if (!apiKey) {
-          throw new Error('NEXT_PUBLIC_STREAM_CHAT_API_KEY no está configurada')
+          console.error('[Chat] ❌ NEXT_PUBLIC_STREAM_CHAT_API_KEY no está configurada. Verifica:')
+          console.error('[Chat] 1. Que la variable esté en Railway')
+          console.error('[Chat] 2. Que Railway haya hecho un rebuild después de agregar la variable')
+          throw new Error('NEXT_PUBLIC_STREAM_CHAT_API_KEY no está configurada. La variable se inyecta en tiempo de build, necesitas hacer un rebuild en Railway.')
         }
 
         // 3. Crear cliente de Stream Chat
