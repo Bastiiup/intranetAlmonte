@@ -380,47 +380,69 @@ export default function EditProductPage({ params }: EditProductPageProps) {
       // Este objeto se enviará como campo adicional para que Strapi lo use en sus lifecycles
       // Si Strapi rechaza este campo, se construirá en los lifecycles de Strapi
       
-      // Helper para convertir descripción a HTML válido para WooCommerce
-      const convertirDescripcionAHTML = (descripcion: string): string => {
-        if (!descripcion || !descripcion.trim()) return ''
+      // Helper 1: Convierte texto plano o HTML a HTML válido con párrafos
+      // Quill puede enviar HTML, pero esta función asegura formato válido
+      const textoAHTML = (texto: string): string => {
+        if (!texto || texto.trim() === '') return ''
         
-        const descripcionTrimmed = descripcion.trim()
+        const textoTrimmed = texto.trim()
         
-        // Si ya es HTML válido (tiene etiquetas), usar directamente
-        if (descripcionTrimmed.includes('<') && descripcionTrimmed.includes('>')) {
-          // Verificar que tenga al menos un <p> o <div>
-          if (descripcionTrimmed.match(/<[p|div|h\d|ul|ol|li][^>]*>/i)) {
-            return descripcionTrimmed
+        // Si ya es HTML válido (tiene etiquetas <p>, <div>, etc.), usar directamente
+        if (textoTrimmed.includes('<') && textoTrimmed.includes('>')) {
+          // Verificar que tenga al menos un <p>, <div>, <h>, <ul>, <ol>, <li>
+          if (textoTrimmed.match(/<[p|div|h\d|ul|ol|li|strong|em|b|i][^>]*>/i)) {
+            // Ya es HTML válido, retornar tal cual
+            return textoTrimmed
           }
-          // Si tiene HTML pero no párrafos, envolver en <p>
-          return `<p>${descripcionTrimmed.replace(/<[^>]+>/g, '')}</p>`
+          // Si tiene HTML pero no párrafos válidos, limpiar y envolver en <p>
+          const textoLimpio = textoTrimmed.replace(/<[^>]+>/g, '').trim()
+          return textoLimpio ? `<p>${textoLimpio}</p>` : ''
         }
         
         // Si es texto plano, convertir a HTML
-        // Preservar saltos de línea dobles como párrafos
-        // Saltos de línea simples como <br>
-        return descripcionTrimmed
+        // Convertir saltos de línea dobles en párrafos
+        const parrafos = textoTrimmed
           .split(/\n\n+/)
           .map(parrafo => parrafo.trim())
           .filter(parrafo => parrafo.length > 0)
+        
+        if (parrafos.length === 0) {
+          return `<p>${textoTrimmed}</p>`
+        }
+        
+        return parrafos
           .map(parrafo => `<p>${parrafo.replace(/\n/g, '<br>')}</p>`)
           .join('')
       }
       
-      // Helper para generar descripción corta (máximo 150 caracteres)
-      const generarDescripcionCorta = (descripcion: string, maxCaracteres: number = 150): string => {
-        if (!descripcion || !descripcion.trim()) return ''
+      // Helper 2: Genera descripción CORTA limitada a X caracteres de TEXTO (no HTML)
+      const generarDescripcionCorta = (texto: string, maxCaracteres: number = 150): string => {
+        if (!texto || texto.trim() === '') return ''
         
-        // Si ya es HTML, extraer solo el texto
-        const textoLimpio = descripcion.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+        // Primero extraer solo el texto (sin HTML)
+        const textoLimpio = texto
+          .replace(/<[^>]+>/g, ' ')  // Remover todas las etiquetas HTML
+          .replace(/\s+/g, ' ')      // Normalizar espacios múltiples
+          .trim()
         
         if (textoLimpio.length === 0) return ''
         
-        // Truncar si es necesario
-        const textoCorto = textoLimpio.length > maxCaracteres
-          ? textoLimpio.substring(0, maxCaracteres).trim() + '...'
-          : textoLimpio
+        // Limitar a X caracteres de TEXTO
+        let textoCorto: string
+        if (textoLimpio.length > maxCaracteres) {
+          // Cortar en la última palabra completa antes del límite
+          textoCorto = textoLimpio.substring(0, maxCaracteres)
+          const ultimoEspacio = textoCorto.lastIndexOf(' ')
+          if (ultimoEspacio > 0 && ultimoEspacio > maxCaracteres * 0.7) {
+            // Si encontramos un espacio razonablemente cerca del final, cortar ahí
+            textoCorto = textoCorto.substring(0, ultimoEspacio)
+          }
+          textoCorto = textoCorto.trim() + '...'
+        } else {
+          textoCorto = textoLimpio
+        }
         
+        // Envolver en <p> para formato HTML válido
         return `<p>${textoCorto}</p>`
       }
       
