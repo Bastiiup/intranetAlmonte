@@ -133,13 +133,25 @@ module.exports = {
         console.log(`[libro lifecycle] 📤 Sincronizando con ${platform}...`);
         console.log(`[libro lifecycle] 📦 Datos WooCommerce:`, JSON.stringify(wooProductData, null, 2));
 
-        // Crear producto en WooCommerce
-        const wooProduct = await wooCommerceClient.post('products', wooProductData);
-
-        console.log(`[libro lifecycle] ✅ Producto creado en WooCommerce ${platform}:`, {
-          id: wooProduct.id,
-          name: wooProduct.name,
-        });
+        // Si es actualización y ya existe woocommerce_id, actualizar; si no, crear
+        const woocommerceId = result.woocommerce_id || (data.externalIds?.wooCommerce?.[platform]?.id);
+        
+        let wooProduct;
+        if (event.action === 'update' && woocommerceId) {
+          // Actualizar producto existente
+          wooProduct = await wooCommerceClient.put(`products/${woocommerceId}`, wooProductData);
+          console.log(`[libro lifecycle] ✅ Producto actualizado en WooCommerce ${platform}:`, {
+            id: wooProduct.id,
+            name: wooProduct.name,
+          });
+        } else {
+          // Crear nuevo producto
+          wooProduct = await wooCommerceClient.post('products', wooProductData);
+          console.log(`[libro lifecycle] ✅ Producto creado en WooCommerce ${platform}:`, {
+            id: wooProduct.id,
+            name: wooProduct.name,
+          });
+        }
 
         // Actualizar el producto en Strapi con el ID de WooCommerce
         await strapi.entityService.update('api::libro.libro', result.documentId, {
@@ -149,6 +161,7 @@ module.exports = {
             externalIds: {
               ...(data.externalIds || {}),
               wooCommerce: {
+                ...(data.externalIds?.wooCommerce || {}),
                 [platform]: {
                   id: wooProduct.id,
                   url: wooProduct.permalink,
@@ -165,6 +178,11 @@ module.exports = {
         // Continuar con el siguiente canal
       }
     }
+  },
+
+  async afterUpdate(event) {
+    // Reutilizar la misma lógica que afterCreate
+    await module.exports.afterCreate(event);
   },
 };
 ```
