@@ -534,39 +534,55 @@ export async function PUT(
     //   updateData.data.shipping_class = body.shipping_class || ''
     // }
 
-    // ✅ CRÍTICO: Enviar rawWooData a Strapi para que use los datos actualizados al sincronizar con WooCommerce
-    // El frontend construye rawWooData con todos los campos de WooCommerce actualizados
-    // Strapi debe recibirlo para usarlo en los lifecycles al sincronizar con WooCommerce
+    // ⚠️ IMPORTANTE: raw_woo_data NO se puede enviar directamente a Strapi porque no está en el schema
+    // Strapi lo rechaza con error "Invalid key raw_woo_data"
+    // En su lugar, Strapi debe construir raw_woo_data en sus lifecycles desde los campos individuales:
+    // - descripcion → raw_woo_data.description
+    // - subtitulo_libro → raw_woo_data.short_description
+    // 
+    // El frontend envía raw_woo_data en el body para referencia, pero NO lo incluimos en updateData.data
+    // porque Strapi lo rechazaría. Los lifecycles de Strapi deben usar descripcion y subtitulo_libro
+    // para construir raw_woo_data correctamente.
     if (body.raw_woo_data || body.rawWooData) {
       const rawWooData = body.raw_woo_data || body.rawWooData
-      // Intentar enviar como rawWooData (camelCase) primero
-      updateData.data.rawWooData = rawWooData
-      console.log('[API PUT] ✅ rawWooData incluido en payload:', {
+      console.log('[API PUT] ℹ️ raw_woo_data recibido del frontend (NO se envía a Strapi - no está en schema):', {
         tieneDescription: !!rawWooData?.description,
         tieneShortDescription: !!rawWooData?.short_description,
         descriptionLength: rawWooData?.description?.length || 0,
         shortDescriptionLength: rawWooData?.short_description?.length || 0,
       })
-    } else {
-      console.log('[API PUT] ⚠️ rawWooData NO está presente en el body')
+      console.log('[API PUT] ⚠️ Strapi construirá raw_woo_data desde descripcion y subtitulo_libro en lifecycles')
+      console.log('[API PUT] ⚠️ Asegurar que descripcion y subtitulo_libro estén correctamente actualizados')
     }
     
     console.log('[API PUT] ℹ️ Datos que se enviarán a Strapi:')
     console.log('[API PUT]   - descripcion:', updateData.data.descripcion ? '✅ Presente' : '❌ Vacío')
     console.log('[API PUT]   - subtitulo_libro:', updateData.data.subtitulo_libro ? '✅ Presente' : '❌ Vacío')
     console.log('[API PUT]   - precio:', updateData.data.precio ? '✅ Presente' : '❌ Vacío')
-    console.log('[API PUT]   - rawWooData:', updateData.data.rawWooData ? '✅ Presente' : '❌ Vacío')
+    console.log('[API PUT]   - estado_publicacion:', updateData.data.estado_publicacion ? '✅ Presente' : '❌ Vacío')
+    console.log('[API PUT]   - raw_woo_data: ❌ NO se envía (Strapi lo construye en lifecycles desde descripcion y subtitulo_libro)')
 
     // VERIFICACIÓN FINAL antes de enviar
     // Verificar que todos los campos estén en snake_case (minúsculas con guiones bajos)
-    // EXCEPCIÓN: rawWooData puede estar en camelCase si Strapi lo acepta
+    // ⚠️ IMPORTANTE: NO incluir rawWooData o raw_woo_data (Strapi lo rechaza)
     const finalKeys = Object.keys(updateData.data)
     const camelToSnake = (str: string): string => {
       return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
     }
+    
+    // Remover rawWooData o raw_woo_data si están presentes (Strapi los rechaza)
+    if (updateData.data.rawWooData) {
+      delete updateData.data.rawWooData
+      console.log('[API PUT] ⚠️ rawWooData removido del payload (Strapi lo rechaza)')
+    }
+    if (updateData.data.raw_woo_data) {
+      delete updateData.data.raw_woo_data
+      console.log('[API PUT] ⚠️ raw_woo_data removido del payload (Strapi lo rechaza)')
+    }
+    
     const keysWithUppercase = finalKeys.filter(k => {
-      // Permitir rawWooData en camelCase (excepción)
-      if (k === 'rawWooData') return false
+      // Ignorar rawWooData y raw_woo_data (ya fueron removidos)
+      if (k === 'rawWooData' || k === 'raw_woo_data') return false
       const normalized = camelToSnake(k)
       return k !== normalized && k !== k.toLowerCase()
     })
@@ -576,14 +592,6 @@ export async function PUT(
       console.error('[API PUT] Keys problemáticos:', keysWithUppercase)
       console.error('[API PUT] Keys normalizados esperados:', keysWithUppercase.map(camelToSnake))
       throw new Error('Error interno: Datos con formato incorrecto')
-    }
-    
-    // ⚠️ Si rawWooData está en camelCase, intentar también como raw_woo_data (snake_case)
-    // por si Strapi solo acepta snake_case
-    if (updateData.data.rawWooData && !updateData.data.raw_woo_data) {
-      // Intentar ambos formatos para máxima compatibilidad
-      updateData.data.raw_woo_data = updateData.data.rawWooData
-      console.log('[API PUT] ℹ️ rawWooData también enviado como raw_woo_data para compatibilidad')
     }
 
     console.log('[API PUT] 📤 Datos finales a enviar:', JSON.stringify(updateData, null, 2))
