@@ -59,9 +59,7 @@ const Page = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // const [lastMessageDate, setLastMessageDate] = useState<string | null>(null) // Temporalmente no usado
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  // const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null) // Temporalmente no usado
 
   // Cargar contactos
   useEffect(() => {
@@ -129,165 +127,22 @@ const Page = () => {
     cargarContactos()
   }, [])
 
-  // TODO: Cargar mensajes con Stream Chat (temporalmente deshabilitado)
-  // Esta lógica será reemplazada por Stream Chat SDK
+  // TODO: Implementar con Stream Chat SDK
   useEffect(() => {
     if (!currentContact || !currentUserId) {
       setMessages([])
       return
     }
-
-    // Temporalmente deshabilitado - se implementará con Stream Chat
-    // Limpiar mensajes mientras no hay implementación
+    // Limpiar mensajes - se implementará con Stream Chat
     setMessages([])
-    
-    // Comentado: Código antiguo que usaba /api/chat/mensajes
-    /*
-    const cargarMensajes = async (soloNuevos: boolean = false) => {
-      try {
-        const query = new URLSearchParams({
-          colaborador_id: currentContact.id,
-          remitente_id: currentUserId,
-        })
-
-        if (soloNuevos && lastMessageDate) {
-          const fechaConMargen = new Date(new Date(lastMessageDate).getTime() - 2000).toISOString()
-          query.append('ultima_fecha', fechaConMargen)
-        }
-
-        const response = await fetch(`/api/chat/mensajes?${query.toString()}`)
-        if (!response.ok) {
-          if (response.status === 404 || response.status === 502 || response.status === 504) {
-            return
-          }
-          throw new Error('Error al cargar mensajes')
-        }
-
-        const data = await response.json()
-        const mensajesData = Array.isArray(data.data) ? data.data : (data.data ? [data.data] : [])
-
-        const mensajesMapeados: MessageType[] = mensajesData.map((mensaje: any) => {
-          const texto = mensaje.texto || ''
-          const remitenteId = mensaje.remitente_id || 1
-          const fecha = mensaje.fecha ? new Date(mensaje.fecha) : new Date(mensaje.createdAt || Date.now())
-
-          return {
-            id: String(mensaje.id),
-            senderId: String(remitenteId),
-            text: texto,
-            time: fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
-          }
-        })
-
-        if (soloNuevos) {
-          setMessages((prev) => {
-            const nuevosIds = new Set(mensajesMapeados.map((m) => m.id))
-            const mensajesExistentes = prev.filter((m) => !nuevosIds.has(m.id))
-            return [...mensajesExistentes, ...mensajesMapeados]
-          })
-        } else {
-          setMessages(mensajesMapeados)
-        }
-
-        if (mensajesMapeados.length > 0) {
-          const ultimoMensaje = mensajesData[mensajesData.length - 1]
-          const ultimaFecha = ultimoMensaje?.fecha || ultimoMensaje?.createdAt
-          if (ultimaFecha) {
-            setLastMessageDate(ultimaFecha)
-          }
-        }
-
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-        }, 100)
-      } catch (err: any) {
-        if (err.status !== 404 && err.status !== 502 && err.status !== 504) {
-          console.error('Error al cargar mensajes:', err)
-        }
-      }
-    }
-
-    cargarMensajes(false)
-    pollingIntervalRef.current = setInterval(() => {
-      cargarMensajes(true)
-    }, 1000)
-
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current)
-      }
-    }
-    */
   }, [currentContact, currentUserId])
 
-  // TODO: Enviar mensaje con Stream Chat (temporalmente deshabilitado)
+  // TODO: Implementar con Stream Chat SDK
   const handleSendMessage = async () => {
     if (!messageText.trim() || !currentContact || isSending || !currentUserId) return
-
     // Temporalmente deshabilitado - se implementará con Stream Chat
     console.log('[Chat] Envío de mensajes temporalmente deshabilitado. Se implementará con Stream Chat.')
     setError('El chat está en mantenimiento. Se implementará con Stream Chat próximamente.')
-    
-    // Comentado: Código antiguo que usaba /api/chat/mensajes
-    /*
-    const texto = messageText.trim()
-    setMessageText('')
-    setIsSending(true)
-
-    const remitenteIdNum = parseInt(currentUserId, 10)
-    const colaboradorIdNum = parseInt(currentContact.id, 10)
-
-    try {
-      const response = await fetch('/api/chat/mensajes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          texto,
-          colaborador_id: colaboradorIdNum,
-          remitente_id: remitenteIdNum,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Error al enviar mensaje')
-      }
-
-      setTimeout(() => {
-        const query = new URLSearchParams({
-          colaborador_id: currentContact.id,
-          remitente_id: currentUserId,
-        })
-        fetch(`/api/chat/mensajes?${query.toString()}`)
-          .then((res) => res.json())
-          .then((data) => {
-            const mensajesData = Array.isArray(data.data) ? data.data : (data.data ? [data.data] : [])
-            const mensajesMapeados: MessageType[] = mensajesData.map((mensaje: any) => {
-              const texto = mensaje.texto || ''
-              const remitenteId = mensaje.remitente_id || 1
-              const fecha = mensaje.fecha ? new Date(mensaje.fecha) : new Date(mensaje.createdAt || Date.now())
-              return {
-                id: String(mensaje.id),
-                senderId: String(remitenteId),
-                text: texto,
-                time: fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
-              }
-            })
-            setMessages(mensajesMapeados)
-            setTimeout(() => {
-              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-            }, 100)
-          })
-          .catch(() => {})
-      }, 500)
-    } catch (err: any) {
-      console.error('Error al enviar mensaje:', err)
-      setError(err.message || 'Error al enviar mensaje')
-      setMessageText(texto)
-    } finally {
-      setIsSending(false)
-    }
-    */
   }
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
