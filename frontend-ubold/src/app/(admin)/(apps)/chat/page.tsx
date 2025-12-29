@@ -443,7 +443,12 @@ const Page = () => {
                 <Channel channel={channel}>
                   <Window>
                     <ChannelHeader />
-                    <MessageList />
+                    <MessageList 
+                      // Cargar mensajes históricos
+                      loadMore={async () => {
+                        await channel.loadMoreMessages(50)
+                      }}
+                    />
                     <MessageInput />
                   </Window>
                   <Thread />
