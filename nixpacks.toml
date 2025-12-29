@@ -3,16 +3,17 @@ nixPkgs = ["nodejs_20"]
 
 [phases.install]
 cmds = [
-  "cd frontend-ubold && npm install --prefer-offline --no-audit --legacy-peer-deps"
+  "npm install --prefer-offline --no-audit --legacy-peer-deps"
 ]
 
 [phases.build]
 cmds = [
-  "cd frontend-ubold && export NEXT_TELEMETRY_DISABLED=1 && npm run build"
+  "export NEXT_TELEMETRY_DISABLED=1",
+  "npm run build"
 ]
 
 [start]
-cmd = "cd frontend-ubold && node server.js"
+cmd = "node server.js"
 
 [variables]
 NODE_ENV = "production"
