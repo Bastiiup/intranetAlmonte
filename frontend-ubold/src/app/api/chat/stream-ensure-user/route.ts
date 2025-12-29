@@ -1,6 +1,9 @@
 /**
  * API Route para asegurar que un usuario existe en Stream Chat
  * Crea o actualiza el usuario en Stream antes de crear un canal
+ * 
+ * En lugar de buscar en Strapi directamente, usa los datos de la lista de colaboradores
+ * que ya fueron cargados para evitar llamadas redundantes
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -51,14 +54,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Obtener información del colaborador desde Strapi
+    // Obtener información del colaborador desde Strapi usando filtro (más confiable)
     try {
       const response = await strapiClient.get<any>(
-        `/api/colaboradores/${colaboradorId}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[persona][populate][imagen][populate]=*`
+        `/api/colaboradores?filters[id][$eq]=${colaboradorId}&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[persona][populate][imagen][populate]=*`
       )
 
-      const colaboradorData = response.data?.attributes || response.data || {}
-      const persona = colaboradorData.persona || colaboradorData.attributes?.persona
+      // Los datos vienen en formato array cuando se usa filtro
+      let colaboradorItem: any = null
+      if (Array.isArray(response.data) && response.data.length > 0) {
+        colaboradorItem = response.data[0]
+      }
+
+      if (!colaboradorItem) {
+        throw new Error('Colaborador no encontrado')
+      }
+
+      // Extraer datos del colaborador (puede venir con o sin attributes)
+      const colaboradorData = colaboradorItem.attributes || colaboradorItem
+      const persona = colaboradorData.persona
 
       // Obtener nombre
       const nombre = persona?.nombre_completo ||
@@ -66,12 +80,22 @@ export async function POST(request: NextRequest) {
                     colaboradorData.email_login ||
                     'Usuario'
 
-      // Obtener avatar
+      // Obtener avatar - manejar diferentes estructuras de imagen
       let avatar: string | undefined = undefined
-      if (persona?.imagen?.url) {
-        avatar = `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${persona.imagen.url}`
-      } else if (persona?.imagen?.data?.attributes?.url) {
-        avatar = `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${persona.imagen.data.attributes.url}`
+      if (persona?.imagen) {
+        // Caso 1: URL directa
+        if (persona.imagen.url) {
+          avatar = `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${persona.imagen.url}`
+        }
+        // Caso 2: Estructura con data.attributes.url
+        else if (persona.imagen.data?.attributes?.url) {
+          avatar = `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${persona.imagen.data.attributes.url}`
+        }
+        // Caso 3: Array de imágenes
+        else if (Array.isArray(persona.imagen.data) && persona.imagen.data.length > 0) {
+          const imagenData = persona.imagen.data[0]
+          avatar = `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${imagenData.attributes?.url || imagenData.url || ''}`
+        }
       }
 
       // Obtener cliente de Stream

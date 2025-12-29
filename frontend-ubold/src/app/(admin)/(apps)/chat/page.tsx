@@ -191,8 +191,9 @@ const Page = () => {
 
     try {
       setSelectedColaboradorId(colaboradorId)
+      setError(null) // Limpiar errores previos
       
-      // Primero asegurar que el usuario existe en Stream Chat
+      // Primero asegurar que el usuario objetivo existe en Stream Chat
       const ensureUserResponse = await fetch('/api/chat/stream-ensure-user', {
         method: 'POST',
         credentials: 'include',
@@ -213,16 +214,22 @@ const Page = () => {
       const channelId = `direct-${userIds.join('-')}`
 
       // Crear o obtener canal existente
+      // IMPORTANTE: No usar create() aquí, solo channel() y watch()
+      // Stream Chat creará el canal automáticamente si no existe cuando se llama a watch()
       const channel = chatClient.channel('messaging', channelId, {
         members: [currentUserIdRef.current, colaboradorId],
       })
 
+      // Watch() crea el canal si no existe y se suscribe a actualizaciones en tiempo real
       await channel.watch()
+      
       setChannel(channel)
+      console.log('[Chat] Canal creado/seleccionado:', channelId)
     } catch (err: any) {
       console.error('[Chat] Error al seleccionar colaborador:', err)
       setError(err.message || 'Error al abrir conversación')
       setSelectedColaboradorId(null)
+      setChannel(null)
     }
   }
 
