@@ -83,50 +83,12 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
         },
       }
 
-      // Agregar canales basados en plataformas seleccionadas
+      // Agregar plataformas seleccionadas (se usarán para determinar a qué WordPress enviar)
+      // Si no se selecciona ninguna, se enviará a ambas por defecto
       if (selectedPlatforms.length > 0) {
-        // Obtener IDs de canales desde Strapi
-        try {
-          const canalesResponse = await fetch('/api/tienda/canales', {
-            // Agregar timeout para evitar esperar demasiado
-            signal: AbortSignal.timeout(5000) // 5 segundos timeout
-          })
-          
-          if (!canalesResponse.ok) {
-            throw new Error(`Error ${canalesResponse.status}: ${canalesResponse.statusText}`)
-          }
-          
-          const canalesData = await canalesResponse.json()
-          
-          if (canalesData.success && canalesData.data) {
-            const canalesIds: string[] = []
-            
-            selectedPlatforms.forEach((platform) => {
-              const canal = canalesData.data.find((c: any) => {
-                const attrs = c.attributes || c
-                const key = attrs.key || attrs.nombre?.toLowerCase()
-                return (
-                  (platform === 'woo_moraleja' && (key === 'moraleja' || key === 'woo_moraleja')) ||
-                  (platform === 'woo_escolar' && (key === 'escolar' || key === 'woo_escolar'))
-                )
-              })
-              
-              if (canal) {
-                const docId = canal.documentId || canal.id
-                if (docId) canalesIds.push(String(docId))
-              }
-            })
-            
-            if (canalesIds.length > 0) {
-              dataToSend.data.canales = canalesIds
-              console.log('[AddCliente] ✅ Canales obtenidos exitosamente:', canalesIds)
-            }
-          }
-        } catch (err: any) {
-          // Si hay error al obtener canales (502, timeout, etc.), usar valores por defecto
-          console.warn('[AddCliente] ⚠️ No se pudieron obtener canales desde Strapi:', err.message)
-          console.warn('[AddCliente] ⚠️ El cliente se creará sin canales específicos, se asignarán ambos por defecto en el servidor')
-        }
+        // Convertir nombres de plataformas a formato que entienda el servidor
+        dataToSend.data.canales = selectedPlatforms // Se usa el nombre de la plataforma directamente
+        console.log('[AddCliente] 📡 Plataformas seleccionadas:', selectedPlatforms)
       }
 
       // Crear el cliente en Strapi (se sincronizará con WordPress según los canales)

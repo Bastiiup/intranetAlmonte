@@ -156,23 +156,15 @@ export async function PUT(
       updateData.data.ultima_actividad = body.data.ultima_actividad
     }
 
-    // === RELACIONES MÚLTIPLES: CANALES ===
-    // Si se especifican canales, actualizar la relación
+    // NOTA: Los canales NO existen en el schema de WO-Clientes (solo en productos/libros)
+    // Se omiten completamente
     if (body.data.canales !== undefined) {
-      if (Array.isArray(body.data.canales) && body.data.canales.length > 0) {
-        updateData.data.canales = body.data.canales
-        console.log('[API Clientes PUT] 📡 Canales actualizados:', body.data.canales)
-      } else {
-        // Si viene un array vacío, no actualizar (mantener los existentes)
-        console.log('[API Clientes PUT] 📡 Canales no especificados, manteniendo los existentes')
-      }
+      console.log('[API Clientes PUT] ℹ️ Canales detectados pero se omitirán (WO-Clientes no tiene campo canales en Strapi)')
     }
 
     // 1. Actualizar en WO-Clientes
     const woClienteResponse = await strapiClient.put(`/api/wo-clientes/${clienteDocumentId}`, updateData)
     console.log('[API Clientes PUT] ✅ Cliente actualizado en WO-Clientes:', clienteDocumentId)
-    console.log('[API Clientes PUT] Estado: ⏸️ Solo actualizado en Strapi, Strapi sincronizará con WordPress según los canales asignados')
-    console.log('[API Clientes PUT] La sincronización con WordPress se maneja en los lifecycles de Strapi basándose en los canales asignados')
     
     // 2. Si se actualizó nombre o correo, actualizar también en Persona y WordPress
     if (body.data.nombre !== undefined || body.data.correo_electronico !== undefined) {
