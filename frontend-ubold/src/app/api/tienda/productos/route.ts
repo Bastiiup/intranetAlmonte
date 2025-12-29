@@ -159,7 +159,17 @@ export async function POST(request: NextRequest) {
       // Intentar incluir raw_woo_data en el payload
       // Si Strapi lo rechaza, se construirá en los lifecycles basándose en los campos individuales
       strapiProductData.data.raw_woo_data = body.raw_woo_data
-      console.log('[API POST] ✅ raw_woo_data incluido en payload:', JSON.stringify(body.raw_woo_data, null, 2))
+      console.log('[API POST] ✅ raw_woo_data incluido en payload')
+      console.log('[API POST] 📝 Descripción completa:', body.raw_woo_data.description?.substring(0, 100) || 'VACÍA')
+      console.log('[API POST] 📝 Descripción corta:', body.raw_woo_data.short_description?.substring(0, 100) || 'VACÍA')
+      console.log('[API POST] 🔍 Verificación raw_woo_data:', {
+        tieneDescription: !!body.raw_woo_data.description && body.raw_woo_data.description.length > 0,
+        tieneShortDescription: !!body.raw_woo_data.short_description && body.raw_woo_data.short_description.length > 0,
+        longitudDescription: body.raw_woo_data.description?.length || 0,
+        longitudShortDescription: body.raw_woo_data.short_description?.length || 0
+      })
+    } else {
+      console.warn('[API POST] ⚠️ raw_woo_data NO viene en el body. Strapi debe construirlo en lifecycles.')
     }
 
     // Agregar imagen si existe - usar ID de Strapi si está disponible

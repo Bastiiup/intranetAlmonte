@@ -188,24 +188,44 @@ export default function AddProductPage() {
       // ⚠️ IMPORTANTE: Construir rawWooData con formato correcto para WooCommerce
       // Este objeto se enviará como campo adicional para que Strapi lo use en sus lifecycles
       // Si Strapi rechaza este campo, se construirá en los lifecycles de Strapi
+      
+      // Helper para convertir descripción a HTML válido para WooCommerce
+      const convertirDescripcionAHTML = (descripcion: string): string => {
+        if (!descripcion || !descripcion.trim()) return ''
+        
+        const descripcionTrimmed = descripcion.trim()
+        
+        // Si ya es HTML válido (tiene etiquetas), usar directamente
+        if (descripcionTrimmed.includes('<') && descripcionTrimmed.includes('>')) {
+          // Verificar que tenga al menos un <p> o <div>
+          if (descripcionTrimmed.match(/<[p|div|h\d|ul|ol|li][^>]*>/i)) {
+            return descripcionTrimmed
+          }
+          // Si tiene HTML pero no párrafos, envolver en <p>
+          return `<p>${descripcionTrimmed.replace(/<[^>]+>/g, '')}</p>`
+        }
+        
+        // Si es texto plano, convertir a HTML
+        // Preservar saltos de línea dobles como párrafos
+        // Saltos de línea simples como <br>
+        return descripcionTrimmed
+          .split(/\n\n+/)
+          .map(parrafo => parrafo.trim())
+          .filter(parrafo => parrafo.length > 0)
+          .map(parrafo => `<p>${parrafo.replace(/\n/g, '<br>')}</p>`)
+          .join('')
+      }
+      
       const rawWooData: any = {
         name: formData.nombre_libro.trim(),
         type: 'simple',
         status: 'publish',
         
-        // ✅ DESCRIPCIÓN COMPLETA (HTML)
-        description: formData.descripcion?.trim() 
-          ? (formData.descripcion.includes('<') 
-              ? formData.descripcion 
-              : `<p>${formData.descripcion.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`)
-          : '',
+        // ✅ DESCRIPCIÓN COMPLETA (HTML) - CRÍTICO para WooCommerce
+        description: convertirDescripcionAHTML(formData.descripcion || ''),
         
-        // ✅ DESCRIPCIÓN CORTA (HTML)
-        short_description: formData.descripcion_corta?.trim()
-          ? (formData.descripcion_corta.includes('<')
-              ? formData.descripcion_corta
-              : `<p>${formData.descripcion_corta.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`)
-          : '',
+        // ✅ DESCRIPCIÓN CORTA (HTML) - CRÍTICO para WooCommerce
+        short_description: convertirDescripcionAHTML(formData.descripcion_corta || ''),
         
         // Precio
         regular_price: formData.precio ? parseFloat(formData.precio).toFixed(2) : '0.00',
@@ -237,6 +257,14 @@ export default function AddProductPage() {
       
       console.log('[AddProduct] 📦 Datos preparados para Strapi:', JSON.stringify(dataToSend, null, 2))
       console.log('[AddProduct] 🖼️ raw_woo_data construido:', JSON.stringify(rawWooData, null, 2))
+      console.log('[AddProduct] 📝 Descripción completa (HTML):', rawWooData.description)
+      console.log('[AddProduct] 📝 Descripción corta (HTML):', rawWooData.short_description)
+      console.log('[AddProduct] 🔍 Verificación:', {
+        tieneDescripcion: !!rawWooData.description && rawWooData.description.length > 0,
+        tieneDescripcionCorta: !!rawWooData.short_description && rawWooData.short_description.length > 0,
+        longitudDescripcion: rawWooData.description?.length || 0,
+        longitudDescripcionCorta: rawWooData.short_description?.length || 0
+      })
 
       // Agregar canales basados en plataformas seleccionadas
       if (selectedPlatforms.length > 0) {
