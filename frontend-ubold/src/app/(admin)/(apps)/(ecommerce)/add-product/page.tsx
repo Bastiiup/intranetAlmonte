@@ -1,81 +1,68 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { RelationSelector } from './components/RelationSelector'
 import ProductImage from './components/ProductImage'
+import ProductTabs, { TabType } from './components/ProductTabs'
+import PlatformSelector from './components/PlatformSelector'
+import GeneralTab from './components/tabs/GeneralTab'
+import InventarioTab from './components/tabs/InventarioTab'
+import EnvioTab from './components/tabs/EnvioTab'
+import VinculadosTab from './components/tabs/VinculadosTab'
+import AtributosTab from './components/tabs/AtributosTab'
+import AvanzadoTab from './components/tabs/AvanzadoTab'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { Alert, Button, Card, CardBody, CardHeader, Col, Container, FormCheck, FormControl, FormGroup, FormLabel, FormSelect, Row } from 'react-bootstrap'
+import { Alert, Button, Card, CardBody, Col, Container, FormControl, FormGroup, FormLabel, FormSelect, Row } from 'react-bootstrap'
 
 export default function AddProductPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [responseData, setResponseData] = useState<any>(null)
+  const [activeTab, setActiveTab] = useState<TabType>('general')
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
   
   const [formData, setFormData] = useState({
     // === BÁSICOS ===
-    isbn_libro: '',
     nombre_libro: '',
-    subtitulo_libro: '',
     descripcion: '',
+    descripcion_corta: '',
+    isbn_libro: '',
     
     // === WOOCOMMERCE: PRECIO ===
     precio: '',
     precio_oferta: '',
+    sale_quantity: '',
+    sold_items: '0',
+    tax_status: 'taxable',
+    tax_class: 'standard',
     
     // === WOOCOMMERCE: INVENTARIO ===
+    sku: '',
     stock_quantity: '',
     manage_stock: true,
     stock_status: 'instock' as 'instock' | 'outofstock' | 'onbackorder',
-    backorders: 'no' as 'no' | 'notify' | 'yes',
+    sold_individually: false,
     
     // === WOOCOMMERCE: TIPO DE PRODUCTO ===
     type: 'simple' as 'simple' | 'grouped' | 'external' | 'variable',
-    
-    // === WOOCOMMERCE: CATEGORÍAS Y TAGS ===
-    woocommerce_categories: [] as number[],
-    woocommerce_tags: [] as number[],
     
     // === WOOCOMMERCE: PESO Y DIMENSIONES ===
     weight: '',
     length: '',
     width: '',
     height: '',
+    shipping_class: '',
     
     // === WOOCOMMERCE: OPCIONES ADICIONALES ===
     virtual: false,
     downloadable: false,
-    featured: false,
-    sold_individually: false,
     reviews_allowed: true,
-    catalog_visibility: 'visible' as 'visible' | 'catalog' | 'search' | 'hidden',
+    menu_order: '0',
+    purchase_note: '',
     
-    // === RELACIONES SIMPLES (documentId) ===
-    obra: '',
-    autor_relacion: '',
-    editorial: '',
-    sello: '',
-    coleccion: '',
-    
-    // === RELACIONES MÚLTIPLES (array de documentIds) ===
-    canales: [] as string[],
-    marcas: [] as string[],
-    etiquetas: [] as string[],
-    categorias_producto: [] as string[],
-    
-    // === IDs NUMÉRICOS OPCIONALES ===
-    id_autor: '',
-    id_editorial: '',
-    id_sello: '',
-    id_coleccion: '',
-    id_obra: '',
-    
-    // === INFORMACIÓN DE EDICIÓN ===
-    numero_edicion: '',
-    agno_edicion: '',
-    idioma: '',
-    tipo_libro: '',
-    estado_edicion: 'Vigente',
+    // === PRODUCTOS VINCULADOS ===
+    upsell_ids: '',
+    cross_sell_ids: '',
     
     // === MEDIA ===
     portada_libro: null as File | null,
@@ -90,7 +77,14 @@ export default function AddProductPage() {
     try {
       // Validar nombre requerido
       if (!formData.nombre_libro.trim()) {
-        setError('El nombre del libro es obligatorio')
+        setError('El nombre del producto es obligatorio')
+        setLoading(false)
+        return
+      }
+
+      // Validar precio
+      if (!formData.precio || parseFloat(formData.precio) <= 0) {
+        setError('El precio es obligatorio y debe ser mayor a 0')
         setLoading(false)
         return
       }
@@ -107,106 +101,83 @@ export default function AddProductPage() {
           method: 'POST',
           body: uploadFormData,
         })
-        
-        const uploadResult = await uploadResponse.json()
-        
-        if (uploadResult.success) {
-          if (uploadResult.id) {
-            portadaLibroId = uploadResult.id
-            console.log('[AddProduct] Imagen subida con ID:', portadaLibroId)
+
+        if (!uploadResponse.ok) {
+          throw new Error('Error al subir la imagen')
+        }
+
+        const uploadData = await uploadResponse.json()
+        portadaLibroId = uploadData.data?.id || null
+        portadaLibroUrl = uploadData.data?.url || null
+        console.log('[AddProduct] Imagen subida:', { id: portadaLibroId, url: portadaLibroUrl })
+      }
+
+      // Construir payload
+      const dataToSend: any = {
+        nombre_libro: formData.nombre_libro.trim(),
+        descripcion: formData.descripcion?.trim() || '',
+        isbn_libro: formData.isbn_libro?.trim() || '',
+        precio: formData.precio,
+        precio_oferta: formData.precio_oferta || '',
+        stock_quantity: formData.stock_quantity || '0',
+        manage_stock: formData.manage_stock,
+        stock_status: formData.stock_status,
+        sold_individually: formData.sold_individually,
+        type: formData.type,
+        weight: formData.weight || '',
+        length: formData.length || '',
+        width: formData.width || '',
+        height: formData.height || '',
+        virtual: formData.virtual,
+        downloadable: formData.downloadable,
+        reviews_allowed: formData.reviews_allowed,
+        menu_order: formData.menu_order || '0',
+        sku: formData.sku || formData.isbn_libro || '',
+      }
+
+      // Agregar imagen
+      if (portadaLibroUrl) {
+        dataToSend.portada_libro = portadaLibroUrl
+        dataToSend.portada_libro_id = portadaLibroId
+      } else if (portadaLibroId) {
+        dataToSend.portada_libro = portadaLibroId
+      }
+
+      // Agregar canales basados en plataformas seleccionadas
+      if (selectedPlatforms.length > 0) {
+        // Obtener IDs de canales desde Strapi
+        try {
+          const canalesResponse = await fetch('/api/tienda/canales')
+          const canalesData = await canalesResponse.json()
+          
+          if (canalesData.success && canalesData.data) {
+            const canalesIds: string[] = []
+            
+            selectedPlatforms.forEach((platform) => {
+              const canal = canalesData.data.find((c: any) => {
+                const attrs = c.attributes || c
+                const key = attrs.key || attrs.nombre?.toLowerCase()
+                return (
+                  (platform === 'woo_moraleja' && (key === 'moraleja' || key === 'woo_moraleja')) ||
+                  (platform === 'woo_escolar' && (key === 'escolar' || key === 'woo_escolar'))
+                )
+              })
+              
+              if (canal) {
+                const docId = canal.documentId || canal.id
+                if (docId) canalesIds.push(String(docId))
+              }
+            })
+            
+            if (canalesIds.length > 0) {
+              dataToSend.canales = canalesIds
+            }
           }
-          if (uploadResult.url) {
-            portadaLibroUrl = uploadResult.url
-            console.log('[AddProduct] URL de imagen obtenida:', portadaLibroUrl)
-          }
-        } else {
-          console.warn('[AddProduct] No se pudo subir la imagen:', uploadResult.error)
+        } catch (err) {
+          console.warn('[AddProduct] No se pudieron obtener canales, se asignarán automáticamente')
         }
       }
 
-      // Preparar datos (solo enviar campos con valor)
-      const dataToSend: any = {
-        nombre_libro: formData.nombre_libro.trim()
-      }
-      
-      // === CAMPOS BÁSICOS ===
-      if (formData.isbn_libro?.trim()) dataToSend.isbn_libro = formData.isbn_libro.trim()
-      if (formData.subtitulo_libro?.trim()) dataToSend.subtitulo_libro = formData.subtitulo_libro.trim()
-      if (formData.descripcion?.trim()) dataToSend.descripcion = formData.descripcion.trim()
-      
-      // === WOOCOMMERCE: PRECIO ===
-      if (formData.precio?.trim()) dataToSend.precio = parseFloat(formData.precio) || 0
-      if (formData.precio_oferta?.trim()) dataToSend.precio_oferta = parseFloat(formData.precio_oferta) || 0
-      
-      // === WOOCOMMERCE: INVENTARIO ===
-      dataToSend.manage_stock = formData.manage_stock
-      if (formData.stock_quantity?.trim()) {
-        dataToSend.stock_quantity = parseInt(formData.stock_quantity) || 0
-      } else {
-        dataToSend.stock_quantity = 0
-      }
-      dataToSend.stock_status = formData.stock_status
-      dataToSend.backorders = formData.backorders
-      
-      // === WOOCOMMERCE: TIPO DE PRODUCTO ===
-      dataToSend.type = formData.type
-      
-      // === WOOCOMMERCE: CATEGORÍAS Y TAGS ===
-      if (formData.woocommerce_categories.length > 0) {
-        dataToSend.woocommerce_categories = formData.woocommerce_categories
-      }
-      if (formData.woocommerce_tags.length > 0) {
-        dataToSend.woocommerce_tags = formData.woocommerce_tags
-      }
-      
-      // === WOOCOMMERCE: PESO Y DIMENSIONES ===
-      if (formData.weight?.trim()) dataToSend.weight = formData.weight.trim()
-      if (formData.length?.trim()) dataToSend.length = formData.length.trim()
-      if (formData.width?.trim()) dataToSend.width = formData.width.trim()
-      if (formData.height?.trim()) dataToSend.height = formData.height.trim()
-      
-      // === WOOCOMMERCE: OPCIONES ADICIONALES ===
-      dataToSend.virtual = formData.virtual
-      dataToSend.downloadable = formData.downloadable
-      dataToSend.featured = formData.featured
-      dataToSend.sold_individually = formData.sold_individually
-      dataToSend.reviews_allowed = formData.reviews_allowed
-      dataToSend.catalog_visibility = formData.catalog_visibility
-      // Enviar URL de imagen si está disponible (para WooCommerce), o ID para Strapi
-      if (portadaLibroUrl) {
-        dataToSend.portada_libro = portadaLibroUrl  // URL completa para WooCommerce
-        dataToSend.portada_libro_id = portadaLibroId  // ID para Strapi
-      } else if (portadaLibroId) {
-        dataToSend.portada_libro = portadaLibroId  // Fallback: solo ID
-      }
-      
-      // === RELACIONES SIMPLES (enviar documentId si hay valor) ===
-      if (formData.obra) dataToSend.obra = formData.obra
-      if (formData.autor_relacion) dataToSend.autor_relacion = formData.autor_relacion
-      if (formData.editorial) dataToSend.editorial = formData.editorial
-      if (formData.sello) dataToSend.sello = formData.sello
-      if (formData.coleccion) dataToSend.coleccion = formData.coleccion
-      
-      // === RELACIONES MÚLTIPLES (enviar array si tiene elementos) ===
-      if (formData.canales.length > 0) dataToSend.canales = formData.canales
-      if (formData.marcas.length > 0) dataToSend.marcas = formData.marcas
-      if (formData.etiquetas.length > 0) dataToSend.etiquetas = formData.etiquetas
-      if (formData.categorias_producto.length > 0) dataToSend.categorias_producto = formData.categorias_producto
-      
-      // === IDS NUMÉRICOS ===
-      if (formData.id_autor) dataToSend.id_autor = parseInt(formData.id_autor)
-      if (formData.id_editorial) dataToSend.id_editorial = parseInt(formData.id_editorial)
-      if (formData.id_sello) dataToSend.id_sello = parseInt(formData.id_sello)
-      if (formData.id_coleccion) dataToSend.id_coleccion = parseInt(formData.id_coleccion)
-      if (formData.id_obra) dataToSend.id_obra = parseInt(formData.id_obra)
-      
-      // === EDICIÓN (solo enviar si tienen valor) ===
-      if (formData.numero_edicion) dataToSend.numero_edicion = parseInt(formData.numero_edicion)
-      if (formData.agno_edicion) dataToSend.agno_edicion = parseInt(formData.agno_edicion)
-      if (formData.idioma && formData.idioma !== '') dataToSend.idioma = formData.idioma
-      if (formData.tipo_libro && formData.tipo_libro !== '') dataToSend.tipo_libro = formData.tipo_libro
-      if (formData.estado_edicion && formData.estado_edicion !== '') dataToSend.estado_edicion = formData.estado_edicion
-      
       console.log('[AddProduct] Enviando datos:', dataToSend)
 
       const response = await fetch('/api/tienda/productos', {
@@ -215,29 +186,20 @@ export default function AddProductPage() {
         body: JSON.stringify(dataToSend)
       })
 
-      // Verificar que la respuesta sea exitosa
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Error al crear producto' }))
         throw new Error(errorData.error || `Error ${response.status}: ${response.statusText}`)
       }
 
       const data = await response.json()
-      setResponseData(data) // Guardar datos de respuesta para mostrar en UI
+      setResponseData(data)
 
       if (data.success) {
         setSuccess(true)
         setError(null)
-        
-        // Mostrar mensaje especial si se regeneró el ISBN (sin alert bloqueante)
-        if (data.isbnRegenerado) {
-          // El mensaje se mostrará en el Alert de éxito
-          console.log(`[AddProduct] ISBN regenerado: "${data.isbnOriginal}" → "${data.isbnNuevo}"`)
-        }
-        
-        // Redirigir después de un breve delay (reducido para mejor UX)
         setTimeout(() => {
           window.location.href = '/products'
-        }, 1000)
+        }, 1500)
       } else {
         setError(data.error || 'Error al crear producto')
         setSuccess(false)
@@ -251,749 +213,185 @@ export default function AddProductPage() {
     }
   }
 
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'general':
+        return <GeneralTab formData={formData} setFormData={setFormData} />
+      case 'inventario':
+        return <InventarioTab formData={formData} setFormData={setFormData} />
+      case 'envio':
+        return <EnvioTab formData={formData} setFormData={setFormData} />
+      case 'vinculados':
+        return <VinculadosTab formData={formData} setFormData={setFormData} />
+      case 'atributos':
+        return <AtributosTab formData={formData} setFormData={setFormData} />
+      case 'avanzado':
+        return <AvanzadoTab formData={formData} setFormData={setFormData} />
+      default:
+        return <GeneralTab formData={formData} setFormData={setFormData} />
+    }
+  }
+
   return (
     <Container fluid>
-      <PageBreadcrumb title="Agregar Producto" subtitle="Ecommerce" />
+      <PageBreadcrumb title="Agregar nuevo producto" subtitle="Ecommerce" />
 
       <form onSubmit={handleSubmit} noValidate>
         {error && (
           <Alert variant="danger" dismissible onClose={() => setError(null)}>
             <strong>Error:</strong> {error}
-            <br />
-            <small className="text-muted">Puedes cerrar esta página y volver a la lista de productos.</small>
           </Alert>
         )}
         
         {success && (
           <Alert variant="success">
             ✅ Producto creado exitosamente. Redirigiendo...
-            {responseData?.isbnRegenerado && (
-              <>
-                <br />
-                <small className="text-muted">
-                  <strong>Nota:</strong> El ISBN "{responseData.isbnOriginal}" ya existía, se generó uno nuevo automáticamente: "{responseData.isbnNuevo}"
-                </small>
-              </>
-            )}
-            <br />
-            <small className="text-muted">Si no se redirige automáticamente, <a href="/products" className="alert-link">haz clic aquí</a>.</small>
           </Alert>
         )}
 
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {/* SECCIÓN 1: INFORMACIÓN BÁSICA */}
-        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* Nombre del producto - Parte superior como WordPress */}
         <Card className="mb-3">
-          <CardHeader>
-            <h5 className="card-title mb-0">Información Básica</h5>
-          </CardHeader>
           <CardBody>
-            <Row>
-              <Col md={6}>
-                <FormGroup className="mb-3">
-                  <FormLabel>
-                    ISBN <span className="text-muted">(se genera automático si se deja vacío)</span>
-                  </FormLabel>
-                  <FormControl
-                    type="text"
-                    placeholder="Ejemplo: 978-3-16-148410-0"
-                    value={formData.isbn_libro}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      setFormData(prev => ({...prev, isbn_libro: value}))
-                    }}
-                  />
-                </FormGroup>
-              </Col>
-              
-              <Col md={6}>
-                <FormGroup className="mb-3">
-                  <FormLabel>
-                    Nombre del Libro <span className="text-danger">*</span>
-                  </FormLabel>
-                  <FormControl
-                    type="text"
-                    required
-                    placeholder="Título del libro"
-                    value={formData.nombre_libro}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      setFormData(prev => ({...prev, nombre_libro: value}))
-                    }}
-                  />
-                </FormGroup>
-              </Col>
-            </Row>
-            
-            <FormGroup className="mb-3">
-              <FormLabel>Subtítulo</FormLabel>
+            <FormGroup>
+              <FormLabel className="fw-bold">Nombre del producto</FormLabel>
               <FormControl
                 type="text"
-                placeholder="Subtítulo del libro (opcional)"
-                value={formData.subtitulo_libro}
-                onChange={(e) => {
-                  const value = e.target.value
-                  setFormData(prev => ({...prev, subtitulo_libro: value}))
-                }}
+                placeholder="Ingresa el nombre del producto"
+                value={formData.nombre_libro}
+                onChange={(e) => setFormData({ ...formData, nombre_libro: e.target.value })}
+                required
+                className="fs-5"
               />
             </FormGroup>
-            
-            <FormGroup className="mb-3">
-              <FormLabel>Descripción</FormLabel>
+          </CardBody>
+        </Card>
+
+        {/* Selector de plataforma */}
+        <PlatformSelector
+          selectedPlatforms={selectedPlatforms}
+          onChange={setSelectedPlatforms}
+        />
+
+        {/* Descripción del producto */}
+        <Card className="mb-3">
+          <CardBody>
+            <FormGroup>
+              <FormLabel className="fw-bold">Descripción del producto</FormLabel>
+              <FormControl
+                as="textarea"
+                rows={8}
+                placeholder="Describe el producto..."
+                value={formData.descripcion}
+                onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+              />
+            </FormGroup>
+          </CardBody>
+        </Card>
+
+        {/* Descripción corta */}
+        <Card className="mb-3">
+          <CardBody>
+            <FormGroup>
+              <FormLabel className="fw-bold">Descripción corta del producto</FormLabel>
               <FormControl
                 as="textarea"
                 rows={4}
-                placeholder="Descripción del libro"
-                value={formData.descripcion}
-                onChange={(e) => {
-                  const value = e.target.value
-                  setFormData(prev => ({...prev, descripcion: value}))
-                }}
+                placeholder="Breve descripción que aparecerá en listados y carrito..."
+                value={formData.descripcion_corta}
+                onChange={(e) => setFormData({ ...formData, descripcion_corta: e.target.value })}
               />
             </FormGroup>
+          </CardBody>
+        </Card>
 
-            <ProductImage 
-              onImageChange={(file) => setFormData(prev => ({ ...prev, portada_libro: file }))}
+        {/* Imagen del producto */}
+        <Card className="mb-3">
+          <CardBody>
+            <FormLabel className="fw-bold mb-3">Imagen del producto</FormLabel>
+            <ProductImage
+              image={formData.portada_libro}
+              onImageChange={(file) => setFormData({ ...formData, portada_libro: file })}
             />
           </CardBody>
         </Card>
 
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {/* SECCIÓN: WOOCOMMERCE - PRECIO E INVENTARIO */}
-        {/* ════════════════════════════════════════════════════════════════ */}
-        <Card className="mb-3">
-          <CardHeader>
-            <h5 className="card-title mb-0">WooCommerce - Precio e Inventario</h5>
-          </CardHeader>
-          <CardBody>
-            <Row>
-              <Col md={4}>
-                <FormGroup className="mb-3">
-                  <FormLabel>
-                    Precio Regular <span className="text-danger">*</span>
-                  </FormLabel>
-                  <FormControl
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    required
-                    placeholder="0.00"
-                    value={formData.precio}
-                    onChange={(e) => {
-                      setFormData(prev => ({...prev, precio: e.target.value}))
-                    }}
-                  />
-                </FormGroup>
-              </Col>
-              
-              <Col md={4}>
-                <FormGroup className="mb-3">
-                  <FormLabel>Precio de Oferta</FormLabel>
-                  <FormControl
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={formData.precio_oferta}
-                    onChange={(e) => {
-                      setFormData(prev => ({...prev, precio_oferta: e.target.value}))
-                    }}
-                  />
-                </FormGroup>
-              </Col>
-              
-              <Col md={4}>
-                <FormGroup className="mb-3">
-                  <FormLabel>Tipo de Producto</FormLabel>
-                  <FormSelect
-                    value={formData.type}
-                    onChange={(e) => {
-                      setFormData(prev => ({...prev, type: e.target.value as any}))
-                    }}
-                  >
-                    <option value="simple">Simple</option>
-                    <option value="grouped">Agrupado</option>
-                    <option value="external">Externo</option>
-                    <option value="variable">Variable</option>
-                  </FormSelect>
-                </FormGroup>
-              </Col>
-            </Row>
-            
-            <Row>
-              <Col md={4}>
-                <FormGroup className="mb-3">
-                  <FormLabel>Stock</FormLabel>
-                  <FormControl
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={formData.stock_quantity}
-                    onChange={(e) => {
-                      setFormData(prev => ({...prev, stock_quantity: e.target.value}))
-                    }}
-                  />
-                </FormGroup>
-              </Col>
-              
-              <Col md={4}>
-                <FormGroup className="mb-3">
-                  <FormLabel>Estado de Stock</FormLabel>
-                  <FormSelect
-                    value={formData.stock_status}
-                    onChange={(e) => {
-                      setFormData(prev => ({...prev, stock_status: e.target.value as any}))
-                    }}
-                  >
-                    <option value="instock">En Stock</option>
-                    <option value="outofstock">Sin Stock</option>
-                    <option value="onbackorder">Pedido Pendiente</option>
-                  </FormSelect>
-                </FormGroup>
-              </Col>
-              
-              <Col md={4}>
-                <FormGroup className="mb-3">
-                  <FormLabel>Backorders</FormLabel>
-                  <FormSelect
-                    value={formData.backorders}
-                    onChange={(e) => {
-                      setFormData(prev => ({...prev, backorders: e.target.value as any}))
-                    }}
-                  >
-                    <option value="no">No Permitir</option>
-                    <option value="notify">Permitir, Notificar Cliente</option>
-                    <option value="yes">Permitir</option>
-                  </FormSelect>
-                </FormGroup>
-              </Col>
-            </Row>
-            
-            <Row>
-              <Col md={6}>
-                <FormGroup className="mb-3">
-                  <FormCheck
+        {/* Pestañas de datos del producto */}
+        <div className="mb-3">
+          <div className="bg-white border rounded p-3 mb-2">
+            <div className="d-flex align-items-center justify-content-between">
+              <h5 className="mb-0">Datos del producto</h5>
+              <div className="d-flex align-items-center gap-2">
+                <FormSelect
+                  value={formData.type}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                  style={{ width: 'auto' }}
+                >
+                  <option value="simple">Producto simple</option>
+                  <option value="grouped">Producto agrupado</option>
+                  <option value="external">Producto externo</option>
+                  <option value="variable">Producto variable</option>
+                </FormSelect>
+                <FormGroup className="mb-0">
+                  <input
                     type="checkbox"
-                    checked={formData.manage_stock}
-                    onChange={(e) => {
-                      setFormData(prev => ({...prev, manage_stock: e.target.checked}))
-                    }}
-                    label="Gestionar Stock"
-                  />
-                </FormGroup>
-              </Col>
-              
-              <Col md={6}>
-                <FormGroup className="mb-3">
-                  <FormCheck
-                    type="checkbox"
-                    checked={formData.sold_individually}
-                    onChange={(e) => {
-                      setFormData(prev => ({...prev, sold_individually: e.target.checked}))
-                    }}
-                    label="Vender Individualmente"
-                  />
-                </FormGroup>
-              </Col>
-            </Row>
-          </CardBody>
-        </Card>
-
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {/* SECCIÓN: WOOCOMMERCE - PESO Y DIMENSIONES */}
-        {/* ════════════════════════════════════════════════════════════════ */}
-        <Card className="mb-3">
-          <CardHeader>
-            <h5 className="card-title mb-0">WooCommerce - Peso y Dimensiones</h5>
-          </CardHeader>
-          <CardBody>
-            <Row>
-              <Col md={3}>
-                <FormGroup className="mb-3">
-                  <FormLabel>Peso (kg)</FormLabel>
-                  <FormControl
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={formData.weight}
-                    onChange={(e) => {
-                      setFormData(prev => ({...prev, weight: e.target.value}))
-                    }}
-                  />
-                </FormGroup>
-              </Col>
-              
-              <Col md={3}>
-                <FormGroup className="mb-3">
-                  <FormLabel>Largo (cm)</FormLabel>
-                  <FormControl
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={formData.length}
-                    onChange={(e) => {
-                      setFormData(prev => ({...prev, length: e.target.value}))
-                    }}
-                  />
-                </FormGroup>
-              </Col>
-              
-              <Col md={3}>
-                <FormGroup className="mb-3">
-                  <FormLabel>Ancho (cm)</FormLabel>
-                  <FormControl
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={formData.width}
-                    onChange={(e) => {
-                      setFormData(prev => ({...prev, width: e.target.value}))
-                    }}
-                  />
-                </FormGroup>
-              </Col>
-              
-              <Col md={3}>
-                <FormGroup className="mb-3">
-                  <FormLabel>Alto (cm)</FormLabel>
-                  <FormControl
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={formData.height}
-                    onChange={(e) => {
-                      setFormData(prev => ({...prev, height: e.target.value}))
-                    }}
-                  />
-                </FormGroup>
-              </Col>
-            </Row>
-          </CardBody>
-        </Card>
-
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {/* SECCIÓN: WOOCOMMERCE - OPCIONES ADICIONALES */}
-        {/* ════════════════════════════════════════════════════════════════ */}
-        <Card className="mb-3">
-          <CardHeader>
-            <h5 className="card-title mb-0">WooCommerce - Opciones Adicionales</h5>
-          </CardHeader>
-          <CardBody>
-            <Row>
-              <Col md={6}>
-                <FormGroup className="mb-3">
-                  <FormCheck
-                    type="checkbox"
+                    id="virtual"
                     checked={formData.virtual}
-                    onChange={(e) => {
-                      setFormData(prev => ({...prev, virtual: e.target.checked}))
-                    }}
-                    label="Producto Virtual"
+                    onChange={(e) => setFormData({ ...formData, virtual: e.target.checked })}
+                    className="form-check-input me-2"
                   />
+                  <label htmlFor="virtual" className="form-check-label me-3">Virtual</label>
                 </FormGroup>
-              </Col>
-              
-              <Col md={6}>
-                <FormGroup className="mb-3">
-                  <FormCheck
+                <FormGroup className="mb-0">
+                  <input
                     type="checkbox"
+                    id="downloadable"
                     checked={formData.downloadable}
-                    onChange={(e) => {
-                      setFormData(prev => ({...prev, downloadable: e.target.checked}))
-                    }}
-                    label="Producto Descargable"
+                    onChange={(e) => setFormData({ ...formData, downloadable: e.target.checked })}
+                    className="form-check-input me-2"
                   />
+                  <label htmlFor="downloadable" className="form-check-label">Descargable</label>
                 </FormGroup>
-              </Col>
-            </Row>
-            
-            <Row>
-              <Col md={6}>
-                <FormGroup className="mb-3">
-                  <FormCheck
-                    type="checkbox"
-                    checked={formData.featured}
-                    onChange={(e) => {
-                      setFormData(prev => ({...prev, featured: e.target.checked}))
-                    }}
-                    label="Producto Destacado"
-                  />
-                </FormGroup>
-              </Col>
-              
-              <Col md={6}>
-                <FormGroup className="mb-3">
-                  <FormCheck
-                    type="checkbox"
-                    checked={formData.reviews_allowed}
-                    onChange={(e) => {
-                      setFormData(prev => ({...prev, reviews_allowed: e.target.checked}))
-                    }}
-                    label="Permitir Reseñas"
-                  />
-                </FormGroup>
-              </Col>
-            </Row>
-            
-            <Row>
-              <Col md={6}>
-                <FormGroup className="mb-3">
-                  <FormLabel>Visibilidad en Catálogo</FormLabel>
-                  <FormSelect
-                    value={formData.catalog_visibility}
-                    onChange={(e) => {
-                      setFormData(prev => ({...prev, catalog_visibility: e.target.value as any}))
-                    }}
-                  >
-                    <option value="visible">Visible</option>
-                    <option value="catalog">Solo Catálogo</option>
-                    <option value="search">Solo Búsqueda</option>
-                    <option value="hidden">Oculto</option>
-                  </FormSelect>
-                </FormGroup>
-              </Col>
-            </Row>
-          </CardBody>
-        </Card>
-
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {/* SECCIÓN 2: RELACIONES PRINCIPALES */}
-        {/* ════════════════════════════════════════════════════════════════ */}
-        <Card className="mb-3">
-          <CardHeader>
-            <h5 className="card-title mb-0">Relaciones</h5>
-          </CardHeader>
-          <CardBody>
-            <Row>
-              <Col md={6}>
-                <RelationSelector
-                  label="Obra"
-                  value={formData.obra}
-                  onChange={(val) => setFormData(prev => ({...prev, obra: val as string}))}
-                  endpoint="/api/tienda/obras"
-                  displayField="titulo"
-                />
-              </Col>
-              
-              <Col md={6}>
-                <RelationSelector
-                  label="Autor"
-                  value={formData.autor_relacion}
-                  onChange={(val) => setFormData(prev => ({...prev, autor_relacion: val as string}))}
-                  endpoint="/api/tienda/autores"
-                  displayField="nombre"
-                />
-              </Col>
-            </Row>
-            
-            <Row>
-              <Col md={6}>
-                <RelationSelector
-                  label="Editorial"
-                  value={formData.editorial}
-                  onChange={(val) => setFormData(prev => ({...prev, editorial: val as string}))}
-                  endpoint="/api/tienda/editoriales"
-                  displayField="nombre"
-                />
-              </Col>
-              
-              <Col md={6}>
-                <RelationSelector
-                  label="Sello"
-                  value={formData.sello}
-                  onChange={(val) => setFormData(prev => ({...prev, sello: val as string}))}
-                  endpoint="/api/tienda/sellos"
-                  displayField="nombre"
-                />
-              </Col>
-            </Row>
-            
-            <Row>
-              <Col md={6}>
-                <RelationSelector
-                  label="Colección / Serie"
-                  value={formData.coleccion}
-                  onChange={(val) => setFormData(prev => ({...prev, coleccion: val as string}))}
-                  endpoint="/api/tienda/colecciones"
-                  displayField="nombre"
-                />
-              </Col>
-            </Row>
-          </CardBody>
-        </Card>
-
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {/* SECCIÓN 3: CANALES DE PUBLICACIÓN */}
-        {/* ════════════════════════════════════════════════════════════════ */}
-        <Card className="mb-3">
-          <CardHeader>
-            <h5 className="card-title mb-0">Publicación</h5>
-          </CardHeader>
-          <CardBody>
-            <Alert variant="info" className="mb-3">
-              <strong>📡 Canales de Publicación</strong>
-              <br />
-              <small>
-                Selecciona en qué canales/sitios web se publicará este libro. 
-                <strong className="text-primary"> Puedes seleccionar múltiples canales manteniendo presionada la tecla Ctrl (Windows) o Cmd (Mac) mientras haces clic.</strong>
-                <br />
-                <strong className="text-warning">⚠️ Si no seleccionas ningún canal, se asignarán automáticamente ambos canales (Moraleja y Escolar) para que el producto se sincronice con ambas plataformas.</strong>
-              </small>
-            </Alert>
-            
-            <RelationSelector
-              label="Canales"
-              value={formData.canales}
-              onChange={(val) => setFormData(prev => ({...prev, canales: val as string[]}))}
-              endpoint="/api/tienda/canales"
-              multiple={true}
-              displayField="nombre"
-            />
-            
-            {formData.canales.length > 0 ? (
-              <div className="mt-2">
-                <small className="text-success">
-                  ✓ {formData.canales.length} canal{formData.canales.length > 1 ? 'es' : ''} seleccionado{formData.canales.length > 1 ? 's' : ''}
-                </small>
               </div>
-            ) : (
-              <div className="mt-2">
-                <small className="text-warning">
-                  ⚠️ No has seleccionado canales. Se asignarán automáticamente ambos canales (Moraleja y Escolar) al crear el producto.
-                </small>
-              </div>
-            )}
-          </CardBody>
-        </Card>
+            </div>
+          </div>
 
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {/* SECCIÓN 4: CATEGORIZACIÓN */}
-        {/* ════════════════════════════════════════════════════════════════ */}
-        <Card className="mb-3">
-          <CardHeader>
-            <h5 className="card-title mb-0">Categorización</h5>
-          </CardHeader>
-          <CardBody>
-          <Row>
-              <Col md={6}>
-                <RelationSelector
-                  label="Marcas"
-                  value={formData.marcas}
-                  onChange={(val) => setFormData(prev => ({...prev, marcas: val as string[]}))}
-                  endpoint="/api/tienda/marcas"
-                  multiple={true}
-                  displayField="nombre"
-                />
-              </Col>
-              
-              <Col md={6}>
-                <RelationSelector
-                  label="Etiquetas"
-                  value={formData.etiquetas}
-                  onChange={(val) => setFormData(prev => ({...prev, etiquetas: val as string[]}))}
-                  endpoint="/api/tienda/etiquetas"
-                  multiple={true}
-                  displayField="nombre"
-                />
-              </Col>
-            </Row>
-            
-            <RelationSelector
-              label="Categorías de Producto"
-              value={formData.categorias_producto}
-              onChange={(val) => setFormData(prev => ({...prev, categorias_producto: val as string[]}))}
-              endpoint="/api/tienda/categorias"
-              multiple={true}
-              displayField="nombre"
-            />
-          </CardBody>
-        </Card>
+          <ProductTabs activeTab={activeTab} onTabChange={setActiveTab}>
+            {renderTabContent()}
+          </ProductTabs>
+        </div>
 
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {/* SECCIÓN 5: INFORMACIÓN DE EDICIÓN */}
-        {/* ════════════════════════════════════════════════════════════════ */}
-        <Card className="mb-3">
-          <CardHeader>
-            <h5 className="card-title mb-0">Información de Edición</h5>
-          </CardHeader>
-          <CardBody>
-            <Row>
-              <Col md={4}>
-                <FormGroup className="mb-3">
-                  <FormLabel>Número de Edición</FormLabel>
-                  <FormControl
-                    type="number"
-                    placeholder="Ej: 1"
-                    value={formData.numero_edicion}
-                    onChange={(e) => setFormData(prev => ({...prev, numero_edicion: e.target.value}))}
-                  />
-                </FormGroup>
-            </Col>
-
-              <Col md={4}>
-                <FormGroup className="mb-3">
-                  <FormLabel>Año de Edición</FormLabel>
-                  <FormControl
-                    type="number"
-                    placeholder="Ej: 2024"
-                    value={formData.agno_edicion}
-                    onChange={(e) => setFormData(prev => ({...prev, agno_edicion: e.target.value}))}
-                  />
-                </FormGroup>
-              </Col>
-              
-              <Col md={4}>
-                <FormGroup className="mb-3">
-                  <FormLabel>Estado de Edición</FormLabel>
-                  <FormSelect
-                    value={formData.estado_edicion}
-                    onChange={(e) => setFormData(prev => ({...prev, estado_edicion: e.target.value}))}
-                  >
-                    <option value="">Seleccionar...</option>
-                    <option value="Vigente">Vigente</option>
-                    <option value="Agotado">Agotado</option>
-                    <option value="Descatalogado">Descatalogado</option>
-                  </FormSelect>
-                </FormGroup>
-            </Col>
-          </Row>
-
-            <Row>
-              <Col md={6}>
-                <FormGroup className="mb-3">
-                  <FormLabel>Idioma</FormLabel>
-                  <FormSelect
-                    value={formData.idioma}
-                    onChange={(e) => setFormData(prev => ({...prev, idioma: e.target.value}))}
-                  >
-                    <option value="">Seleccionar...</option>
-                    <option value="Español">Español</option>
-                    <option value="Inglés">Inglés</option>
-                    <option value="Francés">Francés</option>
-                    <option value="Alemán">Alemán</option>
-                    <option value="Portugués">Portugués</option>
-                    <option value="Otro">Otro</option>
-                  </FormSelect>
-                </FormGroup>
-              </Col>
-              
-              <Col md={6}>
-                <FormGroup className="mb-3">
-                  <FormLabel>Tipo de Libro</FormLabel>
-                  <FormSelect
-                    value={formData.tipo_libro}
-                    onChange={(e) => setFormData(prev => ({...prev, tipo_libro: e.target.value}))}
-                  >
-                    <option value="">Seleccionar...</option>
-                    <option value="Plan Lector">Plan Lector</option>
-                    <option value="Texto Curricular">Texto Curricular</option>
-                    <option value="Texto PAES">Texto PAES</option>
-                    <option value="Texto Complementario">Texto Complementario</option>
-                    <option value="Otro">Otro</option>
-                  </FormSelect>
-                </FormGroup>
-              </Col>
-            </Row>
-          </CardBody>
-        </Card>
-
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {/* SECCIÓN 6: IDs OPCIONALES */}
-        {/* ════════════════════════════════════════════════════════════════ */}
-        <Card className="mb-3">
-          <CardHeader>
-            <h5 className="card-title mb-0">
-              IDs de Integración <span className="text-muted">(Opcional)</span>
-            </h5>
-          </CardHeader>
-          <CardBody>
-            <p className="text-muted small">IDs numéricos para integración con sistemas externos</p>
-            
-            <Row>
-              <Col md={3}>
-                <FormGroup className="mb-3">
-                  <FormLabel>ID Autor</FormLabel>
-                  <FormControl
-                    type="number"
-                    value={formData.id_autor}
-                    onChange={(e) => setFormData(prev => ({...prev, id_autor: e.target.value}))}
-                  />
-                </FormGroup>
-              </Col>
-              
-              <Col md={3}>
-                <FormGroup className="mb-3">
-                  <FormLabel>ID Editorial</FormLabel>
-                  <FormControl
-                    type="number"
-                    value={formData.id_editorial}
-                    onChange={(e) => setFormData(prev => ({...prev, id_editorial: e.target.value}))}
-                  />
-                </FormGroup>
-              </Col>
-              
-              <Col md={3}>
-                <FormGroup className="mb-3">
-                  <FormLabel>ID Sello</FormLabel>
-                  <FormControl
-                    type="number"
-                    value={formData.id_sello}
-                    onChange={(e) => setFormData(prev => ({...prev, id_sello: e.target.value}))}
-                  />
-                </FormGroup>
-              </Col>
-              
-              <Col md={3}>
-                <FormGroup className="mb-3">
-                  <FormLabel>ID Colección</FormLabel>
-                  <FormControl
-                    type="number"
-                    value={formData.id_coleccion}
-                    onChange={(e) => setFormData(prev => ({...prev, id_coleccion: e.target.value}))}
-                  />
-                </FormGroup>
-              </Col>
-            </Row>
-          </CardBody>
-        </Card>
-
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {/* BOTONES DE ACCIÓN */}
-        {/* ════════════════════════════════════════════════════════════════ */}
-        <Row>
-          <Col xs={12}>
-            <div className="text-end mb-4">
-              <Button 
-                type="button" 
-                variant="secondary" 
-                className="me-2" 
-                onClick={() => window.location.href = '/products'}
-                disabled={loading}
-              >
-                Cancelar
+        {/* Botones de acción */}
+        <div className="d-flex justify-content-between align-items-center mb-4">
+          <Button
+            variant="outline-secondary"
+            onClick={() => window.history.back()}
+            disabled={loading}
+          >
+            Cancelar
+          </Button>
+          <div className="d-flex gap-2">
+            <Button
+              variant="outline-primary"
+              type="button"
+              disabled={loading}
+              onClick={() => {
+                // Guardar como borrador (implementar si es necesario)
+                console.log('Guardar como borrador')
+              }}
+            >
+              Guardar borrador
             </Button>
-              <Button 
-                type="submit" 
-                variant="primary"
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                    Creando...
-                  </>
-                ) : (
-                  'Crear Producto'
-                )}
+            <Button
+              variant="primary"
+              type="submit"
+              disabled={loading}
+            >
+              {loading ? 'Publicando...' : 'Publicar'}
             </Button>
           </div>
-        </Col>
-      </Row>
+        </div>
       </form>
     </Container>
   )
 }
+
