@@ -240,13 +240,19 @@ export function ProductDetails({ producto, onUpdate, onProductoUpdate }: Product
           <h5 className="card-title mb-0">Detalles del Producto</h5>
           
           {!isEditing ? (
-            <Button
-              variant="primary"
-              onClick={handleEdit}
-            >
-              <TbPencil className="me-1" />
-              Editar Producto
-            </Button>
+            <div className="d-flex gap-2">
+              <Button 
+                variant="primary" 
+                onClick={() => router.push(`/edit-product/${productId}`)}
+              >
+                <TbEdit className="me-1" />
+                Editar Producto Completo
+              </Button>
+              <Button variant="outline-primary" onClick={handleEdit}>
+                <TbPencil className="me-1" />
+                Edición Rápida
+              </Button>
+            </div>
           ) : (
             <div className="btn-group">
               <Button
