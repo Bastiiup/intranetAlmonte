@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Container, Alert, Spinner } from 'react-bootstrap'
 import { StreamChat } from 'stream-chat'
 import {
@@ -22,10 +22,18 @@ const Page = () => {
   const [channel, setChannel] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const initializedRef = useRef(false)
+  const clientRef = useRef<StreamChat | null>(null)
 
   useEffect(() => {
+    // Prevenir múltiples inicializaciones
+    if (initializedRef.current || !colaborador?.id) {
+          return
+        }
+
     const initStreamChat = async () => {
       try {
+        initializedRef.current = true
         setIsLoading(true)
         setError(null)
 
@@ -53,6 +61,7 @@ const Page = () => {
 
         // 3. Crear cliente de Stream Chat
         const client = StreamChat.getInstance(apiKey)
+        clientRef.current = client
 
         // 4. Conectar usuario
         await client.connectUser(
@@ -72,10 +81,11 @@ const Page = () => {
 
         setChatClient(client)
 
-        // 5. Crear canal de prueba (puedes cambiar esto después)
-        // Por ahora creamos un canal 1-a-1 con el mismo usuario para prueba
-        // Más adelante puedes seleccionar otro usuario
-        const channelId = `messaging:${userId}`
+        // 5. Crear canal de prueba
+        // IMPORTANTE: El channelId NO debe incluir el tipo 'messaging:'
+        // Solo debe ser el ID del canal (ej: 'general-98', no 'messaging:98')
+        // El tipo se pasa como primer parámetro a client.channel()
+        const channelId = `general-${userId}` // ID único sin el tipo
         const channel = client.channel('messaging', channelId, {
           members: [userId],
         })
@@ -84,24 +94,26 @@ const Page = () => {
         setChannel(channel)
 
         setIsLoading(false)
-      } catch (err: any) {
+    } catch (err: any) {
         console.error('[Chat] Error al inicializar Stream Chat:', err)
         setError(err.message || 'Error al conectar con Stream Chat')
         setIsLoading(false)
+        initializedRef.current = false // Permitir reintento en caso de error
+        clientRef.current = null
       }
     }
 
-    if (colaborador?.id) {
-      initStreamChat()
-    }
+    initStreamChat()
 
     // Cleanup
     return () => {
-      if (chatClient) {
-        chatClient.disconnectUser().catch(console.error)
+      initializedRef.current = false
+      if (clientRef.current) {
+        clientRef.current.disconnectUser().catch(console.error)
+        clientRef.current = null
       }
     }
-  }, [colaborador?.id])
+  }, [colaborador?.id, persona?.nombre_completo, persona?.nombres, persona?.primer_apellido, persona?.imagen?.url, colaborador?.email_login])
 
   if (isLoading) {
     return (
