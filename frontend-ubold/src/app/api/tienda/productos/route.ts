@@ -152,10 +152,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ⚠️ CRÍTICO: Agregar rawWooData si viene en el body (formato WooCommerce completo)
-    if (body.rawWooData) {
-      strapiProductData.data.rawWooData = body.rawWooData
-      console.log('[API POST] 📦 rawWooData recibido y agregado al payload de Strapi')
+    // ⚠️ CRÍTICO: Agregar raw_woo_data si viene en el body (formato WooCommerce completo)
+    // Aceptar tanto rawWooData como raw_woo_data para compatibilidad
+    if (body.raw_woo_data) {
+      strapiProductData.data.raw_woo_data = body.raw_woo_data
+      console.log('[API POST] 📦 raw_woo_data recibido y agregado al payload de Strapi')
+    } else if (body.rawWooData) {
+      strapiProductData.data.raw_woo_data = body.rawWooData
+      console.log('[API POST] 📦 rawWooData recibido (convertido a raw_woo_data) y agregado al payload de Strapi')
     }
 
     // Agregar imagen si existe - usar ID de Strapi si está disponible

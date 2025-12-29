@@ -292,7 +292,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
       const ancho = formData.width ? parseFloat(formData.width.toString()) : null
       const alto = formData.height ? parseFloat(formData.height.toString()) : null
       
-      dataToSend.rawWooData = {
+      dataToSend.raw_woo_data = {
         name: formData.nombre_libro.trim(),
         type: formData.type || 'simple',
         status: 'publish',

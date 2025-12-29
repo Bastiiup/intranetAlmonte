@@ -477,7 +477,8 @@ export async function PUT(
     const anchoNum = anchoProducto ? parseFloat(anchoProducto.toString()) : null
     const altoNum = altoProducto ? parseFloat(altoProducto.toString()) : null
     
-    updateData.data.rawWooData = {
+    // ⚠️ CRÍTICO: Usar raw_woo_data (minúsculas) para pasar la validación
+    updateData.data.raw_woo_data = {
       name: nombreProducto,
       type: tipoProducto,
       status: 'publish',
@@ -507,7 +508,7 @@ export async function PUT(
       purchase_note: purchaseNote,
     }
 
-    console.log('[API PUT] 📦 rawWooData construido para actualización:', JSON.stringify(updateData.data.rawWooData, null, 2))
+    console.log('[API PUT] 📦 raw_woo_data construido para actualización:', JSON.stringify(updateData.data.raw_woo_data, null, 2))
 
     // VERIFICACIÓN FINAL antes de enviar
     const finalKeys = Object.keys(updateData.data)
