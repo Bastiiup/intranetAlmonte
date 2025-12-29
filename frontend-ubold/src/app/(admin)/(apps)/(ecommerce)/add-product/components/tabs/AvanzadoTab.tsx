@@ -1,13 +1,14 @@
 'use client'
 
+import { memo } from 'react'
 import { FormGroup, FormLabel, FormControl, FormCheck, Row, Col } from 'react-bootstrap'
 
 interface AvanzadoTabProps {
   formData: any
-  setFormData: (data: any) => void
+  updateField: (field: string, value: any) => void
 }
 
-export default function AvanzadoTab({ formData, setFormData }: AvanzadoTabProps) {
+const AvanzadoTab = memo(function AvanzadoTab({ formData, updateField }: AvanzadoTabProps) {
   return (
     <div>
       <h5 className="mb-4">Configuración Avanzada</h5>
@@ -21,7 +22,7 @@ export default function AvanzadoTab({ formData, setFormData }: AvanzadoTabProps)
               rows={4}
               placeholder="Nota que se enviará al cliente después de la compra"
               value={formData.purchase_note || ''}
-              onChange={(e) => setFormData({ ...formData, purchase_note: e.target.value })}
+              onChange={(e) => updateField('purchase_note', e.target.value)}
             />
           </FormGroup>
         </Col>
@@ -35,7 +36,7 @@ export default function AvanzadoTab({ formData, setFormData }: AvanzadoTabProps)
               type="number"
               min="0"
               value={formData.menu_order || '0'}
-              onChange={(e) => setFormData({ ...formData, menu_order: e.target.value })}
+              onChange={(e) => updateField('menu_order', e.target.value)}
             />
             <small className="text-muted">Orden de visualización en listados</small>
           </FormGroup>
@@ -48,7 +49,7 @@ export default function AvanzadoTab({ formData, setFormData }: AvanzadoTabProps)
           id="reviews_allowed"
           label="Activa las valoraciones"
           checked={formData.reviews_allowed !== false}
-          onChange={(e) => setFormData({ ...formData, reviews_allowed: e.target.checked })}
+          onChange={(e) => updateField('reviews_allowed', e.target.checked)}
         />
       </div>
 
@@ -58,7 +59,7 @@ export default function AvanzadoTab({ formData, setFormData }: AvanzadoTabProps)
           id="virtual"
           label="Virtual"
           checked={formData.virtual || false}
-          onChange={(e) => setFormData({ ...formData, virtual: e.target.checked })}
+          onChange={(e) => updateField('virtual', e.target.checked)}
         />
         <small className="text-muted d-block ms-4">Activa esto si el producto no requiere envío</small>
       </div>
@@ -69,11 +70,12 @@ export default function AvanzadoTab({ formData, setFormData }: AvanzadoTabProps)
           id="downloadable"
           label="Descargable"
           checked={formData.downloadable || false}
-          onChange={(e) => setFormData({ ...formData, downloadable: e.target.checked })}
+          onChange={(e) => updateField('downloadable', e.target.checked)}
         />
         <small className="text-muted d-block ms-4">Activa esto si el producto es descargable</small>
       </div>
     </div>
   )
-}
+})
 
+export default AvanzadoTab

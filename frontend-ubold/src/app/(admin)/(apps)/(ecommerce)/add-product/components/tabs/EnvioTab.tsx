@@ -1,13 +1,14 @@
 'use client'
 
+import { memo } from 'react'
 import { FormGroup, FormLabel, FormControl, FormSelect, Row, Col } from 'react-bootstrap'
 
 interface EnvioTabProps {
   formData: any
-  setFormData: (data: any) => void
+  updateField: (field: string, value: any) => void
 }
 
-export default function EnvioTab({ formData, setFormData }: EnvioTabProps) {
+const EnvioTab = memo(function EnvioTab({ formData, updateField }: EnvioTabProps) {
   return (
     <div>
       <h5 className="mb-4">Configuración de Envío</h5>
@@ -22,7 +23,7 @@ export default function EnvioTab({ formData, setFormData }: EnvioTabProps) {
               min="0"
               placeholder="0"
               value={formData.weight || ''}
-              onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
+              onChange={(e) => updateField('weight', e.target.value)}
             />
             <small className="text-muted">Peso del producto en kilogramos</small>
           </FormGroup>
@@ -41,7 +42,7 @@ export default function EnvioTab({ formData, setFormData }: EnvioTabProps) {
                 min="0"
                 placeholder="0"
                 value={formData.length || ''}
-                onChange={(e) => setFormData({ ...formData, length: e.target.value })}
+                onChange={(e) => updateField('length', e.target.value)}
               />
             </FormGroup>
           </Col>
@@ -54,7 +55,7 @@ export default function EnvioTab({ formData, setFormData }: EnvioTabProps) {
                 min="0"
                 placeholder="0"
                 value={formData.width || ''}
-                onChange={(e) => setFormData({ ...formData, width: e.target.value })}
+                onChange={(e) => updateField('width', e.target.value)}
               />
             </FormGroup>
           </Col>
@@ -67,7 +68,7 @@ export default function EnvioTab({ formData, setFormData }: EnvioTabProps) {
                 min="0"
                 placeholder="0"
                 value={formData.height || ''}
-                onChange={(e) => setFormData({ ...formData, height: e.target.value })}
+                onChange={(e) => updateField('height', e.target.value)}
               />
             </FormGroup>
           </Col>
@@ -80,7 +81,7 @@ export default function EnvioTab({ formData, setFormData }: EnvioTabProps) {
             <FormLabel>Clase de envío</FormLabel>
             <FormSelect
               value={formData.shipping_class || ''}
-              onChange={(e) => setFormData({ ...formData, shipping_class: e.target.value })}
+              onChange={(e) => updateField('shipping_class', e.target.value)}
             >
               <option value="">Ninguna clase de envío</option>
               <option value="standard">Estándar</option>
@@ -92,5 +93,6 @@ export default function EnvioTab({ formData, setFormData }: EnvioTabProps) {
       </Row>
     </div>
   )
-}
+})
 
+export default EnvioTab

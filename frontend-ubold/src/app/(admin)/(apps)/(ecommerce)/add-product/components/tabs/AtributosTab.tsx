@@ -1,13 +1,14 @@
 'use client'
 
+import { memo } from 'react'
 import { Alert, Button } from 'react-bootstrap'
 
 interface AtributosTabProps {
   formData: any
-  setFormData: (data: any) => void
+  updateField: (field: string, value: any) => void
 }
 
-export default function AtributosTab({ formData, setFormData }: AtributosTabProps) {
+const AtributosTab = memo(function AtributosTab({ formData, updateField }: AtributosTabProps) {
   return (
     <div>
       <h5 className="mb-4">Atributos del Producto</h5>
@@ -26,5 +27,6 @@ export default function AtributosTab({ formData, setFormData }: AtributosTabProp
       </Alert>
     </div>
   )
-}
+})
 
+export default AtributosTab

@@ -1,13 +1,14 @@
 'use client'
 
+import { memo } from 'react'
 import { FormGroup, FormLabel, FormControl, FormCheck, Row, Col } from 'react-bootstrap'
 
 interface InventarioTabProps {
   formData: any
-  setFormData: (data: any) => void
+  updateField: (field: string, value: any) => void
 }
 
-export default function InventarioTab({ formData, setFormData }: InventarioTabProps) {
+const InventarioTab = memo(function InventarioTab({ formData, updateField }: InventarioTabProps) {
   return (
     <div>
       <h5 className="mb-4">Gestión de Inventario</h5>
@@ -20,7 +21,7 @@ export default function InventarioTab({ formData, setFormData }: InventarioTabPr
               type="text"
               placeholder="SKU del producto"
               value={formData.sku || formData.isbn_libro || ''}
-              onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+              onChange={(e) => updateField('sku', e.target.value)}
             />
             <small className="text-muted">Código único del producto (se puede usar el ISBN)</small>
           </FormGroup>
@@ -33,7 +34,7 @@ export default function InventarioTab({ formData, setFormData }: InventarioTabPr
               type="text"
               placeholder="ISBN del libro"
               value={formData.isbn_libro || ''}
-              onChange={(e) => setFormData({ ...formData, isbn_libro: e.target.value })}
+              onChange={(e) => updateField('isbn_libro', e.target.value)}
             />
             <small className="text-muted">Identificador internacional del producto</small>
           </FormGroup>
@@ -46,7 +47,7 @@ export default function InventarioTab({ formData, setFormData }: InventarioTabPr
           id="manage_stock"
           label="Hacer seguimiento de la cantidad de inventario de este producto"
           checked={formData.manage_stock !== false}
-          onChange={(e) => setFormData({ ...formData, manage_stock: e.target.checked })}
+          onChange={(e) => updateField('manage_stock', e.target.checked)}
         />
       </div>
 
@@ -60,7 +61,7 @@ export default function InventarioTab({ formData, setFormData }: InventarioTabPr
                 min="0"
                 placeholder="0"
                 value={formData.stock_quantity || ''}
-                onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })}
+                onChange={(e) => updateField('stock_quantity', e.target.value)}
               />
             </FormGroup>
           </Col>
@@ -76,7 +77,7 @@ export default function InventarioTab({ formData, setFormData }: InventarioTabPr
             name="stock_status"
             label="En stock"
             checked={formData.stock_status === 'instock'}
-            onChange={() => setFormData({ ...formData, stock_status: 'instock' })}
+            onChange={() => updateField('stock_status', 'instock')}
           />
           <FormCheck
             type="radio"
@@ -84,7 +85,7 @@ export default function InventarioTab({ formData, setFormData }: InventarioTabPr
             name="stock_status"
             label="Agotado"
             checked={formData.stock_status === 'outofstock'}
-            onChange={() => setFormData({ ...formData, stock_status: 'outofstock' })}
+            onChange={() => updateField('stock_status', 'outofstock')}
           />
           <FormCheck
             type="radio"
@@ -92,7 +93,7 @@ export default function InventarioTab({ formData, setFormData }: InventarioTabPr
             name="stock_status"
             label="Se puede reservar"
             checked={formData.stock_status === 'onbackorder'}
-            onChange={() => setFormData({ ...formData, stock_status: 'onbackorder' })}
+            onChange={() => updateField('stock_status', 'onbackorder')}
           />
         </div>
       </div>
@@ -104,10 +105,12 @@ export default function InventarioTab({ formData, setFormData }: InventarioTabPr
           id="sold_individually"
           label="Limitar compras a 1 artículo por pedido"
           checked={formData.sold_individually || false}
-          onChange={(e) => setFormData({ ...formData, sold_individually: e.target.checked })}
+          onChange={(e) => updateField('sold_individually', e.target.checked)}
         />
       </div>
     </div>
   )
-}
+})
+
+export default InventarioTab
 

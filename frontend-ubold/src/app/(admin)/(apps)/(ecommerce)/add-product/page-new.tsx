@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo, memo } from 'react'
+import { useState, useCallback } from 'react'
 import ProductImage from './components/ProductImage'
 import ProductTabs, { TabType } from './components/ProductTabs'
 import PlatformSelector from './components/PlatformSelector'
@@ -67,29 +67,6 @@ export default function AddProductPage() {
     // === MEDIA ===
     portada_libro: null as File | null,
   })
-
-  // ⚡ OPTIMIZACIÓN: Función memoizada para actualizar campos individuales
-  const updateField = useCallback((field: string, value: any) => {
-    setFormData((prev) => {
-      // Solo actualizar si el valor realmente cambió
-      if (prev[field as keyof typeof prev] === value) {
-        return prev
-      }
-      return { ...prev, [field]: value }
-    })
-  }, [])
-
-  // ⚡ OPTIMIZACIÓN: Función memoizada para actualizar múltiples campos
-  const updateFields = useCallback((updates: Partial<typeof formData>) => {
-    setFormData((prev) => {
-      // Verificar si hay cambios reales
-      const hasChanges = Object.keys(updates).some(
-        (key) => prev[key as keyof typeof prev] !== updates[key as keyof typeof updates]
-      )
-      if (!hasChanges) return prev
-      return { ...prev, ...updates }
-    })
-  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -281,7 +258,7 @@ export default function AddProductPage() {
                 type="text"
                 placeholder="Ingresa el nombre del producto"
                 value={formData.nombre_libro}
-                onChange={(e) => updateField('nombre_libro', e.target.value)}
+                onChange={(e) => setFormData({ ...formData, nombre_libro: e.target.value })}
                 required
                 className="fs-5"
               />
@@ -305,7 +282,7 @@ export default function AddProductPage() {
                 rows={8}
                 placeholder="Describe el producto..."
                 value={formData.descripcion}
-                onChange={(e) => updateField('descripcion', e.target.value)}
+                onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
               />
             </FormGroup>
           </CardBody>
@@ -321,16 +298,22 @@ export default function AddProductPage() {
                 rows={4}
                 placeholder="Breve descripción que aparecerá en listados y carrito..."
                 value={formData.descripcion_corta}
-                onChange={(e) => updateField('descripcion_corta', e.target.value)}
+                onChange={(e) => setFormData({ ...formData, descripcion_corta: e.target.value })}
               />
             </FormGroup>
           </CardBody>
         </Card>
 
         {/* Imagen del producto */}
-        <ProductImage
-          onImageChange={(file) => updateField('portada_libro', file)}
-        />
+        <Card className="mb-3">
+          <CardBody>
+            <FormLabel className="fw-bold mb-3">Imagen del producto</FormLabel>
+            <ProductImage
+              image={formData.portada_libro}
+              onImageChange={(file) => setFormData({ ...formData, portada_libro: file })}
+            />
+          </CardBody>
+        </Card>
 
         {/* Pestañas de datos del producto */}
         <div className="mb-3">
@@ -340,7 +323,7 @@ export default function AddProductPage() {
               <div className="d-flex align-items-center gap-2">
                 <FormSelect
                   value={formData.type}
-                  onChange={(e) => updateField('type', e.target.value)}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
                   style={{ width: 'auto' }}
                 >
                   <option value="simple">Producto simple</option>
@@ -353,7 +336,7 @@ export default function AddProductPage() {
                     type="checkbox"
                     id="virtual"
                     checked={formData.virtual}
-                    onChange={(e) => updateField('virtual', e.target.checked)}
+                    onChange={(e) => setFormData({ ...formData, virtual: e.target.checked })}
                     className="form-check-input me-2"
                   />
                   <label htmlFor="virtual" className="form-check-label me-3">Virtual</label>
@@ -363,7 +346,7 @@ export default function AddProductPage() {
                     type="checkbox"
                     id="downloadable"
                     checked={formData.downloadable}
-                    onChange={(e) => updateField('downloadable', e.target.checked)}
+                    onChange={(e) => setFormData({ ...formData, downloadable: e.target.checked })}
                     className="form-check-input me-2"
                   />
                   <label htmlFor="downloadable" className="form-check-label">Descargable</label>
@@ -373,7 +356,7 @@ export default function AddProductPage() {
           </div>
 
           <ProductTabs activeTab={activeTab} onTabChange={setActiveTab}>
-            {tabContent}
+            {renderTabContent()}
           </ProductTabs>
         </div>
 

@@ -1,13 +1,14 @@
 'use client'
 
+import { memo } from 'react'
 import { FormGroup, FormLabel, FormControl, Row, Col } from 'react-bootstrap'
 
 interface VinculadosTabProps {
   formData: any
-  setFormData: (data: any) => void
+  updateField: (field: string, value: any) => void
 }
 
-export default function VinculadosTab({ formData, setFormData }: VinculadosTabProps) {
+const VinculadosTab = memo(function VinculadosTab({ formData, updateField }: VinculadosTabProps) {
   return (
     <div>
       <h5 className="mb-4">Productos Vinculados</h5>
@@ -20,7 +21,7 @@ export default function VinculadosTab({ formData, setFormData }: VinculadosTabPr
               type="text"
               placeholder="Busca un producto..."
               value={formData.upsell_ids || ''}
-              onChange={(e) => setFormData({ ...formData, upsell_ids: e.target.value })}
+              onChange={(e) => updateField('upsell_ids', e.target.value)}
             />
             <small className="text-muted">Productos que se mostrarán como "Upsells"</small>
           </FormGroup>
@@ -33,7 +34,7 @@ export default function VinculadosTab({ formData, setFormData }: VinculadosTabPr
               type="text"
               placeholder="Busca un producto..."
               value={formData.cross_sell_ids || ''}
-              onChange={(e) => setFormData({ ...formData, cross_sell_ids: e.target.value })}
+              onChange={(e) => updateField('cross_sell_ids', e.target.value)}
             />
             <small className="text-muted">Productos que se mostrarán como "Cross-sells"</small>
           </FormGroup>
@@ -41,5 +42,6 @@ export default function VinculadosTab({ formData, setFormData }: VinculadosTabPr
       </Row>
     </div>
   )
-}
+})
 
+export default VinculadosTab
