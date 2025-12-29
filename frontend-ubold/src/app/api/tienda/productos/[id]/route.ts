@@ -489,12 +489,12 @@ export async function PUT(
     // }
 
     // Descripción corta
-    // ⚠️ IMPORTANTE: Aunque no esté en el schema directo, lo enviamos para que Strapi lo use en raw_woo_data
-    // Si Strapi rechaza este campo, comentarlo y manejarlo solo en lifecycles
-    if (body.descripcion_corta !== undefined) {
-      updateData.data.descripcion_corta = body.descripcion_corta?.trim() || ''
-      console.log('[API PUT] ✅ Descripción corta incluida:', updateData.data.descripcion_corta)
-    }
+    // ❌ NO incluir descripcion_corta - no está en schema de Strapi
+    // Se usa solo en raw_woo_data para WooCommerce
+    // Strapi debe usar raw_woo_data.short_description en los lifecycles
+    // if (body.descripcion_corta !== undefined) {
+    //   updateData.data.descripcion_corta = body.descripcion_corta?.trim() || ''
+    // }
 
     // Clase de envío
     // ⚠️ VERIFICAR: Este campo puede no estar en el schema de Strapi
