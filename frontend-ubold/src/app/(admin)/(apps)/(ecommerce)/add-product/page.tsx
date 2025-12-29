@@ -305,15 +305,9 @@ export default function AddProductPage() {
         </Card>
 
         {/* Imagen del producto */}
-        <Card className="mb-3">
-          <CardBody>
-            <FormLabel className="fw-bold mb-3">Imagen del producto</FormLabel>
-            <ProductImage
-              image={formData.portada_libro}
-              onImageChange={(file) => setFormData({ ...formData, portada_libro: file })}
-            />
-          </CardBody>
-        </Card>
+        <ProductImage
+          onImageChange={(file) => setFormData({ ...formData, portada_libro: file })}
+        />
 
         {/* Pestañas de datos del producto */}
         <div className="mb-3">
