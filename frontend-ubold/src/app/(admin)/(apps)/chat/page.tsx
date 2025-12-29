@@ -18,7 +18,7 @@ import { useAuth } from '@/hooks/useAuth'
 
 interface Colaborador {
   id: number
-  attributes: {
+  attributes?: {
     email_login: string
     persona?: {
       id: number
@@ -28,6 +28,17 @@ interface Colaborador {
       imagen?: {
         url?: string
       }
+    }
+  }
+  // También puede venir sin attributes (ya procesado)
+  email_login?: string
+  persona?: {
+    id: number
+    nombre_completo?: string
+    nombres?: string
+    primer_apellido?: string
+    imagen?: {
+      url?: string
     }
   }
 }
@@ -142,9 +153,27 @@ const Page = () => {
       const data = await response.json()
       const colaboradoresData = Array.isArray(data.data) ? data.data : []
       
+      // Normalizar los datos (pueden venir con o sin attributes)
+      const normalized = colaboradoresData.map((col: any) => {
+        // Si tiene attributes, extraer los datos
+        if (col.attributes) {
+          return {
+            id: col.id,
+            email_login: col.attributes.email_login,
+            persona: col.attributes.persona,
+          }
+        }
+        // Si no tiene attributes, usar directamente
+        return {
+          id: col.id,
+          email_login: col.email_login,
+          persona: col.persona,
+        }
+      })
+      
       // Filtrar el usuario actual de la lista
       const currentUserId = String(colaborador?.id)
-      const filtered = colaboradoresData.filter((col: Colaborador) => String(col.id) !== currentUserId)
+      const filtered = normalized.filter((col: Colaborador) => String(col.id) !== currentUserId)
       
       setColaboradores(filtered)
     } catch (err: any) {
@@ -216,15 +245,22 @@ const Page = () => {
   }
 
   const getColaboradorName = (col: Colaborador) => {
-    return col.attributes.persona?.nombre_completo ||
-           `${col.attributes.persona?.nombres || ''} ${col.attributes.persona?.primer_apellido || ''}`.trim() ||
-           col.attributes.email_login ||
+    // Manejar ambos formatos: con attributes o sin attributes
+    const persona = col.attributes?.persona || col.persona
+    const email = col.attributes?.email_login || col.email_login
+    
+    return persona?.nombre_completo ||
+           `${persona?.nombres || ''} ${persona?.primer_apellido || ''}`.trim() ||
+           email ||
            'Usuario'
   }
 
   const getColaboradorAvatar = (col: Colaborador) => {
-    if (col.attributes.persona?.imagen?.url) {
-      return `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${col.attributes.persona.imagen.url}`
+    // Manejar ambos formatos: con attributes o sin attributes
+    const persona = col.attributes?.persona || col.persona
+    
+    if (persona?.imagen?.url) {
+      return `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${persona.imagen.url}`
     }
     return undefined
   }
@@ -301,7 +337,7 @@ const Page = () => {
                             {getColaboradorName(col)}
                           </div>
                           <div style={{ fontSize: '0.75rem', color: isSelected ? 'rgba(255,255,255,0.8)' : '#6c757d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {col.attributes.email_login}
+                            {col.attributes?.email_login || col.email_login || ''}
                           </div>
                         </div>
                       </div>
