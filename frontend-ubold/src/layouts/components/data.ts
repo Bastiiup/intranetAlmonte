@@ -124,7 +124,7 @@ export const menuItems: MenuItemType[] = [
   { key: 'ecommerce-section', label: 'ECOMMERCE', isTitle: true },
   {
     key: 'products',
-    label: 'Products',
+    label: 'Productos',
     icon: LuShoppingBag,
     children: [
       { key: 'product-list', label: 'Productos', url: '/products' },
