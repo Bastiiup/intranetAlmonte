@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Container, Alert, Spinner } from 'react-bootstrap'
+import { Container, Alert, Spinner, ListGroup, Badge } from 'react-bootstrap'
 import { StreamChat } from 'stream-chat'
 import {
   Chat,
@@ -16,14 +16,34 @@ import 'stream-chat-react/dist/css/v2/index.css'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { useAuth } from '@/hooks/useAuth'
 
+interface Colaborador {
+  id: number
+  attributes: {
+    email_login: string
+    persona?: {
+      id: number
+      nombre_completo?: string
+      nombres?: string
+      primer_apellido?: string
+      imagen?: {
+        url?: string
+      }
+    }
+  }
+}
+
 const Page = () => {
   const { colaborador, persona } = useAuth()
   const [chatClient, setChatClient] = useState<StreamChat | null>(null)
   const [channel, setChannel] = useState<any>(null)
+  const [colaboradores, setColaboradores] = useState<Colaborador[]>([])
+  const [selectedColaboradorId, setSelectedColaboradorId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingContacts, setIsLoadingContacts] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const initializedRef = useRef(false)
   const clientRef = useRef<StreamChat | null>(null)
+  const currentUserIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     // Prevenir múltiples inicializaciones
@@ -48,6 +68,7 @@ const Page = () => {
         }
 
         const { token, userId } = await tokenResponse.json()
+        currentUserIdRef.current = userId
 
         // 2. Obtener API Key (acepta ambos nombres para compatibilidad)
         const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY || process.env.NEXT_PUBLIC_STREAM_CHAT_API_KEY
@@ -81,17 +102,8 @@ const Page = () => {
 
         setChatClient(client)
 
-        // 5. Crear canal de prueba
-        // IMPORTANTE: El channelId NO debe incluir el tipo 'messaging:'
-        // Solo debe ser el ID del canal (ej: 'general-98', no 'messaging:98')
-        // El tipo se pasa como primer parámetro a client.channel()
-        const channelId = `general-${userId}` // ID único sin el tipo
-        const channel = client.channel('messaging', channelId, {
-          members: [userId],
-        })
-
-        await channel.watch()
-        setChannel(channel)
+        // 5. Cargar lista de colaboradores
+        await loadColaboradores()
 
         setIsLoading(false)
     } catch (err: any) {
@@ -114,6 +126,60 @@ const Page = () => {
       }
     }
   }, [colaborador?.id, persona?.nombre_completo, persona?.nombres, persona?.primer_apellido, persona?.imagen?.url, colaborador?.email_login])
+
+  // Cargar lista de colaboradores
+  const loadColaboradores = async () => {
+    try {
+      setIsLoadingContacts(true)
+      const response = await fetch('/api/chat/colaboradores', {
+        credentials: 'include',
+      })
+
+      if (!response.ok) {
+        throw new Error('Error al cargar colaboradores')
+      }
+
+      const data = await response.json()
+      const colaboradoresData = Array.isArray(data.data) ? data.data : []
+      
+      // Filtrar el usuario actual de la lista
+      const currentUserId = String(colaborador?.id)
+      const filtered = colaboradoresData.filter((col: Colaborador) => String(col.id) !== currentUserId)
+      
+      setColaboradores(filtered)
+    } catch (err: any) {
+      console.error('[Chat] Error al cargar colaboradores:', err)
+    } finally {
+      setIsLoadingContacts(false)
+    }
+  }
+
+  // Crear o seleccionar canal con un colaborador
+  const selectColaborador = async (colaboradorId: string) => {
+    if (!chatClient || !currentUserIdRef.current) {
+      return
+    }
+
+    try {
+      setSelectedColaboradorId(colaboradorId)
+      
+      // Crear ID de canal único para conversación 1-a-1
+      // Ordenamos los IDs para que siempre sea el mismo canal independiente del orden
+      const userIds = [currentUserIdRef.current, colaboradorId].sort()
+      const channelId = `direct-${userIds.join('-')}`
+
+      // Crear o obtener canal existente
+      const channel = chatClient.channel('messaging', channelId, {
+        members: [currentUserIdRef.current, colaboradorId],
+      })
+
+      await channel.watch()
+      setChannel(channel)
+    } catch (err: any) {
+      console.error('[Chat] Error al seleccionar colaborador:', err)
+      setError(err.message || 'Error al abrir conversación')
+    }
+  }
 
   if (isLoading) {
     return (
@@ -140,7 +206,7 @@ const Page = () => {
     )
   }
 
-  if (!chatClient || !channel) {
+  if (!chatClient) {
     return (
       <Container fluid>
         <PageBreadcrumb title="Chat" subtitle="Apps" />
@@ -149,20 +215,127 @@ const Page = () => {
     )
   }
 
+  const getColaboradorName = (col: Colaborador) => {
+    return col.attributes.persona?.nombre_completo ||
+           `${col.attributes.persona?.nombres || ''} ${col.attributes.persona?.primer_apellido || ''}`.trim() ||
+           col.attributes.email_login ||
+           'Usuario'
+  }
+
+  const getColaboradorAvatar = (col: Colaborador) => {
+    if (col.attributes.persona?.imagen?.url) {
+      return `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${col.attributes.persona.imagen.url}`
+    }
+    return undefined
+  }
+
   return (
     <Container fluid>
       <PageBreadcrumb title="Chat" subtitle="Apps" />
-      <div style={{ height: 'calc(100vh - 200px)', position: 'relative' }}>
-        <Chat client={chatClient}>
-          <Channel channel={channel}>
-            <Window>
-              <ChannelHeader />
-              <MessageList />
-              <MessageInput />
-            </Window>
-            <Thread />
-          </Channel>
-        </Chat>
+      <div style={{ height: 'calc(100vh - 200px)', display: 'flex', gap: '1rem' }}>
+        {/* Lista de contactos */}
+        <div style={{ width: '300px', border: '1px solid #dee2e6', borderRadius: '0.375rem', backgroundColor: '#fff', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '1rem', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f9fa' }}>
+            <h5 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>Contactos</h5>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {isLoadingContacts ? (
+              <div className="d-flex justify-content-center p-3">
+                <Spinner animation="border" size="sm" />
+              </div>
+            ) : colaboradores.length === 0 ? (
+              <div className="p-3 text-center text-muted">
+                <small>No hay contactos disponibles</small>
+              </div>
+            ) : (
+              <ListGroup variant="flush">
+                {colaboradores.map((col) => {
+                  const isSelected = selectedColaboradorId === String(col.id)
+                  return (
+                    <ListGroup.Item
+                      key={col.id}
+                      action
+                      active={isSelected}
+                      onClick={() => selectColaborador(String(col.id))}
+                      style={{ 
+                        cursor: 'pointer',
+                        border: 'none',
+                        borderBottom: '1px solid #dee2e6',
+                        padding: '0.75rem 1rem',
+                      }}
+                    >
+                      <div className="d-flex align-items-center">
+                        {getColaboradorAvatar(col) ? (
+                          <img
+                            src={getColaboradorAvatar(col)}
+                            alt={getColaboradorName(col)}
+                            style={{
+                              width: '40px',
+                              height: '40px',
+                              borderRadius: '50%',
+                              marginRight: '0.75rem',
+                              objectFit: 'cover',
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: '40px',
+                              height: '40px',
+                              borderRadius: '50%',
+                              backgroundColor: isSelected ? '#fff' : '#6c757d',
+                              color: isSelected ? '#0d6efd' : '#fff',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              marginRight: '0.75rem',
+                              fontWeight: 'bold',
+                              fontSize: '0.875rem',
+                            }}
+                          >
+                            {getColaboradorName(col).charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 500, fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {getColaboradorName(col)}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: isSelected ? 'rgba(255,255,255,0.8)' : '#6c757d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {col.attributes.email_login}
+                          </div>
+                        </div>
+                      </div>
+                    </ListGroup.Item>
+                  )
+                })}
+              </ListGroup>
+            )}
+          </div>
+        </div>
+
+        {/* Área de chat */}
+        <div style={{ flex: 1, border: '1px solid #dee2e6', borderRadius: '0.375rem', backgroundColor: '#fff', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {!channel ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: '#6c757d' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>💬</div>
+              <h5>Selecciona un contacto para comenzar a chatear</h5>
+              <p style={{ margin: 0, fontSize: '0.875rem' }}>Elige a alguien de la lista de la izquierda</p>
+            </div>
+          ) : (
+            <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <Chat client={chatClient}>
+                <Channel channel={channel}>
+                  <Window>
+                    <ChannelHeader />
+                    <MessageList />
+                    <MessageInput />
+                  </Window>
+                  <Thread />
+                </Channel>
+              </Chat>
+            </div>
+          )}
+        </div>
       </div>
     </Container>
   )
