@@ -127,10 +127,9 @@ export const menuItems: MenuItemType[] = [
     label: 'Products',
     icon: LuShoppingBag,
     children: [
-      { key: 'product-list', label: 'Listing', url: '/products' },
-      { key: 'product-grid', label: 'Product Grid', url: '/products-grid' },
-      { key: 'product-details', label: 'Product Details', url: '/products/1' },
-      { key: 'add-product', label: 'Add Product', url: '/add-product' },
+      { key: 'product-list', label: 'Productos', url: '/products' },
+      { key: 'product-grid', label: 'Grilla de Productos', url: '/products-grid' },
+      { key: 'add-product', label: 'Agregar Producto', url: '/add-product' },
       { key: 'all-categories', label: 'Todas las Categorías', url: '/products/categorias' },
       { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' },
       { key: 'categoria-requests', label: 'Solicitudes de Categorías', url: '/products/categorias/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
@@ -202,20 +201,17 @@ export const menuItems: MenuItemType[] = [
   },
   { key: 'aplicaciones', label: 'APLICACIONES', isTitle: true },
   { key: 'chat', label: 'Chat', icon: LuMessageSquareDot, url: '/chat' },
-  { key: 'calendar', label: 'Calendario', icon: LuCalendar, url: '/calendar' },
-  { key: 'file-manager', label: 'Gestor de Archivos', icon: LuFolderOpenDot, url: '/file-manager' },
-  { key: 'equipos-section', label: 'EQUIPOS', isTitle: true },
   {
     key: 'equipos',
     label: 'Equipos',
     icon: LuUsers,
     children: [
       { key: 'colaboradores', label: 'Colaboradores', url: '/colaboradores', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
-      { key: 'contacts', label: 'Contacts', url: '/users/contacts' },
-      { key: 'profile', label: 'Profile', url: '/users/profile' },
+      { key: 'contacts', label: 'Contactos', url: '/users/contacts' },
+      { key: 'profile', label: 'Perfil', url: '/users/profile' },
       { key: 'roles', label: 'Roles', url: '/users/roles' },
-      { key: 'roles-details', label: 'Roles Details', url: '/users/roles-details' },
-      { key: 'permissions', label: 'Permissions', url: '/users/permissions' },
+      { key: 'roles-details', label: 'Detalles de Roles', url: '/users/roles-details' },
+      { key: 'permissions', label: 'Permisos', url: '/users/permissions' },
     ],
   },
   { key: 'tienda-section', label: 'TIENDA', isTitle: true },
@@ -231,7 +227,7 @@ export const menuItems: MenuItemType[] = [
         key: 'tienda-productos',
         label: 'Productos',
         children: [
-          { key: 'tienda-productos-listing', label: 'Listing', url: '/tienda/productos' },
+          { key: 'tienda-productos-listing', label: 'Listado de Productos', url: '/tienda/productos' },
           { key: 'tienda-productos-editar', label: 'Editar Producto', url: '/tienda/productos/editar' },
         ],
       },
@@ -241,7 +237,7 @@ export const menuItems: MenuItemType[] = [
         roles: ['super_admin', 'supervisor', 'soporte'],
         children: [
           { key: 'tienda-pedidos-listing', label: 'Pedidos', url: '/tienda/pedidos' },
-          { key: 'tienda-pedidos-editar', label: 'Edición de pedidos', url: '/tienda/pedidos/editar' },
+          { key: 'tienda-pedidos-editar', label: 'Edición de Pedidos', url: '/tienda/pedidos/editar' },
         ],
       },
       {
@@ -251,7 +247,7 @@ export const menuItems: MenuItemType[] = [
           { key: 'tienda-facturas-listing', label: 'Todas las Facturas', url: '/tienda/facturas' },
         ],
       },
-      { key: 'tienda-test', label: 'Test Strapi', url: '/tienda/test-strapi' },
+      { key: 'tienda-test', label: 'Test de Strapi', url: '/tienda/test-strapi' },
     ],
   },
 ]
@@ -277,13 +273,13 @@ export const horizontalMenuItems: MenuItemType[] = [
       { key: 'file-manager', label: 'File Manager', icon: TbFolder, url: '/file-manager' },
       {
         key: 'products',
-        label: 'Products',
+        label: 'Productos',
         icon: TbBasket,
         children: [
-          { key: 'product-list', label: 'Listing', url: '/products' },
-          { key: 'product-grid', label: 'Product Grid', url: '/products-grid' },
-          { key: 'product-details', label: 'Product Details', url: '/products/1' },
-          { key: 'add-product', label: 'Add Product', url: '/add-product' },
+          { key: 'product-list', label: 'Listado de Productos', url: '/products' },
+          { key: 'product-grid', label: 'Grilla de Productos', url: '/products-grid' },
+          { key: 'product-details', label: 'Detalles del Producto', url: '/products/1' },
+          { key: 'add-product', label: 'Agregar Producto', url: '/add-product' },
           { key: 'all-categories', label: 'Todas las Categorías', url: '/products/categorias' },
           { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' },
           { key: 'categoria-requests', label: 'Solicitudes de Categorías', url: '/products/categorias/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
@@ -318,7 +314,7 @@ export const horizontalMenuItems: MenuItemType[] = [
         icon: TbBasket,
         roles: ['super_admin', 'encargado_adquisiciones', 'supervisor', 'soporte'], // Todos los roles pueden ver este menú
         children: [
-          { key: 'categories', label: 'Categories', url: '/categories' },
+          { key: 'categories', label: 'Categorías', url: '/categories' },
           {
             key: 'orders',
             label: 'Pedidos',
