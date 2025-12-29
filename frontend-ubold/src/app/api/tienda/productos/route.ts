@@ -311,7 +311,7 @@ export async function POST(request: NextRequest) {
       data: {
         strapi: strapiProduct?.data || null,
       },
-      message: 'Producto creado en Strapi con estado "pendiente". Para publicar en WordPress, cambia el estado desde Solicitudes.'
+      message: 'Producto creado en Strapi con estado "Publicado". Se sincronizará automáticamente con WooCommerce (Moraleja y Escolar) si tiene canales asignados.'
     })
 
   } catch (error: any) {
