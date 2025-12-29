@@ -320,6 +320,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
       // Construir payload - Solo campos que Strapi acepta
       // ⚠️ IMPORTANTE: NO incluir campos que no están en el schema de Strapi:
       // - type, virtual, downloadable, reviews_allowed, menu_order, purchase_note, sku
+      // - sold_individually, manage_stock, stock_status (campos WooCommerce que no están en schema)
       // Estos campos se manejan en Strapi a través de raw_woo_data en los lifecycles
       const dataToSend: any = {
         nombre_libro: formData.nombre_libro.trim(),
@@ -329,9 +330,9 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         precio: formData.precio,
         precio_oferta: formData.precio_oferta || '',
         stock_quantity: formData.stock_quantity || '0',
-        manage_stock: formData.manage_stock,
-        stock_status: formData.stock_status,
-        sold_individually: formData.sold_individually,
+        // manage_stock: formData.manage_stock, // ❌ NO se envía - no está en schema de Strapi
+        // stock_status: formData.stock_status, // ❌ NO se envía - no está en schema de Strapi
+        // sold_individually: formData.sold_individually, // ❌ NO se envía - no está en schema de Strapi
         // type: formData.type, // ❌ NO se envía - no está en schema de Strapi
         weight: formData.weight || '',
         length: formData.length || '',

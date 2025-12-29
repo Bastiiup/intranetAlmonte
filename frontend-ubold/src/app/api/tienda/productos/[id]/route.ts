@@ -412,21 +412,25 @@ export async function PUT(
     // Estos campos se manejan en Strapi a través de raw_woo_data en los lifecycles
     
     // Inventario
+    // ⚠️ IMPORTANTE: Solo incluir campos que están en el schema de Strapi
     if (body.stock_quantity !== undefined) {
       updateData.data.stock_quantity = parseInt(body.stock_quantity.toString()) || 0
     }
-    if (body.stock_status !== undefined) {
-      updateData.data.stock_status = body.stock_status
-    }
-    if (body.backorders !== undefined) {
-      updateData.data.backorders = body.backorders
-    }
-    if (body.manage_stock !== undefined) {
-      updateData.data.manage_stock = Boolean(body.manage_stock)
-    }
-    if (body.sold_individually !== undefined) {
-      updateData.data.sold_individually = Boolean(body.sold_individually)
-    }
+    // ❌ NO incluir estos campos - no están en schema de Strapi:
+    // - stock_status, backorders, manage_stock, sold_individually
+    // Estos campos se manejan en Strapi a través de raw_woo_data en los lifecycles
+    // if (body.stock_status !== undefined) {
+    //   updateData.data.stock_status = body.stock_status
+    // }
+    // if (body.backorders !== undefined) {
+    //   updateData.data.backorders = body.backorders
+    // }
+    // if (body.manage_stock !== undefined) {
+    //   updateData.data.manage_stock = Boolean(body.manage_stock)
+    // }
+    // if (body.sold_individually !== undefined) {
+    //   updateData.data.sold_individually = Boolean(body.sold_individually)
+    // }
     
     // Peso y dimensiones
     if (body.weight !== undefined) {
