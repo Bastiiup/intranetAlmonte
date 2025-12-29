@@ -239,18 +239,20 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Función para generar número de pedido automático
+function generateOrderNumber(): string {
+  // Formato: PED-YYYYMMDD-HHMMSS-TIMESTAMP
+  const now = new Date()
+  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '') // YYYYMMDD
+  const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '') // HHMMSS
+  const timestamp = Date.now().toString().slice(-6) // Últimos 6 dígitos del timestamp
+  return `PED-${dateStr}-${timeStr}-${timestamp}`
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     console.log('[API Pedidos POST] 📝 Creando pedido:', body)
-
-    // Validar campos obligatorios
-    if (!body.data?.numero_pedido) {
-      return NextResponse.json({
-        success: false,
-        error: 'El número de pedido es obligatorio'
-      }, { status: 400 })
-    }
 
     // Validar originPlatform
     const validPlatforms = ['woo_moraleja', 'woo_escolar', 'otros']
@@ -262,7 +264,15 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    const numeroPedido = body.data.numero_pedido.trim()
+    // Generar número de pedido automáticamente si no viene
+    let numeroPedido: string
+    if (body.data?.numero_pedido && body.data.numero_pedido.trim()) {
+      numeroPedido = body.data.numero_pedido.trim()
+      console.log('[API Pedidos POST] ✅ Usando número de pedido proporcionado:', numeroPedido)
+    } else {
+      numeroPedido = generateOrderNumber()
+      console.log('[API Pedidos POST] 🔢 Número de pedido generado automáticamente:', numeroPedido)
+    }
     const pedidoEndpoint = '/api/wo-pedidos'
     console.log('[API Pedidos POST] Usando endpoint Strapi:', pedidoEndpoint)
 
