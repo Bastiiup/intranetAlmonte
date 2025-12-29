@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
               // Aceptar múltiples variantes del campo de teléfono
               const numeroTelefono = (t.numero || t.telefono || t.telefonos || '').trim()
               return {
-                numero: numeroTelefono, // Campo principal según schema de Strapi
+                telefonos: numeroTelefono, // Campo principal según schema de Strapi
                 tipo: t.tipo || 'principal',
               }
             })
