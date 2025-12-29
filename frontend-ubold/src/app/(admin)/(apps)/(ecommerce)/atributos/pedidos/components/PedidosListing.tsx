@@ -28,12 +28,8 @@ import { useRouter } from 'next/navigation'
 
 // Tipo para la tabla
 type PedidoType = {
-<<<<<<< HEAD
-  id: number
-=======
   id: string | number  // Puede ser documentId (string) o id numérico
   documentId?: string  // documentId de Strapi (preferido)
->>>>>>> origin/mati-integracion
   numero_pedido: string
   nombre_cliente: string
   fecha_pedido: string | null
@@ -83,12 +79,6 @@ const mapEstadoFromWoo = (wooStatus: string): string => {
 
 // Función para mapear pedidos de Strapi al formato PedidoType
 const mapStrapiPedidoToPedidoType = (pedido: any): PedidoType => {
-<<<<<<< HEAD
-  const attrs = pedido.attributes || {}
-  const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (pedido as any)
-
-  const numeroPedido = getField(data, 'numero_pedido', 'numeroPedido', 'NUMERO_PEDIDO') || 'Sin número'
-=======
   // Strapi v5 devuelve: { id: number, documentId: string, attributes: {...} }
   // O en algunos casos: { data: { id, documentId, attributes } }
   const pedidoReal = pedido.data || pedido
@@ -131,7 +121,6 @@ const mapStrapiPedidoToPedidoType = (pedido: any): PedidoType => {
   if (!numeroPedido) {
     numeroPedido = 'Sin número'
   }
->>>>>>> origin/mati-integracion
   const fechaPedido = getField(data, 'fecha_pedido', 'fechaPedido', 'FECHA_PEDIDO')
   // Mapear estado de inglés (WooCommerce) a español para el frontend
   const estadoRaw = getField(data, 'estado', 'ESTADO') || 'pending'
@@ -177,13 +166,6 @@ const mapStrapiPedidoToPedidoType = (pedido: any): PedidoType => {
   }
   
   // Obtener fechas
-<<<<<<< HEAD
-  const createdAt = attrs.createdAt || (pedido as any).createdAt || fechaPedido || new Date().toISOString()
-  const createdDate = new Date(createdAt)
-  
-  return {
-    id: pedido.id || pedido.documentId || pedido.id,
-=======
   const createdAt = attrs.createdAt || pedidoReal.createdAt || (pedido as any).createdAt || fechaPedido || new Date().toISOString()
   const createdDate = new Date(createdAt)
   
@@ -206,7 +188,6 @@ const mapStrapiPedidoToPedidoType = (pedido: any): PedidoType => {
   return {
     id: idFinal,
     documentId: pedidoDocumentId || undefined,
->>>>>>> origin/mati-integracion
     numero_pedido: numeroPedido,
     nombre_cliente: nombreCliente || 'Sin cliente',
     fecha_pedido: fechaPedido || null,
@@ -221,13 +202,8 @@ const mapStrapiPedidoToPedidoType = (pedido: any): PedidoType => {
     originPlatform,
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
-<<<<<<< HEAD
-    url: `/atributos/pedidos/${pedido.id || pedido.documentId || pedido.id}`,
-    rawData: pedido, // Guardar datos completos para la vista expandida
-=======
     url: `/atributos/pedidos/${idFinal}`,
     rawData: pedidoReal || pedido, // Guardar datos completos para la vista expandida
->>>>>>> origin/mati-integracion
   }
 }
 
@@ -299,14 +275,6 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
       enableSorting: false,
       enableColumnFilter: false,
     },
-<<<<<<< HEAD
-    columnHelper.accessor((row) => `${row.numero_pedido || ''} ${row.nombre_cliente || ''}`.toLowerCase(), {
-      id: 'numero_pedido',
-      header: 'Pedido',
-      cell: ({ row }) => {
-        const numeroPedido = row.original.numero_pedido || 'Sin número'
-        const nombreCliente = row.original.nombre_cliente || 'Sin cliente'
-=======
     columnHelper.accessor((row) => row.id || '', {
       id: 'id_pedido',
       header: 'ID PEDIDO',
@@ -331,7 +299,6 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
       header: 'NUMERO DE PEDIDO',
       cell: ({ row }) => {
         const numeroPedido = row.original.numero_pedido || 'Sin número'
->>>>>>> origin/mati-integracion
         return (
           <div className="d-flex align-items-center">
             <div className="avatar-md me-3 bg-light d-flex align-items-center justify-center rounded">
@@ -339,13 +306,8 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
             </div>
             <div>
               <h5 className="mb-0">
-<<<<<<< HEAD
-                <span className="link-reset" style={{ cursor: 'pointer' }} onClick={() => row.toggleExpanded()}>
-                  #{numeroPedido} {nombreCliente}
-=======
                 <span className="link-reset fw-semibold" style={{ cursor: 'pointer' }} onClick={() => row.toggleExpanded()}>
                   #{numeroPedido}
->>>>>>> origin/mati-integracion
                 </span>
               </h5>
             </div>
@@ -523,9 +485,6 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-<<<<<<< HEAD
-    globalFilterFn: 'includesString',
-=======
     globalFilterFn: (row, columnId, filterValue) => {
       const searchValue = String(filterValue || '').toLowerCase().trim()
       if (!searchValue) return true
@@ -557,7 +516,6 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
       
       return false
     },
->>>>>>> origin/mati-integracion
     enableColumnFilters: true,
     enableRowSelection: true,
   })
@@ -614,11 +572,7 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
     }
   }
 
-<<<<<<< HEAD
-  const handleEstadoChange = async (pedidoId: number, nuevoEstado: string) => {
-=======
   const handleEstadoChange = async (pedidoId: string | number, nuevoEstado: string) => {
->>>>>>> origin/mati-integracion
     setUpdatingStates((prev) => ({ ...prev, [pedidoId]: true }))
     
     try {
@@ -943,11 +897,7 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
                 <input
                   type="search"
                   className="form-control"
-<<<<<<< HEAD
-                  placeholder="Buscar número de pedido o cliente..."
-=======
                   placeholder="Buscar por número de pedido, nombre o fecha..."
->>>>>>> origin/mati-integracion
                   value={globalFilter ?? ''}
                   onChange={(e) => setGlobalFilter(e.target.value)}
                 />

@@ -151,31 +151,17 @@ export async function GET(request: NextRequest) {
     console.log('[API /tienda/pedidos GET] Obteniendo pedidos', { includeHidden, publicationState })
     
     // Obtener TODOS los pedidos de ambas plataformas (woo_moraleja y woo_escolar)
-<<<<<<< HEAD
-    // Optimizar: usar populate selectivo en lugar de populate=*
-    // Intentar primero con publicationState, si falla, intentar sin él
-    let response: any
-    try {
-      response = await strapiClient.get<any>(
-        `/api/wo-pedidos?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario&pagination[pageSize]=5000&publicationState=${publicationState}`
-=======
     // Intentar primero con populate simple, si falla, intentar sin populate
     let response: any
     try {
       // Primero intentar con populate simple (sin campos específicos que pueden no existir)
       response = await strapiClient.get<any>(
         `/api/pedidos?populate=*&pagination[pageSize]=5000&publicationState=${publicationState}`
->>>>>>> origin/mati-integracion
       )
     } catch (pubStateError: any) {
       // Si falla con publicationState, intentar sin él
       if (pubStateError.status === 400 || pubStateError.message?.includes('400')) {
         console.warn('[API /tienda/pedidos GET] ⚠️ Error con publicationState, intentando sin él:', pubStateError.message)
-<<<<<<< HEAD
-        response = await strapiClient.get<any>(
-          `/api/wo-pedidos?populate[cliente][fields][0]=nombre&populate[items][fields][0]=nombre&populate[items][fields][1]=cantidad&populate[items][fields][2]=precio_unitario&pagination[pageSize]=5000`
-        )
-=======
         try {
           response = await strapiClient.get<any>(
             `/api/pedidos?populate=*&pagination[pageSize]=5000`
@@ -191,7 +177,6 @@ export async function GET(request: NextRequest) {
             throw populateError
           }
         }
->>>>>>> origin/mati-integracion
       } else {
         throw pubStateError
       }
@@ -260,11 +245,7 @@ export async function GET(request: NextRequest) {
     // Para otros errores, devolver 200 con warning (comportamiento anterior)
     return NextResponse.json({
       success: true,
-<<<<<<< HEAD
-      data: [],
-=======
         data: [],
->>>>>>> origin/mati-integracion
       warning: `No se pudieron cargar los pedidos: ${error.message}`
     })
   }
@@ -273,9 +254,6 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-<<<<<<< HEAD
-    console.log('[API Pedidos POST] 📝 Creando pedido:', body)
-=======
     
     // ⚠️ DEBUGGING DETALLADO: Imprimir payload recibido
     console.log('═══════════════════════════════════════════════════════')
@@ -293,7 +271,6 @@ export async function POST(request: NextRequest) {
       console.log('- body.data.items[0]:', JSON.stringify(body.data.items[0], null, 2))
     }
     console.log('═══════════════════════════════════════════════════════')
->>>>>>> origin/mati-integracion
 
     // Validar campos obligatorios
     if (!body.data?.numero_pedido) {
@@ -302,8 +279,6 @@ export async function POST(request: NextRequest) {
         error: 'El número de pedido es obligatorio'
       }, { status: 400 })
     }
-<<<<<<< HEAD
-=======
     
     // ⚠️ VALIDACIÓN CRÍTICA: Verificar que hay items
     const itemsRecibidos = body.data.items || []
@@ -376,7 +351,6 @@ export async function POST(request: NextRequest) {
       totalItems: itemsRecibidos.length,
       itemsValidos: itemsRecibidos.length - itemsInvalidos.length
     })
->>>>>>> origin/mati-integracion
 
     // Validar originPlatform
     const validPlatforms = ['woo_moraleja', 'woo_escolar', 'otros']
@@ -389,13 +363,6 @@ export async function POST(request: NextRequest) {
     }
 
     const numeroPedido = body.data.numero_pedido.trim()
-<<<<<<< HEAD
-    const pedidoEndpoint = '/api/wo-pedidos'
-    console.log('[API Pedidos POST] Usando endpoint Strapi:', pedidoEndpoint)
-
-    // Crear en Strapi PRIMERO para obtener el documentId
-    console.log('[API Pedidos POST] 📚 Creando pedido en Strapi primero...')
-=======
     const pedidoEndpoint = '/api/pedidos'
     console.log('[API Pedidos POST] Usando endpoint Strapi:', pedidoEndpoint)
 
@@ -508,17 +475,12 @@ export async function POST(request: NextRequest) {
       total_tax: impuestos > 0 ? impuestos.toFixed(2) : '0.00',
       discount_total: descuento > 0 ? descuento.toFixed(2) : '0.00',
     } : null
->>>>>>> origin/mati-integracion
     
     const pedidoData: any = {
       data: {
         numero_pedido: numeroPedido,
-<<<<<<< HEAD
-        fecha_pedido: body.data.fecha_pedido || new Date().toISOString(),
-=======
         fecha_pedido: fechaPedido,
         fecha_creacion: fechaCreacion, // ⚠️ REQUERIDO por Strapi
->>>>>>> origin/mati-integracion
         // Strapi espera valores en inglés, mapear de español a inglés
         estado: body.data.estado ? mapWooStatus(body.data.estado) : 'pending',
         total: body.data.total ? parseFloat(body.data.total) : null,
@@ -529,29 +491,6 @@ export async function POST(request: NextRequest) {
         moneda: body.data.moneda || 'CLP',
         origen: normalizeOrigen(body.data.origen),
         cliente: body.data.cliente || null,
-<<<<<<< HEAD
-        items: body.data.items || [],
-        billing: body.data.billing || null,
-        shipping: body.data.shipping || null,
-        metodo_pago: normalizeMetodoPago(body.data.metodo_pago),
-        metodo_pago_titulo: body.data.metodo_pago_titulo || null,
-        nota_cliente: body.data.nota_cliente || null,
-        originPlatform: originPlatform,
-      }
-    }
-
-    const strapiPedido = await strapiClient.post<any>(pedidoEndpoint, pedidoData)
-    const documentId = strapiPedido.data?.documentId || strapiPedido.documentId
-    
-    if (!documentId) {
-      throw new Error('No se pudo obtener el documentId de Strapi')
-    }
-    
-    console.log('[API Pedidos POST] ✅ Pedido creado en Strapi:', {
-      id: strapiPedido.data?.id || strapiPedido.id,
-      documentId: documentId
-    })
-=======
         items: itemsValidos.length > 0 ? itemsValidos : itemsPreparados, // Usar items válidos si hay
         billing: billingInfo,
         shipping: shippingInfo,
@@ -646,31 +585,12 @@ export async function POST(request: NextRequest) {
     console.log('   - [pedido] 🔍 afterCreate ejecutado')
     console.log('   - [pedido] ✅ Iniciando sincronización a', originPlatform)
     console.log('═══════════════════════════════════════════════════════')
->>>>>>> origin/mati-integracion
 
     // Registrar log de creación (asíncrono, no bloquea)
     logActivity(request, {
       accion: 'crear',
       entidad: 'pedido',
       entidadId: documentId,
-<<<<<<< HEAD
-      descripcion: createLogDescription('crear', 'pedido', numeroPedido, `Pedido #${numeroPedido} desde ${originPlatform}`),
-      datosNuevos: { numero_pedido: numeroPedido, originPlatform, estado: pedidoData.data.estado },
-      metadata: { originPlatform, total: pedidoData.data.total },
-    }).catch(() => {}) // Ignorar errores de logging
-
-    // Si originPlatform es "otros", no crear en WooCommerce
-    if (originPlatform === 'otros') {
-      // Actualizar log con información de que solo se creó en Strapi
-      logActivity(request, {
-        accion: 'crear',
-        entidad: 'pedido',
-        entidadId: documentId,
-        descripcion: createLogDescription('crear', 'pedido', numeroPedido, `Pedido #${numeroPedido} creado solo en Strapi (origen: otros)`),
-        metadata: { soloStrapi: true, originPlatform },
-      }).catch(() => {})
-      
-=======
       descripcion: createLogDescription('crear', 'pedido', numeroPedido, `Pedido #${numeroPedido} desde ${originPlatform} - Strapi sincronizará con WooCommerce automáticamente`),
       datosNuevos: { numero_pedido: numeroPedido, originPlatform, estado: pedidoData.data.estado },
       metadata: { originPlatform, total: pedidoData.data.total, sincronizacionAutomatica: true },
@@ -678,170 +598,11 @@ export async function POST(request: NextRequest) {
 
     // Si originPlatform es "otros", Strapi no sincronizará con WooCommerce
     if (originPlatform === 'otros') {
->>>>>>> origin/mati-integracion
       return NextResponse.json({
         success: true,
         data: {
           strapi: strapiPedido.data || strapiPedido,
         },
-<<<<<<< HEAD
-        message: 'Pedido creado exitosamente en Strapi'
-      })
-    }
-
-    // Crear pedido en WooCommerce
-    const wcClient = getWooCommerceClientForPlatform(originPlatform)
-    console.log('[API Pedidos POST] 🛒 Creando pedido en WooCommerce...')
-    
-    // Mapear items de Strapi a formato WooCommerce
-    // Validar que los items tengan product_id válido antes de crear en WooCommerce
-    const lineItems = (body.data.items || [])
-      .map((item: any) => ({
-        product_id: item.producto_id || item.libro_id || item.product_id || null,
-        quantity: item.cantidad || 1,
-        name: item.nombre || '',
-        price: item.precio_unitario || 0,
-        sku: item.sku || '',
-      }))
-      .filter((item: any) => item.product_id && !isNaN(Number(item.product_id)))
-    
-    // Si no hay items válidos y se requiere crear en WooCommerce, advertir
-    if (lineItems.length === 0 && (body.data.items || []).length > 0) {
-      console.warn('[API Pedidos POST] ⚠️ No hay items con product_id válido para WooCommerce')
-    }
-
-    const wooCommercePedidoData: any = {
-      status: mapWooStatus(body.data.estado || 'pendiente'),
-      currency: body.data.moneda || 'CLP',
-      date_created: body.data.fecha_pedido || new Date().toISOString(),
-      line_items: lineItems,
-      billing: body.data.billing || {},
-      shipping: body.data.shipping || {},
-      payment_method: body.data.metodo_pago || '',
-      payment_method_title: body.data.metodo_pago_titulo || '',
-      customer_note: body.data.nota_cliente || '',
-      total: String(body.data.total || 0),
-      subtotal: String(body.data.subtotal || 0),
-      total_tax: String(body.data.impuestos || 0),
-      shipping_total: String(body.data.envio || 0),
-      discount_total: String(body.data.descuento || 0),
-    }
-
-    // Crear pedido en WooCommerce
-    let wooCommercePedido = null
-    try {
-      const wooResponse = await wcClient.post<any>('orders', wooCommercePedidoData)
-      
-      wooCommercePedido = wooResponse?.data || wooResponse
-      
-      console.log('[API Pedidos POST] ✅ Pedido creado en WooCommerce:', {
-        id: wooCommercePedido?.id,
-        number: wooCommercePedido?.number,
-      })
-
-      if (!wooCommercePedido || !wooCommercePedido.id) {
-        throw new Error('La respuesta de WooCommerce no contiene un pedido válido')
-      }
-
-      // Actualizar Strapi con el wooId y rawWooData
-      // IMPORTANTE: Según el schema de Strapi, wooId y rawWooData NO son campos directos
-      // Deben ir en externalIds. Sin embargo, algunos schemas pueden tenerlos como campos directos.
-      // Usar externalIds que es el formato correcto según el PUT
-      const updateData: any = {
-        data: {
-          // Actualizar numero_pedido con el número de WooCommerce si es diferente
-          numero_pedido: wooCommercePedido.number?.toString() || numeroPedido,
-          // Guardar datos de WooCommerce en externalIds (formato correcto)
-          externalIds: {
-            wooCommerce: {
-              id: wooCommercePedido.id,
-              number: wooCommercePedido.number,
-              data: wooCommercePedido, // Guardar datos completos aquí
-            },
-            originPlatform: originPlatform,
-          },
-          // Si el schema permite wooId directamente, también actualizarlo
-          // (esto depende de cómo esté configurado Strapi)
-          wooId: wooCommercePedido.id,
-        }
-      }
-
-      await strapiClient.put<any>(`${pedidoEndpoint}/${documentId}`, updateData)
-      console.log('[API Pedidos POST] ✅ Strapi actualizado con datos de WooCommerce')
-      
-      // Actualizar log con información de WooCommerce
-      logActivity(request, {
-        accion: 'sincronizar',
-        entidad: 'pedido',
-        entidadId: documentId,
-        descripcion: createLogDescription('sincronizar', 'pedido', numeroPedido, `Pedido #${numeroPedido} sincronizado con WooCommerce ${originPlatform}`),
-        metadata: { wooCommerceId: wooCommercePedido.id, originPlatform },
-      }).catch(() => {})
-    } catch (wooError: any) {
-      console.error('[API Pedidos POST] ⚠️ Error al crear pedido en WooCommerce:', wooError.message)
-      
-      // Si el error es por credenciales no configuradas, permitir crear solo en Strapi
-      const esErrorCredenciales = wooError.message?.includes('credentials are not configured') ||
-                                   wooError.message?.includes('no están configuradas')
-      
-      if (esErrorCredenciales) {
-        console.warn('[API Pedidos POST] ⚠️ Credenciales de WooCommerce no configuradas, creando pedido solo en Strapi')
-        return NextResponse.json({
-          success: true,
-          data: {
-            strapi: strapiPedido.data || strapiPedido,
-          },
-          message: 'Pedido creado exitosamente en Strapi (WooCommerce no disponible - credenciales no configuradas)',
-          warning: `WooCommerce ${originPlatform} no está configurado. El pedido se creó solo en Strapi.`
-        })
-      }
-      
-      // Si falla WooCommerce por otro motivo, decidir si eliminar de Strapi o mantenerlo
-      // Por defecto, mantener en Strapi y solo advertir (más permisivo)
-      const esErrorIdInvalido = wooError.message?.includes('ID no válido') || 
-                                 wooError.message?.includes('no válido') ||
-                                 wooError.message?.includes('invalid_id') ||
-                                 wooError.details?.code === 'woocommerce_rest_shop_order_invalid_id' ||
-                                 wooError.status === 404
-      
-      if (esErrorIdInvalido) {
-        // Si es error de ID inválido (producto no existe), mantener en Strapi
-        console.warn('[API Pedidos POST] ⚠️ Error en WooCommerce (ID inválido), manteniendo pedido en Strapi')
-        return NextResponse.json({
-          success: true,
-          data: {
-            strapi: strapiPedido.data || strapiPedido,
-          },
-          message: 'Pedido creado en Strapi (WooCommerce falló - producto no válido)',
-          warning: `Error al crear en WooCommerce: ${wooError.message}. El pedido se mantiene en Strapi.`
-        })
-      }
-      
-      // Para otros errores, eliminar de Strapi para mantener consistencia
-      // (solo si es un error crítico que impide la creación)
-      try {
-        const deleteResponse = await strapiClient.delete<any>(`${pedidoEndpoint}/${documentId}`)
-        console.log('[API Pedidos POST] 🗑️ Pedido eliminado de Strapi debido a error en WooCommerce')
-      } catch (deleteError: any) {
-        // Ignorar errores de eliminación si la respuesta no es JSON válido (puede ser 204 No Content)
-        if (deleteError.message && !deleteError.message.includes('JSON')) {
-          console.error('[API Pedidos POST] ⚠️ Error al eliminar de Strapi:', deleteError.message)
-        } else {
-          console.log('[API Pedidos POST] 🗑️ Pedido eliminado de Strapi (respuesta no JSON, probablemente exitosa)')
-        }
-      }
-      
-      throw new Error(`Error al crear pedido en WooCommerce: ${wooError.message}`)
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        woocommerce: wooCommercePedido,
-        strapi: strapiPedido.data || strapiPedido,
-      },
-      message: 'Pedido creado exitosamente en Strapi y WooCommerce'
-=======
         message: 'Pedido creado exitosamente en Strapi (originPlatform: otros - no se sincronizará con WooCommerce)'
       })
     }
@@ -854,7 +615,6 @@ export async function POST(request: NextRequest) {
         strapi: strapiPedido.data || strapiPedido,
       },
       message: `Pedido creado exitosamente en Strapi. Strapi sincronizará automáticamente con WooCommerce (${originPlatform}) mediante el lifecycle afterCreate.`
->>>>>>> origin/mati-integracion
     })
 
   } catch (error: any) {

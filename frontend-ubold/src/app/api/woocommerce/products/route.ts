@@ -5,11 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-<<<<<<< HEAD
-import wooCommerceClient from '@/lib/woocommerce/client'
-=======
 import { createWooCommerceClient } from '@/lib/woocommerce/client'
->>>>>>> origin/mati-integracion
 import type { WooCommerceProduct } from '@/lib/woocommerce/types'
 
 export const dynamic = 'force-dynamic'
@@ -22,14 +18,11 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const category = searchParams.get('category') || ''
     const stockStatus = searchParams.get('stock_status') || 'instock'
-<<<<<<< HEAD
-=======
     const platform = searchParams.get('platform') || 'moraleja' // 'moraleja' o 'escolar'
 
     // Determinar qué plataforma usar
     const platformKey = platform === 'escolar' ? 'woo_escolar' : 'woo_moraleja'
     const wooCommerceClient = createWooCommerceClient(platformKey)
->>>>>>> origin/mati-integracion
 
     // Construir parámetros para la API de WooCommerce
     const params: Record<string, any> = {

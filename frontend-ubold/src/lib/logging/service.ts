@@ -266,21 +266,6 @@ export async function getUserFromRequest(request: NextRequest | Request): Promis
         })
       }
     } else {
-<<<<<<< HEAD
-      // Listar todas las cookies disponibles para debug
-      // Solo si request tiene cookies (NextRequest)
-      if (isNextRequest(request)) {
-        const allCookies = request.cookies.getAll()
-        console.warn('[LOGGING] ⚠️ No se encontró cookie colaboradorData ni colaborador', {
-          cookiesDisponibles: allCookies.map((c: any) => c.name).join(', '),
-          totalCookies: allCookies.length,
-          cookieHeader: request.headers.get('cookie')?.substring(0, 200) || 'no hay header cookie',
-        })
-      } else {
-        console.warn('[LOGGING] ⚠️ No se encontró cookie colaboradorData ni colaborador (Request sin cookies)', {
-          cookieHeader: request.headers.get('cookie')?.substring(0, 200) || 'no hay header cookie',
-        })
-=======
       // No mostrar warnings en producción - es normal que no haya cookies en algunos requests
       // Solo loggear en desarrollo para debugging
       if (process.env.NODE_ENV === 'development') {
@@ -291,7 +276,6 @@ export async function getUserFromRequest(request: NextRequest | Request): Promis
             totalCookies: allCookies.length,
           })
         }
->>>>>>> origin/mati-integracion
       }
     }
 
@@ -399,28 +383,18 @@ export async function logActivity(
     const usuario = await getUserFromRequest(request)
     console.log('[LOGGING] 👤 Resultado de getUserFromRequest:', JSON.stringify(usuario, null, 2))
     
-<<<<<<< HEAD
-    // Si no se pudo obtener el usuario, intentar una vez más con más logging
-    if (!usuario || !usuario.id) {
-      console.warn('[LOGGING] ⚠️ No se pudo obtener usuario en primer intento, reintentando...')
-=======
     // Si no se pudo obtener el usuario, intentar una vez más (solo en desarrollo)
     if (!usuario || !usuario.id) {
       if (process.env.NODE_ENV === 'development') {
         console.log('[LOGGING] ℹ️ No se pudo obtener usuario, reintentando (modo desarrollo)...')
       }
->>>>>>> origin/mati-integracion
       // Pequeño delay para asegurar que las cookies estén disponibles
       await new Promise(resolve => setTimeout(resolve, 100))
       const usuarioReintento = await getUserFromRequest(request)
       if (usuarioReintento && usuarioReintento.id) {
-<<<<<<< HEAD
-        console.log('[LOGGING] ✅ Usuario obtenido en reintento:', JSON.stringify(usuarioReintento, null, 2))
-=======
         if (process.env.NODE_ENV === 'development') {
           console.log('[LOGGING] ✅ Usuario obtenido en reintento')
         }
->>>>>>> origin/mati-integracion
         Object.assign(usuario || {}, usuarioReintento)
       }
     }
@@ -525,59 +499,6 @@ export async function logActivity(
         })
       }
     } else {
-<<<<<<< HEAD
-      console.error('[LOGGING] ❌ ERROR: No se pudo obtener usuario para el log:', {
-        usuarioCompleto: JSON.stringify(usuario, null, 2),
-        tieneUsuario: !!usuario,
-        tieneId: !!usuario?.id,
-        id: usuario?.id,
-      })
-      // Listar todas las cookies disponibles para debug
-      const allCookies: Record<string, string> = {}
-      try {
-        if (isNextRequest(request)) {
-          // Intentar obtener todas las cookies (puede no estar disponible en todas las versiones)
-          if (typeof request.cookies.getAll === 'function') {
-            request.cookies.getAll().forEach((cookie: any) => {
-              allCookies[cookie.name] = cookie.value ? cookie.value.substring(0, 100) : '' // Primeros 100 chars
-            })
-          } else {
-            // Fallback: solo listar las cookies conocidas
-            const knownCookies = ['colaboradorData', 'colaborador', 'auth_token', 'user']
-            knownCookies.forEach(name => {
-              const cookie = request.cookies.get(name)
-              if (cookie) {
-                allCookies[name] = cookie.value.substring(0, 100)
-              }
-            })
-          }
-        } else {
-          // Es Request normal, extraer del header
-          const cookieHeader = request.headers.get('cookie')
-          if (cookieHeader) {
-            cookieHeader.split(';').forEach((cookie: string) => {
-              const [name, ...valueParts] = cookie.trim().split('=')
-              if (name && valueParts.length > 0) {
-                allCookies[name] = decodeURIComponent(valueParts.join('=')).substring(0, 100)
-              }
-            })
-          }
-        }
-      } catch (cookieError) {
-        // Si hay error al obtener cookies, continuar sin ellas
-        console.warn('[Logging] ⚠️ Error al obtener cookies:', cookieError)
-      }
-      
-      console.warn('[Logging] ⚠️ No se pudo capturar usuario para log:', {
-        accion: params.accion,
-        entidad: params.entidad,
-        tieneColaboradorCookie: !!colaboradorCookie,
-        tieneToken: !!token,
-        colaboradorCookiePreview: colaboradorCookie ? colaboradorCookie.substring(0, 100) : 'no hay',
-        todasLasCookies: Object.keys(allCookies).join(', '),
-        cookiesDisponibles: allCookies,
-      })
-=======
       // No mostrar errores en producción - es normal que no haya usuario en algunos requests
       // Solo loggear en desarrollo para debugging
       if (process.env.NODE_ENV === 'development') {
@@ -588,7 +509,6 @@ export async function logActivity(
           tieneToken: !!token,
         })
       }
->>>>>>> origin/mati-integracion
     }
 
     // Agregar entidad_id si está disponible

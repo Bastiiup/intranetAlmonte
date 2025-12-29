@@ -281,15 +281,12 @@ export async function PUT(
 
     console.log('[API PUT] ✅ Producto encontrado:', producto.documentId)
 
-<<<<<<< HEAD
-=======
     // ⚠️ NUEVO MÉTODO SIMPLIFICADO (Strapi actualizado):
     // - Strapi preserva automáticamente los externalIds (IDs de WooCommerce)
     // - NO necesitas incluir externalIds en el payload
     // - Solo envía los campos que cambien
     // - NO necesitas obtener el producto completo antes de actualizar
     
->>>>>>> origin/mati-integracion
     // Preparar datos - FORZAR minúsculas SOLO
     const updateData: any = { data: {} }
 
@@ -306,26 +303,6 @@ export async function PUT(
       updateData.data.subtitulo_libro = body.subtitulo_libro
     }
 
-<<<<<<< HEAD
-    // Descripción - Rich Text Blocks
-    if (body.descripcion !== undefined) {
-      if (Array.isArray(body.descripcion)) {
-        updateData.data.descripcion = body.descripcion
-      } else if (typeof body.descripcion === 'string') {
-        if (body.descripcion.trim() === '') {
-          updateData.data.descripcion = null
-        } else {
-          updateData.data.descripcion = [
-            {
-              type: 'paragraph',
-              children: [{ type: 'text', text: body.descripcion.trim() }]
-            }
-          ]
-        }
-      }
-      
-      console.log('[API PUT] Descripción formateada:', JSON.stringify(updateData.data.descripcion))
-=======
     // Descripción - Rich Text Blocks o HTML
     // Quill envía HTML, necesitamos convertirlo a blocks de Strapi
     if (body.descripcion !== undefined) {
@@ -384,7 +361,6 @@ export async function PUT(
       }
       
       console.log('[API PUT] ✅ Descripción formateada para Strapi:', JSON.stringify(updateData.data.descripcion))
->>>>>>> origin/mati-integracion
     }
 
     // Imagen - CRÍTICO: minúsculas
@@ -468,42 +444,6 @@ export async function PUT(
       updateData.data.precio_oferta = parseFloat(body.precio_oferta.toString()) || 0
     }
     
-<<<<<<< HEAD
-    // Tipo de producto
-    if (body.type !== undefined) {
-      updateData.data.type = body.type
-    }
-    
-    // Inventario
-    if (body.stock_quantity !== undefined) {
-      updateData.data.stock_quantity = parseInt(body.stock_quantity.toString()) || 0
-    }
-    if (body.stock_status !== undefined) {
-      updateData.data.stock_status = body.stock_status
-    }
-    if (body.backorders !== undefined) {
-      updateData.data.backorders = body.backorders
-    }
-    if (body.manage_stock !== undefined) {
-      updateData.data.manage_stock = Boolean(body.manage_stock)
-    }
-    if (body.sold_individually !== undefined) {
-      updateData.data.sold_individually = Boolean(body.sold_individually)
-    }
-    
-    // Peso y dimensiones
-    if (body.weight !== undefined) {
-      updateData.data.weight = parseFloat(body.weight.toString()) || 0
-    }
-    if (body.length !== undefined) {
-      updateData.data.length = parseFloat(body.length.toString()) || 0
-    }
-    if (body.width !== undefined) {
-      updateData.data.width = parseFloat(body.width.toString()) || 0
-    }
-    if (body.height !== undefined) {
-      updateData.data.height = parseFloat(body.height.toString()) || 0
-=======
     // ⚠️ IMPORTANTE: Los siguientes campos NO están en el schema de Strapi y NO deben enviarse:
     // - type (tipo de producto WooCommerce)
     // - virtual, downloadable, reviews_allowed (opciones WooCommerce)
@@ -580,7 +520,6 @@ export async function PUT(
       })
     } else {
       console.warn('[API PUT] ⚠️ raw_woo_data NO viene en el body. Strapi debe construirlo en lifecycles.')
->>>>>>> origin/mati-integracion
     }
 
     // VERIFICACIÓN FINAL antes de enviar
@@ -595,15 +534,10 @@ export async function PUT(
 
     console.log('[API PUT] 📤 Datos finales a enviar:', JSON.stringify(updateData, null, 2))
     console.log('[API PUT] ✅ Todos los campos en minúsculas')
-<<<<<<< HEAD
-
-    // Actualizar
-=======
     console.log('[API PUT] ℹ️ Strapi preservará automáticamente los externalIds (IDs de WooCommerce)')
 
     // Actualizar usando el método simplificado
     // Strapi preservará automáticamente los externalIds, no necesitamos incluirlos
->>>>>>> origin/mati-integracion
     const updateResponse = await strapiClient.put<any>(
       `/api/libros/${producto.documentId}`,
       updateData

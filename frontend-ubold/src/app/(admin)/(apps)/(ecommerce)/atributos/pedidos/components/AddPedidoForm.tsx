@@ -1,27 +1,17 @@
 'use client'
 
-<<<<<<< HEAD
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Card, CardHeader, CardBody, Form, Button, Row, Col, FormGroup, FormLabel, FormControl, Alert } from 'react-bootstrap'
-import { LuSave, LuX } from 'react-icons/lu'
-import { RelationSelector } from '@/app/(admin)/(apps)/(ecommerce)/add-product/components/RelationSelector'
-=======
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardHeader, CardBody, Form, Button, Row, Col, FormGroup, FormLabel, FormControl, Alert, Spinner } from 'react-bootstrap'
 import { LuSave, LuX } from 'react-icons/lu'
 import { RelationSelector } from '@/app/(admin)/(apps)/(ecommerce)/add-product/components/RelationSelector'
 import ProductSelector from './ProductSelector'
->>>>>>> origin/mati-integracion
 
 const AddPedidoForm = () => {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-<<<<<<< HEAD
-=======
   const [selectedProducts, setSelectedProducts] = useState<Array<{
     id: number
     name: string
@@ -39,7 +29,6 @@ const AddPedidoForm = () => {
   }>>([])
   const [loadingClientes, setLoadingClientes] = useState(false)
 
->>>>>>> origin/mati-integracion
   const [formData, setFormData] = useState({
     numero_pedido: '',
     fecha_pedido: new Date().toISOString().slice(0, 16),
@@ -56,11 +45,6 @@ const AddPedidoForm = () => {
     metodo_pago: '',
     metodo_pago_titulo: '',
     nota_cliente: '',
-<<<<<<< HEAD
-    originPlatform: 'woo_moraleja',
-  })
-
-=======
     originPlatform: 'woo_moraleja' as 'woo_moraleja' | 'woo_escolar' | 'otros',
   })
 
@@ -162,7 +146,6 @@ const AddPedidoForm = () => {
     }))
   }, [selectedProducts, formData.impuestos, formData.envio, formData.descuento])
 
->>>>>>> origin/mati-integracion
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -175,8 +158,6 @@ const AddPedidoForm = () => {
         throw new Error('El número de pedido es obligatorio')
       }
 
-<<<<<<< HEAD
-=======
       // Validar que hay productos seleccionados
       if (selectedProducts.length === 0) {
         throw new Error('Debes agregar al menos un producto al pedido')
@@ -319,7 +300,6 @@ const AddPedidoForm = () => {
         throw new Error('El pedido debe tener al menos un producto. Agrega productos antes de crear el pedido.')
       }
 
->>>>>>> origin/mati-integracion
       const pedidoData: any = {
         data: {
           numero_pedido: formData.numero_pedido.trim(),
@@ -332,14 +312,9 @@ const AddPedidoForm = () => {
           descuento: formData.descuento ? parseFloat(formData.descuento) : null,
           moneda: formData.moneda || 'CLP',
           origen: formData.origen || 'woocommerce',
-<<<<<<< HEAD
-          cliente: formData.cliente || null,
-          items: formData.items || [],
-=======
           cliente: formData.cliente && formData.cliente !== 'invitado' ? formData.cliente : null,
           billing: billingInfo,
           items: items, // ⚠️ CRÍTICO: Siempre incluir items (ya validado que no está vacío)
->>>>>>> origin/mati-integracion
           metodo_pago: formData.metodo_pago || null,
           metodo_pago_titulo: formData.metodo_pago_titulo || null,
           nota_cliente: formData.nota_cliente || null,
@@ -347,9 +322,6 @@ const AddPedidoForm = () => {
         },
       }
 
-<<<<<<< HEAD
-      console.log('[AddPedidoForm] Enviando datos:', pedidoData)
-=======
       // ═══════════════════════════════════════════════════════════════
       // DEBUGGING DETALLADO: Imprimir payload completo antes de enviar
       // ═══════════════════════════════════════════════════════════════
@@ -466,7 +438,6 @@ const AddPedidoForm = () => {
       console.log('═══════════════════════════════════════════════════════')
       console.log('📤 Enviando al endpoint REAL de creación...')
       console.log('═══════════════════════════════════════════════════════')
->>>>>>> origin/mati-integracion
 
       const response = await fetch('/api/tienda/pedidos', {
         method: 'POST',
@@ -476,16 +447,6 @@ const AddPedidoForm = () => {
         body: JSON.stringify(pedidoData),
       })
 
-<<<<<<< HEAD
-      const result = await response.json()
-
-      console.log('[AddPedidoForm] Respuesta:', { response: response.status, result })
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Error al crear el pedido')
-      }
-
-=======
       if (!response.ok) {
         const errorText = await response.text()
         let errorData
@@ -515,7 +476,6 @@ const AddPedidoForm = () => {
       console.log('ID:', result.data?.id || result.data?.documentId)
       console.log('═══════════════════════════════════════════════════════')
 
->>>>>>> origin/mati-integracion
       if (!result.success) {
         throw new Error(result.error || 'Error al crear el pedido')
       }
@@ -628,16 +588,10 @@ const AddPedidoForm = () => {
                 <FormControl
                   as="select"
                   value={formData.originPlatform}
-<<<<<<< HEAD
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, originPlatform: e.target.value }))
-                  }
-=======
                   onChange={(e) => {
                     const value = e.target.value as 'woo_moraleja' | 'woo_escolar' | 'otros'
                     setFormData((prev) => ({ ...prev, originPlatform: value }))
                   }}
->>>>>>> origin/mati-integracion
                   required
                 >
                   <option value="woo_moraleja">WooCommerce Moraleja</option>
@@ -652,8 +606,6 @@ const AddPedidoForm = () => {
 
             <Col md={6}>
               <FormGroup>
-<<<<<<< HEAD
-=======
                 <FormLabel>
                   Cliente
                 </FormLabel>
@@ -686,7 +638,6 @@ const AddPedidoForm = () => {
 
             <Col md={6}>
               <FormGroup>
->>>>>>> origin/mati-integracion
                 <FormLabel>Total</FormLabel>
                 <FormControl
                   type="number"
@@ -816,8 +767,6 @@ const AddPedidoForm = () => {
                 />
               </FormGroup>
             </Col>
-<<<<<<< HEAD
-=======
 
             <Col md={12}>
               <ProductSelector
@@ -826,7 +775,6 @@ const AddPedidoForm = () => {
                 onProductsChange={setSelectedProducts}
               />
             </Col>
->>>>>>> origin/mati-integracion
           </Row>
 
           <div className="d-flex gap-2 mt-4">

@@ -19,34 +19,22 @@ COPY frontend-ubold/ .
 # Variables de entorno para optimizar build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-<<<<<<< HEAD
-=======
 # Aumentar memoria disponible para evitar SIGBUS
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 # Deshabilitar Turbopack si causa problemas de memoria (Next.js 16 usa Turbopack por defecto)
 ENV NEXT_PRIVATE_STANDALONE=true
->>>>>>> origin/mati-integracion
 
 # Construir la aplicación
 RUN npm run build
 
-<<<<<<< HEAD
-# Exponer el puerto
-=======
 # Exponer el puerto (Railway usa variable PORT)
->>>>>>> origin/mati-integracion
 EXPOSE 3000
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-<<<<<<< HEAD
-
-# Comando para iniciar la aplicación
-=======
 ENV NODE_ENV=production
 
 # Comando para iniciar la aplicación
 # Ejecutar server.js desde /app (como en rama-Gonza2 que funciona)
 WORKDIR /app
->>>>>>> origin/mati-integracion
 CMD ["node", "server.js"]

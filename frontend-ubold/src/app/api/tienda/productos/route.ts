@@ -130,15 +130,6 @@ export async function POST(request: NextRequest) {
 
     console.log('[API POST] 📚 ISBN a usar:', isbn)
 
-<<<<<<< HEAD
-    // IMPORTANTE: Al crear, siempre se guarda con estado_publicacion = "Pendiente" (con mayúscula inicial como requiere el schema de Strapi)
-    // El estado solo se puede cambiar desde la página de Solicitudes
-    // Solo se publica en WordPress si estado_publicacion === "Publicado" (se maneja en lifecycles de Strapi)
-    const estadoPublicacion = 'Pendiente'
-    
-    console.log('[API POST] 📚 Estado de publicación:', estadoPublicacion, '(siempre Pendiente al crear)')
-    console.log('[API POST] ⏸️ No se crea en WooCommerce al crear - se sincronizará cuando estado_publicacion = "Publicado"')
-=======
     // ⚠️ CRÍTICO: Para que el producto se sincronice automáticamente con WooCommerce,
     // el estado_publicacion DEBE ser "Publicado" (con mayúscula inicial como requiere el schema de Strapi)
     // Los lifecycles de Strapi detectan estado_publicacion === "Publicado" y sincronizan con WooCommerce
@@ -146,7 +137,6 @@ export async function POST(request: NextRequest) {
     
     console.log('[API POST] 📚 Estado de publicación:', estadoPublicacion)
     console.log('[API POST] ✅ El producto se sincronizará automáticamente con WooCommerce al crear')
->>>>>>> origin/mati-integracion
 
     // Crear SOLO en Strapi (NO en WooCommerce al crear)
     console.log('[API POST] 📚 Creando producto en Strapi...')
@@ -156,15 +146,6 @@ export async function POST(request: NextRequest) {
         nombre_libro: body.nombre_libro.trim(),
         isbn_libro: isbn,
         descripcion: body.descripcion?.trim() || '',
-<<<<<<< HEAD
-        subtitulo_libro: body.subtitulo_libro?.trim() || '',
-        estado_publicacion: estadoPublicacion, // Siempre "Pendiente" al crear (con mayúscula inicial como requiere Strapi)
-        // NO incluir precio aquí - Strapi no tiene campo precio directo, usa relación precios
-        // NO incluir stock_quantity aquí - Strapi no tiene campo stock_quantity directo, usa relación stocks
-      }
-    }
-
-=======
         descripcion_corta: body.descripcion_corta?.trim() || '', // ⚠️ CRÍTICO: Descripción corta para WooCommerce
         subtitulo_libro: body.subtitulo_libro?.trim() || '',
         estado_publicacion: estadoPublicacion,
@@ -191,7 +172,6 @@ export async function POST(request: NextRequest) {
       console.warn('[API POST] ⚠️ raw_woo_data NO viene en el body. Strapi debe construirlo en lifecycles.')
     }
 
->>>>>>> origin/mati-integracion
     // Agregar imagen si existe - usar ID de Strapi si está disponible
     if (body.portada_libro_id) {
       strapiProductData.data.portada_libro = body.portada_libro_id
@@ -208,13 +188,6 @@ export async function POST(request: NextRequest) {
 
     // === RELACIONES MÚLTIPLES (array de documentIds) ===
     // CRÍTICO: Los canales son necesarios para sincronizar con WordPress
-<<<<<<< HEAD
-    if (body.canales && Array.isArray(body.canales) && body.canales.length > 0) {
-      strapiProductData.data.canales = body.canales
-      console.log('[API POST] 📡 Canales asignados:', body.canales)
-    } else {
-      console.warn('[API POST] ⚠️ No se asignaron canales. El producto no se sincronizará con WordPress hasta que se asignen canales.')
-=======
     // Si no se especifican canales, asignar automáticamente ambos (Moraleja y Escolar)
     if (body.canales && Array.isArray(body.canales) && body.canales.length > 0) {
       strapiProductData.data.canales = body.canales
@@ -272,7 +245,6 @@ export async function POST(request: NextRequest) {
         console.error('[API POST] ❌ Error al obtener canales por defecto:', canalesError.message)
         console.warn('[API POST] ⚠️ No se asignaron canales. El producto no se sincronizará con WordPress hasta que se asignen canales.')
       }
->>>>>>> origin/mati-integracion
     }
     
     if (body.marcas && Array.isArray(body.marcas) && body.marcas.length > 0) {
@@ -311,17 +283,12 @@ export async function POST(request: NextRequest) {
     if (body.precio_regular !== undefined) {
       strapiProductData.data.precio_regular = parseFloat(body.precio_regular) || 0
     }
-<<<<<<< HEAD
-    if (body.precio_oferta !== undefined) {
-      strapiProductData.data.precio_oferta = parseFloat(body.precio_oferta) || 0
-=======
     if (body.precio_oferta !== undefined && body.precio_oferta !== '') {
       const precioOferta = parseFloat(body.precio_oferta)
       if (precioOferta > 0) {
         strapiProductData.data.precio_oferta = precioOferta
         console.log('[API POST] 💰 Precio oferta agregado:', precioOferta)
       }
->>>>>>> origin/mati-integracion
     }
     if (body.stock_quantity !== undefined) {
       strapiProductData.data.stock_quantity = parseInt(body.stock_quantity) || 0
@@ -344,8 +311,6 @@ export async function POST(request: NextRequest) {
     if (body.height !== undefined && body.height !== '') {
       strapiProductData.data.height = parseFloat(body.height) || 0
     }
-<<<<<<< HEAD
-=======
     if (body.shipping_class !== undefined && body.shipping_class !== '') {
       strapiProductData.data.shipping_class = body.shipping_class
     }
@@ -367,7 +332,6 @@ export async function POST(request: NextRequest) {
     if (body.sku !== undefined && body.sku !== '') {
       strapiProductData.data.sku = body.sku
     }
->>>>>>> origin/mati-integracion
     if (body.featured !== undefined) {
       strapiProductData.data.featured = body.featured
     }
@@ -391,11 +355,7 @@ export async function POST(request: NextRequest) {
       data: {
         strapi: strapiProduct?.data || null,
       },
-<<<<<<< HEAD
-      message: 'Producto creado en Strapi con estado "pendiente". Para publicar en WordPress, cambia el estado desde Solicitudes.'
-=======
       message: 'Producto creado en Strapi con estado "Publicado". Se sincronizará automáticamente con WooCommerce (Moraleja y Escolar) si tiene canales asignados.'
->>>>>>> origin/mati-integracion
     })
 
   } catch (error: any) {

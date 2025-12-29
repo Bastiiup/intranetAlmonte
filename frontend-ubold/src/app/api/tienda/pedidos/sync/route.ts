@@ -111,11 +111,7 @@ async function syncOrdersFromPlatform(platform: 'woo_moraleja' | 'woo_escolar') 
 
     // Obtener solo los campos necesarios de Strapi (sin populate completo para optimizar)
     const strapiResponse = await strapiClient.get<any>(
-<<<<<<< HEAD
-      `/api/wo-pedidos?fields[0]=numero_pedido&fields[1]=wooId&fields[2]=originPlatform&fields[3]=externalIds&pagination[pageSize]=5000&publicationState=preview`
-=======
       `/api/pedidos?fields[0]=numero_pedido&fields[1]=woocommerce_id&fields[2]=originPlatform&fields[3]=externalIds&pagination[pageSize]=5000&publicationState=preview`
->>>>>>> origin/mati-integracion
     )
     let strapiItems: any[] = []
     if (Array.isArray(strapiResponse)) {
@@ -130,11 +126,7 @@ async function syncOrdersFromPlatform(platform: 'woo_moraleja' | 'woo_escolar') 
       const attrs = item?.attributes || {}
       const data = (attrs && Object.keys(attrs).length > 0) ? attrs : item
       const numeroPedido = data?.numero_pedido || data?.numeroPedido
-<<<<<<< HEAD
-      const wooId = data?.wooId || data?.woo_id
-=======
       const woocommerceId = data?.woocommerce_id || data?.woocommerceId
->>>>>>> origin/mati-integracion
       const itemPlatform = data?.originPlatform || data?.externalIds?.originPlatform
       
       // Solo considerar pedidos de esta plataforma
@@ -142,13 +134,8 @@ async function syncOrdersFromPlatform(platform: 'woo_moraleja' | 'woo_escolar') 
         if (numeroPedido) {
           existingOrders.set(`numero_${numeroPedido}`, item)
         }
-<<<<<<< HEAD
-        if (wooId) {
-          existingOrders.set(`woo_${wooId}`, item)
-=======
         if (woocommerceId) {
           existingOrders.set(`woo_${woocommerceId}`, item)
->>>>>>> origin/mati-integracion
         }
       }
     })
@@ -156,11 +143,7 @@ async function syncOrdersFromPlatform(platform: 'woo_moraleja' | 'woo_escolar') 
     console.log(`[Sync ${platform}] 📊 Pedidos existentes en Strapi para ${platform}: ${existingOrders.size / 2}`)
 
     // Función helper para preparar datos del pedido
-<<<<<<< HEAD
-    const prepareOrderData = (wooOrder: any, orderNumber: string, wooId: number) => ({
-=======
     const prepareOrderData = (wooOrder: any, orderNumber: string, woocommerceId: number) => ({
->>>>>>> origin/mati-integracion
       data: {
         numero_pedido: orderNumber,
         fecha_pedido: wooOrder.date_created || wooOrder.date_created_gmt,
@@ -188,19 +171,11 @@ async function syncOrdersFromPlatform(platform: 'woo_moraleja' | 'woo_escolar') 
           metadata: item.meta_data || null,
         })),
         originPlatform: platform,
-<<<<<<< HEAD
-        wooId: wooId,
-        rawWooData: wooOrder,
-        externalIds: {
-          wooCommerce: {
-            id: wooId,
-=======
         woocommerce_id: woocommerceId,
         rawWooData: wooOrder,
         externalIds: {
           wooCommerce: {
             id: woocommerceId,
->>>>>>> origin/mati-integracion
             number: orderNumber,
           },
           originPlatform: platform,
@@ -215,21 +190,12 @@ async function syncOrdersFromPlatform(platform: 'woo_moraleja' | 'woo_escolar') 
       const batchPromises = batch.map(async (wooOrder) => {
         try {
           const orderNumber = String(wooOrder.number || wooOrder.id)
-<<<<<<< HEAD
-          const wooId = wooOrder.id
-
-          // Verificar si el pedido ya existe
-          const existingByNumber = existingOrders.get(`numero_${orderNumber}`)
-          const existingByWooId = existingOrders.get(`woo_${wooId}`)
-          const existing = existingByNumber || existingByWooId
-=======
           const woocommerceId = wooOrder.id
 
           // Verificar si el pedido ya existe
           const existingByNumber = existingOrders.get(`numero_${orderNumber}`)
           const existingByWooCommerceId = existingOrders.get(`woo_${woocommerceId}`)
           const existing = existingByNumber || existingByWooCommerceId
->>>>>>> origin/mati-integracion
 
           if (existing) {
             // Actualizar pedido existente
@@ -237,24 +203,14 @@ async function syncOrdersFromPlatform(platform: 'woo_moraleja' | 'woo_escolar') 
             const data = (attrs && Object.keys(attrs).length > 0) ? attrs : existing
             const documentId = existing.documentId || existing.id
 
-<<<<<<< HEAD
-            const updateData = prepareOrderData(wooOrder, orderNumber, wooId)
-            await strapiClient.put<any>(`/api/wo-pedidos/${documentId}`, updateData)
-=======
             const updateData = prepareOrderData(wooOrder, orderNumber, woocommerceId)
             await strapiClient.put<any>(`/api/pedidos/${documentId}`, updateData)
->>>>>>> origin/mati-integracion
             results.updated++
             return { success: true, orderNumber, action: 'updated' }
           } else {
             // Crear nuevo pedido
-<<<<<<< HEAD
-            const createData = prepareOrderData(wooOrder, orderNumber, wooId)
-            await strapiClient.post<any>('/api/wo-pedidos', createData)
-=======
             const createData = prepareOrderData(wooOrder, orderNumber, woocommerceId)
             await strapiClient.post<any>('/api/pedidos', createData)
->>>>>>> origin/mati-integracion
             results.created++
             return { success: true, orderNumber, action: 'created' }
           }
