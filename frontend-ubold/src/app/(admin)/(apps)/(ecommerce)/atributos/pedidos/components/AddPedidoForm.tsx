@@ -292,6 +292,14 @@ const AddPedidoForm = () => {
         }
       }
 
+      // ⚠️ VALIDACIÓN CRÍTICA: Verificar que items NO esté vacío
+      if (!items || items.length === 0) {
+        console.error('[AddPedidoForm] ❌ ERROR CRÍTICO: items está vacío o no existe')
+        console.error('[AddPedidoForm] selectedProducts:', selectedProducts)
+        console.error('[AddPedidoForm] items construidos:', items)
+        throw new Error('El pedido debe tener al menos un producto. Agrega productos antes de crear el pedido.')
+      }
+
       const pedidoData: any = {
         data: {
           numero_pedido: formData.numero_pedido.trim(),
@@ -306,7 +314,7 @@ const AddPedidoForm = () => {
           origen: formData.origen || 'woocommerce',
           cliente: formData.cliente && formData.cliente !== 'invitado' ? formData.cliente : null,
           billing: billingInfo,
-          items: items.length > 0 ? items : [],
+          items: items, // ⚠️ CRÍTICO: Siempre incluir items (ya validado que no está vacío)
           metodo_pago: formData.metodo_pago || null,
           metodo_pago_titulo: formData.metodo_pago_titulo || null,
           nota_cliente: formData.nota_cliente || null,
@@ -314,7 +322,40 @@ const AddPedidoForm = () => {
         },
       }
 
-      console.log('[AddPedidoForm] Enviando datos:', pedidoData)
+      // ⚠️ DEBUGGING DETALLADO: Imprimir payload completo antes de enviar
+      console.log('═══════════════════════════════════════════════════════')
+      console.log('[AddPedidoForm] 🔍 DEBUGGING: Payload antes de enviar a Strapi')
+      console.log('═══════════════════════════════════════════════════════')
+      console.log(JSON.stringify(pedidoData, null, 2))
+      console.log('═══════════════════════════════════════════════════════')
+      console.log('[AddPedidoForm] Verificaciones:')
+      console.log('- pedidoData existe?', !!pedidoData)
+      console.log('- pedidoData.data existe?', !!pedidoData.data)
+      console.log('- pedidoData.data.items existe?', !!pedidoData.data.items)
+      console.log('- pedidoData.data.items es array?', Array.isArray(pedidoData.data.items))
+      console.log('- pedidoData.data.items.length:', pedidoData.data.items?.length || 0)
+      console.log('- pedidoData.data.items[0]:', pedidoData.data.items?.[0])
+      console.log('- selectedProducts.length:', selectedProducts.length)
+      console.log('- items.length:', items.length)
+      console.log('═══════════════════════════════════════════════════════')
+      
+      // ⚠️ VALIDACIÓN FINAL: Verificar que items está en el payload
+      if (!pedidoData.data.items) {
+        console.error('[AddPedidoForm] ❌ ERROR CRÍTICO: pedidoData.data.items NO existe!')
+        throw new Error('Error interno: El campo items no se incluyó en el payload')
+      }
+      
+      if (!Array.isArray(pedidoData.data.items)) {
+        console.error('[AddPedidoForm] ❌ ERROR CRÍTICO: pedidoData.data.items NO es un array!', typeof pedidoData.data.items)
+        throw new Error('Error interno: El campo items no es un array')
+      }
+      
+      if (pedidoData.data.items.length === 0) {
+        console.error('[AddPedidoForm] ❌ ERROR CRÍTICO: pedidoData.data.items está VACÍO!')
+        throw new Error('Error interno: El campo items está vacío')
+      }
+      
+      console.log('[AddPedidoForm] ✅ Payload validado correctamente, enviando a Strapi...')
 
       const response = await fetch('/api/tienda/pedidos', {
         method: 'POST',
