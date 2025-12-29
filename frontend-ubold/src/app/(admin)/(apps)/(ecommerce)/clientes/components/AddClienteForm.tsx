@@ -71,7 +71,7 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
       if (formData.phone.trim()) {
         personaData.telefonos = [
           {
-            telefono: formData.phone.trim(),
+            numero: formData.phone.trim(), // Campo correcto según schema de Strapi
             tipo: 'principal',
           },
         ]

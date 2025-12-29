@@ -155,10 +155,14 @@ export async function POST(request: NextRequest) {
           tipo: e.tipo || 'principal',
         })),
         telefonos: personaData.telefonos && Array.isArray(personaData.telefonos) && personaData.telefonos.length > 0
-          ? personaData.telefonos.map((t: any) => ({
-              telefono: (t.telefono || t.numero || '').trim(),
-              tipo: t.tipo || 'principal',
-            }))
+          ? personaData.telefonos.map((t: any) => {
+              // Aceptar múltiples variantes del campo de teléfono
+              const numeroTelefono = (t.numero || t.telefono || t.telefonos || '').trim()
+              return {
+                numero: numeroTelefono, // Campo principal según schema de Strapi
+                tipo: t.tipo || 'principal',
+              }
+            })
           : [],
       },
     }
