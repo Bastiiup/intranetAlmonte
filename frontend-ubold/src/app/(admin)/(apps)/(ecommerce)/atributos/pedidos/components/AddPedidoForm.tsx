@@ -374,6 +374,71 @@ const AddPedidoForm = () => {
       
       console.log('✅ Validación OK: Items presentes')
 
+      // ═══════════════════════════════════════════════════════════════
+      // PASO 1: ENVIAR AL ENDPOINT DE DEBUG (si está disponible)
+      // ═══════════════════════════════════════════════════════════════
+      
+      console.log('═══════════════════════════════════════════════════════')
+      console.log('📤 Enviando al endpoint de DEBUG (Strapi)...')
+      console.log('═══════════════════════════════════════════════════════')
+      
+      try {
+        const debugResponse = await fetch('https://strapi.moraleja.cl/api/pedidos/debug', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(pedidoData)
+        })
+
+        if (debugResponse.ok) {
+          const debugResult = await debugResponse.json()
+
+          console.log('═══════════════════════════════════════════════════════')
+          console.log('📥 RESPUESTA DEL DEBUG ENDPOINT:')
+          console.log(JSON.stringify(debugResult, null, 2))
+          console.log('═══════════════════════════════════════════════════════')
+
+          // Analizar respuesta del debug
+          if (debugResult.received) {
+            console.log('🔍 Análisis de lo que Strapi recibió:')
+            console.log('- hasData:', debugResult.received.hasData)
+            console.log('- hasItems:', debugResult.received.hasItems)
+            console.log('- hasProductos:', debugResult.received.hasProductos)
+            console.log('- itemsLength:', debugResult.received.itemsLength)
+            console.log('- productosLength:', debugResult.received.productosLength)
+
+            // Verificar si hay problema
+            if (!debugResult.received.hasItems && !debugResult.received.hasProductos) {
+              console.error('❌ CONFIRMADO: Strapi NO recibió items ni productos')
+              console.error('❌ El problema está en cómo se construye o envía el payload')
+              throw new Error('ERROR CONFIRMADO: Strapi no está recibiendo los items. Revisa la consola (F12).')
+            }
+
+            if (debugResult.received.itemsLength === 0 && debugResult.received.productosLength === 0) {
+              console.error('❌ CONFIRMADO: El array de items está VACÍO en Strapi')
+              console.error('❌ Los items se están perdiendo durante el envío')
+              throw new Error('ERROR CONFIRMADO: Los items llegan vacíos a Strapi. Revisa la consola (F12).')
+            }
+
+            console.log('✅ DEBUG OK: Strapi recibió los items correctamente')
+            console.log(`✅ Total de items detectados: ${debugResult.received.itemsLength || debugResult.received.productosLength}`)
+          }
+        } else {
+          console.warn('⚠️ Endpoint de debug no disponible o error:', debugResponse.status)
+          console.warn('⚠️ Continuando con el envío normal...')
+        }
+      } catch (debugError: any) {
+        console.warn('⚠️ Error al llamar al debug endpoint (continuando):', debugError.message)
+        console.warn('⚠️ Esto es normal si el endpoint de debug no está disponible')
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // PASO 2: ENVIAR AL ENDPOINT REAL
+      // ═══════════════════════════════════════════════════════════════
+      
+      console.log('═══════════════════════════════════════════════════════')
+      console.log('📤 Enviando al endpoint REAL de creación...')
+      console.log('═══════════════════════════════════════════════════════')
+
       const response = await fetch('/api/tienda/pedidos', {
         method: 'POST',
         headers: {
@@ -382,13 +447,34 @@ const AddPedidoForm = () => {
         body: JSON.stringify(pedidoData),
       })
 
-      const result = await response.json()
-
-      console.log('[AddPedidoForm] Respuesta:', { response: response.status, result })
-
       if (!response.ok) {
-        throw new Error(result.error || 'Error al crear el pedido')
+        const errorText = await response.text()
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { error: errorText || `Error ${response.status}: ${response.statusText}` }
+        }
+        
+        console.error('═══════════════════════════════════════════════════════')
+        console.error('❌ ERROR AL CREAR PEDIDO')
+        console.error('═══════════════════════════════════════════════════════')
+        console.error('Status:', response.status)
+        console.error('Error:', errorData)
+        console.error('═══════════════════════════════════════════════════════')
+        
+        throw new Error(errorData.error || `Error ${response.status}: ${response.statusText}`)
       }
+
+      const result = await response.json()
+      
+      console.log('═══════════════════════════════════════════════════════')
+      console.log('✅ PEDIDO CREADO EXITOSAMENTE')
+      console.log('═══════════════════════════════════════════════════════')
+      console.log('Resultado:', JSON.stringify(result, null, 2))
+      console.log('Número de pedido:', result.data?.numero_pedido)
+      console.log('ID:', result.data?.id || result.data?.documentId)
+      console.log('═══════════════════════════════════════════════════════')
 
       if (!result.success) {
         throw new Error(result.error || 'Error al crear el pedido')
