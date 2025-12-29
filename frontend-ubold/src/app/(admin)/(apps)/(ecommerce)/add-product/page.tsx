@@ -190,6 +190,7 @@ export default function AddProductPage() {
       // Si Strapi rechaza este campo, se construirá en los lifecycles de Strapi
       
       // Helper para convertir descripción a HTML válido para WooCommerce
+      // Quill ya envía HTML, pero esta función asegura formato válido
       const convertirDescripcionAHTML = (descripcion: string): string => {
         if (!descripcion || !descripcion.trim()) return ''
         
@@ -197,23 +198,48 @@ export default function AddProductPage() {
         
         // Si ya es HTML válido (tiene etiquetas), usar directamente
         if (descripcionTrimmed.includes('<') && descripcionTrimmed.includes('>')) {
-          // Verificar que tenga al menos un <p> o <div>
-          if (descripcionTrimmed.match(/<[p|div|h\d|ul|ol|li][^>]*>/i)) {
+          // Verificar que tenga al menos un <p>, <div>, <h>, <ul>, <ol>, <li>
+          if (descripcionTrimmed.match(/<[p|div|h\d|ul|ol|li|strong|em|b|i][^>]*>/i)) {
+            // Ya es HTML válido, retornar tal cual
             return descripcionTrimmed
           }
-          // Si tiene HTML pero no párrafos, envolver en <p>
-          return `<p>${descripcionTrimmed.replace(/<[^>]+>/g, '')}</p>`
+          // Si tiene HTML pero no párrafos válidos, limpiar y envolver en <p>
+          const textoLimpio = descripcionTrimmed.replace(/<[^>]+>/g, '').trim()
+          return textoLimpio ? `<p>${textoLimpio}</p>` : ''
         }
         
         // Si es texto plano, convertir a HTML
         // Preservar saltos de línea dobles como párrafos
         // Saltos de línea simples como <br>
-        return descripcionTrimmed
+        const parrafos = descripcionTrimmed
           .split(/\n\n+/)
           .map(parrafo => parrafo.trim())
           .filter(parrafo => parrafo.length > 0)
+        
+        if (parrafos.length === 0) {
+          return ''
+        }
+        
+        return parrafos
           .map(parrafo => `<p>${parrafo.replace(/\n/g, '<br>')}</p>`)
           .join('')
+      }
+      
+      // Helper para generar descripción corta (máximo 150 caracteres)
+      const generarDescripcionCorta = (descripcion: string, maxCaracteres: number = 150): string => {
+        if (!descripcion || !descripcion.trim()) return ''
+        
+        // Si ya es HTML, extraer solo el texto
+        const textoLimpio = descripcion.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+        
+        if (textoLimpio.length === 0) return ''
+        
+        // Truncar si es necesario
+        const textoCorto = textoLimpio.length > maxCaracteres
+          ? textoLimpio.substring(0, maxCaracteres).trim() + '...'
+          : textoLimpio
+        
+        return `<p>${textoCorto}</p>`
       }
       
       const rawWooData: any = {
@@ -222,10 +248,14 @@ export default function AddProductPage() {
         status: 'publish',
         
         // ✅ DESCRIPCIÓN COMPLETA (HTML) - CRÍTICO para WooCommerce
+        // Quill ya envía HTML, pero aseguramos formato válido
         description: convertirDescripcionAHTML(formData.descripcion || ''),
         
         // ✅ DESCRIPCIÓN CORTA (HTML) - CRÍTICO para WooCommerce
-        short_description: convertirDescripcionAHTML(formData.descripcion_corta || ''),
+        // Si hay descripción corta específica, usarla; si no, generar desde descripción completa
+        short_description: formData.descripcion_corta?.trim()
+          ? convertirDescripcionAHTML(formData.descripcion_corta)
+          : generarDescripcionCorta(formData.descripcion || '', 150),
         
         // Precio
         regular_price: formData.precio ? parseFloat(formData.precio).toFixed(2) : '0.00',

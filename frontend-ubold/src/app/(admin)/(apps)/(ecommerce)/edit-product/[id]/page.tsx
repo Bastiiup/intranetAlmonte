@@ -154,7 +154,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
                     return ''
                   })
                   .join('')
-                return `<p>${paragraphText}</p>`
+                return paragraphText ? `<p>${paragraphText}</p>` : ''
               }
               return ''
             })
@@ -170,6 +170,15 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         // Limpiar descripción para Quill (remover etiquetas HTML vacías)
         if (descripcion) {
           descripcion = descripcion.replace(/<p><\/p>/g, '').trim()
+        }
+        
+        // Extraer descripción corta (puede venir de subtitulo_libro según Strapi)
+        let descripcionCorta = attrs.descripcion_corta || attrs.subtitulo_libro || ''
+        if (typeof descripcionCorta === 'string') {
+          // Si ya es HTML, usar directamente; si no, convertir a HTML
+          if (!descripcionCorta.includes('<')) {
+            descripcionCorta = descripcionCorta.trim() ? `<p>${descripcionCorta.trim()}</p>` : ''
+          }
         }
 
         // Obtener imagen
@@ -200,7 +209,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         setFormData({
           nombre_libro: attrs.nombre_libro || attrs.NOMBRE_LIBRO || '',
           descripcion: descripcion,
-          descripcion_corta: attrs.descripcion_corta || '',
+          descripcion_corta: descripcionCorta,
           isbn_libro: attrs.isbn_libro || attrs.ISBN_LIBRO || '',
           precio: attrs.precio ? String(attrs.precio) : '',
           precio_oferta: attrs.precio_oferta ? String(attrs.precio_oferta) : '',
@@ -402,10 +411,14 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         status: 'publish',
         
         // ✅ DESCRIPCIÓN COMPLETA (HTML) - CRÍTICO para WooCommerce
+        // Quill ya envía HTML, pero aseguramos formato válido
         description: convertirDescripcionAHTML(formData.descripcion || ''),
         
         // ✅ DESCRIPCIÓN CORTA (HTML) - CRÍTICO para WooCommerce
-        short_description: convertirDescripcionAHTML(formData.descripcion_corta || ''),
+        // Si hay descripción corta específica, usarla; si no, generar desde descripción completa
+        short_description: formData.descripcion_corta?.trim()
+          ? convertirDescripcionAHTML(formData.descripcion_corta)
+          : generarDescripcionCorta(formData.descripcion || '', 150),
         
         // Precio
         regular_price: formData.precio ? parseFloat(formData.precio).toFixed(2) : '0.00',
