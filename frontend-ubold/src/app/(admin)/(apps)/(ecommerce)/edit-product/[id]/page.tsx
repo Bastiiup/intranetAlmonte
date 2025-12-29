@@ -12,7 +12,7 @@ import VinculadosTab from '../../add-product/components/tabs/VinculadosTab'
 import AtributosTab from '../../add-product/components/tabs/AtributosTab'
 import AvanzadoTab from '../../add-product/components/tabs/AvanzadoTab'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { Alert, Button, Card, CardBody, Container, FormControl, FormGroup, FormLabel, FormSelect } from 'react-bootstrap'
+import { Alert, Button, Card, CardBody, Col, Container, FormControl, FormGroup, FormLabel, FormSelect, Row } from 'react-bootstrap'
 
 interface EditProductPageProps {
   params: Promise<{ id: string }>
