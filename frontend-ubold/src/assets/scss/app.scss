@@ -14,6 +14,7 @@
 
 // Bootstrap - Importación directa de componentes para evitar problemas de resolución de rutas
 @import "bootstrap/scss/maps";
+@import "bootstrap/scss/vendor/rfs"; // Necesario para que root.scss funcione
 @import "bootstrap/scss/mixins";
 @import "bootstrap/scss/utilities";
 @import "bootstrap/scss/root";
