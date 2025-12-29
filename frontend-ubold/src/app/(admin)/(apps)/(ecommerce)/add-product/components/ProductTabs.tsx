@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { memo, useCallback } from 'react'
 import { TbBox, TbTruck, TbLink, TbTag, TbSettings, TbFileText } from 'react-icons/tb'
 import { Card, CardBody, Nav, NavItem, NavLink } from 'react-bootstrap'
 
@@ -21,7 +21,11 @@ const tabs = [
   { id: 'avanzado' as TabType, label: 'Avanzado', icon: TbSettings },
 ]
 
-export default function ProductTabs({ activeTab, onTabChange, children }: ProductTabsProps) {
+const ProductTabs = memo(function ProductTabs({ activeTab, onTabChange, children }: ProductTabsProps) {
+  const handleTabClick = useCallback((tabId: TabType) => {
+    onTabChange(tabId)
+  }, [onTabChange])
+
   return (
     <div className="d-flex" style={{ minHeight: '600px' }}>
       {/* Sidebar de pestañas */}
@@ -33,7 +37,7 @@ export default function ProductTabs({ activeTab, onTabChange, children }: Produc
               <NavItem key={tab.id} className="mb-2">
                 <NavLink
                   active={activeTab === tab.id}
-                  onClick={() => onTabChange(tab.id)}
+                  onClick={() => handleTabClick(tab.id)}
                   className="d-flex align-items-center gap-2 cursor-pointer"
                   style={{ cursor: 'pointer' }}
                 >
@@ -54,5 +58,7 @@ export default function ProductTabs({ activeTab, onTabChange, children }: Produc
       </div>
     </div>
   )
-}
+})
+
+export default ProductTabs
 
