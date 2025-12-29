@@ -236,7 +236,7 @@ export default function AddProductPage() {
       dataToSend.raw_woo_data = rawWooData
       
       console.log('[AddProduct] 📦 Datos preparados para Strapi:', JSON.stringify(dataToSend, null, 2))
-      console.log('[AddProduct] 🖼️ rawWooData construido:', JSON.stringify(rawWooData, null, 2))
+      console.log('[AddProduct] 🖼️ raw_woo_data construido:', JSON.stringify(rawWooData, null, 2))
 
       // Agregar canales basados en plataformas seleccionadas
       if (selectedPlatforms.length > 0) {
