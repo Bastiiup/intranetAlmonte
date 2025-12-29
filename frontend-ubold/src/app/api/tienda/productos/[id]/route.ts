@@ -240,6 +240,7 @@ export async function PUT(
     console.log('[API PUT] 🔑 Keys del body:', Object.keys(body))
 
     // CRÍTICO: Verificar que el body no tenga campos en MAYÚSCULAS
+    // Normalizar camelCase a snake_case (ej: rawWooData -> raw_woo_data)
     const bodyKeys = Object.keys(body)
     const hasUppercaseKeys = bodyKeys.some(k => k !== k.toLowerCase())
     
@@ -247,12 +248,18 @@ export async function PUT(
       console.error('[API PUT] 🚨 ALERTA: Body tiene campos en MAYÚSCULAS!')
       console.error('[API PUT] Keys:', bodyKeys)
       
-      // Convertir FORZADAMENTE a minúsculas
+      // Función para convertir camelCase a snake_case
+      const camelToSnake = (str: string): string => {
+        return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
+      }
+      
+      // Convertir FORZADAMENTE a snake_case
       const normalizedBody: any = {}
       for (const [key, value] of Object.entries(body)) {
-        normalizedBody[key.toLowerCase()] = value
+        const normalizedKey = camelToSnake(key)
+        normalizedBody[normalizedKey] = value
       }
-      console.log('[API PUT] ✅ Body normalizado:', normalizedBody)
+      console.log('[API PUT] ✅ Body normalizado (camelCase -> snake_case):', Object.keys(normalizedBody))
       // Usar el body normalizado en lugar del original
       Object.assign(body, normalizedBody)
     }
@@ -502,35 +509,45 @@ export async function PUT(
     //   updateData.data.shipping_class = body.shipping_class || ''
     // }
 
-    // ✅ CRÍTICO: rawWooData DEBE enviarse a Strapi según el fix implementado
-    // Strapi ahora acepta rawWooData y lo usa directamente para sincronizar con WooCommerce
+    // ✅ CRÍTICO: raw_woo_data DEBE enviarse a Strapi según el fix implementado
+    // Strapi ahora acepta raw_woo_data y lo usa directamente para sincronizar con WooCommerce
     // Esto asegura que description y short_description se envíen correctamente a WordPress
-    if (body.rawWooData || body.raw_woo_data) {
-      const rawWooData = body.rawWooData || body.raw_woo_data
-      updateData.data.rawWooData = rawWooData
-      console.log('[API PUT] ✅ rawWooData incluido en payload:', {
+    // ⚠️ IMPORTANTE: Usar raw_woo_data (minúsculas con guiones bajos) para compatibilidad con Strapi
+    if (body.raw_woo_data || body.rawWooData) {
+      const rawWooData = body.raw_woo_data || body.rawWooData
+      // Normalizar a minúsculas con guiones bajos
+      updateData.data.raw_woo_data = rawWooData
+      console.log('[API PUT] ✅ raw_woo_data incluido en payload:', {
         tieneDescription: !!rawWooData?.description,
         tieneShortDescription: !!rawWooData?.short_description,
         descriptionLength: rawWooData?.description?.length || 0,
         shortDescriptionLength: rawWooData?.short_description?.length || 0,
       })
     } else {
-      console.log('[API PUT] ⚠️ rawWooData NO está presente en el body')
+      console.log('[API PUT] ⚠️ raw_woo_data NO está presente en el body')
     }
     
     console.log('[API PUT] ℹ️ Datos que se enviarán a Strapi:')
     console.log('[API PUT]   - descripcion:', updateData.data.descripcion ? '✅ Presente' : '❌ Vacío')
     console.log('[API PUT]   - subtitulo_libro:', updateData.data.subtitulo_libro ? '✅ Presente' : '❌ Vacío')
     console.log('[API PUT]   - precio:', updateData.data.precio ? '✅ Presente' : '❌ Vacío')
-    console.log('[API PUT]   - rawWooData:', updateData.data.rawWooData ? '✅ Presente' : '❌ Vacío')
+    console.log('[API PUT]   - raw_woo_data:', updateData.data.raw_woo_data ? '✅ Presente' : '❌ Vacío')
 
     // VERIFICACIÓN FINAL antes de enviar
+    // Verificar que todos los campos estén en snake_case (minúsculas con guiones bajos)
     const finalKeys = Object.keys(updateData.data)
-    const stillHasUppercase = finalKeys.some(k => k !== k.toLowerCase())
+    const camelToSnake = (str: string): string => {
+      return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
+    }
+    const keysWithUppercase = finalKeys.filter(k => {
+      const normalized = camelToSnake(k)
+      return k !== normalized && k !== k.toLowerCase()
+    })
     
-    if (stillHasUppercase) {
-      console.error('[API PUT] 🚨 ERROR CRÍTICO: Todavía hay MAYÚSCULAS!')
-      console.error('[API PUT] Keys problemáticos:', finalKeys.filter(k => k !== k.toLowerCase()))
+    if (keysWithUppercase.length > 0) {
+      console.error('[API PUT] 🚨 ERROR CRÍTICO: Todavía hay campos con MAYÚSCULAS!')
+      console.error('[API PUT] Keys problemáticos:', keysWithUppercase)
+      console.error('[API PUT] Keys normalizados esperados:', keysWithUppercase.map(camelToSnake))
       throw new Error('Error interno: Datos con formato incorrecto')
     }
 

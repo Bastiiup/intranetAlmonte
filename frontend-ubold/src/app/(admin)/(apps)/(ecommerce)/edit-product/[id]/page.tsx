@@ -550,9 +550,10 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         sku: formData.isbn_libro?.trim() || '',
       }
 
-      // ✅ CRÍTICO: Incluir rawWooData en el payload para que Strapi lo use
-      // Strapi ahora acepta rawWooData y lo usará para sincronizar con WooCommerce
-      dataToSend.rawWooData = rawWooData
+      // ✅ CRÍTICO: Incluir raw_woo_data en el payload para que Strapi lo use
+      // Strapi ahora acepta raw_woo_data y lo usará para sincronizar con WooCommerce
+      // ⚠️ IMPORTANTE: Usar raw_woo_data (minúsculas con guiones bajos) para compatibilidad con Strapi
+      dataToSend.raw_woo_data = rawWooData
       
       // ═══════════════════════════════════════════════════════════════════
       // 🔍 DEBUG: VERIFICACIÓN FINAL
@@ -565,11 +566,11 @@ export default function EditProductPage({ params }: EditProductPageProps) {
       console.log(JSON.stringify(dataToSend, null, 2))
       console.log('═══════════════════════════════════════════════════════')
       console.log('✅ VERIFICACIÓN FINAL:')
-      console.log('¿Payload tiene rawWooData?', !!dataToSend.rawWooData)
-      console.log('¿rawWooData tiene description?', !!dataToSend.rawWooData?.description)
-      console.log('¿rawWooData tiene short_description?', !!dataToSend.rawWooData?.short_description)
-      console.log('¿description está vacía?', !dataToSend.rawWooData?.description || dataToSend.rawWooData?.description === '')
-      console.log('¿short_description está vacía?', !dataToSend.rawWooData?.short_description || dataToSend.rawWooData?.short_description === '')
+      console.log('¿Payload tiene raw_woo_data?', !!dataToSend.raw_woo_data)
+      console.log('¿raw_woo_data tiene description?', !!dataToSend.raw_woo_data?.description)
+      console.log('¿raw_woo_data tiene short_description?', !!dataToSend.raw_woo_data?.short_description)
+      console.log('¿description está vacía?', !dataToSend.raw_woo_data?.description || dataToSend.raw_woo_data?.description === '')
+      console.log('¿short_description está vacía?', !dataToSend.raw_woo_data?.short_description || dataToSend.raw_woo_data?.short_description === '')
       console.log('Longitud description (texto):', descripcionTexto.length)
       console.log('Longitud short_description (texto):', descripcionCortaTexto.length)
       console.log('¿Son diferentes?', descripcionTexto !== descripcionCortaTexto)
