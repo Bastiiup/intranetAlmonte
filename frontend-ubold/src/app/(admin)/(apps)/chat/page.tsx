@@ -192,6 +192,21 @@ const Page = () => {
     try {
       setSelectedColaboradorId(colaboradorId)
       
+      // Primero asegurar que el usuario existe en Stream Chat
+      const ensureUserResponse = await fetch('/api/chat/stream-ensure-user', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ colaboradorId }),
+      })
+
+      if (!ensureUserResponse.ok) {
+        const errorData = await ensureUserResponse.json()
+        throw new Error(errorData.error || 'Error al asegurar usuario en Stream')
+      }
+
       // Crear ID de canal único para conversación 1-a-1
       // Ordenamos los IDs para que siempre sea el mismo canal independiente del orden
       const userIds = [currentUserIdRef.current, colaboradorId].sort()
@@ -207,6 +222,7 @@ const Page = () => {
     } catch (err: any) {
       console.error('[Chat] Error al seleccionar colaborador:', err)
       setError(err.message || 'Error al abrir conversación')
+      setSelectedColaboradorId(null)
     }
   }
 
