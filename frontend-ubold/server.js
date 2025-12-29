@@ -5,14 +5,14 @@
 
 // Establecer variables de entorno ANTES de cargar cualquier módulo
 const port = parseInt(process.env.PORT || '3000', 10)
-const hostname = process.env.HOSTNAME || '0.0.0.0'
 
-process.env.HOSTNAME = hostname
+// Forzar 0.0.0.0 para que escuche en todas las interfaces (requerido por Railway)
+process.env.HOSTNAME = '0.0.0.0'
 process.env.PORT = String(port)
 process.env.NODE_ENV = process.env.NODE_ENV || 'production'
 
 console.log(`🚀 Iniciando servidor Next.js en modo standalone...`)
-console.log(`📍 Hostname: ${hostname}`)
+console.log(`📍 Hostname: 0.0.0.0`)
 console.log(`🔌 Puerto: ${port}`)
 console.log(`📦 NODE_ENV: ${process.env.NODE_ENV}`)
 
@@ -38,8 +38,8 @@ try {
   require(serverPath)
   
   console.log('✅ Servidor standalone cargado e iniciado')
-  console.log(`🌐 Servidor disponible en http://${hostname}:${port}`)
-  console.log(`🏥 Healthcheck disponible en http://${hostname}:${port}/api/health`)
+  console.log(`🌐 Servidor disponible en http://0.0.0.0:${port}`)
+  console.log(`🏥 Healthcheck disponible en http://0.0.0.0:${port}/api/health`)
   console.log(`⏳ Esperando conexiones...`)
   
   // Mantener el proceso vivo

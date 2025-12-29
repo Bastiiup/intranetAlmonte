@@ -30,23 +30,38 @@ const originalCode = serverCode
 
 console.log('📝 Modificando servidor standalone...')
 
-// Reemplazar localhost y 127.0.0.1 con 0.0.0.0
-serverCode = serverCode.replace(/localhost/g, '0.0.0.0')
-serverCode = serverCode.replace(/127\.0\.0\.1/g, '0.0.0.0')
+// En Next.js 16, el servidor standalone usa createServer de Node.js
+// Necesitamos asegurar que siempre escuche en 0.0.0.0
 
-// Buscar y reemplazar cualquier IP específica en listen() con 0.0.0.0
-serverCode = serverCode.replace(/\.listen\(([^,]+),\s*['"](?:localhost|127\.0\.0\.1|\d+\.\d+\.\d+\.\d+)['"]/g, ".listen($1, '0.0.0.0'")
-serverCode = serverCode.replace(/\.listen\((\w+)\)(?!\s*,\s*(?:['"]0\.0\.0\.0['"]|function|\([^)]*\)\s*=>))/g, ".listen($1, '0.0.0.0')")
-serverCode = serverCode.replace(/\.listen\((\w+),\s*(function|\([^)]*\)\s*=>)/g, ".listen($1, '0.0.0.0', $2")
+// Reemplazar cualquier hostname que no sea 0.0.0.0 en listen()
+serverCode = serverCode.replace(/\.listen\(([^,]+),\s*['"](?!0\.0\.0\.0)([^'"]+)['"]/g, ".listen($1, '0.0.0.0'")
 
-// Asegurar que se use process.env.PORT si está disponible
-// Buscar patrones como .listen(3000) o .listen(port) y reemplazarlos
-if (serverCode.includes('.listen(')) {
-  // Si hay una llamada a listen con un número fijo, intentar reemplazarla
-  serverCode = serverCode.replace(/\.listen\((\d+)\)/g, (match, port) => {
-    return `.listen(parseInt(process.env.PORT || '${port}', 10), '0.0.0.0')`
-  })
-}
+// Si listen() solo tiene el puerto, agregar 0.0.0.0
+serverCode = serverCode.replace(/\.listen\((\d+)\)(?!\s*[,)])/g, ".listen($1, '0.0.0.0')")
+
+// Reemplazar localhost y 127.0.0.1 con 0.0.0.0 en cualquier contexto
+serverCode = serverCode.replace(/['"]localhost['"]/g, "'0.0.0.0'")
+serverCode = serverCode.replace(/['"]127\.0\.0\.1['"]/g, "'0.0.0.0'")
+
+// Reemplazar cualquier hostname de Docker interno (como bda9040e7428) con 0.0.0.0
+serverCode = serverCode.replace(/['"][a-f0-9]{12}['"]/g, "'0.0.0.0'")
+
+// Si hay una llamada a listen con una variable, asegurar que tenga hostname
+serverCode = serverCode.replace(/\.listen\((\w+)\)(?!\s*,\s*['"]0\.0\.0\.0['"])/g, ".listen($1, '0.0.0.0')")
+
+// Asegurar que process.env.PORT se use correctamente con 0.0.0.0
+serverCode = serverCode.replace(/\.listen\(parseInt\(process\.env\.PORT[^)]+\)\)(?!\s*,\s*['"]0\.0\.0\.0['"])/g, (match) => {
+  return match.replace(/\)$/, ", '0.0.0.0')")
+})
+
+// Buscar patrones específicos de Next.js donde se configura el hostname
+// Next.js puede usar hostname en variables, asegurémonos de que sea 0.0.0.0
+serverCode = serverCode.replace(/(const|let|var)\s+hostname\s*=\s*[^;]+;/g, (match) => {
+  if (!match.includes('0.0.0.0')) {
+    return "const hostname = '0.0.0.0';"
+  }
+  return match
+})
 
 if (serverCode !== originalCode) {
   fs.writeFileSync(serverPath, serverCode)
