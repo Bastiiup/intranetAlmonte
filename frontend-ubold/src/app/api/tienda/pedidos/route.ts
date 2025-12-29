@@ -254,25 +254,90 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     console.log('[API Pedidos POST] 📝 Creando pedido:', body)
 
-    // Validar originPlatform
-    const validPlatforms = ['woo_moraleja', 'woo_escolar', 'otros']
-    const originPlatform = body.data.originPlatform || body.data.origin_platform || 'woo_moraleja'
-    if (!validPlatforms.includes(originPlatform)) {
-      return NextResponse.json({
-        success: false,
-        error: `originPlatform debe ser uno de: ${validPlatforms.join(', ')}`
-      }, { status: 400 })
+    // Detectar si viene del POS (formato WooCommerce directo)
+    const isPosRequest = body.line_items && !body.data
+    
+    // Si viene del POS, forzar originPlatform a 'woo_escolar'
+    let originPlatform: string
+    if (isPosRequest) {
+      originPlatform = 'woo_escolar'
+      console.log('[API Pedidos POST] 🏪 Detectado pedido desde POS, usando originPlatform: woo_escolar')
+    } else {
+      // Validar originPlatform para otros casos
+      const validPlatforms = ['woo_moraleja', 'woo_escolar', 'otros']
+      originPlatform = body.data?.originPlatform || body.data?.origin_platform || 'woo_moraleja'
+      if (!validPlatforms.includes(originPlatform)) {
+        return NextResponse.json({
+          success: false,
+          error: `originPlatform debe ser uno de: ${validPlatforms.join(', ')}`
+        }, { status: 400 })
+      }
+    }
+
+    // Normalizar datos según el formato recibido
+    let normalizedData: any
+    if (isPosRequest) {
+      // Convertir formato POS (WooCommerce) a formato Strapi
+      normalizedData = {
+        numero_pedido: null, // Se generará automáticamente
+        fecha_pedido: body.date_created || new Date().toISOString(),
+        estado: body.status || 'completed',
+        total: body.total ? parseFloat(String(body.total)) : null,
+        subtotal: body.subtotal ? parseFloat(String(body.subtotal)) : null,
+        impuestos: body.total_tax ? parseFloat(String(body.total_tax)) : null,
+        envio: body.shipping_total ? parseFloat(String(body.shipping_total)) : null,
+        descuento: body.discount_total ? parseFloat(String(body.discount_total)) : null,
+        moneda: body.currency || 'CLP',
+        origen: normalizeOrigen(body.created_via || 'directo'),
+        cliente: body.customer_id || null,
+        items: (body.line_items || []).map((item: any) => ({
+          producto_id: item.product_id,
+          cantidad: item.quantity || 1,
+          nombre: item.name || '',
+          precio_unitario: item.price ? parseFloat(String(item.price)) : 0,
+          sku: item.sku || '',
+        })),
+        billing: body.billing || null,
+        shipping: body.shipping || null,
+        metodo_pago: normalizeMetodoPago(body.payment_method),
+        metodo_pago_titulo: body.payment_method_title || null,
+        nota_cliente: body.customer_note || null,
+        originPlatform: originPlatform,
+      }
+    } else {
+      // Formato Strapi normal
+      normalizedData = {
+        numero_pedido: body.data?.numero_pedido || null,
+        fecha_pedido: body.data?.fecha_pedido || new Date().toISOString(),
+        estado: body.data?.estado || 'pending',
+        total: body.data?.total ? parseFloat(String(body.data.total)) : null,
+        subtotal: body.data?.subtotal ? parseFloat(String(body.data.subtotal)) : null,
+        impuestos: body.data?.impuestos ? parseFloat(String(body.data.impuestos)) : null,
+        envio: body.data?.envio ? parseFloat(String(body.data.envio)) : null,
+        descuento: body.data?.descuento ? parseFloat(String(body.data.descuento)) : null,
+        moneda: body.data?.moneda || 'CLP',
+        origen: normalizeOrigen(body.data?.origen),
+        cliente: body.data?.cliente || null,
+        items: body.data?.items || [],
+        billing: body.data?.billing || null,
+        shipping: body.data?.shipping || null,
+        metodo_pago: normalizeMetodoPago(body.data?.metodo_pago),
+        metodo_pago_titulo: body.data?.metodo_pago_titulo || null,
+        nota_cliente: body.data?.nota_cliente || null,
+        originPlatform: originPlatform,
+      }
     }
 
     // Generar número de pedido automáticamente si no viene
     let numeroPedido: string
-    if (body.data?.numero_pedido && body.data.numero_pedido.trim()) {
-      numeroPedido = body.data.numero_pedido.trim()
+    if (normalizedData.numero_pedido && String(normalizedData.numero_pedido).trim()) {
+      numeroPedido = String(normalizedData.numero_pedido).trim()
       console.log('[API Pedidos POST] ✅ Usando número de pedido proporcionado:', numeroPedido)
     } else {
       numeroPedido = generateOrderNumber()
       console.log('[API Pedidos POST] 🔢 Número de pedido generado automáticamente:', numeroPedido)
     }
+    
     const pedidoEndpoint = '/api/wo-pedidos'
     console.log('[API Pedidos POST] Usando endpoint Strapi:', pedidoEndpoint)
 
@@ -282,23 +347,23 @@ export async function POST(request: NextRequest) {
     const pedidoData: any = {
       data: {
         numero_pedido: numeroPedido,
-        fecha_pedido: body.data.fecha_pedido || new Date().toISOString(),
+        fecha_pedido: normalizedData.fecha_pedido,
         // Strapi espera valores en inglés, mapear de español a inglés
-        estado: body.data.estado ? mapWooStatus(body.data.estado) : 'pending',
-        total: body.data.total ? parseFloat(body.data.total) : null,
-        subtotal: body.data.subtotal ? parseFloat(body.data.subtotal) : null,
-        impuestos: body.data.impuestos ? parseFloat(body.data.impuestos) : null,
-        envio: body.data.envio ? parseFloat(body.data.envio) : null,
-        descuento: body.data.descuento ? parseFloat(body.data.descuento) : null,
-        moneda: body.data.moneda || 'CLP',
-        origen: normalizeOrigen(body.data.origen),
-        cliente: body.data.cliente || null,
-        items: body.data.items || [],
-        billing: body.data.billing || null,
-        shipping: body.data.shipping || null,
-        metodo_pago: normalizeMetodoPago(body.data.metodo_pago),
-        metodo_pago_titulo: body.data.metodo_pago_titulo || null,
-        nota_cliente: body.data.nota_cliente || null,
+        estado: normalizedData.estado ? mapWooStatus(normalizedData.estado) : 'pending',
+        total: normalizedData.total,
+        subtotal: normalizedData.subtotal,
+        impuestos: normalizedData.impuestos,
+        envio: normalizedData.envio,
+        descuento: normalizedData.descuento,
+        moneda: normalizedData.moneda,
+        origen: normalizedData.origen,
+        cliente: normalizedData.cliente,
+        items: normalizedData.items,
+        billing: normalizedData.billing,
+        shipping: normalizedData.shipping,
+        metodo_pago: normalizedData.metodo_pago,
+        metodo_pago_titulo: normalizedData.metodo_pago_titulo,
+        nota_cliente: normalizedData.nota_cliente,
         originPlatform: originPlatform,
       }
     }
@@ -349,38 +414,56 @@ export async function POST(request: NextRequest) {
     const wcClient = getWooCommerceClientForPlatform(originPlatform)
     console.log('[API Pedidos POST] 🛒 Creando pedido en WooCommerce...')
     
-    // Mapear items de Strapi a formato WooCommerce
-    // Validar que los items tengan product_id válido antes de crear en WooCommerce
-    const lineItems = (body.data.items || [])
-      .map((item: any) => ({
-        product_id: item.producto_id || item.libro_id || item.product_id || null,
-        quantity: item.cantidad || 1,
-        name: item.nombre || '',
-        price: item.precio_unitario || 0,
-        sku: item.sku || '',
-      }))
-      .filter((item: any) => item.product_id && !isNaN(Number(item.product_id)))
+    // Mapear items a formato WooCommerce
+    // Si viene del POS, ya tiene line_items en formato WooCommerce
+    let lineItems: any[]
+    if (isPosRequest) {
+      // Usar line_items directamente del POS
+      lineItems = (body.line_items || [])
+        .map((item: any) => ({
+          product_id: item.product_id,
+          quantity: item.quantity || 1,
+          ...(item.variation_id && { variation_id: item.variation_id }),
+        }))
+        .filter((item: any) => item.product_id && !isNaN(Number(item.product_id)))
+    } else {
+      // Mapear items de Strapi a formato WooCommerce
+      lineItems = (normalizedData.items || [])
+        .map((item: any) => ({
+          product_id: item.producto_id || item.libro_id || item.product_id || null,
+          quantity: item.cantidad || 1,
+          name: item.nombre || '',
+          price: item.precio_unitario || 0,
+          sku: item.sku || '',
+        }))
+        .filter((item: any) => item.product_id && !isNaN(Number(item.product_id)))
+    }
     
     // Si no hay items válidos y se requiere crear en WooCommerce, advertir
-    if (lineItems.length === 0 && (body.data.items || []).length > 0) {
+    if (lineItems.length === 0 && normalizedData.items && normalizedData.items.length > 0) {
       console.warn('[API Pedidos POST] ⚠️ No hay items con product_id válido para WooCommerce')
     }
 
     const wooCommercePedidoData: any = {
-      status: mapWooStatus(body.data.estado || 'pendiente'),
-      currency: body.data.moneda || 'CLP',
-      date_created: body.data.fecha_pedido || new Date().toISOString(),
+      status: mapWooStatus(normalizedData.estado || 'pending'),
+      currency: normalizedData.moneda || 'CLP',
+      date_created: normalizedData.fecha_pedido || new Date().toISOString(),
       line_items: lineItems,
-      billing: body.data.billing || {},
-      shipping: body.data.shipping || {},
-      payment_method: body.data.metodo_pago || '',
-      payment_method_title: body.data.metodo_pago_titulo || '',
-      customer_note: body.data.nota_cliente || '',
-      total: String(body.data.total || 0),
-      subtotal: String(body.data.subtotal || 0),
-      total_tax: String(body.data.impuestos || 0),
-      shipping_total: String(body.data.envio || 0),
-      discount_total: String(body.data.descuento || 0),
+      billing: normalizedData.billing || {},
+      shipping: normalizedData.shipping || {},
+      payment_method: normalizedData.metodo_pago || '',
+      payment_method_title: normalizedData.metodo_pago_titulo || '',
+      customer_note: normalizedData.nota_cliente || '',
+      total: String(normalizedData.total || 0),
+      subtotal: String(normalizedData.subtotal || 0),
+      total_tax: String(normalizedData.impuestos || 0),
+      shipping_total: String(normalizedData.envio || 0),
+      discount_total: String(normalizedData.descuento || 0),
+    }
+    
+    // Si viene del POS, incluir meta_data si existe
+    if (isPosRequest && body.meta_data && Array.isArray(body.meta_data)) {
+      wooCommercePedidoData.meta_data = body.meta_data
     }
 
     // Crear pedido en WooCommerce
