@@ -323,8 +323,8 @@ export async function PUT(
             // Dividir por etiquetas <p> o </p>
             const paragraphs = htmlContent
               .split(/<p[^>]*>|<\/p>/)
-              .filter(p => p.trim() !== '' && !p.startsWith('<'))
-              .map(p => p.trim())
+              .filter((p: string) => p.trim() !== '' && !p.startsWith('<'))
+              .map((p: string) => p.trim())
             
             if (paragraphs.length > 0) {
               updateData.data.descripcion = paragraphs.map((para: string) => {
