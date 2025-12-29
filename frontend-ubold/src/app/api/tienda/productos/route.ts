@@ -141,12 +141,71 @@ export async function POST(request: NextRequest) {
     // Crear SOLO en Strapi (NO en WooCommerce al crear)
     console.log('[API POST] 📚 Creando producto en Strapi...')
     
+    // Convertir descripción de HTML a blocks de Strapi (igual que en PUT)
+    // ⚠️ CRÍTICO: Strapi espera descripcion como array de blocks (Rich Text), NO como string
+    let descripcionBlocks: any = null
+    if (body.descripcion !== undefined) {
+      if (Array.isArray(body.descripcion)) {
+        // Si ya viene como blocks, usar directamente
+        descripcionBlocks = body.descripcion
+      } else if (typeof body.descripcion === 'string') {
+        const descripcionTrimmed = body.descripcion.trim()
+        if (descripcionTrimmed === '') {
+          descripcionBlocks = null
+        } else {
+          // Si viene como HTML (desde Quill), convertir a blocks de Strapi
+          if (descripcionTrimmed.includes('<')) {
+            // Dividir por etiquetas <p> o </p>
+            const paragraphs = descripcionTrimmed
+              .split(/<p[^>]*>|<\/p>/)
+              .filter((p: string) => p.trim() !== '' && !p.startsWith('<'))
+              .map((p: string) => p.trim())
+            
+            if (paragraphs.length > 0) {
+              descripcionBlocks = paragraphs.map((para: string) => {
+                // Remover todas las etiquetas HTML y extraer solo texto
+                const textOnly = para.replace(/<[^>]+>/g, '').trim()
+                if (textOnly) {
+                  return {
+                    type: 'paragraph',
+                    children: [{ type: 'text', text: textOnly }]
+                  }
+                }
+                return null
+              }).filter((b: any) => b !== null)
+            } else {
+              // Si no hay párrafos, extraer todo el texto
+              const textOnly = descripcionTrimmed.replace(/<[^>]+>/g, '').trim()
+              descripcionBlocks = textOnly ? [
+                {
+                  type: 'paragraph',
+                  children: [{ type: 'text', text: textOnly }]
+                }
+              ] : null
+            }
+          } else {
+            // Si es texto plano, crear un párrafo
+            descripcionBlocks = [
+              {
+                type: 'paragraph',
+                children: [{ type: 'text', text: descripcionTrimmed }]
+              }
+            ]
+          }
+        }
+      }
+    }
+    
+    console.log('[API POST] ✅ Descripción formateada para Strapi:', JSON.stringify(descripcionBlocks))
+    console.log('[API POST] ℹ️ Tipo de descripción:', Array.isArray(descripcionBlocks) ? 'Blocks (✅ Correcto)' : descripcionBlocks === null ? 'null (vacío)' : 'String (❌ Incorrecto)')
+    
     const strapiProductData: any = {
       data: {
         nombre_libro: body.nombre_libro.trim(),
         isbn_libro: isbn,
-        descripcion: body.descripcion?.trim() || '',
-        descripcion_corta: body.descripcion_corta?.trim() || '', // ⚠️ CRÍTICO: Descripción corta para WooCommerce
+        descripcion: descripcionBlocks, // ✅ Enviar como blocks, no como string
+        // ⚠️ descripcion_corta NO se envía - no está en schema de Strapi
+        // Se usa solo en raw_woo_data para WooCommerce
         subtitulo_libro: body.subtitulo_libro?.trim() || '',
         estado_publicacion: estadoPublicacion,
       }
