@@ -552,11 +552,22 @@ export default function EditProductPage({ params }: EditProductPageProps) {
           </Button>
           <div className="d-flex gap-2">
             <Button
+              variant="outline-primary"
+              type="button"
+              disabled={saving}
+              onClick={() => {
+                // Guardar como borrador (implementar si es necesario)
+                console.log('Guardar como borrador')
+              }}
+            >
+              Guardar borrador
+            </Button>
+            <Button
               variant="primary"
               type="submit"
               disabled={saving}
             >
-              {saving ? 'Guardando...' : 'Actualizar producto'}
+              {saving ? 'Guardando...' : 'Actualizar'}
             </Button>
           </div>
         </div>
