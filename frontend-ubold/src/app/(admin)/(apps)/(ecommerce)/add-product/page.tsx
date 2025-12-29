@@ -236,24 +236,6 @@ export default function AddProductPage() {
     }
   }
 
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'general':
-        return <GeneralTab formData={formData} setFormData={setFormData} />
-      case 'inventario':
-        return <InventarioTab formData={formData} setFormData={setFormData} />
-      case 'envio':
-        return <EnvioTab formData={formData} setFormData={setFormData} />
-      case 'vinculados':
-        return <VinculadosTab formData={formData} setFormData={setFormData} />
-      case 'atributos':
-        return <AtributosTab formData={formData} setFormData={setFormData} />
-      case 'avanzado':
-        return <AvanzadoTab formData={formData} setFormData={setFormData} />
-      default:
-        return <GeneralTab formData={formData} setFormData={setFormData} />
-    }
-  }
 
   return (
     <Container fluid>
