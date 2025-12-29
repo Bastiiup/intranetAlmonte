@@ -146,11 +146,16 @@ export async function POST(request: NextRequest) {
         nombre_libro: body.nombre_libro.trim(),
         isbn_libro: isbn,
         descripcion: body.descripcion?.trim() || '',
+        descripcion_corta: body.descripcion_corta?.trim() || '', // ⚠️ CRÍTICO: Descripción corta para WooCommerce
         subtitulo_libro: body.subtitulo_libro?.trim() || '',
-        estado_publicacion: estadoPublicacion, // Siempre "Pendiente" al crear (con mayúscula inicial como requiere Strapi)
-        // NO incluir precio aquí - Strapi no tiene campo precio directo, usa relación precios
-        // NO incluir stock_quantity aquí - Strapi no tiene campo stock_quantity directo, usa relación stocks
+        estado_publicacion: estadoPublicacion,
       }
+    }
+
+    // ⚠️ CRÍTICO: Agregar rawWooData si viene en el body (formato WooCommerce completo)
+    if (body.rawWooData) {
+      strapiProductData.data.rawWooData = body.rawWooData
+      console.log('[API POST] 📦 rawWooData recibido y agregado al payload de Strapi')
     }
 
     // Agregar imagen si existe - usar ID de Strapi si está disponible

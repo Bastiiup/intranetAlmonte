@@ -159,6 +159,7 @@ export default function AddProductPage() {
       const dataToSend: any = {
         nombre_libro: formData.nombre_libro.trim(),
         descripcion: formData.descripcion?.trim() || '',
+        descripcion_corta: formData.descripcion_corta?.trim() || '', // ⚠️ CRÍTICO: Descripción corta
         isbn_libro: formData.isbn_libro?.trim() || '',
         precio: formData.precio,
         precio_oferta: formData.precio_oferta || '',
@@ -171,12 +172,50 @@ export default function AddProductPage() {
         length: formData.length || '',
         width: formData.width || '',
         height: formData.height || '',
+        shipping_class: formData.shipping_class || '',
         virtual: formData.virtual,
         downloadable: formData.downloadable,
         reviews_allowed: formData.reviews_allowed,
         menu_order: formData.menu_order || '0',
         sku: formData.sku || formData.isbn_libro || '',
+        purchase_note: formData.purchase_note || '',
       }
+
+      // ⚠️ CRÍTICO: Construir rawWooData con formato WooCommerce para sincronización
+      const precioRegular = parseFloat(formData.precio) || 0
+      const precioOferta = formData.precio_oferta ? parseFloat(formData.precio_oferta) : null
+      
+      dataToSend.rawWooData = {
+        name: formData.nombre_libro.trim(),
+        type: formData.type || 'simple',
+        status: 'publish',
+        featured: false,
+        catalog_visibility: 'visible',
+        description: formData.descripcion?.trim() || '',
+        short_description: formData.descripcion_corta?.trim() || '', // ⚠️ CRÍTICO: Descripción corta
+        sku: formData.sku || formData.isbn_libro || '',
+        regular_price: precioRegular > 0 ? precioRegular.toFixed(2) : '',
+        sale_price: precioOferta && precioOferta > 0 ? precioOferta.toFixed(2) : '',
+        manage_stock: formData.manage_stock !== false,
+        stock_quantity: formData.manage_stock !== false ? parseInt(formData.stock_quantity || '0') : null,
+        stock_status: formData.stock_status || 'instock',
+        backorders: 'no',
+        sold_individually: formData.sold_individually || false,
+        weight: formData.weight ? String(formData.weight) : '',
+        dimensions: {
+          length: formData.length ? String(formData.length) : '',
+          width: formData.width ? String(formData.width) : '',
+          height: formData.height ? String(formData.height) : '',
+        },
+        shipping_class: formData.shipping_class || '',
+        virtual: formData.virtual || false,
+        downloadable: formData.downloadable || false,
+        reviews_allowed: formData.reviews_allowed !== false,
+        menu_order: parseInt(formData.menu_order || '0'),
+        purchase_note: formData.purchase_note || '',
+      }
+
+      console.log('[AddProduct] 📦 rawWooData construido:', JSON.stringify(dataToSend.rawWooData, null, 2))
 
       // Agregar imagen
       if (portadaLibroUrl) {
