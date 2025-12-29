@@ -471,6 +471,12 @@ export async function PUT(
     const purchaseNote = body.purchase_note !== undefined ? body.purchase_note : (productoActual.purchase_note || '')
 
     // Construir rawWooData con formato WooCommerce
+    // IMPORTANTE: Precios, peso y dimensiones como STRINGS con 2 decimales
+    const pesoNum = pesoProducto ? parseFloat(pesoProducto.toString()) : null
+    const largoNum = largoProducto ? parseFloat(largoProducto.toString()) : null
+    const anchoNum = anchoProducto ? parseFloat(anchoProducto.toString()) : null
+    const altoNum = altoProducto ? parseFloat(altoProducto.toString()) : null
+    
     updateData.data.rawWooData = {
       name: nombreProducto,
       type: tipoProducto,
@@ -480,18 +486,18 @@ export async function PUT(
       description: typeof descripcionProducto === 'string' ? descripcionProducto : '',
       short_description: descripcionCorta, // ⚠️ CRÍTICO: Descripción corta
       sku: skuProducto,
-      regular_price: precioRegular > 0 ? precioRegular.toFixed(2) : '',
-      sale_price: precioOferta && precioOferta > 0 ? precioOferta.toFixed(2) : '', // ⚠️ CRÍTICO: Precio rebajado
+      regular_price: precioRegular > 0 ? precioRegular.toFixed(2) : '', // String con 2 decimales
+      sale_price: precioOferta && precioOferta > 0 ? precioOferta.toFixed(2) : '', // String con 2 decimales
       manage_stock: manageStock,
       stock_quantity: manageStock ? stockQuantity : null,
       stock_status: stockStatus,
       backorders: 'no',
       sold_individually: body.sold_individually !== undefined ? body.sold_individually : (productoActual.sold_individually || false),
-      weight: pesoProducto ? String(pesoProducto) : '', // ⚠️ CRÍTICO: Peso
+      weight: pesoNum && pesoNum > 0 ? pesoNum.toFixed(2) : '', // String con 2 decimales
       dimensions: {
-        length: largoProducto ? String(largoProducto) : '', // ⚠️ CRÍTICO: Dimensiones
-        width: anchoProducto ? String(anchoProducto) : '',
-        height: altoProducto ? String(altoProducto) : '',
+        length: largoNum && largoNum > 0 ? largoNum.toFixed(2) : '', // String con 2 decimales
+        width: anchoNum && anchoNum > 0 ? anchoNum.toFixed(2) : '', // String con 2 decimales
+        height: altoNum && altoNum > 0 ? altoNum.toFixed(2) : '', // String con 2 decimales
       },
       shipping_class: claseEnvio, // ⚠️ CRÍTICO: Clase de envío
       virtual: virtualProducto,

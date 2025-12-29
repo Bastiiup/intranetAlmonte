@@ -182,8 +182,13 @@ export default function AddProductPage() {
       }
 
       // ⚠️ CRÍTICO: Construir rawWooData con formato WooCommerce para sincronización
+      // IMPORTANTE: Precios, peso y dimensiones como STRINGS con 2 decimales
       const precioRegular = parseFloat(formData.precio) || 0
       const precioOferta = formData.precio_oferta ? parseFloat(formData.precio_oferta) : null
+      const peso = formData.weight ? parseFloat(formData.weight.toString()) : null
+      const largo = formData.length ? parseFloat(formData.length.toString()) : null
+      const ancho = formData.width ? parseFloat(formData.width.toString()) : null
+      const alto = formData.height ? parseFloat(formData.height.toString()) : null
       
       dataToSend.rawWooData = {
         name: formData.nombre_libro.trim(),
@@ -194,18 +199,18 @@ export default function AddProductPage() {
         description: formData.descripcion?.trim() || '',
         short_description: formData.descripcion_corta?.trim() || '', // ⚠️ CRÍTICO: Descripción corta
         sku: formData.sku || formData.isbn_libro || '',
-        regular_price: precioRegular > 0 ? precioRegular.toFixed(2) : '',
-        sale_price: precioOferta && precioOferta > 0 ? precioOferta.toFixed(2) : '',
+        regular_price: precioRegular > 0 ? precioRegular.toFixed(2) : '', // String con 2 decimales
+        sale_price: precioOferta && precioOferta > 0 ? precioOferta.toFixed(2) : '', // String con 2 decimales
         manage_stock: formData.manage_stock !== false,
         stock_quantity: formData.manage_stock !== false ? parseInt(formData.stock_quantity || '0') : null,
         stock_status: formData.stock_status || 'instock',
         backorders: 'no',
         sold_individually: formData.sold_individually || false,
-        weight: formData.weight ? String(formData.weight) : '',
+        weight: peso && peso > 0 ? peso.toFixed(2) : '', // String con 2 decimales
         dimensions: {
-          length: formData.length ? String(formData.length) : '',
-          width: formData.width ? String(formData.width) : '',
-          height: formData.height ? String(formData.height) : '',
+          length: largo && largo > 0 ? largo.toFixed(2) : '', // String con 2 decimales
+          width: ancho && ancho > 0 ? ancho.toFixed(2) : '', // String con 2 decimales
+          height: alto && alto > 0 ? alto.toFixed(2) : '', // String con 2 decimales
         },
         shipping_class: formData.shipping_class || '',
         virtual: formData.virtual || false,
