@@ -365,7 +365,15 @@ export default function EditProductPage({ params }: EditProductPageProps) {
       if (selectedPlatforms.length > 0) {
         // Obtener IDs de canales desde Strapi
         try {
-          const canalesResponse = await fetch('/api/tienda/canales')
+          const canalesResponse = await fetch('/api/tienda/canales', {
+            // Agregar timeout para evitar esperar demasiado
+            signal: AbortSignal.timeout(5000) // 5 segundos timeout
+          })
+          
+          if (!canalesResponse.ok) {
+            throw new Error(`Error ${canalesResponse.status}: ${canalesResponse.statusText}`)
+          }
+          
           const canalesData = await canalesResponse.json()
           
           if (canalesData.success && canalesData.data) {
@@ -389,10 +397,29 @@ export default function EditProductPage({ params }: EditProductPageProps) {
             
             if (canalesIds.length > 0) {
               dataToSend.canales = canalesIds
+              console.log('[EditProduct] ✅ Canales obtenidos exitosamente:', canalesIds)
             }
           }
-        } catch (err) {
-          console.warn('[EditProduct] No se pudieron obtener canales, se asignarán automáticamente')
+        } catch (err: any) {
+          // Si hay error al obtener canales (502, timeout, etc.), usar valores por defecto
+          console.warn('[EditProduct] ⚠️ No se pudieron obtener canales desde Strapi:', err.message)
+          console.warn('[EditProduct] ⚠️ Usando canales por defecto basados en plataformas seleccionadas')
+          
+          // Usar IDs por defecto conocidos (Moraleja=1, Escolar=2) si no se pueden obtener
+          const canalesIds: string[] = []
+          if (selectedPlatforms.includes('woo_moraleja')) {
+            canalesIds.push('1') // ID por defecto de Moraleja
+          }
+          if (selectedPlatforms.includes('woo_escolar')) {
+            canalesIds.push('2') // ID por defecto de Escolar
+          }
+          
+          if (canalesIds.length > 0) {
+            dataToSend.canales = canalesIds
+            console.log('[EditProduct] ✅ Usando canales por defecto:', canalesIds)
+          } else {
+            console.warn('[EditProduct] ⚠️ No se asignaron canales. El producto se actualizará sin cambiar canales.')
+          }
         }
       }
 
