@@ -53,20 +53,11 @@ export async function POST(request: NextRequest) {
 
     let avatar: string | undefined = undefined
     
-    // Si no tenemos la imagen en las cookies, intentar obtenerla de Strapi
-    if (!colaborador.persona?.imagen?.url) {
-      try {
-        const strapiResponse: any = await strapiClient.get(`/api/colaboradores/${colaborador.id}?populate[persona][populate][imagen]=*`)
-        const colaboradorData = strapiResponse?.data?.attributes || strapiResponse?.data
-        if (colaboradorData?.persona?.imagen?.url) {
-          avatar = `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${colaboradorData.persona.imagen.url}`
-        }
-      } catch (error) {
-        console.warn('[API /chat/stream-token] No se pudo obtener imagen del colaborador:', error)
-      }
-    } else {
+    // Si tenemos la imagen en las cookies, usarla
+    if (colaborador.persona?.imagen?.url) {
       avatar = `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${colaborador.persona.imagen.url}`
     }
+    // Nota: Si no hay imagen, avatar será undefined, lo cual está bien
 
     // Obtener cliente de Stream
     const streamClient = getStreamClient()
