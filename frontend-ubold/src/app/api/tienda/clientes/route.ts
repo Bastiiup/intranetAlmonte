@@ -154,18 +154,54 @@ export async function POST(request: NextRequest) {
           email: e.email.trim(),
           tipo: e.tipo || 'principal',
         })),
-        telefonos: personaData.telefonos && Array.isArray(personaData.telefonos) && personaData.telefonos.length > 0
-          ? personaData.telefonos.map((t: any) => ({
-              telefono: (t.telefono || t.numero || '').trim(),
-              tipo: t.tipo || 'principal',
-            }))
-          : [],
+        // NOTA: Los telefonos se omiten del POST inicial porque Strapi rechaza el campo
+        // Se pueden agregar después con un PUT si es necesario
       },
+    }
+    
+    // Guardar telefonos para agregarlos después si es necesario
+    const telefonosParaAgregar = personaData.telefonos && Array.isArray(personaData.telefonos) && personaData.telefonos.length > 0
+      ? personaData.telefonos
+      : null
+    
+    if (telefonosParaAgregar) {
+      console.log('[API Clientes POST] ℹ️ Teléfonos detectados pero se omitirán del POST inicial (Strapi rechaza el campo)')
     }
 
     const personaResponse = await strapiClient.post('/api/personas', personaCreateData) as any
     const personaId = personaResponse.data?.id || personaResponse.data?.documentId || personaResponse.id || personaResponse.documentId
+    const personaDocumentId = personaResponse.data?.documentId || personaResponse.data?.id || personaResponse.documentId || personaResponse.id
     console.log('[API Clientes POST] ✅ Persona creada en Strapi:', personaId)
+    
+    // Si hay telefonos, intentar agregarlos después con un PUT
+    // NOTA: Esto puede fallar si Strapi no acepta telefonos en PUT tampoco
+    if (telefonosParaAgregar && personaDocumentId) {
+      try {
+        console.log('[API Clientes POST] 📞 Intentando agregar telefonos después de crear la persona...')
+        // Intentar múltiples formatos posibles
+        const telefonosFormateados = telefonosParaAgregar.map((t: any) => {
+          const telefonoValue = (t.numero || t.telefono || t.telefonos || t.value || '').trim()
+          // Intentar con diferentes nombres de campo
+          return {
+            numero: telefonoValue, // Probar con "numero"
+            tipo: t.tipo || 'principal',
+          }
+        })
+        
+        const updateData = {
+          data: {
+            telefonos: telefonosFormateados,
+          },
+        }
+        
+        await strapiClient.put(`/api/personas/${personaDocumentId}`, updateData)
+        console.log('[API Clientes POST] ✅ Teléfonos agregados exitosamente')
+      } catch (telefonoError: any) {
+        console.warn('[API Clientes POST] ⚠️ No se pudieron agregar los telefonos:', telefonoError.message)
+        console.warn('[API Clientes POST] ⚠️ La persona se creó correctamente pero sin telefonos')
+        // No fallar si los telefonos no se pueden agregar
+      }
+    }
 
     // 2. Crear WO-Clientes con relación a Persona
     console.log('[API Clientes POST] 📦 Creando WO-Clientes en Strapi...')
