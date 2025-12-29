@@ -38,6 +38,7 @@ import {
   TbVideo,
 } from 'react-icons/tb'
 import { useAuth } from '@/hooks/useAuth'
+import { useStreamChat } from './hooks/useStreamChat'
 
 const Page = () => {
   const { colaborador, persona } = useAuth()
@@ -54,20 +55,34 @@ const Page = () => {
   const [show, setShow] = useState(false)
   const [contacts, setContacts] = useState<ContactType[]>([])
   const [currentContact, setCurrentContact] = useState<ContactType | null>(null)
-  const [messages, setMessages] = useState<MessageType[]>([])
   const [messageText, setMessageText] = useState('')
-  const [isLoading, setIsLoading] = useState(true)
   const [isSending, setIsSending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [lastMessageDate, setLastMessageDate] = useState<string | null>(null)
+  const [contactsLoading, setContactsLoading] = useState(true)
+  const [contactsError, setContactsError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Usar Stream Chat hook
+  const {
+    messages,
+    isLoading: streamLoading,
+    error: streamError,
+    sendMessage: streamSendMessage,
+  } = useStreamChat(currentUserId, currentContact?.id || null)
+
+  // Scroll al final cuando hay nuevos mensajes
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      }, 100)
+    }
+  }, [messages])
 
   // Cargar contactos
   useEffect(() => {
     const cargarContactos = async () => {
       try {
-        setIsLoading(true)
+        setContactsLoading(true)
         const response = await fetch('/api/chat/colaboradores')
         if (!response.ok) throw new Error('Error al cargar colaboradores')
         const data = await response.json()
@@ -120,97 +135,18 @@ const Page = () => {
         }
       } catch (err: any) {
         console.error('Error al cargar contactos:', err)
-        setError(err.message || 'Error al cargar contactos')
+        setContactsError(err.message || 'Error al cargar contactos')
       } finally {
-        setIsLoading(false)
+        setContactsLoading(false)
       }
     }
 
     cargarContactos()
   }, [])
 
-  // Cargar mensajes y polling
-  useEffect(() => {
-    if (!currentContact || !currentUserId) return
+  // Los mensajes se cargan automáticamente a través del hook useStreamChat
 
-    const cargarMensajes = async (soloNuevos: boolean = false) => {
-      try {
-        const query = new URLSearchParams({
-          colaborador_id: currentContact.id,
-          remitente_id: currentUserId,
-        })
-
-        if (soloNuevos && lastMessageDate) {
-          const fechaConMargen = new Date(new Date(lastMessageDate).getTime() - 2000).toISOString()
-          query.append('ultima_fecha', fechaConMargen)
-        }
-
-        const response = await fetch(`/api/chat/mensajes?${query.toString()}`)
-        if (!response.ok) {
-          if (response.status === 404 || response.status === 502 || response.status === 504) {
-            return
-          }
-          throw new Error('Error al cargar mensajes')
-        }
-
-        const data = await response.json()
-        const mensajesData = Array.isArray(data.data) ? data.data : (data.data ? [data.data] : [])
-
-        // Mapear mensajes - los datos vienen directamente
-        const mensajesMapeados: MessageType[] = mensajesData.map((mensaje: any) => {
-          const texto = mensaje.texto || ''
-          const remitenteId = mensaje.remitente_id || 1
-          const fecha = mensaje.fecha ? new Date(mensaje.fecha) : new Date(mensaje.createdAt || Date.now())
-
-          return {
-            id: String(mensaje.id),
-            senderId: String(remitenteId),
-            text: texto,
-            time: fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
-          }
-        })
-
-        if (soloNuevos) {
-          setMessages((prev) => {
-            const nuevosIds = new Set(mensajesMapeados.map((m) => m.id))
-            const mensajesExistentes = prev.filter((m) => !nuevosIds.has(m.id))
-            return [...mensajesExistentes, ...mensajesMapeados]
-          })
-        } else {
-          setMessages(mensajesMapeados)
-        }
-
-        if (mensajesMapeados.length > 0) {
-          const ultimoMensaje = mensajesData[mensajesData.length - 1]
-          const ultimaFecha = ultimoMensaje?.fecha || ultimoMensaje?.createdAt
-          if (ultimaFecha) {
-            setLastMessageDate(ultimaFecha)
-          }
-        }
-
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-        }, 100)
-      } catch (err: any) {
-        if (err.status !== 404 && err.status !== 502 && err.status !== 504) {
-          console.error('Error al cargar mensajes:', err)
-        }
-      }
-    }
-
-    cargarMensajes(false)
-    pollingIntervalRef.current = setInterval(() => {
-      cargarMensajes(true)
-    }, 1000)
-
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current)
-      }
-    }
-  }, [currentContact, lastMessageDate, currentUserId])
-
-  // Enviar mensaje
+  // Enviar mensaje usando Stream Chat
   const handleSendMessage = async () => {
     if (!messageText.trim() || !currentContact || isSending || !currentUserId) return
 
@@ -218,57 +154,13 @@ const Page = () => {
     setMessageText('')
     setIsSending(true)
 
-    const remitenteIdNum = parseInt(currentUserId, 10)
-    const colaboradorIdNum = parseInt(currentContact.id, 10)
-
     try {
-      const response = await fetch('/api/chat/mensajes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          texto,
-          colaborador_id: colaboradorIdNum,
-          remitente_id: remitenteIdNum,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Error al enviar mensaje')
-      }
-
-      // Recargar mensajes después de enviar
-      setTimeout(() => {
-        const query = new URLSearchParams({
-          colaborador_id: currentContact.id,
-          remitente_id: currentUserId,
-        })
-        fetch(`/api/chat/mensajes?${query.toString()}`)
-          .then((res) => res.json())
-          .then((data) => {
-            const mensajesData = Array.isArray(data.data) ? data.data : (data.data ? [data.data] : [])
-            const mensajesMapeados: MessageType[] = mensajesData.map((mensaje: any) => {
-              const texto = mensaje.texto || ''
-              const remitenteId = mensaje.remitente_id || 1
-              const fecha = mensaje.fecha ? new Date(mensaje.fecha) : new Date(mensaje.createdAt || Date.now())
-              return {
-                id: String(mensaje.id),
-                senderId: String(remitenteId),
-                text: texto,
-                time: fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
-              }
-            })
-            setMessages(mensajesMapeados)
-            setTimeout(() => {
-              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-            }, 100)
-          })
-          .catch(() => {})
-      }, 500)
+      await streamSendMessage(texto)
+      // El mensaje se agregará automáticamente a través del hook
     } catch (err: any) {
       console.error('Error al enviar mensaje:', err)
-      setError(err.message || 'Error al enviar mensaje')
-      setMessageText(texto)
+      setContactsError(err.message || 'Error al enviar mensaje')
+      setMessageText(texto) // Restaurar el texto si hay error
     } finally {
       setIsSending(false)
     }
@@ -280,6 +172,9 @@ const Page = () => {
       handleSendMessage()
     }
   }
+
+  const isLoading = contactsLoading || streamLoading
+  const error = contactsError || streamError
 
   if (isLoading && contacts.length === 0) {
     return (
