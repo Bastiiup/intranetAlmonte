@@ -169,11 +169,63 @@ export async function POST(request: NextRequest) {
 
     // === RELACIONES MÚLTIPLES (array de documentIds) ===
     // CRÍTICO: Los canales son necesarios para sincronizar con WordPress
+    // Si no se especifican canales, asignar automáticamente ambos (Moraleja y Escolar)
     if (body.canales && Array.isArray(body.canales) && body.canales.length > 0) {
       strapiProductData.data.canales = body.canales
-      console.log('[API POST] 📡 Canales asignados:', body.canales)
+      console.log('[API POST] 📡 Canales asignados (desde formulario):', body.canales)
     } else {
-      console.warn('[API POST] ⚠️ No se asignaron canales. El producto no se sincronizará con WordPress hasta que se asignen canales.')
+      // ⚠️ ASIGNAR AMBOS CANALES POR DEFECTO
+      // Obtener IDs de canales dinámicamente
+      try {
+        const canalesResponse = await strapiClient.get<any>('/api/canales?populate=*&pagination[pageSize]=1000')
+        let canalesItems: any[] = []
+        
+        if (Array.isArray(canalesResponse)) {
+          canalesItems = canalesResponse
+        } else if (canalesResponse.data && Array.isArray(canalesResponse.data)) {
+          canalesItems = canalesResponse.data
+        } else if (canalesResponse.data) {
+          canalesItems = [canalesResponse.data]
+        } else {
+          canalesItems = [canalesResponse]
+        }
+        
+        // Buscar canales por key o nombre
+        const canalMoraleja = canalesItems.find((c: any) => {
+          const attrs = c.attributes || c
+          const key = attrs.key || attrs.nombre?.toLowerCase()
+          return key === 'moraleja' || key === 'woo_moraleja' || attrs.nombre?.toLowerCase().includes('moraleja')
+        })
+        
+        const canalEscolar = canalesItems.find((c: any) => {
+          const attrs = c.attributes || c
+          const key = attrs.key || attrs.nombre?.toLowerCase()
+          return key === 'escolar' || key === 'woo_escolar' || attrs.nombre?.toLowerCase().includes('escolar')
+        })
+        
+        const canalesDefault: string[] = []
+        
+        if (canalMoraleja) {
+          const docId = canalMoraleja.documentId || canalMoraleja.id
+          if (docId) canalesDefault.push(String(docId))
+        }
+        
+        if (canalEscolar) {
+          const docId = canalEscolar.documentId || canalEscolar.id
+          if (docId) canalesDefault.push(String(docId))
+        }
+        
+        if (canalesDefault.length > 0) {
+          strapiProductData.data.canales = canalesDefault
+          console.log('[API POST] 📡 Canales asignados automáticamente (por defecto):', canalesDefault)
+          console.log('[API POST] ✅ Producto se sincronizará con ambos canales: Moraleja y Escolar')
+        } else {
+          console.warn('[API POST] ⚠️ No se pudieron obtener los canales por defecto. El producto no se sincronizará con WordPress hasta que se asignen canales.')
+        }
+      } catch (canalesError: any) {
+        console.error('[API POST] ❌ Error al obtener canales por defecto:', canalesError.message)
+        console.warn('[API POST] ⚠️ No se asignaron canales. El producto no se sincronizará con WordPress hasta que se asignen canales.')
+      }
     }
     
     if (body.marcas && Array.isArray(body.marcas) && body.marcas.length > 0) {
