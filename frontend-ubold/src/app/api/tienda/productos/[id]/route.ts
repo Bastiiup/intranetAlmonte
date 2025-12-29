@@ -303,24 +303,64 @@ export async function PUT(
       updateData.data.subtitulo_libro = body.subtitulo_libro
     }
 
-    // Descripción - Rich Text Blocks
+    // Descripción - Rich Text Blocks o HTML
+    // Quill envía HTML, necesitamos convertirlo a blocks de Strapi
     if (body.descripcion !== undefined) {
       if (Array.isArray(body.descripcion)) {
+        // Si ya viene como blocks, usar directamente
         updateData.data.descripcion = body.descripcion
       } else if (typeof body.descripcion === 'string') {
-        if (body.descripcion.trim() === '') {
+        const descripcionTrimmed = body.descripcion.trim()
+        if (descripcionTrimmed === '') {
           updateData.data.descripcion = null
         } else {
-          updateData.data.descripcion = [
-            {
-              type: 'paragraph',
-              children: [{ type: 'text', text: body.descripcion.trim() }]
+          // Si viene como HTML (desde Quill), convertir a blocks de Strapi
+          // Dividir por párrafos (<p> o saltos de línea)
+          const htmlContent = descripcionTrimmed
+          
+          // Si contiene HTML, procesarlo
+          if (htmlContent.includes('<')) {
+            // Dividir por etiquetas <p> o </p>
+            const paragraphs = htmlContent
+              .split(/<p[^>]*>|<\/p>/)
+              .filter(p => p.trim() !== '' && !p.startsWith('<'))
+              .map(p => p.trim())
+            
+            if (paragraphs.length > 0) {
+              updateData.data.descripcion = paragraphs.map((para: string) => {
+                // Remover todas las etiquetas HTML y extraer solo texto
+                const textOnly = para.replace(/<[^>]+>/g, '').trim()
+                if (textOnly) {
+                  return {
+                    type: 'paragraph',
+                    children: [{ type: 'text', text: textOnly }]
+                  }
+                }
+                return null
+              }).filter((b: any) => b !== null)
+            } else {
+              // Si no hay párrafos, extraer todo el texto
+              const textOnly = htmlContent.replace(/<[^>]+>/g, '').trim()
+              updateData.data.descripcion = textOnly ? [
+                {
+                  type: 'paragraph',
+                  children: [{ type: 'text', text: textOnly }]
+                }
+              ] : null
             }
-          ]
+          } else {
+            // Si es texto plano, crear un párrafo
+            updateData.data.descripcion = [
+              {
+                type: 'paragraph',
+                children: [{ type: 'text', text: descripcionTrimmed }]
+              }
+            ]
+          }
         }
       }
       
-      console.log('[API PUT] Descripción formateada:', JSON.stringify(updateData.data.descripcion))
+      console.log('[API PUT] ✅ Descripción formateada para Strapi:', JSON.stringify(updateData.data.descripcion))
     }
 
     // Imagen - CRÍTICO: minúsculas

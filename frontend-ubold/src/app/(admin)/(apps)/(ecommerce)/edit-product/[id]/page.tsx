@@ -131,32 +131,45 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         const attrs = producto.attributes || producto
 
         // Extraer descripción (puede ser string HTML, string plano, o array de blocks)
+        // Quill necesita HTML, así que convertimos blocks a HTML si es necesario
         let descripcion = ''
         if (typeof attrs.descripcion === 'string') {
-          // Si es string, puede ser HTML o texto plano
+          // Si es string, puede ser HTML o texto plano - usar directamente
           descripcion = attrs.descripcion
         } else if (Array.isArray(attrs.descripcion)) {
-          // Si es array de blocks (Strapi Rich Text), convertir a HTML
-          // Por ahora, extraer texto plano. Si necesitas HTML completo, usar una librería de conversión
+          // Si es array de blocks (Strapi Rich Text), convertir a HTML para Quill
           descripcion = attrs.descripcion
             .map((block: any) => {
               if (block.type === 'paragraph' && block.children) {
-                return block.children.map((child: any) => {
-                  if (child.type === 'text') {
-                    return child.text || ''
-                  }
-                  return ''
-                }).join('')
+                const paragraphText = block.children
+                  .map((child: any) => {
+                    if (child.type === 'text') {
+                      // Preservar formato si existe
+                      let text = child.text || ''
+                      if (child.bold) text = `<strong>${text}</strong>`
+                      if (child.italic) text = `<em>${text}</em>`
+                      if (child.underline) text = `<u>${text}</u>`
+                      return text
+                    }
+                    return ''
+                  })
+                  .join('')
+                return `<p>${paragraphText}</p>`
               }
               return ''
             })
             .filter((text: string) => text.trim() !== '')
-            .join('<p>')
+            .join('')
         }
         
         // Si la descripción está vacía pero hay texto, intentar extraerlo
         if (!descripcion && attrs.descripcion) {
           descripcion = String(attrs.descripcion)
+        }
+        
+        // Limpiar descripción para Quill (remover etiquetas HTML vacías)
+        if (descripcion) {
+          descripcion = descripcion.replace(/<p><\/p>/g, '').trim()
         }
 
         // Obtener imagen
@@ -317,24 +330,19 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         console.log('[EditProduct] Imagen subida:', { id: portadaLibroId, url: portadaLibroUrl })
       }
 
-      // Construir payload - Solo campos BÁSICOS que Strapi acepta
-      // ⚠️ IMPORTANTE: Strapi tiene un schema muy restrictivo
-      // Solo enviar campos básicos que sabemos que funcionan:
-      // - nombre_libro, descripcion, isbn_libro, precio, precio_oferta, stock_quantity
-      // NO incluir campos WooCommerce que no están en schema:
-      // - descripcion_corta, sold_individually, manage_stock, stock_status
-      // - type, virtual, downloadable, reviews_allowed, menu_order, purchase_note, sku
-      // - weight, length, width, height, shipping_class (verificar si están permitidos)
-      // Estos campos se manejan en Strapi a través de raw_woo_data en los lifecycles
+      // Construir payload - Campos básicos que Strapi acepta
+      // ⚠️ IMPORTANTE: Algunos campos no están en el schema directo pero se usan en lifecycles
+      // - descripcion_corta: Se envía aunque no esté en schema, Strapi lo usa en raw_woo_data
       const dataToSend: any = {
         nombre_libro: formData.nombre_libro.trim(),
         descripcion: formData.descripcion?.trim() || '',
+        descripcion_corta: formData.descripcion_corta?.trim() || '', // ⚠️ Para raw_woo_data en Strapi
         isbn_libro: formData.isbn_libro?.trim() || '',
         precio: formData.precio,
         precio_oferta: formData.precio_oferta || '',
         stock_quantity: formData.stock_quantity || '0',
         // Campos WooCommerce que NO están en schema de Strapi:
-        // descripcion_corta, manage_stock, stock_status, sold_individually
+        // manage_stock, stock_status, sold_individually
         // type, virtual, downloadable, reviews_allowed, menu_order, purchase_note, sku
         // weight, length, width, height, shipping_class
         // Estos se manejan en Strapi a través de raw_woo_data en los lifecycles
