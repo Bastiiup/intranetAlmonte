@@ -433,18 +433,20 @@ export async function PUT(
     // }
     
     // Peso y dimensiones
-    if (body.weight !== undefined) {
-      updateData.data.weight = parseFloat(body.weight.toString()) || 0
-    }
-    if (body.length !== undefined) {
-      updateData.data.length = parseFloat(body.length.toString()) || 0
-    }
-    if (body.width !== undefined) {
-      updateData.data.width = parseFloat(body.width.toString()) || 0
-    }
-    if (body.height !== undefined) {
-      updateData.data.height = parseFloat(body.height.toString()) || 0
-    }
+    // ⚠️ VERIFICAR: Estos campos pueden no estar en el schema de Strapi
+    // Si dan error, comentarlos también
+    // if (body.weight !== undefined) {
+    //   updateData.data.weight = parseFloat(body.weight.toString()) || 0
+    // }
+    // if (body.length !== undefined) {
+    //   updateData.data.length = parseFloat(body.length.toString()) || 0
+    // }
+    // if (body.width !== undefined) {
+    //   updateData.data.width = parseFloat(body.width.toString()) || 0
+    // }
+    // if (body.height !== undefined) {
+    //   updateData.data.height = parseFloat(body.height.toString()) || 0
+    // }
 
     // Descripción corta
     // ❌ NO incluir descripcion_corta - no está en schema de Strapi
@@ -454,9 +456,10 @@ export async function PUT(
     // }
 
     // Clase de envío
-    if (body.shipping_class !== undefined) {
-      updateData.data.shipping_class = body.shipping_class || ''
-    }
+    // ⚠️ VERIFICAR: Este campo puede no estar en el schema de Strapi
+    // if (body.shipping_class !== undefined) {
+    //   updateData.data.shipping_class = body.shipping_class || ''
+    // }
 
     // ⚠️ IMPORTANTE: raw_woo_data NO se envía a Strapi porque no está en el schema
     // Strapi debe construir raw_woo_data en sus lifecycles basándose en los campos individuales
