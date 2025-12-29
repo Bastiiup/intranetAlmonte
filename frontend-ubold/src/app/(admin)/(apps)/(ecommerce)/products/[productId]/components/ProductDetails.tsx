@@ -42,10 +42,14 @@ const extractDescriptionText = (descripcion: any): string => {
 }
 
 export function ProductDetails({ producto, onUpdate, onProductoUpdate }: ProductDetailsProps) {
+  const router = useRouter()
   const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  
+  // Obtener ID del producto para redirigir a editar
+  const productId = producto.id?.toString() || producto.documentId || (producto as any).documentId || ''
   
   // Obtener datos del producto (puede venir de attributes o directamente)
   const attrs = producto.attributes || {}
