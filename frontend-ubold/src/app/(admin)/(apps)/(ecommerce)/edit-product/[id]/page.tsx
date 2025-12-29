@@ -410,9 +410,10 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         sku: formData.isbn_libro?.trim() || '',
       }
 
-      // Agregar rawWooData al payload (Strapi puede usarlo en lifecycles aunque no esté en schema)
+      // Agregar raw_woo_data al payload (Strapi puede usarlo en lifecycles aunque no esté en schema)
       // Si Strapi lo rechaza, se construirá en los lifecycles basándose en los campos individuales
-      dataToSend.rawWooData = rawWooData
+      // ⚠️ IMPORTANTE: Usar minúsculas para pasar la validación del backend
+      dataToSend.raw_woo_data = rawWooData
       
       console.log('[EditProduct] 📦 Datos preparados para Strapi:', JSON.stringify(dataToSend, null, 2))
       console.log('[EditProduct] 🖼️ rawWooData construido:', JSON.stringify(rawWooData, null, 2))
