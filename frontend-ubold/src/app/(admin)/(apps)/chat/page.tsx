@@ -186,11 +186,29 @@ const Page = () => {
   // Crear o seleccionar canal con un colaborador
   const selectColaborador = async (colaboradorId: string) => {
     if (!chatClient || !currentUserIdRef.current) {
+      console.error('[Chat] No hay chatClient o currentUserId:', { chatClient: !!chatClient, currentUserId: currentUserIdRef.current })
       return
     }
 
     try {
-      setSelectedColaboradorId(colaboradorId)
+      // Normalizar IDs a strings para asegurar consistencia
+      const currentUserId = String(currentUserIdRef.current)
+      const otherUserId = String(colaboradorId)
+
+      // Verificar que no sea el mismo usuario
+      if (currentUserId === otherUserId) {
+        console.error('[Chat] Error: Intento de chatear consigo mismo:', currentUserId)
+        setError('No puedes chatear contigo mismo')
+        return
+      }
+
+      console.log('[Chat] Seleccionando colaborador:', {
+        currentUserId,
+        otherUserId,
+        colaboradorId,
+      })
+
+      setSelectedColaboradorId(otherUserId)
       setError(null) // Limpiar errores previos
       
       // Primero asegurar que el usuario objetivo existe en Stream Chat
@@ -200,7 +218,7 @@ const Page = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ colaboradorId }),
+        body: JSON.stringify({ colaboradorId: otherUserId }),
       })
 
       if (!ensureUserResponse.ok) {
@@ -210,22 +228,33 @@ const Page = () => {
 
       // Crear ID de canal único para conversación 1-a-1
       // Ordenamos los IDs para que siempre sea el mismo canal independiente del orden
-      const userIds = [currentUserIdRef.current, colaboradorId].sort()
+      const userIds = [currentUserId, otherUserId].sort()
       const channelId = `direct-${userIds.join('-')}`
+
+      console.log('[Chat] Creando canal:', {
+        channelId,
+        userIds,
+        members: [currentUserId, otherUserId],
+      })
 
       // Obtener o crear canal
       // IMPORTANTE: Pasar los miembros en la configuración inicial
       // Stream Chat usará esto tanto si el canal existe como si es nuevo
       const channel = chatClient.channel('messaging', channelId, {
-        members: [currentUserIdRef.current, colaboradorId],
+        members: [currentUserId, otherUserId],
       })
 
       // watch() crea el canal si no existe, o se suscribe si ya existe
       // Esto es necesario para recibir mensajes en tiempo real
       await channel.watch()
       
+      console.log('[Chat] Canal listo:', {
+        channelId,
+        channelState: channel.state,
+        membersCount: channel.state.members ? Object.keys(channel.state.members).length : 0,
+      })
+      
       setChannel(channel)
-      console.log('[Chat] Canal listo:', channelId)
     } catch (err: any) {
       console.error('[Chat] Error al seleccionar colaborador:', err)
       setError(err.message || 'Error al abrir conversación')
