@@ -21,21 +21,34 @@ const getField = (obj: any, ...fieldNames: string[]): any => {
   return undefined
 }
 
-// Helper para extraer texto de descripción (puede venir en formato blocks o string)
+// Helper para extraer texto de descripción (puede venir en formato blocks, string HTML, o string plano)
 const extractDescriptionText = (descripcion: any): string => {
   if (!descripcion) return ''
-  if (typeof descripcion === 'string') return descripcion
+  if (typeof descripcion === 'string') {
+    // Si es string, puede ser HTML o texto plano
+    // Si contiene HTML, extraer solo el texto
+    if (descripcion.includes('<')) {
+      return descripcion.replace(/<[^>]+>/g, '').trim()
+    }
+    return descripcion
+  }
   if (Array.isArray(descripcion)) {
     // Formato blocks de Strapi
     return descripcion
       .map((block: any) => {
-        if (block.children) {
+        if (block.type === 'paragraph' && block.children) {
           return block.children
-            .map((child: any) => child.text || '')
+            .map((child: any) => {
+              if (child.type === 'text') {
+                return child.text || ''
+              }
+              return ''
+            })
             .join('')
         }
         return ''
       })
+      .filter((text: string) => text.trim() !== '')
       .join('\n')
   }
   return ''
