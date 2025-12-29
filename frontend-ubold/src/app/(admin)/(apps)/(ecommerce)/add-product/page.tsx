@@ -309,15 +309,23 @@ export default function AddProductPage() {
       // Por ahora, NO lo incluimos para evitar el error "Invalid key raw_woo_data"
       // dataToSend.raw_woo_data = rawWooData  // ❌ Comentado - Strapi lo rechaza
       
+      // Debug: Verificar que las descripciones son diferentes
+      const descripcionCompletaTexto = rawWooData.description.replace(/<[^>]+>/g, '').trim()
+      const descripcionCortaTexto = rawWooData.short_description.replace(/<[^>]+>/g, '').trim()
+      
       console.log('[AddProduct] 📦 Datos preparados para Strapi:', JSON.stringify(dataToSend, null, 2))
       console.log('[AddProduct] 🖼️ raw_woo_data construido:', JSON.stringify(rawWooData, null, 2))
       console.log('[AddProduct] 📝 Descripción completa (HTML):', rawWooData.description)
       console.log('[AddProduct] 📝 Descripción corta (HTML):', rawWooData.short_description)
+      console.log('[AddProduct] 📝 Descripción completa (TEXTO):', descripcionCompletaTexto.substring(0, 100) + '...')
+      console.log('[AddProduct] 📝 Descripción corta (TEXTO):', descripcionCortaTexto)
       console.log('[AddProduct] 🔍 Verificación:', {
         tieneDescripcion: !!rawWooData.description && rawWooData.description.length > 0,
         tieneDescripcionCorta: !!rawWooData.short_description && rawWooData.short_description.length > 0,
-        longitudDescripcion: rawWooData.description?.length || 0,
-        longitudDescripcionCorta: rawWooData.short_description?.length || 0
+        longitudDescripcion: descripcionCompletaTexto.length,
+        longitudDescripcionCorta: descripcionCortaTexto.length,
+        sonDiferentes: descripcionCompletaTexto !== descripcionCortaTexto,
+        descripcionCortaEsMasCorta: descripcionCortaTexto.length < descripcionCompletaTexto.length
       })
 
       // Agregar canales basados en plataformas seleccionadas
