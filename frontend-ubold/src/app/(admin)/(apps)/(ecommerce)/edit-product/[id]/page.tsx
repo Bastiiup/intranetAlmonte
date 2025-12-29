@@ -130,20 +130,33 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         const producto = result.data
         const attrs = producto.attributes || producto
 
-        // Extraer descripción (puede ser string o array de blocks)
+        // Extraer descripción (puede ser string HTML, string plano, o array de blocks)
         let descripcion = ''
         if (typeof attrs.descripcion === 'string') {
+          // Si es string, puede ser HTML o texto plano
           descripcion = attrs.descripcion
         } else if (Array.isArray(attrs.descripcion)) {
-          // Extraer texto de los blocks
+          // Si es array de blocks (Strapi Rich Text), convertir a HTML
+          // Por ahora, extraer texto plano. Si necesitas HTML completo, usar una librería de conversión
           descripcion = attrs.descripcion
             .map((block: any) => {
-              if (block.children) {
-                return block.children.map((child: any) => child.text || '').join('')
+              if (block.type === 'paragraph' && block.children) {
+                return block.children.map((child: any) => {
+                  if (child.type === 'text') {
+                    return child.text || ''
+                  }
+                  return ''
+                }).join('')
               }
               return ''
             })
-            .join('\n')
+            .filter((text: string) => text.trim() !== '')
+            .join('<p>')
+        }
+        
+        // Si la descripción está vacía pero hay texto, intentar extraerlo
+        if (!descripcion && attrs.descripcion) {
+          descripcion = String(attrs.descripcion)
         }
 
         // Obtener imagen
