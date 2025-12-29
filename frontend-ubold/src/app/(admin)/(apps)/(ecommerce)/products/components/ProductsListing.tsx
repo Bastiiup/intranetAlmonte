@@ -86,9 +86,21 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
     return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
   }
 
-  // Calcular stock total (igual que ProductosGrid)
+  // Calcular stock total: primero del campo directo, luego de la relación
   const getStockTotal = (): number => {
+    // 1. Intentar obtener del campo stock_quantity directo (nuevo método)
+    const stockDirecto = getField(data, 'stock_quantity', 'STOCK_QUANTITY', 'stockQuantity')
+    if (stockDirecto !== undefined && stockDirecto !== null && stockDirecto !== '') {
+      const stockNum = parseInt(stockDirecto.toString())
+      if (!isNaN(stockNum) && stockNum >= 0) {
+        return stockNum
+      }
+    }
+    
+    // 2. Si no hay stock directo, buscar en la relación (método antiguo)
     const stocks = data.STOCKS?.data || data.stocks?.data || []
+    if (stocks.length === 0) return 0
+    
     return stocks.reduce((total: number, stock: any) => {
       const cantidad = stock.attributes?.CANTIDAD || stock.attributes?.cantidad || 0
       return total + (typeof cantidad === 'number' ? cantidad : 0)
