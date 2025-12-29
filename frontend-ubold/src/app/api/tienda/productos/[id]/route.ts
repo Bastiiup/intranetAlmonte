@@ -477,8 +477,11 @@ export async function PUT(
     const anchoNum = anchoProducto ? parseFloat(anchoProducto.toString()) : null
     const altoNum = altoProducto ? parseFloat(altoProducto.toString()) : null
     
-    // ⚠️ CRÍTICO: Usar raw_woo_data (minúsculas) para pasar la validación
-    updateData.data.raw_woo_data = {
+    // ⚠️ CRÍTICO: raw_woo_data se maneja de forma especial - NO se envía directamente a Strapi
+    // Strapi lo procesa internamente en los lifecycles, así que lo guardamos en un campo temporal
+    // o lo pasamos como metadata. Por ahora, lo construimos pero NO lo enviamos en el PUT
+    // ya que Strapi no tiene ese campo en el schema. Se usará en los lifecycles de Strapi.
+    const rawWooDataForSync = {
       name: nombreProducto,
       type: tipoProducto,
       status: 'publish',
