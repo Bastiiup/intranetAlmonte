@@ -2,13 +2,15 @@
 
 ## ❌ PROBLEMA ACTUAL
 
-Los productos creados desde la Intranet llegan a Strapi pero **NO se sincronizan correctamente** con WooCommerce. Los siguientes campos no aparecen en WordPress:
+Los productos creados o actualizados desde la Intranet llegan a Strapi pero **NO se sincronizan correctamente** con WooCommerce. Los siguientes campos no aparecen en WordPress:
 
 - ❌ **Descripción del producto** (`description`)
 - ❌ **Descripción corta** (`short_description`)
 - ❌ **Precio rebajado** (`sale_price`)
 - ❌ **Peso y dimensiones** (`weight`, `dimensions`)
 - ❌ **Clase de envío** (`shipping_class`)
+
+**IMPORTANTE:** Este problema afecta tanto a la **creación** como a la **actualización** de productos.
 
 ---
 
@@ -56,7 +58,9 @@ La Intranet ahora envía un campo **`rawWooData`** que contiene **TODOS** los da
 
 ## 🔧 IMPLEMENTACIÓN EN STRAPI
 
-### Paso 1: Modificar el Lifecycle `afterCreate` del Content Type `api::libro.libro`
+### Paso 1: Modificar los Lifecycles `afterCreate` y `afterUpdate` del Content Type `api::libro.libro`
+
+**⚠️ CRÍTICO:** Necesitas implementar la sincronización tanto en `afterCreate` como en `afterUpdate` para que los cambios se reflejen en WooCommerce.
 
 ```javascript
 // src/api/libro/content-types/libro/lifecycles.js
