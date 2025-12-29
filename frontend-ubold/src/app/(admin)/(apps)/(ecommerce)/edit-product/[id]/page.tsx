@@ -317,35 +317,27 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         console.log('[EditProduct] Imagen subida:', { id: portadaLibroId, url: portadaLibroUrl })
       }
 
-      // Construir payload - Solo campos que Strapi acepta
-      // ⚠️ IMPORTANTE: NO incluir campos que no están en el schema de Strapi:
+      // Construir payload - Solo campos BÁSICOS que Strapi acepta
+      // ⚠️ IMPORTANTE: Strapi tiene un schema muy restrictivo
+      // Solo enviar campos básicos que sabemos que funcionan:
+      // - nombre_libro, descripcion, isbn_libro, precio, precio_oferta, stock_quantity
+      // NO incluir campos WooCommerce que no están en schema:
+      // - descripcion_corta, sold_individually, manage_stock, stock_status
       // - type, virtual, downloadable, reviews_allowed, menu_order, purchase_note, sku
-      // - sold_individually, manage_stock, stock_status (campos WooCommerce que no están en schema)
-      // - descripcion_corta (no está en schema de Strapi, se maneja en raw_woo_data)
+      // - weight, length, width, height, shipping_class (verificar si están permitidos)
       // Estos campos se manejan en Strapi a través de raw_woo_data en los lifecycles
       const dataToSend: any = {
         nombre_libro: formData.nombre_libro.trim(),
         descripcion: formData.descripcion?.trim() || '',
-        // descripcion_corta: formData.descripcion_corta?.trim() || '', // ❌ NO se envía - no está en schema de Strapi
         isbn_libro: formData.isbn_libro?.trim() || '',
         precio: formData.precio,
         precio_oferta: formData.precio_oferta || '',
         stock_quantity: formData.stock_quantity || '0',
-        // manage_stock: formData.manage_stock, // ❌ NO se envía - no está en schema de Strapi
-        // stock_status: formData.stock_status, // ❌ NO se envía - no está en schema de Strapi
-        // sold_individually: formData.sold_individually, // ❌ NO se envía - no está en schema de Strapi
-        // type: formData.type, // ❌ NO se envía - no está en schema de Strapi
-        weight: formData.weight || '',
-        length: formData.length || '',
-        width: formData.width || '',
-        height: formData.height || '',
-        shipping_class: formData.shipping_class || '',
-        // virtual: formData.virtual, // ❌ NO se envía - no está en schema de Strapi
-        // downloadable: formData.downloadable, // ❌ NO se envía - no está en schema de Strapi
-        // reviews_allowed: formData.reviews_allowed, // ❌ NO se envía - no está en schema de Strapi
-        // menu_order: formData.menu_order || '0', // ❌ NO se envía - no está en schema de Strapi
-        // sku: formData.sku || formData.isbn_libro || '', // ❌ NO se envía - se usa isbn_libro
-        // purchase_note: formData.purchase_note || '', // ❌ NO se envía - no está en schema de Strapi
+        // Campos WooCommerce que NO están en schema de Strapi:
+        // descripcion_corta, manage_stock, stock_status, sold_individually
+        // type, virtual, downloadable, reviews_allowed, menu_order, purchase_note, sku
+        // weight, length, width, height, shipping_class
+        // Estos se manejan en Strapi a través de raw_woo_data en los lifecycles
       }
 
       // ⚠️ IMPORTANTE: raw_woo_data NO se envía a Strapi porque no está en el schema
