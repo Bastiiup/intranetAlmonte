@@ -269,8 +269,12 @@ export async function POST(request: NextRequest) {
     if (body.precio_regular !== undefined) {
       strapiProductData.data.precio_regular = parseFloat(body.precio_regular) || 0
     }
-    if (body.precio_oferta !== undefined) {
-      strapiProductData.data.precio_oferta = parseFloat(body.precio_oferta) || 0
+    if (body.precio_oferta !== undefined && body.precio_oferta !== '') {
+      const precioOferta = parseFloat(body.precio_oferta)
+      if (precioOferta > 0) {
+        strapiProductData.data.precio_oferta = precioOferta
+        console.log('[API POST] 💰 Precio oferta agregado:', precioOferta)
+      }
     }
     if (body.stock_quantity !== undefined) {
       strapiProductData.data.stock_quantity = parseInt(body.stock_quantity) || 0
