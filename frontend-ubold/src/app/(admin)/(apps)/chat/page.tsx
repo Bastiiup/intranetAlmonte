@@ -41,14 +41,14 @@ const Page = () => {
 
         const { token, userId } = await tokenResponse.json()
 
-        // 2. Obtener API Key
-        const apiKey = process.env.NEXT_PUBLIC_STREAM_CHAT_API_KEY
+        // 2. Obtener API Key (acepta ambos nombres para compatibilidad)
+        const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY || process.env.NEXT_PUBLIC_STREAM_CHAT_API_KEY
         console.log('[Chat] API Key disponible:', apiKey ? 'Sí (oculta)' : 'NO')
         if (!apiKey) {
-          console.error('[Chat] ❌ NEXT_PUBLIC_STREAM_CHAT_API_KEY no está configurada. Verifica:')
+          console.error('[Chat] ❌ NEXT_PUBLIC_STREAM_API_KEY (o NEXT_PUBLIC_STREAM_CHAT_API_KEY) no está configurada. Verifica:')
           console.error('[Chat] 1. Que la variable esté en Railway')
           console.error('[Chat] 2. Que Railway haya hecho un rebuild después de agregar la variable')
-          throw new Error('NEXT_PUBLIC_STREAM_CHAT_API_KEY no está configurada. La variable se inyecta en tiempo de build, necesitas hacer un rebuild en Railway.')
+          throw new Error('NEXT_PUBLIC_STREAM_API_KEY no está configurada. La variable se inyecta en tiempo de build, necesitas hacer un rebuild en Railway.')
         }
 
         // 3. Crear cliente de Stream Chat
@@ -122,7 +122,7 @@ const Page = () => {
         <Alert variant="danger">
           <strong>Error:</strong> {error}
           <br />
-          <small>Verifica que NEXT_PUBLIC_STREAM_CHAT_API_KEY esté configurada correctamente.</small>
+          <small>Verifica que NEXT_PUBLIC_STREAM_API_KEY esté configurada correctamente.</small>
         </Alert>
       </Container>
     )

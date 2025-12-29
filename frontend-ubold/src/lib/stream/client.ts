@@ -17,12 +17,13 @@ export function getStreamClient(): StreamChat {
     return streamClient
   }
 
-  const apiKey = process.env.STREAM_CHAT_API_KEY
-  const apiSecret = process.env.STREAM_CHAT_API_SECRET
+  // Usar los nombres que Stream Dashboard proporciona
+  const apiKey = process.env.STREAM_API_KEY || process.env.STREAM_CHAT_API_KEY
+  const apiSecret = process.env.STREAM_SECRET_KEY || process.env.STREAM_CHAT_API_SECRET
 
   if (!apiKey || !apiSecret) {
     throw new Error(
-      'STREAM_CHAT_API_KEY y STREAM_CHAT_API_SECRET deben estar configuradas en las variables de entorno'
+      'STREAM_API_KEY (o STREAM_CHAT_API_KEY) y STREAM_SECRET_KEY (o STREAM_CHAT_API_SECRET) deben estar configuradas en las variables de entorno'
     )
   }
 
