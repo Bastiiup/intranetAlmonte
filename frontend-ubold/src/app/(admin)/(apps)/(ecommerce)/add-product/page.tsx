@@ -300,30 +300,26 @@ export default function AddProductPage() {
         sku: formData.isbn_libro?.trim() || '',
       }
 
-      // ⚠️ IMPORTANTE: raw_woo_data NO se envía directamente a Strapi porque no está en el schema
-      // Strapi debe construir raw_woo_data en sus lifecycles basándose en los campos individuales
-      // Los campos individuales (descripcion, subtitulo_libro, precio, etc.) ya están en dataToSend
-      // Strapi usará estos campos para construir raw_woo_data en afterCreate/afterUpdate
-      
-      // NOTA: Si necesitas que Strapi use raw_woo_data directamente, debes agregarlo al schema de Strapi
-      // Por ahora, NO lo incluimos para evitar el error "Invalid key raw_woo_data"
-      // dataToSend.raw_woo_data = rawWooData  // ❌ Comentado - Strapi lo rechaza
+      // ✅ CRÍTICO: Incluir rawWooData en el payload para que Strapi lo use
+      // Strapi ahora acepta rawWooData y lo usará para sincronizar con WooCommerce
+      dataToSend.rawWooData = rawWooData
       
       // Debug: Verificar que las descripciones son diferentes
       const descripcionCompletaTexto = rawWooData.description.replace(/<[^>]+>/g, '').trim()
       const descripcionCortaTexto = rawWooData.short_description.replace(/<[^>]+>/g, '').trim()
       
       console.log('[AddProduct] 📦 Datos preparados para Strapi:', JSON.stringify(dataToSend, null, 2))
-      console.log('[AddProduct] 🖼️ raw_woo_data construido:', JSON.stringify(rawWooData, null, 2))
+      console.log('[AddProduct] 🖼️ rawWooData construido:', JSON.stringify(rawWooData, null, 2))
       console.log('[AddProduct] 📝 Descripción completa (HTML):', rawWooData.description)
       console.log('[AddProduct] 📝 Descripción corta (HTML):', rawWooData.short_description)
       console.log('[AddProduct] 📝 Descripción completa (TEXTO):', descripcionCompletaTexto.substring(0, 100) + '...')
       console.log('[AddProduct] 📝 Descripción corta (TEXTO):', descripcionCortaTexto)
-      console.log('[AddProduct] 🔍 Verificación:', {
-        tieneDescripcion: !!rawWooData.description && rawWooData.description.length > 0,
-        tieneDescripcionCorta: !!rawWooData.short_description && rawWooData.short_description.length > 0,
-        longitudDescripcion: descripcionCompletaTexto.length,
-        longitudDescripcionCorta: descripcionCortaTexto.length,
+      console.log('[AddProduct] 🔍 Verificación rawWooData:', {
+        tieneRawWooData: !!dataToSend.rawWooData,
+        tieneDescription: !!rawWooData.description && rawWooData.description.length > 0,
+        tieneShortDescription: !!rawWooData.short_description && rawWooData.short_description.length > 0,
+        longitudDescription: descripcionCompletaTexto.length,
+        longitudShortDescription: descripcionCortaTexto.length,
         sonDiferentes: descripcionCompletaTexto !== descripcionCortaTexto,
         descripcionCortaEsMasCorta: descripcionCortaTexto.length < descripcionCompletaTexto.length
       })
