@@ -316,16 +316,52 @@ export default function AddProductPage() {
       
       console.log('═══════════════════════════════════════════════════════')
       
+      // ⚠️ VALIDACIÓN FINAL: Asegurar que description y short_description sean diferentes
+      // Si ambos están vacíos o son iguales, usar valores por defecto distintos
+      let finalDescription = descripcionHTML || '<p>Sin descripción</p>'
+      let finalShortDescription = descripcionCortaHTML || ''
+      
+      // Si short_description está vacío pero description tiene contenido, generar una corta
+      if (!finalShortDescription && finalDescription && finalDescription !== '<p>Sin descripción</p>') {
+        // Generar descripción corta desde la larga (solo si está vacía)
+        const textoLimpio = finalDescription.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+        if (textoLimpio.length > 0) {
+          const corta = textoLimpio.length > 150 
+            ? textoLimpio.substring(0, 150).trim() + '...'
+            : textoLimpio
+          finalShortDescription = `<p>${corta}</p>`
+        }
+      }
+      
+      // Verificación final: asegurar que sean diferentes
+      const descFinal = finalDescription.replace(/<[^>]+>/g, '').trim()
+      const shortFinal = finalShortDescription.replace(/<[^>]+>/g, '').trim()
+      
+      if (descFinal && shortFinal && descFinal === shortFinal && descFinal.length > 150) {
+        console.warn('⚠️ ADVERTENCIA: Las descripciones finales son idénticas, ajustando short_description')
+        // Si son iguales y la descripción es larga, cortar la corta
+        const cortaAjustada = descFinal.substring(0, 150).trim()
+        const ultimoEspacio = cortaAjustada.lastIndexOf(' ')
+        if (ultimoEspacio > 100) {
+          finalShortDescription = `<p>${cortaAjustada.substring(0, ultimoEspacio)}...</p>`
+        } else {
+          finalShortDescription = `<p>${cortaAjustada}...</p>`
+        }
+      }
+      
       const rawWooData: any = {
         name: formData.nombre_libro.trim(),
         type: 'simple',
         status: 'publish',
         
         // ✅ DESCRIPCIÓN COMPLETA (HTML) - CRÍTICO para WooCommerce
-        description: descripcionHTML,
+        // SIEMPRE usa formData.descripcion (NUNCA descripcion_corta)
+        description: finalDescription,
         
         // ✅ DESCRIPCIÓN CORTA (HTML) - CRÍTICO para WooCommerce
-        short_description: descripcionCortaHTML,
+        // SIEMPRE usa formData.descripcion_corta o genera desde descripcion si está vacía
+        // NUNCA duplica el valor de description
+        short_description: finalShortDescription || '<p>Sin descripción corta</p>',
         
         // Precio
         regular_price: formData.precio ? parseFloat(formData.precio).toFixed(2) : '0.00',
