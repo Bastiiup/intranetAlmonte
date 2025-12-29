@@ -155,49 +155,87 @@ export default function AddProductPage() {
         console.log('[AddProduct] Imagen subida:', { id: portadaLibroId, url: portadaLibroUrl })
       }
 
-      // Construir payload - Solo campos que Strapi acepta
-      // ⚠️ IMPORTANTE: NO incluir campos que no están en el schema de Strapi:
-      // - type, virtual, downloadable, reviews_allowed, menu_order, purchase_note, sku
-      // Estos campos se manejan en Strapi a través de raw_woo_data en los lifecycles
+      // Construir payload - Campos básicos que Strapi acepta
       const dataToSend: any = {
         nombre_libro: formData.nombre_libro.trim(),
         descripcion: formData.descripcion?.trim() || '',
-        descripcion_corta: formData.descripcion_corta?.trim() || '', // ⚠️ CRÍTICO: Descripción corta
+        descripcion_corta: formData.descripcion_corta?.trim() || '', // ⚠️ Para raw_woo_data en Strapi
         isbn_libro: formData.isbn_libro?.trim() || '',
         precio: formData.precio,
         precio_oferta: formData.precio_oferta || '',
         stock_quantity: formData.stock_quantity || '0',
-        manage_stock: formData.manage_stock,
-        stock_status: formData.stock_status,
-        sold_individually: formData.sold_individually,
-        // type: formData.type, // ❌ NO se envía - no está en schema de Strapi
-        weight: formData.weight || '',
-        length: formData.length || '',
-        width: formData.width || '',
-        height: formData.height || '',
-        shipping_class: formData.shipping_class || '',
-        // virtual: formData.virtual, // ❌ NO se envía - no está en schema de Strapi
-        // downloadable: formData.downloadable, // ❌ NO se envía - no está en schema de Strapi
-        // reviews_allowed: formData.reviews_allowed, // ❌ NO se envía - no está en schema de Strapi
-        // menu_order: formData.menu_order || '0', // ❌ NO se envía - no está en schema de Strapi
-        // sku: formData.sku || formData.isbn_libro || '', // ❌ NO se envía - se usa isbn_libro
-        // purchase_note: formData.purchase_note || '', // ❌ NO se envía - no está en schema de Strapi
+        // Campos WooCommerce que NO están en schema de Strapi:
+        // manage_stock, stock_status, sold_individually
+        // type, virtual, downloadable, reviews_allowed, menu_order, purchase_note, sku
+        // weight, length, width, height, shipping_class
+        // Estos se manejan en Strapi a través de raw_woo_data en los lifecycles
       }
 
-      // ⚠️ IMPORTANTE: raw_woo_data NO se envía a Strapi porque no está en el schema
-      // Strapi debe construir raw_woo_data en sus lifecycles basándose en los campos individuales
-      // Solo enviamos los campos que Strapi acepta (precio, descripcion, etc.)
-      // El raw_woo_data se construye en Strapi automáticamente cuando se crea el producto
-      
-      console.log('[AddProduct] 📦 Datos preparados para Strapi (raw_woo_data se construirá en Strapi):', JSON.stringify(dataToSend, null, 2))
-
       // Agregar imagen
+      let imagenUrlFinal: string | null = null
       if (portadaLibroUrl) {
         dataToSend.portada_libro = portadaLibroUrl
         dataToSend.portada_libro_id = portadaLibroId
+        // Construir URL completa de la imagen
+        const baseUrl = process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'
+        imagenUrlFinal = portadaLibroUrl.startsWith('http') 
+          ? portadaLibroUrl 
+          : `${baseUrl}${portadaLibroUrl.startsWith('/') ? portadaLibroUrl : `/${portadaLibroUrl}`}`
       } else if (portadaLibroId) {
         dataToSend.portada_libro = portadaLibroId
       }
+
+      // ⚠️ IMPORTANTE: Construir rawWooData con formato correcto para WooCommerce
+      // Este objeto se enviará como campo adicional para que Strapi lo use en sus lifecycles
+      // Si Strapi rechaza este campo, se construirá en los lifecycles de Strapi
+      const rawWooData: any = {
+        name: formData.nombre_libro.trim(),
+        type: 'simple',
+        status: 'publish',
+        
+        // ✅ DESCRIPCIÓN COMPLETA (HTML)
+        description: formData.descripcion?.trim() 
+          ? (formData.descripcion.includes('<') 
+              ? formData.descripcion 
+              : `<p>${formData.descripcion.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`)
+          : '',
+        
+        // ✅ DESCRIPCIÓN CORTA (HTML)
+        short_description: formData.descripcion_corta?.trim()
+          ? (formData.descripcion_corta.includes('<')
+              ? formData.descripcion_corta
+              : `<p>${formData.descripcion_corta.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`)
+          : '',
+        
+        // Precio
+        regular_price: formData.precio ? parseFloat(formData.precio).toFixed(2) : '0.00',
+        sale_price: formData.precio_oferta ? parseFloat(formData.precio_oferta).toFixed(2) : '',
+        
+        // Stock
+        manage_stock: true,
+        stock_quantity: parseInt(formData.stock_quantity || '0'),
+        stock_status: parseInt(formData.stock_quantity || '0') > 0 ? 'instock' : 'outofstock',
+        backorders: 'no',
+        
+        // ✅ IMÁGENES (array de objetos con formato WooCommerce)
+        images: imagenUrlFinal ? [
+          {
+            src: imagenUrlFinal,
+            name: formData.nombre_libro.trim(),
+            alt: formData.nombre_libro.trim()
+          }
+        ] : [],
+        
+        // SKU
+        sku: formData.isbn_libro?.trim() || '',
+      }
+
+      // Agregar rawWooData al payload (Strapi puede usarlo en lifecycles aunque no esté en schema)
+      // Si Strapi lo rechaza, se construirá en los lifecycles basándose en los campos individuales
+      dataToSend.rawWooData = rawWooData
+      
+      console.log('[AddProduct] 📦 Datos preparados para Strapi:', JSON.stringify(dataToSend, null, 2))
+      console.log('[AddProduct] 🖼️ rawWooData construido:', JSON.stringify(rawWooData, null, 2))
 
       // Agregar canales basados en plataformas seleccionadas
       if (selectedPlatforms.length > 0) {

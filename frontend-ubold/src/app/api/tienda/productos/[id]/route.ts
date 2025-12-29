@@ -502,10 +502,15 @@ export async function PUT(
     //   updateData.data.shipping_class = body.shipping_class || ''
     // }
 
-    // ⚠️ IMPORTANTE: raw_woo_data NO se envía a Strapi porque no está en el schema
-    // Strapi debe construir raw_woo_data en sus lifecycles basándose en los campos individuales
-    // Solo enviamos los campos que Strapi acepta (precio, descripcion, etc.)
-    // El raw_woo_data se construye en Strapi automáticamente cuando se actualiza el producto
+    // ⚠️ IMPORTANTE: rawWooData se envía como campo adicional
+    // Si Strapi lo rechaza (porque no está en el schema), se construirá en los lifecycles
+    // Si Strapi lo acepta, se usará directamente en los lifecycles
+    if (body.rawWooData) {
+      // Intentar incluir rawWooData en el payload
+      // Si Strapi lo rechaza, se construirá en los lifecycles basándose en los campos individuales
+      updateData.data.rawWooData = body.rawWooData
+      console.log('[API PUT] ✅ rawWooData incluido en payload:', JSON.stringify(body.rawWooData, null, 2))
+    }
 
     // VERIFICACIÓN FINAL antes de enviar
     const finalKeys = Object.keys(updateData.data)

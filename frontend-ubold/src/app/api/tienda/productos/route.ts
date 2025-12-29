@@ -152,10 +152,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ⚠️ IMPORTANTE: raw_woo_data NO se envía a Strapi porque no está en el schema
-    // Strapi debe construir raw_woo_data en sus lifecycles basándose en los campos individuales
-    // Solo enviamos los campos que Strapi acepta (precio, descripcion, etc.)
-    // El raw_woo_data se construye en Strapi automáticamente cuando se crea el producto
+    // ⚠️ IMPORTANTE: rawWooData se envía como campo adicional
+    // Si Strapi lo rechaza (porque no está en el schema), se construirá en los lifecycles
+    // Si Strapi lo acepta, se usará directamente en los lifecycles
+    if (body.rawWooData) {
+      // Intentar incluir rawWooData en el payload
+      // Si Strapi lo rechaza, se construirá en los lifecycles basándose en los campos individuales
+      strapiProductData.data.rawWooData = body.rawWooData
+      console.log('[API POST] ✅ rawWooData incluido en payload:', JSON.stringify(body.rawWooData, null, 2))
+    }
 
     // Agregar imagen si existe - usar ID de Strapi si está disponible
     if (body.portada_libro_id) {
