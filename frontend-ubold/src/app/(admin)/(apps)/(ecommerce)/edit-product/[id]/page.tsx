@@ -364,6 +364,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         }
       }
 
+      console.log('[EditProduct] 📦 raw_woo_data construido:', JSON.stringify(dataToSend.raw_woo_data, null, 2))
       console.log('[EditProduct] Enviando datos de actualización:', dataToSend)
 
       const response = await fetch(`/api/tienda/productos/${productId}`, {

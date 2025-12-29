@@ -220,7 +220,7 @@ export default function AddProductPage() {
         purchase_note: formData.purchase_note || '',
       }
 
-      console.log('[AddProduct] 📦 rawWooData construido:', JSON.stringify(dataToSend.rawWooData, null, 2))
+      console.log('[AddProduct] 📦 raw_woo_data construido:', JSON.stringify(dataToSend.raw_woo_data, null, 2))
 
       // Agregar imagen
       if (portadaLibroUrl) {
