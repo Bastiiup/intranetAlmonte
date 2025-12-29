@@ -434,6 +434,75 @@ export async function PUT(
       updateData.data.height = parseFloat(body.height.toString()) || 0
     }
 
+    // Descripción corta
+    if (body.descripcion_corta !== undefined) {
+      updateData.data.descripcion_corta = body.descripcion_corta?.trim() || ''
+    }
+
+    // Clase de envío
+    if (body.shipping_class !== undefined) {
+      updateData.data.shipping_class = body.shipping_class || ''
+    }
+
+    // ⚠️ CRÍTICO: Construir rawWooData para sincronización con WooCommerce
+    // Obtener datos actuales del producto para construir rawWooData completo
+    const productoActual = producto.attributes || producto
+    const nombreProducto = body.nombre_libro || productoActual.nombre_libro || ''
+    const descripcionProducto = body.descripcion || productoActual.descripcion || ''
+    const descripcionCorta = body.descripcion_corta || productoActual.descripcion_corta || ''
+    const precioRegular = body.precio !== undefined ? parseFloat(body.precio.toString()) : (productoActual.precio || 0)
+    const precioOferta = body.precio_oferta !== undefined && body.precio_oferta !== '' 
+      ? parseFloat(body.precio_oferta.toString()) 
+      : (productoActual.precio_oferta || null)
+    const skuProducto = body.sku || body.isbn_libro || productoActual.sku || productoActual.isbn_libro || ''
+    const pesoProducto = body.weight !== undefined ? body.weight : (productoActual.weight || '')
+    const largoProducto = body.length !== undefined ? body.length : (productoActual.length || '')
+    const anchoProducto = body.width !== undefined ? body.width : (productoActual.width || '')
+    const altoProducto = body.height !== undefined ? body.height : (productoActual.height || '')
+    const claseEnvio = body.shipping_class !== undefined ? body.shipping_class : (productoActual.shipping_class || '')
+    const stockQuantity = body.stock_quantity !== undefined ? parseInt(body.stock_quantity.toString()) : (productoActual.stock_quantity || 0)
+    const manageStock = body.manage_stock !== undefined ? body.manage_stock : (productoActual.manage_stock !== false)
+    const stockStatus = body.stock_status || productoActual.stock_status || 'instock'
+    const tipoProducto = body.type || productoActual.type || 'simple'
+    const virtualProducto = body.virtual !== undefined ? body.virtual : (productoActual.virtual || false)
+    const downloadableProducto = body.downloadable !== undefined ? body.downloadable : (productoActual.downloadable || false)
+    const reviewsAllowed = body.reviews_allowed !== undefined ? body.reviews_allowed : (productoActual.reviews_allowed !== false)
+    const menuOrder = body.menu_order !== undefined ? parseInt(body.menu_order.toString()) : (parseInt(productoActual.menu_order) || 0)
+    const purchaseNote = body.purchase_note !== undefined ? body.purchase_note : (productoActual.purchase_note || '')
+
+    // Construir rawWooData con formato WooCommerce
+    updateData.data.rawWooData = {
+      name: nombreProducto,
+      type: tipoProducto,
+      status: 'publish',
+      featured: false,
+      catalog_visibility: 'visible',
+      description: typeof descripcionProducto === 'string' ? descripcionProducto : '',
+      short_description: descripcionCorta, // ⚠️ CRÍTICO: Descripción corta
+      sku: skuProducto,
+      regular_price: precioRegular > 0 ? precioRegular.toFixed(2) : '',
+      sale_price: precioOferta && precioOferta > 0 ? precioOferta.toFixed(2) : '', // ⚠️ CRÍTICO: Precio rebajado
+      manage_stock: manageStock,
+      stock_quantity: manageStock ? stockQuantity : null,
+      stock_status: stockStatus,
+      backorders: 'no',
+      sold_individually: body.sold_individually !== undefined ? body.sold_individually : (productoActual.sold_individually || false),
+      weight: pesoProducto ? String(pesoProducto) : '', // ⚠️ CRÍTICO: Peso
+      dimensions: {
+        length: largoProducto ? String(largoProducto) : '', // ⚠️ CRÍTICO: Dimensiones
+        width: anchoProducto ? String(anchoProducto) : '',
+        height: altoProducto ? String(altoProducto) : '',
+      },
+      shipping_class: claseEnvio, // ⚠️ CRÍTICO: Clase de envío
+      virtual: virtualProducto,
+      downloadable: downloadableProducto,
+      reviews_allowed: reviewsAllowed,
+      menu_order: menuOrder,
+      purchase_note: purchaseNote,
+    }
+
+    console.log('[API PUT] 📦 rawWooData construido para actualización:', JSON.stringify(updateData.data.rawWooData, null, 2))
+
     // VERIFICACIÓN FINAL antes de enviar
     const finalKeys = Object.keys(updateData.data)
     const stillHasUppercase = finalKeys.some(k => k !== k.toLowerCase())
