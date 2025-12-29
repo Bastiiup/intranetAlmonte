@@ -281,6 +281,12 @@ export async function PUT(
 
     console.log('[API PUT] ✅ Producto encontrado:', producto.documentId)
 
+    // ⚠️ NUEVO MÉTODO SIMPLIFICADO (Strapi actualizado):
+    // - Strapi preserva automáticamente los externalIds (IDs de WooCommerce)
+    // - NO necesitas incluir externalIds en el payload
+    // - Solo envía los campos que cambien
+    // - NO necesitas obtener el producto completo antes de actualizar
+    
     // Preparar datos - FORZAR minúsculas SOLO
     const updateData: any = { data: {} }
 
@@ -461,8 +467,10 @@ export async function PUT(
 
     console.log('[API PUT] 📤 Datos finales a enviar:', JSON.stringify(updateData, null, 2))
     console.log('[API PUT] ✅ Todos los campos en minúsculas')
+    console.log('[API PUT] ℹ️ Strapi preservará automáticamente los externalIds (IDs de WooCommerce)')
 
-    // Actualizar
+    // Actualizar usando el método simplificado
+    // Strapi preservará automáticamente los externalIds, no necesitamos incluirlos
     const updateResponse = await strapiClient.put<any>(
       `/api/libros/${producto.documentId}`,
       updateData

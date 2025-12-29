@@ -258,7 +258,13 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         console.log('[EditProduct] Imagen subida:', { id: portadaLibroId, url: portadaLibroUrl })
       }
 
-      // Construir payload
+      // ⚠️ NUEVO MÉTODO SIMPLIFICADO (Strapi actualizado):
+      // - Strapi preserva automáticamente los externalIds (IDs de WooCommerce)
+      // - NO necesitas incluir externalIds en el payload
+      // - Solo envía los campos que cambien
+      // - NO necesitas obtener el producto completo antes de actualizar
+      
+      // Construir payload - Solo campos que se están actualizando
       const dataToSend: any = {
         nombre_libro: formData.nombre_libro.trim(),
         descripcion: formData.descripcion?.trim() || '',
@@ -282,6 +288,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         menu_order: formData.menu_order || '0',
         sku: formData.sku || formData.isbn_libro || '',
         purchase_note: formData.purchase_note || '',
+        // ✅ NO incluir externalIds - Strapi los preserva automáticamente
       }
 
       // ⚠️ IMPORTANTE: raw_woo_data NO se envía a Strapi porque no está en el schema
