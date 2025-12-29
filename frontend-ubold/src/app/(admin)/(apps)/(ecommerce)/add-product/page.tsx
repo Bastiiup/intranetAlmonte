@@ -160,6 +160,7 @@ export default function AddProductPage() {
         nombre_libro: formData.nombre_libro.trim(),
         descripcion: formData.descripcion?.trim() || '',
         descripcion_corta: formData.descripcion_corta?.trim() || '', // ⚠️ Para raw_woo_data en Strapi
+        subtitulo_libro: formData.descripcion_corta?.trim() || formData.descripcion?.substring(0, 255) || '', // ✅ Para Strapi (descripción corta)
         isbn_libro: formData.isbn_libro?.trim() || '',
         precio: formData.precio,
         precio_oferta: formData.precio_oferta || '',
@@ -249,13 +250,15 @@ export default function AddProductPage() {
         
         // ✅ DESCRIPCIÓN COMPLETA (HTML) - CRÍTICO para WooCommerce
         // Quill ya envía HTML, pero aseguramos formato válido
-        description: convertirDescripcionAHTML(formData.descripcion || ''),
+        description: convertirDescripcionAHTML(formData.descripcion || '') || '<p>Sin descripción</p>',
         
         // ✅ DESCRIPCIÓN CORTA (HTML) - CRÍTICO para WooCommerce
         // Si hay descripción corta específica, usarla; si no, generar desde descripción completa
         short_description: formData.descripcion_corta?.trim()
           ? convertirDescripcionAHTML(formData.descripcion_corta)
-          : generarDescripcionCorta(formData.descripcion || '', 150),
+          : (formData.descripcion?.trim() 
+              ? generarDescripcionCorta(formData.descripcion, 150)
+              : '<p>Sin descripción</p>'),
         
         // Precio
         regular_price: formData.precio ? parseFloat(formData.precio).toFixed(2) : '0.00',

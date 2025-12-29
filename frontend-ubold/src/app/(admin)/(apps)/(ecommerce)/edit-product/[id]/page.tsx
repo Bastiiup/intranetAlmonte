@@ -346,6 +346,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         nombre_libro: formData.nombre_libro.trim(),
         descripcion: formData.descripcion?.trim() || '',
         descripcion_corta: formData.descripcion_corta?.trim() || '', // ⚠️ Para raw_woo_data en Strapi
+        subtitulo_libro: formData.descripcion_corta?.trim() || formData.descripcion?.substring(0, 255) || '', // ✅ Para Strapi (descripción corta)
         isbn_libro: formData.isbn_libro?.trim() || '',
         precio: formData.precio,
         precio_oferta: formData.precio_oferta || '',
