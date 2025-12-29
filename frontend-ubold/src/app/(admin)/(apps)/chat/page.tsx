@@ -249,15 +249,28 @@ const Page = () => {
       // IMPORTANTE: watch() también carga los mensajes históricos
       await channel.watch()
       
+      // Cargar mensajes históricos explícitamente
+      // Esto asegura que todos los mensajes del canal se carguen
+      await channel.query({
+        messages: { limit: 50 },
+        members: { limit: 10 },
+      })
+      
       // Verificar que el canal tiene los miembros correctos
       const members = channel.state.members || {}
       const memberIds = Object.keys(members)
+      const messages = channel.state.messages || []
       
       console.log('[Chat] Canal listo:', {
         channelId,
         memberIds,
         membersCount: memberIds.length,
-        messageCount: channel.state.messages ? channel.state.messages.length : 0,
+        messageCount: messages.length,
+        messages: messages.map((m: any) => ({
+          id: m.id,
+          text: m.text,
+          user: m.user?.id,
+        })),
       })
       
       // Verificar que ambos usuarios están en el canal
