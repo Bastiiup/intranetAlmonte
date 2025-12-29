@@ -287,6 +287,12 @@ export async function PUT(
     }
 
     console.log('[API PUT] ✅ Producto encontrado:', producto.documentId)
+    
+    // ⚠️ CRÍTICO: Obtener estado_publicacion actual del producto
+    // Si el producto está publicado, debemos mantenerlo publicado para que los lifecycles se ejecuten
+    const attrs = producto.attributes || producto
+    const estadoActual = attrs.estado_publicacion || attrs.estadoPublicacion || attrs.ESTADO_PUBLICACION
+    console.log('[API PUT] 📝 Estado de publicación actual:', estadoActual)
 
     // ⚠️ NUEVO MÉTODO SIMPLIFICADO (Strapi actualizado):
     // - Strapi preserva automáticamente los externalIds (IDs de WooCommerce)
@@ -398,6 +404,7 @@ export async function PUT(
     }
 
     // Estado de publicación - IMPORTANTE: Strapi espera valores con mayúscula inicial
+    // ⚠️ CRÍTICO: Si el producto ya está publicado, mantenerlo publicado para que los lifecycles se ejecuten
     // Puede venir en body.estado_publicacion o body.data.estado_publicacion
     const estadoPublicacionInput = body.data?.estado_publicacion !== undefined ? body.data.estado_publicacion : body.estado_publicacion
     
@@ -415,6 +422,24 @@ export async function PUT(
       }
       updateData.data.estado_publicacion = estadoNormalizado
       console.log('[API PUT] 📝 Estado de publicación actualizado:', estadoNormalizado)
+    } else {
+      // ⚠️ CRÍTICO: Si no se envía estado_publicacion en el body, mantener el estado actual
+      // Si el producto está publicado, mantenerlo publicado para que los lifecycles se ejecuten
+      if (estadoActual) {
+        const estadoLower = String(estadoActual).toLowerCase()
+        if (estadoLower === 'publicado') {
+          updateData.data.estado_publicacion = 'Publicado'
+          console.log('[API PUT] ✅ Manteniendo estado_publicacion como "Publicado" para activar lifecycles')
+        } else {
+          // Si no está publicado, mantener el estado actual
+          updateData.data.estado_publicacion = estadoActual
+          console.log('[API PUT] ℹ️ Manteniendo estado_publicacion actual:', estadoActual)
+        }
+      } else {
+        // Si no hay estado, establecer como "Publicado" por defecto para activar lifecycles
+        updateData.data.estado_publicacion = 'Publicado'
+        console.log('[API PUT] ✅ Estableciendo estado_publicacion como "Publicado" por defecto para activar lifecycles')
+      }
     }
 
     // Relaciones simples
