@@ -454,7 +454,7 @@ export default function AddProductPage() {
               
               <Col md={4}>
                 <FormGroup className="mb-3">
-                  <FormLabel>Backorders</FormLabel>
+                  <FormLabel>Pedidos Pendientes</FormLabel>
                   <FormSelect
                     value={formData.backorders}
                     onChange={(e) => {

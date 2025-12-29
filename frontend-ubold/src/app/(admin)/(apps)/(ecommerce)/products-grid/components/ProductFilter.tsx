@@ -106,16 +106,16 @@ const ProductFilter = ({ isOffcanvasOpen, setIsOffcanvasOpen }: { isOffcanvasOpe
           <CardBody className="p-0">
             <div className="p-3 border-bottom border-dashed">
               <div className="app-search">
-                <input type="search" className="form-control" placeholder="Search product name..." />
+                <input type="search" className="form-control" placeholder="Buscar nombre de producto..." />
                 <LuSearch className="app-search-icon text-muted" size={12} />
               </div>
             </div>
 
             <div className="p-3 border-bottom border-dashed">
               <div className="d-flex mb-2 justify-content-between align-items-center">
-                <h5 className="mb-0">Category:</h5>
+                <h5 className="mb-0">Categoría:</h5>
                 <Button variant="link" size="sm" className="px-0 fw-semibold">
-                  View All
+                  Ver Todas
                 </Button>
               </div>
               <Nav className="flex-column">
@@ -132,9 +132,9 @@ const ProductFilter = ({ isOffcanvasOpen, setIsOffcanvasOpen }: { isOffcanvasOpe
 
             <div className="p-3 border-bottom border-dashed">
               <div className="d-flex mb-2 justify-content-between align-items-center">
-                <h5 className="mb-0">Brands:</h5>
+                <h5 className="mb-0">Marcas:</h5>
                 <a href="#" className="btn btn-link btn-sm px-0 fw-semibold">
-                  View All
+                  Ver Todas
                 </a>
               </div>
 
@@ -149,7 +149,7 @@ const ProductFilter = ({ isOffcanvasOpen, setIsOffcanvasOpen }: { isOffcanvasOpe
             </div>
 
             <div className="p-3 border-bottom">
-              <h5 className="mb-0">Price:</h5>
+              <h5 className="mb-0">Precio:</h5>
 
               <Range
                 step={STEP}
@@ -173,7 +173,7 @@ const ProductFilter = ({ isOffcanvasOpen, setIsOffcanvasOpen }: { isOffcanvasOpe
             </div>
 
             <div className="p-3">
-              <h5 className="mb-3">Ratings:</h5>
+              <h5 className="mb-3">Calificaciones:</h5>
 
               {ratings.map((rating, idx) => (
                 <div className="form-check py-1" key={idx}>
@@ -182,7 +182,7 @@ const ProductFilter = ({ isOffcanvasOpen, setIsOffcanvasOpen }: { isOffcanvasOpe
                     <span className="d-flex align-items-center">
                       <span className="flex-grow-1 d-inline-flex align-items-center">
                         <Rating rating={Number(rating.id)} />
-                        <span className="text-muted ms-1">{rating.name} Stars &amp; Up</span>
+                        <span className="text-muted ms-1">{rating.name} Estrellas y más</span>
                       </span>
                       <span className="flex-shrink-0">
                         <span className="badge text-bg-light">{rating.count}</span>

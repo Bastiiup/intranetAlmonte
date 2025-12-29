@@ -46,10 +46,10 @@ export default async function Page() {
 
   return (
     <Container fluid>
-      <PageBreadcrumb title="Products Grid" subtitle="Ecommerce" />
+      <PageBreadcrumb title="Cuadrícula de Productos" subtitle="Ecommerce" />
 
       {/* Página de debug - comentar cuando no se necesite */}
-      <ProductsGridDebug />
+      {/* <ProductsGridDebug /> */}
 
       <ProductsPage productos={productos} error={error} />
     </Container>

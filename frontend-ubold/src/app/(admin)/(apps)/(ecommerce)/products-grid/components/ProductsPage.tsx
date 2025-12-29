@@ -31,8 +31,8 @@ const ProductsPage = ({ productos, error }: ProductsPageProps) => {
                   <LuMenu className="fs-lg" />
                 </Button>
               </div>
-              <h3 className="mb-0 fs-xl flex-grow-1">{productos.length} Products</h3>
-              <div className="d-flex gap-1">
+              <h3 className="mb-0 fs-xl flex-grow-1">{productos.length} Productos</h3>
+              <div className="d-flex gap-1">  
                 <Button href="#" variant="primary" className="btn-primary btn-icon">
                   <LuLayoutGrid className="fs-lg" />
                 </Button>
@@ -40,7 +40,7 @@ const ProductsPage = ({ productos, error }: ProductsPageProps) => {
                   <LuList className="fs-lg" />
                 </Button>
                 <Button href="#" variant="danger" className="ms-1">
-                  <LuPlus className="fs-sm me-2" /> Add Product
+                  <LuPlus className="fs-sm me-2" /> Agregar Producto
                 </Button>
               </div>
             </div>
@@ -66,7 +66,7 @@ const ProductsPage = ({ productos, error }: ProductsPageProps) => {
 
           <div className="d-flex justify-content-between align-items-center mb-4 mt-3">
             <span className="text-muted fst-italic">
-              Last modification: <LuClock /> 4:55 pm - 22.04.2025
+              Última modificación: <LuClock /> 4:55 pm - 22.04.2025
             </span>
             <Pagination className="pagination-boxed justify-content-center mb-0">
               <Pagination.Prev disabled>

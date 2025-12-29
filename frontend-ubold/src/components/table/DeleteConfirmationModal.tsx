@@ -23,18 +23,18 @@ const DeleteConfirmationModal = ({
   itemName = 'row',
   confirmButtonVariant = 'danger',
   cancelButtonVariant = 'light',
-  modalTitle = 'Confirm Deletion',
-  confirmButtonText = 'Delete',
-  cancelButtonText = 'Cancel',
+  modalTitle = 'Confirmación de Eliminación',
+  confirmButtonText = 'Eliminar',
+  cancelButtonText = 'Cancelar',
   children,
 }: DeleteConfirmationModalProps) => {
   const getConfirmationMessage = () => {
     if (children) return children
 
     if (selectedCount > 1) {
-      return `Are you sure you want to delete these ${selectedCount} ${itemName}s?`
+      return `¿Estás seguro de querer eliminar estos ${selectedCount} ${itemName}s?`
     }
-    return `Are you sure you want to delete this ${itemName}?`
+    return `¿Estás seguro de querer eliminar este ${itemName}?`
   }
 
   return (

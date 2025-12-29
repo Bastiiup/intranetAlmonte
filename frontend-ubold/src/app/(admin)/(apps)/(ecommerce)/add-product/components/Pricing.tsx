@@ -7,16 +7,16 @@ const Pricing = () => {
   return (
     <Card>
       <CardHeader className="d-block p-3">
-        <h4 className="card-title mb-1">Pricing</h4>
-        <p className="text-muted mb-0">Set the base price and applicable discount for the product using the options below.</p>
+        <h4 className="card-title mb-1">Precios</h4>
+        <p className="text-muted mb-0">Establecer el precio base y el descuento aplicable para el producto usando las opciones a continuación.</p>
       </CardHeader>
       <CardBody>
         <FormGroup className="mb-3">
           <FormLabel htmlFor="basePrice">
-            Base Price <span className="text-danger">*</span>
+            Precio Base <span className="text-danger">*</span>
           </FormLabel>
           <InputGroup>
-            <FormControl type="number" id="basePrice" placeholder="Enter base price (e.g., 199.99)" />
+            <FormControl type="number" id="basePrice" placeholder="Ingrese el precio base (por ejemplo, 199.99)" />
             <InputGroupText>
               <LuDollarSign className="text-muted" />
             </InputGroupText>
@@ -24,14 +24,14 @@ const Pricing = () => {
         </FormGroup>
         <FormGroup className="mb-3">
           <FormLabel htmlFor="discount">
-            Discount Type <span className="text-muted">(Optional)</span>
+            Tipo de Descuento <span className="text-muted">(Opcional)</span>
           </FormLabel>
           <InputGroup>
             <FormSelect id="discount">
-              <option>Choose Discount</option>
-              <option value="No Discount">No Discount</option>
-              <option value="Flat Discount">Flat Discount</option>
-              <option value="Percentage Discount">Percentage Discount</option>
+              <option>Elegir Descuento</option>
+              <option value="No Discount">Sin Descuento</option>
+              <option value="Flat Discount">Descuento Fijo</option>
+              <option value="Percentage Discount">Descuento Porcentual</option>
             </FormSelect>
             <InputGroupText>
               <LuPercent className="text-muted" />
@@ -40,10 +40,10 @@ const Pricing = () => {
         </FormGroup>
         <FormGroup>
           <FormLabel htmlFor="discountValue">
-            Discount Value <span className="text-muted">(Optional)</span>
+            Valor del Descuento <span className="text-muted">(Opcional)</span>
           </FormLabel>
           <InputGroup>
-            <FormControl type="number" id="discountValue" placeholder="Enter discount amount or percentage" />
+            <FormControl type="number" id="discountValue" placeholder="Ingrese el valor del descuento o porcentaje" />
             <InputGroupText>
               <LuTag className="text-muted" />
             </InputGroupText>

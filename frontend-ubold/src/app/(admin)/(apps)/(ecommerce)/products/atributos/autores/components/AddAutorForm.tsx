@@ -416,7 +416,7 @@ const AddAutorForm = () => {
                 </Col>
                 <Col md={6}>
                   <FormGroup className="mb-3">
-                    <FormLabel>Website</FormLabel>
+                    <FormLabel>Sitio Web</FormLabel>
                     <FormControl
                       type="url"
                       placeholder="https://ejemplo.com"
