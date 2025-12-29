@@ -155,7 +155,10 @@ export default function AddProductPage() {
         console.log('[AddProduct] Imagen subida:', { id: portadaLibroId, url: portadaLibroUrl })
       }
 
-      // Construir payload
+      // Construir payload - Solo campos que Strapi acepta
+      // ⚠️ IMPORTANTE: NO incluir campos que no están en el schema de Strapi:
+      // - type, virtual, downloadable, reviews_allowed, menu_order, purchase_note, sku
+      // Estos campos se manejan en Strapi a través de raw_woo_data en los lifecycles
       const dataToSend: any = {
         nombre_libro: formData.nombre_libro.trim(),
         descripcion: formData.descripcion?.trim() || '',
@@ -167,18 +170,18 @@ export default function AddProductPage() {
         manage_stock: formData.manage_stock,
         stock_status: formData.stock_status,
         sold_individually: formData.sold_individually,
-        type: formData.type,
+        // type: formData.type, // ❌ NO se envía - no está en schema de Strapi
         weight: formData.weight || '',
         length: formData.length || '',
         width: formData.width || '',
         height: formData.height || '',
         shipping_class: formData.shipping_class || '',
-        virtual: formData.virtual,
-        downloadable: formData.downloadable,
-        reviews_allowed: formData.reviews_allowed,
-        menu_order: formData.menu_order || '0',
-        sku: formData.sku || formData.isbn_libro || '',
-        purchase_note: formData.purchase_note || '',
+        // virtual: formData.virtual, // ❌ NO se envía - no está en schema de Strapi
+        // downloadable: formData.downloadable, // ❌ NO se envía - no está en schema de Strapi
+        // reviews_allowed: formData.reviews_allowed, // ❌ NO se envía - no está en schema de Strapi
+        // menu_order: formData.menu_order || '0', // ❌ NO se envía - no está en schema de Strapi
+        // sku: formData.sku || formData.isbn_libro || '', // ❌ NO se envía - se usa isbn_libro
+        // purchase_note: formData.purchase_note || '', // ❌ NO se envía - no está en schema de Strapi
       }
 
       // ⚠️ IMPORTANTE: raw_woo_data NO se envía a Strapi porque no está en el schema

@@ -404,10 +404,12 @@ export async function PUT(
       updateData.data.precio_oferta = parseFloat(body.precio_oferta.toString()) || 0
     }
     
-    // Tipo de producto
-    if (body.type !== undefined) {
-      updateData.data.type = body.type
-    }
+    // ⚠️ IMPORTANTE: Los siguientes campos NO están en el schema de Strapi y NO deben enviarse:
+    // - type (tipo de producto WooCommerce)
+    // - virtual, downloadable, reviews_allowed (opciones WooCommerce)
+    // - menu_order, purchase_note (campos WooCommerce)
+    // - sku (se maneja como isbn_libro en Strapi)
+    // Estos campos se manejan en Strapi a través de raw_woo_data en los lifecycles
     
     // Inventario
     if (body.stock_quantity !== undefined) {
