@@ -246,13 +246,27 @@ const Page = () => {
 
       // watch() crea el canal si no existe, o se suscribe si ya existe
       // Esto es necesario para recibir mensajes en tiempo real
+      // IMPORTANTE: watch() también carga los mensajes históricos
       await channel.watch()
+      
+      // Verificar que el canal tiene los miembros correctos
+      const members = channel.state.members || {}
+      const memberIds = Object.keys(members)
       
       console.log('[Chat] Canal listo:', {
         channelId,
-        channelState: channel.state,
-        membersCount: channel.state.members ? Object.keys(channel.state.members).length : 0,
+        memberIds,
+        membersCount: memberIds.length,
+        messageCount: channel.state.messages ? channel.state.messages.length : 0,
       })
+      
+      // Verificar que ambos usuarios están en el canal
+      if (!memberIds.includes(currentUserId) || !memberIds.includes(otherUserId)) {
+        console.warn('[Chat] Advertencia: El canal no tiene los miembros esperados', {
+          expected: [currentUserId, otherUserId],
+          actual: memberIds,
+        })
+      }
       
       setChannel(channel)
     } catch (err: any) {
