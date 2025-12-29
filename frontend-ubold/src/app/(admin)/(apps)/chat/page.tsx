@@ -246,14 +246,14 @@ const Page = () => {
 
       // watch() crea el canal si no existe, o se suscribe si ya existe
       // Esto es necesario para recibir mensajes en tiempo real
-      // IMPORTANTE: watch() también carga los mensajes históricos
       await channel.watch()
       
       // Cargar mensajes históricos explícitamente
-      // Esto asegura que todos los mensajes del canal se carguen
-      await channel.query({
-        messages: { limit: 50 },
+      // IMPORTANTE: query() carga los mensajes y miembros del canal
+      const queryResponse = await channel.query({
+        messages: { limit: 100 },
         members: { limit: 10 },
+        watchers: { limit: 10 },
       })
       
       // Verificar que el canal tiene los miembros correctos
@@ -268,17 +268,25 @@ const Page = () => {
         messageCount: messages.length,
         messages: messages.map((m: any) => ({
           id: m.id,
-          text: m.text,
+          text: m.text?.substring(0, 50),
           user: m.user?.id,
+          created_at: m.created_at,
         })),
+        queryResponse: {
+          messages: queryResponse.messages?.length || 0,
+          members: queryResponse.members?.length || 0,
+        },
       })
       
       // Verificar que ambos usuarios están en el canal
       if (!memberIds.includes(currentUserId) || !memberIds.includes(otherUserId)) {
-        console.warn('[Chat] Advertencia: El canal no tiene los miembros esperados', {
+        console.warn('[Chat] ⚠️ ADVERTENCIA: El canal no tiene los miembros esperados', {
           expected: [currentUserId, otherUserId],
           actual: memberIds,
+          members: members,
         })
+      } else {
+        console.log('[Chat] ✅ Canal configurado correctamente con ambos miembros')
       }
       
       setChannel(channel)
