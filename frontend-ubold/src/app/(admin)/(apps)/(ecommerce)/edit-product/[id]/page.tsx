@@ -430,17 +430,18 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         status: 'publish',
         
         // ✅ DESCRIPCIÓN COMPLETA (HTML) - CRÍTICO para WooCommerce
-        // Quill ya envía HTML, pero aseguramos formato válido
-        // ⚠️ SIEMPRE debe tener un valor, nunca string vacío
-        description: convertirDescripcionAHTML(formData.descripcion || '') || '<p>Sin descripción</p>',
+        // Procesar descripción completa con función helper
+        description: formData.descripcion?.trim()
+          ? textoAHTML(formData.descripcion)
+          : '<p>Sin descripción</p>',
         
         // ✅ DESCRIPCIÓN CORTA (HTML) - CRÍTICO para WooCommerce
         // Si hay descripción corta específica, usarla; si no, generar desde descripción completa
-        // ⚠️ SIEMPRE debe tener un valor, nunca string vacío
+        // ⚠️ IMPORTANTE: La descripción corta debe ser DIFERENTE y limitada a 150 caracteres
         short_description: formData.descripcion_corta?.trim()
-          ? convertirDescripcionAHTML(formData.descripcion_corta)
+          ? textoAHTML(formData.descripcion_corta)  // Si hay descripción corta específica, usarla
           : (formData.descripcion?.trim() 
-              ? generarDescripcionCorta(formData.descripcion, 150)
+              ? generarDescripcionCorta(formData.descripcion, 150)  // Generar desde descripción completa (limitada)
               : '<p>Sin descripción</p>'),
         
         // Precio
@@ -475,15 +476,23 @@ export default function EditProductPage({ params }: EditProductPageProps) {
       // Por ahora, NO lo incluimos para evitar el error "Invalid key raw_woo_data"
       // dataToSend.raw_woo_data = rawWooData  // ❌ Comentado - Strapi lo rechaza
       
+      // Debug: Verificar que las descripciones son diferentes
+      const descripcionCompletaTexto = rawWooData.description.replace(/<[^>]+>/g, '').trim()
+      const descripcionCortaTexto = rawWooData.short_description.replace(/<[^>]+>/g, '').trim()
+      
       console.log('[EditProduct] 📦 Datos preparados para Strapi:', JSON.stringify(dataToSend, null, 2))
       console.log('[EditProduct] 🖼️ raw_woo_data construido:', JSON.stringify(rawWooData, null, 2))
       console.log('[EditProduct] 📝 Descripción completa (HTML):', rawWooData.description)
       console.log('[EditProduct] 📝 Descripción corta (HTML):', rawWooData.short_description)
+      console.log('[EditProduct] 📝 Descripción completa (TEXTO):', descripcionCompletaTexto.substring(0, 100) + '...')
+      console.log('[EditProduct] 📝 Descripción corta (TEXTO):', descripcionCortaTexto)
       console.log('[EditProduct] 🔍 Verificación:', {
         tieneDescripcion: !!rawWooData.description && rawWooData.description.length > 0,
         tieneDescripcionCorta: !!rawWooData.short_description && rawWooData.short_description.length > 0,
-        longitudDescripcion: rawWooData.description?.length || 0,
-        longitudDescripcionCorta: rawWooData.short_description?.length || 0
+        longitudDescripcion: descripcionCompletaTexto.length,
+        longitudDescripcionCorta: descripcionCortaTexto.length,
+        sonDiferentes: descripcionCompletaTexto !== descripcionCortaTexto,
+        descripcionCortaEsMasCorta: descripcionCortaTexto.length < descripcionCompletaTexto.length
       })
 
       // Agregar canales basados en plataformas seleccionadas
