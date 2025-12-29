@@ -158,10 +158,11 @@ export default function AddProductPage() {
       // Construir payload - Campos básicos que Strapi acepta
       const dataToSend: any = {
         nombre_libro: formData.nombre_libro.trim(),
+        // ✅ CRÍTICO: descripcion siempre usa formData.descripcion (NUNCA descripcion_corta)
         descripcion: formData.descripcion?.trim() || '',
-        // descripcion_corta: NO se envía - no está en schema de Strapi
-        // Se usa solo en raw_woo_data para WooCommerce
-        subtitulo_libro: formData.descripcion_corta?.trim() || formData.descripcion?.substring(0, 255) || '', // ✅ Para Strapi (descripción corta)
+        // ✅ CRÍTICO: subtitulo_libro solo usa formData.descripcion_corta (NUNCA descripcion)
+        // Si descripcion_corta está vacío, enviar vacío (NO generar desde descripcion)
+        subtitulo_libro: formData.descripcion_corta?.trim() || '', // ✅ Para Strapi (descripción corta)
         isbn_libro: formData.isbn_libro?.trim() || '',
         precio: formData.precio,
         precio_oferta: formData.precio_oferta || '',
@@ -271,10 +272,14 @@ export default function AddProductPage() {
       // ═══════════════════════════════════════════════════════════════════
       // 🔍 DEBUG: PROCESAR DESCRIPCIONES
       // ═══════════════════════════════════════════════════════════════════
+      // ✅ CRÍTICO: descripcion SIEMPRE usa formData.descripcion (NUNCA descripcion_corta)
       const descripcionHTML = formData.descripcion?.trim()
         ? textoAHTML(formData.descripcion)
         : '<p>Sin descripción</p>'
       
+      // ✅ CRÍTICO: descripcion_corta usa formData.descripcion_corta si existe
+      // Si no existe, generar desde formData.descripcion (solo para rawWooData, NO para Strapi)
+      // Pero NUNCA usar descripcion_corta para descripcion
       const descripcionCortaHTML = formData.descripcion_corta?.trim()
         ? textoAHTML(formData.descripcion_corta)
         : (formData.descripcion?.trim()
