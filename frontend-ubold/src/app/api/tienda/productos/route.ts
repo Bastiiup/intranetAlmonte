@@ -130,13 +130,13 @@ export async function POST(request: NextRequest) {
 
     console.log('[API POST] 📚 ISBN a usar:', isbn)
 
-    // IMPORTANTE: Al crear, siempre se guarda con estado_publicacion = "Pendiente" (con mayúscula inicial como requiere el schema de Strapi)
-    // El estado solo se puede cambiar desde la página de Solicitudes
-    // Solo se publica en WordPress si estado_publicacion === "Publicado" (se maneja en lifecycles de Strapi)
-    const estadoPublicacion = 'Pendiente'
+    // ⚠️ CRÍTICO: Para que el producto se sincronice automáticamente con WooCommerce,
+    // el estado_publicacion DEBE ser "Publicado" (con mayúscula inicial como requiere el schema de Strapi)
+    // Los lifecycles de Strapi detectan estado_publicacion === "Publicado" y sincronizan con WooCommerce
+    const estadoPublicacion = 'Publicado'
     
-    console.log('[API POST] 📚 Estado de publicación:', estadoPublicacion, '(siempre Pendiente al crear)')
-    console.log('[API POST] ⏸️ No se crea en WooCommerce al crear - se sincronizará cuando estado_publicacion = "Publicado"')
+    console.log('[API POST] 📚 Estado de publicación:', estadoPublicacion)
+    console.log('[API POST] ✅ El producto se sincronizará automáticamente con WooCommerce al crear')
 
     // Crear SOLO en Strapi (NO en WooCommerce al crear)
     console.log('[API POST] 📚 Creando producto en Strapi...')
