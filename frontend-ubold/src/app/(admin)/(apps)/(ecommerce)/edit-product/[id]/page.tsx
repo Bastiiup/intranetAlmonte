@@ -405,6 +405,23 @@ export default function EditProductPage({ params }: EditProductPageProps) {
           .join('')
       }
       
+      // Helper para generar descripción corta (máximo 150 caracteres)
+      const generarDescripcionCorta = (descripcion: string, maxCaracteres: number = 150): string => {
+        if (!descripcion || !descripcion.trim()) return ''
+        
+        // Si ya es HTML, extraer solo el texto
+        const textoLimpio = descripcion.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+        
+        if (textoLimpio.length === 0) return ''
+        
+        // Truncar si es necesario
+        const textoCorto = textoLimpio.length > maxCaracteres
+          ? textoLimpio.substring(0, maxCaracteres).trim() + '...'
+          : textoLimpio
+        
+        return `<p>${textoCorto}</p>`
+      }
+      
       const rawWooData: any = {
         name: formData.nombre_libro.trim(),
         type: 'simple',
