@@ -220,7 +220,10 @@ export default function AddProductPage() {
         purchase_note: formData.purchase_note || '',
       }
 
-      console.log('[AddProduct] 📦 raw_woo_data construido:', JSON.stringify(dataToSend.raw_woo_data, null, 2))
+      // ⚠️ IMPORTANTE: raw_woo_data NO se envía a Strapi porque no está en el schema
+      // Strapi debe construir raw_woo_data en sus lifecycles basándose en los campos individuales
+      // Solo enviamos los campos que Strapi acepta (precio, descripcion, etc.)
+      console.log('[AddProduct] 📦 Datos preparados para Strapi (raw_woo_data se construirá en Strapi):', JSON.stringify(dataToSend, null, 2))
 
       // Agregar imagen
       if (portadaLibroUrl) {

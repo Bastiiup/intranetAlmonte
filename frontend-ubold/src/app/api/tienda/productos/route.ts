@@ -152,15 +152,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ⚠️ CRÍTICO: Agregar raw_woo_data si viene en el body (formato WooCommerce completo)
-    // Aceptar tanto rawWooData como raw_woo_data para compatibilidad
-    if (body.raw_woo_data) {
-      strapiProductData.data.raw_woo_data = body.raw_woo_data
-      console.log('[API POST] 📦 raw_woo_data recibido y agregado al payload de Strapi')
-    } else if (body.rawWooData) {
-      strapiProductData.data.raw_woo_data = body.rawWooData
-      console.log('[API POST] 📦 rawWooData recibido (convertido a raw_woo_data) y agregado al payload de Strapi')
-    }
+    // ⚠️ IMPORTANTE: raw_woo_data NO se envía a Strapi porque no está en el schema
+    // Strapi debe construir raw_woo_data en sus lifecycles basándose en los campos individuales
+    // Solo enviamos los campos que Strapi acepta (precio, descripcion, etc.)
+    // El raw_woo_data se construye en Strapi automáticamente cuando se crea el producto
 
     // Agregar imagen si existe - usar ID de Strapi si está disponible
     if (body.portada_libro_id) {
@@ -300,6 +295,27 @@ export async function POST(request: NextRequest) {
     }
     if (body.height !== undefined && body.height !== '') {
       strapiProductData.data.height = parseFloat(body.height) || 0
+    }
+    if (body.shipping_class !== undefined && body.shipping_class !== '') {
+      strapiProductData.data.shipping_class = body.shipping_class
+    }
+    if (body.type !== undefined) {
+      strapiProductData.data.type = body.type
+    }
+    if (body.virtual !== undefined) {
+      strapiProductData.data.virtual = body.virtual
+    }
+    if (body.downloadable !== undefined) {
+      strapiProductData.data.downloadable = body.downloadable
+    }
+    if (body.reviews_allowed !== undefined) {
+      strapiProductData.data.reviews_allowed = body.reviews_allowed
+    }
+    if (body.sold_individually !== undefined) {
+      strapiProductData.data.sold_individually = body.sold_individually
+    }
+    if (body.sku !== undefined && body.sku !== '') {
+      strapiProductData.data.sku = body.sku
     }
     if (body.featured !== undefined) {
       strapiProductData.data.featured = body.featured
