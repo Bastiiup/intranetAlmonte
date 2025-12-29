@@ -62,7 +62,7 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
         emails: [
           {
             email: formData.email.trim(),
-            tipo: 'principal',
+            tipo: 'Personal', // Valores válidos en Strapi: "Personal", "Laboral", "Institucional"
           },
         ],
       }

@@ -133,7 +133,8 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    const emailPrincipal = personaData.emails.find((e: any) => e.tipo === 'principal') || personaData.emails[0]
+    // Buscar email de tipo "Personal" o tomar el primero disponible
+    const emailPrincipal = personaData.emails.find((e: any) => e.tipo === 'Personal') || personaData.emails[0]
     if (!emailPrincipal?.email || !emailPrincipal.email.trim()) {
       return NextResponse.json({
         success: false,
@@ -152,7 +153,7 @@ export async function POST(request: NextRequest) {
         nombre_completo: personaData.nombre_completo.trim(),
         emails: personaData.emails.map((e: any) => ({
           email: e.email.trim(),
-          tipo: e.tipo || 'principal',
+          tipo: e.tipo || 'Personal', // Valores válidos: "Personal", "Laboral", "Institucional"
         })),
         // NOTA: Los telefonos se omiten del POST inicial porque Strapi rechaza el campo
         // Se pueden agregar después con un PUT si es necesario

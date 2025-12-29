@@ -224,7 +224,7 @@ export async function PUT(
               personaUpdateData.data.emails = [
                 {
                   email: correoFinal.trim(),
-                  tipo: 'principal',
+                  tipo: 'Personal', // Valores válidos: "Personal", "Laboral", "Institucional"
                 }
               ]
             }
@@ -243,7 +243,7 @@ export async function PUT(
                 emails: [
                   {
                     email: correoFinal.trim(),
-                    tipo: 'principal',
+                    tipo: 'Personal', // Valores válidos: "Personal", "Laboral", "Institucional"
                   }
                 ],
               },
