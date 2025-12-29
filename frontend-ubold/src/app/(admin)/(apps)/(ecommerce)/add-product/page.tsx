@@ -91,6 +91,26 @@ export default function AddProductPage() {
     })
   }, [])
 
+  // ⚡ OPTIMIZACIÓN: Memoizar el contenido de las pestañas
+  const tabContent = useMemo(() => {
+    switch (activeTab) {
+      case 'general':
+        return <GeneralTab formData={formData} updateField={updateField} />
+      case 'inventario':
+        return <InventarioTab formData={formData} updateField={updateField} />
+      case 'envio':
+        return <EnvioTab formData={formData} updateField={updateField} />
+      case 'vinculados':
+        return <VinculadosTab formData={formData} updateField={updateField} />
+      case 'atributos':
+        return <AtributosTab formData={formData} updateField={updateField} />
+      case 'avanzado':
+        return <AvanzadoTab formData={formData} updateField={updateField} />
+      default:
+        return <GeneralTab formData={formData} updateField={updateField} />
+    }
+  }, [activeTab, formData, updateField])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
