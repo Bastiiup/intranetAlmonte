@@ -59,9 +59,9 @@ const Page = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [lastMessageDate, setLastMessageDate] = useState<string | null>(null)
+  // const [lastMessageDate, setLastMessageDate] = useState<string | null>(null) // Temporalmente no usado
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  // const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null) // Temporalmente no usado
 
   // Cargar contactos
   useEffect(() => {
@@ -129,10 +129,20 @@ const Page = () => {
     cargarContactos()
   }, [])
 
-  // Cargar mensajes y polling
+  // TODO: Cargar mensajes con Stream Chat (temporalmente deshabilitado)
+  // Esta lógica será reemplazada por Stream Chat SDK
   useEffect(() => {
-    if (!currentContact || !currentUserId) return
+    if (!currentContact || !currentUserId) {
+      setMessages([])
+      return
+    }
 
+    // Temporalmente deshabilitado - se implementará con Stream Chat
+    // Limpiar mensajes mientras no hay implementación
+    setMessages([])
+    
+    // Comentado: Código antiguo que usaba /api/chat/mensajes
+    /*
     const cargarMensajes = async (soloNuevos: boolean = false) => {
       try {
         const query = new URLSearchParams({
@@ -156,7 +166,6 @@ const Page = () => {
         const data = await response.json()
         const mensajesData = Array.isArray(data.data) ? data.data : (data.data ? [data.data] : [])
 
-        // Mapear mensajes - los datos vienen directamente
         const mensajesMapeados: MessageType[] = mensajesData.map((mensaje: any) => {
           const texto = mensaje.texto || ''
           const remitenteId = mensaje.remitente_id || 1
@@ -208,12 +217,19 @@ const Page = () => {
         clearInterval(pollingIntervalRef.current)
       }
     }
-  }, [currentContact, lastMessageDate, currentUserId])
+    */
+  }, [currentContact, currentUserId])
 
-  // Enviar mensaje
+  // TODO: Enviar mensaje con Stream Chat (temporalmente deshabilitado)
   const handleSendMessage = async () => {
     if (!messageText.trim() || !currentContact || isSending || !currentUserId) return
 
+    // Temporalmente deshabilitado - se implementará con Stream Chat
+    console.log('[Chat] Envío de mensajes temporalmente deshabilitado. Se implementará con Stream Chat.')
+    setError('El chat está en mantenimiento. Se implementará con Stream Chat próximamente.')
+    
+    // Comentado: Código antiguo que usaba /api/chat/mensajes
+    /*
     const texto = messageText.trim()
     setMessageText('')
     setIsSending(true)
@@ -237,7 +253,6 @@ const Page = () => {
         throw new Error(errorData.error || 'Error al enviar mensaje')
       }
 
-      // Recargar mensajes después de enviar
       setTimeout(() => {
         const query = new URLSearchParams({
           colaborador_id: currentContact.id,
@@ -272,6 +287,7 @@ const Page = () => {
     } finally {
       setIsSending(false)
     }
+    */
   }
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -446,9 +462,10 @@ const Page = () => {
                 <div ref={messagesEndRef} />
               </>
             ) : (
-              <div className="d-flex align-items-center justify-content-center my-5">
-                <TbMessageCircleOff size={18} className="text-muted me-1" />
-                <span>No hay mensajes. Comienza la conversación.</span>
+              <div className="d-flex flex-column align-items-center justify-content-center my-5">
+                <TbMessageCircleOff size={18} className="text-muted me-1 mb-2" />
+                <span className="text-muted">Chat en mantenimiento</span>
+                <span className="text-muted fs-xs mt-1">Se implementará con Stream Chat próximamente</span>
               </div>
             )}
           </SimplebarClient>
@@ -463,11 +480,11 @@ const Page = () => {
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  disabled={!currentContact || isSending || !currentUserId}
+                  disabled={true} // Temporalmente deshabilitado hasta implementar Stream Chat
                 />
                 <LuMessageSquare className="app-search-icon text-muted" />
               </div>
-              <Button variant="primary" onClick={handleSendMessage} disabled={!currentContact || isSending || !messageText.trim() || !currentUserId}>
+              <Button variant="primary" onClick={handleSendMessage} disabled={true}> {/* Temporalmente deshabilitado hasta implementar Stream Chat */}
                 {isSending ? (
                   <>
                     <Spinner animation="border" size="sm" className="me-1" />
