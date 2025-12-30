@@ -125,64 +125,112 @@ export async function GET() {
       }
     }
     
-    // FILTRADO DE DUPLICADOS: "El Portero" - Eliminar usuarios duplicados por email
-    // SOLO dejamos pasar al que tenga el ID MÁS ALTO (el más reciente y válido)
+    // FILTRADO DE DUPLICADOS: "El Portero Inteligente" - Eliminar usuarios duplicados por email
+    // PRIORIDAD 1: Usuario con persona definida SIEMPRE gana sobre uno sin persona
+    // PRIORIDAD 2: Si ambos tienen (o no tienen) persona, usar el ID más alto
     let cleanedData = response.data
     if (Array.isArray(response.data) && response.data.length > 0) {
       const usuariosUnicos = new Map<string, any>()
-      const duplicatesFound: Array<{ email: string; ids: number[]; kept: number }> = []
+      const duplicatesFound: Array<{ 
+        email: string
+        ids: number[]
+        kept: number
+        reason: string
+      }> = []
+      
+      // Función helper para verificar si un usuario tiene persona
+      const hasPersona = (item: any): boolean => {
+        const attrs = item.attributes || item
+        // Verificar en múltiples lugares posibles
+        return !!(
+          item.persona ||
+          attrs.persona ||
+          attrs.persona?.data ||
+          item.attributes?.persona?.data ||
+          item.attributes?.persona
+        )
+      }
       
       // Iterar sobre todos los colaboradores que vienen de Strapi
-      response.data.forEach((user: any) => {
+      response.data.forEach((newItem: any) => {
         // Extraer email_login (puede estar en attributes o en el nivel superior)
-        const attrs = user.attributes || user
-        const email = attrs.email_login || user.email_login
+        const attrs = newItem.attributes || newItem
+        const email = attrs.email_login || newItem.email_login
         
         // Omitir usuarios sin email
         if (!email) {
           console.warn('[API /chat/colaboradores] ⚠️ Colaborador sin email_login, será omitido:', { 
-            id: user.id,
-            documentId: user.documentId 
+            id: newItem.id,
+            documentId: newItem.documentId 
           })
           return
         }
         
         // Obtener ID numérico (usar solo id, no documentId)
-        const currentId = user.id
+        const currentId = newItem.id
         
         // Validar que tenga ID válido
         if (!currentId || typeof currentId !== 'number') {
           console.warn('[API /chat/colaboradores] ⚠️ Colaborador sin ID numérico válido, será omitido:', { 
             email,
-            id: user.id,
-            documentId: user.documentId 
+            id: newItem.id,
+            documentId: newItem.documentId 
           })
           return
         }
         
         // Si el email no existe en el Map, agregarlo directamente
         if (!usuariosUnicos.has(email)) {
-          usuariosUnicos.set(email, user)
+          usuariosUnicos.set(email, newItem)
         } else {
-          // Si ya existe un usuario con este email, comparamos IDs numéricos
-          // Nos quedamos con el que tenga el ID MÁS ALTO (asumimos que es el más reciente)
-          const existingUser = usuariosUnicos.get(email)
-          const existingId = existingUser.id
+          // Si ya existe un usuario con este email, aplicar lógica de prioridad
+          const existingItem = usuariosUnicos.get(email)
+          const existingId = existingItem.id
           
-          if (currentId > existingId) {
-            // El ID actual es mayor, reemplazamos el existente
+          // Verificar si tienen persona
+          const hasPersonaNew = hasPersona(newItem)
+          const hasPersonaExisting = hasPersona(existingItem)
+          
+          let shouldReplace = false
+          let reason = ''
+          
+          // CASO A: El nuevo tiene persona y el guardado no -> Reemplazar por el nuevo
+          if (hasPersonaNew && !hasPersonaExisting) {
+            shouldReplace = true
+            reason = 'Nuevo tiene persona, existente no'
+          }
+          // CASO B: Ambos tienen (o no tienen) persona -> Usar el ID más alto
+          else if (hasPersonaNew === hasPersonaExisting) {
+            if (currentId > existingId) {
+              shouldReplace = true
+              reason = hasPersonaNew 
+                ? 'Ambos tienen persona, nuevo ID es mayor' 
+                : 'Ninguno tiene persona, nuevo ID es mayor'
+            } else {
+              reason = hasPersonaNew 
+                ? 'Ambos tienen persona, existente ID es mayor' 
+                : 'Ninguno tiene persona, existente ID es mayor'
+            }
+          }
+          // CASO C: El guardado tiene persona y el nuevo no -> No hacer nada (quedarse con el guardado)
+          else {
+            reason = 'Existente tiene persona, nuevo no'
+          }
+          
+          if (shouldReplace) {
             duplicatesFound.push({
               email,
               ids: [existingId, currentId],
               kept: currentId,
+              reason,
             })
-            usuariosUnicos.set(email, user)
+            usuariosUnicos.set(email, newItem)
           } else {
-            // El ID existente es mayor o igual, mantenemos el existente
             duplicatesFound.push({
               email,
               ids: [existingId, currentId],
               kept: existingId,
+              reason,
             })
             // No hacemos nada, ya tenemos el correcto en el Map
           }
@@ -195,8 +243,9 @@ export async function GET() {
         duplicatesFound.forEach((dup) => {
           console.error(`  📧 Email: ${dup.email}`)
           console.error(`     IDs encontrados: [${dup.ids.join(', ')}]`)
-          console.error(`     ✅ Se mantiene ID: ${dup.kept} (el más alto)`)
+          console.error(`     ✅ Se mantiene ID: ${dup.kept}`)
           console.error(`     ❌ Se elimina ID: ${dup.ids.find(id => id !== dup.kept)}`)
+          console.error(`     📋 Razón: ${dup.reason}`)
         })
       }
       
