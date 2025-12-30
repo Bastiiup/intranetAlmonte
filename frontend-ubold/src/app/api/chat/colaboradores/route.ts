@@ -53,14 +53,20 @@ export async function GET() {
       const colaboradorData = firstColaborador.attributes || firstColaborador
       console.log('[API /chat/colaboradores] Primer colaborador ejemplo:', {
         id: firstColaborador.id,
+        documentId: firstColaborador.documentId,
         email_login: colaboradorData.email_login,
         persona: colaboradorData.persona ? {
           id: colaboradorData.persona.id,
+          documentId: colaboradorData.persona.documentId,
           nombre_completo: colaboradorData.persona.nombre_completo,
           nombres: colaboradorData.persona.nombres,
           primer_apellido: colaboradorData.persona.primer_apellido,
         } : null,
       })
+      
+      // DEBUG CRÍTICO: Verificar estructura completa del primer colaborador
+      console.error('[API /chat/colaboradores] 🔍 ESTRUCTURA COMPLETA PRIMER COLABORADOR:')
+      console.error(JSON.stringify(firstColaborador, null, 2))
     }
     
     return NextResponse.json(response, { status: 200 })

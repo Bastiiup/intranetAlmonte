@@ -148,9 +148,29 @@ const Page = () => {
           const colaboradorAttrs = col.attributes || col
           const personaData = colaboradorAttrs.persona || null
           
+          // CRÍTICO: Usar el ID del colaborador (no el de Persona)
+          // Strapi puede devolver 'id' o 'documentId', pero necesitamos el ID del colaborador
+          // que es el mismo que se usa en la autenticación (auth_colaborador.id)
+          const colaboradorId = col.id || col.documentId
+          
+          // DEBUG: Log para verificar que estamos usando el ID correcto
+          if (colaboradoresData.indexOf(col) === 0) {
+            console.error('[Chat] 🔍 DEBUG PRIMER COLABORADOR NORMALIZADO:')
+            console.error('Colaborador raw:', {
+              id: col.id,
+              documentId: col.documentId,
+              email: colaboradorAttrs.email_login,
+            })
+            console.error('Persona raw:', personaData ? {
+              id: personaData.id,
+              documentId: personaData.documentId,
+            } : null)
+            console.error('ID que se usará (colaboradorId):', colaboradorId)
+          }
+          
           // Normalizar estructura
           return {
-            id: col.id,
+            id: colaboradorId, // Usar ID del colaborador, no el de Persona
             email_login: colaboradorAttrs.email_login,
             activo: colaboradorAttrs.activo !== false, // Default true
             persona: personaData ? {
@@ -169,6 +189,16 @@ const Page = () => {
         .filter((col: Colaborador) => col.activo !== false)
         // Filtrar el usuario actual
         .filter((col: Colaborador) => String(col.id) !== String(colaborador?.id))
+      
+      // DEBUG CRÍTICO: Comparar IDs
+      console.error('[Chat] 🔍 VERIFICACIÓN DE IDs:')
+      console.error('Usuario actual (colaborador?.id):', colaborador?.id)
+      console.error('Colaboradores en lista (primeros 3):', normalized.slice(0, 3).map((c: Colaborador) => ({
+        id: c.id,
+        email: c.email_login,
+        nombre: c.persona?.nombre_completo,
+      })))
+      console.error('¿Usuario actual aparece en lista?', normalized.some((c: Colaborador) => String(c.id) === String(colaborador?.id)))
       
       console.log('[Chat] Colaboradores cargados:', {
         total: normalized.length,
