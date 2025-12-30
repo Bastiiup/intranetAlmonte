@@ -670,7 +670,8 @@ const AtributosTab = memo(function AtributosTab({ formData, updateField }: Atrib
                       multiple
                       value={selectedOptions}
                       onChange={(e) => {
-                        const selected = Array.from(e.target.selectedOptions, option => option.value)
+                        const target = e.target as HTMLSelectElement
+                        const selected = Array.from(target.selectedOptions, option => option.value)
                         setSelectedOptions(selected)
                       }}
                       style={{ 
