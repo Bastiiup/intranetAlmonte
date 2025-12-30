@@ -123,22 +123,10 @@ export async function PUT(
     let personaDocumentId: string | null = null
     
     // 1. PRIORIDAD: Si se proporciona documentId de Persona, usarlo directamente (más confiable para edición)
+    // Si se proporciona el documentId, confiamos en él y lo usamos para actualizar directamente
     if (body.data?.persona?.documentId) {
-      try {
-        personaDocumentId = body.data.persona.documentId
-        console.log('[API Clientes PUT] ✅ Usando personaDocumentId proporcionado:', personaDocumentId)
-        
-        // Verificar que la Persona existe
-        const personaVerificada = await strapiClient.get<any>(`/api/personas/${personaDocumentId}`)
-        if (personaVerificada.data) {
-          personaEncontrada = personaVerificada.data
-          console.log('[API Clientes PUT] ✅ Persona verificada y encontrada por documentId:', personaDocumentId)
-        }
-      } catch (docIdError: any) {
-        console.error('[API Clientes PUT] ⚠️ Error al verificar personaDocumentId proporcionado:', docIdError.message)
-        // Si falla, continuar con otros métodos de búsqueda
-        personaDocumentId = null
-      }
+      personaDocumentId = body.data.persona.documentId
+      console.log('[API Clientes PUT] ✅ Usando personaDocumentId proporcionado para actualizar:', personaDocumentId)
     }
     
     // 2. Si no se encontró por documentId, intentar buscar Persona por RUT (método secundario)
