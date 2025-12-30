@@ -18,11 +18,13 @@ import { useAuth } from '@/hooks/useAuth'
 
 interface Colaborador {
   id: number
+  rut?: string // RUT como identificador único para el chat
   attributes?: {
     email_login: string
     activo?: boolean
     persona?: {
       id: number
+      rut?: string
       nombre_completo?: string
       nombres?: string
       primer_apellido?: string
@@ -36,6 +38,7 @@ interface Colaborador {
   activo?: boolean
   persona?: {
     id: number
+    rut?: string
     nombre_completo?: string
     nombres?: string
     primer_apellido?: string
@@ -57,60 +60,54 @@ const Page = () => {
   const [isCreatingChannel, setIsCreatingChannel] = useState(false) // Estado para prevenir renderizado prematuro
   const [error, setError] = useState<string | null>(null)
   const initializedRef = useRef(false)
-  const [myColaboradorId, setMyColaboradorId] = useState<number | null>(null) // ID del colaborador del usuario logueado
+  const [myColaboradorRut, setMyColaboradorRut] = useState<string | null>(null) // RUT del colaborador del usuario logueado
 
-  // RESOLVER IDENTIDAD: Obtener explícitamente el ID del colaborador del usuario logueado
+  // RESOLVER IDENTIDAD: Obtener explícitamente el RUT de la persona del colaborador
   useEffect(() => {
     if (initializedRef.current || !colaborador) {
       return
     }
 
-    const resolveMyColaboradorId = async () => {
+    const resolveMyColaboradorRut = async () => {
       try {
         initializedRef.current = true
         setIsLoading(true)
         setError(null)
 
-        // DEBUG OBLIGATORIO: Imprimir TODO el objeto user en consola
+        // DEBUG: Imprimir datos del colaborador y persona
         console.error('🕵️ OBJETO USER COMPLETO (colaborador):', JSON.stringify(colaborador, null, 2))
         console.error('🕵️ OBJETO PERSONA COMPLETO:', JSON.stringify(persona, null, 2))
-        console.error('🕵️ IDs DETECTADOS:', {
-          'colaborador.id': colaborador?.id,
-          'colaborador.attributes?.id': colaborador?.attributes?.id,
-          'persona.id': persona?.id,
-          'persona.attributes?.id': persona?.attributes?.id,
-        })
 
-        // CRÍTICO: Obtener explícitamente el ID del colaborador
-        // No confiar en user.id directo, necesitamos el id de la tabla Intranet-colaboradores
-        const colaboradorId = colaborador?.id || colaborador?.attributes?.id
+        // CRÍTICO: Obtener el RUT de la persona
+        // El RUT es único y estable, no cambia como los IDs numéricos
+        const personaRut = persona?.rut || persona?.attributes?.rut || colaborador?.persona?.rut || colaborador?.attributes?.persona?.rut
         
-        if (!colaboradorId) {
-          throw new Error('No se pudo obtener el ID del colaborador. Debes iniciar sesión.')
+        if (!personaRut) {
+          throw new Error('No se pudo obtener el RUT de la persona. Tu perfil debe tener un RUT configurado.')
         }
 
-        // Validar que sea un número (ID de colaborador, no de Persona ni Auth)
-        const colaboradorIdNum = Number(colaboradorId)
-        if (isNaN(colaboradorIdNum) || colaboradorIdNum <= 0) {
-          throw new Error(`ID de colaborador inválido: ${colaboradorId}`)
+        // Validar que el RUT sea un string no vacío
+        const rutString = String(personaRut).trim()
+        if (!rutString || rutString.length === 0) {
+          throw new Error(`RUT de persona inválido: ${personaRut}`)
         }
 
-        console.error('🕵️ ID DEL COLABORADOR RESUELTO:', colaboradorIdNum)
-        console.error('🕵️ Tipo de ID:', typeof colaboradorIdNum, 'Valor:', colaboradorIdNum)
+        console.error('🕵️ RUT DEL COLABORADOR RESUELTO:', rutString)
+        console.error('🕵️ Tipo de RUT:', typeof rutString, 'Valor:', rutString)
 
-        // Guardar el ID del colaborador en el estado
-        setMyColaboradorId(colaboradorIdNum)
+        // Guardar el RUT del colaborador en el estado
+        setMyColaboradorRut(rutString)
 
-        // Ahora que tenemos el ID, inicializar Stream Chat
-        await initStreamChat(colaboradorIdNum)
+        // Ahora que tenemos el RUT, inicializar Stream Chat
+        await initStreamChat(rutString)
       } catch (err: any) {
-        console.error('[Chat] Error al resolver ID del colaborador:', err)
+        console.error('[Chat] Error al resolver RUT del colaborador:', err)
         setError(err.message || 'Error al obtener tu perfil de colaborador')
         setIsLoading(false)
       }
     }
 
-    const initStreamChat = async (myColaboradorIdNum: number) => {
+    const initStreamChat = async (myColaboradorRut: string) => {
       try {
         // 1. Obtener token del backend
         const tokenResponse = await fetch('/api/chat/stream-token', {
@@ -234,13 +231,26 @@ const Page = () => {
             tienePersona: !!personaData,
           })
           
+          // Obtener RUT de la persona (identificador único y estable)
+          const personaRut = personaData?.rut || null
+          
+          if (!personaRut) {
+            console.warn('[Chat] ⚠️ Colaborador sin RUT, será omitido:', {
+              email: colaboradorAttrs.email_login,
+              id: colaboradorId,
+            })
+            return null // Filtrar colaboradores sin RUT
+          }
+
           // Normalizar estructura
           return {
-            id: colaboradorId, // CRÍTICO: ID del content-type Intranet-colaboradores (ej: 93, NO 115)
+            id: colaboradorId, // Mantener ID para referencia, pero usar RUT para channelId
+            rut: personaRut, // RUT como identificador único para el chat
             email_login: colaboradorAttrs.email_login,
             activo: colaboradorAttrs.activo !== false, // Default true
             persona: personaData ? {
               id: personaData.id || personaData.documentId,
+              rut: personaRut,
               nombres: personaData.nombres,
               primer_apellido: personaData.primer_apellido,
               segundo_apellido: personaData.segundo_apellido,
@@ -255,17 +265,16 @@ const Page = () => {
         .filter((col: Colaborador | null): col is Colaborador => col !== null)
         // Filtrar solo activos
         .filter((col: Colaborador) => col.activo !== false)
-        // Filtrar el usuario actual (usar el mismo ID que se usa en autenticación)
-        // CRÍTICO: No usar referencias de Intranet-Chats, solo comparar IDs de colaboradores
-        // Stream Chat maneja su propio historial, no necesitamos cruzar datos con tablas antiguas
+        // Filtrar el usuario actual (usar RUT para comparar)
+        // CRÍTICO: Usar RUT como identificador único y estable
         .filter((col: Colaborador) => {
-          const currentId = colaborador?.id
-          const colId = col.id
-          const isSame = String(colId) === String(currentId)
+          const currentRut = persona?.rut || colaborador?.persona?.rut || colaborador?.attributes?.persona?.rut
+          const colRut = col.rut || col.persona?.rut
+          const isSame = colRut && currentRut && String(colRut) === String(currentRut)
           if (isSame) {
             console.error('[Chat] ⚠️ Usuario actual encontrado en lista (será filtrado):', {
-              currentId,
-              colId,
+              currentRut,
+              colRut,
               email: col.email_login,
             })
           }
@@ -335,10 +344,10 @@ const Page = () => {
   }
 
   // Seleccionar colaborador y crear/abrir canal
-  const selectColaborador = async (colaboradorId: string) => {
-    // BLOQUEAR: No iniciar hasta tener myColaboradorId
-    if (!myColaboradorId) {
-      console.error('[Chat] ❌ No se ha resuelto el ID del colaborador actual')
+  const selectColaborador = async (colaboradorRut: string) => {
+    // BLOQUEAR: No iniciar hasta tener myColaboradorRut
+    if (!myColaboradorRut) {
+      console.error('[Chat] ❌ No se ha resuelto el RUT del colaborador actual')
       setError('Error: No se pudo identificar tu perfil. Por favor recarga la página.')
       return
     }
@@ -350,53 +359,45 @@ const Page = () => {
 
     // Limpieza inmediata: resetear canal anterior
     setChannel(null)
-    setSelectedColaboradorId(colaboradorId)
+    setSelectedColaboradorId(colaboradorRut)
     setError(null)
     setIsCreatingChannel(true)
 
     try {
-      // GENERACIÓN DEL CANAL (ESTRICTA): Ambos deben ser números de la misma tabla (Colaboradores)
-      if (!myColaboradorId || !colaboradorId) {
-        throw new Error('Faltan IDs necesarios para crear el canal')
+      // GENERACIÓN DEL CANAL: Usar RUTs en lugar de IDs numéricos
+      if (!myColaboradorRut || !colaboradorRut) {
+        throw new Error('Faltan RUTs necesarios para crear el canal')
       }
 
-      // CRÍTICO: Usar SOLO el ID del content-type Intranet-colaboradores
-      // Estos IDs vienen del backend después de la desduplicación
-      const myIdNum = Number(myColaboradorId)
-      const otherIdNum = Number(colaboradorId)
+      // Validar que ambos RUTs sean strings válidos
+      const myRut = String(myColaboradorRut).trim()
+      const otherRut = String(colaboradorRut).trim()
 
-      // Log crítico para verificar IDs antes de crear channelId
-      console.error('[Chat Frontend] 🔑 IDs ANTES DE CREAR CHANNEL ID:')
-      console.error('  👤 myColaboradorId (Usuario logueado):', myColaboradorId, '→', myIdNum)
-      console.error('  👤 colaboradorId (Seleccionado):', colaboradorId, '→', otherIdNum)
-      console.error('  ⚠️ ESTOS DEBEN SER IDs DEL CONTENT-TYPE INTRANET-COLABORADORES')
-
-      // Validar que ambos sean números válidos de colaboradores
-      if (isNaN(myIdNum) || isNaN(otherIdNum) || myIdNum <= 0 || otherIdNum <= 0) {
-        throw new Error(`IDs inválidos: myId=${myIdNum}, otherId=${otherIdNum}`)
+      if (!myRut || !otherRut) {
+        throw new Error(`RUTs inválidos: myRut=${myRut}, otherRut=${otherRut}`)
       }
 
       // Verificar que no sea el mismo usuario
-      if (myIdNum === otherIdNum) {
+      if (myRut === otherRut) {
         setError('No puedes chatear contigo mismo')
         setIsCreatingChannel(false)
         return
       }
 
-      // Ordenar numéricamente (ascendente) - Ambos son IDs de colaboradores
-      const ids = [myIdNum, otherIdNum].sort((a, b) => a - b)
+      // Ordenar RUTs alfabéticamente para generar channelId consistente
+      const ruts = [myRut, otherRut].sort()
       
-      // Generar channelId con prefijo chat-v3- para limpiar caché
-      const channelId = `chat-v3-${ids.join('-')}`
+      // Generar channelId usando RUTs (prefijo chat-rut- para diferenciar de versiones anteriores)
+      const channelId = `chat-rut-${ruts.join('-')}`
 
       // DEBUG FINAL
       console.error('=============================================')
-      console.error('🕵️ CREACIÓN DE CANAL - IDs UNIFICADOS')
-      console.error('👤 myColaboradorId (Usuario logueado):', myIdNum)
-      console.error('👤 otherIdNum (Colaborador seleccionado):', otherIdNum)
-      console.error('🔢 IDs Ordenados:', ids)
+      console.error('🕵️ CREACIÓN DE CANAL - USANDO RUTs')
+      console.error('👤 myColaboradorRut (Usuario logueado):', myRut)
+      console.error('👤 otherRut (Colaborador seleccionado):', otherRut)
+      console.error('🔢 RUTs Ordenados:', ruts)
       console.error('🔑 CHANNEL ID GENERADO:', channelId)
-      console.error('✅ Ambos IDs son del tipo Intranet-Colaborador')
+      console.error('✅ Usando RUTs como identificadores únicos')
       console.error('=============================================')
 
       // Asegurar que el usuario objetivo existe en Stream Chat
@@ -406,7 +407,7 @@ const Page = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ colaboradorId: String(otherIdNum) }),
+        body: JSON.stringify({ rut: otherRut }),
       })
 
       if (!ensureUserResponse.ok) {
@@ -414,11 +415,9 @@ const Page = () => {
         throw new Error(errorData.error || 'Error al asegurar usuario en Stream')
       }
 
-      // Crear o recuperar canal
-      // IMPORTANTE: Stream necesita strings en 'members', pero usamos los IDs ordenados numéricamente
-      // Ambos IDs son del tipo Intranet-Colaborador
+      // Crear o recuperar canal usando RUTs como miembros
       const channel = chatClient.channel('messaging', channelId, {
-        members: ids.map(String),
+        members: ruts, // Usar RUTs como identificadores de miembros
       })
 
       // CRÍTICO: Esperar a que watch() complete antes de establecer el canal
@@ -487,8 +486,8 @@ const Page = () => {
     )
   }
 
-  // BLOQUEAR RENDERIZADO: No mostrar el chat hasta tener myColaboradorId
-  if (!myColaboradorId || !chatClient) {
+  // BLOQUEAR RENDERIZADO: No mostrar el chat hasta tener myColaboradorRut
+  if (!myColaboradorRut || !chatClient) {
     return (
       <Container fluid>
         <PageBreadcrumb title="Chat" />
@@ -535,65 +534,33 @@ const Page = () => {
             ) : (
               <ListGroup variant="flush">
                 {colaboradores.map((col) => {
-                  // CRÍTICO: Usar SOLO el ID del content-type Intranet-colaboradores
-                  // Este es el ID que viene del backend después de la desduplicación
-                  // NO usar documentId, NO usar persona.id, SOLO col.id
-                  const colId = String(col.id)
+                  // CRÍTICO: Usar RUT como identificador único para el chat
+                  // El RUT es estable y único, no cambia como los IDs numéricos
+                  const colRut = col.rut || col.persona?.rut
                   
-                  // Detectar si es Matias Riquelme Medina
-                  const nombreCompleto = col.persona?.nombre_completo || ''
-                  const isMatias = col.email_login === 'matiintranet@gmail.com' || (nombreCompleto.toLowerCase().includes('matias') && nombreCompleto.toLowerCase().includes('riquelme'))
-                  
-                  // Log específico para Matias
-                  if (isMatias) {
-                    console.error('[Chat Frontend] 🚨 MATIAS RIQUELME MEDINA - EN LISTA:')
-                    console.error('  📧 Email:', col.email_login)
-                    console.error('  🔑 col.id (ID del content-type):', col.id)
-                    console.error('  ✅ colId que se usará:', colId)
-                    console.error('  ⚠️ DEBE SER 96, NO 115, NO 93')
-                    if (col.id !== 96) {
-                      console.error('  ❌ ERROR: Se está usando ID', col.id, 'en lugar de 96')
-                    } else {
-                      console.error('  ✅ CORRECTO: Se está usando ID 96')
-                    }
-                  }
-                  
-                  // Log para verificar que estamos usando el ID correcto
-                  if (colaboradores.indexOf(col) < 3 || isMatias) {
-                    console.error('[Chat Frontend] 🔍 ID usado para contacto:', {
+                  if (!colRut) {
+                    console.warn('[Chat Frontend] ⚠️ Colaborador sin RUT, será omitido:', {
                       email: col.email_login,
-                      nombre: nombreCompleto,
                       id: col.id,
-                      colId: colId,
-                      tienePersona: !!col.persona,
                     })
+                    return null
                   }
                   
-                  const isSelected = selectedColaboradorId === colId
+                  const nombreCompleto = col.persona?.nombre_completo || ''
+                  const isSelected = selectedColaboradorId === colRut
+                  
                   return (
                     <ListGroup.Item
                       key={col.id}
                       action
                       active={isSelected}
                       onClick={() => {
-                        if (isMatias) {
-                          console.error('[Chat Frontend] 🚨 MATIAS RIQUELME MEDINA - CLICK:')
-                          console.error('  🔑 col.id (ID del content-type):', col.id)
-                          console.error('  ✅ colId que se pasará a selectColaborador:', colId)
-                          console.error('  ⚠️ DEBE SER 96, NO 115, NO 93')
-                          if (col.id !== 96) {
-                            console.error('  ❌ ERROR: Se está usando ID', col.id, 'en lugar de 96')
-                          } else {
-                            console.error('  ✅ CORRECTO: Se está usando ID 96')
-                          }
-                        }
-                        console.error('[Chat Frontend] 🖱️ Click en contacto:', {
+                        console.log('[Chat Frontend] 🖱️ Click en contacto:', {
                           email: col.email_login,
                           nombre: nombreCompleto,
-                          id: col.id,
-                          colId: colId,
+                          rut: colRut,
                         })
-                        selectColaborador(colId)
+                        selectColaborador(colRut)
                       }}
                       style={{
                         cursor: 'pointer',

@@ -36,14 +36,34 @@ export async function POST(request: NextRequest) {
     // Obtener colaborador autenticado
     const colaborador = await getAuthColaborador()
 
-    if (!colaborador || !colaborador.id) {
+    if (!colaborador) {
       return NextResponse.json(
         { error: 'No se encontró información del colaborador. Debes iniciar sesión.' },
         { status: 401 }
       )
     }
 
-    const colaboradorId = String(colaborador.id)
+    // Obtener RUT del body si viene, sino del colaborador autenticado
+    let rut: string | null = null
+    try {
+      const body = await request.json()
+      rut = body.rut || null
+    } catch {
+      // Si no hay body, usar el RUT del colaborador autenticado
+    }
+
+    if (!rut) {
+      rut = colaborador.persona?.rut || colaborador.attributes?.persona?.rut
+    }
+
+    if (!rut) {
+      return NextResponse.json(
+        { error: 'No se pudo obtener el RUT de la persona. Tu perfil debe tener un RUT configurado.' },
+        { status: 400 }
+      )
+    }
+
+    const rutString = String(rut).trim()
 
     // Obtener información completa del colaborador desde Strapi para el perfil
     let nombre = colaborador.persona?.nombre_completo ||
@@ -62,19 +82,19 @@ export async function POST(request: NextRequest) {
     // Obtener cliente de Stream
     const streamClient = getStreamClient()
 
-    // Generar token de autenticación para este usuario
-    const token = streamClient.createToken(colaboradorId)
+    // Generar token de autenticación para este usuario usando RUT como ID
+    const token = streamClient.createToken(rutString)
 
-    // Crear o actualizar el usuario en Stream
+    // Crear o actualizar el usuario en Stream usando RUT como ID
     await streamClient.upsertUser({
-      id: colaboradorId,
+      id: rutString,
       name: nombre,
       image: avatar,
     })
 
     return NextResponse.json({
       token,
-      userId: colaboradorId,
+      userId: rutString,
     })
   } catch (error: any) {
     console.error('[API /chat/stream-token] Error:', error)

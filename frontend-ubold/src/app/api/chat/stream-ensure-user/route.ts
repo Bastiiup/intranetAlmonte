@@ -36,28 +36,30 @@ export async function POST(request: NextRequest) {
   try {
     // Verificar que el usuario está autenticado
     const currentColaborador = await getAuthColaborador()
-    if (!currentColaborador || !currentColaborador.id) {
+    if (!currentColaborador) {
       return NextResponse.json(
         { error: 'No autenticado' },
         { status: 401 }
       )
     }
 
-    // Obtener el ID del colaborador del body
+    // Obtener el RUT del colaborador del body
     const body = await request.json()
-    const { colaboradorId } = body
+    const { rut } = body
 
-    if (!colaboradorId) {
+    if (!rut) {
       return NextResponse.json(
-        { error: 'colaboradorId es requerido' },
+        { error: 'rut es requerido' },
         { status: 400 }
       )
     }
 
-    // Obtener información del colaborador desde Strapi usando filtro (más confiable)
+    const rutString = String(rut).trim()
+
+    // Obtener información del colaborador desde Strapi usando filtro por RUT
     try {
       const response = await strapiClient.get<any>(
-        `/api/colaboradores?filters[id][$eq]=${colaboradorId}&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[persona][populate][imagen][populate]=*`
+        `/api/colaboradores?filters[persona][rut][$eq]=${rutString}&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[persona][populate][imagen][populate]=*`
       )
 
       // Los datos vienen en formato array cuando se usa filtro
@@ -101,16 +103,16 @@ export async function POST(request: NextRequest) {
       // Obtener cliente de Stream
       const streamClient = getStreamClient()
 
-      // Crear o actualizar el usuario en Stream
+      // Crear o actualizar el usuario en Stream usando RUT como ID
       await streamClient.upsertUser({
-        id: String(colaboradorId),
+        id: rutString,
         name: nombre,
         image: avatar,
       })
 
       return NextResponse.json({
         success: true,
-        userId: String(colaboradorId),
+        userId: rutString,
       })
     } catch (strapiError: any) {
       console.error('[API /chat/stream-ensure-user] Error al obtener colaborador de Strapi:', strapiError)
@@ -118,13 +120,13 @@ export async function POST(request: NextRequest) {
       // Si no podemos obtener los datos completos, crear usuario básico
       const streamClient = getStreamClient()
       await streamClient.upsertUser({
-        id: String(colaboradorId),
-        name: `Usuario ${colaboradorId}`,
+        id: rutString,
+        name: `Usuario ${rutString}`,
       })
 
       return NextResponse.json({
         success: true,
-        userId: String(colaboradorId),
+        userId: rutString,
         warning: 'Usuario creado con datos básicos',
       })
     }
