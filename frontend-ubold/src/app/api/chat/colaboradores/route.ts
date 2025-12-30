@@ -125,7 +125,70 @@ export async function GET() {
       }
     }
     
-    return NextResponse.json(response, { status: 200 })
+    // FILTRADO DE DUPLICADOS: Eliminar usuarios con el mismo email, quedarse con el ID más alto
+    let cleanedData = response.data
+    if (Array.isArray(response.data)) {
+      const uniqueUsers = new Map<string, any>()
+      const duplicatesFound: Array<{ email: string; ids: number[]; kept: number }> = []
+      
+      response.data.forEach((user: any) => {
+        const attrs = user.attributes || user
+        const email = attrs.email_login
+        const userId = user.id || user.documentId
+        
+        if (!email) {
+          console.warn('[API /chat/colaboradores] ⚠️ Usuario sin email_login, será omitido:', { id: userId })
+          return // Omitir usuarios sin email
+        }
+        
+        // Si no existe en el Map, o si el actual tiene un ID mayor al guardado, guardamos este
+        if (!uniqueUsers.has(email)) {
+          uniqueUsers.set(email, user)
+        } else {
+          const existingUser = uniqueUsers.get(email)
+          const existingId = existingUser.id || existingUser.documentId
+          const currentId = userId
+          
+          // Si el usuario actual tiene un ID mayor, reemplazamos
+          if (Number(currentId) > Number(existingId)) {
+            duplicatesFound.push({
+              email,
+              ids: [Number(existingId), Number(currentId)],
+              kept: Number(currentId),
+            })
+            uniqueUsers.set(email, user)
+          } else {
+            duplicatesFound.push({
+              email,
+              ids: [Number(existingId), Number(currentId)],
+              kept: Number(existingId),
+            })
+          }
+        }
+      })
+      
+      // Log de duplicados encontrados
+      if (duplicatesFound.length > 0) {
+        console.error('[API /chat/colaboradores] 🔍 DUPLICADOS ENCONTRADOS Y ELIMINADOS:')
+        duplicatesFound.forEach((dup) => {
+          console.error(`  Email: ${dup.email} - IDs: [${dup.ids.join(', ')}] - Se mantiene: ${dup.kept}`)
+        })
+      }
+      
+      cleanedData = Array.from(uniqueUsers.values())
+      
+      console.log('[API /chat/colaboradores] Limpieza de duplicados:', {
+        originalCount: response.data.length,
+        cleanedCount: cleanedData.length,
+        duplicatesRemoved: response.data.length - cleanedData.length,
+      })
+    }
+    
+    // Devolver respuesta con datos limpios
+    return NextResponse.json(
+      { ...response, data: cleanedData },
+      { status: 200 }
+    )
   } catch (error: any) {
     console.error('[API /chat/colaboradores] Error al obtener colaboradores:', {
       message: error.message,
