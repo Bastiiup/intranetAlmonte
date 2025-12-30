@@ -71,6 +71,22 @@ const Page = () => {
         setIsLoading(true)
         setError(null)
 
+        // DEBUG OBLIGATORIO: Imprimir TODO el objeto user en consola
+        console.error('🕵️ OBJETO USER COMPLETO (colaborador):', JSON.stringify(colaborador, null, 2))
+        console.error('🕵️ OBJETO PERSONA COMPLETO:', JSON.stringify(persona, null, 2))
+        console.error('🕵️ IDs DETECTADOS:', {
+          'colaborador.id': colaborador?.id,
+          'colaborador.attributes?.id': colaborador?.attributes?.id,
+          'persona.id': persona?.id,
+          'persona.attributes?.id': persona?.attributes?.id,
+        })
+
+        // CRÍTICO: Asegurar que usamos el ID del colaborador explícitamente
+        // Si colaborador tiene id directamente, usarlo
+        // Si está en attributes, usar attributes.id
+        const colaboradorId = colaborador?.id || colaborador?.attributes?.id
+        console.error('🕵️ ID DEL COLABORADOR QUE SE USARÁ:', colaboradorId)
+
         // 1. Obtener token del backend
         const tokenResponse = await fetch('/api/chat/stream-token', {
           method: 'POST',
@@ -82,7 +98,15 @@ const Page = () => {
         }
 
         const { token, userId } = await tokenResponse.json()
-        currentUserIdRef.current = userId
+        console.error('🕵️ userId RECIBIDO DEL ENDPOINT:', userId)
+        console.error('🕵️ ¿userId coincide con colaborador.id?', String(userId) === String(colaboradorId))
+        
+        // CRÍTICO: Usar explícitamente el ID del colaborador, no confiar en userId del endpoint
+        // Si userId no coincide con colaborador.id, usar colaborador.id directamente
+        const finalUserId = String(userId) === String(colaboradorId) ? userId : String(colaboradorId)
+        console.error('🕵️ ID FINAL QUE SE USARÁ (finalUserId):', finalUserId)
+        
+        currentUserIdRef.current = finalUserId
 
         // 2. Obtener API Key
         const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY || process.env.NEXT_PUBLIC_STREAM_CHAT_API_KEY
@@ -94,9 +118,11 @@ const Page = () => {
         const client = StreamChat.getInstance(apiKey)
 
         // 4. Conectar usuario
+        // CRÍTICO: Usar el ID del colaborador (finalUserId) en lugar del userId del endpoint
+        // Esto asegura que siempre usemos el ID correcto del colaborador
         await client.connectUser(
           {
-            id: userId,
+            id: finalUserId,
             name: persona?.nombre_completo || colaborador?.attributes?.email_login || 'Usuario',
           },
           token
@@ -297,8 +323,22 @@ const Page = () => {
     setIsCreatingChannel(true)
 
     try {
+      // DEBUG: Verificar IDs antes de crear canal
+      console.error('🕵️ VERIFICACIÓN DE IDs ANTES DE CREAR CANAL:')
+      console.error('currentUserIdRef.current:', currentUserIdRef.current)
+      console.error('colaborador?.id:', colaborador?.id)
+      console.error('colaboradorId recibido:', colaboradorId)
+      
+      // CRÍTICO: Asegurar que myId sea el ID del colaborador
+      // Si currentUserIdRef no coincide con colaborador.id, usar colaborador.id directamente
+      const colaboradorIdActual = String(colaborador?.id || colaborador?.attributes?.id || currentUserIdRef.current)
+      const myIdFinal = String(currentUserIdRef.current) === colaboradorIdActual ? currentUserIdRef.current : colaboradorIdActual
+      
+      console.error('🕵️ ID DEL COLABORADOR ACTUAL (colaboradorIdActual):', colaboradorIdActual)
+      console.error('🕵️ ID QUE SE USARÁ COMO myId (myIdFinal):', myIdFinal)
+      
       // 1. Convertir IDs a Número para ordenamiento seguro
-      const myIdNum = Number(currentUserIdRef.current)
+      const myIdNum = Number(myIdFinal)
       const otherIdNum = Number(colaboradorId)
 
       // Verificar que no sea el mismo usuario
