@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardHeader, CardBody, Form, Button, Row, Col, FormGroup, FormLabel, FormControl, Alert } from 'react-bootstrap'
 import { LuSave, LuX } from 'react-icons/lu'
+import PlatformSelector from './PlatformSelector'
 
 interface AddClienteFormProps {
   onSave?: () => void
@@ -16,6 +17,7 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -51,28 +53,48 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
         throw new Error('El correo electrónico no tiene un formato válido')
       }
 
-      // Preparar datos para la API
-      const clienteData: any = {
-        email: formData.email.trim(),
-        first_name: formData.first_name.trim(),
-        last_name: formData.last_name.trim() || '',
+      // Preparar datos para la API en el formato que espera /api/tienda/clientes
+      const nombreCompleto = `${formData.first_name.trim()} ${formData.last_name.trim()}`.trim()
+      
+      const dataToSend: any = {
+        data: {
+          persona: {
+            nombre_completo: nombreCompleto,
+            nombres: formData.first_name.trim(),
+            primer_apellido: formData.last_name.trim() || null,
+            segundo_apellido: null,
+            emails: [
+              {
+                email: formData.email.trim(),
+                tipo: 'Personal', // Valores válidos: "Personal", "Laboral", "Institucional"
+              },
+            ],
+            telefonos: formData.phone.trim()
+              ? [
+                  {
+                    telefono: formData.phone.trim(),
+                    tipo: 'Personal',
+                  },
+                ]
+              : [],
+          },
+        },
       }
 
-      // Agregar teléfono si existe
-      if (formData.phone.trim()) {
-        clienteData.phone = formData.phone.trim()
-        clienteData.billing = {
-          phone: formData.phone.trim(),
-        }
+      // Agregar plataformas seleccionadas (se usarán para determinar a qué WordPress enviar)
+      // Si no se selecciona ninguna, se enviará a ambas por defecto
+      if (selectedPlatforms.length > 0) {
+        dataToSend.data.canales = selectedPlatforms // Se usa el nombre de la plataforma directamente
+        console.log('[AddCliente] 📡 Plataformas seleccionadas:', selectedPlatforms)
       }
 
       // Crear el cliente (esto creará en Persona, WO-Clientes y ambos WordPress)
-      const response = await fetch('/api/woocommerce/customers', {
+      const response = await fetch('/api/tienda/clientes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(clienteData),
+        body: JSON.stringify(dataToSend),
       })
 
       const result = await response.json()
@@ -111,11 +133,17 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
             )}
             {success && (
               <Alert variant="success">
-                Cliente creado exitosamente. Se ha agregado a Librería Escolar y Editorial Moraleja. Redirigiendo...
+                Cliente creado exitosamente. {selectedPlatforms.length > 0 
+                  ? `Plataformas seleccionadas: ${selectedPlatforms.join(', ')}.` 
+                  : 'Se ha agregado a ambas plataformas por defecto.'} Redirigiendo...
               </Alert>
             )}
 
             <Form onSubmit={handleSubmit}>
+              <PlatformSelector
+                selectedPlatforms={selectedPlatforms}
+                onChange={setSelectedPlatforms}
+              />
               <Row>
                 <Col md={6}>
                   <FormGroup className="mb-3">

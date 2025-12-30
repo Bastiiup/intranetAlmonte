@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    const emailPrincipal = personaData.emails.find((e: any) => e.tipo === 'principal') || personaData.emails[0]
+    const emailPrincipal = personaData.emails.find((e: any) => e.tipo === 'Personal' || e.tipo === 'principal') || personaData.emails[0]
     if (!emailPrincipal?.email || !emailPrincipal.email.trim()) {
       return NextResponse.json({
         success: false,
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
         nombre_completo: personaData.nombre_completo.trim(),
         emails: personaData.emails.map((e: any) => ({
           email: e.email.trim(),
-          tipo: e.tipo || 'principal',
+          tipo: e.tipo || 'Personal', // Valores válidos: "Personal", "Laboral", "Institucional"
         })),
         telefonos: personaData.telefonos && Array.isArray(personaData.telefonos) && personaData.telefonos.length > 0
           ? personaData.telefonos.map((t: any) => ({
@@ -167,37 +167,24 @@ export async function POST(request: NextRequest) {
     const personaId = personaResponse.data?.id || personaResponse.data?.documentId || personaResponse.id || personaResponse.documentId
     console.log('[API Clientes POST] ✅ Persona creada en Strapi:', personaId)
 
-    // 2. Crear WO-Clientes con relación a Persona
-    console.log('[API Clientes POST] 📦 Creando WO-Clientes en Strapi...')
+    // 2. Enviar cliente a ambos WordPress primero
+    console.log('[API Clientes POST] 🌐 Enviando cliente a WordPress...')
+    const nombresWordPress = personaData.nombres?.trim() || personaData.nombre_completo.trim()
+    const apellidoWordPress = personaData.primer_apellido?.trim() || ''
     
-    // Construir nombre para WO-Clientes desde Persona
-    const nombreCliente = personaData.nombre_completo.trim()
+    // Determinar a qué plataformas enviar basado en las plataformas seleccionadas
+    // Si no se especifican, enviar a ambas por defecto
+    const plataformasSeleccionadas = body.data.canales || []
+    const enviarAMoraleja = plataformasSeleccionadas.length === 0 || plataformasSeleccionadas.includes('woo_moraleja') || plataformasSeleccionadas.some((c: any) => 
+      typeof c === 'string' && (c.toLowerCase().includes('moraleja') || c.toLowerCase().includes('woo_moraleja'))
+    )
+    const enviarAEscolar = plataformasSeleccionadas.length === 0 || plataformasSeleccionadas.includes('woo_escolar') || plataformasSeleccionadas.some((c: any) => 
+      typeof c === 'string' && (c.toLowerCase().includes('escolar') || c.toLowerCase().includes('woo_escolar'))
+    )
     
-    const woClienteData: any = {
-      data: {
-        nombre: nombreCliente,
-        correo_electronico: emailPrincipal.email.trim(),
-        pedidos: body.data.pedidos ? parseInt(body.data.pedidos) || 0 : 0,
-        gasto_total: body.data.gasto_total ? parseFloat(body.data.gasto_total) || 0 : 0,
-        fecha_registro: body.data.fecha_registro || new Date().toISOString(),
-        persona: personaId, // Relación con Persona
-      },
-    }
-    
-    if (body.data.ultima_actividad) {
-      woClienteData.data.ultima_actividad = body.data.ultima_actividad
-    }
-
-    const woClienteResponse = await strapiClient.post('/api/wo-clientes', woClienteData) as any
-    console.log('[API Clientes POST] ✅ Cliente creado en WO-Clientes:', woClienteResponse.id || woClienteResponse.documentId || woClienteResponse.data?.id || woClienteResponse.data?.documentId)
-    
-    // 3. Enviar a ambos WordPress
     let wordPressResults: any = null
     try {
-      // Usar nombres de Persona para WordPress
-      const nombresWordPress = personaData.nombres?.trim() || personaData.nombre_completo.trim()
-      const apellidoWordPress = personaData.primer_apellido?.trim() || ''
-      
+      // Enviar a ambos WordPress siempre (la función maneja ambos)
       wordPressResults = await enviarClienteABothWordPress({
         email: emailPrincipal.email.trim(),
         first_name: nombresWordPress,
@@ -208,15 +195,100 @@ export async function POST(request: NextRequest) {
         moraleja: wordPressResults.moraleja.success,
       })
     } catch (wpError: any) {
-      console.error('[API Clientes POST] ⚠️ Error al enviar a WordPress (no crítico):', wpError.message)
-      // No fallar si WordPress falla
+      console.error('[API Clientes POST] ⚠️ Error al enviar a WordPress:', wpError.message)
+      // Si falla completamente, aún podemos crear las entradas WO-Clientes sin los IDs de WordPress
+      wordPressResults = {
+        escolar: { success: false, error: wpError.message },
+        moraleja: { success: false, error: wpError.message },
+      }
+    }
+
+    // 3. Crear WO-Clientes en Strapi - DOS entradas (una por plataforma seleccionada)
+    console.log('[API Clientes POST] 📦 Creando WO-Clientes en Strapi...')
+    const nombreCliente = personaData.nombre_completo.trim()
+    const woClientesCreados: any[] = []
+    
+    // Crear entrada para Moraleja si se seleccionó
+    if (enviarAMoraleja) {
+      try {
+        const woClienteMoralejaData: any = {
+          data: {
+            nombre: nombreCliente,
+            correo_electronico: emailPrincipal.email.trim(),
+            pedidos: body.data.pedidos ? parseInt(body.data.pedidos) || 0 : 0,
+            gasto_total: body.data.gasto_total ? parseFloat(body.data.gasto_total) || 0 : 0,
+            fecha_registro: body.data.fecha_registro || new Date().toISOString(),
+            persona: personaId,
+            originPlatform: 'woo_moraleja', // Campo para identificar la plataforma
+          },
+        }
+        
+        if (body.data.ultima_actividad) {
+          woClienteMoralejaData.data.ultima_actividad = body.data.ultima_actividad
+        }
+        
+        // Si tenemos el ID de WooCommerce, guardarlo si hay campo para eso
+        if (wordPressResults?.moraleja?.data?.id) {
+          // Nota: Si hay un campo woocommerce_id o externalIds, se puede guardar aquí
+          console.log('[API Clientes POST] 📌 ID de WooCommerce Moraleja:', wordPressResults.moraleja.data.id)
+        }
+        
+        const woClienteMoralejaResponse = await strapiClient.post('/api/wo-clientes', woClienteMoralejaData) as any
+        woClientesCreados.push({
+          platform: 'woo_moraleja',
+          response: woClienteMoralejaResponse,
+        })
+        console.log('[API Clientes POST] ✅ Cliente creado en WO-Clientes (Moraleja):', woClienteMoralejaResponse.data?.id || woClienteMoralejaResponse.id || woClienteMoralejaResponse.data?.documentId)
+      } catch (error: any) {
+        console.error('[API Clientes POST] ❌ Error al crear WO-Clientes (Moraleja):', error.message)
+      }
+    }
+    
+    // Crear entrada para Escolar si se seleccionó
+    if (enviarAEscolar) {
+      try {
+        const woClienteEscolarData: any = {
+          data: {
+            nombre: nombreCliente,
+            correo_electronico: emailPrincipal.email.trim(),
+            pedidos: body.data.pedidos ? parseInt(body.data.pedidos) || 0 : 0,
+            gasto_total: body.data.gasto_total ? parseFloat(body.data.gasto_total) || 0 : 0,
+            fecha_registro: body.data.fecha_registro || new Date().toISOString(),
+            persona: personaId,
+            originPlatform: 'woo_escolar', // Campo para identificar la plataforma
+          },
+        }
+        
+        if (body.data.ultima_actividad) {
+          woClienteEscolarData.data.ultima_actividad = body.data.ultima_actividad
+        }
+        
+        // Si tenemos el ID de WooCommerce, guardarlo si hay campo para eso
+        if (wordPressResults?.escolar?.data?.id) {
+          console.log('[API Clientes POST] 📌 ID de WooCommerce Escolar:', wordPressResults.escolar.data.id)
+        }
+        
+        const woClienteEscolarResponse = await strapiClient.post('/api/wo-clientes', woClienteEscolarData) as any
+        woClientesCreados.push({
+          platform: 'woo_escolar',
+          response: woClienteEscolarResponse,
+        })
+        console.log('[API Clientes POST] ✅ Cliente creado en WO-Clientes (Escolar):', woClienteEscolarResponse.data?.id || woClienteEscolarResponse.id || woClienteEscolarResponse.data?.documentId)
+      } catch (error: any) {
+        console.error('[API Clientes POST] ❌ Error al crear WO-Clientes (Escolar):', error.message)
+      }
+    }
+    
+    if (woClientesCreados.length === 0) {
+      console.warn('[API Clientes POST] ⚠️ No se crearon entradas WO-Clientes (ninguna plataforma seleccionada o error)')
     }
     
     return NextResponse.json({
       success: true,
-      data: woClienteResponse,
+      data: woClientesCreados.length > 0 ? woClientesCreados.map(c => c.response) : null,
       persona: personaResponse,
-      wordpress: wordPressResults || null,
+      wordpress: wordPressResults,
+      message: `Cliente creado exitosamente. Entradas WO-Clientes creadas: ${woClientesCreados.length} (${woClientesCreados.map(c => c.platform).join(', ') || 'ninguna'})`
     })
   } catch (error: any) {
     console.error('[API Clientes POST] ❌ Error:', error.message)
