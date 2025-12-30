@@ -175,17 +175,20 @@ export async function POST(request: NextRequest) {
     console.log('[API Clientes POST] ✅ Persona creada en Strapi:', personaId)
     
     // Si hay telefonos, intentar agregarlos después con un PUT
-    // NOTA: Esto puede fallar si Strapi no acepta telefonos en PUT tampoco
     if (telefonosParaAgregar && personaDocumentId) {
       try {
         console.log('[API Clientes POST] 📞 Intentando agregar telefonos después de crear la persona...')
-        // Intentar múltiples formatos posibles
+        // Formatear telefonos según el schema de Strapi (telefono_raw, telefono_norm, tipo, principal, etc.)
         const telefonosFormateados = telefonosParaAgregar.map((t: any) => {
-          const telefonoValue = (t.numero || t.telefono || t.telefonos || t.value || '').trim()
-          // Intentar con diferentes nombres de campo
+          const telefonoValue = (t.numero || t.telefono || t.telefono_raw || t.telefono_norm || t.value || '').trim()
+          // Usar telefono_raw y telefono_norm (ambos con el mismo valor por ahora)
+          // El usuario puede normalizar después si lo necesita
           return {
-            numero: telefonoValue, // Probar con "numero"
-            tipo: t.tipo || 'principal',
+            telefono_raw: telefonoValue,
+            telefono_norm: telefonoValue, // Por ahora usar el mismo valor, se puede normalizar después
+            tipo: t.tipo || null, // Dejar null si no se especifica (Strapi tiene dropdown)
+            principal: t.principal !== undefined ? t.principal : true, // Por defecto true para el primer teléfono
+            status: t.status !== undefined ? t.status : true, // Por defecto true (vigente)
           }
         })
         
@@ -198,7 +201,10 @@ export async function POST(request: NextRequest) {
         await strapiClient.put(`/api/personas/${personaDocumentId}`, updateData)
         console.log('[API Clientes POST] ✅ Teléfonos agregados exitosamente')
       } catch (telefonoError: any) {
-        console.warn('[API Clientes POST] ⚠️ No se pudieron agregar los telefonos:', telefonoError.message)
+        console.error('[API Clientes POST] ❌ Error al agregar telefonos:', telefonoError.message)
+        if (telefonoError.response?.data) {
+          console.error('[API Clientes POST] ❌ Detalles del error:', JSON.stringify(telefonoError.response.data, null, 2))
+        }
         console.warn('[API Clientes POST] ⚠️ La persona se creó correctamente pero sin telefonos')
         // No fallar si los telefonos no se pueden agregar
       }

@@ -73,9 +73,10 @@ export async function GET(
       const personaAttrs = persona.attributes || persona
       const telefonos = personaAttrs.telefonos || persona.telefonos
       if (telefonos && Array.isArray(telefonos) && telefonos.length > 0) {
-        // Tomar el primer teléfono
-        const primerTelefono = telefonos[0]
-        telefono = typeof primerTelefono === 'string' ? primerTelefono : (primerTelefono.numero || primerTelefono.telefono || primerTelefono.value || '')
+        // Tomar el primer teléfono (buscar el principal si existe, sino el primero)
+        const telefonoPrincipal = telefonos.find((t: any) => t.principal === true || t.principal === 'true' || t.principal === 1) || telefonos[0]
+        const tel = typeof telefonoPrincipal === 'string' ? telefonoPrincipal : telefonoPrincipal
+        telefono = tel?.telefono_raw || tel?.telefono_norm || tel?.numero || tel?.telefono || tel?.value || ''
       }
     }
     
@@ -114,6 +115,7 @@ export async function PUT(
 
     // Buscar el cliente primero para obtener el ID correcto
     let cliente: any = null
+    console.log('[API Clientes PUT] 🔍 Buscando cliente con ID:', id, '(tipo:', typeof id, ')')
     
     try {
       // Intentar primero por ID numérico
@@ -121,13 +123,18 @@ export async function PUT(
       
       if (response.data && Array.isArray(response.data) && response.data.length > 0) {
         cliente = response.data[0]
+        console.log('[API Clientes PUT] ✅ Cliente encontrado por ID numérico:', cliente.id || cliente.documentId)
       } else if (response.data && !Array.isArray(response.data)) {
         cliente = response.data
+        console.log('[API Clientes PUT] ✅ Cliente encontrado por ID numérico (formato directo):', cliente.id || cliente.documentId)
       } else if (Array.isArray(response) && response.length > 0) {
         cliente = response[0]
+        console.log('[API Clientes PUT] ✅ Cliente encontrado por ID numérico (array directo):', cliente.id || cliente.documentId)
+      } else {
+        console.log('[API Clientes PUT] ⚠️ No se encontró cliente por ID numérico, intentando por documentId...')
       }
     } catch (error: any) {
-      console.log('[API Clientes PUT] Filtro por ID falló, intentando por documentId...')
+      console.log('[API Clientes PUT] ⚠️ Error al buscar por ID numérico:', error.message, '- Intentando por documentId...')
       
       // Si falla, intentar por documentId
       try {
@@ -135,21 +142,28 @@ export async function PUT(
         
         if (responseByDocId.data && Array.isArray(responseByDocId.data) && responseByDocId.data.length > 0) {
           cliente = responseByDocId.data[0]
+          console.log('[API Clientes PUT] ✅ Cliente encontrado por documentId:', cliente.id || cliente.documentId)
         } else if (responseByDocId.data && !Array.isArray(responseByDocId.data)) {
           cliente = responseByDocId.data
+          console.log('[API Clientes PUT] ✅ Cliente encontrado por documentId (formato directo):', cliente.id || cliente.documentId)
+        } else {
+          console.log('[API Clientes PUT] ⚠️ No se encontró cliente por documentId, intentando búsqueda exhaustiva...')
         }
       } catch (docIdError: any) {
-        console.log('[API Clientes PUT] Filtro por documentId falló, intentando búsqueda exhaustiva...')
+        console.log('[API Clientes PUT] ⚠️ Error al buscar por documentId:', docIdError.message, '- Intentando búsqueda exhaustiva...')
       }
     }
     
     // Si aún no se encontró, hacer búsqueda exhaustiva
     if (!cliente) {
       try {
+        console.log('[API Clientes PUT] 🔍 Realizando búsqueda exhaustiva en todos los clientes...')
         const allResponse = await strapiClient.get<any>('/api/wo-clientes?populate=*&pagination[pageSize]=1000')
         const allClientes = Array.isArray(allResponse) 
           ? allResponse 
           : (allResponse.data && Array.isArray(allResponse.data) ? allResponse.data : [])
+        
+        console.log('[API Clientes PUT] 📊 Total de clientes a buscar:', allClientes.length)
         
         cliente = allClientes.find((c: any) => {
           const cId = c.id?.toString()
@@ -158,25 +172,44 @@ export async function PUT(
           const cAttrsDocId = c.attributes?.documentId?.toString()
           const searchId = id.toString()
           
-          return cId === searchId || 
+          const match = cId === searchId || 
                  cDocId === searchId || 
                  cAttrsId === searchId || 
                  cAttrsDocId === searchId
+          
+          if (match) {
+            console.log('[API Clientes PUT] ✅ Match encontrado:', { cId, cDocId, cAttrsId, cAttrsDocId, searchId })
+          }
+          
+          return match
         })
+        
+        if (cliente) {
+          console.log('[API Clientes PUT] ✅ Cliente encontrado en búsqueda exhaustiva:', cliente.id || cliente.documentId)
+        } else {
+          console.log('[API Clientes PUT] ⚠️ No se encontró cliente en búsqueda exhaustiva, intentando endpoint directo...')
+        }
       } catch (searchError: any) {
-        console.error('[API Clientes PUT] Error en búsqueda exhaustiva:', searchError.message)
+        console.error('[API Clientes PUT] ❌ Error en búsqueda exhaustiva:', searchError.message)
       }
     }
     
     // Si aún no se encontró, intentar endpoint directo
     if (!cliente) {
       try {
+        console.log('[API Clientes PUT] 🔍 Intentando endpoint directo:', `/api/wo-clientes/${id}`)
         cliente = await strapiClient.get<any>(`/api/wo-clientes/${id}?populate=*`)
         if (cliente.data) {
           cliente = cliente.data
         }
+        if (cliente) {
+          console.log('[API Clientes PUT] ✅ Cliente encontrado por endpoint directo:', cliente.id || cliente.documentId)
+        }
       } catch (directError: any) {
-        console.error('[API Clientes PUT] Error en endpoint directo:', directError.message)
+        console.error('[API Clientes PUT] ❌ Error en endpoint directo:', directError.message)
+        if (directError.response?.data) {
+          console.error('[API Clientes PUT] ❌ Detalles del error:', JSON.stringify(directError.response.data, null, 2))
+        }
       }
     }
 
@@ -337,14 +370,23 @@ export async function PUT(
         if (body.data.telefono !== undefined || body.data.persona?.telefonos) {
           const telefonos = body.data.persona?.telefonos || (
             body.data.telefono 
-              ? [{ numero: body.data.telefono, tipo: 'principal' }]
+              ? [{ telefono_raw: body.data.telefono }]
               : null
           )
           if (telefonos && Array.isArray(telefonos) && telefonos.length > 0) {
-            personaUpdateData.data.telefonos = telefonos.map((t: any) => ({
-              numero: (t.numero || t.telefono || t.value || '').trim(),
-              tipo: t.tipo || 'principal',
-            }))
+            personaUpdateData.data.telefonos = telefonos.map((t: any) => {
+              const telefonoValue = (t.telefono_raw || t.telefono_norm || t.numero || t.telefono || t.value || '').trim()
+              return {
+                telefono_raw: telefonoValue,
+                telefono_norm: telefonoValue, // Por ahora usar el mismo valor
+                tipo: t.tipo || null, // Dejar null si no se especifica
+                principal: t.principal !== undefined ? t.principal : true, // Por defecto true
+                status: t.status !== undefined ? t.status : true, // Por defecto true (vigente)
+              }
+            })
+          } else if (body.data.telefono === '' || body.data.telefono === null) {
+            // Si se envía vacío, eliminar todos los teléfonos
+            personaUpdateData.data.telefonos = []
           }
         }
         
@@ -376,14 +418,20 @@ export async function PUT(
         if (body.data.telefono || body.data.persona?.telefonos) {
           const telefonos = body.data.persona?.telefonos || (
             body.data.telefono 
-              ? [{ numero: body.data.telefono, tipo: 'principal' }]
+              ? [{ telefono_raw: body.data.telefono }]
               : null
           )
           if (telefonos && Array.isArray(telefonos) && telefonos.length > 0) {
-            personaData.data.telefonos = telefonos.map((t: any) => ({
-              numero: (t.numero || t.telefono || t.value || '').trim(),
-              tipo: t.tipo || 'principal',
-            }))
+            personaData.data.telefonos = telefonos.map((t: any) => {
+              const telefonoValue = (t.telefono_raw || t.telefono_norm || t.numero || t.telefono || t.value || '').trim()
+              return {
+                telefono_raw: telefonoValue,
+                telefono_norm: telefonoValue, // Por ahora usar el mismo valor
+                tipo: t.tipo || null, // Dejar null si no se especifica
+                principal: t.principal !== undefined ? t.principal : true, // Por defecto true
+                status: t.status !== undefined ? t.status : true, // Por defecto true (vigente)
+              }
+            })
           }
         }
         

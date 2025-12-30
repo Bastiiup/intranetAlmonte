@@ -73,11 +73,10 @@ const mapStrapiClienteToClienteType = (cliente: any): ClienteType => {
       const personaAttrs = persona.attributes || persona
       const telefonos = personaAttrs.telefonos || persona.telefonos
       if (telefonos && Array.isArray(telefonos) && telefonos.length > 0) {
-        // Tomar el primer teléfono disponible
-        const primerTelefono = telefonos[0]
-        telefono = typeof primerTelefono === 'string' 
-          ? primerTelefono 
-          : (primerTelefono.numero || primerTelefono.telefono || primerTelefono.value || '')
+        // Buscar el teléfono principal, sino tomar el primero
+        const telefonoPrincipal = telefonos.find((t: any) => t.principal === true || t.principal === 'true' || t.principal === 1) || telefonos[0]
+        const tel = typeof telefonoPrincipal === 'string' ? telefonoPrincipal : telefonoPrincipal
+        telefono = tel?.telefono_raw || tel?.telefono_norm || tel?.numero || tel?.telefono || tel?.value || ''
       }
     }
   }
