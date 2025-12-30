@@ -58,7 +58,7 @@ export function validarRUTChileno(rut: string): {
 
   // Calcular el dígito verificador
   const resto = suma % 11
-  let dvCalculado = 11 - resto
+  let dvCalculado: number | string = 11 - resto
 
   // Casos especiales
   if (dvCalculado === 11) {
