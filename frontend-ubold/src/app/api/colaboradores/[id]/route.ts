@@ -147,16 +147,131 @@ export async function PUT(
       )
     }
 
+    let personaId: string | null = null
+
+    // Manejar actualización/relación de persona
+    if (body.persona) {
+      const personaData = body.persona
+
+      // Si ya existe un personaId, usar ese
+      if (personaData.personaId) {
+        personaId = personaData.personaId
+        console.log('[API /colaboradores/[id] PUT] ✅ Usando persona existente:', personaId)
+
+        // Actualizar datos de persona si se proporcionaron
+        if (personaData.rut || personaData.nombres || personaData.primer_apellido || personaData.genero || personaData.cumpleagno) {
+          const updateData: any = {
+            data: {},
+          }
+          
+          if (personaData.rut?.trim()) updateData.data.rut = personaData.rut.trim()
+          if (personaData.nombres?.trim()) updateData.data.nombres = personaData.nombres.trim()
+          if (personaData.primer_apellido?.trim()) updateData.data.primer_apellido = personaData.primer_apellido.trim()
+          if (personaData.segundo_apellido?.trim()) updateData.data.segundo_apellido = personaData.segundo_apellido.trim()
+          if (personaData.genero) updateData.data.genero = personaData.genero
+          if (personaData.cumpleagno) updateData.data.cumpleagno = personaData.cumpleagno
+
+          // Construir nombre_completo si hay nombres
+          if (personaData.nombres || personaData.primer_apellido) {
+            const nombres = personaData.nombres?.trim() || ''
+            const primerApellido = personaData.primer_apellido?.trim() || ''
+            const segundoApellido = personaData.segundo_apellido?.trim() || ''
+            updateData.data.nombre_completo = `${nombres} ${primerApellido} ${segundoApellido}`.trim()
+          }
+
+          try {
+            await strapiClient.put(`/api/personas/${personaId}`, updateData)
+            console.log('[API /colaboradores/[id] PUT] ✅ Persona actualizada')
+          } catch (personaUpdateError: any) {
+            console.error('[API /colaboradores/[id] PUT] Error al actualizar persona:', personaUpdateError)
+            // Continuar aunque falle la actualización de persona
+          }
+        }
+      } else if (personaData.rut) {
+        // Buscar persona por RUT
+        try {
+          const personaSearchResponse = await strapiClient.get<any>(
+            `/api/personas?filters[rut][$eq]=${encodeURIComponent(personaData.rut.trim())}&pagination[pageSize]=1`
+          )
+
+          if (personaSearchResponse.data && personaSearchResponse.data.length > 0) {
+            // Persona existe, usar su ID
+            personaId = personaSearchResponse.data[0].id || personaSearchResponse.data[0].documentId
+            console.log('[API /colaboradores/[id] PUT] ✅ Persona encontrada por RUT:', personaId)
+
+            // Actualizar datos de persona si se proporcionaron
+            if (personaData.nombres || personaData.primer_apellido || personaData.genero || personaData.cumpleagno) {
+              const updateData: any = {
+                data: {},
+              }
+              
+              if (personaData.nombres?.trim()) updateData.data.nombres = personaData.nombres.trim()
+              if (personaData.primer_apellido?.trim()) updateData.data.primer_apellido = personaData.primer_apellido.trim()
+              if (personaData.segundo_apellido?.trim()) updateData.data.segundo_apellido = personaData.segundo_apellido.trim()
+              if (personaData.genero) updateData.data.genero = personaData.genero
+              if (personaData.cumpleagno) updateData.data.cumpleagno = personaData.cumpleagno
+
+              // Construir nombre_completo si hay nombres
+              if (personaData.nombres || personaData.primer_apellido) {
+                const nombres = personaData.nombres?.trim() || ''
+                const primerApellido = personaData.primer_apellido?.trim() || ''
+                const segundoApellido = personaData.segundo_apellido?.trim() || ''
+                updateData.data.nombre_completo = `${nombres} ${primerApellido} ${segundoApellido}`.trim()
+              }
+
+              await strapiClient.put(`/api/personas/${personaId}`, updateData)
+              console.log('[API /colaboradores/[id] PUT] ✅ Persona actualizada')
+            }
+          } else {
+            // Persona no existe, crearla
+            console.log('[API /colaboradores/[id] PUT] 📚 Creando nueva persona...')
+            
+            const nombres = personaData.nombres?.trim() || ''
+            const primerApellido = personaData.primer_apellido?.trim() || ''
+            const segundoApellido = personaData.segundo_apellido?.trim() || ''
+            const nombreCompleto = `${nombres} ${primerApellido} ${segundoApellido}`.trim()
+
+            const personaCreateData: any = {
+              data: {
+                rut: personaData.rut.trim(),
+                nombres: nombres || null,
+                primer_apellido: primerApellido || null,
+                segundo_apellido: segundoApellido || null,
+                nombre_completo: nombreCompleto || null,
+                genero: personaData.genero || null,
+                cumpleagno: personaData.cumpleagno || null,
+                origen: 'manual',
+                activo: true,
+              },
+            }
+
+            const personaResponse = await strapiClient.post<any>(
+              '/api/personas',
+              personaCreateData
+            )
+
+            personaId = personaResponse.data?.id || personaResponse.data?.documentId || personaResponse.id || personaResponse.documentId
+            console.log('[API /colaboradores/[id] PUT] ✅ Persona creada:', personaId)
+          }
+        } catch (personaError: any) {
+          console.error('[API /colaboradores/[id] PUT] Error al manejar persona:', personaError)
+          // Continuar sin persona si hay error (no crítico)
+        }
+      }
+    }
+
     // Preparar datos para Strapi
     // Solo enviar campos que existen en el modelo de Strapi
     const colaboradorData: any = {
       data: {
         email_login: body.email_login.trim(),
-        rol: body.rol || null,
+        rol_principal: body.rol_principal || null,
+        rol_operativo: body.rol_operativo || null,
+        auth_provider: body.auth_provider || 'google',
         activo: body.activo !== undefined ? body.activo : true,
         // Solo enviar password si se proporcionó (no vacío)
         ...(body.password && body.password.trim().length > 0 && { password: body.password }),
-        ...(body.persona && { persona: body.persona }),
+        ...(personaId && { persona: personaId }),
         ...(body.usuario && { usuario: body.usuario }),
       },
     }
