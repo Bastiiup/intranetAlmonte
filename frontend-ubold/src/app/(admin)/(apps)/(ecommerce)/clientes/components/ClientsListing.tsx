@@ -29,7 +29,8 @@ import { format } from 'date-fns'
 
 // Tipo para clientes desde Strapi
 type ClienteType = {
-  id: number
+  id: number | string // Puede ser id numérico o documentId (string)
+  documentId?: string // documentId de Strapi v4
   nombre: string
   correo_electronico: string
   telefono?: string
@@ -95,8 +96,13 @@ const mapStrapiClienteToClienteType = (cliente: any): ClienteType => {
   // Obtener woocommerce_id
   const woocommerceId = getField(data, 'woocommerce_id', 'woocommerceId', 'WOCOMMERCE_ID')
 
+  // Priorizar documentId para Strapi v4, sino usar id numérico
+  const clienteDocumentId = cliente.documentId || cliente.attributes?.documentId
+  const clienteId = cliente.id || cliente.attributes?.id
+  
   return {
-    id: cliente.id || cliente.documentId || 0,
+    id: clienteDocumentId || clienteId || 0, // Priorizar documentId (string) sobre id numérico
+    documentId: clienteDocumentId, // Guardar documentId por separado también
     nombre,
     correo_electronico: correo,
     telefono,
@@ -106,7 +112,7 @@ const mapStrapiClienteToClienteType = (cliente: any): ClienteType => {
     fecha_registro: fechaRegistro,
     ultima_actividad: ultimaActividad,
     createdAt,
-    strapiId: cliente.id,
+    strapiId: clienteId, // Guardar el id numérico por si se necesita
     woocommerce_id: woocommerceId,
   }
 }

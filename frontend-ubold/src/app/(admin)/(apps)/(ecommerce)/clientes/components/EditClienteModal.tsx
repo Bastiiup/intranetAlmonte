@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { Modal, Button, Form, Alert, Spinner } from 'react-bootstrap'
 
 interface Cliente {
-  id: number
+  id: number | string
+  documentId?: string
   woocommerce_id?: number | string
   nombre: string
   correo_electronico: string
@@ -80,8 +81,9 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
         throw new Error('El correo electrónico no tiene un formato válido')
       }
 
-      // Usar el ID del cliente de Strapi
-      const clienteId = cliente?.id
+      // Usar documentId si existe (Strapi v4), sino usar id
+      // En Strapi v4, el documentId es el identificador correcto para las rutas
+      const clienteId = cliente?.documentId || cliente?.id
       if (!clienteId) {
         throw new Error('No se puede editar: el cliente no tiene ID válido')
       }
@@ -89,6 +91,7 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
       // Log para diagnóstico
       console.log('[EditClienteModal] 🔍 ID del cliente:', clienteId, '(tipo:', typeof clienteId, ')')
       console.log('[EditClienteModal] 📦 Cliente completo:', cliente)
+      console.log('[EditClienteModal] 📌 Usando documentId:', cliente?.documentId, 'o id:', cliente?.id)
 
       // Preparar datos para la API en formato Strapi
       const nombreCompleto = `${formData.first_name.trim()} ${formData.last_name.trim()}`.trim()
