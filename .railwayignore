@@ -1,4 +1,4 @@
 # Ignorar Dockerfile de la raíz (usamos Dockerfile.root)
-Dockerfile
+# Dockerfile - Comentado para permitir Dockerfile de frontend-ubold
 .dockerignore
 
