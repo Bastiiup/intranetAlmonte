@@ -542,7 +542,7 @@ const Page = () => {
                   
                   // Detectar si es Matias Riquelme Medina
                   const nombreCompleto = col.persona?.nombre_completo || ''
-                  const isMatias = nombreCompleto.toLowerCase().includes('matias') && nombreCompleto.toLowerCase().includes('riquelme')
+                  const isMatias = col.email_login === 'matiintranet@gmail.com' || (nombreCompleto.toLowerCase().includes('matias') && nombreCompleto.toLowerCase().includes('riquelme'))
                   
                   // Log específico para Matias
                   if (isMatias) {
@@ -550,7 +550,12 @@ const Page = () => {
                     console.error('  📧 Email:', col.email_login)
                     console.error('  🔑 col.id (ID del content-type):', col.id)
                     console.error('  ✅ colId que se usará:', colId)
-                    console.error('  ⚠️ DEBE SER 93, NO 115')
+                    console.error('  ⚠️ DEBE SER 96, NO 115, NO 93')
+                    if (col.id !== 96) {
+                      console.error('  ❌ ERROR: Se está usando ID', col.id, 'en lugar de 96')
+                    } else {
+                      console.error('  ✅ CORRECTO: Se está usando ID 96')
+                    }
                   }
                   
                   // Log para verificar que estamos usando el ID correcto
@@ -575,7 +580,12 @@ const Page = () => {
                           console.error('[Chat Frontend] 🚨 MATIAS RIQUELME MEDINA - CLICK:')
                           console.error('  🔑 col.id (ID del content-type):', col.id)
                           console.error('  ✅ colId que se pasará a selectColaborador:', colId)
-                          console.error('  ⚠️ DEBE SER 93, NO 115')
+                          console.error('  ⚠️ DEBE SER 96, NO 115, NO 93')
+                          if (col.id !== 96) {
+                            console.error('  ❌ ERROR: Se está usando ID', col.id, 'en lugar de 96')
+                          } else {
+                            console.error('  ✅ CORRECTO: Se está usando ID 96')
+                          }
                         }
                         console.error('[Chat Frontend] 🖱️ Click en contacto:', {
                           email: col.email_login,

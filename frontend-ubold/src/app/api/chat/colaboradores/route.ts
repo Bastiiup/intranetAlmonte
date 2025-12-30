@@ -125,6 +125,29 @@ export async function GET() {
       }
     }
     
+    // DEBUG: Buscar todos los registros de Matias ANTES de la desduplicación
+    if (Array.isArray(response.data)) {
+      const matiasRegistros = response.data.filter((col: any) => {
+        const attrs = col.attributes || col
+        const email = attrs.email_login || col.email_login
+        return email === 'matiintranet@gmail.com'
+      })
+      if (matiasRegistros.length > 0) {
+        console.error('[API /chat/colaboradores] 🚨 MATIAS - REGISTROS ENCONTRADOS ANTES DE DESDUPLICACIÓN:')
+        matiasRegistros.forEach((col: any, index: number) => {
+          const attrs = col.attributes || col
+          const hasPersona = !!attrs.persona || !!attrs.persona?.data
+          console.error(`  📋 Registro ${index + 1}:`)
+          console.error(`     🔑 ID: ${col.id}`)
+          console.error(`     📄 documentId: ${col.documentId}`)
+          console.error(`     👤 Tiene persona: ${hasPersona}`)
+          console.error(`     📧 Email: ${attrs.email_login || col.email_login}`)
+        })
+        console.error(`  ⚠️ Total de registros de Matias: ${matiasRegistros.length}`)
+        console.error(`  ✅ DEBE QUEDAR SOLO 1 REGISTRO CON ID 96`)
+      }
+    }
+    
     // FILTRADO DE DUPLICADOS: "Martillo" - Prioridad ABSOLUTA a colaboradores con persona
     // REGLA DE ORO: El que tiene la relación persona SIEMPRE GANA, sin importar el ID
     let cleanedData = response.data
@@ -166,6 +189,12 @@ export async function GET() {
         
         // Si es el primero que vemos con este email, lo guardamos
         if (!uniqueColaboradores.has(email)) {
+          // Log especial para Matias cuando se guarda por primera vez
+          if (email === 'matiintranet@gmail.com') {
+            console.error('[API /chat/colaboradores] 🚨 MATIAS - PRIMER REGISTRO GUARDADO:')
+            console.error('  🔑 ID:', col.id)
+            console.error('  👤 Tiene persona:', hasPersona)
+          }
           uniqueColaboradores.set(email, col)
         } else {
           const existing = uniqueColaboradores.get(email)
@@ -174,17 +203,18 @@ export async function GET() {
           
           // Log especial para Matias durante la desduplicación
           const nombreCompleto = attrs.persona?.nombre_completo || attrs.persona?.data?.nombre_completo || ''
-          const isMatias = nombreCompleto.toLowerCase().includes('matias') && nombreCompleto.toLowerCase().includes('riquelme')
+          const isMatias = email === 'matiintranet@gmail.com' || (nombreCompleto.toLowerCase().includes('matias') && nombreCompleto.toLowerCase().includes('riquelme'))
           const existingNombre = existingAttrs.persona?.nombre_completo || existingAttrs.persona?.data?.nombre_completo || ''
-          const existingIsMatias = existingNombre.toLowerCase().includes('matias') && existingNombre.toLowerCase().includes('riquelme')
+          const existingIsMatias = email === 'matiintranet@gmail.com' || (existingNombre.toLowerCase().includes('matias') && existingNombre.toLowerCase().includes('riquelme'))
           
           if (isMatias || existingIsMatias) {
             console.error('[API /chat/colaboradores] 🚨 MATIAS RIQUELME MEDINA - DESDUPLICACIÓN:')
             console.error('  📧 Email:', email)
-            console.error('  🔑 ID existente:', existing.id)
-            console.error('  🔑 ID nuevo:', col.id)
+            console.error('  🔑 ID existente:', existing.id, '(tipo:', typeof existing.id, ')')
+            console.error('  🔑 ID nuevo:', col.id, '(tipo:', typeof col.id, ')')
             console.error('  👤 Existente tiene persona:', existingHasPersona)
             console.error('  👤 Nuevo tiene persona:', hasPersona)
+            console.error('  📊 Comparación:', Number(col.id), '<', Number(existing.id), '=', Number(col.id) < Number(existing.id))
           }
           
           // REGLA DE ORO:
@@ -209,7 +239,7 @@ export async function GET() {
               if (Number(col.id) < Number(existing.id)) {
                 if (isMatias || existingIsMatias) {
                   console.error(`  ✅ DECISIÓN: Ambos tienen persona, nuevo ID (${col.id}) es MENOR que existente (${existing.id}) - REEMPLAZAR`)
-                  console.error(`  ⚠️ DEBE SER 93, nuevo es ${col.id}, existente es ${existing.id}`)
+                  console.error(`  ⚠️ DEBE SER 96, nuevo es ${col.id}, existente es ${existing.id}`)
                 }
                 duplicatesFound.push({
                   email,
@@ -221,7 +251,7 @@ export async function GET() {
               } else {
                 if (isMatias || existingIsMatias) {
                   console.error(`  ✅ DECISIÓN: Ambos tienen persona, existente ID (${existing.id}) es MENOR que nuevo (${col.id}) - MANTENER`)
-                  console.error(`  ⚠️ DEBE SER 93, existente es ${existing.id}, nuevo es ${col.id}`)
+                  console.error(`  ⚠️ DEBE SER 96, existente es ${existing.id}, nuevo es ${col.id}`)
                 }
                 duplicatesFound.push({
                   email,
@@ -291,18 +321,18 @@ export async function GET() {
         const nombreCompleto = attrs.persona?.nombre_completo || attrs.persona?.data?.nombre_completo || ''
         
         // Log especial para Matias Riquelme Medina
-        if (nombreCompleto.toLowerCase().includes('matias') && nombreCompleto.toLowerCase().includes('riquelme')) {
+        if (email === 'matiintranet@gmail.com' || (nombreCompleto.toLowerCase().includes('matias') && nombreCompleto.toLowerCase().includes('riquelme'))) {
           console.error(`  🚨 MATIAS RIQUELME MEDINA DETECTADO EN RESPUESTA FINAL:`)
           console.error(`     📧 Email: ${email}`)
           console.error(`     🔑 ID del content-type Intranet-colaboradores: ${id}`)
           console.error(`     📄 documentId: ${documentId}`)
           console.error(`     👤 persona.id: ${personaId}`)
           console.error(`     ✅ ID que se retorna: ${id}`)
-          console.error(`     ⚠️ DEBE SER 93, NO 115`)
-          if (id !== 93) {
-            console.error(`     ❌ ERROR: Se está retornando ID ${id} en lugar de 93`)
+          console.error(`     ⚠️ DEBE SER 96, NO 115, NO 93`)
+          if (id !== 96) {
+            console.error(`     ❌ ERROR: Se está retornando ID ${id} en lugar de 96`)
           } else {
-            console.error(`     ✅ CORRECTO: Se está retornando ID 93`)
+            console.error(`     ✅ CORRECTO: Se está retornando ID 96`)
           }
         }
         
