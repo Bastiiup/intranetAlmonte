@@ -112,15 +112,18 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    console.log('[API Clientes PUT] Actualizando cliente:', id, body)
+    console.log('[API Clientes PUT] ===== INICIO DE BÚSQUEDA =====')
+    console.log('[API Clientes PUT] 📝 ID recibido desde URL:', id, '(tipo:', typeof id, ')')
+    console.log('[API Clientes PUT] 📦 Body recibido:', JSON.stringify(body, null, 2))
+    console.log('[API Clientes PUT] 🔍 RUT en body.data.persona.rut:', body.data?.persona?.rut || 'no proporcionado')
 
     // Buscar el cliente primero para obtener el ID correcto
     let cliente: any = null
-    console.log('[API Clientes PUT] 🔍 Buscando cliente con ID:', id, '(tipo:', typeof id, ')')
+    console.log('[API Clientes PUT] 🔍 Iniciando búsqueda de cliente con ID:', id, '(tipo:', typeof id, ')')
     
     try {
-      // Intentar primero por ID numérico
-      const response = await strapiClient.get<any>(`/api/wo-clientes?filters[id][$eq]=${id}&populate=*`)
+      // Intentar primero por ID numérico (sin populate para evitar errores)
+      const response = await strapiClient.get<any>(`/api/wo-clientes?filters[id][$eq]=${id}`)
       
       if (response.data && Array.isArray(response.data) && response.data.length > 0) {
         cliente = response.data[0]
@@ -137,9 +140,9 @@ export async function PUT(
     } catch (error: any) {
       console.log('[API Clientes PUT] ⚠️ Error al buscar por ID numérico:', error.message, '- Intentando por documentId...')
       
-      // Si falla, intentar por documentId
+      // Si falla, intentar por documentId (sin populate para evitar errores)
       try {
-        const responseByDocId = await strapiClient.get<any>(`/api/wo-clientes?filters[documentId][$eq]=${id}&populate=*`)
+        const responseByDocId = await strapiClient.get<any>(`/api/wo-clientes?filters[documentId][$eq]=${id}`)
         
         if (responseByDocId.data && Array.isArray(responseByDocId.data) && responseByDocId.data.length > 0) {
           cliente = responseByDocId.data[0]
@@ -155,11 +158,11 @@ export async function PUT(
       }
     }
     
-    // Si aún no se encontró, hacer búsqueda exhaustiva
+    // Si aún no se encontró, hacer búsqueda exhaustiva (sin populate para evitar errores)
     if (!cliente) {
       try {
         console.log('[API Clientes PUT] 🔍 Realizando búsqueda exhaustiva en todos los clientes...')
-        const allResponse = await strapiClient.get<any>('/api/wo-clientes?populate=*&pagination[pageSize]=1000')
+        const allResponse = await strapiClient.get<any>('/api/wo-clientes?pagination[pageSize]=1000')
         const allClientes = Array.isArray(allResponse) 
           ? allResponse 
           : (allResponse.data && Array.isArray(allResponse.data) ? allResponse.data : [])
@@ -199,7 +202,7 @@ export async function PUT(
     if (!cliente) {
       try {
         console.log('[API Clientes PUT] 🔍 Intentando endpoint directo:', `/api/wo-clientes/${id}`)
-        cliente = await strapiClient.get<any>(`/api/wo-clientes/${id}?populate=*`)
+        cliente = await strapiClient.get<any>(`/api/wo-clientes/${id}`)
         if (cliente.data) {
           cliente = cliente.data
         }
@@ -211,11 +214,20 @@ export async function PUT(
         if (directError.response?.data) {
           console.error('[API Clientes PUT] ❌ Detalles del error:', JSON.stringify(directError.response.data, null, 2))
         }
+        if (directError.response?.status) {
+          console.error('[API Clientes PUT] ❌ Status del error:', directError.response.status)
+        }
+        // No continuar si el error es 404, ya que significa que realmente no existe
+        if (directError.response?.status === 404) {
+          console.log('[API Clientes PUT] ⚠️ Endpoint directo retornó 404, el cliente no existe con ese ID')
+        }
       }
     }
 
     // Si aún no se encontró y se proporciona RUT en el body, buscar por RUT
     if (!cliente && body.data?.persona?.rut) {
+      console.log('[API Clientes PUT] 🔍 No se encontró cliente por ID, intentando búsqueda por RUT...')
+      console.log('[API Clientes PUT] 📋 RUT proporcionado en body:', body.data.persona.rut)
       try {
         const rutParaBuscar = limpiarRUT(body.data.persona.rut)
         console.log('[API Clientes PUT] 🔍 Buscando cliente por RUT:', rutParaBuscar)
@@ -289,9 +301,20 @@ export async function PUT(
     }
 
     if (!cliente) {
+      console.error('[API Clientes PUT] ❌ Cliente no encontrado después de todos los intentos de búsqueda')
+      console.error('[API Clientes PUT] 📊 Resumen de búsqueda:', {
+        idBuscado: id,
+        tipoId: typeof id,
+        intentoPorIdNumerico: 'falló',
+        intentoPorDocumentId: 'falló',
+        intentoBusquedaExhaustiva: 'falló',
+        intentoEndpointDirecto: 'falló',
+        intentoPorRUT: body.data?.persona?.rut ? 'se intentó' : 'no se intentó (no hay RUT en body)',
+        rutEnBody: body.data?.persona?.rut || 'no proporcionado',
+      })
       return NextResponse.json({
         success: false,
-        error: 'Cliente no encontrado'
+        error: `Cliente no encontrado con ID: ${id}. Intenta editar desde la lista de clientes.`
       }, { status: 404 })
     }
 
