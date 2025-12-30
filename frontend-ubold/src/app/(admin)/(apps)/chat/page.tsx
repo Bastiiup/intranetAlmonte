@@ -308,6 +308,8 @@ const Page = () => {
           id: event.message?.id,
           text: event.message?.text?.substring(0, 50),
           user: event.message?.user?.id,
+          userName: event.message?.user?.name,
+          created_at: event.message?.created_at,
         })
       })
 
@@ -324,16 +326,48 @@ const Page = () => {
         })
       })
 
+      // Suscribirse a eventos adicionales del cliente (no del canal)
+      chatClient.on('connection.changed', (event: any) => {
+        console.log('[Chat] 🔌 Conexión cambiada:', {
+          online: event.online,
+          type: event.type,
+        })
+      })
+
+      // Verificar usuario antes de watch()
+      console.log('[Chat] Verificando usuario en Stream...')
+      try {
+        const user = await chatClient.queryUsers({ id: currentUserId })
+        console.log('[Chat] Usuario verificado:', {
+          id: user.users[0]?.id,
+          role: user.users[0]?.role,
+          name: user.users[0]?.name,
+        })
+      } catch (permErr) {
+        console.warn('[Chat] No se pudo verificar usuario (puede ser normal):', permErr)
+      }
+
       // watch() crea el canal si no existe, o se suscribe si ya existe
       // watch() carga automáticamente los mensajes históricos
       console.log('[Chat] Iniciando watch() del canal...')
-      await channel.watch({
-        state: true, // Cargar el estado completo del canal
-        watch: true, // Suscribirse a actualizaciones en tiempo real
-        presence: true, // Suscribirse a presencia de usuarios
-      })
+      try {
+        await channel.watch({
+          state: true, // Cargar el estado completo del canal
+          watch: true, // Suscribirse a actualizaciones en tiempo real
+          presence: true, // Suscribirse a presencia de usuarios
+        })
+        console.log('[Chat] ✅ watch() completado exitosamente')
+      } catch (watchErr: any) {
+        console.error('[Chat] ❌ Error en watch():', {
+          error: watchErr.message,
+          code: watchErr.code,
+          status: watchErr.status,
+          response: watchErr.response,
+        })
+        throw watchErr
+      }
       
-      console.log('[Chat] watch() completado, cargando mensajes históricos...')
+      console.log('[Chat] Cargando mensajes históricos...')
       
       // Cargar mensajes históricos explícitamente con query()
       // Esto asegura que todos los mensajes del canal estén disponibles
@@ -404,14 +438,51 @@ const Page = () => {
         
         // Intentar agregar los miembros si faltan
         try {
+          console.log('[Chat] Intentando agregar miembros al canal...')
           await channel.addMembers([currentUserId, otherUserId])
           console.log('[Chat] ✅ Miembros agregados al canal')
-        } catch (addErr) {
-          console.error('[Chat] ❌ Error al agregar miembros:', addErr)
+          
+          // Verificar nuevamente después de agregar
+          const updatedMembers = Object.keys(channel.state.members || {})
+          console.log('[Chat] Miembros después de agregar:', updatedMembers)
+        } catch (addErr: any) {
+          console.error('[Chat] ❌ Error al agregar miembros:', {
+            error: addErr.message,
+            code: addErr.code,
+            status: addErr.status,
+            response: addErr.response,
+          })
+          
+          // Si falla, intentar crear el canal desde cero
+          console.log('[Chat] Intentando recrear el canal...')
+          try {
+            await channel.create()
+            await channel.addMembers([currentUserId, otherUserId])
+            await channel.watch()
+            console.log('[Chat] ✅ Canal recreado exitosamente')
+          } catch (createErr: any) {
+            console.error('[Chat] ❌ Error al recrear canal:', createErr)
+            throw new Error(`No se pudo configurar el canal: ${createErr.message}`)
+          }
         }
       } else {
         console.log('[Chat] ✅ Canal configurado correctamente con ambos miembros')
       }
+      
+      // Verificar que el canal está listo para enviar mensajes
+      console.log('[Chat] Verificando estado del canal para envío de mensajes...')
+      console.log('[Chat] Estado del canal:', {
+        id: channel.id,
+        type: channel.type,
+        data: channel.data,
+        members: Object.keys(channel.state.members || {}),
+      })
+      
+      // Nota: Los permisos se verifican en Stream Dashboard
+      // Si no puedes enviar mensajes, verifica:
+      // - Role: user (no admin)
+      // - Scope: messaging (no .app)
+      // - Permiso: Create Message debe estar activado
       
       setChannel(channel)
     } catch (err: any) {
@@ -597,7 +668,48 @@ const Page = () => {
                       // Habilitar todas las funcionalidades
                       disableDateSeparator={false}
                     />
-                    <MessageInput />
+                    <div>
+                      <MessageInput />
+                      {/* Botón de prueba para debugging - ELIMINAR EN PRODUCCIÓN */}
+                      <div style={{ padding: '0.5rem', borderTop: '1px solid #dee2e6', backgroundColor: '#f8f9fa' }}>
+                        <button
+                          onClick={async () => {
+                            const testMessage = `Mensaje de prueba ${new Date().toLocaleTimeString()}`
+                            console.log('[Chat] 🧪 Enviando mensaje de prueba:', testMessage)
+                            try {
+                              const result = await channel.sendMessage({
+                                text: testMessage,
+                              })
+                              console.log('[Chat] ✅ Mensaje de prueba enviado:', {
+                                messageId: result.message?.id,
+                                text: result.message?.text,
+                              })
+                              alert('✅ Mensaje enviado exitosamente! Revisa la consola.')
+                            } catch (error: any) {
+                              console.error('[Chat] ❌ Error al enviar mensaje de prueba:', {
+                                error: error.message,
+                                code: error.code,
+                                status: error.status,
+                                response: error.response,
+                                fullError: error,
+                              })
+                              alert(`❌ Error: ${error.message}\n\nRevisa la consola para más detalles.`)
+                            }
+                          }}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            fontSize: '0.875rem',
+                            backgroundColor: '#0d6efd',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '0.25rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          🧪 Enviar Mensaje de Prueba
+                        </button>
+                      </div>
+                    </div>
                   </Window>
                   <Thread />
                 </Channel>
