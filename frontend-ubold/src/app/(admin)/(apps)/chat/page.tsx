@@ -130,17 +130,17 @@ const Page = () => {
         // 3. Crear cliente de Stream Chat
         const client = StreamChat.getInstance(apiKey)
 
-        // 4. Conectar usuario usando el ID del colaborador
+        // 4. Conectar usuario usando el RUT del colaborador
         await client.connectUser(
           {
-            id: String(myColaboradorIdNum), // Usar explícitamente el ID del colaborador
+            id: myColaboradorRut, // Usar RUT como identificador único
             name: persona?.nombre_completo || colaborador?.attributes?.email_login || 'Usuario',
           },
           token
         )
 
         setChatClient(client)
-        console.log('[Chat] ✅ Cliente de Stream Chat inicializado con ID de colaborador:', myColaboradorIdNum)
+        console.log('[Chat] ✅ Cliente de Stream Chat inicializado con RUT:', myColaboradorRut)
 
         // 5. Cargar lista de colaboradores
         await loadColaboradores()
