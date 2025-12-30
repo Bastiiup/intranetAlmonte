@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
-import { parseNombreCompleto, enviarClienteABothWordPress } from '@/lib/clientes/utils'
+import { enviarClienteABothWordPress } from '@/lib/clientes/utils'
 import { limpiarRUT } from '@/lib/utils/rut'
 
 export const dynamic = 'force-dynamic'
@@ -116,13 +116,33 @@ export async function PUT(
     console.log('[API Clientes PUT] 📝 ID recibido desde URL:', id, '(tipo:', typeof id, ')')
     console.log('[API Clientes PUT] 📦 Body recibido:', JSON.stringify(body, null, 2))
     console.log('[API Clientes PUT] 🔍 RUT en body.data.persona.rut:', body.data?.persona?.rut || 'no proporcionado')
+    console.log('[API Clientes PUT] 🔍 personaDocumentId en body.data.persona.documentId:', body.data?.persona?.documentId || 'no proporcionado')
 
-    // Buscar Persona directamente (por RUT si está disponible, o por ID si se proporciona)
+    // Buscar Persona directamente
     let personaEncontrada: any = null
     let personaDocumentId: string | null = null
     
-    // 1. Intentar buscar Persona por RUT (método principal)
-    if (body.data?.persona?.rut) {
+    // 1. PRIORIDAD: Si se proporciona documentId de Persona, usarlo directamente (más confiable para edición)
+    if (body.data?.persona?.documentId) {
+      try {
+        personaDocumentId = body.data.persona.documentId
+        console.log('[API Clientes PUT] ✅ Usando personaDocumentId proporcionado:', personaDocumentId)
+        
+        // Verificar que la Persona existe
+        const personaVerificada = await strapiClient.get<any>(`/api/personas/${personaDocumentId}`)
+        if (personaVerificada.data) {
+          personaEncontrada = personaVerificada.data
+          console.log('[API Clientes PUT] ✅ Persona verificada y encontrada por documentId:', personaDocumentId)
+        }
+      } catch (docIdError: any) {
+        console.error('[API Clientes PUT] ⚠️ Error al verificar personaDocumentId proporcionado:', docIdError.message)
+        // Si falla, continuar con otros métodos de búsqueda
+        personaDocumentId = null
+      }
+    }
+    
+    // 2. Si no se encontró por documentId, intentar buscar Persona por RUT (método secundario)
+    if (!personaDocumentId && body.data?.persona?.rut) {
       try {
         const rutParaBuscar = limpiarRUT(body.data.persona.rut)
         console.log('[API Clientes PUT] 🔍 Buscando Persona por RUT:', rutParaBuscar)
@@ -158,7 +178,7 @@ export async function PUT(
       }
     }
     
-    // 2. Si no se encontró por RUT, intentar buscar Persona por ID (fallback, aunque probablemente no funcione)
+    // 3. Si no se encontró por documentId ni por RUT, intentar buscar Persona por ID (fallback, aunque probablemente no funcione)
     if (!personaDocumentId && id) {
       try {
         console.log('[API Clientes PUT] 🔍 Intentando buscar Persona por ID:', id)
@@ -181,13 +201,16 @@ export async function PUT(
     if (personaDocumentId) {
       // Actualizar Persona existente
       try {
-        const nombreParseado = parseNombreCompleto(nombreFinal.trim())
+        // No usar parseNombreCompleto para edición - guardar el nombre completo tal cual
+        // Esto evita que nombres adicionales se conviertan en apellidos
         const personaUpdateData: any = {
           data: {
             nombre_completo: nombreFinal.trim(),
-            nombres: nombreParseado.nombres || null,
-            primer_apellido: nombreParseado.primer_apellido || null,
-            segundo_apellido: nombreParseado.segundo_apellido || null,
+            // Guardar todo el nombre completo en 'nombres' sin dividirlo
+            nombres: nombreFinal.trim(),
+            // Dejar apellidos como null cuando se está editando desde un solo campo
+            primer_apellido: null,
+            segundo_apellido: null,
           },
         }
         
@@ -255,13 +278,16 @@ export async function PUT(
       }
       
       try {
-        const nombreParseado = parseNombreCompleto(nombreFinal.trim())
+        // No usar parseNombreCompleto para creación desde edición - guardar el nombre completo tal cual
+        // Esto evita que nombres adicionales se conviertan en apellidos
         const personaData: any = {
           data: {
             nombre_completo: nombreFinal.trim(),
-            nombres: nombreParseado.nombres || null,
-            primer_apellido: nombreParseado.primer_apellido || null,
-            segundo_apellido: nombreParseado.segundo_apellido || null,
+            // Guardar todo el nombre completo en 'nombres' sin dividirlo
+            nombres: nombreFinal.trim(),
+            // Dejar apellidos como null cuando se está creando desde un solo campo
+            primer_apellido: null,
+            segundo_apellido: null,
             emails: [
               {
                 email: correoFinal.trim(),
@@ -317,9 +343,11 @@ export async function PUT(
     // 5. Sincronizar con WordPress (Moraleja y Escolar)
     if (nombreFinal && correoFinal) {
       try {
-        const nombreParseado = parseNombreCompleto(nombreFinal.trim())
-        const nombresWordPress = nombreParseado.nombres || nombreFinal.trim()
-        const apellidoWordPress = nombreParseado.primer_apellido || ''
+        // Para WordPress, dividir el nombre completo: primera palabra = nombre, resto = apellido
+        // Esto es necesario porque WooCommerce espera first_name y last_name separados
+        const partesNombre = nombreFinal.trim().split(/\s+/)
+        const nombresWordPress = partesNombre[0] || nombreFinal.trim()
+        const apellidoWordPress = partesNombre.slice(1).join(' ') || ''
         
         console.log('[API Clientes PUT] 🌐 Sincronizando cliente con WordPress (Moraleja y Escolar)...')
         const wordPressResults = await enviarClienteABothWordPress({

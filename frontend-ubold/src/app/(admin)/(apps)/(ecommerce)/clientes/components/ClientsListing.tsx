@@ -31,6 +31,7 @@ import { format } from 'date-fns'
 type ClienteType = {
   id: number | string // Puede ser id numérico o documentId (string)
   documentId?: string // documentId de Strapi v4
+  personaDocumentId?: string // documentId de Persona (para edición)
   nombre: string
   correo_electronico: string
   telefono?: string
@@ -69,11 +70,14 @@ const mapStrapiClienteToClienteType = (cliente: any): ClienteType => {
   let telefono = getField(data, 'telefono', 'TELEFONO', 'phone', 'PHONE') || ''
   
   // Si no hay teléfono en los datos directos, buscarlo en la Persona relacionada
-  // También extraer RUT de la Persona
+  // También extraer RUT y documentId de la Persona
   let rut = ''
+  let personaDocumentId: string | undefined = undefined
   const persona = attrs.persona?.data || attrs.persona || cliente.persona?.data || cliente.persona
   if (persona) {
     const personaAttrs = persona.attributes || persona
+    // Extraer documentId de Persona (importante para edición)
+    personaDocumentId = persona.documentId || personaAttrs.documentId || persona.id?.toString()
     if (!telefono) {
       const telefonos = personaAttrs.telefonos || persona.telefonos
       if (telefonos && Array.isArray(telefonos) && telefonos.length > 0) {
@@ -114,6 +118,7 @@ const mapStrapiClienteToClienteType = (cliente: any): ClienteType => {
   return {
     id: idParaUsar, // Siempre usar documentId si existe, sino convertir id numérico a string
     documentId: clienteDocumentId || undefined, // Guardar documentId por separado también
+    personaDocumentId: personaDocumentId || undefined, // Guardar documentId de Persona para edición
     nombre,
     correo_electronico: correo,
     telefono,
@@ -271,9 +276,11 @@ const ClientsListing = ({ clientes, error }: ClientsListingProps = {}) => {
               console.log('[ClientsListing] 🔍 Cliente seleccionado para editar:', {
                 id: clienteSeleccionado.id,
                 documentId: clienteSeleccionado.documentId,
+                personaDocumentId: clienteSeleccionado.personaDocumentId,
                 nombre: clienteSeleccionado.nombre,
                 correo: clienteSeleccionado.correo_electronico,
                 tieneDocumentId: !!clienteSeleccionado.documentId,
+                tienePersonaDocumentId: !!clienteSeleccionado.personaDocumentId,
                 idUsado: clienteSeleccionado.documentId || clienteSeleccionado.id || 'NO ID',
               })
               setSelectedCliente(clienteSeleccionado)

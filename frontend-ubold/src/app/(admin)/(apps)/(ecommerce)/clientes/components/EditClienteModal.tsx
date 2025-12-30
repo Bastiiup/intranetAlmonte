@@ -7,6 +7,7 @@ import { validarRUTChileno, formatearRUT } from '@/lib/utils/rut'
 interface Cliente {
   id: number | string
   documentId?: string
+  personaDocumentId?: string
   woocommerce_id?: number | string
   nombre: string
   correo_electronico: string
@@ -32,6 +33,14 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
     rut: '',
   })
   const [rutError, setRutError] = useState<string | null>(null)
+  // Guardar datos originales y documentId de Persona para comparar cambios y editar correctamente
+  const [originalData, setOriginalData] = useState<{
+    nombre: string
+    email: string
+    phone: string
+    rut: string
+    personaDocumentId?: string
+  } | null>(null)
 
   // Cargar datos del cliente cuando se abre el modal
   useEffect(() => {
@@ -48,15 +57,33 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
         phoneValue = ''
       }
 
-      setFormData({
+      const formDataToSet = {
         first_name: firstName,
         last_name: lastName,
         email: cliente.correo_electronico || '',
         phone: phoneValue,
         rut: cliente.rut || '',
+      }
+
+      setFormData(formDataToSet)
+      
+      // Guardar datos originales y documentId de Persona para comparación y edición
+      setOriginalData({
+        nombre: nombreCompleto,
+        email: cliente.correo_electronico || '',
+        phone: phoneValue,
+        rut: cliente.rut || '',
+        personaDocumentId: cliente.personaDocumentId,
       })
+      
       setError(null)
       setRutError(null)
+      
+      console.log('[EditClienteModal] 📌 Datos originales guardados:', {
+        personaDocumentId: cliente.personaDocumentId,
+        nombre: nombreCompleto,
+        email: cliente.correo_electronico,
+      })
     }
   }, [cliente, show])
 
@@ -139,6 +166,12 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
           correo_electronico: formData.email.trim(),
           persona: {},
         },
+      }
+
+      // Agregar documentId de Persona si está disponible (importante para edición correcta)
+      if (originalData?.personaDocumentId) {
+        updateData.data.persona.documentId = originalData.personaDocumentId
+        console.log('[EditClienteModal] 📌 Enviando personaDocumentId al backend:', originalData.personaDocumentId)
       }
 
       // Agregar teléfono si existe (se actualizará en Persona)
