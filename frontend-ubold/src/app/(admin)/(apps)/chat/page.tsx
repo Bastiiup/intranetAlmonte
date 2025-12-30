@@ -95,6 +95,18 @@ const Page = () => {
         const client = StreamChat.getInstance(apiKey)
         clientRef.current = client
 
+        // Suscribirse a eventos globales del cliente
+        client.on('connection.changed', (event: any) => {
+          console.log('[Chat] 🔌 Estado de conexión cambiado:', {
+            online: event.online,
+            type: event.type,
+          })
+        })
+
+        client.on('error', (event: any) => {
+          console.error('[Chat] ❌ Error en Stream Chat:', event)
+        })
+
         // 4. Conectar usuario
         await client.connectUser(
           {
@@ -110,6 +122,8 @@ const Page = () => {
           },
           token
         )
+
+        console.log('[Chat] ✅ Usuario conectado:', userId)
 
         setChatClient(client)
 
@@ -137,6 +151,49 @@ const Page = () => {
       }
     }
   }, [colaborador?.id, persona?.nombre_completo, persona?.nombres, persona?.primer_apellido, persona?.imagen?.url, colaborador?.email_login])
+
+  // Monitorear cambios en el canal para debugging
+  useEffect(() => {
+    if (!channel) return
+
+    const logChannelState = () => {
+      const messages = channel.state.messages || []
+      const members = channel.state.members || {}
+      console.log('[Chat] 📊 Estado actual del canal:', {
+        channelId: channel.id,
+        messageCount: messages.length,
+        memberCount: Object.keys(members).length,
+        messages: messages.map((m: any) => ({
+          id: m.id,
+          text: m.text?.substring(0, 30),
+          user: m.user?.id,
+          userName: m.user?.name,
+        })),
+      })
+    }
+
+    // Log inicial
+    logChannelState()
+
+    // Log cuando cambian los mensajes
+    const handleMessageNew = () => {
+      console.log('[Chat] 📨 Nuevo mensaje detectado en el canal')
+      logChannelState()
+    }
+
+    const handleMessageUpdated = () => {
+      console.log('[Chat] ✏️ Mensaje actualizado en el canal')
+      logChannelState()
+    }
+
+    channel.on('message.new', handleMessageNew)
+    channel.on('message.updated', handleMessageUpdated)
+
+    return () => {
+      channel.off('message.new', handleMessageNew)
+      channel.off('message.updated', handleMessageUpdated)
+    }
+  }, [channel])
 
   // Cargar lista de colaboradores
   const loadColaboradores = async () => {
@@ -244,17 +301,76 @@ const Page = () => {
         members: [currentUserId, otherUserId],
       })
 
-      // watch() crea el canal si no existe, o se suscribe si ya existe
-      // Esto es necesario para recibir mensajes en tiempo real
-      await channel.watch()
-      
-      // Cargar mensajes históricos explícitamente
-      // IMPORTANTE: query() carga los mensajes y miembros del canal
-      const queryResponse = await channel.query({
-        messages: { limit: 100 },
-        members: { limit: 10 },
-        watchers: { limit: 10 },
+      // Suscribirse a eventos del canal ANTES de watch()
+      // Esto asegura que recibimos todos los mensajes en tiempo real
+      channel.on('message.new', (event: any) => {
+        console.log('[Chat] 📨 Nuevo mensaje recibido:', {
+          id: event.message?.id,
+          text: event.message?.text?.substring(0, 50),
+          user: event.message?.user?.id,
+        })
       })
+
+      channel.on('message.updated', (event: any) => {
+        console.log('[Chat] ✏️ Mensaje actualizado:', {
+          id: event.message?.id,
+          user: event.message?.user?.id,
+        })
+      })
+
+      channel.on('message.deleted', (event: any) => {
+        console.log('[Chat] 🗑️ Mensaje eliminado:', {
+          id: event.message?.id,
+        })
+      })
+
+      // watch() crea el canal si no existe, o se suscribe si ya existe
+      // watch() carga automáticamente los mensajes históricos
+      console.log('[Chat] Iniciando watch() del canal...')
+      await channel.watch({
+        state: true, // Cargar el estado completo del canal
+        watch: true, // Suscribirse a actualizaciones en tiempo real
+        presence: true, // Suscribirse a presencia de usuarios
+      })
+      
+      console.log('[Chat] watch() completado, cargando mensajes históricos...')
+      
+      // Cargar mensajes históricos explícitamente con query()
+      // Esto asegura que todos los mensajes del canal estén disponibles
+      try {
+        const queryResult = await channel.query({
+          messages: { limit: 100 },
+          members: { limit: 10 },
+          watchers: { limit: 10 },
+        })
+        console.log('[Chat] query() completado:', {
+          messagesCount: queryResult.messages?.length || 0,
+          membersCount: queryResult.members?.length || 0,
+        })
+      } catch (queryErr: any) {
+        console.warn('[Chat] Error en query (puede ser normal si el canal es nuevo):', queryErr)
+        // Intentar cargar mensajes de otra forma
+        try {
+          await channel.getReplies('', { limit: 100 })
+        } catch (err2) {
+          console.warn('[Chat] Error alternativo al cargar mensajes:', err2)
+        }
+      }
+      
+      // Forzar una recarga de mensajes después de un breve delay
+      // Esto ayuda a asegurar que todos los mensajes se carguen
+      setTimeout(async () => {
+        try {
+          const messages = await channel.query({
+            messages: { limit: 100 },
+          })
+          console.log('[Chat] Recarga de mensajes completada:', {
+            messagesCount: messages.messages?.length || 0,
+          })
+        } catch (err) {
+          console.warn('[Chat] Error en recarga de mensajes:', err)
+        }
+      }, 500)
       
       // Verificar que el canal tiene los miembros correctos
       const members = channel.state.members || {}
@@ -270,11 +386,11 @@ const Page = () => {
           id: m.id,
           text: m.text?.substring(0, 50),
           user: m.user?.id,
+          userName: m.user?.name,
           created_at: m.created_at,
         })),
-        queryResponse: {
-          messages: queryResponse.messages?.length || 0,
-          members: queryResponse.members?.length || 0,
+        channelState: {
+          members: Object.keys(channel.state.members || {}),
         },
       })
       
@@ -285,6 +401,14 @@ const Page = () => {
           actual: memberIds,
           members: members,
         })
+        
+        // Intentar agregar los miembros si faltan
+        try {
+          await channel.addMembers([currentUserId, otherUserId])
+          console.log('[Chat] ✅ Miembros agregados al canal')
+        } catch (addErr) {
+          console.error('[Chat] ❌ Error al agregar miembros:', addErr)
+        }
       } else {
         console.log('[Chat] ✅ Canal configurado correctamente con ambos miembros')
       }
@@ -448,14 +572,30 @@ const Page = () => {
           ) : (
             <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
               <Chat client={chatClient}>
-                <Channel channel={channel}>
+                <Channel 
+                  channel={channel}
+                  // Forzar recarga del canal
+                  key={channel.id}
+                >
                   <Window>
                     <ChannelHeader />
                     <MessageList 
-                      // Cargar mensajes históricos
-                      loadMore={async () => {
-                        await channel.loadMoreMessages(50)
+                      // Cargar más mensajes cuando se hace scroll hacia arriba
+                      loadMore={async (limit?: number) => {
+                        console.log('[Chat] loadMore llamado, limit:', limit)
+                        try {
+                          const messages = await channel.loadMoreMessages(limit || 50)
+                          console.log('[Chat] loadMore completado, mensajes cargados:', messages.length)
+                          return messages.length
+                        } catch (err) {
+                          console.error('[Chat] Error en loadMore:', err)
+                          return 0
+                        }
                       }}
+                      // Asegurar que se muestren todos los mensajes
+                      noGroupByUser={false}
+                      // Habilitar todas las funcionalidades
+                      disableDateSeparator={false}
                     />
                     <MessageInput />
                   </Window>
