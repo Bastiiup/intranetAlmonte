@@ -41,6 +41,23 @@ export async function GET() {
     // NO usar Intranet-Chats ni ninguna otra tabla antigua
     // Solicitud modificada: Sin filtro de activo y con publicationState=preview
     // Esto permite ver todos los colaboradores, incluso los que están en Draft o no tienen activo=true
+    
+    // DEBUG: Buscar específicamente el ID 96 antes de la query general
+    try {
+      const id96Response = await strapiClient.get<any>(
+        '/api/colaboradores/96?publicationState=preview&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo'
+      )
+      console.error('[API /chat/colaboradores] 🔍 BÚSQUEDA DIRECTA ID 96:')
+      console.error('  ✅ ID 96 EXISTE en Strapi')
+      console.error('  📧 Email:', (id96Response.data as any)?.attributes?.email_login || (id96Response.data as any)?.email_login)
+      console.error('  📄 DocumentId:', (id96Response.data as any)?.documentId)
+      console.error('  📅 PublishedAt:', (id96Response.data as any)?.publishedAt)
+    } catch (error: any) {
+      console.error('[API /chat/colaboradores] 🔍 BÚSQUEDA DIRECTA ID 96:')
+      console.error('  ❌ ID 96 NO SE PUEDE OBTENER DIRECTAMENTE')
+      console.error('  Error:', error.message || error.status)
+    }
+    
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
       '/api/colaboradores?pagination[pageSize]=1000&publicationState=preview&sort=email_login:asc&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[persona][populate][emails]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][imagen][populate]=*'
     )
