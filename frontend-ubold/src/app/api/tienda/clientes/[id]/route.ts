@@ -376,10 +376,16 @@ export async function PUT(
           if (telefonos && Array.isArray(telefonos) && telefonos.length > 0) {
             personaUpdateData.data.telefonos = telefonos.map((t: any) => {
               const telefonoValue = (t.telefono_raw || t.telefono_norm || t.numero || t.telefono || t.value || '').trim()
+              // Validar que tipo sea uno de los valores permitidos, sino usar null
+              let tipoValido = null
+              if (t.tipo && ['Personal', 'Laboral', 'Institucional'].includes(t.tipo)) {
+                tipoValido = t.tipo
+              }
+              
               return {
                 telefono_raw: telefonoValue,
                 telefono_norm: telefonoValue, // Por ahora usar el mismo valor
-                tipo: t.tipo || null, // Dejar null si no se especifica
+                tipo: tipoValido, // Solo valores válidos: "Personal", "Laboral", "Institucional" o null
                 principal: t.principal !== undefined ? t.principal : true, // Por defecto true
                 status: t.status !== undefined ? t.status : true, // Por defecto true (vigente)
               }
@@ -424,10 +430,16 @@ export async function PUT(
           if (telefonos && Array.isArray(telefonos) && telefonos.length > 0) {
             personaData.data.telefonos = telefonos.map((t: any) => {
               const telefonoValue = (t.telefono_raw || t.telefono_norm || t.numero || t.telefono || t.value || '').trim()
+              // Validar que tipo sea uno de los valores permitidos, sino usar null
+              let tipoValido = null
+              if (t.tipo && ['Personal', 'Laboral', 'Institucional'].includes(t.tipo)) {
+                tipoValido = t.tipo
+              }
+              
               return {
                 telefono_raw: telefonoValue,
                 telefono_norm: telefonoValue, // Por ahora usar el mismo valor
-                tipo: t.tipo || null, // Dejar null si no se especifica
+                tipo: tipoValido, // Solo valores válidos: "Personal", "Laboral", "Institucional" o null
                 principal: t.principal !== undefined ? t.principal : true, // Por defecto true
                 status: t.status !== undefined ? t.status : true, // Por defecto true (vigente)
               }

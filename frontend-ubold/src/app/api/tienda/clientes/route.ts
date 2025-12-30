@@ -179,14 +179,21 @@ export async function POST(request: NextRequest) {
       try {
         console.log('[API Clientes POST] 📞 Intentando agregar telefonos después de crear la persona...')
         // Formatear telefonos según el schema de Strapi (telefono_raw, telefono_norm, tipo, principal, etc.)
+        // NOTA: tipo debe ser uno de: "Personal", "Laboral", "Institucional" (igual que emails)
         const telefonosFormateados = telefonosParaAgregar.map((t: any) => {
           const telefonoValue = (t.numero || t.telefono || t.telefono_raw || t.telefono_norm || t.value || '').trim()
+          // Validar que tipo sea uno de los valores permitidos, sino usar null
+          let tipoValido = null
+          if (t.tipo && ['Personal', 'Laboral', 'Institucional'].includes(t.tipo)) {
+            tipoValido = t.tipo
+          }
+          
           // Usar telefono_raw y telefono_norm (ambos con el mismo valor por ahora)
           // El usuario puede normalizar después si lo necesita
           return {
             telefono_raw: telefonoValue,
             telefono_norm: telefonoValue, // Por ahora usar el mismo valor, se puede normalizar después
-            tipo: t.tipo || null, // Dejar null si no se especifica (Strapi tiene dropdown)
+            tipo: tipoValido, // Solo valores válidos: "Personal", "Laboral", "Institucional" o null
             principal: t.principal !== undefined ? t.principal : true, // Por defecto true para el primer teléfono
             status: t.status !== undefined ? t.status : true, // Por defecto true (vigente)
           }

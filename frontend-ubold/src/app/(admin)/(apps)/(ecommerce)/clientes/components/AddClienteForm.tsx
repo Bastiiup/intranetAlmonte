@@ -68,11 +68,13 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
       }
 
       // Agregar teléfono si existe
+      // NOTA: No enviar 'tipo' ya que los valores válidos son "Personal", "Laboral", "Institucional"
+      // El backend lo manejará correctamente (null o un valor válido)
       if (formData.phone.trim()) {
         personaData.telefonos = [
           {
-            numero: formData.phone.trim(), // Campo correcto según schema de Strapi
-            tipo: 'principal',
+            numero: formData.phone.trim(),
+            // No incluir 'tipo' - el backend lo manejará
           },
         ]
       }
