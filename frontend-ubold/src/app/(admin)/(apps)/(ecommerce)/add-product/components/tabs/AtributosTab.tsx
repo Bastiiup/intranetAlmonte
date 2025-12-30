@@ -668,13 +668,16 @@ const AtributosTab = memo(function AtributosTab({ formData, updateField }: Atrib
                     <FormControl
                       as="select"
                       multiple
-                      size={Math.min(availableOptions.length, 10)}
                       value={selectedOptions}
                       onChange={(e) => {
                         const selected = Array.from(e.target.selectedOptions, option => option.value)
                         setSelectedOptions(selected)
                       }}
-                      style={{ minHeight: '200px' }}
+                      style={{ 
+                        minHeight: '200px',
+                        maxHeight: '400px',
+                        height: `${Math.min(availableOptions.length, 10) * 30}px`
+                      }}
                     >
                       {availableOptions.map((option) => (
                         <option key={option.id} value={option.name}>
