@@ -214,8 +214,12 @@ const Page = () => {
 
       // ID Determinista (Estilo WhatsApp): Ordenar IDs para garantizar mismo canal
       // Esto asegura que A y B siempre vean el mismo chat
-      const memberIds = [currentUserId, otherUserId].sort()
-      const channelId = memberIds.join('_')
+      // IMPORTANTE: Convertir a strings y ordenar alfabéticamente antes de unir
+      // Ejemplo: [Matias, Bastian] -> [Bastian, Matias] -> "messaging-Bastian-Matias"
+      // Ejemplo: [Bastian, Matias] -> [Bastian, Matias] -> "messaging-Bastian-Matias"
+      // Resultado: Ambos usuarios siempre entran a la misma sala
+      const sortedIds = [String(currentUserId), String(otherUserId)].sort()
+      const channelId = `messaging-${sortedIds.join('-')}`
 
       console.log('[Chat] Creando/abriendo canal:', {
         channelId,
