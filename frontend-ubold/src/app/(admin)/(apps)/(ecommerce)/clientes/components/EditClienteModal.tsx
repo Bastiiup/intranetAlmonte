@@ -81,17 +81,18 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
         throw new Error('El correo electrónico no tiene un formato válido')
       }
 
-      // Usar documentId si existe (Strapi v4), sino usar id
-      // En Strapi v4, el documentId es el identificador correcto para las rutas
+      // IMPORTANTE: En Strapi v4, siempre usar documentId para las operaciones
+      // El documentId es el identificador correcto para las rutas de API
+      // Priorizar documentId, sino usar el id (que debería ser string si viene del mapeo)
       const clienteId = cliente?.documentId || cliente?.id
-      if (!clienteId) {
-        throw new Error('No se puede editar: el cliente no tiene ID válido')
+      if (!clienteId || clienteId === '0' || clienteId === 0) {
+        throw new Error('No se puede editar: el cliente no tiene ID válido (documentId o id)')
       }
 
       // Log para diagnóstico
-      console.log('[EditClienteModal] 🔍 ID del cliente:', clienteId, '(tipo:', typeof clienteId, ')')
+      console.log('[EditClienteModal] 🔍 ID del cliente a usar:', clienteId, '(tipo:', typeof clienteId, ')')
       console.log('[EditClienteModal] 📦 Cliente completo:', cliente)
-      console.log('[EditClienteModal] 📌 Usando documentId:', cliente?.documentId, 'o id:', cliente?.id)
+      console.log('[EditClienteModal] 📌 documentId:', cliente?.documentId, '| id:', cliente?.id, '| id usado:', clienteId)
 
       // Preparar datos para la API en formato Strapi
       const nombreCompleto = `${formData.first_name.trim()} ${formData.last_name.trim()}`.trim()

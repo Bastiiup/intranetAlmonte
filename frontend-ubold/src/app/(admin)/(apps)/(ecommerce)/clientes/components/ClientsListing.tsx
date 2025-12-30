@@ -97,12 +97,18 @@ const mapStrapiClienteToClienteType = (cliente: any): ClienteType => {
   const woocommerceId = getField(data, 'woocommerce_id', 'woocommerceId', 'WOCOMMERCE_ID')
 
   // Priorizar documentId para Strapi v4, sino usar id numérico
-  const clienteDocumentId = cliente.documentId || cliente.attributes?.documentId
-  const clienteId = cliente.id || cliente.attributes?.id
+  // En Strapi v4, el documentId es el identificador principal (string) y está en el nivel raíz del objeto
+  const clienteDocumentId = cliente.documentId
+  const clienteId = cliente.id // id numérico también está en el nivel raíz
+  
+  // IMPORTANTE: En Strapi v4, siempre usar documentId para las operaciones (rutas, updates, etc.)
+  // El documentId es un string único que se usa en las APIs de Strapi v4
+  // Si no hay documentId, convertir el id numérico a string como fallback
+  const idParaUsar = clienteDocumentId || clienteId?.toString() || '0'
   
   return {
-    id: clienteDocumentId || clienteId || 0, // Priorizar documentId (string) sobre id numérico
-    documentId: clienteDocumentId, // Guardar documentId por separado también
+    id: idParaUsar, // Siempre usar documentId si existe, sino convertir id numérico a string
+    documentId: clienteDocumentId || undefined, // Guardar documentId por separado también
     nombre,
     correo_electronico: correo,
     telefono,
@@ -255,7 +261,16 @@ const ClientsListing = ({ clientes, error }: ClientsListingProps = {}) => {
             className="btn-icon rounded-circle"
             title="Editar"
             onClick={() => {
-              setSelectedCliente(row.original)
+              const clienteSeleccionado = row.original
+              console.log('[ClientsListing] 🔍 Cliente seleccionado para editar:', {
+                id: clienteSeleccionado.id,
+                documentId: clienteSeleccionado.documentId,
+                nombre: clienteSeleccionado.nombre,
+                correo: clienteSeleccionado.correo_electronico,
+                tieneDocumentId: !!clienteSeleccionado.documentId,
+                idUsado: clienteSeleccionado.documentId || clienteSeleccionado.id || 'NO ID',
+              })
+              setSelectedCliente(clienteSeleccionado)
               setShowEditModal(true)
             }}>
             <TbEdit className="fs-lg" />
