@@ -42,14 +42,22 @@ interface ClienteModalProps {
 const ClienteModal = ({ show, onHide, cliente, onSave }: ClienteModalProps) => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    rut: string
+    nombres: string
+    primer_apellido: string
+    segundo_apellido: string
+    genero: string
+    emails: EmailItem[]
+    telefonos: TelefonoItem[]
+  }>({
     rut: '',
     nombres: '',
     primer_apellido: '',
     segundo_apellido: '',
     genero: '',
-    emails: [{ email: '', tipo: 'Personal' as const }],
-    telefonos: [{ telefono_raw: '', tipo: null as 'Personal' | 'Laboral' | 'Institucional' | null }],
+    emails: [{ email: '', tipo: 'Personal' }],
+    telefonos: [{ telefono_raw: '', tipo: null }],
   })
   const [rutError, setRutError] = useState<string | null>(null)
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
@@ -78,9 +86,9 @@ const ClienteModal = ({ show, onHide, cliente, onSave }: ClienteModalProps) => {
           email: typeof e === 'string' ? e : (e.email || ''),
           tipo: (typeof e === 'object' && e.tipo && ['Personal', 'Laboral', 'Institucional'].includes(e.tipo))
             ? e.tipo as 'Personal' | 'Laboral' | 'Institucional'
-            : 'Personal' as const
+            : 'Personal'
         }))
-      : [{ email: cliente.correo_electronico || '', tipo: 'Personal' as const }]
+      : [{ email: cliente.correo_electronico || '', tipo: 'Personal' }]
 
     // Cargar teléfonos
     const telefonos: TelefonoItem[] = cliente.telefonos && Array.isArray(cliente.telefonos) && cliente.telefonos.length > 0
@@ -101,7 +109,7 @@ const ClienteModal = ({ show, onHide, cliente, onSave }: ClienteModalProps) => {
       primer_apellido: primerApellido,
       segundo_apellido: segundoApellido,
       genero: cliente.genero || '',
-      emails: emails.length > 0 ? emails : [{ email: '', tipo: 'Personal' as const }],
+      emails: emails.length > 0 ? emails : [{ email: '', tipo: 'Personal' }],
       telefonos: telefonos.length > 0 ? telefonos : [{ telefono_raw: '', tipo: null, principal: true }],
     })
   }
@@ -137,9 +145,9 @@ const ClienteModal = ({ show, onHide, cliente, onSave }: ClienteModalProps) => {
                         email: typeof e === 'string' ? e : (e.email || ''),
                         tipo: (typeof e === 'object' && e.tipo && ['Personal', 'Laboral', 'Institucional'].includes(e.tipo))
                           ? e.tipo as 'Personal' | 'Laboral' | 'Institucional'
-                          : 'Personal' as const
+                          : 'Personal'
                       }))
-                    : [{ email: cliente.correo_electronico || '', tipo: 'Personal' as const }]
+                    : [{ email: cliente.correo_electronico || '', tipo: 'Personal' }]
 
                   // Cargar teléfonos
                   const telefonos: TelefonoItem[] = personaAttrs.telefonos && Array.isArray(personaAttrs.telefonos) && personaAttrs.telefonos.length > 0
@@ -160,7 +168,7 @@ const ClienteModal = ({ show, onHide, cliente, onSave }: ClienteModalProps) => {
                     primer_apellido: primerApellido,
                     segundo_apellido: segundoApellido,
                     genero: personaAttrs.genero || '',
-                    emails: emails.length > 0 ? emails : [{ email: '', tipo: 'Personal' as const }],
+                    emails: emails.length > 0 ? emails : [{ email: '', tipo: 'Personal' }],
                     telefonos: telefonos.length > 0 ? telefonos : [{ telefono_raw: '', tipo: null, principal: true }],
                   })
                   
@@ -189,7 +197,7 @@ const ClienteModal = ({ show, onHide, cliente, onSave }: ClienteModalProps) => {
           primer_apellido: '',
           segundo_apellido: '',
           genero: '',
-          emails: [{ email: '', tipo: 'Personal' as const }],
+          emails: [{ email: '', tipo: 'Personal' }],
           telefonos: [{ telefono_raw: '', tipo: null, principal: true }],
         })
         setSelectedPlatforms([])
@@ -233,7 +241,7 @@ const ClienteModal = ({ show, onHide, cliente, onSave }: ClienteModalProps) => {
   const addEmail = () => {
     setFormData((prev) => ({
       ...prev,
-      emails: [...prev.emails, { email: '', tipo: 'Personal' as const }],
+      emails: [...prev.emails, { email: '', tipo: 'Personal' }],
     }))
   }
 
