@@ -42,25 +42,40 @@ export async function GET() {
     // Solicitud modificada: Sin filtro de activo y con publicationState=preview
     // Esto permite ver todos los colaboradores, incluso los que están en Draft o no tienen activo=true
     
-    // DEBUG: Buscar específicamente el ID 96 antes de la query general
-    try {
-      const id96Response = await strapiClient.get<any>(
-        '/api/colaboradores/96?publicationState=preview&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo'
-      )
-      console.error('[API /chat/colaboradores] 🔍 BÚSQUEDA DIRECTA ID 96:')
-      console.error('  ✅ ID 96 EXISTE en Strapi')
-      console.error('  📧 Email:', (id96Response.data as any)?.attributes?.email_login || (id96Response.data as any)?.email_login)
-      console.error('  📄 DocumentId:', (id96Response.data as any)?.documentId)
-      console.error('  📅 PublishedAt:', (id96Response.data as any)?.publishedAt)
-    } catch (error: any) {
-      console.error('[API /chat/colaboradores] 🔍 BÚSQUEDA DIRECTA ID 96:')
-      console.error('  ❌ ID 96 NO SE PUEDE OBTENER DIRECTAMENTE')
-      console.error('  Error:', error.message || error.status)
-    }
-    
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
       '/api/colaboradores?pagination[pageSize]=1000&publicationState=preview&sort=email_login:asc&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[persona][populate][emails]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][imagen][populate]=*'
     )
+    
+    // CRÍTICO: Si el ID 96 no está en la query general, intentar buscarlo directamente
+    // El usuario necesita usar el ID que aparece en Strapi (96), no otro ID
+    let id96Data: any = null
+    if (Array.isArray(response.data)) {
+      const id96InResponse = response.data.find((col: any) => col.id === 96)
+      if (!id96InResponse) {
+        // El ID 96 no está en la query general, intentar buscarlo directamente
+        try {
+          const id96Response = await strapiClient.get<any>(
+            '/api/colaboradores/96?publicationState=preview&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[persona][populate][emails]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][imagen][populate]=*'
+          )
+          id96Data = id96Response.data
+          console.error('[API /chat/colaboradores] 🔍 ID 96 ENCONTRADO DIRECTAMENTE:')
+          console.error('  ✅ ID 96 EXISTE en Strapi y se agregará a los resultados')
+          console.error('  📧 Email:', (id96Data as any)?.attributes?.email_login || (id96Data as any)?.email_login)
+          
+          // Agregar el ID 96 a la respuesta si no está
+          if (id96Data && Array.isArray(response.data)) {
+            response.data.push(id96Data)
+            console.error('  ✅ ID 96 agregado a la respuesta')
+          }
+        } catch (error: any) {
+          console.error('[API /chat/colaboradores] 🔍 ID 96 NO SE PUEDE OBTENER:')
+          console.error('  ❌ Error:', error.message || error.status)
+          console.error('  ⚠️ Se usará el ID que esté disponible en la query general')
+        }
+      } else {
+        console.error('[API /chat/colaboradores] 🔍 ID 96 YA ESTÁ EN LA RESPUESTA')
+      }
+    }
     
     // Log detallado para debugging
     console.log('[API /chat/colaboradores] Respuesta de Strapi:', {
@@ -283,34 +298,60 @@ export async function GET() {
             })
             uniqueColaboradores.set(email, col)
           }
-          // 2. Si ambos tienen persona -> Usar el ID MÁS BAJO (el más antiguo/el correcto)
+          // 2. Si ambos tienen persona -> PRIORIDAD ABSOLUTA AL ID 96, luego usar el ID más bajo
           // Si ninguno tiene persona -> Usar el ID más alto (el más reciente)
           else if (hasPersona === existingHasPersona) {
             if (hasPersona) {
-              // AMBOS TIENEN PERSONA: Usar el ID más bajo (el correcto/antiguo)
-              if (Number(col.id) < Number(existing.id)) {
+              // AMBOS TIENEN PERSONA: PRIORIDAD ABSOLUTA AL ID 96
+              // Si uno de los dos es el ID 96, ese siempre gana
+              const nuevoEs96 = Number(col.id) === 96
+              const existenteEs96 = Number(existing.id) === 96
+              
+              if (nuevoEs96 && !existenteEs96) {
                 if (isMatias || existingIsMatias) {
-                  console.error(`  ✅ DECISIÓN: Ambos tienen persona, nuevo ID (${col.id}) es MENOR que existente (${existing.id}) - REEMPLAZAR`)
-                  console.error(`  ⚠️ DEBE SER 96, nuevo es ${col.id}, existente es ${existing.id}`)
+                  console.error(`  ✅ DECISIÓN: Nuevo es ID 96 - REEMPLAZAR (PRIORIDAD ABSOLUTA)`)
                 }
                 duplicatesFound.push({
                   email,
                   ids: [existing.id, col.id],
                   kept: col.id,
-                  reason: 'Ambos tienen persona, nuevo ID es MENOR (correcto)',
+                  reason: 'Nuevo es ID 96 - PRIORIDAD ABSOLUTA',
                 })
                 uniqueColaboradores.set(email, col)
-              } else {
+              } else if (existenteEs96 && !nuevoEs96) {
                 if (isMatias || existingIsMatias) {
-                  console.error(`  ✅ DECISIÓN: Ambos tienen persona, existente ID (${existing.id}) es MENOR que nuevo (${col.id}) - MANTENER`)
-                  console.error(`  ⚠️ DEBE SER 96, existente es ${existing.id}, nuevo es ${col.id}`)
+                  console.error(`  ✅ DECISIÓN: Existente es ID 96 - MANTENER (PRIORIDAD ABSOLUTA)`)
                 }
                 duplicatesFound.push({
                   email,
                   ids: [existing.id, col.id],
                   kept: existing.id,
-                  reason: 'Ambos tienen persona, existente ID es MENOR (correcto)',
+                  reason: 'Existente es ID 96 - PRIORIDAD ABSOLUTA',
                 })
+              } else {
+                // Ninguno es 96, usar el ID más bajo
+                if (Number(col.id) < Number(existing.id)) {
+                  if (isMatias || existingIsMatias) {
+                    console.error(`  ✅ DECISIÓN: Ambos tienen persona, nuevo ID (${col.id}) es MENOR que existente (${existing.id}) - REEMPLAZAR`)
+                  }
+                  duplicatesFound.push({
+                    email,
+                    ids: [existing.id, col.id],
+                    kept: col.id,
+                    reason: 'Ambos tienen persona, nuevo ID es MENOR (correcto)',
+                  })
+                  uniqueColaboradores.set(email, col)
+                } else {
+                  if (isMatias || existingIsMatias) {
+                    console.error(`  ✅ DECISIÓN: Ambos tienen persona, existente ID (${existing.id}) es MENOR que nuevo (${col.id}) - MANTENER`)
+                  }
+                  duplicatesFound.push({
+                    email,
+                    ids: [existing.id, col.id],
+                    kept: existing.id,
+                    reason: 'Ambos tienen persona, existente ID es MENOR (correcto)',
+                  })
+                }
               }
             } else {
               // NINGUNO TIENE PERSONA: Usar el ID más alto (el más reciente)
