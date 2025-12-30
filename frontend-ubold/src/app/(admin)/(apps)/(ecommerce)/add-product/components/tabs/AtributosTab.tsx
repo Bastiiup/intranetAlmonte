@@ -670,7 +670,7 @@ const AtributosTab = memo(function AtributosTab({ formData, updateField }: Atrib
                       multiple
                       value={selectedOptions}
                       onChange={(e) => {
-                        const target = e.target as HTMLSelectElement
+                        const target = e.target as unknown as HTMLSelectElement
                         const selected = Array.from(target.selectedOptions, option => option.value)
                         setSelectedOptions(selected)
                       }}
@@ -722,7 +722,7 @@ const AtributosTab = memo(function AtributosTab({ formData, updateField }: Atrib
               ) : (
                 <Alert variant="info">
                   Este atributo no tiene opciones disponibles. Puedes agregarlo sin opciones o crear opciones desde WooCommerce.
-                </Alert>
+      </Alert>
               )}
             </>
           )}
