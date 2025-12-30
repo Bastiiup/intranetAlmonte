@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import CustomersCard from '@/app/(admin)/(apps)/(ecommerce)/customers/components/CustomersCard'
+import ClientsListing from './components/ClientsListing'
 
 // Forzar renderizado dinámico
 export const dynamic = 'force-dynamic'
@@ -47,7 +48,7 @@ export default async function Page() {
 
       <Row className="justify-content-center">
         <Col xxl={12}>
-          <CustomersCard clientes={clientes} error={error} />
+          <ClientsListing clientes={clientes} error={error} />
         </Col>
       </Row>
     </Container>

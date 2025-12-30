@@ -16,18 +16,19 @@ import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button, Card, CardFooter, CardHeader, Dropdown, DropdownItem, DropdownMenu, DropdownToggle, Alert, Modal } from 'react-bootstrap'
 import { LuDownload, LuPlus, LuSearch } from 'react-icons/lu'
-import { TbChevronDown, TbEdit, TbEye, TbTrash } from 'react-icons/tb'
+import { TbChevronDown, TbEdit, TbTrash } from 'react-icons/tb'
 
 import { customers, CustomerType } from '@/app/(admin)/(apps)/(ecommerce)/customers/data'
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
 import EditClienteModal from '@/app/(admin)/(apps)/(ecommerce)/clientes/components/EditClienteModal'
-import AddClienteForm from '@/app/(admin)/(apps)/(ecommerce)/clientes/components/AddClienteForm'
 import { currency } from '@/helpers'
 import { format } from 'date-fns'
 import user1 from '@/assets/images/users/user-1.jpg'
 import usFlag from '@/assets/images/flags/us.svg'
+import ClienteModal from '@/app/(admin)/(apps)/(ecommerce)/clientes/components/ClienteModal'
+import { StaticImageData } from 'next/image'
 
 // Avatar por defecto
 const defaultAvatar = user1
@@ -66,10 +67,10 @@ const mapWooCommerceCustomerToCustomerType = (cliente: any): ExtendedCustomerTyp
   return {
     name,
     email,
-    avatar: defaultAvatar,
+    avatar: defaultAvatar as StaticImageData,
     phone,
     country: countryName,
-    countryFlag: defaultCountryFlag,
+    countryFlag: defaultCountryFlag as StaticImageData,
     joined: {
       date: joinedDate,
       time: joinedTime,
@@ -389,10 +390,10 @@ const CustomersCard = ({ clientes, error }: CustomersCardProps = {}) => {
           <Modal.Title>Agregar Cliente</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <AddClienteForm
-            showCard={false}
+          <ClienteModal
+            show={showCreateModal}
+            onHide={() => setShowCreateModal(false)}
             onSave={() => setShowCreateModal(false)}
-            onCancel={() => setShowCreateModal(false)}
           />
         </Modal.Body>
       </Modal>
