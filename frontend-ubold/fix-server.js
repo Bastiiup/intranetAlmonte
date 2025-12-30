@@ -30,28 +30,39 @@ const originalCode = serverCode
 
 console.log('📝 Modificando servidor standalone...')
 
-// Reemplazar localhost y 127.0.0.1 con 0.0.0.0
-serverCode = serverCode.replace(/localhost/g, '0.0.0.0')
-serverCode = serverCode.replace(/127\.0\.0\.1/g, '0.0.0.0')
+// Buscar y reemplazar cualquier patrón de listen() para forzar 0.0.0.0
+// Patrón 1: .listen(port) -> .listen(port, '0.0.0.0')
+serverCode = serverCode.replace(/\.listen\((\d+)\)/g, ".listen($1, '0.0.0.0')")
 
-// Buscar y reemplazar cualquier IP específica en listen() con 0.0.0.0
-serverCode = serverCode.replace(/\.listen\(([^,]+),\s*['"](?:localhost|127\.0\.0\.1|\d+\.\d+\.\d+\.\d+)['"]/g, ".listen($1, '0.0.0.0'")
-serverCode = serverCode.replace(/\.listen\((\w+)\)(?!\s*,\s*(?:['"]0\.0\.0\.0['"]|function|\([^)]*\)\s*=>))/g, ".listen($1, '0.0.0.0')")
-serverCode = serverCode.replace(/\.listen\((\w+),\s*(function|\([^)]*\)\s*=>)/g, ".listen($1, '0.0.0.0', $2")
+// Patrón 2: .listen(port, hostname) -> .listen(port, '0.0.0.0')
+serverCode = serverCode.replace(/\.listen\((\d+),\s*['"][^'"]+['"]\)/g, ".listen($1, '0.0.0.0')")
 
-// Asegurar que se use process.env.PORT si está disponible
-// Buscar patrones como .listen(3000) o .listen(port) y reemplazarlos
-if (serverCode.includes('.listen(')) {
-  // Si hay una llamada a listen con un número fijo, intentar reemplazarla
-  serverCode = serverCode.replace(/\.listen\((\d+)\)/g, (match, port) => {
-    return `.listen(parseInt(process.env.PORT || '${port}', 10), '0.0.0.0')`
-  })
-}
+// Patrón 3: .listen(parseInt(process.env.PORT || ...)) -> .listen(parseInt(...), '0.0.0.0')
+serverCode = serverCode.replace(/\.listen\(parseInt\(process\.env\.PORT[^)]+\)\)/g, (match) => {
+  return match.replace(/\)$/, ", '0.0.0.0')")
+})
+
+// Patrón 4: .listen(portVariable) -> .listen(portVariable, '0.0.0.0')
+serverCode = serverCode.replace(/\.listen\(([a-zA-Z_$][a-zA-Z0-9_$]*)\)(?!\s*,\s*['"]0\.0\.0\.0['"])/g, ".listen($1, '0.0.0.0')")
+
+// Patrón 5: Reemplazar cualquier hostname que no sea 0.0.0.0 en strings
+serverCode = serverCode.replace(/['"]localhost['"]/g, "'0.0.0.0'")
+serverCode = serverCode.replace(/['"]127\.0\.0\.1['"]/g, "'0.0.0.0'")
+
+// Patrón 6: Reemplazar hostnames de Docker (12 caracteres hex) con 0.0.0.0
+serverCode = serverCode.replace(/['"][a-f0-9]{12}['"]/g, "'0.0.0.0'")
+
+// Patrón 7: Asegurar que cualquier asignación de hostname sea 0.0.0.0
+serverCode = serverCode.replace(/(const|let|var)\s+hostname\s*=\s*['"][^'"]+['"]/g, "const hostname = '0.0.0.0'")
+serverCode = serverCode.replace(/(const|let|var)\s+host\s*=\s*['"][^'"]+['"]/g, "const host = '0.0.0.0'")
+
+// Patrón 8: Buscar y reemplazar en objetos de opciones { host: ... }
+serverCode = serverCode.replace(/host:\s*['"][^'"]+['"]/g, "host: '0.0.0.0'")
+serverCode = serverCode.replace(/hostname:\s*['"][^'"]+['"]/g, "hostname: '0.0.0.0'")
 
 if (serverCode !== originalCode) {
   fs.writeFileSync(serverPath, serverCode)
   console.log('✓ Servidor standalone modificado para escuchar en 0.0.0.0')
-  console.log('✓ Variables de entorno PORT y HOSTNAME serán respetadas')
 } else {
   console.log('ℹ No se encontraron cambios necesarios en el servidor standalone')
 }
@@ -101,4 +112,3 @@ if (fs.existsSync(publicSrc)) {
 } else {
   console.log('⚠ No se encontró la carpeta public')
 }
-

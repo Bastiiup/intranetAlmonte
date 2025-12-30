@@ -38,6 +38,32 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['@tanstack/react-table', 'react-bootstrap', 'date-fns'],
   },
+  // Headers CSP únicos para Stream Chat (necesita unsafe-eval)
+  // IMPORTANTE: Solo debe haber un CSP, configurado aquí en next.config.ts
+  async headers() {
+    const cspValue = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.getstream.io https://*.stream-io-api.com",
+      "connect-src 'self' https://*.getstream.io https://*.stream-io-api.com wss://*.getstream.io wss://*.stream-io-api.com wss://chat.stream-io-api.com",
+      "img-src 'self' data: blob: https: http: https://*.getstream.io https://ui-avatars.com https://strapi.moraleja.cl",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' data: https://fonts.gstatic.com",
+      "worker-src 'self' blob:",
+      "frame-src 'self' https://*.getstream.io"
+    ].join('; ')
+
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: cspValue
+          }
+        ],
+      },
+    ]
+  },
 };
 
 export default nextConfig;
