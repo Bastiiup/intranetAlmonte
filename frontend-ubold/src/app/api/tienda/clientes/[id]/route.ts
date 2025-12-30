@@ -247,22 +247,33 @@ export async function PUT(
           const personaDocId = personaEncontradaPorRut.documentId || personaEncontradaPorRut.id?.toString()
           console.log('[API Clientes PUT] ✅ Persona encontrada por RUT:', personaDocId)
           
-          // Buscar WO-Clientes relacionados con esta Persona
-          const woClientesSearch = await strapiClient.get<any>(
-            `/api/wo-clientes?populate[persona]=*&pagination[pageSize]=1000`
-          )
+          // Buscar WO-Clientes relacionados con esta Persona usando filtros directamente (evita populate que causa error de tags)
+          // Intentar primero con documentId, luego con id numérico
+          let woClientesSearch: any = null
+          try {
+            woClientesSearch = await strapiClient.get<any>(
+              `/api/wo-clientes?filters[persona][documentId][$eq]=${personaDocId}&pagination[pageSize]=1000`
+            )
+          } catch (docIdError: any) {
+            // Si falla con documentId, intentar con id numérico
+            const personaIdNum = personaEncontradaPorRut.id
+            if (personaIdNum) {
+              woClientesSearch = await strapiClient.get<any>(
+                `/api/wo-clientes?filters[persona][id][$eq]=${personaIdNum}&pagination[pageSize]=1000`
+              )
+            }
+          }
           
-          const woClientesArray = woClientesSearch.data && Array.isArray(woClientesSearch.data)
-            ? woClientesSearch.data
-            : (woClientesSearch.data ? [woClientesSearch.data] : [])
-          
-          // Encontrar el cliente que tenga esta Persona relacionada
-          cliente = woClientesArray.find((wc: any) => {
-            const wcAttrs = wc.attributes || wc
-            const wcPersona = wcAttrs.persona?.data || wcAttrs.persona || wc.persona?.data || wc.persona
-            const wcPersonaId = wcPersona?.documentId || wcPersona?.id?.toString()
-            return wcPersonaId?.toString() === personaDocId?.toString()
-          })
+          if (woClientesSearch) {
+            const woClientesArray = woClientesSearch.data && Array.isArray(woClientesSearch.data)
+              ? woClientesSearch.data
+              : (woClientesSearch.data ? [woClientesSearch.data] : [])
+            
+            // Si hay resultados, tomar el primero (o buscar el que coincida mejor si hay múltiples)
+            if (woClientesArray.length > 0) {
+              cliente = woClientesArray[0]
+            }
+          }
           
           if (cliente) {
             console.log('[API Clientes PUT] ✅ Cliente encontrado por RUT:', cliente.id || cliente.documentId)
@@ -370,18 +381,37 @@ export async function PUT(
     let todasLasEntradasWOClientes: any[] = []
     if (personaDocumentId) {
       try {
-        // Buscar todas las entradas WO-Clientes que tengan esta Persona
-        const woClientesSearch = await strapiClient.get<any>(`/api/wo-clientes?populate[persona]=*&pagination[pageSize]=1000`)
-        const woClientesArray = woClientesSearch.data && Array.isArray(woClientesSearch.data)
-          ? woClientesSearch.data
-          : (woClientesSearch.data ? [woClientesSearch.data] : [])
+        // Buscar todas las entradas WO-Clientes que tengan esta Persona usando filtros directamente (evita populate que causa error de tags)
+        // Intentar primero con documentId, luego con id numérico
+        let woClientesSearch: any = null
+        try {
+          woClientesSearch = await strapiClient.get<any>(
+            `/api/wo-clientes?filters[persona][documentId][$eq]=${personaDocumentId}&pagination[pageSize]=1000`
+          )
+        } catch (docIdError: any) {
+          // Si falla con documentId, intentar obtener el id numérico de la persona encontrada
+          if (personaEncontrada) {
+            const personaIdNum = personaEncontrada.id || (personaEncontrada.attributes && personaEncontrada.attributes.id)
+            if (personaIdNum) {
+              try {
+                woClientesSearch = await strapiClient.get<any>(
+                  `/api/wo-clientes?filters[persona][id][$eq]=${personaIdNum}&pagination[pageSize]=1000`
+                )
+              } catch (idError: any) {
+                console.log('[API Clientes PUT] ⚠️ Error al buscar con id numérico también, usando solo la entrada actual')
+              }
+            }
+          }
+        }
         
-        todasLasEntradasWOClientes = woClientesArray.filter((wc: any) => {
-          const wcAttrs = wc.attributes || wc
-          const wcPersona = wcAttrs.persona || wc.persona
-          const wcPersonaId = wcPersona?.data?.documentId || wcPersona?.data?.id || wcPersona?.documentId || wcPersona?.id
-          return wcPersonaId?.toString() === personaDocumentId?.toString()
-        })
+        if (woClientesSearch) {
+          const woClientesArray = woClientesSearch.data && Array.isArray(woClientesSearch.data)
+            ? woClientesSearch.data
+            : (woClientesSearch.data ? [woClientesSearch.data] : [])
+          
+          // Los resultados ya están filtrados por Strapi, así que usarlos directamente
+          todasLasEntradasWOClientes = woClientesArray
+        }
         
         console.log('[API Clientes PUT] 📦 Encontradas entradas WO-Clientes relacionadas:', todasLasEntradasWOClientes.length)
       } catch (woClientesError: any) {
