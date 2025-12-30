@@ -215,12 +215,23 @@ const Page = () => {
 
       // 2. DEBUG OBLIGATORIO: Imprimir en consola con console.error para que destaque
       console.error('🕵️ DEBUG CHAT:')
+      console.error('=============================================')
+      console.error('📋 ESTRUCTURA USUARIO ACTUAL:')
+      console.error('colaborador completo:', JSON.stringify(colaborador, null, 2))
+      console.error('currentUserIdRef.current:', currentUserIdRef.current)
       console.error('YO SOY:', myId, 'tipo:', typeof myId)
+      console.error('=============================================')
+      console.error('📋 ESTRUCTURA COLABORADOR SELECCIONADO:')
+      const selectedColab = colaboradores.find((c) => String(c.id) === colaboradorId)
+      console.error('colaborador seleccionado completo:', JSON.stringify(selectedColab, null, 2))
+      console.error('colaboradorId recibido:', colaboradorId)
       console.error('EL OTRO ES:', otherId, 'tipo:', typeof otherId)
+      console.error('=============================================')
       const sortedIds = [myId, otherId].sort()
       console.error('IDS ORDENADOS:', sortedIds)
       const channelId = `messaging-${sortedIds.join('-')}`
       console.error('ID FINAL DEL CANAL:', channelId)
+      console.error('=============================================')
 
       // Asegurar que el usuario objetivo existe en Stream Chat
       const ensureUserResponse = await fetch('/api/chat/stream-ensure-user', {
