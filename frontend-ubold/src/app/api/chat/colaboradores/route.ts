@@ -75,10 +75,13 @@ export async function GET() {
     }
     
     // DEBUG: Buscar explícitamente al usuario problemático
-    const found157 = Array.isArray(response.data) && response.data.find((c: any) => {
-      const id = c.id || c.documentId
-      return id === 157 || String(id) === '157'
-    })
+    let found157: any = null
+    if (Array.isArray(response.data)) {
+      found157 = response.data.find((c: any) => {
+        const id = c.id || c.documentId
+        return id === 157 || String(id) === '157'
+      }) || null
+    }
     console.error('🕵️ BUSCANDO A TEST 2 (ID 157):', found157 ? '✅ ENCONTRADO' : '❌ NO ESTÁ EN LA RESPUESTA')
     if (found157) {
       const attrs = found157.attributes || found157
@@ -100,13 +103,14 @@ export async function GET() {
       })
       console.error('[API /chat/colaboradores] 🔍 BÚSQUEDA ESPECÍFICA USUARIO 157:')
       if (usuario157) {
-        const attrs = usuario157.attributes || usuario157
+        const usuario157Any = usuario157 as any
+        const attrs = usuario157Any.attributes || usuario157Any
         console.error('✅ USUARIO 157 ENCONTRADO:', {
-          id: usuario157.id,
-          documentId: usuario157.documentId,
+          id: usuario157Any.id,
+          documentId: usuario157Any.documentId,
           email_login: attrs.email_login,
           activo: attrs.activo,
-          publishedAt: usuario157.publishedAt,
+          publishedAt: usuario157Any.publishedAt,
           tienePersona: !!attrs.persona,
         })
       } else {
