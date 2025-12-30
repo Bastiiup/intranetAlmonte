@@ -566,8 +566,7 @@ const Page = () => {
               <Chat client={chatClient}>
                 <Channel 
                   channel={channel}
-                  // Forzar recarga cuando cambia el canal
-                  key={`${channel.id}-${selectedColaboradorId}`}
+                  key={channel.id}
                 >
                   <Window>
                     <ChannelHeader />
