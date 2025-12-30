@@ -29,6 +29,17 @@ const AddPedidoForm = () => {
   }>>([])
   const [loadingClientes, setLoadingClientes] = useState(false)
 
+  const [cupones, setCupones] = useState<Array<{
+    id: string | number
+    documentId?: string
+    codigo: string
+    tipo_cupon?: string
+    importe_cupon?: number
+    descripcion?: string
+    displayName: string
+  }>>([])
+  const [loadingCupones, setLoadingCupones] = useState(false)
+
   const [formData, setFormData] = useState({
     numero_pedido: '',
     fecha_pedido: new Date().toISOString().slice(0, 16),
@@ -41,12 +52,78 @@ const AddPedidoForm = () => {
     moneda: 'CLP',
     origen: 'woocommerce',
     cliente: null as string | null,
+    cupon_code: null as string | null,
     items: [] as any[],
     metodo_pago: '',
     metodo_pago_titulo: '',
     nota_cliente: '',
     originPlatform: 'woo_moraleja' as 'woo_moraleja' | 'woo_escolar' | 'otros',
   })
+
+  // Cargar cupones cuando cambia la plataforma
+  useEffect(() => {
+    const fetchCupones = async () => {
+      if (formData.originPlatform === 'otros') {
+        setCupones([])
+        return
+      }
+
+      setLoadingCupones(true)
+      try {
+        const response = await fetch('/api/tienda/cupones?pagination[pageSize]=1000')
+        const data = await response.json()
+
+        if (data.success && data.data) {
+          const cuponesMapeados = data.data
+            .filter((cupon: any) => {
+              const attrs = cupon.attributes || {}
+              const cuponData = (attrs && Object.keys(attrs).length > 0) ? attrs : cupon
+              const cuponPlatform = cuponData.originPlatform || cupon.originPlatform
+              return cuponPlatform === formData.originPlatform
+            })
+            .map((cupon: any) => {
+              const attrs = cupon.attributes || {}
+              const cuponData = (attrs && Object.keys(attrs).length > 0) ? attrs : cupon
+              const codigo = cuponData.codigo || cupon.codigo || ''
+              const tipoCupon = cuponData.tipo_cupon || cupon.tipo_cupon || 'fixed_cart'
+              const importeCupon = cuponData.importe_cupon || cupon.importe_cupon || 0
+              const descripcion = cuponData.descripcion || cupon.descripcion || ''
+              
+              let displayText = codigo
+              if (tipoCupon === 'percent' || tipoCupon === 'percent_product') {
+                displayText = `${codigo} (${importeCupon}%)`
+              } else {
+                displayText = `${codigo} ($${importeCupon.toLocaleString('es-CL')})`
+              }
+              if (descripcion) {
+                displayText += ` - ${descripcion}`
+              }
+
+              return {
+                id: cupon.id || cupon.documentId,
+                documentId: cupon.documentId || cupon.id,
+                codigo,
+                tipo_cupon: tipoCupon,
+                importe_cupon: importeCupon,
+                descripcion,
+                displayName: displayText,
+              }
+            })
+
+          setCupones(cuponesMapeados)
+        } else {
+          setCupones([])
+        }
+      } catch (error: any) {
+        console.error('[AddPedidoForm] Error al cargar cupones:', error)
+        setCupones([])
+      } finally {
+        setLoadingCupones(false)
+      }
+    }
+
+    fetchCupones()
+  }, [formData.originPlatform])
 
   // Cargar clientes cuando cambia la plataforma
   useEffect(() => {
@@ -131,20 +208,37 @@ const AddPedidoForm = () => {
     fetchClientes()
   }, [formData.originPlatform])
 
-  // Calcular subtotal y total cuando cambian los productos
+  // Calcular subtotal y total cuando cambian los productos o el cupón
   useEffect(() => {
     const subtotal = selectedProducts.reduce((sum, p) => sum + p.subtotal, 0)
     const impuestos = formData.impuestos ? parseFloat(formData.impuestos) : 0
     const envio = formData.envio ? parseFloat(formData.envio) : 0
-    const descuento = formData.descuento ? parseFloat(formData.descuento) : 0
+    
+    // Calcular descuento del cupón si existe
+    let descuentoCupon = 0
+    if (formData.cupon_code) {
+      const cuponSeleccionado = cupones.find(c => c.codigo === formData.cupon_code)
+      if (cuponSeleccionado && cuponSeleccionado.importe_cupon) {
+        if (cuponSeleccionado.tipo_cupon === 'percent' || cuponSeleccionado.tipo_cupon === 'percent_product') {
+          descuentoCupon = (subtotal * cuponSeleccionado.importe_cupon) / 100
+        } else {
+          descuentoCupon = cuponSeleccionado.importe_cupon
+        }
+        // Asegurar que el descuento no exceda el subtotal
+        descuentoCupon = Math.min(descuentoCupon, subtotal)
+      }
+    }
+    
+    const descuento = descuentoCupon > 0 ? descuentoCupon : (formData.descuento ? parseFloat(formData.descuento) : 0)
     const total = subtotal + impuestos + envio - descuento
 
     setFormData((prev) => ({
       ...prev,
       subtotal: subtotal.toFixed(2),
+      descuento: descuentoCupon > 0 ? descuentoCupon.toFixed(2) : prev.descuento,
       total: total.toFixed(2),
     }))
-  }, [selectedProducts, formData.impuestos, formData.envio, formData.descuento])
+  }, [selectedProducts, formData.impuestos, formData.envio, formData.descuento, formData.cupon_code, cupones])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -313,6 +407,7 @@ const AddPedidoForm = () => {
           moneda: formData.moneda || 'CLP',
           origen: formData.origen || 'woocommerce',
           cliente: formData.cliente && formData.cliente !== 'invitado' ? formData.cliente : null,
+          cupon_code: formData.cupon_code || null,
           billing: billingInfo,
           items: items, // ⚠️ CRÍTICO: Siempre incluir items (ya validado que no está vacío)
           metodo_pago: formData.metodo_pago || null,
@@ -632,6 +727,39 @@ const AddPedidoForm = () => {
                 )}
                 <small className="text-muted">
                   Selecciona el cliente del pedido. Si no hay cliente, selecciona "Invitado".
+                </small>
+              </FormGroup>
+            </Col>
+
+            <Col md={6}>
+              <FormGroup>
+                <FormLabel>
+                  Cupón
+                </FormLabel>
+                {loadingCupones ? (
+                  <div className="d-flex align-items-center">
+                    <Spinner size="sm" className="me-2" />
+                    <span className="text-muted">Cargando cupones...</span>
+                  </div>
+                ) : (
+                  <FormControl
+                    as="select"
+                    value={formData.cupon_code || ''}
+                    onChange={(e) => {
+                      const cuponCode = e.target.value
+                      setFormData((prev) => ({ ...prev, cupon_code: cuponCode || null }))
+                    }}
+                  >
+                    <option value="">Sin cupón</option>
+                    {cupones.map((cupon) => (
+                      <option key={cupon.id} value={cupon.codigo}>
+                        {cupon.displayName}
+                      </option>
+                    ))}
+                  </FormControl>
+                )}
+                <small className="text-muted">
+                  Selecciona un cupón para aplicar descuento al pedido (solo cupones de la plataforma seleccionada).
                 </small>
               </FormGroup>
             </Col>

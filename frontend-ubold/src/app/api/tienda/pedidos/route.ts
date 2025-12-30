@@ -139,6 +139,106 @@ function normalizeMetodoPago(metodoPago: string | null | undefined): string | nu
   return mapping[metodoLower] || 'bacs' // Por defecto 'bacs' si no se reconoce (consistente con PUT)
 }
 
+// Función helper para buscar y validar cupón en Strapi
+async function buscarYValidarCupon(cuponCode: string, originPlatform: string, subtotal: number): Promise<{
+  cuponDocumentId: string | null
+  cuponCodigo: string | null
+  descuentoCupon: number
+  tipoCupon: string | null
+}> {
+  if (!cuponCode || !cuponCode.trim()) {
+    return { cuponDocumentId: null, cuponCodigo: null, descuentoCupon: 0, tipoCupon: null }
+  }
+
+  try {
+    const codigoCupon = cuponCode.trim()
+    console.log('[API Pedidos POST] 🔍 Buscando cupón:', { codigo: codigoCupon, plataforma: originPlatform })
+
+    // Buscar cupón por código en Strapi
+    const cuponesResponse = await strapiClient.get<any>('/api/wo-cupones?populate=*&pagination[pageSize]=1000')
+    
+    let cupones: any[] = []
+    if (Array.isArray(cuponesResponse)) {
+      cupones = cuponesResponse
+    } else if (cuponesResponse.data && Array.isArray(cuponesResponse.data)) {
+      cupones = cuponesResponse.data
+    } else if (cuponesResponse.data) {
+      cupones = [cuponesResponse.data]
+    } else {
+      cupones = [cuponesResponse]
+    }
+
+    // Buscar cupón por código
+    const cuponEncontrado = cupones.find((cupon: any) => {
+      const attrs = cupon.attributes || {}
+      const data = (attrs && Object.keys(attrs).length > 0) ? attrs : cupon
+      const codigo = data.codigo || cupon.codigo
+      return codigo && codigo.toLowerCase().trim() === codigoCupon.toLowerCase()
+    })
+
+    if (!cuponEncontrado) {
+      throw new Error(`Cupón "${codigoCupon}" no encontrado`)
+    }
+
+    // Extraer datos del cupón
+    const attrs = cuponEncontrado.attributes || {}
+    const cuponData = (attrs && Object.keys(attrs).length > 0) ? attrs : cuponEncontrado
+    const documentId = cuponEncontrado.documentId || cuponEncontrado.id
+    const codigo = cuponData.codigo || cuponEncontrado.codigo
+    const cuponPlatform = cuponData.originPlatform || cuponEncontrado.originPlatform
+
+    // Validar que el cupón sea de la misma plataforma
+    if (cuponPlatform !== originPlatform) {
+      throw new Error(`El cupón "${codigoCupon}" es de la plataforma "${cuponPlatform}" pero el pedido es de "${originPlatform}"`)
+    }
+
+    // Validar fecha de caducidad
+    if (cuponData.fecha_caducidad) {
+      const fechaCaducidad = new Date(cuponData.fecha_caducidad)
+      const ahora = new Date()
+      if (fechaCaducidad < ahora) {
+        throw new Error(`El cupón "${codigoCupon}" ha expirado`)
+      }
+    }
+
+    // Calcular descuento según tipo
+    const tipoCupon = cuponData.tipo_cupon || 'fixed_cart'
+    const importeCupon = cuponData.importe_cupon ? parseFloat(String(cuponData.importe_cupon)) : 0
+    let descuentoCupon = 0
+
+    if (tipoCupon === 'percent' || tipoCupon === 'percent_product') {
+      // Descuento porcentual
+      descuentoCupon = (subtotal * importeCupon) / 100
+    } else {
+      // Descuento fijo (fixed_cart o fixed_product)
+      descuentoCupon = importeCupon
+    }
+
+    // Asegurar que el descuento no sea negativo y no exceda el subtotal
+    descuentoCupon = Math.max(0, Math.min(descuentoCupon, subtotal))
+
+    console.log('[API Pedidos POST] ✅ Cupón válido:', {
+      codigo,
+      documentId,
+      tipo: tipoCupon,
+      importe: importeCupon,
+      descuento: descuentoCupon,
+      plataforma: cuponPlatform
+    })
+
+    return {
+      cuponDocumentId: documentId,
+      cuponCodigo: codigo,
+      descuentoCupon,
+      tipoCupon
+    }
+
+  } catch (error: any) {
+    console.error('[API Pedidos POST] ❌ Error al validar cupón:', error.message)
+    throw new Error(`Error al validar cupón: ${error.message}`)
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -426,11 +526,33 @@ export async function POST(request: NextRequest) {
       country: 'CL',
     } : null)
     
-    // Calcular totales desde los items para asegurar consistencia
+    // Calcular subtotal desde los items
     const subtotalCalculado = itemsValidos.reduce((sum: number, item: any) => sum + (item.total || 0), 0)
+    
+    // Validar y obtener cupón si se proporciona
+    let cuponDocumentId: string | null = null
+    let cuponCodigo: string | null = null
+    let descuentoCupon = 0
+    
+    if (body.data.cupon_code || body.data.cupon) {
+      try {
+        const cuponCode = body.data.cupon_code || body.data.cupon
+        const cuponData = await buscarYValidarCupon(cuponCode, originPlatform, subtotalCalculado)
+        cuponDocumentId = cuponData.cuponDocumentId
+        cuponCodigo = cuponData.cuponCodigo
+        descuentoCupon = cuponData.descuentoCupon
+      } catch (cuponError: any) {
+        return NextResponse.json({
+          success: false,
+          error: cuponError.message || 'Error al validar cupón'
+        }, { status: 400 })
+      }
+    }
+    
+    // Calcular totales: usar descuento del cupón si existe, sino usar el del body
     const impuestos = body.data.impuestos ? parseFloat(body.data.impuestos) : 0
     const envio = body.data.envio ? parseFloat(body.data.envio) : 0
-    const descuento = body.data.descuento ? parseFloat(body.data.descuento) : 0
+    const descuento = descuentoCupon > 0 ? descuentoCupon : (body.data.descuento ? parseFloat(body.data.descuento) : 0)
     const totalCalculado = subtotalCalculado + impuestos + envio - descuento
     
     // Usar totales del body si existen, sino usar los calculados
@@ -443,6 +565,8 @@ export async function POST(request: NextRequest) {
       impuestos,
       envio,
       descuento,
+      descuentoCupon,
+      cuponCodigo: cuponCodigo || 'ninguno',
       totalCalculado,
       totalFinal,
       itemsCount: itemsValidos.length
@@ -466,6 +590,10 @@ export async function POST(request: NextRequest) {
         // También especificar el subtotal del item
         subtotal: item.total ? item.total.toString() : undefined,
       })),
+      // Agregar cupón si existe
+      ...(cuponCodigo ? {
+        coupon_lines: [{ code: cuponCodigo }]
+      } : {}),
       customer_note: body.data.nota_cliente || '',
       // ⚠️ CRÍTICO: Especificar todos los totales explícitamente con formato decimal
       // WooCommerce puede calcularlos, pero es mejor especificarlos para evitar discrepancias
@@ -491,6 +619,7 @@ export async function POST(request: NextRequest) {
         moneda: body.data.moneda || 'CLP',
         origen: normalizeOrigen(body.data.origen),
         cliente: body.data.cliente || null,
+        cupon: cuponDocumentId || null, // Relación con cupón (Many-to-One)
         items: itemsValidos.length > 0 ? itemsValidos : itemsPreparados, // Usar items válidos si hay
         billing: billingInfo,
         shipping: shippingInfo,
