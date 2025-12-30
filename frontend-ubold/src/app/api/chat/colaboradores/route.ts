@@ -172,9 +172,27 @@ export async function GET() {
           const existingAttrs = existing.attributes || existing
           const existingHasPersona = !!existingAttrs.persona || !!existingAttrs.persona?.data
           
+          // Log especial para Matias durante la desduplicación
+          const nombreCompleto = attrs.persona?.nombre_completo || attrs.persona?.data?.nombre_completo || ''
+          const isMatias = nombreCompleto.toLowerCase().includes('matias') && nombreCompleto.toLowerCase().includes('riquelme')
+          const existingNombre = existingAttrs.persona?.nombre_completo || existingAttrs.persona?.data?.nombre_completo || ''
+          const existingIsMatias = existingNombre.toLowerCase().includes('matias') && existingNombre.toLowerCase().includes('riquelme')
+          
+          if (isMatias || existingIsMatias) {
+            console.error('[API /chat/colaboradores] 🚨 MATIAS RIQUELME MEDINA - DESDUPLICACIÓN:')
+            console.error('  📧 Email:', email)
+            console.error('  🔑 ID existente:', existing.id)
+            console.error('  🔑 ID nuevo:', col.id)
+            console.error('  👤 Existente tiene persona:', existingHasPersona)
+            console.error('  👤 Nuevo tiene persona:', hasPersona)
+          }
+          
           // REGLA DE ORO:
           // 1. Si el nuevo tiene persona y el guardado NO -> REEMPLAZAR INMEDIATAMENTE
           if (hasPersona && !existingHasPersona) {
+            if (isMatias || existingIsMatias) {
+              console.error('  ✅ DECISIÓN: Nuevo tiene persona, existente no - REEMPLAZAR con nuevo')
+            }
             duplicatesFound.push({
               email,
               ids: [existing.id, col.id],
@@ -183,27 +201,53 @@ export async function GET() {
             })
             uniqueColaboradores.set(email, col)
           }
-          // 2. Si ambos tienen persona (o ninguno), entonces sí usamos el ID más alto como desempate
+          // 2. Si ambos tienen persona -> Usar el ID MÁS BAJO (el más antiguo/el correcto)
+          // Si ninguno tiene persona -> Usar el ID más alto (el más reciente)
           else if (hasPersona === existingHasPersona) {
-            if (Number(col.id) > Number(existing.id)) {
-              duplicatesFound.push({
-                email,
-                ids: [existing.id, col.id],
-                kept: col.id,
-                reason: hasPersona 
-                  ? 'Ambos tienen persona, nuevo ID es mayor' 
-                  : 'Ninguno tiene persona, nuevo ID es mayor',
-              })
-              uniqueColaboradores.set(email, col)
+            if (hasPersona) {
+              // AMBOS TIENEN PERSONA: Usar el ID más bajo (el correcto/antiguo)
+              if (Number(col.id) < Number(existing.id)) {
+                if (isMatias || existingIsMatias) {
+                  console.error(`  ✅ DECISIÓN: Ambos tienen persona, nuevo ID (${col.id}) es MENOR que existente (${existing.id}) - REEMPLAZAR`)
+                  console.error(`  ⚠️ DEBE SER 93, nuevo es ${col.id}, existente es ${existing.id}`)
+                }
+                duplicatesFound.push({
+                  email,
+                  ids: [existing.id, col.id],
+                  kept: col.id,
+                  reason: 'Ambos tienen persona, nuevo ID es MENOR (correcto)',
+                })
+                uniqueColaboradores.set(email, col)
+              } else {
+                if (isMatias || existingIsMatias) {
+                  console.error(`  ✅ DECISIÓN: Ambos tienen persona, existente ID (${existing.id}) es MENOR que nuevo (${col.id}) - MANTENER`)
+                  console.error(`  ⚠️ DEBE SER 93, existente es ${existing.id}, nuevo es ${col.id}`)
+                }
+                duplicatesFound.push({
+                  email,
+                  ids: [existing.id, col.id],
+                  kept: existing.id,
+                  reason: 'Ambos tienen persona, existente ID es MENOR (correcto)',
+                })
+              }
             } else {
-              duplicatesFound.push({
-                email,
-                ids: [existing.id, col.id],
-                kept: existing.id,
-                reason: hasPersona 
-                  ? 'Ambos tienen persona, existente ID es mayor' 
-                  : 'Ninguno tiene persona, existente ID es mayor',
-              })
+              // NINGUNO TIENE PERSONA: Usar el ID más alto (el más reciente)
+              if (Number(col.id) > Number(existing.id)) {
+                duplicatesFound.push({
+                  email,
+                  ids: [existing.id, col.id],
+                  kept: col.id,
+                  reason: 'Ninguno tiene persona, nuevo ID es mayor',
+                })
+                uniqueColaboradores.set(email, col)
+              } else {
+                duplicatesFound.push({
+                  email,
+                  ids: [existing.id, col.id],
+                  kept: existing.id,
+                  reason: 'Ninguno tiene persona, existente ID es mayor',
+                })
+              }
             }
           }
           // 3. Si el guardado tiene persona y el nuevo no -> IGNORAR EL NUEVO (aunque tenga ID mayor)
@@ -248,12 +292,18 @@ export async function GET() {
         
         // Log especial para Matias Riquelme Medina
         if (nombreCompleto.toLowerCase().includes('matias') && nombreCompleto.toLowerCase().includes('riquelme')) {
-          console.error(`  🚨 MATIAS RIQUELME MEDINA DETECTADO:`)
+          console.error(`  🚨 MATIAS RIQUELME MEDINA DETECTADO EN RESPUESTA FINAL:`)
           console.error(`     📧 Email: ${email}`)
           console.error(`     🔑 ID del content-type Intranet-colaboradores: ${id}`)
           console.error(`     📄 documentId: ${documentId}`)
           console.error(`     👤 persona.id: ${personaId}`)
-          console.error(`     ✅ ID que debe usarse: ${id} (NO ${documentId}, NO ${personaId})`)
+          console.error(`     ✅ ID que se retorna: ${id}`)
+          console.error(`     ⚠️ DEBE SER 93, NO 115`)
+          if (id !== 93) {
+            console.error(`     ❌ ERROR: Se está retornando ID ${id} en lugar de 93`)
+          } else {
+            console.error(`     ✅ CORRECTO: Se está retornando ID 93`)
+          }
         }
         
         console.error(`  📧 Email: ${email} - ID: ${id} - documentId: ${documentId} - personaId: ${personaId} - Tiene persona: ${hasPersona}`)
