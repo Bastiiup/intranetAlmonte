@@ -51,6 +51,7 @@ const Page = () => {
   const [selectedColaboradorId, setSelectedColaboradorId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingContacts, setIsLoadingContacts] = useState(false)
+  const [isChannelReady, setIsChannelReady] = useState(false) // Estado explícito para controlar cuando el canal está listo
   const [error, setError] = useState<string | null>(null)
   const initializedRef = useRef(false)
   const clientRef = useRef<StreamChat | null>(null)
@@ -247,6 +248,12 @@ const Page = () => {
       return
     }
 
+    // Resetear estado anterior si hay un canal previo
+    if (channel) {
+      setChannel(null)
+      setIsChannelReady(false)
+    }
+
     try {
       // 1. Asegurar que los IDs sean strings
       const currentId = String(currentUserIdRef.current)
@@ -267,6 +274,7 @@ const Page = () => {
 
       setSelectedColaboradorId(otherId)
       setError(null) // Limpiar errores previos
+      setIsChannelReady(false) // Resetear estado de canal listo
       
       // Primero asegurar que el usuario objetivo existe en Stream Chat
       const ensureUserResponse = await fetch('/api/chat/stream-ensure-user', {
@@ -373,13 +381,28 @@ const Page = () => {
       })
       
       // Solo establecer el canal después de que esté completamente inicializado
-      console.log('[Chat] ✅ Canal completamente inicializado, estableciendo en estado')
+      // Verificar que el canal tenga state (indica que watch() completó exitosamente)
+      if (!channel.state) {
+        throw new Error('El canal no tiene estado inicializado después de watch()')
+      }
+      
+      // Verificar que el canal tenga al menos la estructura básica lista
+      // Si tiene state, significa que watch() completó y el canal está listo
+      console.log('[Chat] ✅ Canal completamente inicializado:', {
+        channelId: channel.id,
+        hasState: !!channel.state,
+        membersCount: Object.keys(channel.state.members || {}).length,
+        messagesCount: channel.state.messages?.length || 0,
+      })
+      
       setChannel(channel)
+      setIsChannelReady(true) // Marcar canal como listo
     } catch (err: any) {
       console.error('[Chat] Error al seleccionar colaborador:', err)
       setError(err.message || 'Error al abrir conversación')
       setSelectedColaboradorId(null)
       setChannel(null)
+      setIsChannelReady(false) // Resetear estado de canal listo en caso de error
     }
   }
 
@@ -530,7 +553,7 @@ const Page = () => {
               <h5>Selecciona un contacto para comenzar a chatear</h5>
               <p style={{ margin: 0, fontSize: '0.875rem' }}>Elige a alguien de la lista de la izquierda</p>
             </div>
-          ) : !chatClient || !channel || !channel.state ? (
+          ) : !chatClient || !channel || !channel.state || !isChannelReady ? (
             // Guard clause estricto: No renderizar Chat/Channel hasta que estén 100% inicializados
             // Esto previene el error "getConfig is not a function"
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: '#6c757d' }}>
