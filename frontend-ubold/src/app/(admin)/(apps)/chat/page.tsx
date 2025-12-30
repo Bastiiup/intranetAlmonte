@@ -349,8 +349,16 @@ const Page = () => {
         throw new Error('Faltan IDs necesarios para crear el canal')
       }
 
+      // CRÍTICO: Usar SOLO el ID del content-type Intranet-colaboradores
+      // Estos IDs vienen del backend después de la desduplicación
       const myIdNum = Number(myColaboradorId)
       const otherIdNum = Number(colaboradorId)
+
+      // Log crítico para verificar IDs antes de crear channelId
+      console.error('[Chat Frontend] 🔑 IDs ANTES DE CREAR CHANNEL ID:')
+      console.error('  👤 myColaboradorId (Usuario logueado):', myColaboradorId, '→', myIdNum)
+      console.error('  👤 colaboradorId (Seleccionado):', colaboradorId, '→', otherIdNum)
+      console.error('  ⚠️ ESTOS DEBEN SER IDs DEL CONTENT-TYPE INTRANET-COLABORADORES')
 
       // Validar que ambos sean números válidos de colaboradores
       if (isNaN(myIdNum) || isNaN(otherIdNum) || myIdNum <= 0 || otherIdNum <= 0) {
@@ -516,14 +524,34 @@ const Page = () => {
             ) : (
               <ListGroup variant="flush">
                 {colaboradores.map((col) => {
+                  // CRÍTICO: Usar SOLO el ID del content-type Intranet-colaboradores
+                  // Este es el ID que viene del backend después de la desduplicación
                   const colId = String(col.id)
+                  
+                  // Log para verificar que estamos usando el ID correcto
+                  if (colaboradores.indexOf(col) < 3) {
+                    console.error('[Chat Frontend] 🔍 ID usado para contacto:', {
+                      email: col.email_login,
+                      id: col.id,
+                      colId: colId,
+                      tienePersona: !!col.persona,
+                    })
+                  }
+                  
                   const isSelected = selectedColaboradorId === colId
                   return (
                     <ListGroup.Item
                       key={col.id}
                       action
                       active={isSelected}
-                      onClick={() => selectColaborador(colId)}
+                      onClick={() => {
+                        console.error('[Chat Frontend] 🖱️ Click en contacto:', {
+                          email: col.email_login,
+                          id: col.id,
+                          colId: colId,
+                        })
+                        selectColaborador(colId)
+                      }}
                       style={{
                         cursor: 'pointer',
                         borderBottom: '1px solid #f0f0f0',

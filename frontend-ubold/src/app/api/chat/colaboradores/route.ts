@@ -125,12 +125,11 @@ export async function GET() {
       }
     }
     
-    // FILTRADO DE DUPLICADOS: "El Portero Inteligente" - Eliminar usuarios duplicados por email
-    // PRIORIDAD 1: Usuario con persona definida SIEMPRE gana sobre uno sin persona
-    // PRIORIDAD 2: Si ambos tienen (o no tienen) persona, usar el ID más alto
+    // FILTRADO DE DUPLICADOS: "Martillo" - Prioridad ABSOLUTA a colaboradores con persona
+    // REGLA DE ORO: El que tiene la relación persona SIEMPRE GANA, sin importar el ID
     let cleanedData = response.data
     if (Array.isArray(response.data) && response.data.length > 0) {
-      const usuariosUnicos = new Map<string, any>()
+      const uniqueColaboradores = new Map<string, any>()
       const duplicatesFound: Array<{ 
         email: string
         ids: number[]
@@ -138,96 +137,85 @@ export async function GET() {
         reason: string
       }> = []
       
-      // Función helper para verificar si un usuario tiene persona
-      const hasPersona = (item: any): boolean => {
-        const attrs = item.attributes || item
-        // Verificar en múltiples lugares posibles
-        return !!(
-          item.persona ||
-          attrs.persona ||
-          attrs.persona?.data ||
-          item.attributes?.persona?.data ||
-          item.attributes?.persona
-        )
-      }
-      
       // Iterar sobre todos los colaboradores que vienen de Strapi
-      response.data.forEach((newItem: any) => {
-        // Extraer email_login (puede estar en attributes o en el nivel superior)
-        const attrs = newItem.attributes || newItem
-        const email = attrs.email_login || newItem.email_login
+      response.data.forEach((col: any) => {
+        const attrs = col.attributes || col
+        const email = attrs.email_login || col.email_login
         
         // Omitir usuarios sin email
         if (!email) {
           console.warn('[API /chat/colaboradores] ⚠️ Colaborador sin email_login, será omitido:', { 
-            id: newItem.id,
-            documentId: newItem.documentId 
+            id: col.id,
+            documentId: col.documentId 
           })
           return
         }
-        
-        // Obtener ID numérico (usar solo id, no documentId)
-        const currentId = newItem.id
         
         // Validar que tenga ID válido
-        if (!currentId || typeof currentId !== 'number') {
+        if (!col.id || typeof col.id !== 'number') {
           console.warn('[API /chat/colaboradores] ⚠️ Colaborador sin ID numérico válido, será omitido:', { 
             email,
-            id: newItem.id,
-            documentId: newItem.documentId 
+            id: col.id,
+            documentId: col.documentId 
           })
           return
         }
         
-        // Si el email no existe en el Map, agregarlo directamente
-        if (!usuariosUnicos.has(email)) {
-          usuariosUnicos.set(email, newItem)
+        // Verificar si existe relación real con persona
+        const hasPersona = !!attrs.persona || !!attrs.persona?.data
+        
+        // Si es el primero que vemos con este email, lo guardamos
+        if (!uniqueColaboradores.has(email)) {
+          uniqueColaboradores.set(email, col)
         } else {
-          // Si ya existe un usuario con este email, aplicar lógica de prioridad
-          const existingItem = usuariosUnicos.get(email)
-          const existingId = existingItem.id
+          const existing = uniqueColaboradores.get(email)
+          const existingAttrs = existing.attributes || existing
+          const existingHasPersona = !!existingAttrs.persona || !!existingAttrs.persona?.data
           
-          // Verificar si tienen persona (verificar en múltiples lugares posibles)
-          const hasPersonaNew = !!newItem.persona || !!newItem.attributes?.persona?.data || !!newItem.attributes?.persona
-          const hasPersonaExisting = !!existingItem.persona || !!existingItem.attributes?.persona?.data || !!existingItem.attributes?.persona
-          
-          let shouldReplace = false
-          let reason = ''
-          
-          // CASO A: El nuevo tiene persona y el guardado no -> Reemplazar por el nuevo
-          if (hasPersonaNew && !hasPersonaExisting) {
-            shouldReplace = true
-            reason = 'Nuevo tiene persona, existente no'
-            usuariosUnicos.set(email, newItem)
+          // REGLA DE ORO:
+          // 1. Si el nuevo tiene persona y el guardado NO -> REEMPLAZAR INMEDIATAMENTE
+          if (hasPersona && !existingHasPersona) {
+            duplicatesFound.push({
+              email,
+              ids: [existing.id, col.id],
+              kept: col.id,
+              reason: 'Nuevo tiene persona, existente no - REEMPLAZADO',
+            })
+            uniqueColaboradores.set(email, col)
           }
-          // CASO B: Ambos tienen (o no tienen) persona -> Usar el ID más alto
-          else if (hasPersonaNew === hasPersonaExisting) {
-            if (Number(newItem.id) > Number(existingItem.id)) {
-              shouldReplace = true
-              reason = hasPersonaNew 
-                ? 'Ambos tienen persona, nuevo ID es mayor' 
-                : 'Ninguno tiene persona, nuevo ID es mayor'
-              usuariosUnicos.set(email, newItem)
+          // 2. Si ambos tienen persona (o ninguno), entonces sí usamos el ID más alto como desempate
+          else if (hasPersona === existingHasPersona) {
+            if (Number(col.id) > Number(existing.id)) {
+              duplicatesFound.push({
+                email,
+                ids: [existing.id, col.id],
+                kept: col.id,
+                reason: hasPersona 
+                  ? 'Ambos tienen persona, nuevo ID es mayor' 
+                  : 'Ninguno tiene persona, nuevo ID es mayor',
+              })
+              uniqueColaboradores.set(email, col)
             } else {
-              reason = hasPersonaNew 
-                ? 'Ambos tienen persona, existente ID es mayor' 
-                : 'Ninguno tiene persona, existente ID es mayor'
-              // No hacer nada, ya tenemos el correcto en el Map
+              duplicatesFound.push({
+                email,
+                ids: [existing.id, col.id],
+                kept: existing.id,
+                reason: hasPersona 
+                  ? 'Ambos tienen persona, existente ID es mayor' 
+                  : 'Ninguno tiene persona, existente ID es mayor',
+              })
             }
           }
-          // CASO C: El guardado tiene persona y el nuevo no -> No hacer nada (quedarse con el guardado)
+          // 3. Si el guardado tiene persona y el nuevo no -> IGNORAR EL NUEVO (aunque tenga ID mayor)
           else {
-            reason = 'Existente tiene persona, nuevo no'
+            duplicatesFound.push({
+              email,
+              ids: [existing.id, col.id],
+              kept: existing.id,
+              reason: 'Existente tiene persona, nuevo no - IGNORADO',
+            })
             // No hacer nada, ya tenemos el correcto en el Map
           }
-          
-          // Registrar la decisión de desduplicación
-          duplicatesFound.push({
-            email,
-            ids: [existingId, currentId],
-            kept: shouldReplace ? currentId : existingId,
-            reason,
-          })
         }
       })
       
@@ -244,7 +232,18 @@ export async function GET() {
       }
       
       // Convertir el Map a array para devolver la lista limpia
-      cleanedData = Array.from(usuariosUnicos.values())
+      cleanedData = Array.from(uniqueColaboradores.values())
+      
+      // CRÍTICO: Asegurar que cada colaborador tenga el ID correcto del content-type Intranet-colaboradores
+      // Log detallado de IDs que se están retornando
+      console.error('[API /chat/colaboradores] 🔍 IDs QUE SE RETORNAN AL FRONTEND:')
+      cleanedData.forEach((col: any) => {
+        const attrs = col.attributes || col
+        const email = attrs.email_login || col.email_login
+        const id = col.id // ID del content-type Intranet-colaboradores
+        const hasPersona = !!attrs.persona || !!attrs.persona?.data
+        console.error(`  📧 Email: ${email} - ID: ${id} - Tiene persona: ${hasPersona}`)
+      })
       
       console.log('[API /chat/colaboradores] ✅ Limpieza de duplicados completada:', {
         originalCount: response.data.length,
@@ -255,6 +254,7 @@ export async function GET() {
     }
     
     // Devolver respuesta con datos limpios
+    // CRÍTICO: Asegurar que cada item tenga el ID correcto del content-type Intranet-colaboradores
     return NextResponse.json(
       { ...response, data: cleanedData },
       { status: 200 }
