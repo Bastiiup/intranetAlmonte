@@ -170,9 +170,10 @@ export async function POST(request: NextRequest) {
     }
 
     const personaResponse = await strapiClient.post('/api/personas', personaCreateData) as any
-    const personaId = personaResponse.data?.id || personaResponse.data?.documentId || personaResponse.id || personaResponse.documentId
-    const personaDocumentId = personaResponse.data?.documentId || personaResponse.data?.id || personaResponse.documentId || personaResponse.id
-    console.log('[API Clientes POST] ✅ Persona creada en Strapi:', personaId)
+    // En Strapi v4, usar documentId (string) para relaciones, no el id numérico
+    const personaDocumentId = personaResponse.data?.documentId || personaResponse.data?.id?.toString() || personaResponse.documentId || personaResponse.id?.toString()
+    const personaId = personaResponse.data?.id || personaResponse.data?.documentId || personaResponse.id || personaResponse.documentId // Mantener para logging
+    console.log('[API Clientes POST] ✅ Persona creada en Strapi:', { id: personaId, documentId: personaDocumentId })
     
     // Si hay telefonos, intentar agregarlos después con un PUT
     if (telefonosParaAgregar && personaDocumentId) {
@@ -268,7 +269,7 @@ export async function POST(request: NextRequest) {
             pedidos: body.data.pedidos ? parseInt(body.data.pedidos) || 0 : 0,
             gasto_total: body.data.gasto_total ? parseFloat(body.data.gasto_total) || 0 : 0,
             fecha_registro: body.data.fecha_registro || new Date().toISOString(),
-            persona: personaId,
+            persona: personaDocumentId, // Usar documentId para la relación (Strapi v4 requiere string)
             originPlatform: 'woo_moraleja', // Campo para identificar la plataforma
           },
         }
@@ -304,7 +305,7 @@ export async function POST(request: NextRequest) {
             pedidos: body.data.pedidos ? parseInt(body.data.pedidos) || 0 : 0,
             gasto_total: body.data.gasto_total ? parseFloat(body.data.gasto_total) || 0 : 0,
             fecha_registro: body.data.fecha_registro || new Date().toISOString(),
-            persona: personaId,
+            persona: personaDocumentId, // Usar documentId para la relación (Strapi v4 requiere string)
             originPlatform: 'woo_escolar', // Campo para identificar la plataforma
           },
         }
