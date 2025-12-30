@@ -152,7 +152,7 @@ const Page = () => {
       }
     }
 
-    resolveMyColaboradorId()
+    resolveMyColaboradorRut()
 
     // Cleanup al desmontar
     return () => {
