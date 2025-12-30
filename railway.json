@@ -3,7 +3,7 @@
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "Dockerfile",
-    "rootDirectory": "frontend-ubold"
+    "rootDirectory": "."
   },
   "deploy": {
     "startCommand": "",
