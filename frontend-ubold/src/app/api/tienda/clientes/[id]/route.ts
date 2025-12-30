@@ -16,8 +16,8 @@ export async function GET(
     let cliente: any = null
     
     try {
-      // Intentar primero con filtro por ID
-      const response = await strapiClient.get<any>(`/api/wo-clientes?filters[id][$eq]=${id}&populate=*`)
+      // Intentar primero con filtro por ID, incluyendo populate de Persona con teléfonos
+      const response = await strapiClient.get<any>(`/api/wo-clientes?filters[id][$eq]=${id}&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`)
       
       if (response.data && Array.isArray(response.data) && response.data.length > 0) {
         cliente = response.data[0]
@@ -31,7 +31,7 @@ export async function GET(
       
       // Si falla, intentar obtener todos y buscar
       try {
-        const allResponse = await strapiClient.get<any>('/api/wo-clientes?populate=*&pagination[pageSize]=1000')
+        const allResponse = await strapiClient.get<any>('/api/wo-clientes?populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*&pagination[pageSize]=1000')
         const allClientes = Array.isArray(allResponse) 
           ? allResponse 
           : (allResponse.data && Array.isArray(allResponse.data) ? allResponse.data : [])
@@ -46,10 +46,10 @@ export async function GET(
       }
     }
 
-    // Si aún no se encontró, intentar endpoint directo
+    // Si aún no se encontró, intentar endpoint directo con populate de Persona
     if (!cliente) {
       try {
-        cliente = await strapiClient.get<any>(`/api/wo-clientes/${id}?populate=*`)
+        cliente = await strapiClient.get<any>(`/api/wo-clientes/${id}?populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`)
         if (cliente.data) {
           cliente = cliente.data
         }
@@ -63,6 +63,29 @@ export async function GET(
         success: false,
         error: 'Cliente no encontrado'
       }, { status: 404 })
+    }
+
+    // Extraer teléfono de la Persona relacionada si existe
+    const clienteAttrs = cliente.attributes || cliente
+    const persona = clienteAttrs.persona?.data || clienteAttrs.persona || cliente.persona?.data || cliente.persona
+    let telefono = ''
+    if (persona) {
+      const personaAttrs = persona.attributes || persona
+      const telefonos = personaAttrs.telefonos || persona.telefonos
+      if (telefonos && Array.isArray(telefonos) && telefonos.length > 0) {
+        // Tomar el primer teléfono
+        const primerTelefono = telefonos[0]
+        telefono = typeof primerTelefono === 'string' ? primerTelefono : (primerTelefono.numero || primerTelefono.telefono || primerTelefono.value || '')
+      }
+    }
+    
+    // Agregar teléfono al objeto cliente si no existe
+    if (telefono && !clienteAttrs.telefono && !cliente.telefono) {
+      if (cliente.attributes) {
+        cliente.attributes.telefono = telefono
+      } else {
+        cliente.telefono = telefono
+      }
     }
 
     console.log('[API Clientes GET] ✅ Cliente encontrado:', cliente.id || cliente.documentId)
@@ -93,6 +116,7 @@ export async function PUT(
     let cliente: any = null
     
     try {
+      // Intentar primero por ID numérico
       const response = await strapiClient.get<any>(`/api/wo-clientes?filters[id][$eq]=${id}&populate=*`)
       
       if (response.data && Array.isArray(response.data) && response.data.length > 0) {
@@ -103,20 +127,56 @@ export async function PUT(
         cliente = response[0]
       }
     } catch (error: any) {
-      // Si falla, intentar obtener todos y buscar
+      console.log('[API Clientes PUT] Filtro por ID falló, intentando por documentId...')
+      
+      // Si falla, intentar por documentId
+      try {
+        const responseByDocId = await strapiClient.get<any>(`/api/wo-clientes?filters[documentId][$eq]=${id}&populate=*`)
+        
+        if (responseByDocId.data && Array.isArray(responseByDocId.data) && responseByDocId.data.length > 0) {
+          cliente = responseByDocId.data[0]
+        } else if (responseByDocId.data && !Array.isArray(responseByDocId.data)) {
+          cliente = responseByDocId.data
+        }
+      } catch (docIdError: any) {
+        console.log('[API Clientes PUT] Filtro por documentId falló, intentando búsqueda exhaustiva...')
+      }
+    }
+    
+    // Si aún no se encontró, hacer búsqueda exhaustiva
+    if (!cliente) {
       try {
         const allResponse = await strapiClient.get<any>('/api/wo-clientes?populate=*&pagination[pageSize]=1000')
         const allClientes = Array.isArray(allResponse) 
           ? allResponse 
           : (allResponse.data && Array.isArray(allResponse.data) ? allResponse.data : [])
         
-        cliente = allClientes.find((c: any) => 
-          c.id?.toString() === id || 
-          c.documentId === id ||
-          (c.attributes && (c.attributes.id?.toString() === id || c.attributes.documentId === id))
-        )
+        cliente = allClientes.find((c: any) => {
+          const cId = c.id?.toString()
+          const cDocId = c.documentId?.toString()
+          const cAttrsId = c.attributes?.id?.toString()
+          const cAttrsDocId = c.attributes?.documentId?.toString()
+          const searchId = id.toString()
+          
+          return cId === searchId || 
+                 cDocId === searchId || 
+                 cAttrsId === searchId || 
+                 cAttrsDocId === searchId
+        })
       } catch (searchError: any) {
-        console.error('[API Clientes PUT] Error en búsqueda:', searchError.message)
+        console.error('[API Clientes PUT] Error en búsqueda exhaustiva:', searchError.message)
+      }
+    }
+    
+    // Si aún no se encontró, intentar endpoint directo
+    if (!cliente) {
+      try {
+        cliente = await strapiClient.get<any>(`/api/wo-clientes/${id}?populate=*`)
+        if (cliente.data) {
+          cliente = cliente.data
+        }
+      } catch (directError: any) {
+        console.error('[API Clientes PUT] Error en endpoint directo:', directError.message)
       }
     }
 

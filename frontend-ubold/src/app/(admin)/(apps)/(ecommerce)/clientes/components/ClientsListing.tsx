@@ -62,7 +62,26 @@ const mapStrapiClienteToClienteType = (cliente: any): ClienteType => {
   // Buscar nombre con múltiples variaciones
   const nombre = getField(data, 'nombre', 'NOMBRE', 'name', 'NAME') || 'Sin nombre'
   const correo = getField(data, 'correo_electronico', 'CORREO_ELECTRONICO', 'email', 'EMAIL') || 'Sin email'
-  const telefono = getField(data, 'telefono', 'TELEFONO', 'phone', 'PHONE') || ''
+  
+  // Buscar teléfono primero en los datos directos, luego en Persona relacionada
+  let telefono = getField(data, 'telefono', 'TELEFONO', 'phone', 'PHONE') || ''
+  
+  // Si no hay teléfono en los datos directos, buscarlo en la Persona relacionada
+  if (!telefono) {
+    const persona = attrs.persona?.data || attrs.persona || cliente.persona?.data || cliente.persona
+    if (persona) {
+      const personaAttrs = persona.attributes || persona
+      const telefonos = personaAttrs.telefonos || persona.telefonos
+      if (telefonos && Array.isArray(telefonos) && telefonos.length > 0) {
+        // Tomar el primer teléfono disponible
+        const primerTelefono = telefonos[0]
+        telefono = typeof primerTelefono === 'string' 
+          ? primerTelefono 
+          : (primerTelefono.numero || primerTelefono.telefono || primerTelefono.value || '')
+      }
+    }
+  }
+  
   const direccion = getField(data, 'direccion', 'DIRECCION', 'address', 'ADDRESS') || ''
   
   // Obtener pedidos y gasto_total

@@ -48,9 +48,9 @@ export async function GET() {
       tieneToken: !!token,
     })
     
-    // Usar populate=* para obtener todas las relaciones
+    // Usar populate=* para obtener todas las relaciones, incluyendo Persona con teléfonos
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<WOClienteAttributes>>>(
-      `${endpointUsed}?populate=*&pagination[pageSize]=1000&sort=nombre:asc`
+      `${endpointUsed}?populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*&populate=*&pagination[pageSize]=1000&sort=nombre:asc`
     )
     
     // Log detallado para debugging
