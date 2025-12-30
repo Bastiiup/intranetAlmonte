@@ -163,6 +163,10 @@ export function usePosOrders() {
       const envio = deliveryType === 'shipping' ? 0 : 0 // Se puede agregar costo de envío si es necesario
       const total = subtotal - descuento + impuestos + envio
 
+      // Obtener customer_id de WooCommerce del cliente seleccionado
+      // El customerData puede tener id (ID de WooCommerce) o podemos usar el customerId pasado como parámetro
+      const wooCustomerId = customerData?.id || customerId || null
+
       // Preparar datos en el formato que espera la API /api/tienda/pedidos
       const orderData = {
         data: {
@@ -176,7 +180,8 @@ export function usePosOrders() {
           descuento: descuento.toFixed(2),
           moneda: 'CLP',
           origen: 'pos',
-          cliente: null, // Por ahora null (cliente invitado), se puede mejorar para buscar en Strapi
+          cliente: null, // Para Strapi (relación con WO-Clientes)
+          customer_id_woo: wooCustomerId, // ✅ ID del cliente en WooCommerce
           cupon_code: cuponCode || null, // Código del cupón si existe
           items: items,
           billing: billingData,

@@ -572,6 +572,66 @@ export async function POST(request: NextRequest) {
       itemsCount: itemsValidos.length
     })
     
+    // ⚠️ CRÍTICO: Obtener customer_id de WooCommerce
+    // 1. Si viene customer_id_woo en el body, usarlo directamente
+    // 2. Si no, buscar por email
+    // 3. Si no existe, crear el cliente
+    let wooCustomerId: number = 0 // Por defecto cliente invitado
+    
+    if (originPlatform !== 'otros') {
+      // Si viene customer_id_woo del POS, usarlo directamente
+      if (body.data.customer_id_woo && typeof body.data.customer_id_woo === 'number' && body.data.customer_id_woo > 0) {
+        wooCustomerId = body.data.customer_id_woo
+        console.log('[API Pedidos POST] ✅ Usando customer_id_woo del body:', wooCustomerId)
+      } else if (billingInfo?.email) {
+        // Buscar o crear cliente por email
+        try {
+          const { createWooCommerceClient } = await import('@/lib/woocommerce/client')
+          const platformKey = originPlatform === 'woo_escolar' ? 'woo_escolar' : 'woo_moraleja'
+          const wooCommerceClient = createWooCommerceClient(platformKey)
+          
+          // Intentar buscar cliente por email
+          const customers = await wooCommerceClient.get<any[]>('customers', {
+            email: billingInfo.email,
+            per_page: 1
+          })
+          
+          if (customers && Array.isArray(customers) && customers.length > 0) {
+            // Cliente existe, usar su ID
+            wooCustomerId = customers[0].id
+            console.log('[API Pedidos POST] ✅ Cliente encontrado en WooCommerce por email:', {
+              email: billingInfo.email,
+              customer_id: wooCustomerId
+            })
+          } else {
+            // Cliente no existe, crear uno nuevo
+            try {
+              const newCustomer = await wooCommerceClient.post<any>('customers', {
+                email: billingInfo.email,
+                first_name: billingInfo.first_name || 'Cliente',
+                last_name: billingInfo.last_name || 'POS',
+                username: billingInfo.email.split('@')[0] + '_' + Date.now(),
+                password: `temp_${Date.now()}`,
+                billing: billingInfo,
+                shipping: shippingInfo,
+              })
+              wooCustomerId = newCustomer.id
+              console.log('[API Pedidos POST] ✅ Cliente creado en WooCommerce:', {
+                email: billingInfo.email,
+                customer_id: wooCustomerId
+              })
+            } catch (createError: any) {
+              console.warn('[API Pedidos POST] ⚠️ No se pudo crear cliente en WooCommerce:', createError.message)
+              // Continuar con cliente invitado (customer_id: 0)
+            }
+          }
+        } catch (customerError: any) {
+          console.warn('[API Pedidos POST] ⚠️ Error al buscar/crear cliente en WooCommerce:', customerError.message)
+          // Continuar con cliente invitado (customer_id: 0)
+        }
+      }
+    }
+
     // Preparar datos en formato WooCommerce para que Strapi los use directamente
     // Esto ayuda a que el lifecycle hook de Strapi pueda sincronizar correctamente
     const rawWooData = originPlatform !== 'otros' ? {
@@ -579,7 +639,7 @@ export async function POST(request: NextRequest) {
       payment_method_title: body.data.metodo_pago_titulo || 'Transferencia bancaria directa',
       set_paid: body.data.estado === 'completed' || body.data.estado === 'completado',
       status: body.data.estado ? mapWooStatus(body.data.estado) : 'pending',
-      customer_id: 0, // Cliente invitado
+      customer_id: wooCustomerId, // ✅ Usar el ID del cliente encontrado o creado
       billing: billingInfo,
       shipping: shippingInfo,
       line_items: itemsValidos.map((item: any) => ({
