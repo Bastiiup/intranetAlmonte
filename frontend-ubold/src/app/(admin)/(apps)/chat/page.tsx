@@ -20,6 +20,7 @@ interface Colaborador {
   id: number
   attributes?: {
     email_login: string
+    activo?: boolean
     persona?: {
       id: number
       nombre_completo?: string
@@ -32,11 +33,13 @@ interface Colaborador {
   }
   // También puede venir sin attributes (ya procesado)
   email_login?: string
+  activo?: boolean
   persona?: {
     id: number
     nombre_completo?: string
     nombres?: string
     primer_apellido?: string
+    segundo_apellido?: string
     imagen?: {
       url?: string
     }
@@ -135,7 +138,48 @@ const Page = () => {
       }
 
       const data = await response.json()
-      setColaboradores(data.colaboradores || [])
+      
+      // Normalizar datos de Strapi (pueden venir con o sin attributes)
+      const colaboradoresData = Array.isArray(data.data) ? data.data : []
+      
+      const normalized = colaboradoresData
+        .map((col: any) => {
+          // Extraer datos del colaborador
+          const colaboradorAttrs = col.attributes || col
+          const personaData = colaboradorAttrs.persona || null
+          
+          // Normalizar estructura
+          return {
+            id: col.id,
+            email_login: colaboradorAttrs.email_login,
+            activo: colaboradorAttrs.activo !== false, // Default true
+            persona: personaData ? {
+              id: personaData.id || personaData.documentId,
+              nombres: personaData.nombres,
+              primer_apellido: personaData.primer_apellido,
+              segundo_apellido: personaData.segundo_apellido,
+              nombre_completo: personaData.nombre_completo,
+              imagen: personaData.imagen ? {
+                url: personaData.imagen.url || (personaData.imagen.data?.attributes?.url),
+              } : undefined,
+            } : undefined,
+          }
+        })
+        // Filtrar solo activos
+        .filter((col: Colaborador) => col.activo !== false)
+        // Filtrar el usuario actual
+        .filter((col: Colaborador) => String(col.id) !== String(colaborador?.id))
+      
+      console.log('[Chat] Colaboradores cargados:', {
+        total: normalized.length,
+        sample: normalized[0] ? {
+          id: normalized[0].id,
+          email: normalized[0].email_login,
+          nombre: normalized[0].persona?.nombre_completo,
+        } : null,
+      })
+      
+      setColaboradores(normalized)
     } catch (err: any) {
       console.error('[Chat] Error al cargar colaboradores:', err)
       setError(err.message || 'Error al cargar contactos')
