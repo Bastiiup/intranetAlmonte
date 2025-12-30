@@ -441,7 +441,7 @@ const ClienteModal = ({ show, onHide, cliente, onSave }: ClienteModalProps) => {
       <Modal.Header closeButton>
         <Modal.Title>{isEditMode ? 'Editar Cliente' : 'Crear Cliente'}</Modal.Title>
       </Modal.Header>
-      <Modal.Body>
+      <Modal.Body onClick={(e) => e.stopPropagation()}>
         {error && (
           <Alert variant="danger" dismissible onClose={() => setError(null)}>
             {error}
