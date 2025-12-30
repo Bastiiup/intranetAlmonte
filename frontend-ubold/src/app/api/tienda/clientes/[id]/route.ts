@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import { parseNombreCompleto, enviarClienteABothWordPress } from '@/lib/clientes/utils'
+import { limpiarRUT } from '@/lib/utils/rut'
 
 export const dynamic = 'force-dynamic'
 
@@ -213,6 +214,69 @@ export async function PUT(
       }
     }
 
+    // Si aún no se encontró y se proporciona RUT en el body, buscar por RUT
+    if (!cliente && body.data?.persona?.rut) {
+      try {
+        const rutParaBuscar = limpiarRUT(body.data.persona.rut)
+        console.log('[API Clientes PUT] 🔍 Buscando cliente por RUT:', rutParaBuscar)
+        
+        // Buscar Persona por RUT
+        const personaSearch = await strapiClient.get<any>(
+          `/api/personas?filters[rut][$contains]=${encodeURIComponent(rutParaBuscar)}&populate=*&pagination[pageSize]=100`
+        )
+        
+        const personasEncontradas = personaSearch.data && Array.isArray(personaSearch.data)
+          ? personaSearch.data
+          : (personaSearch.data ? [personaSearch.data] : [])
+        
+        // Buscar la persona que tenga exactamente el mismo RUT (normalizado)
+        let personaEncontradaPorRut: any = null
+        for (const persona of personasEncontradas) {
+          const personaAttrs = persona.attributes || persona
+          const personaRut = personaAttrs.rut || persona.rut
+          if (personaRut) {
+            const rutPersonaNormalizado = limpiarRUT(personaRut.toString())
+            if (rutPersonaNormalizado === rutParaBuscar) {
+              personaEncontradaPorRut = persona
+              break
+            }
+          }
+        }
+        
+        if (personaEncontradaPorRut) {
+          const personaDocId = personaEncontradaPorRut.documentId || personaEncontradaPorRut.id?.toString()
+          console.log('[API Clientes PUT] ✅ Persona encontrada por RUT:', personaDocId)
+          
+          // Buscar WO-Clientes relacionados con esta Persona
+          const woClientesSearch = await strapiClient.get<any>(
+            `/api/wo-clientes?populate[persona]=*&pagination[pageSize]=1000`
+          )
+          
+          const woClientesArray = woClientesSearch.data && Array.isArray(woClientesSearch.data)
+            ? woClientesSearch.data
+            : (woClientesSearch.data ? [woClientesSearch.data] : [])
+          
+          // Encontrar el cliente que tenga esta Persona relacionada
+          cliente = woClientesArray.find((wc: any) => {
+            const wcAttrs = wc.attributes || wc
+            const wcPersona = wcAttrs.persona?.data || wcAttrs.persona || wc.persona?.data || wc.persona
+            const wcPersonaId = wcPersona?.documentId || wcPersona?.id?.toString()
+            return wcPersonaId?.toString() === personaDocId?.toString()
+          })
+          
+          if (cliente) {
+            console.log('[API Clientes PUT] ✅ Cliente encontrado por RUT:', cliente.id || cliente.documentId)
+          } else {
+            console.log('[API Clientes PUT] ⚠️ Persona encontrada por RUT pero no hay WO-Clientes relacionados')
+          }
+        } else {
+          console.log('[API Clientes PUT] ⚠️ No se encontró Persona con el RUT proporcionado')
+        }
+      } catch (rutSearchError: any) {
+        console.error('[API Clientes PUT] ❌ Error al buscar por RUT:', rutSearchError.message)
+      }
+    }
+
     if (!cliente) {
       return NextResponse.json({
         success: false,
@@ -343,8 +407,8 @@ export async function PUT(
       }
     }
     
-    // 4. Actualizar Persona si se actualizó nombre o correo
-    if ((body.data.nombre !== undefined || body.data.correo_electronico !== undefined) && personaDocumentId) {
+    // 4. Actualizar Persona si se actualizó nombre, correo o RUT
+    if ((body.data.nombre !== undefined || body.data.correo_electronico !== undefined || body.data.persona?.rut) && personaDocumentId) {
       try {
         const nombreParseado = parseNombreCompleto(nombreFinal.trim())
         const personaUpdateData: any = {
@@ -364,6 +428,11 @@ export async function PUT(
               tipo: 'Personal', // Valores válidos: "Personal", "Laboral", "Institucional"
             }
           ]
+        }
+
+        // Actualizar RUT si se proporciona
+        if (body.data.persona?.rut && body.data.persona.rut.trim()) {
+          personaUpdateData.data.rut = body.data.persona.rut.trim()
         }
         
         // Manejar teléfono si se envía (desde body.data.telefono o body.data.persona?.telefonos)
@@ -418,6 +487,11 @@ export async function PUT(
               }
             ],
           },
+        }
+        
+        // Agregar RUT si se proporciona
+        if (body.data.persona?.rut && body.data.persona.rut.trim()) {
+          personaData.data.rut = body.data.persona.rut.trim()
         }
         
         // Manejar teléfono si se envía

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Modal, Button, Form, Alert, Spinner } from 'react-bootstrap'
+import { validarRUTChileno, formatearRUT } from '@/lib/utils/rut'
 
 interface Cliente {
   id: number | string
@@ -10,6 +11,7 @@ interface Cliente {
   nombre: string
   correo_electronico: string
   telefono?: string
+  rut?: string
 }
 
 interface EditClienteModalProps {
@@ -27,7 +29,9 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
     last_name: '',
     email: '',
     phone: '',
+    rut: '',
   })
+  const [rutError, setRutError] = useState<string | null>(null)
 
   // Cargar datos del cliente cuando se abre el modal
   useEffect(() => {
@@ -49,8 +53,10 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
         last_name: lastName,
         email: cliente.correo_electronico || '',
         phone: phoneValue,
+        rut: cliente.rut || '',
       })
       setError(null)
+      setRutError(null)
     }
   }, [cliente, show])
 
@@ -59,6 +65,26 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
       ...prev,
       [field]: value,
     }))
+    
+    // Validar RUT en tiempo real si se está editando
+    if (field === 'rut' && value.trim()) {
+      const validacion = validarRUTChileno(value.trim())
+      if (!validacion.valid) {
+        setRutError(validacion.error || 'RUT inválido')
+      } else {
+        setRutError(null)
+        // Formatear el RUT mientras se escribe
+        const rutFormateado = formatearRUT(value.trim())
+        if (rutFormateado !== value) {
+          setFormData((prev) => ({
+            ...prev,
+            rut: rutFormateado,
+          }))
+        }
+      }
+    } else if (field === 'rut' && !value.trim()) {
+      setRutError(null)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -81,6 +107,17 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
         throw new Error('El correo electrónico no tiene un formato válido')
       }
 
+      // Validar RUT si se proporciona
+      let rutFormateado: string | undefined = undefined
+      if (formData.rut.trim()) {
+        const validacionRUT = validarRUTChileno(formData.rut.trim())
+        if (!validacionRUT.valid) {
+          setRutError(validacionRUT.error || 'El RUT no es válido')
+          throw new Error(validacionRUT.error || 'El RUT no es válido')
+        }
+        rutFormateado = validacionRUT.formatted
+      }
+
       // IMPORTANTE: En Strapi v4, siempre usar documentId para las operaciones
       // El documentId es el identificador correcto para las rutas de API
       // Priorizar documentId, sino usar el id (que debería ser string si viene del mapeo)
@@ -100,12 +137,26 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
         data: {
           nombre: nombreCompleto,
           correo_electronico: formData.email.trim(),
+          persona: {},
         },
       }
 
       // Agregar teléfono si existe (se actualizará en Persona)
       if (formData.phone.trim()) {
-        updateData.data.telefono = formData.phone.trim()
+        updateData.data.persona.telefonos = [
+          {
+            telefono_raw: formData.phone.trim(),
+            telefono_norm: formData.phone.trim(),
+            tipo: 'Personal',
+            principal: true,
+            status: true,
+          },
+        ]
+      }
+
+      // Agregar RUT si se proporcionó y es válido (se actualizará en Persona)
+      if (rutFormateado) {
+        updateData.data.persona.rut = rutFormateado
       }
       
       const response = await fetch(`/api/tienda/clientes/${clienteId}`, {
@@ -182,6 +233,22 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
               onChange={(e) => handleFieldChange('email', e.target.value)}
               required
             />
+          </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label>RUT</Form.Label>
+            <Form.Control
+              type="text"
+              placeholder="Ej: 12345678-9"
+              value={formData.rut}
+              onChange={(e) => handleFieldChange('rut', e.target.value)}
+              isInvalid={!!rutError}
+            />
+            {rutError && (
+              <Form.Control.Feedback type="invalid">
+                {rutError}
+              </Form.Control.Feedback>
+            )}
           </Form.Group>
 
           <Form.Group className="mb-3">

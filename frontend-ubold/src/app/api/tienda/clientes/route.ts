@@ -142,6 +142,55 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    // Validar que el RUT no exista ya en Persona (si se proporciona)
+    if (personaData.rut && personaData.rut.trim()) {
+      try {
+        const rutLimpio = personaData.rut.trim().replace(/[.-]/g, '').toUpperCase()
+        const rutFormateado = rutLimpio.length >= 2 
+          ? `${rutLimpio.slice(0, -1)}-${rutLimpio.slice(-1)}`
+          : personaData.rut.trim()
+        
+        console.log('[API Clientes POST] 🔍 Verificando si el RUT ya existe:', rutFormateado)
+        
+        // Buscar Persona por RUT (buscar tanto con guión como sin guión para mayor compatibilidad)
+        const rutParaBuscar = rutFormateado.replace(/-/g, '')
+        const searchResponse = await strapiClient.get<any>(
+          `/api/personas?filters[rut][$contains]=${encodeURIComponent(rutParaBuscar)}&pagination[pageSize]=100`
+        )
+        
+        const personasExistentes = searchResponse.data && Array.isArray(searchResponse.data) 
+          ? searchResponse.data 
+          : (searchResponse.data ? [searchResponse.data] : [])
+        
+        // Verificar si alguna persona tiene exactamente el mismo RUT (comparando con y sin guión)
+        const rutExiste = personasExistentes.some((persona: any) => {
+          const personaAttrs = persona.attributes || persona
+          const personaRut = personaAttrs.rut || persona.rut
+          if (!personaRut) return false
+          
+          // Comparar RUTs normalizados (sin puntos, guiones, espacios, en mayúsculas)
+          const rutPersonaNormalizado = personaRut.toString().replace(/[.-]/g, '').replace(/\s/g, '').toUpperCase()
+          const rutIngresadoNormalizado = rutParaBuscar.replace(/[.-]/g, '').replace(/\s/g, '').toUpperCase()
+          
+          return rutPersonaNormalizado === rutIngresadoNormalizado
+        })
+        
+        if (rutExiste) {
+          console.log('[API Clientes POST] ❌ RUT ya existe en Persona:', rutFormateado)
+          return NextResponse.json({
+            success: false,
+            error: `El RUT ${rutFormateado} ya está registrado. Cada cliente debe tener un RUT único.`
+          }, { status: 400 })
+        }
+        
+        console.log('[API Clientes POST] ✅ RUT no existe, puede proceder con la creación')
+      } catch (rutCheckError: any) {
+        console.error('[API Clientes POST] ⚠️ Error al verificar RUT:', rutCheckError.message)
+        // No bloquear la creación si hay un error al verificar el RUT, pero loguear el error
+        // En producción, podrías querer bloquear, pero por ahora permitimos continuar
+      }
+    }
+
     // 1. Crear Persona primero (Strapi)
     console.log('[API Clientes POST] 📚 Creando Persona en Strapi...')
     const personaCreateData: any = {

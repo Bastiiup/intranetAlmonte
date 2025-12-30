@@ -34,6 +34,7 @@ type ClienteType = {
   nombre: string
   correo_electronico: string
   telefono?: string
+  rut?: string
   direccion?: string
   pedidos: number
   gasto_total: number
@@ -68,10 +69,12 @@ const mapStrapiClienteToClienteType = (cliente: any): ClienteType => {
   let telefono = getField(data, 'telefono', 'TELEFONO', 'phone', 'PHONE') || ''
   
   // Si no hay teléfono en los datos directos, buscarlo en la Persona relacionada
-  if (!telefono) {
-    const persona = attrs.persona?.data || attrs.persona || cliente.persona?.data || cliente.persona
-    if (persona) {
-      const personaAttrs = persona.attributes || persona
+  // También extraer RUT de la Persona
+  let rut = ''
+  const persona = attrs.persona?.data || attrs.persona || cliente.persona?.data || cliente.persona
+  if (persona) {
+    const personaAttrs = persona.attributes || persona
+    if (!telefono) {
       const telefonos = personaAttrs.telefonos || persona.telefonos
       if (telefonos && Array.isArray(telefonos) && telefonos.length > 0) {
         // Buscar el teléfono principal, sino tomar el primero
@@ -80,6 +83,8 @@ const mapStrapiClienteToClienteType = (cliente: any): ClienteType => {
         telefono = tel?.telefono_raw || tel?.telefono_norm || tel?.numero || tel?.telefono || tel?.value || ''
       }
     }
+    // Extraer RUT de la Persona
+    rut = personaAttrs.rut || persona.rut || ''
   }
   
   const direccion = getField(data, 'direccion', 'DIRECCION', 'address', 'ADDRESS') || ''
@@ -112,6 +117,7 @@ const mapStrapiClienteToClienteType = (cliente: any): ClienteType => {
     nombre,
     correo_electronico: correo,
     telefono,
+    rut,
     direccion,
     pedidos,
     gasto_total: gastoTotal,
