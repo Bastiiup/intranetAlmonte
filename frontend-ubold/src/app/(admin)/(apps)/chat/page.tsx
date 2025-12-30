@@ -248,24 +248,24 @@ const Page = () => {
     }
 
     try {
-      // Normalizar IDs a strings para asegurar consistencia
-      const currentUserId = String(currentUserIdRef.current)
-      const otherUserId = String(colaboradorId)
+      // 1. Asegurar que los IDs sean strings
+      const currentId = String(currentUserIdRef.current)
+      const otherId = String(colaboradorId)
 
       // Verificar que no sea el mismo usuario
-      if (currentUserId === otherUserId) {
-        console.error('[Chat] Error: Intento de chatear consigo mismo:', currentUserId)
+      if (currentId === otherId) {
+        console.error('[Chat] Error: Intento de chatear consigo mismo:', currentId)
         setError('No puedes chatear contigo mismo')
         return
       }
 
       console.log('[Chat] Seleccionando colaborador:', {
-        currentUserId,
-        otherUserId,
+        currentId,
+        otherId,
         colaboradorId,
       })
 
-      setSelectedColaboradorId(otherUserId)
+      setSelectedColaboradorId(otherId)
       setError(null) // Limpiar errores previos
       
       // Primero asegurar que el usuario objetivo existe en Stream Chat
@@ -275,7 +275,7 @@ const Page = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ colaboradorId: otherUserId }),
+        body: JSON.stringify({ colaboradorId: otherId }),
       })
 
       if (!ensureUserResponse.ok) {
@@ -283,151 +283,86 @@ const Page = () => {
         throw new Error(errorData.error || 'Error al asegurar usuario en Stream')
       }
 
-      // Crear ID de canal único para conversación 1-a-1
-      // Ordenamos los IDs para que siempre sea el mismo canal independiente del orden
-      const userIds = [currentUserId, otherUserId].sort()
-      const channelId = `direct-${userIds.join('-')}`
+      // 2. Ordenar IDs alfabéticamente para garantizar consistencia
+      // Esto asegura que direct-98-150 siempre sea direct-98-150, nunca direct-150-98
+      const memberIds = [currentId, otherId].sort()
+
+      // 3. Generar el ID único del canal
+      const channelId = `direct-${memberIds.join('-')}`
 
       console.log('[Chat] Creando canal:', {
         channelId,
-        userIds,
-        members: [currentUserId, otherUserId],
+        memberIds,
+        currentId,
+        otherId,
       })
 
-      // Crear canal con miembros explícitos (IDs como strings)
-      // IMPORTANTE: Stream es estricto con los tipos, los IDs deben ser strings
+      // 4. Crear o recuperar el canal con el ID consistente
       const channel = chatClient.channel('messaging', channelId, {
-        members: [currentUserId, otherUserId],
+        members: [currentId, otherId],
       })
 
-      // watch() es vital para recibir mensajes nuevos y cargar mensajes históricos
-      await channel.watch()
+      // 5. Suscribirse inmediatamente
 
-      // Suscribirse a eventos del canal para debugging
+      // watch() carga los mensajes históricos
+      console.log('[Chat] Iniciando watch() del canal...')
+      await channel.watch()
+      
+      // Cargar mensajes explícitamente para asegurar que estén disponibles
+      console.log('[Chat] Cargando mensajes históricos...')
+      try {
+        await channel.query({
+          messages: { limit: 100 },
+          members: { limit: 10 },
+        })
+      } catch (queryErr: any) {
+        console.warn('[Chat] Error en query:', queryErr)
+      }
+      
+      // Verificar mensajes cargados
+      const loadedMessages = channel.state.messages || []
+      console.log('[Chat] ✅ Mensajes cargados en el canal:', {
+        count: loadedMessages.length,
+        messages: loadedMessages.map((m: any) => ({
+          id: m.id,
+          text: m.text?.substring(0, 30),
+          user: m.user?.id,
+          userName: m.user?.name,
+        })),
+      })
+      
+      // Suscribirse a eventos para debugging y actualización
       channel.on('message.new', (event: any) => {
         console.log('[Chat] 📨 Nuevo mensaje recibido:', {
           id: event.message?.id,
           text: event.message?.text?.substring(0, 50),
           user: event.message?.user?.id,
         })
+        // Forzar actualización del componente cuando llega un nuevo mensaje
+        setTimeout(() => {
+          setChannel({ ...channel } as any)
+        }, 100)
       })
       
-      console.log('[Chat] Cargando mensajes históricos...')
+      channel.on('message.updated', (event: any) => {
+        console.log('[Chat] ✏️ Mensaje actualizado:', event.message?.id)
+        setTimeout(() => {
+          setChannel({ ...channel } as any)
+        }, 100)
+      })
       
-      // Cargar mensajes históricos explícitamente con query()
-      // Esto asegura que todos los mensajes del canal estén disponibles
-      try {
-        const queryResult = await channel.query({
-          messages: { limit: 100 },
-          members: { limit: 10 },
-          watchers: { limit: 10 },
-        })
-        console.log('[Chat] query() completado:', {
-          messagesCount: queryResult.messages?.length || 0,
-          membersCount: queryResult.members?.length || 0,
-        })
-      } catch (queryErr: any) {
-        console.warn('[Chat] Error en query (puede ser normal si el canal es nuevo):', queryErr)
-        // Intentar cargar mensajes de otra forma
+      // Verificar miembros
+      const members = Object.keys(channel.state.members || {})
+      console.log('[Chat] Miembros del canal:', members)
+      
+      if (!members.includes(currentId) || !members.includes(otherId)) {
+        console.warn('[Chat] ⚠️ Faltan miembros, agregando...')
         try {
-          await channel.getReplies('', { limit: 100 })
-        } catch (err2) {
-          console.warn('[Chat] Error alternativo al cargar mensajes:', err2)
+          await channel.addMembers([currentId, otherId])
+        } catch (addErr) {
+          console.error('[Chat] Error al agregar miembros:', addErr)
         }
       }
-      
-      // Forzar una recarga de mensajes después de un breve delay
-      // Esto ayuda a asegurar que todos los mensajes se carguen
-      setTimeout(async () => {
-        try {
-          const messages = await channel.query({
-            messages: { limit: 100 },
-          })
-          console.log('[Chat] Recarga de mensajes completada:', {
-            messagesCount: messages.messages?.length || 0,
-          })
-        } catch (err) {
-          console.warn('[Chat] Error en recarga de mensajes:', err)
-        }
-      }, 500)
-      
-      // Verificar que el canal tiene los miembros correctos
-      const members = channel.state.members || {}
-      const memberIds = Object.keys(members)
-      const messages = channel.state.messages || []
-      
-      console.log('[Chat] Canal listo:', {
-        channelId,
-        memberIds,
-        membersCount: memberIds.length,
-        messageCount: messages.length,
-        messages: messages.map((m: any) => ({
-          id: m.id,
-          text: m.text?.substring(0, 50),
-          user: m.user?.id,
-          userName: m.user?.name,
-          created_at: m.created_at,
-        })),
-        channelState: {
-          members: Object.keys(channel.state.members || {}),
-        },
-      })
-      
-      // Verificar que ambos usuarios están en el canal
-      if (!memberIds.includes(currentUserId) || !memberIds.includes(otherUserId)) {
-        console.warn('[Chat] ⚠️ ADVERTENCIA: El canal no tiene los miembros esperados', {
-          expected: [currentUserId, otherUserId],
-          actual: memberIds,
-          members: members,
-        })
-        
-        // Intentar agregar los miembros si faltan
-        try {
-          console.log('[Chat] Intentando agregar miembros al canal...')
-          await channel.addMembers([currentUserId, otherUserId])
-          console.log('[Chat] ✅ Miembros agregados al canal')
-          
-          // Verificar nuevamente después de agregar
-          const updatedMembers = Object.keys(channel.state.members || {})
-          console.log('[Chat] Miembros después de agregar:', updatedMembers)
-        } catch (addErr: any) {
-          console.error('[Chat] ❌ Error al agregar miembros:', {
-            error: addErr.message,
-            code: addErr.code,
-            status: addErr.status,
-            response: addErr.response,
-          })
-          
-          // Si falla, intentar crear el canal desde cero
-          console.log('[Chat] Intentando recrear el canal...')
-          try {
-            await channel.create()
-            await channel.addMembers([currentUserId, otherUserId])
-            await channel.watch()
-            console.log('[Chat] ✅ Canal recreado exitosamente')
-          } catch (createErr: any) {
-            console.error('[Chat] ❌ Error al recrear canal:', createErr)
-            throw new Error(`No se pudo configurar el canal: ${createErr.message}`)
-          }
-        }
-      } else {
-        console.log('[Chat] ✅ Canal configurado correctamente con ambos miembros')
-      }
-      
-      // Verificar que el canal está listo para enviar mensajes
-      console.log('[Chat] Verificando estado del canal para envío de mensajes...')
-      console.log('[Chat] Estado del canal:', {
-        id: channel.id,
-        type: channel.type,
-        data: channel.data,
-        members: Object.keys(channel.state.members || {}),
-      })
-      
-      // Nota: Los permisos se verifican en Stream Dashboard
-      // Si no puedes enviar mensajes, verifica:
-      // - Role: user (no admin)
-      // - Scope: messaging (no .app)
-      // - Permiso: Create Message debe estar activado
       
       setChannel(channel)
     } catch (err: any) {
@@ -590,8 +525,8 @@ const Page = () => {
               <Chat client={chatClient}>
                 <Channel 
                   channel={channel}
-                  // Forzar recarga del canal
-                  key={channel.id}
+                  // Forzar recarga cuando cambia el canal
+                  key={`${channel.id}-${selectedColaboradorId}`}
                 >
                   <Window>
                     <ChannelHeader />
@@ -602,16 +537,14 @@ const Page = () => {
                         try {
                           const messages = await channel.loadMoreMessages(limit || 50)
                           console.log('[Chat] loadMore completado, mensajes cargados:', messages.length)
+                          // Forzar actualización del estado
+                          setChannel({ ...channel } as any)
                           return messages.length
                         } catch (err) {
                           console.error('[Chat] Error en loadMore:', err)
                           return 0
                         }
                       }}
-                      // Asegurar que se muestren todos los mensajes
-                      noGroupByUser={false}
-                      // Habilitar todas las funcionalidades
-                      disableDateSeparator={false}
                     />
                     <div>
                       <MessageInput />
