@@ -202,6 +202,7 @@ const Page = () => {
     setIsCreatingChannel(true)
 
     try {
+      // 1. Asegurar que ambos IDs sean strings para evitar errores de ordenamiento
       const currentUserId = String(currentUserIdRef.current)
       const otherUserId = String(colaboradorId)
 
@@ -212,20 +213,20 @@ const Page = () => {
         return
       }
 
-      // ID Determinista (Estilo WhatsApp): Ordenar IDs para garantizar mismo canal
-      // Esto asegura que A y B siempre vean el mismo chat
-      // IMPORTANTE: Convertir a strings y ordenar alfabéticamente antes de unir
-      // Ejemplo: [Matias, Bastian] -> [Bastian, Matias] -> "messaging-Bastian-Matias"
-      // Ejemplo: [Bastian, Matias] -> [Bastian, Matias] -> "messaging-Bastian-Matias"
-      // Resultado: Ambos usuarios siempre entran a la misma sala
-      const sortedIds = [String(currentUserId), String(otherUserId)].sort()
-      const channelId = `messaging-${sortedIds.join('-')}`
+      // 2. Crear array y ORDENARLO alfabéticamente (CRUCIAL: .sort())
+      // Esto garantiza que [A, B] y [B, A] siempre resulten en "A-B"
+      const members = [currentUserId, otherUserId].sort()
 
-      console.log('[Chat] Creando/abriendo canal:', {
-        channelId,
-        currentUserId,
-        otherUserId,
-      })
+      // 3. Generar el ID único del canal
+      const channelId = `messaging-${members.join('-')}`
+
+      // 4. DEBUG LOG (Para verificar en consola)
+      console.log('=============================================')
+      console.log('⚡ INTENTANDO CONECTAR AL CANAL:')
+      console.log('👤 Usuario actual:', currentUserId)
+      console.log('👤 Otro usuario:', otherUserId)
+      console.log('🔑 GENERATED CHANNEL ID:', channelId)
+      console.log('=============================================')
 
       // Asegurar que el usuario objetivo existe en Stream Chat
       const ensureUserResponse = await fetch('/api/chat/stream-ensure-user', {
