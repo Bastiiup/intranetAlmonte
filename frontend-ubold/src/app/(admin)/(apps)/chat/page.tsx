@@ -126,6 +126,9 @@ const Page = () => {
   }, [colaborador?.id])
 
   // Cargar lista de colaboradores
+  // IMPORTANTE: Esta función SOLO obtiene colaboradores de Intranet-colaboradores
+  // NO usa ni referencia Intranet-Chats (content type obsoleto)
+  // Stream Chat maneja su propio historial, no necesitamos cruzar datos con tablas antiguas
   const loadColaboradores = async () => {
     try {
       setIsLoadingContacts(true)
@@ -140,6 +143,7 @@ const Page = () => {
       const data = await response.json()
       
       // Normalizar datos de Strapi (pueden venir con o sin attributes)
+      // CRÍTICO: Solo usar datos de Intranet-colaboradores, sin cruzar con Intranet-Chats
       const colaboradoresData = Array.isArray(data.data) ? data.data : []
       
       const normalized = colaboradoresData
@@ -149,9 +153,20 @@ const Page = () => {
           const personaData = colaboradorAttrs.persona || null
           
           // CRÍTICO: Usar el ID del colaborador (no el de Persona)
-          // Strapi puede devolver 'id' o 'documentId', pero necesitamos el ID del colaborador
-          // que es el mismo que se usa en la autenticación (auth_colaborador.id)
+          // Este ID debe ser el mismo que se usa en la autenticación (auth_colaborador.id)
+          // NO usar IDs de Intranet-Chats ni ninguna referencia cruzada antigua
+          // Strapi puede devolver 'id' o 'documentId', usar el que esté disponible
           const colaboradorId = col.id || col.documentId
+          
+          // VALIDACIÓN: Asegurar que tenemos un ID válido
+          if (!colaboradorId) {
+            console.error('[Chat] ⚠️ Colaborador sin ID válido:', {
+              col: col.id,
+              documentId: col.documentId,
+              email: colaboradorAttrs.email_login,
+            })
+            return null // Filtrar colaboradores sin ID válido
+          }
           
           // DEBUG: Log para verificar que estamos usando el ID correcto
           if (colaboradoresData.indexOf(col) === 0) {
@@ -185,10 +200,26 @@ const Page = () => {
             } : undefined,
           }
         })
+        // Filtrar colaboradores sin ID válido (null)
+        .filter((col: Colaborador | null): col is Colaborador => col !== null)
         // Filtrar solo activos
         .filter((col: Colaborador) => col.activo !== false)
-        // Filtrar el usuario actual
-        .filter((col: Colaborador) => String(col.id) !== String(colaborador?.id))
+        // Filtrar el usuario actual (usar el mismo ID que se usa en autenticación)
+        // CRÍTICO: No usar referencias de Intranet-Chats, solo comparar IDs de colaboradores
+        // Stream Chat maneja su propio historial, no necesitamos cruzar datos con tablas antiguas
+        .filter((col: Colaborador) => {
+          const currentId = colaborador?.id
+          const colId = col.id
+          const isSame = String(colId) === String(currentId)
+          if (isSame) {
+            console.error('[Chat] ⚠️ Usuario actual encontrado en lista (será filtrado):', {
+              currentId,
+              colId,
+              email: col.email_login,
+            })
+          }
+          return !isSame
+        })
       
       // DEBUG CRÍTICO: Comparar IDs
       console.error('[Chat] 🔍 VERIFICACIÓN DE IDs:')

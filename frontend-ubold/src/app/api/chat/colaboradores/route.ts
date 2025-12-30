@@ -1,6 +1,10 @@
 /**
  * API Route para obtener colaboradores desde Strapi
  * Obtiene todos los colaboradores con sus datos de Persona relacionados
+ * 
+ * IMPORTANTE: Este endpoint SOLO usa Intranet-colaboradores.
+ * NO usa ni referencia Intranet-Chats (content type obsoleto).
+ * Stream Chat maneja su propio historial, no necesitamos cruzar datos con tablas antiguas.
  */
 
 import { NextResponse } from 'next/server'
@@ -33,9 +37,9 @@ interface ColaboradorAttributes {
 
 export async function GET() {
   try {
-    // Populate específico: solo los campos que necesitamos para el chat
-    // Excluimos relaciones problemáticas como tags, cartera_asignaciones, trayectorias
-    // Usamos fields para especificar solo los campos básicos y populate para componentes
+    // CRÍTICO: Fetch EXCLUSIVO de Intranet-colaboradores
+    // NO usar Intranet-Chats ni ninguna otra tabla antigua
+    // Solo traer colaboradores activos con sus datos de Persona
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
       '/api/colaboradores?pagination[pageSize]=1000&sort=email_login:asc&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[persona][populate][emails]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][imagen][populate]=*&filters[activo][$eq]=true'
     )
