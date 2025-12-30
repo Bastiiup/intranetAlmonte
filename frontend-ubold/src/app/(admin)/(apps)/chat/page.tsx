@@ -203,30 +203,24 @@ const Page = () => {
 
     try {
       // 1. Asegurar que ambos IDs sean strings para evitar errores de ordenamiento
-      const currentUserId = String(currentUserIdRef.current)
-      const otherUserId = String(colaboradorId)
+      const myId = String(currentUserIdRef.current)
+      const otherId = String(colaboradorId)
 
       // Verificar que no sea el mismo usuario
-      if (currentUserId === otherUserId) {
+      if (myId === otherId) {
         setError('No puedes chatear contigo mismo')
         setIsCreatingChannel(false)
         return
       }
 
-      // 2. Crear array y ORDENARLO alfabéticamente (CRUCIAL: .sort())
-      // Esto garantiza que [A, B] y [B, A] siempre resulten en "A-B"
-      const members = [currentUserId, otherUserId].sort()
-
-      // 3. Generar el ID único del canal
-      const channelId = `messaging-${members.join('-')}`
-
-      // 4. DEBUG LOG (Para verificar en consola)
-      console.log('=============================================')
-      console.log('⚡ INTENTANDO CONECTAR AL CANAL:')
-      console.log('👤 Usuario actual:', currentUserId)
-      console.log('👤 Otro usuario:', otherUserId)
-      console.log('🔑 GENERATED CHANNEL ID:', channelId)
-      console.log('=============================================')
+      // 2. DEBUG OBLIGATORIO: Imprimir en consola con console.error para que destaque
+      console.error('🕵️ DEBUG CHAT:')
+      console.error('YO SOY:', myId, 'tipo:', typeof myId)
+      console.error('EL OTRO ES:', otherId, 'tipo:', typeof otherId)
+      const sortedIds = [myId, otherId].sort()
+      console.error('IDS ORDENADOS:', sortedIds)
+      const channelId = `messaging-${sortedIds.join('-')}`
+      console.error('ID FINAL DEL CANAL:', channelId)
 
       // Asegurar que el usuario objetivo existe en Stream Chat
       const ensureUserResponse = await fetch('/api/chat/stream-ensure-user', {
@@ -235,7 +229,7 @@ const Page = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ colaboradorId: otherUserId }),
+        body: JSON.stringify({ colaboradorId: otherId }),
       })
 
       if (!ensureUserResponse.ok) {
@@ -244,8 +238,9 @@ const Page = () => {
       }
 
       // Crear o recuperar canal
+      // IMPORTANTE: Usar los IDs convertidos a String y ordenados
       const channel = chatClient.channel('messaging', channelId, {
-        members: [currentUserId, otherUserId],
+        members: [myId, otherId],
       })
 
       // CRÍTICO: Esperar a que watch() complete antes de establecer el canal
