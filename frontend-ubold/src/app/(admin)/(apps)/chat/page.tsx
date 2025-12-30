@@ -109,7 +109,9 @@ const Page = () => {
 
     const initStreamChat = async (myColaboradorRut: string) => {
       try {
-        // 1. Obtener token del backend
+        // 1. Obtener token y API key del backend
+        // Esto soluciona el problema de que NEXT_PUBLIC_* variables no estén disponibles
+        // en el cliente si se configuraron después del build en Railway
         const tokenResponse = await fetch('/api/chat/stream-token', {
           method: 'POST',
           credentials: 'include',
@@ -119,13 +121,29 @@ const Page = () => {
           throw new Error('Error al obtener token de Stream Chat')
         }
 
-        const { token } = await tokenResponse.json()
+        const { token, apiKey: apiKeyFromServer } = await tokenResponse.json()
 
         // 2. Obtener API Key
-        const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY || process.env.NEXT_PUBLIC_STREAM_CHAT_API_KEY
+        // Priorizar API key del servidor (siempre disponible desde Railway)
+        // Fallback a variables de entorno del cliente (disponibles solo si se configuraron en build time)
+        const apiKey = apiKeyFromServer || 
+                      process.env.NEXT_PUBLIC_STREAM_API_KEY || 
+                      process.env.NEXT_PUBLIC_STREAM_CHAT_API_KEY
+        
         if (!apiKey) {
-          throw new Error('NEXT_PUBLIC_STREAM_API_KEY no está configurada')
+          console.error('[Chat] ❌ API Key no disponible')
+          console.error('[Chat] 🔍 Variables disponibles:', {
+            hasApiKeyFromServer: !!apiKeyFromServer,
+            hasNEXT_PUBLIC_STREAM_API_KEY: !!process.env.NEXT_PUBLIC_STREAM_API_KEY,
+            hasNEXT_PUBLIC_STREAM_CHAT_API_KEY: !!process.env.NEXT_PUBLIC_STREAM_CHAT_API_KEY,
+          })
+          throw new Error(
+            'API Key de Stream Chat no está disponible. ' +
+            'Verifica que STREAM_API_KEY (o STREAM_CHAT_API_KEY) esté configurada en Railway.'
+          )
         }
+
+        console.log('[Chat] ✅ API Key obtenida:', apiKeyFromServer ? 'desde servidor' : 'desde variables de entorno')
 
         // 3. Crear cliente de Stream Chat
         const client = StreamChat.getInstance(apiKey)

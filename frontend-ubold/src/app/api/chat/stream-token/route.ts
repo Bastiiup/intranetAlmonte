@@ -92,9 +92,31 @@ export async function POST(request: NextRequest) {
       image: avatar,
     })
 
+    // Obtener API Key pública para el cliente
+    // Usar los mismos nombres que el cliente de Stream usa
+    // Priorizar STREAM_API_KEY / STREAM_CHAT_API_KEY (nombres oficiales)
+    const apiKey = process.env.STREAM_API_KEY || 
+                   process.env.STREAM_CHAT_API_KEY || 
+                   process.env.NEXT_PUBLIC_STREAM_API_KEY || 
+                   process.env.NEXT_PUBLIC_STREAM_CHAT_API_KEY
+
+    if (!apiKey) {
+      console.error('[API /chat/stream-token] ⚠️ API Key no encontrada en variables de entorno')
+      console.error('[API /chat/stream-token] 🔍 Variables disponibles:', {
+        hasSTREAM_API_KEY: !!process.env.STREAM_API_KEY,
+        hasSTREAM_CHAT_API_KEY: !!process.env.STREAM_CHAT_API_KEY,
+        hasNEXT_PUBLIC_STREAM_API_KEY: !!process.env.NEXT_PUBLIC_STREAM_API_KEY,
+        hasNEXT_PUBLIC_STREAM_CHAT_API_KEY: !!process.env.NEXT_PUBLIC_STREAM_CHAT_API_KEY,
+        allStreamVars: Object.keys(process.env).filter(key => key.includes('STREAM')),
+      })
+    } else {
+      console.log('[API /chat/stream-token] ✅ API Key obtenida correctamente')
+    }
+
     return NextResponse.json({
       token,
       userId: rutString,
+      apiKey, // Incluir API key para que el cliente pueda usarla
     })
   } catch (error: any) {
     console.error('[API /chat/stream-token] Error:', error)
