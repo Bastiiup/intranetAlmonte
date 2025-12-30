@@ -233,6 +233,12 @@ export async function POST(request: NextRequest) {
       typeof c === 'string' && (c.toLowerCase().includes('escolar') || c.toLowerCase().includes('woo_escolar'))
     )
     
+    console.log('[API Clientes POST] 🎯 Plataformas seleccionadas:', {
+      plataformasSeleccionadas,
+      enviarAMoraleja,
+      enviarAEscolar,
+    })
+    
     let wordPressResults: any = null
     try {
       // Enviar a ambos WordPress siempre (la función maneja ambos)
@@ -245,6 +251,23 @@ export async function POST(request: NextRequest) {
         escolar: wordPressResults.escolar.success,
         moraleja: wordPressResults.moraleja.success,
       })
+      // Log detallado de la estructura completa para diagnóstico
+      console.log('[API Clientes POST] 📊 Estructura completa de wordPressResults:', JSON.stringify({
+        escolar: {
+          success: wordPressResults.escolar?.success,
+          hasData: !!wordPressResults.escolar?.data,
+          dataId: wordPressResults.escolar?.data?.id,
+          error: wordPressResults.escolar?.error,
+          fullData: wordPressResults.escolar?.data,
+        },
+        moraleja: {
+          success: wordPressResults.moraleja?.success,
+          hasData: !!wordPressResults.moraleja?.data,
+          dataId: wordPressResults.moraleja?.data?.id,
+          error: wordPressResults.moraleja?.error,
+          fullData: wordPressResults.moraleja?.data,
+        },
+      }, null, 2))
     } catch (wpError: any) {
       console.error('[API Clientes POST] ⚠️ Error al enviar a WordPress:', wpError.message)
       // Si falla completamente, aún podemos crear las entradas WO-Clientes sin los IDs de WordPress
@@ -279,12 +302,22 @@ export async function POST(request: NextRequest) {
         }
         
         // Si tenemos el ID de WooCommerce de Moraleja, guardarlo
-        if (wordPressResults?.moraleja?.success && wordPressResults?.moraleja?.data?.id) {
-          const woocommerceIdMoraleja = wordPressResults.moraleja.data.id
-          woClienteMoralejaData.data.woocommerce_id = woocommerceIdMoraleja
-          console.log('[API Clientes POST] 📌 ID de WooCommerce Moraleja guardado:', woocommerceIdMoraleja)
+        // Verificar múltiples posibles estructuras de respuesta
+        const moralejaId = wordPressResults?.moraleja?.data?.id || 
+                          wordPressResults?.moraleja?.id ||
+                          (wordPressResults?.moraleja?.data && typeof wordPressResults.moraleja.data === 'object' && 'id' in wordPressResults.moraleja.data ? wordPressResults.moraleja.data.id : null)
+        
+        if (wordPressResults?.moraleja?.success && moralejaId) {
+          woClienteMoralejaData.data.woocommerce_id = moralejaId
+          console.log('[API Clientes POST] 📌 ID de WooCommerce Moraleja guardado:', moralejaId)
         } else {
-          console.log('[API Clientes POST] ⚠️ No se pudo obtener ID de WooCommerce Moraleja')
+          console.log('[API Clientes POST] ⚠️ No se pudo obtener ID de WooCommerce Moraleja', {
+            success: wordPressResults?.moraleja?.success,
+            hasData: !!wordPressResults?.moraleja?.data,
+            dataId: wordPressResults?.moraleja?.data?.id,
+            moralejaId,
+            error: wordPressResults?.moraleja?.error,
+          })
         }
         
         const woClienteMoralejaResponse = await strapiClient.post('/api/wo-clientes', woClienteMoralejaData) as any
@@ -301,6 +334,7 @@ export async function POST(request: NextRequest) {
     // Crear entrada para Escolar si se seleccionó
     if (enviarAEscolar) {
       try {
+        console.log('[API Clientes POST] 📝 Iniciando creación de WO-Clientes (Escolar)...')
         const woClienteEscolarData: any = {
           data: {
             nombre: nombreCliente,
@@ -318,23 +352,46 @@ export async function POST(request: NextRequest) {
         }
         
         // Si tenemos el ID de WooCommerce de Escolar, guardarlo
-        if (wordPressResults?.escolar?.success && wordPressResults?.escolar?.data?.id) {
-          const woocommerceIdEscolar = wordPressResults.escolar.data.id
-          woClienteEscolarData.data.woocommerce_id = woocommerceIdEscolar
-          console.log('[API Clientes POST] 📌 ID de WooCommerce Escolar guardado:', woocommerceIdEscolar)
+        // Verificar múltiples posibles estructuras de respuesta
+        const escolarId = wordPressResults?.escolar?.data?.id || 
+                         wordPressResults?.escolar?.id ||
+                         (wordPressResults?.escolar?.data && typeof wordPressResults.escolar.data === 'object' && 'id' in wordPressResults.escolar.data ? wordPressResults.escolar.data.id : null)
+        
+        if (wordPressResults?.escolar?.success && escolarId) {
+          woClienteEscolarData.data.woocommerce_id = escolarId
+          console.log('[API Clientes POST] 📌 ID de WooCommerce Escolar guardado:', escolarId)
         } else {
-          console.log('[API Clientes POST] ⚠️ No se pudo obtener ID de WooCommerce Escolar')
+          console.log('[API Clientes POST] ⚠️ No se pudo obtener ID de WooCommerce Escolar', {
+            success: wordPressResults?.escolar?.success,
+            hasData: !!wordPressResults?.escolar?.data,
+            dataId: wordPressResults?.escolar?.data?.id,
+            escolarId,
+            error: wordPressResults?.escolar?.error,
+          })
         }
         
+        console.log('[API Clientes POST] 📤 Enviando datos a Strapi para WO-Clientes (Escolar):', JSON.stringify(woClienteEscolarData, null, 2))
         const woClienteEscolarResponse = await strapiClient.post('/api/wo-clientes', woClienteEscolarData) as any
         woClientesCreados.push({
           platform: 'woo_escolar',
           response: woClienteEscolarResponse,
         })
-        console.log('[API Clientes POST] ✅ Cliente creado en WO-Clientes (Escolar):', woClienteEscolarResponse.data?.id || woClienteEscolarResponse.id || woClienteEscolarResponse.data?.documentId)
+        console.log('[API Clientes POST] ✅ Cliente creado en WO-Clientes (Escolar):', {
+          id: woClienteEscolarResponse.data?.id || woClienteEscolarResponse.id,
+          documentId: woClienteEscolarResponse.data?.documentId || woClienteEscolarResponse.documentId,
+          nombre: woClienteEscolarResponse.data?.attributes?.nombre || woClienteEscolarResponse.data?.nombre,
+          originPlatform: woClienteEscolarResponse.data?.attributes?.originPlatform || woClienteEscolarResponse.data?.originPlatform,
+          woocommerce_id: woClienteEscolarResponse.data?.attributes?.woocommerce_id || woClienteEscolarResponse.data?.woocommerce_id,
+        })
       } catch (error: any) {
         console.error('[API Clientes POST] ❌ Error al crear WO-Clientes (Escolar):', error.message)
+        if (error.response?.data) {
+          console.error('[API Clientes POST] ❌ Detalles del error de Strapi:', JSON.stringify(error.response.data, null, 2))
+        }
+        // No lanzar el error para que continúe con Moraleja si es necesario
       }
+    } else {
+      console.log('[API Clientes POST] ⏭️ Saltando creación de WO-Clientes (Escolar) - no seleccionado')
     }
     
     if (woClientesCreados.length === 0) {
