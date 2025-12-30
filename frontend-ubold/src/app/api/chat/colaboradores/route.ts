@@ -39,10 +39,10 @@ export async function GET() {
   try {
     // CRÍTICO: Fetch EXCLUSIVO de Intranet-colaboradores
     // NO usar Intranet-Chats ni ninguna otra tabla antigua
-    // Solo traer colaboradores activos con sus datos de Persona
-    // IMPORTANTE: Agregar publicationState=live para incluir solo registros publicados
+    // Solicitud modificada: Sin filtro de activo y con publicationState=preview
+    // Esto permite ver todos los colaboradores, incluso los que están en Draft o no tienen activo=true
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
-      '/api/colaboradores?publicationState=live&pagination[pageSize]=1000&sort=email_login:asc&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[persona][populate][emails]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][imagen][populate]=*&filters[activo][$eq]=true'
+      '/api/colaboradores?pagination[pageSize]=1000&publicationState=preview&sort=email_login:asc&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[persona][populate][emails]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][imagen][populate]=*'
     )
     
     // Log detallado para debugging
@@ -74,7 +74,25 @@ export async function GET() {
       console.error(JSON.stringify(firstColaborador, null, 2))
     }
     
-    // DEBUG ESPECÍFICO: Buscar usuario 157 en la respuesta
+    // DEBUG: Buscar explícitamente al usuario problemático
+    const found157 = Array.isArray(response.data) && response.data.find((c: any) => {
+      const id = c.id || c.documentId
+      return id === 157 || String(id) === '157'
+    })
+    console.error('🕵️ BUSCANDO A TEST 2 (ID 157):', found157 ? '✅ ENCONTRADO' : '❌ NO ESTÁ EN LA RESPUESTA')
+    if (found157) {
+      const attrs = found157.attributes || found157
+      console.error('Detalles del usuario 157:', {
+        id: found157.id,
+        documentId: found157.documentId,
+        email_login: attrs.email_login,
+        activo: attrs.activo,
+        publishedAt: found157.publishedAt,
+        tienePersona: !!attrs.persona,
+      })
+    }
+    
+    // DEBUG ESPECÍFICO: Buscar usuario 157 en la respuesta (log adicional detallado)
     if (Array.isArray(response.data)) {
       const usuario157 = response.data.find((col: any) => {
         const id = col.id || col.documentId
