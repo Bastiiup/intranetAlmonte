@@ -23,11 +23,11 @@ import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
 import EditClienteModal from '@/app/(admin)/(apps)/(ecommerce)/clientes/components/EditClienteModal'
+import AddClienteForm from '@/app/(admin)/(apps)/(ecommerce)/clientes/components/AddClienteForm'
 import { currency } from '@/helpers'
 import { format } from 'date-fns'
 import user1 from '@/assets/images/users/user-1.jpg'
 import usFlag from '@/assets/images/flags/us.svg'
-import ClienteModal from '@/app/(admin)/(apps)/(ecommerce)/clientes/components/ClienteModal'
 import { StaticImageData } from 'next/image'
 
 // Avatar por defecto
@@ -390,10 +390,13 @@ const CustomersCard = ({ clientes, error }: CustomersCardProps = {}) => {
           <Modal.Title>Agregar Cliente</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <ClienteModal
-            show={showCreateModal}
-            onHide={() => setShowCreateModal(false)}
-            onSave={() => setShowCreateModal(false)}
+          <AddClienteForm
+            showCard={false}
+            onSave={() => {
+              setShowCreateModal(false)
+              router.refresh()
+            }}
+            onCancel={() => setShowCreateModal(false)}
           />
         </Modal.Body>
       </Modal>
