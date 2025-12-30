@@ -158,21 +158,21 @@ export async function GET() {
       console.error(`  🔍 BÚSQUEDA ESPECÍFICA POR ID:`)
       console.error(`     ID 93: ${id93 ? '✅ ENCONTRADO' : '❌ NO ESTÁ EN LA RESPUESTA'}`)
       if (id93) {
-        const attrs93 = id93.attributes || id93
-        console.error(`        Email: ${attrs93.email_login || id93.email_login}`)
-        console.error(`        DocumentId: ${id93.documentId}`)
+        const attrs93 = (id93 as any).attributes || id93
+        console.error(`        Email: ${attrs93.email_login || ''}`)
+        console.error(`        DocumentId: ${(id93 as any).documentId || ''}`)
       }
       console.error(`     ID 96: ${id96 ? '✅ ENCONTRADO' : '❌ NO ESTÁ EN LA RESPUESTA'}`)
       if (id96) {
-        const attrs96 = id96.attributes || id96
-        console.error(`        Email: ${attrs96.email_login || id96.email_login}`)
-        console.error(`        DocumentId: ${id96.documentId}`)
+        const attrs96 = (id96 as any).attributes || id96
+        console.error(`        Email: ${attrs96.email_login || ''}`)
+        console.error(`        DocumentId: ${(id96 as any).documentId || ''}`)
       }
       console.error(`     ID 115: ${id115 ? '✅ ENCONTRADO' : '❌ NO ESTÁ EN LA RESPUESTA'}`)
       if (id115) {
-        const attrs115 = id115.attributes || id115
-        console.error(`        Email: ${attrs115.email_login || id115.email_login}`)
-        console.error(`        DocumentId: ${id115.documentId}`)
+        const attrs115 = (id115 as any).attributes || id115
+        console.error(`        Email: ${attrs115.email_login || ''}`)
+        console.error(`        DocumentId: ${(id115 as any).documentId || ''}`)
       }
       
       console.error(`  ⚠️ CONCLUSIÓN: Si el ID 96 no está en la respuesta, significa que:`)
