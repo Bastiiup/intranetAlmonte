@@ -192,40 +192,51 @@ const Page = () => {
           const colaboradorAttrs = col.attributes || col
           const personaData = colaboradorAttrs.persona || null
           
-          // CRÍTICO: Usar el ID del colaborador (no el de Persona)
-          // Este ID debe ser el mismo que se usa en la autenticación (auth_colaborador.id)
-          // NO usar IDs de Intranet-Chats ni ninguna referencia cruzada antigua
-          // Strapi puede devolver 'id' o 'documentId', usar el que esté disponible
-          const colaboradorId = col.id || col.documentId
+          // CRÍTICO: Usar SOLO el ID del content-type Intranet-colaboradores
+          // NO usar documentId, NO usar persona.id, SOLO col.id
+          // Este es el ID que viene del backend después de la desduplicación
+          const colaboradorId = col.id
           
-          // VALIDACIÓN: Asegurar que tenemos un ID válido
-          if (!colaboradorId) {
-            console.error('[Chat] ⚠️ Colaborador sin ID válido:', {
-              col: col.id,
+          // VALIDACIÓN: Asegurar que tenemos un ID válido del content-type
+          if (!colaboradorId || typeof colaboradorId !== 'number') {
+            console.error('[Chat] ⚠️ Colaborador sin ID válido del content-type:', {
+              id: col.id,
               documentId: col.documentId,
+              personaId: personaData?.id,
               email: colaboradorAttrs.email_login,
+              tipoId: typeof col.id,
             })
             return null // Filtrar colaboradores sin ID válido
           }
           
           // DEBUG: Log para verificar que estamos usando el ID correcto
-          if (colaboradoresData.indexOf(col) === 0) {
-            console.error('[Chat] 🔍 DEBUG PRIMER COLABORADOR NORMALIZADO:')
-            console.error('Colaborador raw:', {
-              id: col.id,
-              documentId: col.documentId,
-              email: colaboradorAttrs.email_login,
-            })
-            console.error('Persona raw:', personaData ? {
-              id: personaData.id,
-              documentId: personaData.documentId,
-            } : null)
-            console.error('ID que se usará (colaboradorId):', colaboradorId)
+          // Log para TODOS los colaboradores para detectar problemas
+          const nombreCompleto = personaData?.nombre_completo || ''
+          const isMatias = nombreCompleto.toLowerCase().includes('matias') && nombreCompleto.toLowerCase().includes('riquelme')
+          
+          if (isMatias) {
+            console.error('[Chat] 🚨 MATIAS RIQUELME MEDINA - NORMALIZANDO:')
+            console.error('  📧 Email:', colaboradorAttrs.email_login)
+            console.error('  🔑 col.id (ID del content-type):', col.id)
+            console.error('  📄 col.documentId:', col.documentId)
+            console.error('  👤 personaData?.id:', personaData?.id)
+            console.error('  ✅ colaboradorId que se usará:', colaboradorId)
+            console.error('  ⚠️ DEBE SER 93, NO 115, NO documentId, NO persona.id')
           }
+          
+          console.error('[Chat] 🔍 NORMALIZANDO COLABORADOR:', {
+            email: colaboradorAttrs.email_login,
+            nombre: nombreCompleto,
+            id: col.id,
+            documentId: col.documentId,
+            personaId: personaData?.id,
+            idUsado: colaboradorId,
+            tienePersona: !!personaData,
+          })
           
           // Normalizar estructura
           return {
-            id: colaboradorId, // Usar ID del colaborador, no el de Persona
+            id: colaboradorId, // CRÍTICO: ID del content-type Intranet-colaboradores (ej: 93, NO 115)
             email_login: colaboradorAttrs.email_login,
             activo: colaboradorAttrs.activo !== false, // Default true
             persona: personaData ? {
@@ -526,12 +537,27 @@ const Page = () => {
                 {colaboradores.map((col) => {
                   // CRÍTICO: Usar SOLO el ID del content-type Intranet-colaboradores
                   // Este es el ID que viene del backend después de la desduplicación
+                  // NO usar documentId, NO usar persona.id, SOLO col.id
                   const colId = String(col.id)
                   
+                  // Detectar si es Matias Riquelme Medina
+                  const nombreCompleto = col.persona?.nombre_completo || ''
+                  const isMatias = nombreCompleto.toLowerCase().includes('matias') && nombreCompleto.toLowerCase().includes('riquelme')
+                  
+                  // Log específico para Matias
+                  if (isMatias) {
+                    console.error('[Chat Frontend] 🚨 MATIAS RIQUELME MEDINA - EN LISTA:')
+                    console.error('  📧 Email:', col.email_login)
+                    console.error('  🔑 col.id (ID del content-type):', col.id)
+                    console.error('  ✅ colId que se usará:', colId)
+                    console.error('  ⚠️ DEBE SER 93, NO 115')
+                  }
+                  
                   // Log para verificar que estamos usando el ID correcto
-                  if (colaboradores.indexOf(col) < 3) {
+                  if (colaboradores.indexOf(col) < 3 || isMatias) {
                     console.error('[Chat Frontend] 🔍 ID usado para contacto:', {
                       email: col.email_login,
+                      nombre: nombreCompleto,
                       id: col.id,
                       colId: colId,
                       tienePersona: !!col.persona,
@@ -545,8 +571,15 @@ const Page = () => {
                       action
                       active={isSelected}
                       onClick={() => {
+                        if (isMatias) {
+                          console.error('[Chat Frontend] 🚨 MATIAS RIQUELME MEDINA - CLICK:')
+                          console.error('  🔑 col.id (ID del content-type):', col.id)
+                          console.error('  ✅ colId que se pasará a selectColaborador:', colId)
+                          console.error('  ⚠️ DEBE SER 93, NO 115')
+                        }
                         console.error('[Chat Frontend] 🖱️ Click en contacto:', {
                           email: col.email_login,
+                          nombre: nombreCompleto,
                           id: col.id,
                           colId: colId,
                         })

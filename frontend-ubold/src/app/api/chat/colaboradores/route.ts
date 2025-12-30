@@ -241,8 +241,22 @@ export async function GET() {
         const attrs = col.attributes || col
         const email = attrs.email_login || col.email_login
         const id = col.id // ID del content-type Intranet-colaboradores
+        const documentId = col.documentId
+        const personaId = attrs.persona?.id || attrs.persona?.data?.id
         const hasPersona = !!attrs.persona || !!attrs.persona?.data
-        console.error(`  📧 Email: ${email} - ID: ${id} - Tiene persona: ${hasPersona}`)
+        const nombreCompleto = attrs.persona?.nombre_completo || attrs.persona?.data?.nombre_completo || ''
+        
+        // Log especial para Matias Riquelme Medina
+        if (nombreCompleto.toLowerCase().includes('matias') && nombreCompleto.toLowerCase().includes('riquelme')) {
+          console.error(`  🚨 MATIAS RIQUELME MEDINA DETECTADO:`)
+          console.error(`     📧 Email: ${email}`)
+          console.error(`     🔑 ID del content-type Intranet-colaboradores: ${id}`)
+          console.error(`     📄 documentId: ${documentId}`)
+          console.error(`     👤 persona.id: ${personaId}`)
+          console.error(`     ✅ ID que debe usarse: ${id} (NO ${documentId}, NO ${personaId})`)
+        }
+        
+        console.error(`  📧 Email: ${email} - ID: ${id} - documentId: ${documentId} - personaId: ${personaId} - Tiene persona: ${hasPersona}`)
       })
       
       console.log('[API /chat/colaboradores] ✅ Limpieza de duplicados completada:', {
