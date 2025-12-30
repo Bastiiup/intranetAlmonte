@@ -220,9 +220,9 @@ export async function PUT(
         const rutParaBuscar = limpiarRUT(body.data.persona.rut)
         console.log('[API Clientes PUT] 🔍 Buscando cliente por RUT:', rutParaBuscar)
         
-        // Buscar Persona por RUT
+        // Buscar Persona por RUT (sin populate para evitar campos problemáticos como tags)
         const personaSearch = await strapiClient.get<any>(
-          `/api/personas?filters[rut][$contains]=${encodeURIComponent(rutParaBuscar)}&populate=*&pagination[pageSize]=100`
+          `/api/personas?filters[rut][$contains]=${encodeURIComponent(rutParaBuscar)}&pagination[pageSize]=100`
         )
         
         const personasEncontradas = personaSearch.data && Array.isArray(personaSearch.data)

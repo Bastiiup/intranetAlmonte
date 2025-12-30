@@ -351,14 +351,16 @@ export async function POST(request: NextRequest) {
         }
         
         // Si tenemos el ID de WooCommerce de Moraleja, guardarlo
+        // NOTA: woocommerce_id puede no existir en el schema de WO-Clientes, omitir si da error
         // Verificar múltiples posibles estructuras de respuesta
         const moralejaId = wordPressResults?.moraleja?.data?.id || 
                           wordPressResults?.moraleja?.id ||
                           (wordPressResults?.moraleja?.data && typeof wordPressResults.moraleja.data === 'object' && 'id' in wordPressResults.moraleja.data ? wordPressResults.moraleja.data.id : null)
         
         if (wordPressResults?.moraleja?.success && moralejaId) {
-          woClienteMoralejaData.data.woocommerce_id = moralejaId
-          console.log('[API Clientes POST] 📌 ID de WooCommerce Moraleja guardado:', moralejaId)
+          // Comentar woocommerce_id si no existe en el schema de WO-Clientes
+          // woClienteMoralejaData.data.woocommerce_id = moralejaId
+          console.log('[API Clientes POST] 📌 ID de WooCommerce Moraleja obtenido:', moralejaId, '(no se guardará en Strapi si el campo no existe)')
         } else {
           console.log('[API Clientes POST] ⚠️ No se pudo obtener ID de WooCommerce Moraleja', {
             success: wordPressResults?.moraleja?.success,
@@ -401,14 +403,16 @@ export async function POST(request: NextRequest) {
         }
         
         // Si tenemos el ID de WooCommerce de Escolar, guardarlo
+        // NOTA: woocommerce_id puede no existir en el schema de WO-Clientes, omitir si da error
         // Verificar múltiples posibles estructuras de respuesta
         const escolarId = wordPressResults?.escolar?.data?.id || 
                          wordPressResults?.escolar?.id ||
                          (wordPressResults?.escolar?.data && typeof wordPressResults.escolar.data === 'object' && 'id' in wordPressResults.escolar.data ? wordPressResults.escolar.data.id : null)
         
         if (wordPressResults?.escolar?.success && escolarId) {
-          woClienteEscolarData.data.woocommerce_id = escolarId
-          console.log('[API Clientes POST] 📌 ID de WooCommerce Escolar guardado:', escolarId)
+          // Comentar woocommerce_id si no existe en el schema de WO-Clientes
+          // woClienteEscolarData.data.woocommerce_id = escolarId
+          console.log('[API Clientes POST] 📌 ID de WooCommerce Escolar obtenido:', escolarId, '(no se guardará en Strapi si el campo no existe)')
         } else {
           console.log('[API Clientes POST] ⚠️ No se pudo obtener ID de WooCommerce Escolar', {
             success: wordPressResults?.escolar?.success,
