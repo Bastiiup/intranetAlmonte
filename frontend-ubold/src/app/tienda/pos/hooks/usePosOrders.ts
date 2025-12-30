@@ -39,7 +39,8 @@ export function usePosOrders() {
     customerId?: number,
     paymentMethod: PaymentMethod = { type: 'cash', amount: 0 },
     customerNote?: string,
-    deliveryType: 'shipping' | 'pickup' = 'pickup'
+    deliveryType: 'shipping' | 'pickup' = 'pickup',
+    cuponCode?: string | null
   ) => {
     if (cart.length === 0) {
       setError('El carrito está vacío')
@@ -137,31 +138,60 @@ export function usePosOrders() {
           }
         : shippingData
 
-      const orderData: any = {
-        payment_method: paymentMethod.type,
-        payment_method_title: 
-          paymentMethod.type === 'cash' ? 'Efectivo' :
-          paymentMethod.type === 'card' ? 'Tarjeta' :
-          paymentMethod.type === 'transfer' ? 'Transferencia' :
-          'Pago Mixto',
-        set_paid: true,
-        status: 'completed',
-        customer_id: customerId || 0,
-        billing: billingData,
-        shipping: finalShippingData,
-        line_items: cart.map((item) => ({
-          product_id: item.product.id,
-          quantity: item.quantity,
-        })),
-        ...(customerNote && { customer_note: customerNote }),
-        // Agregar meta_data con direcciones detalladas y tipo de entrega
-        meta_data: [
-          ...(addressMetaData.length > 0 ? addressMetaData : []),
-          {
-            key: '_delivery_type',
-            value: deliveryType,
-          },
-        ],
+      // Generar numero_pedido único para POS
+      const numeroPedido = `POS-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+      // Convertir items del cart al formato que espera la API
+      const items = cart.map((item) => ({
+        producto_id: item.product.id,
+        product_id: item.product.id, // Para WooCommerce
+        nombre: item.product.name,
+        name: item.product.name, // Para compatibilidad
+        cantidad: item.quantity,
+        quantity: item.quantity, // Para WooCommerce
+        precio_unitario: parseFloat(item.product.price),
+        price: item.product.price, // Para WooCommerce
+        total: item.total,
+        subtotal: item.subtotal, // Para compatibilidad
+        sku: item.product.sku || '',
+      }))
+
+      // Calcular totales desde los items
+      const subtotal = cart.reduce((sum, item) => sum + item.subtotal, 0)
+      const descuento = 0 // El descuento se calcula en el backend basado en el cupón
+      const impuestos = 0 // Se puede calcular si es necesario
+      const envio = deliveryType === 'shipping' ? 0 : 0 // Se puede agregar costo de envío si es necesario
+      const total = subtotal - descuento + impuestos + envio
+
+      // Preparar datos en el formato que espera la API /api/tienda/pedidos
+      const orderData = {
+        data: {
+          numero_pedido: numeroPedido,
+          fecha_pedido: new Date().toISOString(),
+          estado: 'completado', // POS siempre crea pedidos completados
+          total: total.toFixed(2),
+          subtotal: subtotal.toFixed(2),
+          impuestos: impuestos.toFixed(2),
+          envio: envio.toFixed(2),
+          descuento: descuento.toFixed(2),
+          moneda: 'CLP',
+          origen: 'pos',
+          cliente: null, // Por ahora null (cliente invitado), se puede mejorar para buscar en Strapi
+          cupon_code: cuponCode || null, // Código del cupón si existe
+          items: items,
+          billing: billingData,
+          shipping: finalShippingData,
+          metodo_pago: paymentMethod.type === 'cash' ? 'cod' :
+                      paymentMethod.type === 'card' ? 'stripe' :
+                      paymentMethod.type === 'transfer' ? 'transferencia' :
+                      'bacs',
+          metodo_pago_titulo: paymentMethod.type === 'cash' ? 'Efectivo' :
+                             paymentMethod.type === 'card' ? 'Tarjeta' :
+                             paymentMethod.type === 'transfer' ? 'Transferencia' :
+                             'Pago Mixto',
+          nota_cliente: customerNote || null,
+          originPlatform: 'woo_escolar', // POS siempre usa woo_escolar
+        },
       }
 
       // Usar el endpoint de tienda/pedidos que sincroniza con WooCommerce y Strapi

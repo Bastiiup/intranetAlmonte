@@ -475,12 +475,16 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
       customerData: selectedCustomer || null,
     }
 
+    // Obtener código del cupón si existe
+    const cuponCode = discount && discount.type === 'coupon' ? discount.couponCode : null
+
     const order = await processOrder(
       cart,
       selectedCustomer?.id,
       paymentMethodWithCustomer as any, // Pasar método de pago con datos del cliente
       `Pago: ${payments.map(p => `${p.type} $${p.amount}`).join(', ')}`,
-      deliveryType
+      deliveryType,
+      cuponCode || undefined
     )
 
     if (order) {

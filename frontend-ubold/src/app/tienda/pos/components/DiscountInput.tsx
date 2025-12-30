@@ -43,28 +43,64 @@ export default function DiscountInput({ discount, onDiscountChange, subtotal }: 
     setCouponError(null)
 
     try {
-      const response = await fetch('/api/woocommerce/coupons', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          code: couponCode.trim(),
-          amount: subtotal,
-        }),
-      })
-
+      // Buscar cupón en Strapi (solo de woo_escolar, que es la plataforma del POS)
+      const response = await fetch('/api/tienda/cupones?pagination[pageSize]=1000')
       const data = await response.json()
 
-      if (data.success && data.valid) {
+      if (data.success && data.data) {
+        // Buscar cupón por código y plataforma
+        const cuponEncontrado = data.data.find((cupon: any) => {
+          const attrs = cupon.attributes || {}
+          const cuponData = (attrs && Object.keys(attrs).length > 0) ? attrs : cupon
+          const codigo = cuponData.codigo || cupon.codigo
+          const plataforma = cuponData.originPlatform || cupon.originPlatform
+          
+          return codigo && 
+                 codigo.toLowerCase().trim() === couponCode.trim().toLowerCase() &&
+                 plataforma === 'woo_escolar'
+        })
+
+        if (!cuponEncontrado) {
+          setCouponError('Cupón no encontrado o no válido para esta tienda')
+          return
+        }
+
+        // Extraer datos del cupón
+        const attrs = cuponEncontrado.attributes || {}
+        const cuponData = (attrs && Object.keys(attrs).length > 0) ? attrs : cuponEncontrado
+        const codigo = cuponData.codigo || cuponEncontrado.codigo
+        const tipoCupon = cuponData.tipo_cupon || 'fixed_cart'
+        const importeCupon = cuponData.importe_cupon ? parseFloat(String(cuponData.importe_cupon)) : 0
+
+        // Validar fecha de caducidad
+        if (cuponData.fecha_caducidad) {
+          const fechaCaducidad = new Date(cuponData.fecha_caducidad)
+          const ahora = new Date()
+          if (fechaCaducidad < ahora) {
+            setCouponError('El cupón ha expirado')
+            return
+          }
+        }
+
+        // Calcular descuento según tipo
+        let descuento = 0
+        if (tipoCupon === 'percent' || tipoCupon === 'percent_product') {
+          descuento = (subtotal * importeCupon) / 100
+        } else {
+          descuento = importeCupon
+        }
+
+        // Asegurar que el descuento no exceda el subtotal
+        descuento = Math.min(descuento, subtotal)
+
         onDiscountChange({
           type: 'coupon',
-          value: data.data.discount_amount,
-          couponCode: data.data.code,
+          value: descuento,
+          couponCode: codigo,
         })
         setCouponCode('')
       } else {
-        setCouponError(data.error || 'Cupón no válido')
+        setCouponError(data.error || 'Error al buscar cupones')
       }
     } catch (err: any) {
       setCouponError(err.message || 'Error al validar cupón')
