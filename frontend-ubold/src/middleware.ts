@@ -59,7 +59,25 @@ export function middleware(request: NextRequest) {
   }
 
   // Si hay token, permitir acceso
-  return NextResponse.next()
+  const response = NextResponse.next()
+  
+  // Agregar headers CSP para Stream Chat (necesita unsafe-eval)
+  // Aplicar a todas las rutas para asegurar que Stream Chat funcione desde cualquier página
+  // Esto sobrescribe cualquier CSP que Railway u otros servicios puedan agregar
+  response.headers.set(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.getstream.io https://*.stream-io-api.com",
+      "style-src 'self' 'unsafe-inline' https://*.getstream.io",
+      "img-src 'self' data: blob: https: http:",
+      "font-src 'self' data: https:",
+      "connect-src 'self' https://*.getstream.io https://*.stream-io-api.com wss://*.getstream.io ws://*.getstream.io wss://*.stream-io-api.com ws://*.stream-io-api.com",
+      "frame-src 'self' https://*.getstream.io",
+    ].join('; ')
+  )
+  
+  return response
 }
 
 // Configuración del matcher para aplicar el middleware solo a rutas específicas
