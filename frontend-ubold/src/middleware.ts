@@ -59,28 +59,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Si hay token, permitir acceso
-  const response = NextResponse.next()
-  
-  // Agregar headers CSP para Stream Chat (necesita unsafe-eval)
-  // Aplicar a todas las rutas para asegurar que Stream Chat funcione desde cualquier página
-  // Esto sobrescribe cualquier CSP que Railway u otros servicios puedan agregar
-  const cspValue = [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.getstream.io https://*.stream-io-api.com https://getstream.io",
-    "style-src 'self' 'unsafe-inline' https://*.getstream.io",
-    "img-src 'self' data: blob: https: http:",
-    "font-src 'self' data: https:",
-    "connect-src 'self' https://*.getstream.io https://*.stream-io-api.com https://getstream.io wss://*.getstream.io ws://*.getstream.io wss://*.stream-io-api.com ws://*.stream-io-api.com wss://chat.stream-io-api.com",
-    "frame-src 'self' https://*.getstream.io",
-    "worker-src 'self' blob:",
-    "child-src 'self' blob:",
-  ].join('; ')
-  
-  // Establecer CSP en múltiples headers para mayor compatibilidad
-  response.headers.set('Content-Security-Policy', cspValue)
-  response.headers.set('X-Content-Security-Policy', cspValue) // Para IE/Edge antiguos
-  
-  return response
+  return NextResponse.next()
 }
 
 // Configuración del matcher para aplicar el middleware solo a rutas específicas

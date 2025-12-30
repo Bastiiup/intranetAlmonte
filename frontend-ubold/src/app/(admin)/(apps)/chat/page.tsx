@@ -294,78 +294,23 @@ const Page = () => {
         members: [currentUserId, otherUserId],
       })
 
-      // Obtener o crear canal
-      // IMPORTANTE: Pasar los miembros en la configuración inicial
-      // Stream Chat usará esto tanto si el canal existe como si es nuevo
+      // Crear canal con miembros explícitos (IDs como strings)
+      // IMPORTANTE: Stream es estricto con los tipos, los IDs deben ser strings
       const channel = chatClient.channel('messaging', channelId, {
         members: [currentUserId, otherUserId],
       })
 
-      // Suscribirse a eventos del canal ANTES de watch()
-      // Esto asegura que recibimos todos los mensajes en tiempo real
+      // watch() es vital para recibir mensajes nuevos y cargar mensajes históricos
+      await channel.watch()
+
+      // Suscribirse a eventos del canal para debugging
       channel.on('message.new', (event: any) => {
         console.log('[Chat] 📨 Nuevo mensaje recibido:', {
           id: event.message?.id,
           text: event.message?.text?.substring(0, 50),
           user: event.message?.user?.id,
-          userName: event.message?.user?.name,
-          created_at: event.message?.created_at,
         })
       })
-
-      channel.on('message.updated', (event: any) => {
-        console.log('[Chat] ✏️ Mensaje actualizado:', {
-          id: event.message?.id,
-          user: event.message?.user?.id,
-        })
-      })
-
-      channel.on('message.deleted', (event: any) => {
-        console.log('[Chat] 🗑️ Mensaje eliminado:', {
-          id: event.message?.id,
-        })
-      })
-
-      // Suscribirse a eventos adicionales del cliente (no del canal)
-      chatClient.on('connection.changed', (event: any) => {
-        console.log('[Chat] 🔌 Conexión cambiada:', {
-          online: event.online,
-          type: event.type,
-        })
-      })
-
-      // Verificar usuario antes de watch()
-      console.log('[Chat] Verificando usuario en Stream...')
-      try {
-        const user = await chatClient.queryUsers({ id: currentUserId })
-        console.log('[Chat] Usuario verificado:', {
-          id: user.users[0]?.id,
-          role: user.users[0]?.role,
-          name: user.users[0]?.name,
-        })
-      } catch (permErr) {
-        console.warn('[Chat] No se pudo verificar usuario (puede ser normal):', permErr)
-      }
-
-      // watch() crea el canal si no existe, o se suscribe si ya existe
-      // watch() carga automáticamente los mensajes históricos
-      console.log('[Chat] Iniciando watch() del canal...')
-      try {
-        await channel.watch({
-          state: true, // Cargar el estado completo del canal
-          watch: true, // Suscribirse a actualizaciones en tiempo real
-          presence: true, // Suscribirse a presencia de usuarios
-        })
-        console.log('[Chat] ✅ watch() completado exitosamente')
-      } catch (watchErr: any) {
-        console.error('[Chat] ❌ Error en watch():', {
-          error: watchErr.message,
-          code: watchErr.code,
-          status: watchErr.status,
-          response: watchErr.response,
-        })
-        throw watchErr
-      }
       
       console.log('[Chat] Cargando mensajes históricos...')
       
