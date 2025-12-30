@@ -204,6 +204,7 @@ export async function POST(request: NextRequest) {
           email: e.email.trim(),
           tipo: e.tipo || 'Personal', // Valores válidos: "Personal", "Laboral", "Institucional"
         })),
+        genero: personaData.genero || null,
         // NOTA: Los telefonos se omiten del POST inicial porque Strapi rechaza el campo
         // Se pueden agregar después con un PUT si es necesario
       },

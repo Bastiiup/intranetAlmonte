@@ -23,7 +23,7 @@ import { useRouter } from 'next/navigation'
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
-import EditClienteModal from './EditClienteModal'
+import ClienteModal from './ClienteModal'
 import { currency } from '@/helpers'
 import { format } from 'date-fns'
 
@@ -151,7 +151,7 @@ const columnHelper = createColumnHelper<ClienteType>()
 
 const ClientsListing = ({ clientes, error }: ClientsListingProps = {}) => {
   const router = useRouter()
-  const [showEditModal, setShowEditModal] = useState(false)
+  const [showClienteModal, setShowClienteModal] = useState(false)
   const [selectedCliente, setSelectedCliente] = useState<ClienteType | null>(null)
 
   // Mapear clientes de Strapi al formato ClienteType si están disponibles
@@ -284,7 +284,7 @@ const ClientsListing = ({ clientes, error }: ClientsListingProps = {}) => {
                 idUsado: clienteSeleccionado.documentId || clienteSeleccionado.id || 'NO ID',
               })
               setSelectedCliente(clienteSeleccionado)
-              setShowEditModal(true)
+              setShowClienteModal(true)
             }}>
             <TbEdit className="fs-lg" />
           </Button>
@@ -560,10 +560,10 @@ const ClientsListing = ({ clientes, error }: ClientsListingProps = {}) => {
             itemName="cliente"
           />
 
-          <EditClienteModal
-            show={showEditModal}
+          <ClienteModal
+            show={showClienteModal}
             onHide={() => {
-              setShowEditModal(false)
+              setShowClienteModal(false)
               setSelectedCliente(null)
             }}
             cliente={selectedCliente}

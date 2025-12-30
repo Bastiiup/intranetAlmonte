@@ -191,23 +191,33 @@ export async function PUT(
       try {
         // No usar parseNombreCompleto para edición - guardar el nombre completo tal cual
         // Esto evita que nombres adicionales se conviertan en apellidos
+        // Si viene del body con estructura completa de persona, usarla
         const personaUpdateData: any = {
           data: {
-            nombre_completo: nombreFinal.trim(),
-            // Guardar todo el nombre completo en 'nombres' sin dividirlo
-            nombres: nombreFinal.trim(),
-            // Dejar apellidos como null cuando se está editando desde un solo campo
-            primer_apellido: null,
-            segundo_apellido: null,
+            nombre_completo: body.data.persona?.nombre_completo || nombreFinal.trim(),
+            nombres: body.data.persona?.nombres || nombreFinal.trim(),
+            primer_apellido: body.data.persona?.primer_apellido || null,
+            segundo_apellido: body.data.persona?.segundo_apellido || null,
           },
         }
         
-        // Actualizar email si se proporciona
-        if (correoFinal) {
+        // Agregar genero si viene en el body
+        if (body.data.persona?.genero !== undefined) {
+          personaUpdateData.data.genero = body.data.persona.genero || null
+        }
+        
+        // Actualizar emails si vienen en el body (estructura completa)
+        if (body.data.persona?.emails && Array.isArray(body.data.persona.emails) && body.data.persona.emails.length > 0) {
+          personaUpdateData.data.emails = body.data.persona.emails.map((e: any) => ({
+            email: e.email?.trim() || '',
+            tipo: e.tipo || 'Personal',
+          }))
+        } else if (correoFinal) {
+          // Fallback: usar correo_electronico si no vienen emails estructurados
           personaUpdateData.data.emails = [
             {
               email: correoFinal.trim(),
-              tipo: 'Personal', // Valores válidos: "Personal", "Laboral", "Institucional"
+              tipo: 'Personal',
             }
           ]
         }
