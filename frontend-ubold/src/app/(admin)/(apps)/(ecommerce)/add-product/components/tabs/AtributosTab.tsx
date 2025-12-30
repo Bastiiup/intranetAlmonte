@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useState, useEffect } from 'react'
-import { Alert, Button, Badge, Table, Modal, Form, FormGroup, FormLabel, FormControl, FormCheck } from 'react-bootstrap'
+import { Alert, Button, Badge, Table, Modal, Form, FormGroup, FormLabel, FormControl, FormCheck, FormSelect } from 'react-bootstrap'
 import { LuX, LuPlus, LuTrash2 } from 'react-icons/lu'
 
 interface WooCommerceAttribute {
