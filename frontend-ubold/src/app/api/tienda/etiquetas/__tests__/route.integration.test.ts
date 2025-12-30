@@ -71,7 +71,7 @@ describe('/api/tienda/etiquetas', () => {
   })
 
   describe('POST', () => {
-    it('debe crear etiqueta en Strapi primero, luego en WooCommerce con slug=documentId', async () => {
+    it('debe crear etiqueta solo en Strapi con estado pendiente', async () => {
       const mockStrapiTag = {
         data: {
           id: 1,
@@ -80,20 +80,8 @@ describe('/api/tienda/etiquetas', () => {
         },
       }
 
-      const mockWooCommerceTag = {
-        id: 200,
-        name: 'Nueva Etiqueta',
-        slug: 'doc456',
-      }
-
-      // Mock: crear en Strapi primero
+      // Mock: crear en Strapi
       mockStrapiClient.post.mockResolvedValueOnce(mockStrapiTag as any)
-
-      // Mock: crear en WooCommerce con slug=documentId
-      mockWooCommerceClient.post.mockResolvedValueOnce(mockWooCommerceTag as any)
-
-      // Mock: actualizar Strapi con woocommerce_id
-      mockStrapiClient.put.mockResolvedValueOnce({ data: { ...mockStrapiTag.data, woocommerce_id: '200' } } as any)
 
       const request = new NextRequest('http://localhost:3000/api/tienda/etiquetas', {
         method: 'POST',
@@ -110,75 +98,22 @@ describe('/api/tienda/etiquetas', () => {
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
-      expect(data.message).toContain('Strapi y WooCommerce')
+      expect(data.message).toContain('pendiente')
+      expect(data.message).toContain('Solicitudes')
 
-      // Verificar que se creó en Strapi primero
+      // Verificar que se creó en Strapi
       expect(mockStrapiClient.post).toHaveBeenCalledWith(
         '/api/etiquetas',
         expect.objectContaining({
           data: expect.objectContaining({
             name: 'Nueva Etiqueta',
+            estado_publicacion: 'pendiente',
           }),
         })
       )
 
-      // Verificar que se creó en WooCommerce con slug=documentId
-      expect(mockWooCommerceClient.post).toHaveBeenCalledWith(
-        'products/tags',
-        expect.objectContaining({
-          name: 'Nueva Etiqueta',
-          slug: 'doc456', // documentId como slug
-        })
-      )
-
-      // Verificar que se actualizó Strapi con woocommerce_id
-      expect(mockStrapiClient.put).toHaveBeenCalledWith(
-        '/api/etiquetas/doc456',
-        expect.objectContaining({
-          data: expect.objectContaining({
-            woocommerce_id: '200',
-          }),
-        })
-      )
-    })
-
-    it('debe eliminar de Strapi si falla WooCommerce', async () => {
-      const mockStrapiTag = {
-        data: {
-          id: 1,
-          documentId: 'doc456',
-          name: 'Nueva Etiqueta',
-        },
-      }
-
-      // Mock: crear en Strapi primero
-      mockStrapiClient.post.mockResolvedValueOnce(mockStrapiTag as any)
-
-      // Mock: falla WooCommerce
-      mockWooCommerceClient.post.mockRejectedValueOnce(new Error('Error en WooCommerce'))
-
-      // Mock: eliminar de Strapi
-      mockStrapiClient.delete.mockResolvedValueOnce({} as any)
-
-      const request = new NextRequest('http://localhost:3000/api/tienda/etiquetas', {
-        method: 'POST',
-        body: JSON.stringify({
-          data: {
-            name: 'Nueva Etiqueta',
-          },
-        }),
-      })
-
-      const response = await POST(request)
-      const data = await response.json()
-
-      // Verificar que se intentó eliminar de Strapi
-      expect(mockStrapiClient.delete).toHaveBeenCalledWith('/api/etiquetas/doc456')
-      
-      // Verificar que se retornó un error
-      expect(response.status).toBe(500)
-      expect(data.success).toBe(false)
-      expect(data.error).toContain('Error en WooCommerce')
+      // Verificar que NO se creó en WooCommerce (se hace después desde Solicitudes)
+      expect(mockWooCommerceClient.post).not.toHaveBeenCalled()
     })
 
     it('debe retornar error si falta el nombre', async () => {

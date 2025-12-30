@@ -141,32 +141,101 @@ export async function POST(request: NextRequest) {
     // Crear SOLO en Strapi (NO en WooCommerce al crear)
     console.log('[API POST] 📚 Creando producto en Strapi...')
     
+    // Convertir descripción de HTML a blocks de Strapi (igual que en PUT)
+    // ⚠️ CRÍTICO: Strapi espera descripcion como array de blocks (Rich Text), NO como string
+    let descripcionBlocks: any = null
+    if (body.descripcion !== undefined) {
+      if (Array.isArray(body.descripcion)) {
+        // Si ya viene como blocks, usar directamente
+        descripcionBlocks = body.descripcion
+      } else if (typeof body.descripcion === 'string') {
+        const descripcionTrimmed = body.descripcion.trim()
+        if (descripcionTrimmed === '') {
+          descripcionBlocks = null
+        } else {
+          // Si viene como HTML (desde Quill), convertir a blocks de Strapi
+          if (descripcionTrimmed.includes('<')) {
+            // Dividir por etiquetas <p> o </p>
+            const paragraphs = descripcionTrimmed
+              .split(/<p[^>]*>|<\/p>/)
+              .filter((p: string) => p.trim() !== '' && !p.startsWith('<'))
+              .map((p: string) => p.trim())
+            
+            if (paragraphs.length > 0) {
+              descripcionBlocks = paragraphs.map((para: string) => {
+                // Remover todas las etiquetas HTML y extraer solo texto
+                const textOnly = para.replace(/<[^>]+>/g, '').trim()
+                if (textOnly) {
+                  return {
+                    type: 'paragraph',
+                    children: [{ type: 'text', text: textOnly }]
+                  }
+                }
+                return null
+              }).filter((b: any) => b !== null)
+            } else {
+              // Si no hay párrafos, extraer todo el texto
+              const textOnly = descripcionTrimmed.replace(/<[^>]+>/g, '').trim()
+              descripcionBlocks = textOnly ? [
+                {
+                  type: 'paragraph',
+                  children: [{ type: 'text', text: textOnly }]
+                }
+              ] : null
+            }
+          } else {
+            // Si es texto plano, crear un párrafo
+            descripcionBlocks = [
+              {
+                type: 'paragraph',
+                children: [{ type: 'text', text: descripcionTrimmed }]
+              }
+            ]
+          }
+        }
+      }
+    }
+    
+    console.log('[API POST] ✅ Descripción formateada para Strapi:', JSON.stringify(descripcionBlocks))
+    console.log('[API POST] ℹ️ Tipo de descripción:', Array.isArray(descripcionBlocks) ? 'Blocks (✅ Correcto)' : descripcionBlocks === null ? 'null (vacío)' : 'String (❌ Incorrecto)')
+    
     const strapiProductData: any = {
       data: {
         nombre_libro: body.nombre_libro.trim(),
         isbn_libro: isbn,
-        descripcion: body.descripcion?.trim() || '',
-        descripcion_corta: body.descripcion_corta?.trim() || '', // ⚠️ CRÍTICO: Descripción corta para WooCommerce
+        descripcion: descripcionBlocks, // ✅ Enviar como blocks, no como string
+        // ⚠️ descripcion_corta NO se envía - no está en schema de Strapi
+        // Se usa solo en raw_woo_data para WooCommerce
         subtitulo_libro: body.subtitulo_libro?.trim() || '',
         estado_publicacion: estadoPublicacion,
       }
     }
 
-    // ⚠️ IMPORTANTE: raw_woo_data NO se envía a Strapi porque no está en el schema
-    // Strapi debe construir raw_woo_data en sus lifecycles basándose en los campos individuales
-    // Los campos individuales (descripcion, subtitulo_libro, precio, etc.) ya están en strapiProductData.data
-    // Strapi usará estos campos para construir raw_woo_data en afterCreate
+    // ⚠️ IMPORTANTE: raw_woo_data NO se puede enviar directamente a Strapi porque no está en el schema
+    // Strapi lo rechaza con error "Invalid key raw_woo_data"
+    // En su lugar, Strapi debe construir raw_woo_data en sus lifecycles desde los campos individuales:
+    // - descripcion → raw_woo_data.description
+    // - subtitulo_libro → raw_woo_data.short_description
+    // 
+    // El frontend envía raw_woo_data en el body para referencia, pero NO lo incluimos en strapiProductData.data
+    // porque Strapi lo rechazaría. Los lifecycles de Strapi deben usar descripcion y subtitulo_libro
+    // para construir raw_woo_data correctamente.
+    if (body.raw_woo_data || body.rawWooData) {
+      const rawWooData = body.raw_woo_data || body.rawWooData
+      console.log('[API POST] ℹ️ raw_woo_data recibido del frontend (NO se envía a Strapi - no está en schema):', {
+        tieneDescription: !!rawWooData?.description,
+        tieneShortDescription: !!rawWooData?.short_description,
+        descriptionLength: rawWooData?.description?.length || 0,
+        shortDescriptionLength: rawWooData?.short_description?.length || 0,
+      })
+      console.log('[API POST] ⚠️ Strapi construirá raw_woo_data desde descripcion y subtitulo_libro en lifecycles')
+    }
     
-    // NOTA: Si necesitas que Strapi use raw_woo_data directamente, debes agregarlo al schema de Strapi
-    // Por ahora, NO lo incluimos para evitar el error "Invalid key raw_woo_data"
-    // if (body.raw_woo_data) {
-    //   strapiProductData.data.raw_woo_data = body.raw_woo_data  // ❌ Comentado - Strapi lo rechaza
-    // }
-    
-    console.log('[API POST] ℹ️ raw_woo_data NO se envía. Strapi debe construirlo en lifecycles desde:')
+    console.log('[API POST] ℹ️ Datos que se enviarán a Strapi:')
     console.log('[API POST]   - descripcion:', strapiProductData.data.descripcion ? '✅ Presente' : '❌ Vacío')
     console.log('[API POST]   - subtitulo_libro:', strapiProductData.data.subtitulo_libro ? '✅ Presente' : '❌ Vacío')
     console.log('[API POST]   - precio:', strapiProductData.data.precio ? '✅ Presente' : '❌ Vacío')
+    console.log('[API POST]   - raw_woo_data: ❌ NO se envía (Strapi lo construye en lifecycles desde descripcion y subtitulo_libro)')
 
     // Agregar imagen si existe - usar ID de Strapi si está disponible
     if (body.portada_libro_id) {

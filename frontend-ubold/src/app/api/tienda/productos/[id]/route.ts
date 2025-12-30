@@ -240,6 +240,7 @@ export async function PUT(
     console.log('[API PUT] 🔑 Keys del body:', Object.keys(body))
 
     // CRÍTICO: Verificar que el body no tenga campos en MAYÚSCULAS
+    // Normalizar camelCase a snake_case (ej: rawWooData -> raw_woo_data)
     const bodyKeys = Object.keys(body)
     const hasUppercaseKeys = bodyKeys.some(k => k !== k.toLowerCase())
     
@@ -247,12 +248,18 @@ export async function PUT(
       console.error('[API PUT] 🚨 ALERTA: Body tiene campos en MAYÚSCULAS!')
       console.error('[API PUT] Keys:', bodyKeys)
       
-      // Convertir FORZADAMENTE a minúsculas
+      // Función para convertir camelCase a snake_case
+      const camelToSnake = (str: string): string => {
+        return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
+      }
+      
+      // Convertir FORZADAMENTE a snake_case
       const normalizedBody: any = {}
       for (const [key, value] of Object.entries(body)) {
-        normalizedBody[key.toLowerCase()] = value
+        const normalizedKey = camelToSnake(key)
+        normalizedBody[normalizedKey] = value
       }
-      console.log('[API PUT] ✅ Body normalizado:', normalizedBody)
+      console.log('[API PUT] ✅ Body normalizado (camelCase -> snake_case):', Object.keys(normalizedBody))
       // Usar el body normalizado en lugar del original
       Object.assign(body, normalizedBody)
     }
@@ -280,6 +287,12 @@ export async function PUT(
     }
 
     console.log('[API PUT] ✅ Producto encontrado:', producto.documentId)
+    
+    // ⚠️ CRÍTICO: Obtener estado_publicacion actual del producto
+    // Si el producto está publicado, debemos mantenerlo publicado para que los lifecycles se ejecuten
+    const attrs = producto.attributes || producto
+    const estadoActual = attrs.estado_publicacion || attrs.estadoPublicacion || attrs.ESTADO_PUBLICACION
+    console.log('[API PUT] 📝 Estado de publicación actual:', estadoActual)
 
     // ⚠️ NUEVO MÉTODO SIMPLIFICADO (Strapi actualizado):
     // - Strapi preserva automáticamente los externalIds (IDs de WooCommerce)
@@ -391,6 +404,7 @@ export async function PUT(
     }
 
     // Estado de publicación - IMPORTANTE: Strapi espera valores con mayúscula inicial
+    // ⚠️ CRÍTICO: Si el producto ya está publicado, mantenerlo publicado para que los lifecycles se ejecuten
     // Puede venir en body.estado_publicacion o body.data.estado_publicacion
     const estadoPublicacionInput = body.data?.estado_publicacion !== undefined ? body.data.estado_publicacion : body.estado_publicacion
     
@@ -408,6 +422,24 @@ export async function PUT(
       }
       updateData.data.estado_publicacion = estadoNormalizado
       console.log('[API PUT] 📝 Estado de publicación actualizado:', estadoNormalizado)
+    } else {
+      // ⚠️ CRÍTICO: Si no se envía estado_publicacion en el body, mantener el estado actual
+      // Si el producto está publicado, mantenerlo publicado para que los lifecycles se ejecuten
+      if (estadoActual) {
+        const estadoLower = String(estadoActual).toLowerCase()
+        if (estadoLower === 'publicado') {
+          updateData.data.estado_publicacion = 'Publicado'
+          console.log('[API PUT] ✅ Manteniendo estado_publicacion como "Publicado" para activar lifecycles')
+        } else {
+          // Si no está publicado, mantener el estado actual
+          updateData.data.estado_publicacion = estadoActual
+          console.log('[API PUT] ℹ️ Manteniendo estado_publicacion actual:', estadoActual)
+        }
+      } else {
+        // Si no hay estado, establecer como "Publicado" por defecto para activar lifecycles
+        updateData.data.estado_publicacion = 'Publicado'
+        console.log('[API PUT] ✅ Estableciendo estado_publicacion como "Publicado" por defecto para activar lifecycles')
+      }
     }
 
     // Relaciones simples
@@ -502,29 +534,63 @@ export async function PUT(
     //   updateData.data.shipping_class = body.shipping_class || ''
     // }
 
-    // ⚠️ IMPORTANTE: raw_woo_data NO se envía a Strapi porque no está en el schema
-    // Strapi debe construir raw_woo_data en sus lifecycles basándose en los campos individuales
-    // Los campos individuales (descripcion, subtitulo_libro, precio, etc.) ya están en updateData.data
-    // Strapi usará estos campos para construir raw_woo_data en afterUpdate
+    // ⚠️ IMPORTANTE: raw_woo_data NO se puede enviar directamente a Strapi porque no está en el schema
+    // Strapi lo rechaza con error "Invalid key raw_woo_data"
+    // En su lugar, Strapi debe construir raw_woo_data en sus lifecycles desde los campos individuales:
+    // - descripcion → raw_woo_data.description
+    // - subtitulo_libro → raw_woo_data.short_description
+    // 
+    // El frontend envía raw_woo_data en el body para referencia, pero NO lo incluimos en updateData.data
+    // porque Strapi lo rechazaría. Los lifecycles de Strapi deben usar descripcion y subtitulo_libro
+    // para construir raw_woo_data correctamente.
+    if (body.raw_woo_data || body.rawWooData) {
+      const rawWooData = body.raw_woo_data || body.rawWooData
+      console.log('[API PUT] ℹ️ raw_woo_data recibido del frontend (NO se envía a Strapi - no está en schema):', {
+        tieneDescription: !!rawWooData?.description,
+        tieneShortDescription: !!rawWooData?.short_description,
+        descriptionLength: rawWooData?.description?.length || 0,
+        shortDescriptionLength: rawWooData?.short_description?.length || 0,
+      })
+      console.log('[API PUT] ⚠️ Strapi construirá raw_woo_data desde descripcion y subtitulo_libro en lifecycles')
+      console.log('[API PUT] ⚠️ Asegurar que descripcion y subtitulo_libro estén correctamente actualizados')
+    }
     
-    // NOTA: Si necesitas que Strapi use raw_woo_data directamente, debes agregarlo al schema de Strapi
-    // Por ahora, NO lo incluimos para evitar el error "Invalid key raw_woo_data"
-    // if (body.raw_woo_data) {
-    //   updateData.data.raw_woo_data = body.raw_woo_data  // ❌ Comentado - Strapi lo rechaza
-    // }
-    
-    console.log('[API PUT] ℹ️ raw_woo_data NO se envía. Strapi debe construirlo en lifecycles desde:')
+    console.log('[API PUT] ℹ️ Datos que se enviarán a Strapi:')
     console.log('[API PUT]   - descripcion:', updateData.data.descripcion ? '✅ Presente' : '❌ Vacío')
     console.log('[API PUT]   - subtitulo_libro:', updateData.data.subtitulo_libro ? '✅ Presente' : '❌ Vacío')
     console.log('[API PUT]   - precio:', updateData.data.precio ? '✅ Presente' : '❌ Vacío')
+    console.log('[API PUT]   - estado_publicacion:', updateData.data.estado_publicacion ? '✅ Presente' : '❌ Vacío')
+    console.log('[API PUT]   - raw_woo_data: ❌ NO se envía (Strapi lo construye en lifecycles desde descripcion y subtitulo_libro)')
 
     // VERIFICACIÓN FINAL antes de enviar
+    // Verificar que todos los campos estén en snake_case (minúsculas con guiones bajos)
+    // ⚠️ IMPORTANTE: NO incluir rawWooData o raw_woo_data (Strapi lo rechaza)
     const finalKeys = Object.keys(updateData.data)
-    const stillHasUppercase = finalKeys.some(k => k !== k.toLowerCase())
+    const camelToSnake = (str: string): string => {
+      return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
+    }
     
-    if (stillHasUppercase) {
-      console.error('[API PUT] 🚨 ERROR CRÍTICO: Todavía hay MAYÚSCULAS!')
-      console.error('[API PUT] Keys problemáticos:', finalKeys.filter(k => k !== k.toLowerCase()))
+    // Remover rawWooData o raw_woo_data si están presentes (Strapi los rechaza)
+    if (updateData.data.rawWooData) {
+      delete updateData.data.rawWooData
+      console.log('[API PUT] ⚠️ rawWooData removido del payload (Strapi lo rechaza)')
+    }
+    if (updateData.data.raw_woo_data) {
+      delete updateData.data.raw_woo_data
+      console.log('[API PUT] ⚠️ raw_woo_data removido del payload (Strapi lo rechaza)')
+    }
+    
+    const keysWithUppercase = finalKeys.filter(k => {
+      // Ignorar rawWooData y raw_woo_data (ya fueron removidos)
+      if (k === 'rawWooData' || k === 'raw_woo_data') return false
+      const normalized = camelToSnake(k)
+      return k !== normalized && k !== k.toLowerCase()
+    })
+    
+    if (keysWithUppercase.length > 0) {
+      console.error('[API PUT] 🚨 ERROR CRÍTICO: Todavía hay campos con MAYÚSCULAS!')
+      console.error('[API PUT] Keys problemáticos:', keysWithUppercase)
+      console.error('[API PUT] Keys normalizados esperados:', keysWithUppercase.map(camelToSnake))
       throw new Error('Error interno: Datos con formato incorrecto')
     }
 

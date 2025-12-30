@@ -78,8 +78,8 @@ describe('RelationSelector', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('Categoría 1')).toBeInTheDocument()
-      expect(screen.getByText('Categoría 2')).toBeInTheDocument()
+      expect(screen.getByText('Categoría 1 (1)')).toBeInTheDocument()
+      expect(screen.getByText('Categoría 2 (2)')).toBeInTheDocument()
     })
   })
 
@@ -130,7 +130,7 @@ describe('RelationSelector', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('Categoría 1')).toBeInTheDocument()
+      expect(screen.getByText('Categoría 1 (1)')).toBeInTheDocument()
     })
 
     const select = screen.getByRole('combobox')
@@ -186,7 +186,7 @@ describe('RelationSelector', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('Categoría 1')).toBeInTheDocument()
+      expect(screen.getByText('Categoría 1 (1)')).toBeInTheDocument()
     })
 
     const select = screen.getByRole('listbox')

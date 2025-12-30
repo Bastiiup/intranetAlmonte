@@ -8,13 +8,13 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Copiar archivos de dependencias primero (para mejor cache de Docker)
-COPY frontend-ubold/package*.json ./
+COPY package*.json ./
 
 # Instalar dependencias
 RUN npm ci --prefer-offline --no-audit --legacy-peer-deps || npm install --prefer-offline --no-audit --legacy-peer-deps
 
 # Copiar el resto de los archivos
-COPY frontend-ubold/ .
+COPY . .
 
 # Variables de entorno para optimizar build
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -35,7 +35,7 @@ ENV HOSTNAME="0.0.0.0"
 ENV NODE_ENV=production
 
 # Comando para iniciar la aplicación
-# Ejecutar server.js desde /app (como en rama-Gonza2 que funciona)
+# Ejecutar server.js desde /app
 WORKDIR /app
 CMD ["node", "server.js"]
 

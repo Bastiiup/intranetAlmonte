@@ -71,7 +71,7 @@ describe('/api/tienda/categorias', () => {
   })
 
   describe('POST', () => {
-    it('debe crear categoría en Strapi primero, luego en WooCommerce con slug=documentId', async () => {
+    it('debe crear categoría solo en Strapi con estado pendiente', async () => {
       const mockStrapiCategory = {
         data: {
           id: 1,
@@ -80,21 +80,9 @@ describe('/api/tienda/categorias', () => {
         },
       }
 
-      const mockWooCommerceCategory = {
-        id: 100,
-        name: 'Nueva Categoría',
-        slug: 'doc123',
-      }
-
-      // Mock: crear en Strapi primero (findCategoriaEndpoint necesita un mock válido)
+      // Mock: crear en Strapi (findCategoriaEndpoint necesita un mock válido)
       mockStrapiClient.get.mockResolvedValueOnce({ data: [] } as any) // Para findCategoriaEndpoint
       mockStrapiClient.post.mockResolvedValueOnce(mockStrapiCategory as any)
-
-      // Mock: crear en WooCommerce con slug=documentId
-      mockWooCommerceClient.post.mockResolvedValueOnce(mockWooCommerceCategory as any)
-
-      // Mock: actualizar Strapi con woocommerce_id
-      mockStrapiClient.put.mockResolvedValueOnce({ data: { ...mockStrapiCategory.data, woocommerce_id: '100' } } as any)
 
       const request = new NextRequest('http://localhost:3000/api/tienda/categorias', {
         method: 'POST',
@@ -111,78 +99,22 @@ describe('/api/tienda/categorias', () => {
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
-      expect(data.message).toContain('Strapi y WooCommerce')
+      expect(data.message).toContain('pendiente')
+      expect(data.message).toContain('Solicitudes')
 
-      // Verificar que se creó en Strapi primero
+      // Verificar que se creó en Strapi
       expect(mockStrapiClient.post).toHaveBeenCalledWith(
         expect.stringContaining('/api/categorias'),
         expect.objectContaining({
           data: expect.objectContaining({
             name: 'Nueva Categoría',
+            estado_publicacion: 'pendiente',
           }),
         })
       )
 
-      // Verificar que se creó en WooCommerce con slug=documentId
-      expect(mockWooCommerceClient.post).toHaveBeenCalledWith(
-        'products/categories',
-        expect.objectContaining({
-          name: 'Nueva Categoría',
-          slug: 'doc123', // documentId como slug
-        })
-      )
-
-      // Verificar que se actualizó Strapi con woocommerce_id
-      expect(mockStrapiClient.put).toHaveBeenCalledWith(
-        expect.stringMatching(/\/api\/categorias[^/]*\/doc123/),
-        expect.objectContaining({
-          data: expect.objectContaining({
-            woocommerce_id: '100',
-          }),
-        })
-      )
-    })
-
-    it('debe eliminar de Strapi si falla WooCommerce', async () => {
-      const mockStrapiCategory = {
-        data: {
-          id: 1,
-          documentId: 'doc123',
-          name: 'Nueva Categoría',
-        },
-      }
-
-      // Mock: crear en Strapi primero (findCategoriaEndpoint necesita un mock válido)
-      mockStrapiClient.get.mockResolvedValueOnce({ data: [] } as any) // Para findCategoriaEndpoint
-      mockStrapiClient.post.mockResolvedValueOnce(mockStrapiCategory as any)
-
-      // Mock: falla WooCommerce
-      mockWooCommerceClient.post.mockRejectedValueOnce(new Error('Error en WooCommerce'))
-
-      // Mock: eliminar de Strapi
-      mockStrapiClient.delete.mockResolvedValueOnce({} as any)
-
-      const request = new NextRequest('http://localhost:3000/api/tienda/categorias', {
-        method: 'POST',
-        body: JSON.stringify({
-          data: {
-            name: 'Nueva Categoría',
-          },
-        }),
-      })
-
-      const response = await POST(request)
-      const data = await response.json()
-
-      // Verificar que se intentó eliminar de Strapi
-      expect(mockStrapiClient.delete).toHaveBeenCalledWith(
-        expect.stringMatching(/\/api\/categorias[^/]*\/doc123/)
-      )
-      
-      // Verificar que se retornó un error
-      expect(response.status).toBe(500)
-      expect(data.success).toBe(false)
-      expect(data.error).toContain('Error en WooCommerce')
+      // Verificar que NO se creó en WooCommerce (se hace después desde Solicitudes)
+      expect(mockWooCommerceClient.post).not.toHaveBeenCalled()
     })
 
     it('debe retornar error si falta el nombre', async () => {

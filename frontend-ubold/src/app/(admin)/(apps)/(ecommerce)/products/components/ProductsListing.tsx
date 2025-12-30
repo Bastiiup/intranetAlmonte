@@ -36,6 +36,7 @@ type ProductTypeExtended = Omit<ProductType, 'image'> & {
   image: StaticImageData | { src: string | null }
   strapiId?: number
   estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
+  createdAtTimestamp?: number // ✅ Timestamp para ordenar por fecha
 }
 
 // Helper para obtener campo con múltiples variaciones
@@ -85,9 +86,21 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
     return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
   }
 
-  // Calcular stock total (igual que ProductosGrid)
+  // Calcular stock total: primero del campo directo, luego de la relación
   const getStockTotal = (): number => {
+    // 1. Intentar obtener del campo stock_quantity directo (nuevo método)
+    const stockDirecto = getField(data, 'stock_quantity', 'STOCK_QUANTITY', 'stockQuantity')
+    if (stockDirecto !== undefined && stockDirecto !== null && stockDirecto !== '') {
+      const stockNum = parseInt(stockDirecto.toString())
+      if (!isNaN(stockNum) && stockNum >= 0) {
+        return stockNum
+      }
+    }
+    
+    // 2. Si no hay stock directo, buscar en la relación (método antiguo)
     const stocks = data.STOCKS?.data || data.stocks?.data || []
+    if (stocks.length === 0) return 0
+    
     return stocks.reduce((total: number, stock: any) => {
       const cantidad = stock.attributes?.CANTIDAD || stock.attributes?.cantidad || 0
       return total + (typeof cantidad === 'number' ? cantidad : 0)
@@ -144,6 +157,7 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
     status: isPublished ? 'published' : 'pending',
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
+    createdAtTimestamp: createdDate.getTime(), // ✅ Timestamp para ordenar por fecha
     // Usar el ID numérico si existe, sino documentId, sino el id tal cual
     url: `/products/${producto.id || producto.documentId || producto.id}`,
     strapiId: producto.id,
@@ -326,8 +340,11 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
         )
       },
     }),
-    columnHelper.accessor('date', {
+    columnHelper.accessor('createdAtTimestamp', {
+      id: 'date', // Usar 'date' como ID para mantener compatibilidad
       header: 'Fecha',
+      enableSorting: true,
+      sortingFn: 'basic', // Ordenar numéricamente por timestamp
       cell: ({ row }) => (
         <>
           {row.original.date} <small className="text-muted">{row.original.time}</small>
@@ -367,7 +384,10 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
 
   const [data, setData] = useState<ProductTypeExtended[]>([])
   const [globalFilter, setGlobalFilter] = useState('')
-  const [sorting, setSorting] = useState<SortingState>([])
+  // ✅ Ordenar por fecha descendente por defecto (más nuevo primero)
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: 'createdAtTimestamp', desc: true } // Ordenar por timestamp descendente (más nuevo primero)
+  ])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
 

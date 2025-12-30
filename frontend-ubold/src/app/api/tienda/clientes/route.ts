@@ -245,7 +245,7 @@ export async function POST(request: NextRequest) {
     const nombreCliente = personaData.nombre_completo.trim()
     const woClientesCreados: any[] = []
     
-    // Crear entrada para Moraleja si se seleccionó (y WordPress fue exitoso o aún así crear la entrada)
+    // Crear entrada para Moraleja si se seleccionó
     if (enviarAMoraleja) {
       try {
         const woClienteMoralejaData: any = {
@@ -281,7 +281,7 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Crear entrada para Escolar si se seleccionó (y WordPress fue exitoso o aún así crear la entrada)
+    // Crear entrada para Escolar si se seleccionó
     if (enviarAEscolar) {
       try {
         const woClienteEscolarData: any = {

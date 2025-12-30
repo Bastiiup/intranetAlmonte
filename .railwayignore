@@ -1,7 +1,5 @@
-# Forzar Railway a usar NIXPACKS ignorando Dockerfiles
-Dockerfile
-Dockerfile.*
+# Ignorar Dockerfile.backup
+Dockerfile.backup
+Dockerfile.*.backup
 .dockerignore
-**/Dockerfile
-**/Dockerfile.*
 

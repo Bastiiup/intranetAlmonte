@@ -38,4 +38,3 @@ ENV NODE_ENV=production
 # Ejecutar server.js desde /app (como en rama-Gonza2 que funciona)
 WORKDIR /app
 CMD ["node", "server.js"]
-

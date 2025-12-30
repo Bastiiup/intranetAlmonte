@@ -43,14 +43,10 @@ describe('/api/tienda/pedidos', () => {
         { id: 2, documentId: 'doc2', numero_pedido: 'PED-002' },
       ]
 
-      // Mock: Primera llamada para verificar endpoint (pagination[pageSize]=1)
-      // Segunda llamada para obtener los datos (pagination[pageSize]=100)
-      mockStrapiClient.get
-        .mockResolvedValueOnce({ data: [] } as any) // Para verificar que el endpoint existe
-        .mockResolvedValueOnce({ // Para obtener los datos reales
-          data: mockPedidos,
-          meta: { pagination: { total: 2 } },
-        } as any)
+      // Mock: Una sola llamada para obtener los datos
+      mockStrapiClient.get.mockResolvedValueOnce({
+        data: mockPedidos,
+      } as any)
 
       const request = new NextRequest('http://localhost:3000/api/tienda/pedidos')
       const response = await GET(request)
@@ -59,11 +55,10 @@ describe('/api/tienda/pedidos', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(data.data).toEqual(mockPedidos)
-      // Verificar que se llamó para verificar endpoint y luego para obtener datos
-      expect(mockStrapiClient.get).toHaveBeenCalledTimes(2)
-      expect(mockStrapiClient.get).toHaveBeenNthCalledWith(
-        2,
-        expect.stringContaining('/api/pedidos?populate=*&pagination[pageSize]=100')
+      // Verificar que se llamó para obtener datos
+      expect(mockStrapiClient.get).toHaveBeenCalledTimes(1)
+      expect(mockStrapiClient.get).toHaveBeenCalledWith(
+        expect.stringContaining('/api/pedidos?populate=*&pagination[pageSize]=5000')
       )
     })
 
@@ -74,63 +69,45 @@ describe('/api/tienda/pedidos', () => {
       const response = await GET(request)
       const data = await response.json()
 
-      expect(response.status).toBe(500)
-      expect(data.success).toBe(false)
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
       expect(data.data).toEqual([])
+      expect(data.warning).toBeDefined()
     })
   })
 
   describe('POST', () => {
-    it('debe crear pedido solo en WooCommerce (Strapi se sincroniza vía webhook)', async () => {
-      const mockWooCommerceOrder = {
-        id: 123,
-        number: 'WC-123',
-        status: 'completed',
-        total: '15000',
-        currency: 'CLP',
-        date_created: '2025-01-01T10:00:00',
-        customer_id: 5,
-        payment_method: 'cash',
-        payment_method_title: 'Efectivo',
-        billing: {
-          first_name: 'Juan',
-          last_name: 'Pérez',
-          email: 'juan@example.com',
+    it('debe crear pedido en Strapi (lifecycles sincronizan con WooCommerce)', async () => {
+      const mockStrapiPedido = {
+        data: {
+          id: 1,
+          documentId: 'doc123',
+          numero_pedido: 'PED-001',
         },
-        shipping: {
-          first_name: 'Juan',
-          last_name: 'Pérez',
-        },
-        line_items: [
-          {
-            id: 1,
-            product_id: 10,
-            quantity: 2,
-            name: 'Producto 1',
-          },
-        ],
       }
 
-      // Mock: crear en WooCommerce
-      mockWooCommerceClient.post.mockResolvedValueOnce(mockWooCommerceOrder as any)
+      // Mock: crear en Strapi
+      mockStrapiClient.post.mockResolvedValueOnce(mockStrapiPedido as any)
 
       const request = new NextRequest('http://localhost:3000/api/tienda/pedidos', {
         method: 'POST',
         body: JSON.stringify({
-          payment_method: 'cash',
-          payment_method_title: 'Efectivo',
-          status: 'completed',
-          customer_id: 5,
-          line_items: [
-            {
-              product_id: 10,
-              quantity: 2,
+          data: {
+            numero_pedido: 'PED-001',
+            items: [
+              {
+                producto_id: 10,
+                cantidad: 2,
+                nombre: 'Producto 1',
+                precio_unitario: 1000,
+                total: 2000,
+              },
+            ],
+            billing: {
+              first_name: 'Juan',
+              last_name: 'Pérez',
+              email: 'juan@example.com',
             },
-          ],
-          billing: {
-            first_name: 'Juan',
-            last_name: 'Pérez',
-            email: 'juan@example.com',
           },
         }),
       })
@@ -140,34 +117,30 @@ describe('/api/tienda/pedidos', () => {
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
-      expect(data.message).toContain('WooCommerce')
-      expect(data.message).toContain('automáticamente')
+      expect(data.message).toContain('Strapi')
+      expect(data.message).toContain('sincronizará')
 
-      // Verificar que se creó solo en WooCommerce
-      expect(mockWooCommerceClient.post).toHaveBeenCalledWith(
-        'orders',
+      // Verificar que se creó en Strapi
+      expect(mockStrapiClient.post).toHaveBeenCalledWith(
+        '/api/pedidos',
         expect.objectContaining({
-          payment_method: 'cash',
-          status: 'completed',
-          line_items: expect.arrayContaining([
-            expect.objectContaining({
-              product_id: 10,
-              quantity: 2,
-            }),
-          ]),
+          data: expect.objectContaining({
+            numero_pedido: 'PED-001',
+          }),
         })
       )
 
-      // Verificar que NO se intentó crear en Strapi (se hace vía webhook)
-      expect(mockStrapiClient.post).not.toHaveBeenCalled()
-      expect(mockStrapiClient.get).not.toHaveBeenCalled()
+      // Verificar que NO se intentó crear directamente en WooCommerce (lo hacen los lifecycles)
+      expect(mockWooCommerceClient.post).not.toHaveBeenCalled()
     })
 
-    it('debe retornar error si faltan line_items', async () => {
+    it('debe retornar error si faltan items', async () => {
       const request = new NextRequest('http://localhost:3000/api/tienda/pedidos', {
         method: 'POST',
         body: JSON.stringify({
-          payment_method: 'cash',
+          data: {
+            numero_pedido: 'PED-001',
+          },
         }),
       })
 
@@ -176,25 +149,31 @@ describe('/api/tienda/pedidos', () => {
 
       expect(response.status).toBe(400)
       expect(data.success).toBe(false)
-      expect(data.error).toContain('al menos un producto')
-      expect(mockWooCommerceClient.post).not.toHaveBeenCalled()
+      expect(data.error).toContain('items')
+      expect(mockStrapiClient.post).not.toHaveBeenCalled()
     })
 
-    it('debe propagar error si WooCommerce falla', async () => {
-      // Mock: WooCommerce falla
-      mockWooCommerceClient.post.mockRejectedValueOnce(
-        new Error('Error en WooCommerce') as any
+    it('debe propagar error si Strapi falla', async () => {
+      // Mock: Strapi falla
+      mockStrapiClient.post.mockRejectedValueOnce(
+        new Error('Error en Strapi') as any
       )
 
       const request = new NextRequest('http://localhost:3000/api/tienda/pedidos', {
         method: 'POST',
         body: JSON.stringify({
-          line_items: [
-            {
-              product_id: 10,
-              quantity: 1,
-            },
-          ],
+          data: {
+            numero_pedido: 'PED-001',
+            items: [
+              {
+                producto_id: 10,
+                cantidad: 1,
+                nombre: 'Producto 1',
+                precio_unitario: 1000,
+                total: 1000,
+              },
+            ],
+          },
         }),
       })
 
@@ -203,9 +182,9 @@ describe('/api/tienda/pedidos', () => {
 
       expect(response.status).toBe(500)
       expect(data.success).toBe(false)
-      expect(data.error).toContain('Error en WooCommerce')
-      // No debe intentar crear en Strapi (nunca se hace directamente)
-      expect(mockStrapiClient.post).not.toHaveBeenCalled()
+      expect(data.error).toContain('Error en Strapi')
+      // Verificar que se intentó crear en Strapi
+      expect(mockStrapiClient.post).toHaveBeenCalled()
     })
   })
 })

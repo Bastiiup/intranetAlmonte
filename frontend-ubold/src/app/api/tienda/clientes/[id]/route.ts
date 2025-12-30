@@ -162,6 +162,12 @@ export async function PUT(
       console.log('[API Clientes PUT] ℹ️ Canales detectados pero se omitirán (WO-Clientes no tiene campo canales en Strapi)')
     }
 
+    // NOTA: Los canales NO existen en el schema de WO-Clientes (solo en productos/libros)
+    // Se omiten completamente
+    if (body.data.canales !== undefined) {
+      console.log('[API Clientes PUT] ℹ️ Canales detectados pero se omitirán (WO-Clientes no tiene campo canales en Strapi)')
+    }
+
     // 1. Actualizar en WO-Clientes
     const woClienteResponse = await strapiClient.put(`/api/wo-clientes/${clienteDocumentId}`, updateData)
     console.log('[API Clientes PUT] ✅ Cliente actualizado en WO-Clientes:', clienteDocumentId)

@@ -173,12 +173,23 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         }
         
         // Extraer descripción corta (puede venir de subtitulo_libro según Strapi)
-        let descripcionCorta = attrs.descripcion_corta || attrs.subtitulo_libro || ''
-        if (typeof descripcionCorta === 'string') {
+        // ⚠️ CRÍTICO: NUNCA usar descripcion para descripcion_corta
+        // Solo usar subtitulo_libro o descripcion_corta, NUNCA descripcion
+        let descripcionCorta = ''
+        if (attrs.subtitulo_libro) {
+          descripcionCorta = attrs.subtitulo_libro
+        } else if (attrs.descripcion_corta) {
+          descripcionCorta = attrs.descripcion_corta
+        }
+        
+        // Si descripcionCorta está vacío, dejarlo vacío (NO usar descripcion)
+        if (typeof descripcionCorta === 'string' && descripcionCorta.trim()) {
           // Si ya es HTML, usar directamente; si no, convertir a HTML
           if (!descripcionCorta.includes('<')) {
             descripcionCorta = descripcionCorta.trim() ? `<p>${descripcionCorta.trim()}</p>` : ''
           }
+        } else {
+          descripcionCorta = '' // Mantener vacío si no hay valor específico
         }
 
         // Obtener imagen
@@ -344,10 +355,11 @@ export default function EditProductPage({ params }: EditProductPageProps) {
       // - descripcion_corta: Se envía aunque no esté en schema, Strapi lo usa en raw_woo_data
       const dataToSend: any = {
         nombre_libro: formData.nombre_libro.trim(),
+        // ✅ CRÍTICO: descripcion siempre usa formData.descripcion (NUNCA descripcion_corta)
         descripcion: formData.descripcion?.trim() || '',
-        // descripcion_corta: NO se envía - no está en schema de Strapi
-        // Se usa solo en raw_woo_data para WooCommerce
-        subtitulo_libro: formData.descripcion_corta?.trim() || formData.descripcion?.substring(0, 255) || '', // ✅ Para Strapi (descripción corta)
+        // ✅ CRÍTICO: subtitulo_libro solo usa formData.descripcion_corta (NUNCA descripcion)
+        // Si descripcion_corta está vacío, enviar vacío (NO generar desde descripcion)
+        subtitulo_libro: formData.descripcion_corta?.trim() || '', // ✅ Para Strapi (descripción corta)
         isbn_libro: formData.isbn_libro?.trim() || '',
         precio: formData.precio,
         precio_oferta: formData.precio_oferta || '',
@@ -376,6 +388,17 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         imagenUrlFinal = currentImageUrl
       }
 
+      // ═══════════════════════════════════════════════════════════════════
+      // 🔍 DEBUG: VERIFICACIÓN PRE-ENVÍO
+      // ═══════════════════════════════════════════════════════════════════
+      console.log('═══════════════════════════════════════════════════════')
+      console.log('📝 VALORES DEL FORMULARIO:')
+      console.log('descripcion (campo completo):', formData.descripcion)
+      console.log('descripcion_corta (campo corto):', formData.descripcion_corta)
+      console.log('Longitud descripcion:', formData.descripcion?.length || 0, 'caracteres')
+      console.log('Longitud descripcion_corta:', formData.descripcion_corta?.length || 0, 'caracteres')
+      console.log('═══════════════════════════════════════════════════════')
+      
       // ⚠️ IMPORTANTE: Construir rawWooData con formato correcto para WooCommerce
       // Este objeto se enviará como campo adicional para que Strapi lo use en sus lifecycles
       // Si Strapi rechaza este campo, se construirá en los lifecycles de Strapi
@@ -420,7 +443,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         if (!texto || texto.trim() === '') return ''
         
         // Primero extraer solo el texto (sin HTML)
-        const textoLimpio = texto
+        let textoLimpio = texto
           .replace(/<[^>]+>/g, ' ')  // Remover todas las etiquetas HTML
           .replace(/\s+/g, ' ')      // Normalizar espacios múltiples
           .trim()
@@ -430,11 +453,11 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         // Limitar a X caracteres de TEXTO
         let textoCorto: string
         if (textoLimpio.length > maxCaracteres) {
-          // Cortar en la última palabra completa antes del límite
+          // Cortar al límite
           textoCorto = textoLimpio.substring(0, maxCaracteres)
+          // Buscar el último espacio para cortar en palabra completa
           const ultimoEspacio = textoCorto.lastIndexOf(' ')
-          if (ultimoEspacio > 0 && ultimoEspacio > maxCaracteres * 0.7) {
-            // Si encontramos un espacio razonablemente cerca del final, cortar ahí
+          if (ultimoEspacio > maxCaracteres * 0.8) { // Solo si está cerca del final (80% del límite)
             textoCorto = textoCorto.substring(0, ultimoEspacio)
           }
           textoCorto = textoCorto.trim() + '...'
@@ -446,25 +469,99 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         return `<p>${textoCorto}</p>`
       }
       
+      // ═══════════════════════════════════════════════════════════════════
+      // 🔍 DEBUG: PROCESAR DESCRIPCIONES
+      // ═══════════════════════════════════════════════════════════════════
+      // ✅ CRÍTICO: descripcion SIEMPRE usa formData.descripcion (NUNCA descripcion_corta)
+      // Según el fix de Strapi: description usa SOLO libro.descripcion
+      const descripcionHTML = formData.descripcion?.trim()
+        ? textoAHTML(formData.descripcion)
+        : ''
+      
+      // ✅ CRÍTICO: descripcion_corta usa SOLO formData.descripcion_corta
+      // Según el fix de Strapi: short_description usa SOLO libro.subtitulo_libro
+      // NO generar automáticamente desde descripcion para evitar duplicados
+      // Si está vacío, enviar vacío (Strapi ya no tiene fallbacks cruzados)
+      const descripcionCortaHTML = formData.descripcion_corta?.trim()
+        ? textoAHTML(formData.descripcion_corta)
+        : ''
+      
+      // Extraer solo el texto (sin HTML) para comparar
+      const descripcionTexto = descripcionHTML.replace(/<[^>]+>/g, '').trim()
+      const descripcionCortaTexto = descripcionCortaHTML.replace(/<[^>]+>/g, '').trim()
+      
+      console.log('═══════════════════════════════════════════════════════')
+      console.log('🔍 DESCRIPCIONES PROCESADAS:')
+      console.log('description (HTML):', descripcionHTML)
+      console.log('short_description (HTML):', descripcionCortaHTML)
+      console.log('───────────────────────────────────────────────────────')
+      console.log('📊 COMPARACIÓN:')
+      console.log('Longitud description:', descripcionTexto.length, 'caracteres')
+      console.log('Longitud short_description:', descripcionCortaTexto.length, 'caracteres')
+      console.log('¿Son diferentes?', descripcionTexto !== descripcionCortaTexto)
+      console.log('¿Short es más corta?', descripcionCortaTexto.length < descripcionTexto.length)
+      
+      // ⚠️ ALERTA SI SON IGUALES (no debería pasar si el usuario llenó campos diferentes)
+      if (descripcionTexto && descripcionCortaTexto && descripcionTexto === descripcionCortaTexto && descripcionTexto.length > 150) {
+        console.warn('⚠️ ADVERTENCIA: Las descripciones son IDÉNTICAS')
+        console.warn('⚠️ Ambas tienen', descripcionTexto.length, 'caracteres')
+        console.warn('⚠️ Verificar que el usuario haya llenado campos diferentes')
+      }
+      
+      // ✅ Validar que short_description no exceda 160 caracteres (recomendado para SEO)
+      if (descripcionCortaTexto && descripcionCortaTexto.length > 160) {
+        console.warn('⚠️ ADVERTENCIA: short_description excede 160 caracteres (recomendado para SEO)')
+        console.warn('⚠️ Longitud actual:', descripcionCortaTexto.length, 'caracteres')
+      }
+      
+      console.log('═══════════════════════════════════════════════════════')
+      
+      // ⚠️ VALIDACIÓN FINAL: Asegurar que description y short_description sean diferentes
+      // Si ambos están vacíos o son iguales, usar valores por defecto distintos
+      let finalDescription = descripcionHTML || '<p>Sin descripción</p>'
+      let finalShortDescription = descripcionCortaHTML || ''
+      
+      // Si short_description está vacío pero description tiene contenido, generar una corta
+      if (!finalShortDescription && finalDescription && finalDescription !== '<p>Sin descripción</p>') {
+        // Generar descripción corta desde la larga (solo si está vacía)
+        const textoLimpio = finalDescription.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+        if (textoLimpio.length > 0) {
+          const corta = textoLimpio.length > 150 
+            ? textoLimpio.substring(0, 150).trim() + '...'
+            : textoLimpio
+          finalShortDescription = `<p>${corta}</p>`
+        }
+      }
+      
+      // Verificación final: asegurar que sean diferentes
+      const descFinal = finalDescription.replace(/<[^>]+>/g, '').trim()
+      const shortFinal = finalShortDescription.replace(/<[^>]+>/g, '').trim()
+      
+      if (descFinal && shortFinal && descFinal === shortFinal && descFinal.length > 150) {
+        console.warn('⚠️ ADVERTENCIA: Las descripciones finales son idénticas, ajustando short_description')
+        // Si son iguales y la descripción es larga, cortar la corta
+        const cortaAjustada = descFinal.substring(0, 150).trim()
+        const ultimoEspacio = cortaAjustada.lastIndexOf(' ')
+        if (ultimoEspacio > 100) {
+          finalShortDescription = `<p>${cortaAjustada.substring(0, ultimoEspacio)}...</p>`
+        } else {
+          finalShortDescription = `<p>${cortaAjustada}...</p>`
+        }
+      }
+      
       const rawWooData: any = {
         name: formData.nombre_libro.trim(),
         type: 'simple',
         status: 'publish',
         
         // ✅ DESCRIPCIÓN COMPLETA (HTML) - CRÍTICO para WooCommerce
-        // Procesar descripción completa con función helper
-        description: formData.descripcion?.trim()
-          ? textoAHTML(formData.descripcion)
-          : '<p>Sin descripción</p>',
+        // SIEMPRE usa formData.descripcion (NUNCA descripcion_corta)
+        description: finalDescription,
         
         // ✅ DESCRIPCIÓN CORTA (HTML) - CRÍTICO para WooCommerce
-        // Si hay descripción corta específica, usarla; si no, generar desde descripción completa
-        // ⚠️ IMPORTANTE: La descripción corta debe ser DIFERENTE y limitada a 150 caracteres
-        short_description: formData.descripcion_corta?.trim()
-          ? textoAHTML(formData.descripcion_corta)  // Si hay descripción corta específica, usarla
-          : (formData.descripcion?.trim() 
-              ? generarDescripcionCorta(formData.descripcion, 150)  // Generar desde descripción completa (limitada)
-              : '<p>Sin descripción</p>'),
+        // SIEMPRE usa formData.descripcion_corta o genera desde descripcion si está vacía
+        // NUNCA duplica el valor de description
+        short_description: finalShortDescription || '<p>Sin descripción corta</p>',
         
         // Precio
         regular_price: formData.precio ? parseFloat(formData.precio).toFixed(2) : '0.00',
@@ -489,33 +586,31 @@ export default function EditProductPage({ params }: EditProductPageProps) {
         sku: formData.isbn_libro?.trim() || '',
       }
 
-      // ⚠️ IMPORTANTE: raw_woo_data NO se envía directamente a Strapi porque no está en el schema
-      // Strapi debe construir raw_woo_data en sus lifecycles basándose en los campos individuales
-      // Los campos individuales (descripcion, subtitulo_libro, precio, etc.) ya están en dataToSend
-      // Strapi usará estos campos para construir raw_woo_data en afterCreate/afterUpdate
+      // ✅ CRÍTICO: Incluir raw_woo_data en el payload para que Strapi lo use
+      // Strapi ahora acepta raw_woo_data y lo usará para sincronizar con WooCommerce
+      // ⚠️ IMPORTANTE: Usar raw_woo_data (minúsculas con guiones bajos) para compatibilidad con Strapi
+      dataToSend.raw_woo_data = rawWooData
       
-      // NOTA: Si necesitas que Strapi use raw_woo_data directamente, debes agregarlo al schema de Strapi
-      // Por ahora, NO lo incluimos para evitar el error "Invalid key raw_woo_data"
-      // dataToSend.raw_woo_data = rawWooData  // ❌ Comentado - Strapi lo rechaza
-      
-      // Debug: Verificar que las descripciones son diferentes
-      const descripcionCompletaTexto = rawWooData.description.replace(/<[^>]+>/g, '').trim()
-      const descripcionCortaTexto = rawWooData.short_description.replace(/<[^>]+>/g, '').trim()
-      
-      console.log('[EditProduct] 📦 Datos preparados para Strapi:', JSON.stringify(dataToSend, null, 2))
-      console.log('[EditProduct] 🖼️ raw_woo_data construido:', JSON.stringify(rawWooData, null, 2))
-      console.log('[EditProduct] 📝 Descripción completa (HTML):', rawWooData.description)
-      console.log('[EditProduct] 📝 Descripción corta (HTML):', rawWooData.short_description)
-      console.log('[EditProduct] 📝 Descripción completa (TEXTO):', descripcionCompletaTexto.substring(0, 100) + '...')
-      console.log('[EditProduct] 📝 Descripción corta (TEXTO):', descripcionCortaTexto)
-      console.log('[EditProduct] 🔍 Verificación:', {
-        tieneDescripcion: !!rawWooData.description && rawWooData.description.length > 0,
-        tieneDescripcionCorta: !!rawWooData.short_description && rawWooData.short_description.length > 0,
-        longitudDescripcion: descripcionCompletaTexto.length,
-        longitudDescripcionCorta: descripcionCortaTexto.length,
-        sonDiferentes: descripcionCompletaTexto !== descripcionCortaTexto,
-        descripcionCortaEsMasCorta: descripcionCortaTexto.length < descripcionCompletaTexto.length
-      })
+      // ═══════════════════════════════════════════════════════════════════
+      // 🔍 DEBUG: VERIFICACIÓN FINAL
+      // ═══════════════════════════════════════════════════════════════════
+      console.log('═══════════════════════════════════════════════════════')
+      console.log('📦 rawWooData CONSTRUIDO:')
+      console.log(JSON.stringify(rawWooData, null, 2))
+      console.log('═══════════════════════════════════════════════════════')
+      console.log('🚀 PAYLOAD FINAL A STRAPI:')
+      console.log(JSON.stringify(dataToSend, null, 2))
+      console.log('═══════════════════════════════════════════════════════')
+      console.log('✅ VERIFICACIÓN FINAL:')
+      console.log('¿Payload tiene raw_woo_data?', !!dataToSend.raw_woo_data)
+      console.log('¿raw_woo_data tiene description?', !!dataToSend.raw_woo_data?.description)
+      console.log('¿raw_woo_data tiene short_description?', !!dataToSend.raw_woo_data?.short_description)
+      console.log('¿description está vacía?', !dataToSend.raw_woo_data?.description || dataToSend.raw_woo_data?.description === '')
+      console.log('¿short_description está vacía?', !dataToSend.raw_woo_data?.short_description || dataToSend.raw_woo_data?.short_description === '')
+      console.log('Longitud description (texto):', descripcionTexto.length)
+      console.log('Longitud short_description (texto):', descripcionCortaTexto.length)
+      console.log('¿Son diferentes?', descripcionTexto !== descripcionCortaTexto)
+      console.log('═══════════════════════════════════════════════════════')
 
       // Agregar canales basados en plataformas seleccionadas
       if (selectedPlatforms.length > 0) {

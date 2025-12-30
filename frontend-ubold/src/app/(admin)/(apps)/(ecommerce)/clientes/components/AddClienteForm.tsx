@@ -145,7 +145,6 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
                 selectedPlatforms={selectedPlatforms}
                 onChange={setSelectedPlatforms}
               />
-
               <Row>
                 <Col md={6}>
                   <FormGroup className="mb-3">

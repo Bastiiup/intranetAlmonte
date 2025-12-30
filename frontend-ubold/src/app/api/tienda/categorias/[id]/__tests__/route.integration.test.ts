@@ -37,7 +37,7 @@ describe('/api/tienda/categorias/[id]', () => {
   })
 
   describe('PUT', () => {
-    it('debe actualizar categoría buscando por woocommerce_id en Strapi', async () => {
+    it('debe actualizar categoría solo en Strapi (lifecycles sincronizan con WooCommerce)', async () => {
       const mockCategoriaStrapi = {
         id: 1,
         documentId: 'doc123',
@@ -47,21 +47,12 @@ describe('/api/tienda/categorias/[id]', () => {
         },
       }
 
-      const mockWooCommerceCategory = {
-        id: 100,
-        name: 'Categoría Actualizada',
-        slug: 'doc123',
-      }
-
       // Mock: obtener categoría de Strapi (findCategoriaEndpoint primero)
       mockStrapiClient.get
         .mockResolvedValueOnce({ data: [] } as any) // Para findCategoriaEndpoint
         .mockResolvedValueOnce({
           data: [mockCategoriaStrapi],
         } as any) // Para obtener la categoría
-
-      // Mock: actualizar en WooCommerce
-      mockWooCommerceClient.put.mockResolvedValueOnce(mockWooCommerceCategory as any)
 
       // Mock: actualizar en Strapi
       mockStrapiClient.put.mockResolvedValueOnce({
@@ -83,87 +74,25 @@ describe('/api/tienda/categorias/[id]', () => {
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
-      expect(mockWooCommerceClient.put).toHaveBeenCalledWith(
-        'products/categories/100',
+      expect(data.message).toContain('Strapi')
+
+      // Verificar que se actualizó en Strapi
+      expect(mockStrapiClient.put).toHaveBeenCalledWith(
+        expect.stringContaining('/api/categorias'),
         expect.objectContaining({
-          name: 'Categoría Actualizada',
-        })
-      )
-    })
-
-    it('debe buscar por slug (documentId) si no hay woocommerce_id', async () => {
-      const mockCategoriaStrapi = {
-        id: 1,
-        documentId: 'doc123',
-        attributes: {
-          name: 'Categoría Original',
-        },
-      }
-
-      const mockWooCommerceCategories = [
-        {
-          id: 100,
-          name: 'Categoría Original',
-          slug: 'doc123',
-        },
-      ]
-
-      const mockWooCommerceCategory = {
-        id: 100,
-        name: 'Categoría Actualizada',
-        slug: 'doc123',
-      }
-
-      // Mock: obtener categoría de Strapi (findCategoriaEndpoint primero)
-      mockStrapiClient.get
-        .mockResolvedValueOnce({ data: [] } as any) // Para findCategoriaEndpoint
-        .mockResolvedValueOnce({
-          data: [mockCategoriaStrapi],
-        } as any) // Para obtener la categoría
-
-      // Mock: buscar por slug en WooCommerce
-      mockWooCommerceClient.get.mockResolvedValueOnce(mockWooCommerceCategories as any)
-
-      // Mock: actualizar en WooCommerce
-      mockWooCommerceClient.put.mockResolvedValueOnce(mockWooCommerceCategory as any)
-
-      // Mock: actualizar en Strapi
-      mockStrapiClient.put.mockResolvedValueOnce({
-        data: { ...mockCategoriaStrapi, attributes: { ...mockCategoriaStrapi.attributes, name: 'Categoría Actualizada' } },
-      } as any)
-
-      const request = new NextRequest('http://localhost:3000/api/tienda/categorias/1', {
-        method: 'PUT',
-        body: JSON.stringify({
-          data: {
+          data: expect.objectContaining({
             name: 'Categoría Actualizada',
-          },
-        }),
-      })
-
-      const params = Promise.resolve({ id: '1' })
-      const response = await PUT(request, { params })
-      const data = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      // Verificar que se buscó por slug
-      expect(mockWooCommerceClient.get).toHaveBeenCalledWith(
-        'products/categories',
-        expect.objectContaining({
-          slug: 'doc123',
+          }),
         })
       )
-      // Verificar que se actualizó con el ID encontrado
-      expect(mockWooCommerceClient.put).toHaveBeenCalledWith(
-        'products/categories/100',
-        expect.anything()
-      )
+
+      // Verificar que NO se actualizó WooCommerce directamente (lo hacen los lifecycles)
+      expect(mockWooCommerceClient.put).not.toHaveBeenCalled()
     })
   })
 
   describe('DELETE', () => {
-    it('debe eliminar categoría buscando por woocommerce_id', async () => {
+    it('debe eliminar categoría solo en Strapi (lifecycles sincronizan con WooCommerce)', async () => {
       const mockCategoriaStrapi = {
         id: 1,
         documentId: 'doc123',
@@ -180,9 +109,6 @@ describe('/api/tienda/categorias/[id]', () => {
           data: [mockCategoriaStrapi],
         } as any) // Para obtener la categoría
 
-      // Mock: eliminar en WooCommerce
-      mockWooCommerceClient.delete.mockResolvedValueOnce({} as any)
-
       // Mock: eliminar en Strapi
       mockStrapiClient.delete.mockResolvedValueOnce({} as any)
 
@@ -196,62 +122,13 @@ describe('/api/tienda/categorias/[id]', () => {
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
-      expect(mockWooCommerceClient.delete).toHaveBeenCalledWith('products/categories/100', true)
-      expect(mockStrapiClient.delete).toHaveBeenCalledWith(expect.stringMatching(/\/api\/categorias[^/]*\/1/))
-    })
-
-    it('debe buscar por slug (documentId) si no hay woocommerce_id', async () => {
-      const mockCategoriaStrapi = {
-        id: 1,
-        documentId: 'doc123',
-        attributes: {
-          name: 'Categoría a Eliminar',
-        },
-      }
-
-      const mockWooCommerceCategories = [
-        {
-          id: 100,
-          name: 'Categoría a Eliminar',
-          slug: 'doc123',
-        },
-      ]
-
-      // Mock: obtener categoría de Strapi (findCategoriaEndpoint primero)
-      mockStrapiClient.get
-        .mockResolvedValueOnce({ data: [] } as any) // Para findCategoriaEndpoint
-        .mockResolvedValueOnce({
-          data: [mockCategoriaStrapi],
-        } as any) // Para obtener la categoría
-
-      // Mock: buscar por slug en WooCommerce
-      mockWooCommerceClient.get.mockResolvedValueOnce(mockWooCommerceCategories as any)
-
-      // Mock: eliminar en WooCommerce
-      mockWooCommerceClient.delete.mockResolvedValueOnce({} as any)
-
-      // Mock: eliminar en Strapi
-      mockStrapiClient.delete.mockResolvedValueOnce({} as any)
-
-      const request = new NextRequest('http://localhost:3000/api/tienda/categorias/1', {
-        method: 'DELETE',
-      })
-
-      const params = Promise.resolve({ id: '1' })
-      const response = await DELETE(request, { params })
-      const data = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      // Verificar que se buscó por slug
-      expect(mockWooCommerceClient.get).toHaveBeenCalledWith(
-        'products/categories',
-        expect.objectContaining({
-          slug: 'doc123',
-        })
-      )
-      // Verificar que se eliminó con el ID encontrado
-      expect(mockWooCommerceClient.delete).toHaveBeenCalledWith('products/categories/100', true)
+      expect(data.message).toContain('Strapi')
+      
+      // Verificar que se eliminó en Strapi
+      expect(mockStrapiClient.delete).toHaveBeenCalledWith(expect.stringContaining('/api/categorias'))
+      
+      // Verificar que NO se eliminó WooCommerce directamente (lo hacen los lifecycles)
+      expect(mockWooCommerceClient.delete).not.toHaveBeenCalled()
     })
   })
 })
