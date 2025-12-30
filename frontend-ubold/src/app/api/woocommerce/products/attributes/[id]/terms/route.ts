@@ -21,12 +21,12 @@ export async function GET(
     const platformKey = platform === 'escolar' ? 'woo_escolar' : 'woo_moraleja'
     const wooCommerceClient = createWooCommerceClient(platformKey)
 
-    const params: Record<string, any> = {
+    const queryParams: Record<string, any> = {
       per_page: perPage,
       page: page,
     }
 
-    const terms = await wooCommerceClient.get<any[]>(`products/attributes/${id}/terms`, params)
+    const terms = await wooCommerceClient.get<any[]>(`products/attributes/${id}/terms`, queryParams)
 
     return NextResponse.json({
       success: true,
