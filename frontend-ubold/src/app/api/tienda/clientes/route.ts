@@ -278,10 +278,13 @@ export async function POST(request: NextRequest) {
           woClienteMoralejaData.data.ultima_actividad = body.data.ultima_actividad
         }
         
-        // Si tenemos el ID de WooCommerce, guardarlo si hay campo para eso
-        if (wordPressResults?.moraleja?.data?.id) {
-          // Nota: Si hay un campo woocommerce_id o externalIds, se puede guardar aquí
-          console.log('[API Clientes POST] 📌 ID de WooCommerce Moraleja:', wordPressResults.moraleja.data.id)
+        // Si tenemos el ID de WooCommerce de Moraleja, guardarlo
+        if (wordPressResults?.moraleja?.success && wordPressResults?.moraleja?.data?.id) {
+          const woocommerceIdMoraleja = wordPressResults.moraleja.data.id
+          woClienteMoralejaData.data.woocommerce_id = woocommerceIdMoraleja
+          console.log('[API Clientes POST] 📌 ID de WooCommerce Moraleja guardado:', woocommerceIdMoraleja)
+        } else {
+          console.log('[API Clientes POST] ⚠️ No se pudo obtener ID de WooCommerce Moraleja')
         }
         
         const woClienteMoralejaResponse = await strapiClient.post('/api/wo-clientes', woClienteMoralejaData) as any
@@ -314,9 +317,13 @@ export async function POST(request: NextRequest) {
           woClienteEscolarData.data.ultima_actividad = body.data.ultima_actividad
         }
         
-        // Si tenemos el ID de WooCommerce, guardarlo si hay campo para eso
-        if (wordPressResults?.escolar?.data?.id) {
-          console.log('[API Clientes POST] 📌 ID de WooCommerce Escolar:', wordPressResults.escolar.data.id)
+        // Si tenemos el ID de WooCommerce de Escolar, guardarlo
+        if (wordPressResults?.escolar?.success && wordPressResults?.escolar?.data?.id) {
+          const woocommerceIdEscolar = wordPressResults.escolar.data.id
+          woClienteEscolarData.data.woocommerce_id = woocommerceIdEscolar
+          console.log('[API Clientes POST] 📌 ID de WooCommerce Escolar guardado:', woocommerceIdEscolar)
+        } else {
+          console.log('[API Clientes POST] ⚠️ No se pudo obtener ID de WooCommerce Escolar')
         }
         
         const woClienteEscolarResponse = await strapiClient.post('/api/wo-clientes', woClienteEscolarData) as any
