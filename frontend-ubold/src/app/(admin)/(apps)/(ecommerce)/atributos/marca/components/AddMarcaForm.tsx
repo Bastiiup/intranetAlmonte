@@ -13,7 +13,6 @@ const AddMarcaForm = () => {
   const [formData, setFormData] = useState({
     nombre_marca: '',
     descripcion: '',
-    website: '',
     logo: null as File | null,
   })
 
@@ -30,15 +29,14 @@ const AddMarcaForm = () => {
 
       const marcaData: any = {
         data: {
-          nombre_marca: formData.nombre_marca.trim(),
+          name: formData.nombre_marca.trim(), // Strapi usa "name", no "nombre_marca"
           descripcion: formData.descripcion.trim() || null,
-          website: formData.website.trim() || null,
         },
       }
 
       console.log('[AddMarcaForm] Enviando datos:', marcaData)
 
-      let logoId = null
+      let imagenId = null
       if (formData.logo) {
         try {
           const formDataLogo = new FormData()
@@ -51,14 +49,14 @@ const AddMarcaForm = () => {
           
           const uploadResult = await uploadResponse.json()
           if (uploadResult.success && uploadResult.data && uploadResult.data.length > 0) {
-            logoId = uploadResult.data[0].id
-            marcaData.data.logo = logoId
+            imagenId = uploadResult.data[0].id
+            marcaData.data.imagen = imagenId
           } else if (uploadResult.success && uploadResult.data?.id) {
-            logoId = uploadResult.data.id
-            marcaData.data.logo = logoId
+            imagenId = uploadResult.data.id
+            marcaData.data.imagen = imagenId
           }
         } catch (uploadError: any) {
-          console.warn('[AddMarcaForm] Error al subir logo:', uploadError.message)
+          console.warn('[AddMarcaForm] Error al subir imagen:', uploadError.message)
         }
       }
 
@@ -150,23 +148,6 @@ const AddMarcaForm = () => {
                 />
                 <small className="text-muted">
                   Descripción opcional de la marca.
-                </small>
-              </FormGroup>
-            </Col>
-
-            <Col md={12}>
-              <FormGroup>
-                <FormLabel>Website</FormLabel>
-                <FormControl
-                  type="url"
-                  placeholder="https://ejemplo.com"
-                  value={formData.website}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, website: e.target.value }))
-                  }
-                />
-                <small className="text-muted">
-                  URL del sitio web de la marca (opcional).
                 </small>
               </FormGroup>
             </Col>

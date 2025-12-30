@@ -171,8 +171,11 @@ const SelloDetails = ({ sello: initialSello, selloId, error: initialError }: Sel
 
     try {
       // Si hay logo nuevo, primero subirlo
-      let logoId = null
+      let logoId: number | null = null
+      let shouldUpdateLogo = false
+      
       if (formData.logo) {
+        // Hay un nuevo logo para subir
         try {
           const formDataLogo = new FormData()
           formDataLogo.append('file', formData.logo)
@@ -185,28 +188,41 @@ const SelloDetails = ({ sello: initialSello, selloId, error: initialError }: Sel
           const uploadResult = await uploadResponse.json()
           if (uploadResult.success && uploadResult.data && uploadResult.data.length > 0) {
             logoId = uploadResult.data[0].id
+            shouldUpdateLogo = true
           } else if (uploadResult.success && uploadResult.data?.id) {
             logoId = uploadResult.data.id
+            shouldUpdateLogo = true
           }
         } catch (uploadError: any) {
           console.warn('[SelloDetails] Error al subir logo:', uploadError.message)
           // Continuar sin logo si falla la subida
         }
+      } else if (!formData.logoUrl) {
+        // Si no hay logo nuevo y tampoco hay logoUrl existente, significa que se eliminó
+        shouldUpdateLogo = true
+        logoId = null
       }
+      // Si hay logoUrl pero no logo nuevo, no actualizamos el logo (preservamos el existente)
 
       const url = `/api/tienda/sello/${sId}`
-      const body = JSON.stringify({
+      const selloData: any = {
         data: {
           id_sello: parseInt(formData.id_sello),
           nombre_sello: formData.nombre_sello.trim(),
           acronimo: formData.acronimo.trim() || null,
           website: formData.website.trim() || null,
           editorial: formData.editorial || null,
-          libros: formData.libros.length > 0 ? formData.libros : null,
-          colecciones: formData.colecciones.length > 0 ? formData.colecciones : null,
-          logo: logoId || null,
+          libros: formData.libros.length > 0 ? formData.libros : [],
+          colecciones: formData.colecciones.length > 0 ? formData.colecciones : [],
         },
-      })
+      }
+      
+      // Solo incluir logo si hay uno nuevo o se quiere eliminar
+      if (shouldUpdateLogo) {
+        selloData.data.logo = logoId
+      }
+      
+      const body = JSON.stringify(selloData)
       
       const response = await fetch(url, {
         method: 'PUT',

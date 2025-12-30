@@ -290,15 +290,18 @@ export async function PUT(
     }
 
     // oneToMany: array de IDs o documentIds (o [] para limpiar todas)
+    // Solo actualizar si se envía explícitamente
     if (body.data.libros !== undefined) {
-      selloData.data.libros = body.data.libros && body.data.libros.length > 0 ? body.data.libros : []
+      selloData.data.libros = Array.isArray(body.data.libros) && body.data.libros.length > 0 ? body.data.libros : []
     }
     
     if (body.data.colecciones !== undefined) {
-      selloData.data.colecciones = body.data.colecciones && body.data.colecciones.length > 0 ? body.data.colecciones : []
+      selloData.data.colecciones = Array.isArray(body.data.colecciones) && body.data.colecciones.length > 0 ? body.data.colecciones : []
     }
 
     // Media: solo el ID (o null para eliminar)
+    // Solo actualizar logo si se envía explícitamente
+    // Si no se envía, preservar el logo existente
     if (body.data.logo !== undefined) {
       selloData.data.logo = body.data.logo || null
     }

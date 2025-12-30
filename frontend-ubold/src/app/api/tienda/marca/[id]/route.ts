@@ -300,8 +300,12 @@ export async function PUT(
     if (body.data.description !== undefined) marcaData.data.descripcion = body.data.description?.trim() || null
 
     // Media: solo el ID (o null para eliminar)
+    // Aceptar tanto "imagen" como "logo" para compatibilidad
     if (body.data.imagen !== undefined) {
       marcaData.data.imagen = body.data.imagen || null
+    } else if (body.data.logo !== undefined) {
+      // Si se envía "logo", convertirlo a "imagen" (schema de Strapi)
+      marcaData.data.imagen = body.data.logo || null
     }
 
     // Estado de publicación - IMPORTANTE: Strapi espera valores en minúsculas

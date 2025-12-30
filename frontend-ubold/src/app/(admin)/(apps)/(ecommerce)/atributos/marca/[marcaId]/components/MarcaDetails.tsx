@@ -48,11 +48,10 @@ const MarcaDetails = ({ marca: initialMarca, marcaId, error: initialError }: Mar
   const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (marca as any)
 
   const [formData, setFormData] = useState({
-    nombre_marca: getField(data, 'nombre_marca', 'nombreMarca', 'nombre', 'NOMBRE_MARCA', 'NAME') || '',
+    nombre_marca: getField(data, 'name', 'nombre_marca', 'nombreMarca', 'nombre', 'NOMBRE_MARCA', 'NAME') || '',
     descripcion: getField(data, 'descripcion', 'description', 'DESCRIPCION') || '',
-    website: getField(data, 'website', 'website', 'WEBSITE') || '',
     logo: null as File | null,
-    logoUrl: data.logo?.data?.attributes?.url || data.logo?.url || null,
+    logoUrl: data.imagen?.data?.attributes?.url || data.logo?.data?.attributes?.url || data.imagen?.url || data.logo?.url || null,
   })
 
   useEffect(() => {
@@ -61,11 +60,10 @@ const MarcaDetails = ({ marca: initialMarca, marcaId, error: initialError }: Mar
       const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (marca as any)
       
       setFormData({
-        nombre_marca: getField(data, 'nombre_marca', 'nombreMarca', 'nombre', 'NOMBRE_MARCA', 'NAME') || '',
+        nombre_marca: getField(data, 'name', 'nombre_marca', 'nombreMarca', 'nombre', 'NOMBRE_MARCA', 'NAME') || '',
         descripcion: getField(data, 'descripcion', 'description', 'DESCRIPCION') || '',
-        website: getField(data, 'website', 'website', 'WEBSITE') || '',
         logo: null,
-        logoUrl: data.logo?.data?.attributes?.url || data.logo?.url || null,
+        logoUrl: data.imagen?.data?.attributes?.url || data.logo?.data?.attributes?.url || data.imagen?.url || data.logo?.url || null,
       })
     }
   }, [marca])
@@ -101,8 +99,11 @@ const MarcaDetails = ({ marca: initialMarca, marcaId, error: initialError }: Mar
     setSuccess(false)
 
     try {
-      let logoId = null
+      let imagenId: number | null = null
+      let shouldUpdateImagen = false
+      
       if (formData.logo) {
+        // Hay una nueva imagen para subir
         try {
           const formDataLogo = new FormData()
           formDataLogo.append('file', formData.logo)
@@ -114,24 +115,37 @@ const MarcaDetails = ({ marca: initialMarca, marcaId, error: initialError }: Mar
           
           const uploadResult = await uploadResponse.json()
           if (uploadResult.success && uploadResult.data && uploadResult.data.length > 0) {
-            logoId = uploadResult.data[0].id
+            imagenId = uploadResult.data[0].id
+            shouldUpdateImagen = true
           } else if (uploadResult.success && uploadResult.data?.id) {
-            logoId = uploadResult.data.id
+            imagenId = uploadResult.data.id
+            shouldUpdateImagen = true
           }
         } catch (uploadError: any) {
-          console.warn('[MarcaDetails] Error al subir logo:', uploadError.message)
+          console.warn('[MarcaDetails] Error al subir imagen:', uploadError.message)
         }
+      } else if (!formData.logoUrl) {
+        // Si no hay logo nuevo y tampoco hay logoUrl existente, significa que se eliminó
+        shouldUpdateImagen = true
+        imagenId = null
       }
+      // Si hay logoUrl pero no logo nuevo, no actualizamos la imagen (preservamos la existente)
 
       const url = `/api/tienda/marca/${mId}`
-      const body = JSON.stringify({
+      const marcaData: any = {
         data: {
-          nombre_marca: formData.nombre_marca.trim(),
+          name: formData.nombre_marca.trim(), // Strapi usa "name", no "nombre_marca"
           descripcion: formData.descripcion.trim() || null,
-          website: formData.website.trim() || null,
-          logo: logoId || null,
+          // Nota: El schema de marca no tiene campo "website", solo name, descripcion, imagen
         },
-      })
+      }
+      
+      // Solo incluir imagen si hay una nueva o se quiere eliminar
+      if (shouldUpdateImagen) {
+        marcaData.data.imagen = imagenId
+      }
+      
+      const body = JSON.stringify(marcaData)
       
       const response = await fetch(url, {
         method: 'PUT',
@@ -229,23 +243,6 @@ const MarcaDetails = ({ marca: initialMarca, marcaId, error: initialError }: Mar
                   />
                   <small className="text-muted">
                     Descripción opcional de la marca.
-                  </small>
-                </FormGroup>
-              </Col>
-
-              <Col md={12}>
-                <FormGroup>
-                  <FormLabel>Website</FormLabel>
-                  <FormControl
-                    type="url"
-                    placeholder="https://ejemplo.com"
-                    value={formData.website}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, website: e.target.value }))
-                    }
-                  />
-                  <small className="text-muted">
-                    URL del sitio web de la marca (opcional).
                   </small>
                 </FormGroup>
               </Col>

@@ -64,6 +64,17 @@ export default function AddProductPage() {
     upsell_ids: '',
     cross_sell_ids: '',
     
+    // === WOOCOMMERCE: ATRIBUTOS ===
+    attributes: [] as Array<{
+      id?: number
+      name: string
+      slug: string
+      position: number
+      visible: boolean
+      variation: boolean
+      options: string[]
+    }>,
+    
     // === MEDIA ===
     portada_libro: null as File | null,
   })
@@ -384,6 +395,19 @@ export default function AddProductPage() {
         
         // SKU
         sku: formData.isbn_libro?.trim() || '',
+        
+        // ✅ ATRIBUTOS (si hay alguno agregado)
+        attributes: formData.attributes && formData.attributes.length > 0
+          ? formData.attributes.map((attr: any) => ({
+              id: attr.id || 0,
+              name: attr.name,
+              slug: attr.slug,
+              position: attr.position || 0,
+              visible: attr.visible !== false,
+              variation: attr.variation === true,
+              options: attr.options || [],
+            }))
+          : [],
       }
 
       // ✅ CRÍTICO: Incluir raw_woo_data en el payload para que Strapi lo use
