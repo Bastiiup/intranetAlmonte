@@ -531,7 +531,8 @@ const Page = () => {
               <p style={{ margin: 0, fontSize: '0.875rem' }}>Elige a alguien de la lista de la izquierda</p>
             </div>
           ) : !chatClient || !channel || !channel.state ? (
-            // Guard clause: No renderizar Chat/Channel hasta que estén completamente inicializados
+            // Guard clause estricto: No renderizar Chat/Channel hasta que estén 100% inicializados
+            // Esto previene el error "getConfig is not a function"
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: '#6c757d' }}>
               <Spinner animation="border" variant="primary" style={{ marginBottom: '1rem' }} />
               <h5>Cargando conversación...</h5>
