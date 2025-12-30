@@ -49,6 +49,17 @@ export const metadata: Metadata = {
         shortcut: `data:image/svg+xml,${faviconSvg}`,
         apple: `data:image/svg+xml,${faviconSvg}`,
     },
+    other: {
+        'Content-Security-Policy': [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.getstream.io https://*.stream-io-api.com",
+            "style-src 'self' 'unsafe-inline' https://*.getstream.io",
+            "img-src 'self' data: blob: https: http:",
+            "font-src 'self' data: https:",
+            "connect-src 'self' https://*.getstream.io https://*.stream-io-api.com wss://*.getstream.io ws://*.getstream.io wss://*.stream-io-api.com ws://*.stream-io-api.com",
+            "frame-src 'self' https://*.getstream.io",
+        ].join('; '),
+    },
 }
 
 const RootLayout = ({ children }: ChildrenType) => {
