@@ -153,13 +153,47 @@ const Page = () => {
     }
   }, [colaborador?.id, persona?.nombre_completo, persona?.nombres, persona?.primer_apellido, persona?.imagen?.url, colaborador?.email_login])
 
+  // Verificar que el canal esté completamente listo antes de permitir renderizado
+  useEffect(() => {
+    if (!channel || !isChannelReady) {
+      return
+    }
+
+    // Verificación adicional: asegurar que el canal tenga todas las propiedades necesarias
+    const verifyChannelReady = () => {
+      if (!channel.state || !channel.id || !channel.cid) {
+        console.warn('[Chat] ⚠️ Canal no está completamente listo, reseteando isChannelReady')
+        setIsChannelReady(false)
+        return false
+      }
+      return true
+    }
+
+    // Verificar inmediatamente
+    if (!verifyChannelReady()) {
+      return
+    }
+
+    // Verificar después de un breve delay para asegurar que el SDK terminó de inicializar
+    const timeoutId = setTimeout(() => {
+      if (!verifyChannelReady()) {
+        return
+      }
+      console.log('[Chat] ✅ Verificación final: Canal completamente listo para renderizar')
+    }, 100)
+
+    return () => {
+      clearTimeout(timeoutId)
+    }
+  }, [channel, isChannelReady])
+
   // Monitorear cambios en el canal para debugging
   useEffect(() => {
-    if (!channel) return
+    if (!channel || !isChannelReady) return
 
     const logChannelState = () => {
-      const messages = channel.state.messages || []
-      const members = channel.state.members || {}
+      const messages = channel.state?.messages || []
+      const members = channel.state?.members || {}
       console.log('[Chat] 📊 Estado actual del canal:', {
         channelId: channel.id,
         messageCount: messages.length,
@@ -194,7 +228,7 @@ const Page = () => {
       channel.off('message.new', handleMessageNew)
       channel.off('message.updated', handleMessageUpdated)
     }
-  }, [channel])
+  }, [channel, isChannelReady])
 
   // Cargar lista de colaboradores
   const loadColaboradores = async () => {
@@ -386,17 +420,55 @@ const Page = () => {
         throw new Error('El canal no tiene estado inicializado después de watch()')
       }
       
+      // Verificar que el canal tenga las propiedades críticas del SDK
+      // El error getConfig sugiere que el canal no está completamente inicializado
+      if (!channel.id || !channel.type || !channel.cid) {
+        throw new Error('El canal no tiene propiedades críticas inicializadas')
+      }
+      
+      // Verificar que el canal tenga el cliente asociado (necesario para getConfig)
+      // El canal tiene _client internamente, pero verificamos que el canal esté asociado al cliente correcto
+      if (!(channel as any)._client || (channel as any)._client !== chatClient) {
+        console.warn('[Chat] ⚠️ Canal no tiene cliente asociado correctamente')
+      }
+      
+      // Esperar un momento adicional para asegurar que el SDK termine de inicializar completamente
+      // Esto previene race conditions donde el componente se renderiza antes de tiempo
+      // Delay más largo para asegurar que el SDK de Stream Chat termine toda su inicialización interna
+      await new Promise(resolve => setTimeout(resolve, 800))
+      
+      // Verificar nuevamente después del delay que el canal sigue siendo válido
+      if (!channel.state || !channel.id || !channel.cid) {
+        throw new Error('El canal perdió su estado después del delay')
+      }
+      
       // Verificar que el canal tenga al menos la estructura básica lista
-      // Si tiene state, significa que watch() completó y el canal está listo
       console.log('[Chat] ✅ Canal completamente inicializado:', {
         channelId: channel.id,
+        cid: channel.cid,
+        type: channel.type,
         hasState: !!channel.state,
+        hasClient: !!(channel as any)._client,
         membersCount: Object.keys(channel.state.members || {}).length,
         messagesCount: channel.state.messages?.length || 0,
       })
       
+      // Establecer el canal en el estado
+      // IMPORTANTE: No marcar como ready todavía, esperar un momento más
       setChannel(channel)
-      setIsChannelReady(true) // Marcar canal como listo
+      
+      // Esperar tiempo adicional antes de marcar como listo para renderizar
+      // Esto da tiempo a React para procesar el cambio de estado y al SDK para terminar
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // Verificación final antes de marcar como listo
+      if (!channel.state || !channel.id) {
+        console.error('[Chat] ❌ Canal perdió estado antes de marcar como listo')
+        setIsChannelReady(false)
+        return
+      }
+      
+      setIsChannelReady(true) // Marcar canal como listo SOLO después de todas las verificaciones
     } catch (err: any) {
       console.error('[Chat] Error al seleccionar colaborador:', err)
       setError(err.message || 'Error al abrir conversación')
@@ -459,6 +531,15 @@ const Page = () => {
       return `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${persona.imagen.url}`
     }
     return undefined
+  }
+
+  // Función helper para verificar que el canal esté completamente listo
+  const isChannelFullyReady = (): boolean => {
+    if (!chatClient || !channel) return false
+    if (!channel.state || !channel.id || !channel.cid) return false
+    if (channel.type !== 'messaging') return false
+    if (!isChannelReady) return false
+    return true
   }
 
   return (
@@ -553,8 +634,9 @@ const Page = () => {
               <h5>Selecciona un contacto para comenzar a chatear</h5>
               <p style={{ margin: 0, fontSize: '0.875rem' }}>Elige a alguien de la lista de la izquierda</p>
             </div>
-          ) : !chatClient || !channel || !channel.state || !isChannelReady ? (
-            // Guard clause estricto: No renderizar Chat/Channel hasta que estén 100% inicializados
+          ) : !isChannelFullyReady() ? (
+            // Guard clause ULTRA estricto: No renderizar Chat/Channel hasta que estén 100% inicializados
+            // Usa función helper que verifica todas las condiciones necesarias
             // Esto previene el error "getConfig is not a function"
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: '#6c757d' }}>
               <Spinner animation="border" variant="primary" style={{ marginBottom: '1rem' }} />
