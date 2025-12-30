@@ -202,35 +202,30 @@ const Page = () => {
     setIsCreatingChannel(true)
 
     try {
-      // 1. Asegurar que ambos IDs sean strings para evitar errores de ordenamiento
-      const myId = String(currentUserIdRef.current)
-      const otherId = String(colaboradorId)
+      // 1. Convertir IDs a Número para ordenamiento seguro
+      const myIdNum = Number(currentUserIdRef.current)
+      const otherIdNum = Number(colaboradorId)
 
       // Verificar que no sea el mismo usuario
-      if (myId === otherId) {
+      if (myIdNum === otherIdNum) {
         setError('No puedes chatear contigo mismo')
         setIsCreatingChannel(false)
         return
       }
 
-      // 2. DEBUG OBLIGATORIO: Imprimir en consola con console.error para que destaque
-      console.error('🕵️ DEBUG CHAT:')
-      console.error('=============================================')
-      console.error('📋 ESTRUCTURA USUARIO ACTUAL:')
-      console.error('colaborador completo:', JSON.stringify(colaborador, null, 2))
-      console.error('currentUserIdRef.current:', currentUserIdRef.current)
-      console.error('YO SOY:', myId, 'tipo:', typeof myId)
-      console.error('=============================================')
-      console.error('📋 ESTRUCTURA COLABORADOR SELECCIONADO:')
-      const selectedColab = colaboradores.find((c) => String(c.id) === colaboradorId)
-      console.error('colaborador seleccionado completo:', JSON.stringify(selectedColab, null, 2))
-      console.error('colaboradorId recibido:', colaboradorId)
-      console.error('EL OTRO ES:', otherId, 'tipo:', typeof otherId)
-      console.error('=============================================')
-      const sortedIds = [myId, otherId].sort()
-      console.error('IDS ORDENADOS:', sortedIds)
+      // 2. Ordenar numéricamente (ascendente)
+      const sortedIds = [myIdNum, otherIdNum].sort((a, b) => a - b)
+
+      // 3. Convertir a string para el ID del canal
       const channelId = `messaging-${sortedIds.join('-')}`
-      console.error('ID FINAL DEL CANAL:', channelId)
+
+      // 4. DEBUG FINAL (Muestra esto en consola)
+      console.error('=============================================')
+      console.error('🕵️ DEBUG CHAT - CREACIÓN DE SALA')
+      console.error('👤 ID Usuario 1 (Numérico):', myIdNum)
+      console.error('👤 ID Usuario 2 (Numérico):', otherIdNum)
+      console.error('🔢 IDs Ordenados:', sortedIds)
+      console.error('🔑 CHANNEL ID GENERADO:', channelId)
       console.error('=============================================')
 
       // Asegurar que el usuario objetivo existe en Stream Chat
@@ -240,7 +235,7 @@ const Page = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ colaboradorId: otherId }),
+        body: JSON.stringify({ colaboradorId: String(otherIdNum) }),
       })
 
       if (!ensureUserResponse.ok) {
@@ -249,9 +244,9 @@ const Page = () => {
       }
 
       // Crear o recuperar canal
-      // IMPORTANTE: Usar los IDs convertidos a String y ordenados
+      // IMPORTANTE: Stream necesita strings en 'members', pero usamos los IDs ordenados numéricamente
       const channel = chatClient.channel('messaging', channelId, {
-        members: [myId, otherId],
+        members: sortedIds.map(String),
       })
 
       // CRÍTICO: Esperar a que watch() complete antes de establecer el canal
