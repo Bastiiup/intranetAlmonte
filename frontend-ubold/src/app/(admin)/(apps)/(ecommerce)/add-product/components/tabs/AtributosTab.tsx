@@ -31,10 +31,15 @@ interface AtributosTabProps {
 const AtributosTab = memo(function AtributosTab({ formData, updateField }: AtributosTabProps) {
   const [showAddExisting, setShowAddExisting] = useState(false)
   const [showCreateNew, setShowCreateNew] = useState(false)
+  const [showSelectOptions, setShowSelectOptions] = useState(false)
   const [loadingAttributes, setLoadingAttributes] = useState(false)
   const [wooAttributes, setWooAttributes] = useState<WooCommerceAttribute[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [pendingAttribute, setPendingAttribute] = useState<ProductAttribute | null>(null)
+  const [availableOptions, setAvailableOptions] = useState<Array<{ id: number; name: string; slug: string }>>([])
+  const [selectedOptions, setSelectedOptions] = useState<string[]>([])
+  const [loadingOptions, setLoadingOptions] = useState(false)
 
   // Estados para crear nuevo atributo
   const [newAttribute, setNewAttribute] = useState({
@@ -85,34 +90,35 @@ const AtributosTab = memo(function AtributosTab({ formData, updateField }: Atrib
     attr.slug.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
+  // Cargar opciones de un atributo
+  const loadAttributeOptions = async (attributeId: number) => {
+    setLoadingOptions(true)
+    setError(null)
+    try {
+      const termsResponse = await fetch(`/api/woocommerce/products/attributes/${attributeId}/terms?per_page=100&platform=moraleja`)
+      const termsData = await termsResponse.json()
+      
+      if (termsData.success && termsData.data) {
+        setAvailableOptions(termsData.data.map((term: any) => ({
+          id: term.id,
+          name: term.name,
+          slug: term.slug,
+        })))
+      } else {
+        setAvailableOptions([])
+      }
+    } catch (err: any) {
+      console.error('[AtributosTab] Error al cargar opciones:', err)
+      setAvailableOptions([])
+    } finally {
+      setLoadingOptions(false)
+    }
+  }
+
   // Agregar atributo existente al producto
   const handleAddExistingAttribute = async (wooAttr: WooCommerceAttribute) => {
     try {
-      // Obtener términos (opciones) del atributo
-      const termsResponse = await fetch(`/api/woocommerce/products/attributes/${wooAttr.id}/terms?per_page=100&platform=moraleja`)
-      const termsData = await termsResponse.json()
-      
-      const options = termsData.success && termsData.data
-        ? termsData.data.map((term: any) => term.name)
-        : []
-
-      const newAttribute: ProductAttribute = {
-        id: wooAttr.id,
-        name: wooAttr.name,
-        slug: wooAttr.slug,
-        position: attributes.length,
-        visible: true,
-        variation: false,
-        options: options,
-      }
-
-      const updatedAttributes = [...attributes, newAttribute]
-      updateField('attributes', updatedAttributes)
-      setShowAddExisting(false)
-      setSearchTerm('')
-    } catch (err: any) {
-      console.error('[AtributosTab] Error al obtener términos del atributo:', err)
-      // Agregar sin opciones si falla
+      // Crear el atributo temporal
       const newAttribute: ProductAttribute = {
         id: wooAttr.id,
         name: wooAttr.name,
@@ -122,11 +128,53 @@ const AtributosTab = memo(function AtributosTab({ formData, updateField }: Atrib
         variation: false,
         options: [],
       }
-      const updatedAttributes = [...attributes, newAttribute]
-      updateField('attributes', updatedAttributes)
+
+      // Cerrar modal de agregar existente
       setShowAddExisting(false)
       setSearchTerm('')
+
+      // Cargar opciones y mostrar modal de selección
+      setPendingAttribute(newAttribute)
+      setSelectedOptions([])
+      await loadAttributeOptions(wooAttr.id)
+      setShowSelectOptions(true)
+    } catch (err: any) {
+      console.error('[AtributosTab] Error al agregar atributo:', err)
+      setError(err.message || 'Error al agregar atributo')
     }
+  }
+
+  // Confirmar selección de opciones
+  const handleConfirmOptions = () => {
+    if (!pendingAttribute) return
+
+    // Verificar si es un atributo nuevo o uno existente que se está editando
+    const existingIndex = attributes.findIndex(attr => 
+      attr.id === pendingAttribute.id && attr.name === pendingAttribute.name
+    )
+
+    const attributeWithOptions: ProductAttribute = {
+      ...pendingAttribute,
+      options: selectedOptions,
+    }
+
+    let updatedAttributes: ProductAttribute[]
+    if (existingIndex >= 0) {
+      // Actualizar atributo existente
+      updatedAttributes = [...attributes]
+      updatedAttributes[existingIndex] = attributeWithOptions
+    } else {
+      // Agregar nuevo atributo
+      updatedAttributes = [...attributes, attributeWithOptions]
+    }
+
+    updateField('attributes', updatedAttributes)
+    
+    // Limpiar estados
+    setShowSelectOptions(false)
+    setPendingAttribute(null)
+    setSelectedOptions([])
+    setAvailableOptions([])
   }
 
   // Crear nuevo atributo en WooCommerce y agregarlo al producto
@@ -228,7 +276,18 @@ const AtributosTab = memo(function AtributosTab({ formData, updateField }: Atrib
     updateField('attributes', updatedAttributes)
   }
 
-  // Actualizar opciones de un atributo
+  // Editar opciones de un atributo existente
+  const handleEditAttributeOptions = async (attrIndex: number) => {
+    const attr = attributes[attrIndex]
+    if (!attr.id) return
+
+    setPendingAttribute(attr)
+    setSelectedOptions(attr.options || [])
+    await loadAttributeOptions(attr.id)
+    setShowSelectOptions(true)
+  }
+
+  // Actualizar opciones de un atributo después de editarlas
   const handleUpdateAttributeOptions = (index: number, options: string[]) => {
     const updatedAttributes = [...attributes]
     updatedAttributes[index].options = options
@@ -298,13 +357,35 @@ const AtributosTab = memo(function AtributosTab({ formData, updateField }: Atrib
                     )}
                   </td>
                   <td>
-                    <div className="d-flex flex-wrap gap-1">
+                    <div className="d-flex flex-wrap gap-1 align-items-center">
                       {attr.options.length > 0 ? (
-                        attr.options.map((option, optIndex) => (
-                          <Badge key={optIndex} bg="info">{option}</Badge>
-                        ))
+                        <>
+                          {attr.options.map((option, optIndex) => (
+                            <Badge key={optIndex} bg="info">{option}</Badge>
+                          ))}
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="p-0 ms-2"
+                            onClick={() => handleEditAttributeOptions(index)}
+                            title="Editar opciones"
+                          >
+                            <LuPlus size={16} />
+                          </Button>
+                        </>
                       ) : (
-                        <span className="text-muted">Sin opciones</span>
+                        <>
+                          <span className="text-muted me-2">Sin opciones</span>
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="p-0"
+                            onClick={() => handleEditAttributeOptions(index)}
+                            title="Agregar opciones"
+                          >
+                            <LuPlus size={16} />
+                          </Button>
+                        </>
                       )}
                     </div>
                   </td>
@@ -549,6 +630,117 @@ const AtributosTab = memo(function AtributosTab({ formData, updateField }: Atrib
             disabled={loadingAttributes || !newAttribute.name.trim()}
           >
             {loadingAttributes ? 'Creando...' : 'Crear y Agregar'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Modal para seleccionar opciones del atributo */}
+      <Modal show={showSelectOptions} onHide={() => {
+        setShowSelectOptions(false)
+        setPendingAttribute(null)
+        setSelectedOptions([])
+        setAvailableOptions([])
+      }} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Seleccionar Opciones: {pendingAttribute?.name}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {error && (
+            <Alert variant="danger" dismissible onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          )}
+
+          {loadingOptions ? (
+            <div className="text-center py-4">
+              <div className="spinner-border" role="status">
+                <span className="visually-hidden">Cargando opciones...</span>
+              </div>
+            </div>
+          ) : (
+            <>
+              {availableOptions.length > 0 ? (
+                <div>
+                  <FormGroup className="mb-3">
+                    <FormLabel>
+                      Selecciona las opciones para <strong>{pendingAttribute?.name}</strong>
+                    </FormLabel>
+                    <FormControl
+                      as="select"
+                      multiple
+                      size={Math.min(availableOptions.length, 10)}
+                      value={selectedOptions}
+                      onChange={(e) => {
+                        const selected = Array.from(e.target.selectedOptions, option => option.value)
+                        setSelectedOptions(selected)
+                      }}
+                      style={{ minHeight: '200px' }}
+                    >
+                      {availableOptions.map((option) => (
+                        <option key={option.id} value={option.name}>
+                          {option.name}
+                        </option>
+                      ))}
+                    </FormControl>
+                    <small className="text-muted">
+                      Mantén presionado Ctrl (o Cmd en Mac) para seleccionar múltiples opciones. 
+                      {selectedOptions.length > 0 && (
+                        <span className="ms-2 text-primary">
+                          {selectedOptions.length} opción(es) seleccionada(s)
+                        </span>
+                      )}
+                    </small>
+                  </FormGroup>
+
+                  {selectedOptions.length > 0 && (
+                    <div className="mb-3">
+                      <strong>Opciones seleccionadas:</strong>
+                      <div className="d-flex flex-wrap gap-2 mt-2">
+                        {selectedOptions.map((option, idx) => (
+                          <Badge key={idx} bg="primary" className="d-flex align-items-center gap-1">
+                            {option}
+                            <Button
+                              variant="link"
+                              size="sm"
+                              className="p-0 text-white"
+                              onClick={() => {
+                                setSelectedOptions(selectedOptions.filter((_, i) => i !== idx))
+                              }}
+                            >
+                              <LuX size={14} />
+                            </Button>
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Alert variant="info">
+                  Este atributo no tiene opciones disponibles. Puedes agregarlo sin opciones o crear opciones desde WooCommerce.
+                </Alert>
+              )}
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button 
+            variant="secondary" 
+            onClick={() => {
+              setShowSelectOptions(false)
+              setPendingAttribute(null)
+              setSelectedOptions([])
+              setAvailableOptions([])
+            }}
+          >
+            Cancelar
+          </Button>
+          <Button 
+            variant="primary" 
+            onClick={handleConfirmOptions}
+            disabled={loadingOptions}
+          >
+            Agregar Atributo {selectedOptions.length > 0 && `(${selectedOptions.length} opciones)`}
           </Button>
         </Modal.Footer>
       </Modal>
