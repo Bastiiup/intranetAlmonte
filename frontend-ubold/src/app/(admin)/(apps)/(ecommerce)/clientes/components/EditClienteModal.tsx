@@ -95,8 +95,10 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
         },
       }
 
-      // NOTA: El teléfono no está en el schema de WO-Clientes, se maneja en Persona
-      // La actualización de teléfono se manejará automáticamente en el endpoint si es necesario
+      // Agregar teléfono si existe (se actualizará en Persona)
+      if (formData.phone.trim()) {
+        updateData.data.telefono = formData.phone.trim()
+      }
       
       const response = await fetch(`/api/tienda/clientes/${clienteId}`, {
         method: 'PUT',
