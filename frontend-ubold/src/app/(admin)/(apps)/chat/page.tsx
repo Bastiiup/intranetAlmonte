@@ -486,7 +486,7 @@ const Page = () => {
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: isSelected ? 'bold' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {getColaboradorName(col)}
+                            {getColaboradorName(col)} <small style={{ color: isSelected ? 'rgba(255,255,255,0.7)' : '#6c757d', fontWeight: 'normal' }}>(ID: {col.id})</small>
                           </div>
                           <div style={{ fontSize: '0.75rem', color: isSelected ? 'rgba(255,255,255,0.8)' : '#6c757d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {col.attributes?.email_login || col.email_login || ''}
