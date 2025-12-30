@@ -23,7 +23,7 @@ import { useRouter } from 'next/navigation'
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
-import ClienteModal from './ClienteModal'
+import EditClienteModal from './EditClienteModal'
 import { currency } from '@/helpers'
 import { format } from 'date-fns'
 
@@ -151,7 +151,7 @@ const columnHelper = createColumnHelper<ClienteType>()
 
 const ClientsListing = ({ clientes, error }: ClientsListingProps = {}) => {
   const router = useRouter()
-  const [showClienteModal, setShowClienteModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
   const [selectedCliente, setSelectedCliente] = useState<ClienteType | null>(null)
 
   // Mapear clientes de Strapi al formato ClienteType si están disponibles
@@ -284,7 +284,7 @@ const ClientsListing = ({ clientes, error }: ClientsListingProps = {}) => {
                 idUsado: clienteSeleccionado.documentId || clienteSeleccionado.id || 'NO ID',
               })
               setSelectedCliente(clienteSeleccionado)
-              setShowClienteModal(true)
+              setShowEditModal(true)
             }}>
             <TbEdit className="fs-lg" />
           </Button>
@@ -560,15 +560,25 @@ const ClientsListing = ({ clientes, error }: ClientsListingProps = {}) => {
             itemName="cliente"
           />
 
-          <ClienteModal
-            show={showClienteModal}
-            onHide={() => {
-              setShowClienteModal(false)
-              setSelectedCliente(null)
-            }}
-            cliente={selectedCliente}
-            onSave={handleEditSave}
-          />
+          {selectedCliente && (
+            <EditClienteModal
+              show={showEditModal}
+              onHide={() => {
+                setShowEditModal(false)
+                setSelectedCliente(null)
+              }}
+              cliente={{
+                id: selectedCliente.id,
+                documentId: selectedCliente.documentId,
+                personaDocumentId: selectedCliente.personaDocumentId,
+                nombre: selectedCliente.nombre,
+                correo_electronico: selectedCliente.correo_electronico,
+                telefono: selectedCliente.telefono,
+                rut: selectedCliente.rut,
+              }}
+              onSave={handleEditSave}
+            />
+          )}
         </Card>
       </Col>
     </Row>
