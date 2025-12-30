@@ -52,12 +52,14 @@ export const metadata: Metadata = {
     other: {
         'Content-Security-Policy': [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.getstream.io https://*.stream-io-api.com",
+            "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.getstream.io https://*.stream-io-api.com https://getstream.io",
             "style-src 'self' 'unsafe-inline' https://*.getstream.io",
             "img-src 'self' data: blob: https: http:",
             "font-src 'self' data: https:",
-            "connect-src 'self' https://*.getstream.io https://*.stream-io-api.com wss://*.getstream.io ws://*.getstream.io wss://*.stream-io-api.com ws://*.stream-io-api.com",
+            "connect-src 'self' https://*.getstream.io https://*.stream-io-api.com https://getstream.io wss://*.getstream.io ws://*.getstream.io wss://*.stream-io-api.com ws://*.stream-io-api.com wss://chat.stream-io-api.com",
             "frame-src 'self' https://*.getstream.io",
+            "worker-src 'self' blob:",
+            "child-src 'self' blob:",
         ].join('; '),
     },
 }
