@@ -302,9 +302,7 @@ const Page = () => {
         members: [currentId, otherId],
       })
 
-      // 5. Suscribirse inmediatamente
-
-      // watch() carga los mensajes históricos
+      // 5. Suscribirse inmediatamente y asegurar que el canal esté completamente inicializado
       console.log('[Chat] Iniciando watch() del canal...')
       await channel.watch()
       
@@ -319,6 +317,12 @@ const Page = () => {
         console.warn('[Chat] Error en query:', queryErr)
       }
       
+      // Verificar que el canal esté completamente inicializado
+      // El canal debe tener state y estar listo antes de renderizar
+      if (!channel.state) {
+        throw new Error('El canal no tiene estado inicializado')
+      }
+      
       // Verificar mensajes cargados
       const loadedMessages = channel.state.messages || []
       console.log('[Chat] ✅ Mensajes cargados en el canal:', {
@@ -329,26 +333,6 @@ const Page = () => {
           user: m.user?.id,
           userName: m.user?.name,
         })),
-      })
-      
-      // Suscribirse a eventos para debugging y actualización
-      channel.on('message.new', (event: any) => {
-        console.log('[Chat] 📨 Nuevo mensaje recibido:', {
-          id: event.message?.id,
-          text: event.message?.text?.substring(0, 50),
-          user: event.message?.user?.id,
-        })
-        // Forzar actualización del componente cuando llega un nuevo mensaje
-        setTimeout(() => {
-          setChannel({ ...channel } as any)
-        }, 100)
-      })
-      
-      channel.on('message.updated', (event: any) => {
-        console.log('[Chat] ✏️ Mensaje actualizado:', event.message?.id)
-        setTimeout(() => {
-          setChannel({ ...channel } as any)
-        }, 100)
       })
       
       // Verificar miembros
@@ -364,6 +348,32 @@ const Page = () => {
         }
       }
       
+      // Suscribirse a eventos para debugging y actualización
+      channel.on('message.new', (event: any) => {
+        console.log('[Chat] 📨 Nuevo mensaje recibido:', {
+          id: event.message?.id,
+          text: event.message?.text?.substring(0, 50),
+          user: event.message?.user?.id,
+        })
+        // Forzar actualización del componente cuando llega un nuevo mensaje
+        setTimeout(() => {
+          if (channel && channel.state) {
+            setChannel({ ...channel } as any)
+          }
+        }, 100)
+      })
+      
+      channel.on('message.updated', (event: any) => {
+        console.log('[Chat] ✏️ Mensaje actualizado:', event.message?.id)
+        setTimeout(() => {
+          if (channel && channel.state) {
+            setChannel({ ...channel } as any)
+          }
+        }, 100)
+      })
+      
+      // Solo establecer el canal después de que esté completamente inicializado
+      console.log('[Chat] ✅ Canal completamente inicializado, estableciendo en estado')
       setChannel(channel)
     } catch (err: any) {
       console.error('[Chat] Error al seleccionar colaborador:', err)
@@ -519,6 +529,13 @@ const Page = () => {
               <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>💬</div>
               <h5>Selecciona un contacto para comenzar a chatear</h5>
               <p style={{ margin: 0, fontSize: '0.875rem' }}>Elige a alguien de la lista de la izquierda</p>
+            </div>
+          ) : !chatClient || !channel || !channel.state ? (
+            // Guard clause: No renderizar Chat/Channel hasta que estén completamente inicializados
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: '#6c757d' }}>
+              <Spinner animation="border" variant="primary" style={{ marginBottom: '1rem' }} />
+              <h5>Cargando conversación...</h5>
+              <p style={{ margin: 0, fontSize: '0.875rem' }}>Por favor espera mientras se inicializa el chat</p>
             </div>
           ) : (
             <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
