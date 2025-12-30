@@ -187,9 +187,9 @@ export async function GET() {
           const existingItem = usuariosUnicos.get(email)
           const existingId = existingItem.id
           
-          // Verificar si tienen persona
-          const hasPersonaNew = hasPersona(newItem)
-          const hasPersonaExisting = hasPersona(existingItem)
+          // Verificar si tienen persona (verificar en múltiples lugares posibles)
+          const hasPersonaNew = !!newItem.persona || !!newItem.attributes?.persona?.data || !!newItem.attributes?.persona
+          const hasPersonaExisting = !!existingItem.persona || !!existingItem.attributes?.persona?.data || !!existingItem.attributes?.persona
           
           let shouldReplace = false
           let reason = ''
@@ -198,42 +198,36 @@ export async function GET() {
           if (hasPersonaNew && !hasPersonaExisting) {
             shouldReplace = true
             reason = 'Nuevo tiene persona, existente no'
+            usuariosUnicos.set(email, newItem)
           }
           // CASO B: Ambos tienen (o no tienen) persona -> Usar el ID más alto
           else if (hasPersonaNew === hasPersonaExisting) {
-            if (currentId > existingId) {
+            if (Number(newItem.id) > Number(existingItem.id)) {
               shouldReplace = true
               reason = hasPersonaNew 
                 ? 'Ambos tienen persona, nuevo ID es mayor' 
                 : 'Ninguno tiene persona, nuevo ID es mayor'
+              usuariosUnicos.set(email, newItem)
             } else {
               reason = hasPersonaNew 
                 ? 'Ambos tienen persona, existente ID es mayor' 
                 : 'Ninguno tiene persona, existente ID es mayor'
+              // No hacer nada, ya tenemos el correcto en el Map
             }
           }
           // CASO C: El guardado tiene persona y el nuevo no -> No hacer nada (quedarse con el guardado)
           else {
             reason = 'Existente tiene persona, nuevo no'
+            // No hacer nada, ya tenemos el correcto en el Map
           }
           
-          if (shouldReplace) {
-            duplicatesFound.push({
-              email,
-              ids: [existingId, currentId],
-              kept: currentId,
-              reason,
-            })
-            usuariosUnicos.set(email, newItem)
-          } else {
-            duplicatesFound.push({
-              email,
-              ids: [existingId, currentId],
-              kept: existingId,
-              reason,
-            })
-            // No hacemos nada, ya tenemos el correcto en el Map
-          }
+          // Registrar la decisión de desduplicación
+          duplicatesFound.push({
+            email,
+            ids: [existingId, currentId],
+            kept: shouldReplace ? currentId : existingId,
+            reason,
+          })
         }
       })
       
