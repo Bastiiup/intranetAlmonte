@@ -40,8 +40,9 @@ export async function GET() {
     // CRÍTICO: Fetch EXCLUSIVO de Intranet-colaboradores
     // NO usar Intranet-Chats ni ninguna otra tabla antigua
     // Solo traer colaboradores activos con sus datos de Persona
+    // IMPORTANTE: Agregar publicationState=live para incluir solo registros publicados
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
-      '/api/colaboradores?pagination[pageSize]=1000&sort=email_login:asc&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[persona][populate][emails]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][imagen][populate]=*&filters[activo][$eq]=true'
+      '/api/colaboradores?publicationState=live&pagination[pageSize]=1000&sort=email_login:asc&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[persona][populate][emails]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][imagen][populate]=*&filters[activo][$eq]=true'
     )
     
     // Log detallado para debugging
@@ -71,6 +72,35 @@ export async function GET() {
       // DEBUG CRÍTICO: Verificar estructura completa del primer colaborador
       console.error('[API /chat/colaboradores] 🔍 ESTRUCTURA COMPLETA PRIMER COLABORADOR:')
       console.error(JSON.stringify(firstColaborador, null, 2))
+    }
+    
+    // DEBUG ESPECÍFICO: Buscar usuario 157 en la respuesta
+    if (Array.isArray(response.data)) {
+      const usuario157 = response.data.find((col: any) => {
+        const id = col.id || col.documentId
+        return String(id) === '157' || id === 157
+      })
+      console.error('[API /chat/colaboradores] 🔍 BÚSQUEDA ESPECÍFICA USUARIO 157:')
+      if (usuario157) {
+        const attrs = usuario157.attributes || usuario157
+        console.error('✅ USUARIO 157 ENCONTRADO:', {
+          id: usuario157.id,
+          documentId: usuario157.documentId,
+          email_login: attrs.email_login,
+          activo: attrs.activo,
+          publishedAt: usuario157.publishedAt,
+          tienePersona: !!attrs.persona,
+        })
+      } else {
+        console.error('❌ USUARIO 157 NO ENCONTRADO en la respuesta de Strapi')
+        console.error('Total de colaboradores recibidos:', response.data.length)
+        console.error('IDs encontrados (primeros 10):', response.data.slice(0, 10).map((col: any) => ({
+          id: col.id,
+          documentId: col.documentId,
+          email: (col.attributes || col).email_login,
+          activo: (col.attributes || col).activo,
+        })))
+      }
     }
     
     return NextResponse.json(response, { status: 200 })

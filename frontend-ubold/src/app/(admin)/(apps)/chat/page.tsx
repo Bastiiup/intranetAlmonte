@@ -231,6 +231,40 @@ const Page = () => {
       })))
       console.error('¿Usuario actual aparece en lista?', normalized.some((c: Colaborador) => String(c.id) === String(colaborador?.id)))
       
+      // DEBUG ESPECÍFICO: Buscar usuario 157 en la lista normalizada
+      const usuario157 = normalized.find((c: Colaborador) => String(c.id) === '157' || c.id === 157)
+      console.error('[Chat] 🔍 BÚSQUEDA ESPECÍFICA USUARIO 157 EN LISTA NORMALIZADA:')
+      if (usuario157) {
+        console.error('✅ USUARIO 157 ENCONTRADO en lista normalizada:', {
+          id: usuario157.id,
+          email: usuario157.email_login,
+          activo: usuario157.activo,
+          nombre: usuario157.persona?.nombre_completo,
+        })
+      } else {
+        console.error('❌ USUARIO 157 NO ENCONTRADO en lista normalizada')
+        console.error('Total de colaboradores normalizados:', normalized.length)
+        console.error('IDs en lista normalizada (primeros 10):', normalized.slice(0, 10).map((c: Colaborador) => ({
+          id: c.id,
+          email: c.email_login,
+          activo: c.activo,
+        })))
+        
+        // Verificar si fue filtrado
+        const usuario157EnRaw = colaboradoresData.find((col: any) => {
+          const id = col.id || col.documentId
+          return String(id) === '157' || id === 157
+        })
+        if (usuario157EnRaw) {
+          const attrs = usuario157EnRaw.attributes || usuario157EnRaw
+          console.error('⚠️ USUARIO 157 EXISTE EN DATOS RAW pero fue filtrado:', {
+            id: usuario157EnRaw.id,
+            activo: attrs.activo,
+            esUsuarioActual: String(usuario157EnRaw.id) === String(colaborador?.id),
+          })
+        }
+      }
+      
       console.log('[Chat] Colaboradores cargados:', {
         total: normalized.length,
         sample: normalized[0] ? {
