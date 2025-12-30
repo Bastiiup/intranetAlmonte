@@ -86,6 +86,10 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
         throw new Error('No se puede editar: el cliente no tiene ID válido')
       }
 
+      // Log para diagnóstico
+      console.log('[EditClienteModal] 🔍 ID del cliente:', clienteId, '(tipo:', typeof clienteId, ')')
+      console.log('[EditClienteModal] 📦 Cliente completo:', cliente)
+
       // Preparar datos para la API en formato Strapi
       const nombreCompleto = `${formData.first_name.trim()} ${formData.last_name.trim()}`.trim()
       const updateData: any = {
