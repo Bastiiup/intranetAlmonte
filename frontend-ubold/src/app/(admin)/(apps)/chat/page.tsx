@@ -217,7 +217,8 @@ const Page = () => {
       const sortedIds = [myIdNum, otherIdNum].sort((a, b) => a - b)
 
       // 3. Convertir a string para el ID del canal
-      const channelId = `messaging-${sortedIds.join('-')}`
+      // Usar prefijo 'chat-v2-' para forzar creación de salas nuevas y limpias
+      const channelId = `chat-v2-${sortedIds.join('-')}`
 
       // 4. DEBUG FINAL (Muestra esto en consola)
       console.error('=============================================')
