@@ -132,20 +132,55 @@ export async function GET() {
         const email = attrs.email_login || col.email_login
         return email === 'matiintranet@gmail.com'
       })
+      
+      // Buscar específicamente los IDs 93, 96, 115 en TODA la respuesta
+      const id93 = response.data.find((col: any) => col.id === 93)
+      const id96 = response.data.find((col: any) => col.id === 96)
+      const id115 = response.data.find((col: any) => col.id === 115)
+      
+      console.error('[API /chat/colaboradores] 🚨 MATIAS - REGISTROS ENCONTRADOS ANTES DE DESDUPLICACIÓN:')
+      console.error(`  ⚠️ Total de registros de Matias (por email): ${matiasRegistros.length}`)
+      
       if (matiasRegistros.length > 0) {
-        console.error('[API /chat/colaboradores] 🚨 MATIAS - REGISTROS ENCONTRADOS ANTES DE DESDUPLICACIÓN:')
         matiasRegistros.forEach((col: any, index: number) => {
           const attrs = col.attributes || col
           const hasPersona = !!attrs.persona || !!attrs.persona?.data
-          console.error(`  📋 Registro ${index + 1}:`)
+          console.error(`  📋 Registro ${index + 1} (por email):`)
           console.error(`     🔑 ID: ${col.id}`)
           console.error(`     📄 documentId: ${col.documentId}`)
           console.error(`     👤 Tiene persona: ${hasPersona}`)
           console.error(`     📧 Email: ${attrs.email_login || col.email_login}`)
         })
-        console.error(`  ⚠️ Total de registros de Matias: ${matiasRegistros.length}`)
-        console.error(`  ✅ DEBE QUEDAR SOLO 1 REGISTRO CON ID 96`)
+      } else {
+        console.error(`  ❌ NO SE ENCONTRÓ NINGÚN REGISTRO DE MATIAS POR EMAIL`)
       }
+      
+      console.error(`  🔍 BÚSQUEDA ESPECÍFICA POR ID:`)
+      console.error(`     ID 93: ${id93 ? '✅ ENCONTRADO' : '❌ NO ESTÁ EN LA RESPUESTA'}`)
+      if (id93) {
+        const attrs93 = id93.attributes || id93
+        console.error(`        Email: ${attrs93.email_login || id93.email_login}`)
+        console.error(`        DocumentId: ${id93.documentId}`)
+      }
+      console.error(`     ID 96: ${id96 ? '✅ ENCONTRADO' : '❌ NO ESTÁ EN LA RESPUESTA'}`)
+      if (id96) {
+        const attrs96 = id96.attributes || id96
+        console.error(`        Email: ${attrs96.email_login || id96.email_login}`)
+        console.error(`        DocumentId: ${id96.documentId}`)
+      }
+      console.error(`     ID 115: ${id115 ? '✅ ENCONTRADO' : '❌ NO ESTÁ EN LA RESPUESTA'}`)
+      if (id115) {
+        const attrs115 = id115.attributes || id115
+        console.error(`        Email: ${attrs115.email_login || id115.email_login}`)
+        console.error(`        DocumentId: ${id115.documentId}`)
+      }
+      
+      console.error(`  ⚠️ CONCLUSIÓN: Si el ID 96 no está en la respuesta, significa que:`)
+      console.error(`     - Está en estado DRAFT y no está publicado`)
+      console.error(`     - Fue eliminado (soft delete)`)
+      console.error(`     - Hay un filtro en Strapi que lo excluye`)
+      console.error(`     - La query no lo está trayendo por alguna razón`)
+      console.error(`  ✅ DEBE QUEDAR SOLO 1 REGISTRO CON ID 96`)
     }
     
     // FILTRADO DE DUPLICADOS: "Martillo" - Prioridad ABSOLUTA a colaboradores con persona
@@ -236,28 +271,10 @@ export async function GET() {
           else if (hasPersona === existingHasPersona) {
             if (hasPersona) {
               // AMBOS TIENEN PERSONA: Usar el ID más bajo (el correcto/antiguo)
-              // CRÍTICO: Siempre mantener el ID más bajo, reemplazando si es necesario
-              const nuevoId = Number(col.id)
-              const existenteId = Number(existing.id)
-              const idMasBajo = nuevoId < existenteId ? nuevoId : existenteId
-              const registroCorrecto = nuevoId < existenteId ? col : existing
-              
-              if (isMatias || existingIsMatias) {
-                console.error(`  📊 Comparación detallada:`)
-                console.error(`     Nuevo ID: ${nuevoId}`)
-                console.error(`     Existente ID: ${existenteId}`)
-                console.error(`     ID más bajo: ${idMasBajo}`)
-                console.error(`     ⚠️ DEBE SER 96`)
-                if (idMasBajo !== 96) {
-                  console.error(`     ❌ ERROR: El ID más bajo es ${idMasBajo}, debería ser 96`)
-                } else {
-                  console.error(`     ✅ CORRECTO: El ID más bajo es 96`)
-                }
-              }
-              
-              if (nuevoId < existenteId) {
+              if (Number(col.id) < Number(existing.id)) {
                 if (isMatias || existingIsMatias) {
                   console.error(`  ✅ DECISIÓN: Ambos tienen persona, nuevo ID (${col.id}) es MENOR que existente (${existing.id}) - REEMPLAZAR`)
+                  console.error(`  ⚠️ DEBE SER 96, nuevo es ${col.id}, existente es ${existing.id}`)
                 }
                 duplicatesFound.push({
                   email,
@@ -269,6 +286,7 @@ export async function GET() {
               } else {
                 if (isMatias || existingIsMatias) {
                   console.error(`  ✅ DECISIÓN: Ambos tienen persona, existente ID (${existing.id}) es MENOR que nuevo (${col.id}) - MANTENER`)
+                  console.error(`  ⚠️ DEBE SER 96, existente es ${existing.id}, nuevo es ${col.id}`)
                 }
                 duplicatesFound.push({
                   email,
@@ -276,7 +294,6 @@ export async function GET() {
                   kept: existing.id,
                   reason: 'Ambos tienen persona, existente ID es MENOR (correcto)',
                 })
-                // No hacer nada, ya tenemos el correcto en el Map
               }
             } else {
               // NINGUNO TIENE PERSONA: Usar el ID más alto (el más reciente)
