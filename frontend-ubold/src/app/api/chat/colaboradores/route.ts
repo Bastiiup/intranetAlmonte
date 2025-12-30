@@ -236,10 +236,28 @@ export async function GET() {
           else if (hasPersona === existingHasPersona) {
             if (hasPersona) {
               // AMBOS TIENEN PERSONA: Usar el ID más bajo (el correcto/antiguo)
-              if (Number(col.id) < Number(existing.id)) {
+              // CRÍTICO: Siempre mantener el ID más bajo, reemplazando si es necesario
+              const nuevoId = Number(col.id)
+              const existenteId = Number(existing.id)
+              const idMasBajo = nuevoId < existenteId ? nuevoId : existenteId
+              const registroCorrecto = nuevoId < existenteId ? col : existing
+              
+              if (isMatias || existingIsMatias) {
+                console.error(`  📊 Comparación detallada:`)
+                console.error(`     Nuevo ID: ${nuevoId}`)
+                console.error(`     Existente ID: ${existenteId}`)
+                console.error(`     ID más bajo: ${idMasBajo}`)
+                console.error(`     ⚠️ DEBE SER 96`)
+                if (idMasBajo !== 96) {
+                  console.error(`     ❌ ERROR: El ID más bajo es ${idMasBajo}, debería ser 96`)
+                } else {
+                  console.error(`     ✅ CORRECTO: El ID más bajo es 96`)
+                }
+              }
+              
+              if (nuevoId < existenteId) {
                 if (isMatias || existingIsMatias) {
                   console.error(`  ✅ DECISIÓN: Ambos tienen persona, nuevo ID (${col.id}) es MENOR que existente (${existing.id}) - REEMPLAZAR`)
-                  console.error(`  ⚠️ DEBE SER 96, nuevo es ${col.id}, existente es ${existing.id}`)
                 }
                 duplicatesFound.push({
                   email,
@@ -251,7 +269,6 @@ export async function GET() {
               } else {
                 if (isMatias || existingIsMatias) {
                   console.error(`  ✅ DECISIÓN: Ambos tienen persona, existente ID (${existing.id}) es MENOR que nuevo (${col.id}) - MANTENER`)
-                  console.error(`  ⚠️ DEBE SER 96, existente es ${existing.id}, nuevo es ${col.id}`)
                 }
                 duplicatesFound.push({
                   email,
@@ -259,6 +276,7 @@ export async function GET() {
                   kept: existing.id,
                   reason: 'Ambos tienen persona, existente ID es MENOR (correcto)',
                 })
+                // No hacer nada, ya tenemos el correcto en el Map
               }
             } else {
               // NINGUNO TIENE PERSONA: Usar el ID más alto (el más reciente)
