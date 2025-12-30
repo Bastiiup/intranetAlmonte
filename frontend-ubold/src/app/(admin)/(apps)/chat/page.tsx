@@ -57,15 +57,15 @@ const Page = () => {
   const [isCreatingChannel, setIsCreatingChannel] = useState(false) // Estado para prevenir renderizado prematuro
   const [error, setError] = useState<string | null>(null)
   const initializedRef = useRef(false)
-  const currentUserIdRef = useRef<string | null>(null)
+  const [myColaboradorId, setMyColaboradorId] = useState<number | null>(null) // ID del colaborador del usuario logueado
 
-  // Inicializar Stream Chat Client
+  // RESOLVER IDENTIDAD: Obtener explícitamente el ID del colaborador del usuario logueado
   useEffect(() => {
-    if (initializedRef.current || !colaborador?.id) {
+    if (initializedRef.current || !colaborador) {
       return
     }
 
-    const initStreamChat = async () => {
+    const resolveMyColaboradorId = async () => {
       try {
         initializedRef.current = true
         setIsLoading(true)
@@ -81,12 +81,37 @@ const Page = () => {
           'persona.attributes?.id': persona?.attributes?.id,
         })
 
-        // CRÍTICO: Asegurar que usamos el ID del colaborador explícitamente
-        // Si colaborador tiene id directamente, usarlo
-        // Si está en attributes, usar attributes.id
+        // CRÍTICO: Obtener explícitamente el ID del colaborador
+        // No confiar en user.id directo, necesitamos el id de la tabla Intranet-colaboradores
         const colaboradorId = colaborador?.id || colaborador?.attributes?.id
-        console.error('🕵️ ID DEL COLABORADOR QUE SE USARÁ:', colaboradorId)
+        
+        if (!colaboradorId) {
+          throw new Error('No se pudo obtener el ID del colaborador. Debes iniciar sesión.')
+        }
 
+        // Validar que sea un número (ID de colaborador, no de Persona ni Auth)
+        const colaboradorIdNum = Number(colaboradorId)
+        if (isNaN(colaboradorIdNum) || colaboradorIdNum <= 0) {
+          throw new Error(`ID de colaborador inválido: ${colaboradorId}`)
+        }
+
+        console.error('🕵️ ID DEL COLABORADOR RESUELTO:', colaboradorIdNum)
+        console.error('🕵️ Tipo de ID:', typeof colaboradorIdNum, 'Valor:', colaboradorIdNum)
+
+        // Guardar el ID del colaborador en el estado
+        setMyColaboradorId(colaboradorIdNum)
+
+        // Ahora que tenemos el ID, inicializar Stream Chat
+        await initStreamChat(colaboradorIdNum)
+      } catch (err: any) {
+        console.error('[Chat] Error al resolver ID del colaborador:', err)
+        setError(err.message || 'Error al obtener tu perfil de colaborador')
+        setIsLoading(false)
+      }
+    }
+
+    const initStreamChat = async (myColaboradorIdNum: number) => {
+      try {
         // 1. Obtener token del backend
         const tokenResponse = await fetch('/api/chat/stream-token', {
           method: 'POST',
@@ -97,16 +122,7 @@ const Page = () => {
           throw new Error('Error al obtener token de Stream Chat')
         }
 
-        const { token, userId } = await tokenResponse.json()
-        console.error('🕵️ userId RECIBIDO DEL ENDPOINT:', userId)
-        console.error('🕵️ ¿userId coincide con colaborador.id?', String(userId) === String(colaboradorId))
-        
-        // CRÍTICO: Usar explícitamente el ID del colaborador, no confiar en userId del endpoint
-        // Si userId no coincide con colaborador.id, usar colaborador.id directamente
-        const finalUserId = String(userId) === String(colaboradorId) ? userId : String(colaboradorId)
-        console.error('🕵️ ID FINAL QUE SE USARÁ (finalUserId):', finalUserId)
-        
-        currentUserIdRef.current = finalUserId
+        const { token } = await tokenResponse.json()
 
         // 2. Obtener API Key
         const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY || process.env.NEXT_PUBLIC_STREAM_CHAT_API_KEY
@@ -117,19 +133,17 @@ const Page = () => {
         // 3. Crear cliente de Stream Chat
         const client = StreamChat.getInstance(apiKey)
 
-        // 4. Conectar usuario
-        // CRÍTICO: Usar el ID del colaborador (finalUserId) en lugar del userId del endpoint
-        // Esto asegura que siempre usemos el ID correcto del colaborador
+        // 4. Conectar usuario usando el ID del colaborador
         await client.connectUser(
           {
-            id: finalUserId,
+            id: String(myColaboradorIdNum), // Usar explícitamente el ID del colaborador
             name: persona?.nombre_completo || colaborador?.attributes?.email_login || 'Usuario',
           },
           token
         )
 
         setChatClient(client)
-        console.log('[Chat] ✅ Cliente de Stream Chat inicializado')
+        console.log('[Chat] ✅ Cliente de Stream Chat inicializado con ID de colaborador:', myColaboradorIdNum)
 
         // 5. Cargar lista de colaboradores
         await loadColaboradores()
@@ -141,7 +155,7 @@ const Page = () => {
       }
     }
 
-    initStreamChat()
+    resolveMyColaboradorId()
 
     // Cleanup al desmontar
     return () => {
@@ -149,7 +163,7 @@ const Page = () => {
         chatClient.disconnectUser().catch(console.error)
       }
     }
-  }, [colaborador?.id])
+  }, [colaborador])
 
   // Cargar lista de colaboradores
   // IMPORTANTE: Esta función SOLO obtiene colaboradores de Intranet-colaboradores
@@ -311,8 +325,15 @@ const Page = () => {
 
   // Seleccionar colaborador y crear/abrir canal
   const selectColaborador = async (colaboradorId: string) => {
-    if (!chatClient || !currentUserIdRef.current) {
-      console.error('[Chat] No hay chatClient o currentUserId')
+    // BLOQUEAR: No iniciar hasta tener myColaboradorId
+    if (!myColaboradorId) {
+      console.error('[Chat] ❌ No se ha resuelto el ID del colaborador actual')
+      setError('Error: No se pudo identificar tu perfil. Por favor recarga la página.')
+      return
+    }
+
+    if (!chatClient) {
+      console.error('[Chat] No hay chatClient')
       return
     }
 
@@ -323,23 +344,18 @@ const Page = () => {
     setIsCreatingChannel(true)
 
     try {
-      // DEBUG: Verificar IDs antes de crear canal
-      console.error('🕵️ VERIFICACIÓN DE IDs ANTES DE CREAR CANAL:')
-      console.error('currentUserIdRef.current:', currentUserIdRef.current)
-      console.error('colaborador?.id:', colaborador?.id)
-      console.error('colaboradorId recibido:', colaboradorId)
-      
-      // CRÍTICO: Asegurar que myId sea el ID del colaborador
-      // Si currentUserIdRef no coincide con colaborador.id, usar colaborador.id directamente
-      const colaboradorIdActual = String(colaborador?.id || colaborador?.attributes?.id || currentUserIdRef.current)
-      const myIdFinal = String(currentUserIdRef.current) === colaboradorIdActual ? currentUserIdRef.current : colaboradorIdActual
-      
-      console.error('🕵️ ID DEL COLABORADOR ACTUAL (colaboradorIdActual):', colaboradorIdActual)
-      console.error('🕵️ ID QUE SE USARÁ COMO myId (myIdFinal):', myIdFinal)
-      
-      // 1. Convertir IDs a Número para ordenamiento seguro
-      const myIdNum = Number(myIdFinal)
+      // GENERACIÓN DEL CANAL (ESTRICTA): Ambos deben ser números de la misma tabla (Colaboradores)
+      if (!myColaboradorId || !colaboradorId) {
+        throw new Error('Faltan IDs necesarios para crear el canal')
+      }
+
+      const myIdNum = Number(myColaboradorId)
       const otherIdNum = Number(colaboradorId)
+
+      // Validar que ambos sean números válidos de colaboradores
+      if (isNaN(myIdNum) || isNaN(otherIdNum) || myIdNum <= 0 || otherIdNum <= 0) {
+        throw new Error(`IDs inválidos: myId=${myIdNum}, otherId=${otherIdNum}`)
+      }
 
       // Verificar que no sea el mismo usuario
       if (myIdNum === otherIdNum) {
@@ -348,20 +364,20 @@ const Page = () => {
         return
       }
 
-      // 2. Ordenar numéricamente (ascendente)
-      const sortedIds = [myIdNum, otherIdNum].sort((a, b) => a - b)
+      // Ordenar numéricamente (ascendente) - Ambos son IDs de colaboradores
+      const ids = [myIdNum, otherIdNum].sort((a, b) => a - b)
+      
+      // Generar channelId con prefijo chat-v3- para limpiar caché
+      const channelId = `chat-v3-${ids.join('-')}`
 
-      // 3. Convertir a string para el ID del canal
-      // Usar prefijo 'chat-v2-' para forzar creación de salas nuevas y limpias
-      const channelId = `chat-v2-${sortedIds.join('-')}`
-
-      // 4. DEBUG FINAL (Muestra esto en consola)
+      // DEBUG FINAL
       console.error('=============================================')
-      console.error('🕵️ DEBUG CHAT - CREACIÓN DE SALA')
-      console.error('👤 ID Usuario 1 (Numérico):', myIdNum)
-      console.error('👤 ID Usuario 2 (Numérico):', otherIdNum)
-      console.error('🔢 IDs Ordenados:', sortedIds)
+      console.error('🕵️ CREACIÓN DE CANAL - IDs UNIFICADOS')
+      console.error('👤 myColaboradorId (Usuario logueado):', myIdNum)
+      console.error('👤 otherIdNum (Colaborador seleccionado):', otherIdNum)
+      console.error('🔢 IDs Ordenados:', ids)
       console.error('🔑 CHANNEL ID GENERADO:', channelId)
+      console.error('✅ Ambos IDs son del tipo Intranet-Colaborador')
       console.error('=============================================')
 
       // Asegurar que el usuario objetivo existe en Stream Chat
@@ -381,8 +397,9 @@ const Page = () => {
 
       // Crear o recuperar canal
       // IMPORTANTE: Stream necesita strings en 'members', pero usamos los IDs ordenados numéricamente
+      // Ambos IDs son del tipo Intranet-Colaborador
       const channel = chatClient.channel('messaging', channelId, {
-        members: sortedIds.map(String),
+        members: ids.map(String),
       })
 
       // CRÍTICO: Esperar a que watch() complete antes de establecer el canal
@@ -451,14 +468,22 @@ const Page = () => {
     )
   }
 
-  // Renderizar error si no hay cliente
-  if (!chatClient) {
+  // BLOQUEAR RENDERIZADO: No mostrar el chat hasta tener myColaboradorId
+  if (!myColaboradorId || !chatClient) {
     return (
       <Container fluid>
         <PageBreadcrumb title="Chat" />
-        <Alert variant="danger">
-          {error || 'Error al inicializar el chat. Por favor recarga la página.'}
-        </Alert>
+        {isLoading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px' }}>
+            <Spinner animation="border" role="status">
+              <span className="visually-hidden">Cargando chat...</span>
+            </Spinner>
+          </div>
+        ) : (
+          <Alert variant="danger">
+            {error || 'Error al inicializar el chat. Por favor recarga la página.'}
+          </Alert>
+        )}
       </Container>
     )
   }
