@@ -125,65 +125,89 @@ export async function GET() {
       }
     }
     
-    // FILTRADO DE DUPLICADOS: Eliminar usuarios con el mismo email, quedarse con el ID más alto
+    // FILTRADO DE DUPLICADOS: "El Portero" - Eliminar usuarios duplicados por email
+    // SOLO dejamos pasar al que tenga el ID MÁS ALTO (el más reciente y válido)
     let cleanedData = response.data
-    if (Array.isArray(response.data)) {
-      const uniqueColaboradores = new Map<string, any>()
+    if (Array.isArray(response.data) && response.data.length > 0) {
+      const usuariosUnicos = new Map<string, any>()
       const duplicatesFound: Array<{ email: string; ids: number[]; kept: number }> = []
       
-      // Recorrer todos los colaboradores devueltos por Strapi
-      response.data.forEach((col: any) => {
-        const attrs = col.attributes || col
-        const email = attrs.email_login
+      // Iterar sobre todos los colaboradores que vienen de Strapi
+      response.data.forEach((user: any) => {
+        // Extraer email_login (puede estar en attributes o en el nivel superior)
+        const attrs = user.attributes || user
+        const email = attrs.email_login || user.email_login
         
         // Omitir usuarios sin email
         if (!email) {
-          console.warn('[API /chat/colaboradores] ⚠️ Colaborador sin email_login, será omitido:', { id: col.id })
+          console.warn('[API /chat/colaboradores] ⚠️ Colaborador sin email_login, será omitido:', { 
+            id: user.id,
+            documentId: user.documentId 
+          })
           return
         }
         
-        // Si el email ya existe, reemplazamos solo si el ID actual es MAYOR
-        // Si no existe, lo agregamos directamente
-        if (!uniqueColaboradores.has(email)) {
-          uniqueColaboradores.set(email, col)
+        // Obtener ID numérico (usar solo id, no documentId)
+        const currentId = user.id
+        
+        // Validar que tenga ID válido
+        if (!currentId || typeof currentId !== 'number') {
+          console.warn('[API /chat/colaboradores] ⚠️ Colaborador sin ID numérico válido, será omitido:', { 
+            email,
+            id: user.id,
+            documentId: user.documentId 
+          })
+          return
+        }
+        
+        // Si el email no existe en el Map, agregarlo directamente
+        if (!usuariosUnicos.has(email)) {
+          usuariosUnicos.set(email, user)
         } else {
-          const existingCol = uniqueColaboradores.get(email)
-          const existingId = existingCol.id
-          const currentId = col.id
+          // Si ya existe un usuario con este email, comparamos IDs numéricos
+          // Nos quedamos con el que tenga el ID MÁS ALTO (asumimos que es el más reciente)
+          const existingUser = usuariosUnicos.get(email)
+          const existingId = existingUser.id
           
-          // Si el ID actual es mayor, reemplazamos el existente
           if (currentId > existingId) {
+            // El ID actual es mayor, reemplazamos el existente
             duplicatesFound.push({
               email,
               ids: [existingId, currentId],
               kept: currentId,
             })
-            uniqueColaboradores.set(email, col)
+            usuariosUnicos.set(email, user)
           } else {
+            // El ID existente es mayor o igual, mantenemos el existente
             duplicatesFound.push({
               email,
               ids: [existingId, currentId],
               kept: existingId,
             })
+            // No hacemos nada, ya tenemos el correcto en el Map
           }
         }
       })
       
-      // Log de duplicados encontrados
+      // Log detallado de duplicados encontrados y eliminados
       if (duplicatesFound.length > 0) {
         console.error('[API /chat/colaboradores] 🔍 DUPLICADOS ENCONTRADOS Y ELIMINADOS:')
         duplicatesFound.forEach((dup) => {
-          console.error(`  Email: ${dup.email} - IDs: [${dup.ids.join(', ')}] - Se mantiene: ${dup.kept}`)
+          console.error(`  📧 Email: ${dup.email}`)
+          console.error(`     IDs encontrados: [${dup.ids.join(', ')}]`)
+          console.error(`     ✅ Se mantiene ID: ${dup.kept} (el más alto)`)
+          console.error(`     ❌ Se elimina ID: ${dup.ids.find(id => id !== dup.kept)}`)
         })
       }
       
       // Convertir el Map a array para devolver la lista limpia
-      cleanedData = Array.from(uniqueColaboradores.values())
+      cleanedData = Array.from(usuariosUnicos.values())
       
-      console.log('[API /chat/colaboradores] Limpieza de duplicados:', {
+      console.log('[API /chat/colaboradores] ✅ Limpieza de duplicados completada:', {
         originalCount: response.data.length,
         cleanedCount: cleanedData.length,
         duplicatesRemoved: response.data.length - cleanedData.length,
+        duplicatesFound: duplicatesFound.length,
       })
     }
     
