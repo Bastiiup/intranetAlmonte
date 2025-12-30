@@ -128,40 +128,42 @@ export async function GET() {
     // FILTRADO DE DUPLICADOS: Eliminar usuarios con el mismo email, quedarse con el ID más alto
     let cleanedData = response.data
     if (Array.isArray(response.data)) {
-      const uniqueUsers = new Map<string, any>()
+      const uniqueColaboradores = new Map<string, any>()
       const duplicatesFound: Array<{ email: string; ids: number[]; kept: number }> = []
       
-      response.data.forEach((user: any) => {
-        const attrs = user.attributes || user
+      // Recorrer todos los colaboradores devueltos por Strapi
+      response.data.forEach((col: any) => {
+        const attrs = col.attributes || col
         const email = attrs.email_login
-        const userId = user.id || user.documentId
         
+        // Omitir usuarios sin email
         if (!email) {
-          console.warn('[API /chat/colaboradores] ⚠️ Usuario sin email_login, será omitido:', { id: userId })
-          return // Omitir usuarios sin email
+          console.warn('[API /chat/colaboradores] ⚠️ Colaborador sin email_login, será omitido:', { id: col.id })
+          return
         }
         
-        // Si no existe en el Map, o si el actual tiene un ID mayor al guardado, guardamos este
-        if (!uniqueUsers.has(email)) {
-          uniqueUsers.set(email, user)
+        // Si el email ya existe, reemplazamos solo si el ID actual es MAYOR
+        // Si no existe, lo agregamos directamente
+        if (!uniqueColaboradores.has(email)) {
+          uniqueColaboradores.set(email, col)
         } else {
-          const existingUser = uniqueUsers.get(email)
-          const existingId = existingUser.id || existingUser.documentId
-          const currentId = userId
+          const existingCol = uniqueColaboradores.get(email)
+          const existingId = existingCol.id
+          const currentId = col.id
           
-          // Si el usuario actual tiene un ID mayor, reemplazamos
-          if (Number(currentId) > Number(existingId)) {
+          // Si el ID actual es mayor, reemplazamos el existente
+          if (currentId > existingId) {
             duplicatesFound.push({
               email,
-              ids: [Number(existingId), Number(currentId)],
-              kept: Number(currentId),
+              ids: [existingId, currentId],
+              kept: currentId,
             })
-            uniqueUsers.set(email, user)
+            uniqueColaboradores.set(email, col)
           } else {
             duplicatesFound.push({
               email,
-              ids: [Number(existingId), Number(currentId)],
-              kept: Number(existingId),
+              ids: [existingId, currentId],
+              kept: existingId,
             })
           }
         }
@@ -175,7 +177,8 @@ export async function GET() {
         })
       }
       
-      cleanedData = Array.from(uniqueUsers.values())
+      // Convertir el Map a array para devolver la lista limpia
+      cleanedData = Array.from(uniqueColaboradores.values())
       
       console.log('[API /chat/colaboradores] Limpieza de duplicados:', {
         originalCount: response.data.length,
