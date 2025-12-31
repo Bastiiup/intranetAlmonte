@@ -634,11 +634,17 @@ export async function POST(request: NextRequest) {
 
     // Preparar datos en formato WooCommerce para que Strapi los use directamente
     // Esto ayuda a que el lifecycle hook de Strapi pueda sincronizar correctamente
+    // ⚠️ CRÍTICO: Para POS, siempre usar 'completed' para que WooCommerce descuente el stock automáticamente
+    const estadoWoo = body.data.estado ? mapWooStatus(body.data.estado) : 'pending'
+    // Si el origen es POS, forzar status 'completed' para descuento de stock
+    const statusFinal = (body.data.origen === 'pos' || body.data.origen === 'POS') ? 'completed' : estadoWoo
+    const setPaidFinal = statusFinal === 'completed' || statusFinal === 'processing' || body.data.estado === 'completed' || body.data.estado === 'completado'
+    
     const rawWooData = originPlatform !== 'otros' ? {
       payment_method: normalizeMetodoPago(body.data.metodo_pago) || 'bacs',
       payment_method_title: body.data.metodo_pago_titulo || 'Transferencia bancaria directa',
-      set_paid: body.data.estado === 'completed' || body.data.estado === 'completado',
-      status: body.data.estado ? mapWooStatus(body.data.estado) : 'pending',
+      set_paid: setPaidFinal,
+      status: statusFinal, // ✅ Usar status que permita descuento de stock
       customer_id: wooCustomerId, // ✅ Usar el ID del cliente encontrado o creado
       billing: billingInfo,
       shipping: shippingInfo,
@@ -670,7 +676,8 @@ export async function POST(request: NextRequest) {
         fecha_pedido: fechaPedido,
         fecha_creacion: fechaCreacion, // ⚠️ REQUERIDO por Strapi
         // Strapi espera valores en inglés, mapear de español a inglés
-        estado: body.data.estado ? mapWooStatus(body.data.estado) : 'pending',
+        // ⚠️ CRÍTICO: Para POS, usar 'completed' para que WooCommerce descuente stock
+        estado: (body.data.origen === 'pos' || body.data.origen === 'POS') ? 'completed' : (body.data.estado ? mapWooStatus(body.data.estado) : 'pending'),
         total: body.data.total ? parseFloat(body.data.total) : null,
         subtotal: body.data.subtotal ? parseFloat(body.data.subtotal) : null,
         impuestos: body.data.impuestos ? parseFloat(body.data.impuestos) : null,
@@ -702,6 +709,12 @@ export async function POST(request: NextRequest) {
     console.log('═══════════════════════════════════════════════════════')
     console.log('[API Pedidos POST] 🔍 rawWooData para sincronización:')
     console.log(JSON.stringify(rawWooData, null, 2))
+    console.log('═══════════════════════════════════════════════════════')
+    console.log('[API Pedidos POST] 📦 Status del pedido para WooCommerce:')
+    console.log('- Status:', statusFinal)
+    console.log('- Set Paid:', setPaidFinal)
+    console.log('- Origen:', body.data.origen)
+    console.log('- ⚠️ IMPORTANTE: Status "completed" permite descuento automático de stock en WooCommerce')
     console.log('═══════════════════════════════════════════════════════')
     
     // Validar que rawWooData tiene line_items
