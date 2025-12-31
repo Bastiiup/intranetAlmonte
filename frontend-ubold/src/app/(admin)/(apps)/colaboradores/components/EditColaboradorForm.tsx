@@ -154,6 +154,16 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
     }))
   }
 
+  // Sincronizar RUT de búsqueda con el formulario
+  useEffect(() => {
+    if (rutBusqueda.trim() && !personaSeleccionada) {
+      setFormData((prev) => ({
+        ...prev,
+        rut: rutBusqueda.trim(),
+      }))
+    }
+  }, [rutBusqueda, personaSeleccionada])
+
   // Buscar persona por RUT
   const buscarPersonaPorRUT = async () => {
     if (!rutBusqueda.trim()) {
@@ -186,7 +196,7 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
         setPersonaSeleccionada(personaData)
         setFormData((prev) => ({
           ...prev,
-          rut: personaData.rut,
+          rut: personaData.rut, // Siempre usar el RUT encontrado o ingresado
           nombres: personaData.nombres || '',
           primer_apellido: personaData.primer_apellido || '',
           segundo_apellido: personaData.segundo_apellido || '',
@@ -199,7 +209,7 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
         setPersonaSeleccionada(null)
         setFormData((prev) => ({
           ...prev,
-          rut: rutBusqueda.trim(),
+          rut: rutBusqueda.trim(), // Usar el RUT ingresado
           personaId: null,
         }))
       }
@@ -454,7 +464,17 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
                     type="text"
                     placeholder="Ingrese RUT (ej: 12345678-9)"
                     value={rutBusqueda}
-                    onChange={(e) => setRutBusqueda(e.target.value)}
+                    onChange={(e) => {
+                      const rutValue = e.target.value
+                      setRutBusqueda(rutValue)
+                      // Sincronizar automáticamente con formData.rut
+                      if (!personaSeleccionada) {
+                        setFormData((prev) => ({
+                          ...prev,
+                          rut: rutValue.trim(),
+                        }))
+                      }
+                    }}
                     disabled={loading || buscandoPersona}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -489,7 +509,7 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
                   </Alert>
                 )}
                 <small className="text-muted d-block mt-1">
-                  Busque una persona existente por RUT o complete los campos para actualizar/crear una nueva
+                  Ingrese el RUT aquí. Este mismo RUT se usará para actualizar/relacionar la persona con el colaborador. Puede buscar una persona existente o completar los campos abajo para actualizar/crear una nueva.
                 </small>
               </FormGroup>
             </Col>
@@ -503,9 +523,16 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
                   type="text"
                   placeholder="12345678-9"
                   value={formData.rut}
-                  onChange={(e) => handleFieldChange('rut', e.target.value)}
+                  onChange={(e) => {
+                    handleFieldChange('rut', e.target.value)
+                    setRutBusqueda(e.target.value) // Sincronizar con el buscador
+                  }}
                   disabled={loading || !!personaSeleccionada}
+                  readOnly={!!personaSeleccionada} // Solo lectura si hay persona seleccionada
                 />
+                <small className="text-muted">
+                  {personaSeleccionada ? 'El RUT se toma del buscador arriba' : 'El RUT también puede ingresarse aquí'}
+                </small>
               </FormGroup>
             </Col>
 
