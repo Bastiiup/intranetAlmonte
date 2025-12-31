@@ -34,7 +34,7 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
     primer_apellido: '',
     segundo_apellido: '',
     rut: '',
-    genero: '' as 'Masculino' | 'Femenino' | '',
+    genero: '' as 'Hombre' | 'Mujer' | '',
   })
   const [emails, setEmails] = useState<EmailItem[]>([{ email: '', tipo: 'Personal' }])
   const [telefonos, setTelefonos] = useState<TelefonoItem[]>([{ numero: '', tipo: 'Personal' }])
@@ -311,8 +311,8 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
                       onChange={(e) => handleFieldChange('genero', e.target.value)}
                     >
                       <option value="">Seleccione...</option>
-                      <option value="Masculino">Masculino</option>
-                      <option value="Femenino">Femenino</option>
+                      <option value="Hombre">Hombre</option>
+                      <option value="Mujer">Mujer</option>
                     </FormControl>
                   </FormGroup>
                 </Col>
