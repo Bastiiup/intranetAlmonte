@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import wooCommerceClient from '@/lib/woocommerce/client'
 import strapiClient from '@/lib/strapi/client'
 import { buildWooCommerceAddress, createAddressMetaData, type DetailedAddress } from '@/lib/woocommerce/address-utils'
-import { parseNombreCompleto, enviarClienteABothWordPress, eliminarClientePorEmail } from '@/lib/clientes/utils'
+import { parseNombreCompleto, enviarClienteABothWordPress, eliminarClientePorEmail, createOrUpdateClienteEnWooCommerce } from '@/lib/clientes/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -278,18 +278,58 @@ export async function PUT(
       console.error('[API PUT] ⚠️ Error al actualizar Persona en Strapi (no crítico):', personaError.message)
     }
 
-    // Enviar a ambos WordPress (ya está actualizado en el principal, pero lo sincronizamos también con el segundo)
-    try {
-      const nombreCompleto = `${updateData.first_name || (customer as any).first_name} ${updateData.last_name || (customer as any).last_name || ''}`.trim()
-      const nombreParseado = parseNombreCompleto(nombreCompleto)
-      await enviarClienteABothWordPress({
-        email: updateData.email || (customer as any).email,
-        first_name: nombreParseado.nombres || updateData.first_name || (customer as any).first_name,
-        last_name: nombreParseado.primer_apellido || updateData.last_name || (customer as any).last_name || '',
-      })
-      console.log('[API PUT] ✅ Cliente sincronizado con WordPress adicional')
-    } catch (wpError: any) {
-      console.error('[API PUT] ⚠️ Error al sincronizar con WordPress adicional (no crítico):', wpError.message)
+    // Sincronizar con Editorial Moraleja (WooCommerce secundario)
+    // Nota: Escolar ya se actualizó arriba, así que solo necesitamos actualizar Moraleja
+    const emailFinal = updateData.email || (customer as any).email
+    if (emailFinal) {
+      try {
+        const moralejaUrl = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL_MORALEJA || ''
+        const moralejaKey = process.env.WOO_MORALEJA_CONSUMER_KEY || ''
+        const moralejaSecret = process.env.WOO_MORALEJA_CONSUMER_SECRET || ''
+
+        console.log('[API PUT] 🔍 Verificando credenciales de Editorial Moraleja para actualización...', {
+          tieneUrl: !!moralejaUrl,
+          tieneKey: !!moralejaKey,
+          tieneSecret: !!moralejaSecret,
+        })
+
+        if (moralejaUrl && moralejaKey && moralejaSecret) {
+          const nombreCompleto = `${updateData.first_name || (customer as any).first_name} ${updateData.last_name || (customer as any).last_name || ''}`.trim()
+          const nombreParseado = parseNombreCompleto(nombreCompleto)
+          
+          console.log('[API PUT] 🔄 Actualizando cliente en Editorial Moraleja...', {
+            email: emailFinal,
+            first_name: nombreParseado.nombres || updateData.first_name || (customer as any).first_name,
+            last_name: nombreParseado.primer_apellido || updateData.last_name || (customer as any).last_name || '',
+          })
+
+          // Usar createOrUpdateClienteEnWooCommerce directamente para Moraleja
+          const moralejaResult = await createOrUpdateClienteEnWooCommerce(
+            moralejaUrl,
+            moralejaKey,
+            moralejaSecret,
+            {
+              email: emailFinal,
+              first_name: nombreParseado.nombres || updateData.first_name || (customer as any).first_name,
+              last_name: nombreParseado.primer_apellido || updateData.last_name || (customer as any).last_name || '',
+            }
+          )
+
+          if (moralejaResult.success) {
+            console.log('[API PUT] ✅ Cliente actualizado en Editorial Moraleja:', {
+              id: moralejaResult.data?.id,
+              created: moralejaResult.created ? 'Creado' : 'Actualizado',
+            })
+          } else {
+            console.warn('[API PUT] ⚠️ No se pudo actualizar en Editorial Moraleja:', moralejaResult.error)
+          }
+        } else {
+          console.log('[API PUT] ⏭️ Credenciales de Editorial Moraleja no configuradas, omitiendo actualización en Moraleja')
+        }
+      } catch (moralejaError: any) {
+        console.error('[API PUT] ⚠️ Error al actualizar en Editorial Moraleja (no crítico):', moralejaError.message)
+        // No crítico, continuar
+      }
     }
 
     return NextResponse.json({
