@@ -57,12 +57,13 @@ export function usePosOrders() {
       const customerData = (paymentMethod as any).customerData
 
       // Obtener dirección detallada del cliente (puede venir en billing o en meta_data)
+      // Si es invitado, los datos vienen directamente en customerData.billing y customerData.shipping
       const billingDetailed: DetailedAddress = customerData?.billing ? {
-        calle: customerData.billing.calle || customerData.meta_data?.find((m: any) => m.key === '_billing_calle')?.value,
-        numero: customerData.billing.numero || customerData.meta_data?.find((m: any) => m.key === '_billing_numero')?.value,
-        dpto: customerData.billing.dpto || customerData.meta_data?.find((m: any) => m.key === '_billing_dpto')?.value,
-        block: customerData.billing.block || customerData.meta_data?.find((m: any) => m.key === '_billing_block')?.value,
-        condominio: customerData.billing.condominio || customerData.meta_data?.find((m: any) => m.key === '_billing_condominio')?.value,
+        calle: customerData.billing.calle || customerData.meta_data?.find((m: any) => m.key === '_billing_calle')?.value || '',
+        numero: customerData.billing.numero || customerData.meta_data?.find((m: any) => m.key === '_billing_numero')?.value || '',
+        dpto: customerData.billing.dpto || customerData.meta_data?.find((m: any) => m.key === '_billing_dpto')?.value || '',
+        block: customerData.billing.block || customerData.meta_data?.find((m: any) => m.key === '_billing_block')?.value || '',
+        condominio: customerData.billing.condominio || customerData.meta_data?.find((m: any) => m.key === '_billing_condominio')?.value || '',
         address_1: customerData.billing.address_1 || '',
         address_2: customerData.billing.address_2 || '',
         city: customerData.billing.city || '',
@@ -72,18 +73,18 @@ export function usePosOrders() {
       } : {}
 
       const shippingDetailed: DetailedAddress = customerData?.shipping ? {
-        calle: customerData.shipping.calle || customerData.meta_data?.find((m: any) => m.key === '_shipping_calle')?.value,
-        numero: customerData.shipping.numero || customerData.meta_data?.find((m: any) => m.key === '_shipping_numero')?.value,
-        dpto: customerData.shipping.dpto || customerData.meta_data?.find((m: any) => m.key === '_shipping_dpto')?.value,
-        block: customerData.shipping.block || customerData.meta_data?.find((m: any) => m.key === '_shipping_block')?.value,
-        condominio: customerData.shipping.condominio || customerData.meta_data?.find((m: any) => m.key === '_shipping_condominio')?.value,
+        calle: customerData.shipping.calle || customerData.meta_data?.find((m: any) => m.key === '_shipping_calle')?.value || '',
+        numero: customerData.shipping.numero || customerData.meta_data?.find((m: any) => m.key === '_shipping_numero')?.value || '',
+        dpto: customerData.shipping.dpto || customerData.meta_data?.find((m: any) => m.key === '_shipping_dpto')?.value || '',
+        block: customerData.shipping.block || customerData.meta_data?.find((m: any) => m.key === '_shipping_block')?.value || '',
+        condominio: customerData.shipping.condominio || customerData.meta_data?.find((m: any) => m.key === '_shipping_condominio')?.value || '',
         address_1: customerData.shipping.address_1 || '',
         address_2: customerData.shipping.address_2 || '',
         city: customerData.shipping.city || '',
         state: customerData.shipping.state || '',
         postcode: customerData.shipping.postcode || '',
         country: customerData.shipping.country || 'CL',
-      } : billingDetailed
+      } : (Object.keys(billingDetailed).length > 0 ? billingDetailed : {})
 
       // Construir address_1 y address_2 desde campos detallados
       const billingAddress = buildWooCommerceAddress(billingDetailed)

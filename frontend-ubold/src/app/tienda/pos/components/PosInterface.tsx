@@ -11,6 +11,8 @@ import { usePosOrders, type PaymentMethod } from '../hooks/usePosOrders'
 import { usePosToast } from '../hooks/usePosToast'
 import PaymentModal from './PaymentModal'
 import CustomerSelector from './CustomerSelector'
+import CustomerAddressForm from './CustomerAddressForm'
+import GuestAddressModal from './GuestAddressModal'
 import DiscountInput from './DiscountInput'
 import CashRegister from './CashRegister'
 import RecentOrders from './RecentOrders'
@@ -447,6 +449,12 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
     }
   }
 
+  // Estado para datos de invitado (facturación/envió)
+  const [guestBillingData, setGuestBillingData] = useState<any>(null)
+  const [guestShippingData, setGuestShippingData] = useState<any>(null)
+  const [showGuestAddressModal, setShowGuestAddressModal] = useState(false)
+  const [pendingPaymentData, setPendingPaymentData] = useState<{payments: PaymentMethod[], deliveryType: 'shipping' | 'pickup'} | null>(null)
+
   // Procesar pedido con método de pago
   const handleProcessOrder = async (payments: PaymentMethod[], deliveryType: 'shipping' | 'pickup' = 'pickup') => {
     const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0)
@@ -456,7 +464,37 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
       return
     }
 
-    // Validar que si es envío, el cliente tenga dirección completa
+    // Si es invitado y necesita envío, pedir datos de dirección
+    // Si es retiro en tienda (pickup), no se requiere dirección
+    if (!selectedCustomer && deliveryType === 'shipping') {
+      setPendingPaymentData({ payments, deliveryType })
+      setShowGuestAddressModal(true)
+      return
+    }
+
+    // Si es invitado y es retiro en tienda, usar datos mínimos
+    if (!selectedCustomer && deliveryType === 'pickup') {
+      // Para retiro en tienda, no se requiere dirección completa
+      // Solo usar datos básicos si están disponibles, sino usar valores por defecto
+      if (!guestBillingData) {
+        // Si no hay datos de invitado previos, usar valores por defecto mínimos
+        setGuestBillingData({
+          first_name: 'Cliente',
+          last_name: 'Invitado',
+          email: 'pos@escolar.cl',
+          phone: '',
+          company: '',
+          address_1: '',
+          address_2: '',
+          city: '',
+          state: '',
+          postcode: '',
+          country: 'CL',
+        })
+      }
+    }
+
+    // Si es cliente y necesita envío, validar dirección
     if (deliveryType === 'shipping' && selectedCustomer) {
       const hasShippingAddress = selectedCustomer.shipping?.address_1 || 
                                  selectedCustomer.shipping?.city ||
@@ -469,10 +507,50 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
       }
     }
 
-    // Pasar datos completos del cliente al processOrder
+    // Procesar el pedido (con cliente o invitado)
+    await processOrderWithData(payments, deliveryType)
+  }
+
+  // Procesar pedido con datos (cliente o invitado)
+  const processOrderWithData = async (payments: PaymentMethod[], deliveryType: 'shipping' | 'pickup' = 'pickup') => {
+    // Preparar datos del cliente o invitado
+    let customerDataForOrder: any = null
+    
+    if (selectedCustomer) {
+      // Usar datos del cliente seleccionado
+      customerDataForOrder = selectedCustomer
+    } else if (guestBillingData || guestShippingData) {
+      // Usar datos de invitado (incluir campos detallados para meta_data)
+      customerDataForOrder = {
+        id: 0, // Cliente invitado
+        email: guestBillingData?.email || 'pos@escolar.cl',
+        first_name: guestBillingData?.first_name || 'Cliente',
+        last_name: guestBillingData?.last_name || 'Invitado',
+        billing: {
+          ...guestBillingData,
+          // Asegurar que los campos detallados estén presentes
+          calle: guestBillingData?.calle || '',
+          numero: guestBillingData?.numero || '',
+          dpto: guestBillingData?.dpto || '',
+          block: guestBillingData?.block || '',
+          condominio: guestBillingData?.condominio || '',
+        } || {},
+        shipping: deliveryType === 'shipping' ? {
+          ...(guestShippingData || guestBillingData || {}),
+          // Asegurar que los campos detallados estén presentes
+          calle: (guestShippingData || guestBillingData)?.calle || '',
+          numero: (guestShippingData || guestBillingData)?.numero || '',
+          dpto: (guestShippingData || guestBillingData)?.dpto || '',
+          block: (guestShippingData || guestBillingData)?.block || '',
+          condominio: (guestShippingData || guestBillingData)?.condominio || '',
+        } : {},
+      }
+    }
+
+    // Pasar datos completos del cliente/invitado al processOrder
     const paymentMethodWithCustomer = {
       ...payments[0],
-      customerData: selectedCustomer || null,
+      customerData: customerDataForOrder,
     }
 
     // Obtener código del cupón si existe
@@ -480,8 +558,8 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
 
     const order = await processOrder(
       cart,
-      selectedCustomer?.id,
-      paymentMethodWithCustomer as any, // Pasar método de pago con datos del cliente
+      selectedCustomer?.id || 0, // 0 para invitado
+      paymentMethodWithCustomer as any, // Pasar método de pago con datos del cliente/invitado
       `Pago: ${payments.map(p => `${p.type} $${p.amount}`).join(', ')}`,
       deliveryType,
       cuponCode || undefined
@@ -490,22 +568,29 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
     if (order) {
       // Emitir factura electrónica a través de Haulmer y guardar en WooCommerce
       try {
-        // Obtener datos completos del cliente para billing y shipping
-        const customerRut = selectedCustomer?.billing?.rut || 
-                           selectedCustomer?.meta_data?.find((m: any) => m.key === 'rut')?.value || 
+        // Obtener datos completos del cliente/invitado para billing y shipping
+        const customerForInvoice = selectedCustomer || (guestBillingData ? {
+          first_name: guestBillingData.first_name,
+          last_name: guestBillingData.last_name,
+          email: guestBillingData.email,
+          billing: guestBillingData,
+        } : null)
+        
+        const customerRut = customerForInvoice?.billing?.rut || 
+                           customerForInvoice?.meta_data?.find((m: any) => m.key === 'rut')?.value || 
                            '66666666-6'
         
         const facturaData = {
           tipo: 'boleta', // o 'factura' según corresponda
           fecha: new Date().toISOString().split('T')[0],
-          receptor: selectedCustomer ? {
+          receptor: customerForInvoice ? {
             rut: customerRut,
-            razon_social: `${selectedCustomer.first_name} ${selectedCustomer.last_name}`.trim() || 'Consumidor Final',
-            email: selectedCustomer.email || '',
-            direccion: selectedCustomer.billing?.address_1 || '',
-            comuna: selectedCustomer.billing?.city || '',
-            ciudad: selectedCustomer.billing?.city || '',
-            giro: selectedCustomer.billing?.company || '',
+            razon_social: `${customerForInvoice.first_name || ''} ${customerForInvoice.last_name || ''}`.trim() || 'Consumidor Final',
+            email: customerForInvoice.email || '',
+            direccion: customerForInvoice.billing?.address_1 || '',
+            comuna: customerForInvoice.billing?.city || '',
+            ciudad: customerForInvoice.billing?.city || '',
+            giro: customerForInvoice.billing?.company || '',
           } : {
             rut: '66666666-6', // Consumidor final
             razon_social: 'Consumidor Final',
@@ -603,7 +688,10 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
         customer: selectedCustomer ? {
           name: `${selectedCustomer.first_name} ${selectedCustomer.last_name}`,
           email: selectedCustomer.email,
-        } : undefined,
+        } : (guestBillingData ? {
+          name: `${guestBillingData.first_name} ${guestBillingData.last_name}`.trim() || 'Cliente Invitado',
+          email: guestBillingData.email,
+        } : undefined),
       }
 
       printReceipt(receiptData)
@@ -616,6 +704,8 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
         clearCart()
         setDiscount(null)
         setSelectedCustomer(null)
+        setGuestBillingData(null)
+        setGuestShippingData(null)
         setLastInvoiceStatus(null)
         reloadProducts()
       }, 5000) // Limpiar después de 5 segundos
@@ -1002,6 +1092,28 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
         total={totals.total}
         onComplete={handleProcessOrder}
         onCancel={() => setShowPaymentModal(false)}
+      />
+
+      {/* Modal para datos de invitado (facturación/envió) */}
+      <GuestAddressModal
+        show={showGuestAddressModal}
+        deliveryType={pendingPaymentData?.deliveryType || 'pickup'}
+        onSave={(billingData, shippingData) => {
+          setGuestBillingData(billingData)
+          setGuestShippingData(shippingData)
+          setShowGuestAddressModal(false)
+          // Procesar el pedido con los datos capturados
+          if (pendingPaymentData) {
+            processOrderWithData(pendingPaymentData.payments, pendingPaymentData.deliveryType)
+            setPendingPaymentData(null)
+          }
+        }}
+        onCancel={() => {
+          setShowGuestAddressModal(false)
+          setPendingPaymentData(null)
+          setGuestBillingData(null)
+          setGuestShippingData(null)
+        }}
       />
 
       <CashRegister
