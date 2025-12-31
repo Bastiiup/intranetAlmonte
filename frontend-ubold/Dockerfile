@@ -23,8 +23,11 @@ ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 # Deshabilitar Turbopack si causa problemas de memoria (Next.js 16 usa Turbopack por defecto)
 ENV NEXT_PRIVATE_STANDALONE=true
+# Optimizaciones de build
+ENV SKIP_ENV_VALIDATION=1
+ENV NEXT_PRIVATE_SKIP_TYPE_CHECK=1
 
-# Construir la aplicación
+# Construir la aplicación (con cache de Next.js)
 RUN npm run build
 
 # Exponer el puerto (Railway usa variable PORT)

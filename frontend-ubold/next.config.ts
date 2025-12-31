@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
       exclude: ['error', 'warn'],
     } : false,
   },
+  // Optimizaciones de build
+  swcMinify: true, // Usar SWC para minificación (más rápido)
+  poweredByHeader: false,
+  compress: true,
   images: {
     remotePatterns: [
       {
