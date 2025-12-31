@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import wooCommerceClient, { createWooCommerceClient } from '@/lib/woocommerce/client'
 import { logActivity, createLogDescription } from '@/lib/logging'
+import { descontarStockEnStrapi } from '@/lib/inventory/stock-utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -747,6 +748,57 @@ export async function POST(request: NextRequest) {
     }
     
     const documentId = strapiPedido.data?.documentId || strapiPedido.documentId
+
+    // ⚠️ CRÍTICO: Descontar stock de los productos en Strapi
+    // Esto se hace DESPUÉS de crear el pedido exitosamente
+    console.log('[API Pedidos POST] 📦 Descontando stock de productos...')
+    const stockResults: Array<{ productoId: number; cantidad: number; success: boolean; error?: string }> = []
+    
+    for (const item of itemsValidos) {
+      const productoId = item.producto_id || item.product_id
+      const cantidad = item.cantidad || item.quantity || 1
+      
+      if (!productoId || productoId <= 0) {
+        console.warn(`[API Pedidos POST] ⚠️ Item sin producto_id válido, omitiendo descuento de stock:`, item)
+        continue
+      }
+
+      try {
+        console.log(`[API Pedidos POST] 🔄 Descontando ${cantidad} unidades del producto ${productoId}...`)
+        const stockResult = await descontarStockEnStrapi(productoId, cantidad, originPlatform as 'woo_escolar' | 'woo_moraleja')
+        
+        stockResults.push({
+          productoId,
+          cantidad,
+          success: stockResult.success,
+          error: stockResult.error,
+        })
+
+        if (stockResult.success) {
+          console.log(`[API Pedidos POST] ✅ Stock descontado para producto ${productoId}: ${stockResult.stockActualizado} unidades restantes`)
+        } else {
+          console.warn(`[API Pedidos POST] ⚠️ No se pudo descontar stock para producto ${productoId}: ${stockResult.error}`)
+          // No lanzamos error aquí, solo registramos la advertencia
+          // El pedido ya se creó, así que continuamos
+        }
+      } catch (stockError: any) {
+        console.error(`[API Pedidos POST] ❌ Error al descontar stock para producto ${productoId}:`, stockError.message)
+        stockResults.push({
+          productoId,
+          cantidad,
+          success: false,
+          error: stockError.message,
+        })
+        // No lanzamos error aquí, solo registramos
+      }
+    }
+
+    console.log('[API Pedidos POST] 📊 Resumen de descuento de stock:', {
+      totalItems: itemsValidos.length,
+      exitosos: stockResults.filter(r => r.success).length,
+      fallidos: stockResults.filter(r => !r.success).length,
+      resultados: stockResults,
+    })
     const strapiResponseData = strapiPedido.data || strapiPedido
     
     if (!documentId) {
