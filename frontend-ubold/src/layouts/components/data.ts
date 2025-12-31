@@ -194,6 +194,16 @@ export const menuItems: MenuItemType[] = [
   { key: 'chat', label: 'Chat', icon: LuMessageSquareDot, url: '/chat' },
   { key: 'calendar', label: 'Calendario', icon: LuCalendar, url: '/calendar' },
   { key: 'file-manager', label: 'Gestor de Archivos', icon: LuFolderOpenDot, url: '/file-manager' },
+  { key: 'crm-section', label: 'CRM', isTitle: true },
+  {
+    key: 'crm',
+    label: 'CRM',
+    icon: LuHandshake,
+    children: [
+      { key: 'crm-colegios', label: 'Colegios', url: '/crm/colegios' },
+      { key: 'crm-personas', label: 'Personas', url: '/crm/personas' },
+    ],
+  },
   { key: 'equipos-section', label: 'EQUIPOS', isTitle: true },
   {
     key: 'equipos',
