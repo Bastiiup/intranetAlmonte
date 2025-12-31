@@ -23,6 +23,7 @@ export async function POST(
     const { id } = await params
 
     // Validar que el usuario actual sea super_admin
+    // Usar el endpoint /api/colaboradores/me que ya maneja la autenticación correctamente
     const authHeader = request.headers.get('authorization')
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       console.error('[API /colaboradores/[id]/activate] No se proporcionó token de autenticación')
@@ -32,34 +33,27 @@ export async function POST(
       )
     }
 
-    const token = authHeader.replace('Bearer ', '')
-    console.log('[API /colaboradores/[id]/activate] Token recibido, validando con Strapi...')
+    console.log('[API /colaboradores/[id]/activate] Validando usuario autenticado...')
 
-    // Obtener el usuario autenticado desde Strapi
-    const strapiUrl = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.STRAPI_URL
-    if (!strapiUrl) {
-      console.error('[API /colaboradores/[id]/activate] NEXT_PUBLIC_STRAPI_URL no está definido')
-      return NextResponse.json(
-        { success: false, error: 'Error de configuración del servidor' },
-        { status: 500 }
-      )
-    }
-
-    const userResponse = await fetch(`${strapiUrl}/api/users/me`, {
+    // Obtener los datos del colaborador autenticado usando el endpoint interno
+    const baseUrl = request.headers.get('host') 
+      ? `${request.headers.get('x-forwarded-proto') || 'http'}://${request.headers.get('host')}`
+      : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    
+    const meResponse = await fetch(`${baseUrl}/api/colaboradores/me`, {
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': authHeader,
       },
     })
 
-    if (!userResponse.ok) {
-      const errorText = await userResponse.text()
-      console.error('[API /colaboradores/[id]/activate] Error al validar token con Strapi:', {
-        status: userResponse.status,
-        statusText: userResponse.statusText,
-        error: errorText,
+    if (!meResponse.ok) {
+      const errorData = await meResponse.json().catch(() => ({}))
+      console.error('[API /colaboradores/[id]/activate] Error al validar colaborador:', {
+        status: meResponse.status,
+        error: errorData.error || 'Error desconocido',
       })
       
-      if (userResponse.status === 401) {
+      if (meResponse.status === 401) {
         return NextResponse.json(
           { success: false, error: 'Token inválido o expirado. Por favor, cierra sesión y vuelve a iniciar sesión.' },
           { status: 401 }
@@ -67,30 +61,23 @@ export async function POST(
       }
       
       return NextResponse.json(
-        { success: false, error: `Error al validar token: ${userResponse.statusText}` },
-        { status: userResponse.status }
+        { success: false, error: errorData.error || 'Error al validar usuario autenticado' },
+        { status: meResponse.status }
       )
     }
 
-    const user = await userResponse.json()
+    const meData = await meResponse.json()
+    const colaboradorAutenticado = meData.colaborador
 
-    // Buscar el colaborador vinculado a este usuario
-    const colaboradorUrl = `/api/colaboradores?filters[usuario][id][$eq]=${user.id}&populate[persona]=*`
-    const colaboradorResponse = await strapiClient.get<any>(colaboradorUrl)
-
-    if (!colaboradorResponse.data || (Array.isArray(colaboradorResponse.data) && colaboradorResponse.data.length === 0)) {
+    if (!colaboradorAutenticado) {
       return NextResponse.json(
         { success: false, error: 'No se encontró un colaborador vinculado a este usuario' },
         { status: 404 }
       )
     }
 
-    const colaboradorRaw = Array.isArray(colaboradorResponse.data) ? colaboradorResponse.data[0] : colaboradorResponse.data
-    const colaboradorAttrs = colaboradorRaw.attributes || colaboradorRaw
-    const rol = colaboradorAttrs.rol || colaboradorRaw.rol
-
     // Validar que sea super_admin
-    if (rol !== 'super_admin') {
+    if (colaboradorAutenticado.rol !== 'super_admin') {
       return NextResponse.json(
         { success: false, error: 'Solo los usuarios con rol super_admin pueden activar colaboradores' },
         { status: 403 }
