@@ -8,13 +8,16 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Copiar archivos de dependencias primero (para mejor cache de Docker)
-COPY frontend-ubold/package*.json ./
+# Nota: Railway está configurado con rootDirectory: "frontend-ubold"
+# Por lo tanto, el contexto de build ya está en frontend-ubold/
+COPY package*.json ./
 
 # Instalar dependencias
 RUN npm ci --prefer-offline --no-audit --legacy-peer-deps || npm install --prefer-offline --no-audit --legacy-peer-deps
 
 # Copiar el resto de los archivos
-COPY frontend-ubold/ .
+# Nota: Como Railway usa rootDirectory: "frontend-ubold", el contexto ya está ahí
+COPY . .
 
 # Variables de entorno para optimizar build
 ENV NEXT_TELEMETRY_DISABLED=1
