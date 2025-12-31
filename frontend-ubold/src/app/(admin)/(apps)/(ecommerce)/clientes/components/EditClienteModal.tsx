@@ -62,7 +62,7 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
         // Si el cliente viene de WooCommerce (ID numérico), buscar en Strapi por email
         // Si tiene documentId (string), usarlo directamente
         const clienteId = cliente.documentId || cliente.id
-        const email = cliente.correo_electronico || cliente.email
+        const email = cliente.correo_electronico
         
         let clienteData: any = null
         
