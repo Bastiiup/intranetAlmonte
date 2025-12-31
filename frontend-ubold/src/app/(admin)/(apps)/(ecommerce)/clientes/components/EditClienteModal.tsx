@@ -55,26 +55,81 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
     const loadClienteData = async () => {
       if (!cliente || !show) return
 
-      // Obtener el ID del cliente (priorizar documentId, luego id)
-      const clienteId = cliente.documentId || cliente.id
-      if (!clienteId) {
-        setError('No se puede cargar: el cliente no tiene ID válido')
-        return
-      }
-
       setLoadingData(true)
       setError(null)
 
       try {
-        console.log('[EditClienteModal] 🔍 Cargando datos del cliente:', clienteId)
-        const response = await fetch(`/api/tienda/clientes/${clienteId}`)
-        const result = await response.json()
-
-        if (!response.ok || !result.success) {
-          throw new Error(result.error || 'Error al cargar los datos del cliente')
+        // Si el cliente viene de WooCommerce (ID numérico), buscar en Strapi por email
+        // Si tiene documentId (string), usarlo directamente
+        const clienteId = cliente.documentId || cliente.id
+        const email = cliente.correo_electronico || cliente.email
+        
+        let clienteData: any = null
+        
+        // Si tiene documentId (string de Strapi), buscar directamente
+        if (cliente.documentId && typeof cliente.documentId === 'string') {
+          console.log('[EditClienteModal] 🔍 Buscando cliente por documentId (Strapi):', cliente.documentId)
+          const response = await fetch(`/api/tienda/clientes/${cliente.documentId}`)
+          const result = await response.json()
+          
+          if (response.ok && result.success) {
+            clienteData = result.data
+          } else {
+            console.log('[EditClienteModal] ⚠️ No se encontró por documentId, intentando por email...')
+          }
+        }
+        
+        // Si no se encontró y tenemos email, buscar en Strapi por email
+        if (!clienteData && email) {
+          console.log('[EditClienteModal] 🔍 Buscando cliente en Strapi por email:', email)
+          try {
+            // Obtener todos los clientes y buscar por email
+            const allResponse = await fetch('/api/tienda/clientes')
+            const allResult = await allResponse.json()
+            
+            if (allResponse.ok && allResult.success && allResult.data) {
+              const clientes = Array.isArray(allResult.data) ? allResult.data : [allResult.data]
+              
+              // Buscar cliente que tenga el email en su correo_electronico o en Persona
+              clienteData = clientes.find((c: any) => {
+                const attrs = c.attributes || c
+                const correo = attrs.correo_electronico || c.correo_electronico
+                if (correo === email) return true
+                
+                // También buscar en Persona relacionada
+                const persona = attrs.persona?.data || attrs.persona || c.persona?.data || c.persona
+                if (persona) {
+                  const personaAttrs = persona.attributes || persona
+                  const emails = personaAttrs.emails || []
+                  return emails.some((e: any) => (e.email || e) === email)
+                }
+                return false
+              })
+              
+              if (clienteData) {
+                console.log('[EditClienteModal] ✅ Cliente encontrado por email:', clienteData.documentId || clienteData.id)
+              }
+            }
+          } catch (searchError: any) {
+            console.error('[EditClienteModal] ❌ Error al buscar por email:', searchError)
+          }
+        }
+        
+        // Si aún no se encontró, intentar buscar directamente con el ID (puede ser documentId de Strapi)
+        if (!clienteData && clienteId) {
+          console.log('[EditClienteModal] 🔍 Intentando búsqueda directa con ID:', clienteId)
+          const response = await fetch(`/api/tienda/clientes/${clienteId}`)
+          const result = await response.json()
+          
+          if (response.ok && result.success) {
+            clienteData = result.data
+          }
+        }
+        
+        if (!clienteData) {
+          throw new Error(`No se encontró el cliente en Strapi. ${email ? `Email: ${email}` : `ID: ${clienteId}`}`)
         }
 
-        const clienteData = result.data
         const clienteAttrs = clienteData.attributes || clienteData
         
         // Guardar documentIds
