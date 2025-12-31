@@ -286,7 +286,7 @@ export async function POST(request: Request) {
     const colaboradorData: any = {
       data: {
         email_login: body.email_login.trim(),
-        activo: body.activo !== undefined ? body.activo : true,
+        activo: false, // Siempre false - requiere activación por super_admin desde solicitudes
         ...(body.password && { password: body.password }),
         ...(body.rol && body.rol.trim() && { rol: body.rol.trim() }),
         ...(personaId && { persona: personaId }),

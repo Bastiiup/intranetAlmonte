@@ -89,7 +89,7 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
     email_login: colaboradorData?.email_login || '',
     password: '', // Campo opcional para cambiar contraseña
     rol: colaboradorData?.rol || '',
-    activo: colaboradorData?.activo !== undefined ? colaboradorData.activo : true,
+    activo: false, // Siempre false - no se puede cambiar desde aquí, solo desde solicitudes
     // Campos de persona
     rut: personaData?.rut || '',
     nombres: personaData?.nombres || '',
@@ -109,7 +109,7 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
         email_login: colaboradorData.email_login || '',
         password: '', // No prellenar contraseña por seguridad
         rol: colaboradorData.rol || '',
-        activo: colaboradorData.activo !== undefined ? colaboradorData.activo : true,
+        activo: false, // Siempre false - no se puede cambiar desde aquí
         rut: personaAttrs.rut || '',
         nombres: personaAttrs.nombres || '',
         primer_apellido: personaAttrs.primer_apellido || '',
@@ -256,9 +256,10 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
       }
 
       // Preparar datos para Strapi
+      // IMPORTANTE: No enviar activo - no se puede cambiar desde aquí
       const colaboradorUpdateData: any = {
         email_login: formData.email_login.trim(),
-        activo: formData.activo,
+        // activo no se envía - solo se puede cambiar desde solicitudes
         // Solo enviar password si se proporcionó (no vacío)
         ...(formData.password && formData.password.trim().length > 0 && { password: formData.password }),
         // Solo enviar rol si tiene valor válido
@@ -407,18 +408,12 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
             </Col>
 
             <Col md={12}>
-              <FormGroup className="mb-3">
-                <FormCheck
-                  type="checkbox"
-                  label="Activo"
-                  checked={formData.activo}
-                  onChange={(e) => handleFieldChange('activo', e.target.checked)}
-                  disabled={loading}
-                />
-                <small className="text-muted d-block mt-1">
-                  Los colaboradores inactivos no podrán iniciar sesión
+              <Alert variant="info" className="mb-0">
+                <small>
+                  <strong>Nota:</strong> El estado activo/inactivo no se puede cambiar desde aquí. 
+                  Para activar o desactivar colaboradores, diríjase a la sección de Solicitudes de Colaboradores.
                 </small>
-              </FormGroup>
+              </Alert>
             </Col>
           </Row>
 

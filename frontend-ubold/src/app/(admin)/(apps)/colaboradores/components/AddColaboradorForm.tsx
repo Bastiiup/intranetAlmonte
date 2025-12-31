@@ -30,7 +30,7 @@ const AddColaboradorForm = () => {
     email_login: '',
     password: '',
     rol: '',
-    activo: true,
+    activo: false, // Siempre false - requiere activación por super_admin
     // Campos de persona
     rut: '',
     nombres: '',
@@ -160,10 +160,11 @@ const AddColaboradorForm = () => {
       }
 
       // Preparar datos para enviar (incluye campos de persona)
+      // IMPORTANTE: activo siempre debe ser false - requiere activación por super_admin
       const colaboradorData: any = {
         email_login: formData.email_login.trim(),
         password: formData.password,
-        activo: formData.activo,
+        activo: false, // Siempre false - requiere activación
         // Solo enviar rol si tiene valor válido
         ...(formData.rol && formData.rol.trim() && { rol: formData.rol.trim() }),
         // Datos de persona para crear/relacionar
@@ -292,18 +293,12 @@ const AddColaboradorForm = () => {
 
 
             <Col md={12}>
-              <FormGroup className="mb-3">
-                <FormCheck
-                  type="checkbox"
-                  label="Activo"
-                  checked={formData.activo}
-                  onChange={(e) => handleFieldChange('activo', e.target.checked)}
-                  disabled={loading}
-                />
-                <small className="text-muted d-block mt-1">
-                  Los colaboradores inactivos no podrán iniciar sesión
+              <Alert variant="info" className="mb-0">
+                <small>
+                  <strong>Nota:</strong> Los nuevos colaboradores se crearán como inactivos. 
+                  Un administrador deberá activar la cuenta desde la sección de Solicitudes para que puedan iniciar sesión.
                 </small>
-              </FormGroup>
+              </Alert>
             </Col>
           </Row>
 
