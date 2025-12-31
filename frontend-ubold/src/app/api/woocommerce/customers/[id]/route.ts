@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import wooCommerceClient from '@/lib/woocommerce/client'
 import strapiClient from '@/lib/strapi/client'
 import { buildWooCommerceAddress, createAddressMetaData, type DetailedAddress } from '@/lib/woocommerce/address-utils'
-import { parseNombreCompleto, enviarClienteABothWordPress } from '@/lib/clientes/utils'
+import { parseNombreCompleto, enviarClienteABothWordPress, eliminarClientePorEmail } from '@/lib/clientes/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -353,16 +353,29 @@ export async function GET(
 
 /**
  * DELETE /api/woocommerce/customers/[id]
- * Elimina un cliente de WooCommerce y también en Strapi (WO-Clientes)
+ * Elimina un cliente de:
+ * 1. WooCommerce principal (Escolar)
+ * 2. Editorial Moraleja (WooCommerce secundario)
+ * 3. TODAS las entradas WO-Clientes en Strapi
+ * 4. Persona en Strapi (solo si no hay más referencias WO-Clientes)
+ * 
  * El [id] puede ser el ID de WooCommerce o un email
- * Nota: No se elimina Persona ya que puede estar relacionada con otras entidades
  */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const deletionResults = {
+    wooCommercePrincipal: { success: false, error: null as string | null },
+    wooCommerceMoraleja: { success: false, error: null as string | null },
+    strapiWoClientes: { deleted: 0, errors: [] as string[] },
+    strapiPersona: { success: false, error: null as string | null, deleted: false },
+  }
+
   try {
     const { id } = await params
+
+    console.log('[API DELETE] 🗑️ Iniciando eliminación de cliente, ID recibido:', id)
 
     // Si el ID es un email (contiene @), buscar el cliente por email primero
     let customerId: number | null = null
@@ -372,7 +385,7 @@ export async function DELETE(
         const customers = await wooCommerceClient.get<any[]>(`customers`, { email: id, per_page: 1 })
         if (customers && Array.isArray(customers) && customers.length > 0) {
           customerId = customers[0].id
-          console.log('[API DELETE] Cliente encontrado por email:', id, 'ID:', customerId)
+          console.log('[API DELETE] ✅ Cliente encontrado por email:', id, 'ID:', customerId)
         } else {
           return NextResponse.json(
             {
@@ -383,7 +396,7 @@ export async function DELETE(
           )
         }
       } catch (searchError: any) {
-        console.error('[API DELETE] Error al buscar cliente por email:', searchError)
+        console.error('[API DELETE] ❌ Error al buscar cliente por email:', searchError)
         return NextResponse.json(
           {
             success: false,
@@ -416,67 +429,173 @@ export async function DELETE(
       )
     }
 
-    console.log('[API DELETE] Eliminando cliente:', customerId)
-
-    // 1. Obtener email del cliente de WooCommerce para buscar en Strapi
+    // 1. Obtener email del cliente de WooCommerce principal para buscar en otros sistemas
     let customerEmail: string | null = null
     try {
       const wcCustomer = await wooCommerceClient.get<any>(`customers/${customerId}`)
       customerEmail = wcCustomer.email || null
+      console.log('[API DELETE] 📧 Email del cliente obtenido:', customerEmail)
     } catch (error: any) {
-      console.warn('[API DELETE] No se pudo obtener email del cliente de WooCommerce (continuando):', error.message)
-    }
-
-    // 2. Buscar y eliminar cliente en Strapi (WO-Clientes) por correo_electronico
-    if (customerEmail) {
-      try {
-        const strapiSearch = await strapiClient.get<any>(`/api/wo-clientes?filters[correo_electronico][$eq]=${encodeURIComponent(customerEmail)}&populate=*`)
-        const strapiClientes = strapiSearch.data && Array.isArray(strapiSearch.data) ? strapiSearch.data : (strapiSearch.data ? [strapiSearch.data] : [])
-        
-        if (strapiClientes.length > 0) {
-          const strapiCliente = strapiClientes[0]
-          const strapiClienteId = strapiCliente.documentId || strapiCliente.id?.toString()
-          
-          // Eliminar de Strapi (WO-Clientes)
-          await strapiClient.delete(`/api/wo-clientes/${strapiClienteId}`)
-          console.log('[API DELETE] ✅ Cliente eliminado de Strapi (WO-Clientes):', strapiClienteId)
-          
-          // Nota: No eliminamos la Persona asociada ya que puede estar relacionada con otras entidades
-        }
-      } catch (strapiError: any) {
-        console.error('[API DELETE] ⚠️ Error al eliminar de Strapi WO-Clientes (no crítico):', strapiError.message)
-        // Continuar aunque falle Strapi
+      console.warn('[API DELETE] ⚠️ No se pudo obtener email del cliente de WooCommerce principal (continuando):', error.message)
+      // Intentar usar el ID como email si es un email válido
+      if (id.includes('@')) {
+        customerEmail = id
       }
     }
 
-    // 3. Eliminar de WooCommerce principal
+    // 2. Eliminar de Editorial Moraleja (WooCommerce secundario)
+    if (customerEmail) {
+      try {
+        const moralejaUrl = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL_MORALEJA || ''
+        const moralejaKey = process.env.WOO_MORALEJA_CONSUMER_KEY || ''
+        const moralejaSecret = process.env.WOO_MORALEJA_CONSUMER_SECRET || ''
+
+        if (moralejaUrl && moralejaKey && moralejaSecret) {
+          console.log('[API DELETE] 🔍 Intentando eliminar de Editorial Moraleja...')
+          const deleteResult = await eliminarClientePorEmail(moralejaUrl, moralejaKey, moralejaSecret, customerEmail)
+          if (deleteResult.success) {
+            deletionResults.wooCommerceMoraleja.success = true
+            console.log('[API DELETE] ✅ Cliente eliminado de Editorial Moraleja (ID:', deleteResult.customerId, ')')
+          } else {
+            deletionResults.wooCommerceMoraleja.error = deleteResult.error || 'Error desconocido'
+            console.warn('[API DELETE] ⚠️ No se pudo eliminar de Editorial Moraleja:', deleteResult.error)
+          }
+        } else {
+          console.log('[API DELETE] ⏭️ Credenciales de Editorial Moraleja no configuradas, omitiendo...')
+        }
+      } catch (error: any) {
+        deletionResults.wooCommerceMoraleja.error = error.message || 'Error desconocido'
+        console.error('[API DELETE] ⚠️ Error al eliminar de Editorial Moraleja (no crítico):', error.message)
+      }
+    }
+
+    // 3. Eliminar de WooCommerce principal (Escolar)
     try {
+      console.log('[API DELETE] 🔍 Eliminando de WooCommerce principal (ID:', customerId, ')...')
       await wooCommerceClient.delete(`customers/${customerId}`, true)
+      deletionResults.wooCommercePrincipal.success = true
       console.log('[API DELETE] ✅ Cliente eliminado de WooCommerce principal:', customerId)
     } catch (wcError: any) {
       // Si el cliente no existe en WooCommerce, no es un error crítico
       if (wcError.status === 404) {
-        console.log('[API DELETE] Cliente no encontrado en WooCommerce (ya eliminado):', customerId)
+        console.log('[API DELETE] ℹ️ Cliente no encontrado en WooCommerce principal (ya eliminado):', customerId)
+        deletionResults.wooCommercePrincipal.success = true // Consideramos éxito si ya estaba eliminado
       } else {
-        throw wcError
+        deletionResults.wooCommercePrincipal.error = wcError.message || 'Error desconocido'
+        throw wcError // Esto es crítico, lanzar el error
       }
     }
 
-    // 3. Intentar eliminar de WordPress adicional (Editorial Moraleja)
-    // Nota: Esto requiere buscar por email ya que no tenemos el ID directamente
-    // Por ahora, solo eliminamos del principal ya que no hay una forma directa de obtener el ID del segundo WordPress
+    // 4. Buscar y eliminar TODAS las entradas WO-Clientes en Strapi
+    let personaDocumentId: string | null = null
+    if (customerEmail) {
+      try {
+        console.log('[API DELETE] 🔍 Buscando entradas WO-Clientes en Strapi por email:', customerEmail)
+        const strapiSearch = await strapiClient.get<any>(`/api/wo-clientes?filters[correo_electronico][$eq]=${encodeURIComponent(customerEmail)}&populate[persona]=documentId`)
+        const strapiClientes = strapiSearch.data && Array.isArray(strapiSearch.data) 
+          ? strapiSearch.data 
+          : (strapiSearch.data ? [strapiSearch.data] : [])
+        
+        console.log('[API DELETE] 📊 Entradas WO-Clientes encontradas:', strapiClientes.length)
+
+        // Obtener personaDocumentId de la primera entrada (si existe)
+        if (strapiClientes.length > 0) {
+          const primeraEntrada = strapiClientes[0]
+          const personaData = primeraEntrada.attributes?.persona?.data || primeraEntrada.persona?.data || primeraEntrada.persona
+          personaDocumentId = personaData?.documentId || personaData?.id?.toString() || null
+          if (personaDocumentId) {
+            console.log('[API DELETE] 📌 Persona documentId obtenido:', personaDocumentId)
+          }
+        }
+
+        // Eliminar TODAS las entradas WO-Clientes encontradas
+        for (const strapiCliente of strapiClientes) {
+          try {
+            const strapiClienteId = strapiCliente.documentId || strapiCliente.id?.toString()
+            if (strapiClienteId) {
+              await strapiClient.delete(`/api/wo-clientes/${strapiClienteId}`)
+              deletionResults.strapiWoClientes.deleted++
+              console.log('[API DELETE] ✅ WO-Cliente eliminado de Strapi:', strapiClienteId)
+            }
+          } catch (error: any) {
+            const errorMsg = error.message || 'Error desconocido'
+            deletionResults.strapiWoClientes.errors.push(`WO-Cliente ${strapiCliente.documentId || strapiCliente.id}: ${errorMsg}`)
+            console.error('[API DELETE] ⚠️ Error al eliminar WO-Cliente específico (continuando):', errorMsg)
+          }
+        }
+
+        if (deletionResults.strapiWoClientes.deleted > 0) {
+          console.log('[API DELETE] ✅ Total de entradas WO-Clientes eliminadas:', deletionResults.strapiWoClientes.deleted)
+        }
+      } catch (strapiError: any) {
+        deletionResults.strapiWoClientes.errors.push(`Error general: ${strapiError.message || 'Error desconocido'}`)
+        console.error('[API DELETE] ⚠️ Error al buscar/eliminar WO-Clientes en Strapi (no crítico):', strapiError.message)
+      }
+    }
+
+    // 5. Eliminar Persona si no hay más referencias WO-Clientes
+    if (personaDocumentId) {
+      try {
+        console.log('[API DELETE] 🔍 Verificando si Persona tiene más referencias WO-Clientes...')
+        const woClientesCheck = await strapiClient.get<any>(`/api/wo-clientes?filters[persona][documentId][$eq]=${personaDocumentId}`)
+        const woClientesRestantes = woClientesCheck.data && Array.isArray(woClientesCheck.data) 
+          ? woClientesCheck.data 
+          : (woClientesCheck.data ? [woClientesCheck.data] : [])
+        
+        if (woClientesRestantes.length === 0) {
+          console.log('[API DELETE] ✅ No hay más referencias WO-Clientes, eliminando Persona...')
+          await strapiClient.delete(`/api/personas/${personaDocumentId}`)
+          deletionResults.strapiPersona.success = true
+          deletionResults.strapiPersona.deleted = true
+          console.log('[API DELETE] ✅ Persona eliminada de Strapi:', personaDocumentId)
+        } else {
+          console.log('[API DELETE] ℹ️ Persona mantiene', woClientesRestantes.length, 'referencias WO-Clientes, no se eliminará')
+        }
+      } catch (personaError: any) {
+        deletionResults.strapiPersona.error = personaError.message || 'Error desconocido'
+        console.error('[API DELETE] ⚠️ Error al eliminar Persona en Strapi (no crítico):', personaError.message)
+      }
+    }
+
+    // Resumen final
+    const allCriticalSuccess = deletionResults.wooCommercePrincipal.success
+    const hasWarnings = 
+      !deletionResults.wooCommerceMoraleja.success ||
+      deletionResults.strapiWoClientes.errors.length > 0 ||
+      !deletionResults.strapiPersona.success
+
+    console.log('[API DELETE] 📊 Resumen de eliminación:', {
+      wooCommercePrincipal: deletionResults.wooCommercePrincipal.success ? '✅' : '❌',
+      wooCommerceMoraleja: deletionResults.wooCommerceMoraleja.success ? '✅' : '⚠️',
+      strapiWoClientes: `${deletionResults.strapiWoClientes.deleted} eliminadas`,
+      strapiPersona: deletionResults.strapiPersona.deleted ? '✅ Eliminada' : 'ℹ️ No eliminada (hay referencias)',
+    })
+
+    if (!allCriticalSuccess) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Error al eliminar cliente de WooCommerce principal',
+          details: deletionResults,
+        },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json({
       success: true,
       message: 'Cliente eliminado exitosamente',
+      details: deletionResults,
+      warnings: hasWarnings ? 'Algunas operaciones secundarias fallaron o fueron omitidas' : undefined,
     })
   } catch (error: any) {
-    console.error('[API DELETE] ❌ Error al eliminar cliente:', error)
+    console.error('[API DELETE] ❌ Error crítico al eliminar cliente:', error)
     return NextResponse.json(
       {
         success: false,
         error: error.message || 'Error al eliminar cliente',
         status: error.status || 500,
+        details: deletionResults,
       },
       { status: error.status || 500 }
     )

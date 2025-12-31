@@ -338,3 +338,72 @@ export async function enviarClienteABothWordPress(
   }
 }
 
+/**
+ * Elimina un cliente de WooCommerce por email
+ * Busca el cliente por email y luego lo elimina usando su ID
+ */
+export async function eliminarClientePorEmail(
+  url: string,
+  consumerKey: string,
+  consumerSecret: string,
+  email: string
+): Promise<{ success: boolean; customerId?: number; error?: string }> {
+  try {
+    // Validar que tengamos los datos necesarios
+    if (!url || !consumerKey || !consumerSecret) {
+      return {
+        success: false,
+        error: 'URL o credenciales no configuradas',
+      }
+    }
+
+    console.log(`[eliminarClientePorEmail] 🔍 Buscando cliente en ${url} por email: ${email}...`)
+
+    // Primero buscar el cliente por email
+    const searchResult = await buscarClientePorEmail(url, consumerKey, consumerSecret, email)
+
+    if (!searchResult.success || !searchResult.customer) {
+      return {
+        success: false,
+        error: searchResult.error || 'Cliente no encontrado',
+      }
+    }
+
+    const customerId = searchResult.customer.id
+    console.log(`[eliminarClientePorEmail] 🗑️ Cliente encontrado (ID: ${customerId}), eliminando...`)
+
+    const authHeader = `Basic ${Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64')}`
+    const apiUrl = `${url}/wp-json/wc/v3/customers/${customerId}?force=true`
+
+    const response = await fetch(apiUrl, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      const errorMsg = errorData.message || `HTTP error! status: ${response.status}`
+      console.error(`[eliminarClientePorEmail] ❌ Error al eliminar: ${errorMsg}`)
+      return {
+        success: false,
+        error: errorMsg,
+      }
+    }
+
+    console.log(`[eliminarClientePorEmail] ✅ Cliente eliminado exitosamente (ID: ${customerId})`)
+    return {
+      success: true,
+      customerId,
+    }
+  } catch (error: any) {
+    console.error(`[eliminarClientePorEmail] ❌ Excepción:`, error.message)
+    return {
+      success: false,
+      error: error.message || 'Error al eliminar cliente de WooCommerce',
+    }
+  }
+}
+
