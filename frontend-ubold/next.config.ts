@@ -16,6 +16,31 @@ const nextConfig: NextConfig = {
         hostname: 'strapi.moraleja.cl',
         pathname: '/uploads/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'staging.escolar.cl',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'escolar.cl',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.escolar.cl',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.wp.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.wordpress.com',
+        pathname: '/**',
+      },
     ],
   },
   async redirects() {
