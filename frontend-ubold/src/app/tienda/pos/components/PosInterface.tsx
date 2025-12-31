@@ -521,29 +521,33 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
       customerDataForOrder = selectedCustomer
     } else if (guestBillingData || guestShippingData) {
       // Usar datos de invitado (incluir campos detallados para meta_data)
+      const billingData = guestBillingData ? {
+        ...guestBillingData,
+        // Asegurar que los campos detallados estén presentes
+        calle: guestBillingData.calle || '',
+        numero: guestBillingData.numero || '',
+        dpto: guestBillingData.dpto || '',
+        block: guestBillingData.block || '',
+        condominio: guestBillingData.condominio || '',
+      } : {}
+      
+      const shippingDataForOrder = deliveryType === 'shipping' && (guestShippingData || guestBillingData) ? {
+        ...(guestShippingData || guestBillingData),
+        // Asegurar que los campos detallados estén presentes
+        calle: (guestShippingData || guestBillingData)?.calle || '',
+        numero: (guestShippingData || guestBillingData)?.numero || '',
+        dpto: (guestShippingData || guestBillingData)?.dpto || '',
+        block: (guestShippingData || guestBillingData)?.block || '',
+        condominio: (guestShippingData || guestBillingData)?.condominio || '',
+      } : {}
+      
       customerDataForOrder = {
         id: 0, // Cliente invitado
         email: guestBillingData?.email || 'pos@escolar.cl',
         first_name: guestBillingData?.first_name || 'Cliente',
         last_name: guestBillingData?.last_name || 'Invitado',
-        billing: {
-          ...guestBillingData,
-          // Asegurar que los campos detallados estén presentes
-          calle: guestBillingData?.calle || '',
-          numero: guestBillingData?.numero || '',
-          dpto: guestBillingData?.dpto || '',
-          block: guestBillingData?.block || '',
-          condominio: guestBillingData?.condominio || '',
-        } || {},
-        shipping: deliveryType === 'shipping' ? {
-          ...(guestShippingData || guestBillingData || {}),
-          // Asegurar que los campos detallados estén presentes
-          calle: (guestShippingData || guestBillingData)?.calle || '',
-          numero: (guestShippingData || guestBillingData)?.numero || '',
-          dpto: (guestShippingData || guestBillingData)?.dpto || '',
-          block: (guestShippingData || guestBillingData)?.block || '',
-          condominio: (guestShippingData || guestBillingData)?.condominio || '',
-        } : {},
+        billing: billingData,
+        shipping: shippingDataForOrder,
       }
     }
 
