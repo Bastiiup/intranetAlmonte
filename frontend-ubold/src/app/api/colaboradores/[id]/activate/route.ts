@@ -13,7 +13,7 @@ interface ColaboradorAttributes {
 
 /**
  * POST /api/colaboradores/[id]/activate
- * Activa un colaborador (solo para super_admin)
+ * Activa un colaborador cambiando el campo activo de false a true
  */
 export async function POST(
   request: NextRequest,
@@ -22,71 +22,9 @@ export async function POST(
   try {
     const { id } = await params
 
-    // Validar que el usuario actual sea super_admin
-    // Usar el endpoint /api/colaboradores/me que ya maneja la autenticación correctamente
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('[API /colaboradores/[id]/activate] No se proporcionó token de autenticación')
-      return NextResponse.json(
-        { success: false, error: 'No se proporcionó un token de autenticación' },
-        { status: 401 }
-      )
-    }
-
-    console.log('[API /colaboradores/[id]/activate] Validando usuario autenticado...')
-
-    // Obtener los datos del colaborador autenticado usando el endpoint interno
-    const baseUrl = request.headers.get('host') 
-      ? `${request.headers.get('x-forwarded-proto') || 'http'}://${request.headers.get('host')}`
-      : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    
-    const meResponse = await fetch(`${baseUrl}/api/colaboradores/me`, {
-      headers: {
-        'Authorization': authHeader,
-      },
-    })
-
-    if (!meResponse.ok) {
-      const errorData = await meResponse.json().catch(() => ({}))
-      console.error('[API /colaboradores/[id]/activate] Error al validar colaborador:', {
-        status: meResponse.status,
-        error: errorData.error || 'Error desconocido',
-      })
-      
-      if (meResponse.status === 401) {
-        return NextResponse.json(
-          { success: false, error: 'Token inválido o expirado. Por favor, cierra sesión y vuelve a iniciar sesión.' },
-          { status: 401 }
-        )
-      }
-      
-      return NextResponse.json(
-        { success: false, error: errorData.error || 'Error al validar usuario autenticado' },
-        { status: meResponse.status }
-      )
-    }
-
-    const meData = await meResponse.json()
-    const colaboradorAutenticado = meData.colaborador
-
-    if (!colaboradorAutenticado) {
-      return NextResponse.json(
-        { success: false, error: 'No se encontró un colaborador vinculado a este usuario' },
-        { status: 404 }
-      )
-    }
-
-    // Validar que sea super_admin
-    if (colaboradorAutenticado.rol !== 'super_admin') {
-      return NextResponse.json(
-        { success: false, error: 'Solo los usuarios con rol super_admin pueden activar colaboradores' },
-        { status: 403 }
-      )
-    }
-
     console.log('[API /colaboradores/[id]/activate] Activando colaborador:', id)
 
-    // Actualizar el colaborador para activarlo
+    // Simplemente actualizar el campo activo a true
     const colaboradorData: any = {
       data: {
         activo: true,
@@ -98,13 +36,15 @@ export async function POST(
       colaboradorData
     )
 
+    console.log('[API /colaboradores/[id]/activate] ✅ Colaborador activado exitosamente')
+
     return NextResponse.json({
       success: true,
       data: response.data,
       message: 'Colaborador activado exitosamente',
     }, { status: 200 })
   } catch (error: any) {
-    console.error('[API /colaboradores/[id]/activate] Error:', {
+    console.error('[API /colaboradores/[id]/activate] ❌ Error:', {
       message: error.message,
       status: error.status,
       details: error.details,
