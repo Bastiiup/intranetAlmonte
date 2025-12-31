@@ -450,8 +450,15 @@ export async function DELETE(
         const moralejaKey = process.env.WOO_MORALEJA_CONSUMER_KEY || ''
         const moralejaSecret = process.env.WOO_MORALEJA_CONSUMER_SECRET || ''
 
+        console.log('[API DELETE] 🔍 Verificando credenciales de Editorial Moraleja...', {
+          tieneUrl: !!moralejaUrl,
+          tieneKey: !!moralejaKey,
+          tieneSecret: !!moralejaSecret,
+          url: moralejaUrl || 'no configurada',
+        })
+
         if (moralejaUrl && moralejaKey && moralejaSecret) {
-          console.log('[API DELETE] 🔍 Intentando eliminar de Editorial Moraleja...')
+          console.log('[API DELETE] 🔍 Intentando eliminar de Editorial Moraleja por email:', customerEmail)
           const deleteResult = await eliminarClientePorEmail(moralejaUrl, moralejaKey, moralejaSecret, customerEmail)
           if (deleteResult.success) {
             deletionResults.wooCommerceMoraleja.success = true
@@ -459,14 +466,19 @@ export async function DELETE(
           } else {
             deletionResults.wooCommerceMoraleja.error = deleteResult.error || 'Error desconocido'
             console.warn('[API DELETE] ⚠️ No se pudo eliminar de Editorial Moraleja:', deleteResult.error)
+            // No es crítico, continuar con el resto del proceso
           }
         } else {
-          console.log('[API DELETE] ⏭️ Credenciales de Editorial Moraleja no configuradas, omitiendo...')
+          console.log('[API DELETE] ⏭️ Credenciales de Editorial Moraleja no configuradas, omitiendo eliminación en Moraleja')
+          deletionResults.wooCommerceMoraleja.error = 'Credenciales no configuradas'
         }
       } catch (error: any) {
         deletionResults.wooCommerceMoraleja.error = error.message || 'Error desconocido'
-        console.error('[API DELETE] ⚠️ Error al eliminar de Editorial Moraleja (no crítico):', error.message)
+        console.error('[API DELETE] ⚠️ Excepción al eliminar de Editorial Moraleja (no crítico):', error.message, error.stack)
+        // No es crítico, continuar con el resto del proceso
       }
+    } else {
+      console.log('[API DELETE] ⏭️ No hay email disponible, omitiendo eliminación en Moraleja')
     }
 
     // 3. Eliminar de WooCommerce principal (Escolar)
@@ -491,7 +503,8 @@ export async function DELETE(
     if (customerEmail) {
       try {
         console.log('[API DELETE] 🔍 Buscando entradas WO-Clientes en Strapi por email:', customerEmail)
-        const strapiSearch = await strapiClient.get<any>(`/api/wo-clientes?filters[correo_electronico][$eq]=${encodeURIComponent(customerEmail)}&populate[persona]=documentId`)
+        // Usar populate=persona en lugar de populate[persona]=documentId (que no es válido)
+        const strapiSearch = await strapiClient.get<any>(`/api/wo-clientes?filters[correo_electronico][$eq]=${encodeURIComponent(customerEmail)}&populate=persona`)
         const strapiClientes = strapiSearch.data && Array.isArray(strapiSearch.data) 
           ? strapiSearch.data 
           : (strapiSearch.data ? [strapiSearch.data] : [])
@@ -501,25 +514,44 @@ export async function DELETE(
         // Obtener personaDocumentId de la primera entrada (si existe)
         if (strapiClientes.length > 0) {
           const primeraEntrada = strapiClientes[0]
-          const personaData = primeraEntrada.attributes?.persona?.data || primeraEntrada.persona?.data || primeraEntrada.persona
-          personaDocumentId = personaData?.documentId || personaData?.id?.toString() || null
-          if (personaDocumentId) {
-            console.log('[API DELETE] 📌 Persona documentId obtenido:', personaDocumentId)
+          const attrs = primeraEntrada.attributes || primeraEntrada
+          // La estructura puede ser: attrs.persona?.data o attrs.persona
+          const personaData = attrs.persona?.data || attrs.persona
+          
+          // Extraer documentId de la persona (puede estar en documentId o id)
+          if (personaData) {
+            personaDocumentId = personaData.documentId || personaData.id?.toString() || null
+            if (personaDocumentId) {
+              console.log('[API DELETE] 📌 Persona documentId obtenido:', personaDocumentId)
+            } else {
+              console.warn('[API DELETE] ⚠️ No se pudo obtener documentId de Persona. Estructura persona:', {
+                hasDocumentId: !!personaData.documentId,
+                hasId: !!personaData.id,
+                keys: Object.keys(personaData).slice(0, 10),
+              })
+            }
+          } else {
+            console.warn('[API DELETE] ⚠️ No se encontró Persona en la entrada WO-Clientes')
           }
         }
 
         // Eliminar TODAS las entradas WO-Clientes encontradas
         for (const strapiCliente of strapiClientes) {
           try {
-            const strapiClienteId = strapiCliente.documentId || strapiCliente.id?.toString()
+            // El documentId puede estar en el nivel superior o dentro de attributes
+            const strapiClienteId = strapiCliente.documentId || strapiCliente.id?.toString() || 
+                                   (strapiCliente.attributes && (strapiCliente.attributes.documentId || strapiCliente.attributes.id?.toString()))
             if (strapiClienteId) {
               await strapiClient.delete(`/api/wo-clientes/${strapiClienteId}`)
               deletionResults.strapiWoClientes.deleted++
               console.log('[API DELETE] ✅ WO-Cliente eliminado de Strapi:', strapiClienteId)
+            } else {
+              console.warn('[API DELETE] ⚠️ No se pudo obtener documentId de WO-Cliente:', strapiCliente)
             }
           } catch (error: any) {
             const errorMsg = error.message || 'Error desconocido'
-            deletionResults.strapiWoClientes.errors.push(`WO-Cliente ${strapiCliente.documentId || strapiCliente.id}: ${errorMsg}`)
+            const clienteId = strapiCliente.documentId || strapiCliente.id?.toString() || 'desconocido'
+            deletionResults.strapiWoClientes.errors.push(`WO-Cliente ${clienteId}: ${errorMsg}`)
             console.error('[API DELETE] ⚠️ Error al eliminar WO-Cliente específico (continuando):', errorMsg)
           }
         }
