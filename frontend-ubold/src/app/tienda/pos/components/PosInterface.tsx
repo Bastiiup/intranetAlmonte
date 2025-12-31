@@ -513,6 +513,9 @@ export default function PosInterfaceNew({}: PosInterfaceProps) {
 
   // Procesar pedido con datos (cliente o invitado)
   const processOrderWithData = async (payments: PaymentMethod[], deliveryType: 'shipping' | 'pickup' = 'pickup') => {
+    // Calcular total pagado
+    const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0)
+    
     // Preparar datos del cliente o invitado
     let customerDataForOrder: any = null
     
