@@ -11,9 +11,9 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import Link from 'next/link'
-import { useState, useMemo } from 'react'
-import { Button, Card, CardBody, CardFooter, CardHeader, Alert } from 'react-bootstrap'
-import { LuSearch, LuMapPin, LuPhone, LuMail } from 'react-icons/lu'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { Button, Card, CardBody, CardFooter, CardHeader, Alert, Form } from 'react-bootstrap'
+import { LuSearch, LuMapPin, LuPhone, LuMail, LuX } from 'react-icons/lu'
 import { TbEye } from 'react-icons/tb'
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
@@ -21,24 +21,95 @@ import TablePagination from '@/components/table/TablePagination'
 interface ColegioType {
   id: string
   nombre: string
-  rut?: string
+  rbd?: string
   direccion?: string
   comuna?: string
   region?: string
   telefono?: string
   email?: string
-  activo?: boolean
+  estado?: string
   createdAt?: string
 }
 
 const columnHelper = createColumnHelper<ColegioType>()
 
-const ColegiosListing = ({ colegios, error }: { colegios: any[]; error: string | null }) => {
+// Lista de regiones de Chile (principales)
+const REGIONES = [
+  'Arica y Parinacota',
+  'Tarapacá',
+  'Antofagasta',
+  'Atacama',
+  'Coquimbo',
+  'Valparaíso',
+  'Metropolitana',
+  "O'Higgins",
+  'Maule',
+  'Ñuble',
+  'Biobío',
+  'Araucanía',
+  'Los Ríos',
+  'Los Lagos',
+  'Aysén',
+  'Magallanes',
+]
+
+const ESTADOS = [
+  { value: '', label: 'Todos los estados' },
+  { value: 'Por Verificar', label: 'Por Verificar' },
+  { value: 'Verificado', label: 'Verificado' },
+  { value: 'Aprobado', label: 'Aprobado' },
+]
+
+const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { colegios: any[]; error: string | null }) => {
+  const [colegios, setColegios] = useState<any[]>(initialColegios)
+  const [error, setError] = useState<string | null>(initialError)
+  const [loading, setLoading] = useState(false)
+  
+  // Estados de búsqueda y filtros
+  const [search, setSearch] = useState('')
+  const [estado, setEstado] = useState('')
+  const [region, setRegion] = useState('')
+  
+  // Estados de tabla
   const [sorting, setSorting] = useState<SortingState>([
-    { id: 'createdAt', desc: true } // Ordenar por más recientes primero
+    { id: 'nombre', desc: false }
   ])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [globalFilter, setGlobalFilter] = useState('')
+
+  // Función para obtener datos
+  const fetchColegios = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    
+    try {
+      const params = new URLSearchParams()
+      if (search) params.append('search', search)
+      if (estado) params.append('estado', estado)
+      if (region) params.append('region', region)
+
+      const response = await fetch(`/api/crm/colegios?${params.toString()}`)
+      const data = await response.json()
+      
+      if (data.success && data.data) {
+        setColegios(Array.isArray(data.data) ? data.data : [data.data])
+      } else {
+        setError(data.error || 'Error al obtener colegios')
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error al conectar con la API')
+    } finally {
+      setLoading(false)
+    }
+  }, [search, estado, region])
+
+  // Debounce para búsqueda
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      fetchColegios()
+    }, 300) // 300ms de debounce
+
+    return () => clearTimeout(timeoutId)
+  }, [search, estado, region, fetchColegios])
 
   // Mapear datos de Strapi al formato esperado
   const mappedColegios: ColegioType[] = useMemo(() => {
@@ -48,16 +119,35 @@ const ColegiosListing = ({ colegios, error }: { colegios: any[]; error: string |
       const attrs = colegio.attributes || {}
       const data = Object.keys(attrs).length > 0 ? attrs : colegio
       
+      // Obtener primer teléfono, email y dirección de los componentes
+      const telefonos = data.telefonos || []
+      const emails = data.emails || []
+      const direcciones = data.direcciones || []
+      
+      // Obtener comuna (puede venir como relación)
+      let comunaNombre = ''
+      if (data.comuna) {
+        if (data.comuna.data?.attributes?.nombre) {
+          comunaNombre = data.comuna.data.attributes.nombre
+        } else if (data.comuna.attributes?.nombre) {
+          comunaNombre = data.comuna.attributes.nombre
+        } else if (typeof data.comuna === 'string') {
+          comunaNombre = data.comuna
+        } else if (data.comuna.nombre) {
+          comunaNombre = data.comuna.nombre
+        }
+      }
+      
       return {
         id: colegio.id?.toString() || '',
-        nombre: data.nombre || data.NOMBRE || 'Sin nombre',
-        rut: data.rut || data.RUT || '',
-        direccion: data.direccion || data.DIRECCION || '',
-        comuna: data.comuna?.nombre || data.comuna?.NOMBRE || data.comuna || data.COMUNA || '',
+        nombre: data.colegio_nombre || data.nombre || data.NOMBRE || 'Sin nombre',
+        rbd: data.rbd?.toString() || '',
+        direccion: direcciones[0]?.calle || direcciones[0]?.direccion || direcciones[0]?.direccion_completa || data.direccion || data.DIRECCION || '',
+        comuna: comunaNombre,
         region: data.region || data.REGION || '',
-        telefono: data.telefono || data.TELEFONO || '',
-        email: data.email || data.EMAIL || '',
-        activo: data.activo !== undefined ? data.activo : true,
+        telefono: telefonos[0]?.numero || telefonos[0]?.telefono || data.telefono || data.TELEFONO || '',
+        email: emails[0]?.email || data.email || data.EMAIL || '',
+        estado: data.estado || data.ESTADO || '',
         createdAt: data.createdAt || colegio.createdAt || '',
       }
     })
@@ -80,8 +170,8 @@ const ColegiosListing = ({ colegios, error }: { colegios: any[]; error: string |
           )
         },
       }),
-      columnHelper.accessor('rut', {
-        header: 'RUT',
+      columnHelper.accessor('rbd', {
+        header: 'RBD',
         cell: ({ getValue }) => getValue() || <span className="text-muted">-</span>,
       }),
       columnHelper.accessor('direccion', {
@@ -128,13 +218,15 @@ const ColegiosListing = ({ colegios, error }: { colegios: any[]; error: string |
           )
         },
       }),
-      columnHelper.accessor('activo', {
+      columnHelper.accessor('estado', {
         header: 'ESTADO',
         cell: ({ getValue }) => {
-          const activo = getValue()
+          const estado = getValue()
+          if (!estado) return <span className="text-muted">-</span>
+          const variant = estado === 'Aprobado' ? 'success' : estado === 'Verificado' ? 'info' : 'warning'
           return (
-            <span className={`badge badge-soft-${activo ? 'success' : 'danger'}`}>
-              {activo ? 'Activo' : 'Inactivo'}
+            <span className={`badge badge-soft-${variant}`}>
+              {estado}
             </span>
           )
         },
@@ -161,18 +253,16 @@ const ColegiosListing = ({ colegios, error }: { colegios: any[]; error: string |
     state: {
       sorting,
       columnFilters,
-      globalFilter,
     },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
-    onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     initialState: {
       pagination: {
-        pageSize: 10,
+        pageSize: 25,
       },
     },
   })
@@ -183,7 +273,15 @@ const ColegiosListing = ({ colegios, error }: { colegios: any[]; error: string |
   const start = pageIndex * pageSize + 1
   const end = Math.min(start + pageSize - 1, totalItems)
 
-  if (error) {
+  const clearFilters = () => {
+    setSearch('')
+    setEstado('')
+    setRegion('')
+  }
+
+  const hasActiveFilters = search || estado || region
+
+  if (error && !colegios.length) {
     return (
       <Alert variant="danger">
         <strong>Error:</strong> {error}
@@ -193,23 +291,92 @@ const ColegiosListing = ({ colegios, error }: { colegios: any[]; error: string |
 
   return (
     <Card>
-      <CardHeader className="d-flex justify-content-between align-items-center">
+      <CardHeader>
         <h4 className="mb-0">Listado de Colegios</h4>
-        <div className="d-flex gap-2" style={{ maxWidth: '400px', width: '100%' }}>
+      </CardHeader>
+      <CardBody>
+        {/* Búsqueda */}
+        <div className="mb-3">
           <div className="app-search">
             <input
               type="search"
               className="form-control"
-              placeholder="Buscar por nombre..."
-              value={globalFilter}
-              onChange={(e) => setGlobalFilter(e.target.value)}
+              placeholder="Buscar por nombre o RBD..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              disabled={loading}
             />
             <LuSearch className="app-search-icon text-muted" />
           </div>
         </div>
-      </CardHeader>
-      <CardBody>
-        <DataTable table={table} />
+
+        {/* Filtros */}
+        <div className="d-flex gap-2 mb-3 flex-wrap align-items-end">
+          <div style={{ minWidth: '200px' }}>
+            <Form.Label className="form-label text-muted mb-1" style={{ fontSize: '0.875rem' }}>
+              Estado
+            </Form.Label>
+            <Form.Select
+              value={estado}
+              onChange={(e) => setEstado(e.target.value)}
+              disabled={loading}
+            >
+              {ESTADOS.map((est) => (
+                <option key={est.value} value={est.value}>
+                  {est.label}
+                </option>
+              ))}
+            </Form.Select>
+          </div>
+
+          <div style={{ minWidth: '200px' }}>
+            <Form.Label className="form-label text-muted mb-1" style={{ fontSize: '0.875rem' }}>
+              Región
+            </Form.Label>
+            <Form.Select
+              value={region}
+              onChange={(e) => setRegion(e.target.value)}
+              disabled={loading}
+            >
+              <option value="">Todas las regiones</option>
+              {REGIONES.map((reg) => (
+                <option key={reg} value={reg}>
+                  {reg}
+                </option>
+              ))}
+            </Form.Select>
+          </div>
+
+          {hasActiveFilters && (
+            <Button
+              variant="outline-secondary"
+              onClick={clearFilters}
+              disabled={loading}
+              className="d-flex align-items-center gap-1"
+            >
+              <LuX size={16} />
+              Limpiar filtros
+            </Button>
+          )}
+        </div>
+
+        {/* Tabla */}
+        {loading && colegios.length === 0 ? (
+          <div className="text-center py-5">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Cargando...</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            {error && (
+              <Alert variant="warning" className="mb-3">
+                <strong>Advertencia:</strong> {error}
+              </Alert>
+            )}
+            <DataTable table={table} />
+          </>
+        )}
       </CardBody>
       {table.getFilteredRowModel().rows.length > 0 && (
         <CardFooter className="border-0">
@@ -234,4 +401,3 @@ const ColegiosListing = ({ colegios, error }: { colegios: any[]; error: string |
 }
 
 export default ColegiosListing
-

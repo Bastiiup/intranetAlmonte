@@ -17,23 +17,55 @@ interface ColegioAttributes {
 
 /**
  * GET /api/crm/colegios
- * Obtiene el listado de colegios desde Strapi
+ * Obtiene el listado de colegios desde Strapi con búsqueda y filtros
+ * 
+ * Query params:
+ * - search: Búsqueda por colegio_nombre
+ * - estado: Filtro por estado (Por Verificar, Verificado, Aprobado)
+ * - region: Filtro por región
+ * - comuna: Filtro por comuna (ID de relación)
  */
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const page = searchParams.get('page') || '1'
-    const pageSize = searchParams.get('pagination[pageSize]') || searchParams.get('pageSize') || '10'
-    const search = searchParams.get('search') || searchParams.get('filters[nombre][$containsi]') || ''
+    const pageSize = searchParams.get('pagination[pageSize]') || searchParams.get('pageSize') || '25'
+    const search = searchParams.get('search') || ''
+    const estado = searchParams.get('estado') || ''
+    const region = searchParams.get('region') || ''
+    const comuna = searchParams.get('comuna') || ''
 
     // Construir URL con paginación y ordenamiento
-    let url = `/api/colegios?pagination[page]=${page}&pagination[pageSize]=${pageSize}&sort=createdAt:desc`
-    
+    const params = new URLSearchParams({
+      'pagination[page]': page,
+      'pagination[pageSize]': pageSize,
+      'sort[0]': 'colegio_nombre:asc',
+    })
+
+    // Agregar populate de comuna si es necesario
+    params.append('populate[0]', 'comuna')
+
     // Agregar búsqueda por nombre si existe
     if (search) {
-      url += `&filters[nombre][$containsi]=${encodeURIComponent(search)}`
+      params.append('filters[colegio_nombre][$containsi]', search)
     }
 
+    // Agregar filtro por estado
+    if (estado) {
+      params.append('filters[estado][$eq]', estado)
+    }
+
+    // Agregar filtro por región
+    if (region) {
+      params.append('filters[region][$eq]', region)
+    }
+
+    // Agregar filtro por comuna (si es relación)
+    if (comuna) {
+      params.append('filters[comuna][id][$eq]', comuna)
+    }
+
+    const url = `/api/colegios?${params.toString()}`
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<ColegioAttributes>>>(
       url
     )

@@ -11,9 +11,9 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import Link from 'next/link'
-import { useState, useMemo } from 'react'
-import { Button, Card, CardBody, CardFooter, CardHeader, Alert } from 'react-bootstrap'
-import { LuSearch, LuUser, LuCalendar } from 'react-icons/lu'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { Button, Card, CardBody, CardFooter, CardHeader, Alert, Form } from 'react-bootstrap'
+import { LuSearch, LuUser, LuCalendar, LuX } from 'react-icons/lu'
 import { TbEye } from 'react-icons/tb'
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
@@ -28,17 +28,78 @@ interface PersonaType {
   genero?: string
   cumpleagno?: string
   activo?: boolean
+  origen?: string
   createdAt?: string
 }
 
 const columnHelper = createColumnHelper<PersonaType>()
 
-const PersonasListing = ({ personas, error }: { personas: any[]; error: string | null }) => {
+const ESTADOS_ACTIVO = [
+  { value: '', label: 'Todos' },
+  { value: 'true', label: 'Activo' },
+  { value: 'false', label: 'Inactivo' },
+]
+
+const ORIGENES = [
+  { value: '', label: 'Todos los orígenes' },
+  { value: 'mineduc', label: 'MINEDUC' },
+  { value: 'csv', label: 'CSV' },
+  { value: 'manual', label: 'Manual' },
+  { value: 'crm', label: 'CRM' },
+  { value: 'web', label: 'Web' },
+  { value: 'otro', label: 'Otro' },
+]
+
+const PersonasListing = ({ personas: initialPersonas, error: initialError }: { personas: any[]; error: string | null }) => {
+  const [personas, setPersonas] = useState<any[]>(initialPersonas)
+  const [error, setError] = useState<string | null>(initialError)
+  const [loading, setLoading] = useState(false)
+  
+  // Estados de búsqueda y filtros
+  const [search, setSearch] = useState('')
+  const [activo, setActivo] = useState('')
+  const [origen, setOrigen] = useState('')
+  
+  // Estados de tabla
   const [sorting, setSorting] = useState<SortingState>([
-    { id: 'createdAt', desc: true } // Ordenar por más recientes primero
+    { id: 'nombre_completo', desc: false }
   ])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [globalFilter, setGlobalFilter] = useState('')
+
+  // Función para obtener datos
+  const fetchPersonas = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    
+    try {
+      const params = new URLSearchParams()
+      if (search) params.append('search', search)
+      if (activo) params.append('activo', activo)
+      if (origen) params.append('origen', origen)
+
+      const response = await fetch(`/api/crm/personas?${params.toString()}`)
+      const data = await response.json()
+      
+      if (data.success && data.data) {
+        setPersonas(Array.isArray(data.data) ? data.data : [data.data])
+      } else {
+        setError(data.error || 'Error al obtener personas')
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error al conectar con la API')
+    } finally {
+      setLoading(false)
+    }
+  }, [search, activo, origen])
+
+  // Debounce para búsqueda
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      fetchPersonas()
+    }, 300) // 300ms de debounce
+
+    return () => clearTimeout(timeoutId)
+  }, [search, activo, origen, fetchPersonas])
 
   // Mapear datos de Strapi al formato esperado
   const mappedPersonas: PersonaType[] = useMemo(() => {
@@ -67,6 +128,7 @@ const PersonasListing = ({ personas, error }: { personas: any[]; error: string |
         genero: data.genero || data.GENERO || '',
         cumpleagno: data.cumpleagno || data.CUMPLEAGNO || '',
         activo: data.activo !== undefined ? data.activo : true,
+        origen: data.origen || data.ORIGEN || '',
         createdAt: data.createdAt || persona.createdAt || '',
       }
     })
@@ -99,20 +161,22 @@ const PersonasListing = ({ personas, error }: { personas: any[]; error: string |
         cell: ({ getValue }) => {
           const genero = getValue()
           if (!genero) return <span className="text-muted">-</span>
-          return <span>{genero === 'M' ? 'Masculino' : genero === 'F' ? 'Femenino' : genero}</span>
+          return <span>{genero === 'Mujer' ? 'Femenino' : genero === 'Hombre' ? 'Masculino' : genero}</span>
         },
       }),
       columnHelper.accessor('cumpleagno', {
         header: 'FECHA DE NACIMIENTO',
         cell: ({ row }) => {
           const cumpleagno = row.original.cumpleagno
-          return cumpleagno ? (
+          if (!cumpleagno) return <span className="text-muted">-</span>
+          // Formatear fecha si es necesario
+          const date = new Date(cumpleagno)
+          const formatted = isNaN(date.getTime()) ? cumpleagno : date.toLocaleDateString('es-CL')
+          return (
             <div className="d-flex align-items-center">
               <LuCalendar className="me-1 text-muted" size={16} />
-              <span>{cumpleagno}</span>
+              <span>{formatted}</span>
             </div>
-          ) : (
-            <span className="text-muted">-</span>
           )
         },
       }),
@@ -149,18 +213,16 @@ const PersonasListing = ({ personas, error }: { personas: any[]; error: string |
     state: {
       sorting,
       columnFilters,
-      globalFilter,
     },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
-    onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     initialState: {
       pagination: {
-        pageSize: 10,
+        pageSize: 25,
       },
     },
   })
@@ -171,7 +233,15 @@ const PersonasListing = ({ personas, error }: { personas: any[]; error: string |
   const start = pageIndex * pageSize + 1
   const end = Math.min(start + pageSize - 1, totalItems)
 
-  if (error) {
+  const clearFilters = () => {
+    setSearch('')
+    setActivo('')
+    setOrigen('')
+  }
+
+  const hasActiveFilters = search || activo || origen
+
+  if (error && !personas.length) {
     return (
       <Alert variant="danger">
         <strong>Error:</strong> {error}
@@ -181,23 +251,91 @@ const PersonasListing = ({ personas, error }: { personas: any[]; error: string |
 
   return (
     <Card>
-      <CardHeader className="d-flex justify-content-between align-items-center">
+      <CardHeader>
         <h4 className="mb-0">Listado de Personas</h4>
-        <div className="d-flex gap-2" style={{ maxWidth: '400px', width: '100%' }}>
+      </CardHeader>
+      <CardBody>
+        {/* Búsqueda */}
+        <div className="mb-3">
           <div className="app-search">
             <input
               type="search"
               className="form-control"
-              placeholder="Buscar por nombre o RUT..."
-              value={globalFilter}
-              onChange={(e) => setGlobalFilter(e.target.value)}
+              placeholder="Buscar por nombre completo o RUT..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              disabled={loading}
             />
             <LuSearch className="app-search-icon text-muted" />
           </div>
         </div>
-      </CardHeader>
-      <CardBody>
-        <DataTable table={table} />
+
+        {/* Filtros */}
+        <div className="d-flex gap-2 mb-3 flex-wrap align-items-end">
+          <div style={{ minWidth: '200px' }}>
+            <Form.Label className="form-label text-muted mb-1" style={{ fontSize: '0.875rem' }}>
+              Estado
+            </Form.Label>
+            <Form.Select
+              value={activo}
+              onChange={(e) => setActivo(e.target.value)}
+              disabled={loading}
+            >
+              {ESTADOS_ACTIVO.map((est) => (
+                <option key={est.value} value={est.value}>
+                  {est.label}
+                </option>
+              ))}
+            </Form.Select>
+          </div>
+
+          <div style={{ minWidth: '200px' }}>
+            <Form.Label className="form-label text-muted mb-1" style={{ fontSize: '0.875rem' }}>
+              Origen
+            </Form.Label>
+            <Form.Select
+              value={origen}
+              onChange={(e) => setOrigen(e.target.value)}
+              disabled={loading}
+            >
+              {ORIGENES.map((orig) => (
+                <option key={orig.value} value={orig.value}>
+                  {orig.label}
+                </option>
+              ))}
+            </Form.Select>
+          </div>
+
+          {hasActiveFilters && (
+            <Button
+              variant="outline-secondary"
+              onClick={clearFilters}
+              disabled={loading}
+              className="d-flex align-items-center gap-1"
+            >
+              <LuX size={16} />
+              Limpiar filtros
+            </Button>
+          )}
+        </div>
+
+        {/* Tabla */}
+        {loading && personas.length === 0 ? (
+          <div className="text-center py-5">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Cargando...</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            {error && (
+              <Alert variant="warning" className="mb-3">
+                <strong>Advertencia:</strong> {error}
+              </Alert>
+            )}
+            <DataTable table={table} />
+          </>
+        )}
       </CardBody>
       {table.getFilteredRowModel().rows.length > 0 && (
         <CardFooter className="border-0">
@@ -222,4 +360,3 @@ const PersonasListing = ({ personas, error }: { personas: any[]; error: string |
 }
 
 export default PersonasListing
-
