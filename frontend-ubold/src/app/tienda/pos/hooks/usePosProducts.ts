@@ -30,6 +30,7 @@ export function usePosProducts() {
           per_page: perPage.toString(),
           stock_status: 'instock',
           search: search,
+          platform: 'escolar', // POS solo usa Escolar
         })
 
         if (category) {
@@ -55,6 +56,7 @@ export function usePosProducts() {
           per_page: perPage.toString(),
           page: page.toString(),
           stock_status: 'instock',
+          platform: 'escolar', // POS solo usa Escolar
         })
 
         if (category) {

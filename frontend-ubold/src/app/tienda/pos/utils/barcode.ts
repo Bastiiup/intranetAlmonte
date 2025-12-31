@@ -29,8 +29,8 @@ export async function searchProductByBarcode(barcode: string): Promise<any | nul
       return null
     }
 
-    // Buscar por SKU en WooCommerce
-    const response = await fetch(`/api/woocommerce/products?search=${encodeURIComponent(normalizedBarcode)}&per_page=1`)
+    // Buscar por SKU en WooCommerce (POS solo usa Escolar)
+    const response = await fetch(`/api/woocommerce/products?search=${encodeURIComponent(normalizedBarcode)}&per_page=1&platform=escolar`)
     const data = await response.json()
 
     if (data.success && data.data && data.data.length > 0) {
