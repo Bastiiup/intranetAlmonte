@@ -237,7 +237,7 @@ export async function enviarClienteABothWordPress(
 }> {
   // URLs de los WordPress
   const escolarUrl = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL_ESCOLAR || process.env.NEXT_PUBLIC_WOOCOMMERCE_URL || ''
-  const moralejaUrl = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL_MORALEJA || ''
+  const moralejaUrl = process.env.WOO_MORALEJA_URL || ''
   
   // Credenciales para Librería Escolar
   const escolarKey = process.env.WOO_ESCOLAR_CONSUMER_KEY || process.env.WOOCOMMERCE_CONSUMER_KEY || ''
@@ -265,7 +265,7 @@ export async function enviarClienteABothWordPress(
   if (!moralejaUrl || !moralejaKey || !moralejaSecret) {
     console.error('[enviarClienteABothWordPress] ❌ Credenciales de Editorial Moraleja no configuradas')
     console.error('[enviarClienteABothWordPress] Variables requeridas:')
-    console.error('  - NEXT_PUBLIC_WOOCOMMERCE_URL_MORALEJA')
+    console.error('  - WOO_MORALEJA_URL')
     console.error('  - WOO_MORALEJA_CONSUMER_KEY')
     console.error('  - WOO_MORALEJA_CONSUMER_SECRET')
   }

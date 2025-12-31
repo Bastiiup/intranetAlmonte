@@ -283,7 +283,7 @@ export async function PUT(
     const emailFinal = updateData.email || (customer as any).email
     if (emailFinal) {
       try {
-        const moralejaUrl = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL_MORALEJA || ''
+        const moralejaUrl = process.env.WOO_MORALEJA_URL || ''
         const moralejaKey = process.env.WOO_MORALEJA_CONSUMER_KEY || ''
         const moralejaSecret = process.env.WOO_MORALEJA_CONSUMER_SECRET || ''
 
@@ -486,7 +486,7 @@ export async function DELETE(
     // 2. Eliminar de Editorial Moraleja (WooCommerce secundario)
     if (customerEmail) {
       try {
-        const moralejaUrl = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL_MORALEJA || ''
+        const moralejaUrl = process.env.WOO_MORALEJA_URL || ''
         const moralejaKey = process.env.WOO_MORALEJA_CONSUMER_KEY || ''
         const moralejaSecret = process.env.WOO_MORALEJA_CONSUMER_SECRET || ''
 
