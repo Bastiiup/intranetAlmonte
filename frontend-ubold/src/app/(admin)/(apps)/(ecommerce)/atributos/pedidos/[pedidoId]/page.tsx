@@ -4,12 +4,11 @@ import type { Metadata } from 'next'
 
 import BillingDetails from '@/app/(admin)/(apps)/(ecommerce)/orders/[orderId]/components/BillingDetails'
 import CustomerDetails from '@/app/(admin)/(apps)/(ecommerce)/orders/[orderId]/components/CustomerDetails'
-import OrderSummary from '@/app/(admin)/(apps)/(ecommerce)/orders/[orderId]/components/OrderSummary'
+import OrderSummaryEditable from './components/OrderSummaryEditable'
 import ShippingActivity from '@/app/(admin)/(apps)/(ecommerce)/orders/[orderId]/components/ShippingActivity'
 import ShippingAddress from '@/app/(admin)/(apps)/(ecommerce)/orders/[orderId]/components/ShippingAddress'
 import ShipitInfo from '@/app/(admin)/(apps)/(ecommerce)/orders/[orderId]/components/ShipitInfo'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import OrderStatusEditor from './components/OrderStatusEditor'
 
 // Forzar renderizado dinámico
 export const dynamic = 'force-dynamic'
@@ -140,28 +139,21 @@ export default async function Page({ params }: PageProps) {
     <Container fluid>
       <PageBreadcrumb title={`Pedido #${pedido.number || pedido.id}`} subtitle="Ecommerce" />
 
-      {/* Editor de Estado - Siempre mostrar para permitir cambios */}
-      <Row className="mb-3">
-        <Col>
-          <OrderStatusEditor 
-            pedidoId={
-              pedido._strapiData?.documentId || 
-              pedido._strapiData?.id || 
-              strapiPedido?.documentId || 
-              strapiPedido?.id || 
-              (strapiPedido?.attributes && (strapiPedido.attributes.documentId || strapiPedido.attributes.id)) ||
-              pedidoId
-            }
-            currentStatus={pedido.status || pedido._strapiData?.estado || 'pending'}
-          />
-        </Col>
-      </Row>
-
       <Row className="justify-content-center">
         <Col xxl={12}>
           <Row>
             <Col xl={9}>
-              <OrderSummary pedido={pedido} />
+              <OrderSummaryEditable 
+                pedido={pedido}
+                pedidoId={
+                  pedido._strapiData?.documentId || 
+                  pedido._strapiData?.id || 
+                  strapiPedido?.documentId || 
+                  strapiPedido?.id || 
+                  (strapiPedido?.attributes && (strapiPedido.attributes.documentId || strapiPedido.attributes.id)) ||
+                  pedidoId
+                }
+              />
 
               <ShippingActivity pedido={pedido} />
             </Col>
