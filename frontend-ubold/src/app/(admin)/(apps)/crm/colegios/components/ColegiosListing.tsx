@@ -12,7 +12,7 @@ import {
 } from '@tanstack/react-table'
 import Link from 'next/link'
 import { useState, useMemo } from 'react'
-import { Button, Card, CardBody, CardHeader, Input, Alert } from 'react-bootstrap'
+import { Button, Card, CardBody, CardHeader, Alert } from 'react-bootstrap'
 import { LuSearch, LuMapPin, LuPhone, LuMail } from 'react-icons/lu'
 import { TbEye } from 'react-icons/tb'
 import DataTable from '@/components/table/DataTable'
@@ -190,15 +190,15 @@ const ColegiosListing = ({ colegios, error }: { colegios: any[]; error: string |
       <CardHeader className="d-flex justify-content-between align-items-center">
         <h4 className="mb-0">Listado de Colegios</h4>
         <div className="d-flex gap-2" style={{ maxWidth: '400px', width: '100%' }}>
-          <div className="position-relative flex-grow-1">
-            <LuSearch className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted" size={18} />
-            <Input
-              type="text"
-              className="form-control ps-5"
+          <div className="app-search">
+            <input
+              type="search"
+              className="form-control"
               placeholder="Buscar por nombre..."
               value={globalFilter}
               onChange={(e) => setGlobalFilter(e.target.value)}
             />
+            <LuSearch className="app-search-icon text-muted" />
           </div>
         </div>
       </CardHeader>
