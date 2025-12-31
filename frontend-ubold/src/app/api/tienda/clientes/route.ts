@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
-import { parseNombreCompleto, enviarClienteABothWordPress } from '@/lib/clientes/utils'
+import { parseNombreCompleto, createOrUpdateClienteEnWooCommerce } from '@/lib/clientes/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,9 +48,9 @@ export async function GET() {
       tieneToken: !!token,
     })
     
-    // Usar populate=* para obtener todas las relaciones, incluyendo Persona con teléfonos
+    // Obtener todas las relaciones, incluyendo Persona con teléfonos y emails
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<WOClienteAttributes>>>(
-      `${endpointUsed}?populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*&populate=*&pagination[pageSize]=1000&sort=nombre:asc`
+      `${endpointUsed}?populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*&pagination[pageSize]=1000&sort=nombre:asc`
     )
     
     // Log detallado para debugging
@@ -126,6 +126,14 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    // Validar RUT (obligatorio)
+    if (!personaData?.rut || !personaData.rut.trim()) {
+      return NextResponse.json({
+        success: false,
+        error: 'El RUT es obligatorio'
+      }, { status: 400 })
+    }
+
     if (!personaData?.emails || !Array.isArray(personaData.emails) || personaData.emails.length === 0) {
       return NextResponse.json({
         success: false,
@@ -142,60 +150,61 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Validar que el RUT no exista ya en Persona (si se proporciona)
-    if (personaData.rut && personaData.rut.trim()) {
-      try {
-        const rutLimpio = personaData.rut.trim().replace(/[.-]/g, '').toUpperCase()
-        const rutFormateado = rutLimpio.length >= 2 
-          ? `${rutLimpio.slice(0, -1)}-${rutLimpio.slice(-1)}`
-          : personaData.rut.trim()
+    // Formatear RUT (obligatorio, así que siempre validamos)
+    const rutLimpio = personaData.rut.trim().replace(/[.-]/g, '').toUpperCase()
+    const rutFormateado = rutLimpio.length >= 2 
+      ? `${rutLimpio.slice(0, -1)}-${rutLimpio.slice(-1)}`
+      : personaData.rut.trim()
+    
+    // Validar que el RUT no exista ya en Persona
+    try {
+      console.log('[API Clientes POST] 🔍 Verificando si el RUT ya existe:', rutFormateado)
+      
+      // Buscar Persona por RUT (buscar tanto con guión como sin guión para mayor compatibilidad)
+      const rutParaBuscar = rutFormateado.replace(/-/g, '')
+      const searchResponse = await strapiClient.get<any>(
+        `/api/personas?filters[rut][$contains]=${encodeURIComponent(rutParaBuscar)}&pagination[pageSize]=100`
+      )
+      
+      const personasExistentes = searchResponse.data && Array.isArray(searchResponse.data) 
+        ? searchResponse.data 
+        : (searchResponse.data ? [searchResponse.data] : [])
+      
+      // Verificar si alguna persona tiene exactamente el mismo RUT (comparando con y sin guión)
+      const rutExiste = personasExistentes.some((persona: any) => {
+        const personaAttrs = persona.attributes || persona
+        const personaRut = personaAttrs.rut || persona.rut
+        if (!personaRut) return false
         
-        console.log('[API Clientes POST] 🔍 Verificando si el RUT ya existe:', rutFormateado)
+        // Comparar RUTs normalizados (sin puntos, guiones, espacios, en mayúsculas)
+        const rutPersonaNormalizado = personaRut.toString().replace(/[.-]/g, '').replace(/\s/g, '').toUpperCase()
+        const rutIngresadoNormalizado = rutParaBuscar.replace(/[.-]/g, '').replace(/\s/g, '').toUpperCase()
         
-        // Buscar Persona por RUT (buscar tanto con guión como sin guión para mayor compatibilidad)
-        const rutParaBuscar = rutFormateado.replace(/-/g, '')
-        const searchResponse = await strapiClient.get<any>(
-          `/api/personas?filters[rut][$contains]=${encodeURIComponent(rutParaBuscar)}&pagination[pageSize]=100`
-        )
-        
-        const personasExistentes = searchResponse.data && Array.isArray(searchResponse.data) 
-          ? searchResponse.data 
-          : (searchResponse.data ? [searchResponse.data] : [])
-        
-        // Verificar si alguna persona tiene exactamente el mismo RUT (comparando con y sin guión)
-        const rutExiste = personasExistentes.some((persona: any) => {
-          const personaAttrs = persona.attributes || persona
-          const personaRut = personaAttrs.rut || persona.rut
-          if (!personaRut) return false
-          
-          // Comparar RUTs normalizados (sin puntos, guiones, espacios, en mayúsculas)
-          const rutPersonaNormalizado = personaRut.toString().replace(/[.-]/g, '').replace(/\s/g, '').toUpperCase()
-          const rutIngresadoNormalizado = rutParaBuscar.replace(/[.-]/g, '').replace(/\s/g, '').toUpperCase()
-          
-          return rutPersonaNormalizado === rutIngresadoNormalizado
-        })
-        
-        if (rutExiste) {
-          console.log('[API Clientes POST] ❌ RUT ya existe en Persona:', rutFormateado)
-          return NextResponse.json({
-            success: false,
-            error: `El RUT ${rutFormateado} ya está registrado. Cada cliente debe tener un RUT único.`
-          }, { status: 400 })
-        }
-        
-        console.log('[API Clientes POST] ✅ RUT no existe, puede proceder con la creación')
-      } catch (rutCheckError: any) {
-        console.error('[API Clientes POST] ⚠️ Error al verificar RUT:', rutCheckError.message)
-        // No bloquear la creación si hay un error al verificar el RUT, pero loguear el error
-        // En producción, podrías querer bloquear, pero por ahora permitimos continuar
+        return rutPersonaNormalizado === rutIngresadoNormalizado
+      })
+      
+      if (rutExiste) {
+        console.log('[API Clientes POST] ❌ RUT ya existe en Persona:', rutFormateado)
+        return NextResponse.json({
+          success: false,
+          error: `El RUT ${rutFormateado} ya está registrado. Cada cliente debe tener un RUT único.`
+        }, { status: 400 })
       }
+      
+      console.log('[API Clientes POST] ✅ RUT no existe, puede proceder con la creación')
+    } catch (rutCheckError: any) {
+      console.error('[API Clientes POST] ❌ Error al verificar RUT:', rutCheckError.message)
+      return NextResponse.json({
+        success: false,
+        error: `Error al verificar RUT: ${rutCheckError.message}`
+      }, { status: 500 })
     }
 
     // 1. Crear Persona primero (Strapi)
     console.log('[API Clientes POST] 📚 Creando Persona en Strapi...')
     const personaCreateData: any = {
       data: {
-        rut: personaData.rut?.trim() || null,
+        rut: rutFormateado,
         nombres: personaData.nombres?.trim() || null,
         primer_apellido: personaData.primer_apellido?.trim() || null,
         segundo_apellido: personaData.segundo_apellido?.trim() || null,
@@ -268,7 +277,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 2. Enviar cliente a ambos WordPress primero
+    // 2. Enviar cliente a WordPress según las plataformas seleccionadas
     console.log('[API Clientes POST] 🌐 Enviando cliente a WordPress...')
     const nombresWordPress = personaData.nombres?.trim() || personaData.nombre_completo.trim()
     const apellidoWordPress = personaData.primer_apellido?.trim() || ''
@@ -289,42 +298,72 @@ export async function POST(request: NextRequest) {
       enviarAEscolar,
     })
     
-    let wordPressResults: any = null
+    // URLs y credenciales de las plataformas
+    const escolarUrl = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL_ESCOLAR || process.env.NEXT_PUBLIC_WOOCOMMERCE_URL || ''
+    const moralejaUrl = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL_MORALEJA || ''
+    const escolarKey = process.env.WOO_ESCOLAR_CONSUMER_KEY || process.env.WOOCOMMERCE_CONSUMER_KEY || ''
+    const escolarSecret = process.env.WOO_ESCOLAR_CONSUMER_SECRET || process.env.WOOCOMMERCE_CONSUMER_SECRET || ''
+    const moralejaKey = process.env.WOO_MORALEJA_CONSUMER_KEY || ''
+    const moralejaSecret = process.env.WOO_MORALEJA_CONSUMER_SECRET || ''
+    
+    const clienteWordPressData = {
+      email: emailPrincipal.email.trim(),
+      first_name: nombresWordPress,
+      last_name: apellidoWordPress,
+    }
+    
+    let wordPressResults: any = {
+      escolar: { success: false, error: 'No seleccionado' },
+      moraleja: { success: false, error: 'No seleccionado' },
+    }
+    
+    // Enviar a las plataformas seleccionadas
+    const promises: Promise<any>[] = []
+    
+    if (enviarAEscolar && escolarUrl && escolarKey && escolarSecret) {
+      console.log('[API Clientes POST] 📤 Enviando a Librería Escolar...')
+      promises.push(
+        createOrUpdateClienteEnWooCommerce(escolarUrl, escolarKey, escolarSecret, clienteWordPressData)
+          .then(result => {
+            console.log('[API Clientes POST] ✅ Resultado Escolar:', result.success ? 'Éxito' : `Error: ${result.error}`)
+            return { tipo: 'escolar', result }
+          })
+          .catch(error => {
+            console.error('[API Clientes POST] ❌ Error en Escolar:', error.message)
+            return { tipo: 'escolar', result: { success: false, error: error.message } }
+          })
+      )
+    }
+    
+    if (enviarAMoraleja && moralejaUrl && moralejaKey && moralejaSecret) {
+      console.log('[API Clientes POST] 📤 Enviando a Editorial Moraleja...')
+      promises.push(
+        createOrUpdateClienteEnWooCommerce(moralejaUrl, moralejaKey, moralejaSecret, clienteWordPressData)
+          .then(result => {
+            console.log('[API Clientes POST] ✅ Resultado Moraleja:', result.success ? 'Éxito' : `Error: ${result.error}`)
+            return { tipo: 'moraleja', result }
+          })
+          .catch(error => {
+            console.error('[API Clientes POST] ❌ Error en Moraleja:', error.message)
+            return { tipo: 'moraleja', result: { success: false, error: error.message } }
+          })
+      )
+    }
+    
     try {
-      // Enviar a ambos WordPress siempre (la función maneja ambos)
-      wordPressResults = await enviarClienteABothWordPress({
-        email: emailPrincipal.email.trim(),
-        first_name: nombresWordPress,
-        last_name: apellidoWordPress,
-      })
+      if (promises.length > 0) {
+        const results = await Promise.all(promises)
+        results.forEach((r: any) => {
+          wordPressResults[r.tipo] = r.result
+        })
+      }
+      
       console.log('[API Clientes POST] ✅ Cliente enviado a WordPress:', {
         escolar: wordPressResults.escolar.success,
         moraleja: wordPressResults.moraleja.success,
       })
-      // Log detallado de la estructura completa para diagnóstico
-      console.log('[API Clientes POST] 📊 Estructura completa de wordPressResults:', JSON.stringify({
-        escolar: {
-          success: wordPressResults.escolar?.success,
-          hasData: !!wordPressResults.escolar?.data,
-          dataId: wordPressResults.escolar?.data?.id,
-          error: wordPressResults.escolar?.error,
-          fullData: wordPressResults.escolar?.data,
-        },
-        moraleja: {
-          success: wordPressResults.moraleja?.success,
-          hasData: !!wordPressResults.moraleja?.data,
-          dataId: wordPressResults.moraleja?.data?.id,
-          error: wordPressResults.moraleja?.error,
-          fullData: wordPressResults.moraleja?.data,
-        },
-      }, null, 2))
     } catch (wpError: any) {
       console.error('[API Clientes POST] ⚠️ Error al enviar a WordPress:', wpError.message)
-      // Si falla completamente, aún podemos crear las entradas WO-Clientes sin los IDs de WordPress
-      wordPressResults = {
-        escolar: { success: false, error: wpError.message },
-        moraleja: { success: false, error: wpError.message },
-      }
     }
 
     // 3. Crear WO-Clientes en Strapi - DOS entradas (una por plataforma seleccionada)
