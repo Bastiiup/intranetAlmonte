@@ -148,41 +148,74 @@ const strapiClient = {
       })
     }
     
-    // Crear un AbortController para timeout (25 segundos para operaciones de lectura)
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 25000) // 25 segundos
+    // Retry logic con backoff exponencial para errores 502/503/504
+    const maxRetries = 3
+    let lastError: any = null
     
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers,
-        signal: controller.signal,
-        ...options,
-      })
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      // Crear un AbortController para timeout (reducido a 15 segundos para fallar más rápido)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 segundos
       
-      clearTimeout(timeoutId)
-      
-      // Log respuesta antes de manejar errores (solo si no es 404, que es esperado para algunos endpoints)
-      if (!response.ok && response.status !== 404) {
-        console.error('[Strapi Client GET] ❌ Error en respuesta:', {
-          url,
-          status: response.status,
-          statusText: response.statusText,
-          headers: Object.fromEntries(response.headers.entries()),
-          tieneToken: !!STRAPI_API_TOKEN,
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers,
+          signal: controller.signal,
+          ...options,
         })
+        
+        clearTimeout(timeoutId)
+        
+        // Si es 502/503/504 y no es el último intento, reintentar
+        if ((response.status === 502 || response.status === 503 || response.status === 504) && attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 5000) // Backoff exponencial: 1s, 2s, 4s (máx 5s)
+          console.warn(`[Strapi Client GET] ⚠️ Error ${response.status} en intento ${attempt + 1}/${maxRetries + 1}. Reintentando en ${delay}ms...`, { url })
+          await new Promise(resolve => setTimeout(resolve, delay))
+          continue
+        }
+        
+        // Log respuesta antes de manejar errores (solo si no es 404, que es esperado para algunos endpoints)
+        if (!response.ok && response.status !== 404) {
+          console.error('[Strapi Client GET] ❌ Error en respuesta:', {
+            url,
+            status: response.status,
+            statusText: response.statusText,
+            headers: Object.fromEntries(response.headers.entries()),
+            tieneToken: !!STRAPI_API_TOKEN,
+            attempt: attempt + 1,
+          })
+        }
+        
+        return handleResponse<T>(response)
+      } catch (error: any) {
+        clearTimeout(timeoutId)
+        lastError = error
+        
+        // Si es timeout o error de red y no es el último intento, reintentar
+        if ((error.name === 'AbortError' || error.message?.includes('fetch') || error.message?.includes('network')) && attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 5000)
+          console.warn(`[Strapi Client GET] ⚠️ Error de red/timeout en intento ${attempt + 1}/${maxRetries + 1}. Reintentando en ${delay}ms...`, { url, error: error.message })
+          await new Promise(resolve => setTimeout(resolve, delay))
+          continue
+        }
+        
+        // Si es timeout en el último intento
+        if (error.name === 'AbortError') {
+          const timeoutError = new Error('Timeout: La petición a Strapi tardó más de 15 segundos después de varios intentos') as Error & { status?: number }
+          timeoutError.status = 504
+          throw timeoutError
+        }
+        
+        // Si no es un error recuperable o es el último intento, lanzar el error
+        if (attempt === maxRetries) {
+          throw error
+        }
       }
-      
-      return handleResponse<T>(response)
-    } catch (error: any) {
-      clearTimeout(timeoutId)
-      if (error.name === 'AbortError') {
-        const timeoutError = new Error('Timeout: La petición a Strapi tardó más de 25 segundos') as Error & { status?: number }
-        timeoutError.status = 504
-        throw timeoutError
-      }
-      throw error
     }
+    
+    // Si llegamos aquí, todos los intentos fallaron
+    throw lastError || new Error('Error desconocido al conectar con Strapi')
   },
 
   /**
@@ -310,39 +343,72 @@ const strapiClient = {
       }
     }
     
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 60000)
+    // Retry logic con backoff exponencial para errores 502/503/504
+    const maxRetries = 2
+    let lastError: any = null
     
-    try {
-      const response = await fetch(url, {
-        method: 'PUT',
-        headers: getHeaders(options?.headers),
-        body: data ? JSON.stringify(data) : undefined,
-        signal: controller.signal,
-        ...options,
-      })
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // Reducido a 30 segundos
       
-      clearTimeout(timeoutId)
-      
-      // Log respuesta antes de manejar errores
-      if (!response.ok) {
-        console.error('[Strapi Client PUT] ❌ Error en respuesta:', {
-          url,
-          status: response.status,
-          statusText: response.statusText,
+      try {
+        const response = await fetch(url, {
+          method: 'PUT',
+          headers: getHeaders(options?.headers),
+          body: data ? JSON.stringify(data) : undefined,
+          signal: controller.signal,
+          ...options,
         })
+        
+        clearTimeout(timeoutId)
+        
+        // Si es 502/503/504 y no es el último intento, reintentar
+        if ((response.status === 502 || response.status === 503 || response.status === 504) && attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 5000)
+          console.warn(`[Strapi Client PUT] ⚠️ Error ${response.status} en intento ${attempt + 1}/${maxRetries + 1}. Reintentando en ${delay}ms...`, { url })
+          await new Promise(resolve => setTimeout(resolve, delay))
+          continue
+        }
+        
+        // Log respuesta antes de manejar errores
+        if (!response.ok) {
+          console.error('[Strapi Client PUT] ❌ Error en respuesta:', {
+            url,
+            status: response.status,
+            statusText: response.statusText,
+            attempt: attempt + 1,
+          })
+        }
+        
+        return handleResponse<T>(response)
+      } catch (error: any) {
+        clearTimeout(timeoutId)
+        lastError = error
+        
+        // Si es timeout o error de red y no es el último intento, reintentar
+        if ((error.name === 'AbortError' || error.message?.includes('fetch') || error.message?.includes('network')) && attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 5000)
+          console.warn(`[Strapi Client PUT] ⚠️ Error de red/timeout en intento ${attempt + 1}/${maxRetries + 1}. Reintentando en ${delay}ms...`, { url, error: error.message })
+          await new Promise(resolve => setTimeout(resolve, delay))
+          continue
+        }
+        
+        // Si es timeout en el último intento
+        if (error.name === 'AbortError') {
+          const timeoutError = new Error('Timeout: La petición a Strapi tardó más de 30 segundos después de varios intentos') as Error & { status?: number }
+          timeoutError.status = 504
+          throw timeoutError
+        }
+        
+        // Si no es un error recuperable o es el último intento, lanzar el error
+        if (attempt === maxRetries) {
+          throw error
+        }
       }
-      
-      return handleResponse<T>(response)
-    } catch (error: any) {
-      clearTimeout(timeoutId)
-      if (error.name === 'AbortError') {
-        const timeoutError = new Error('Timeout: La petición a Strapi tardó más de 60 segundos') as Error & { status?: number }
-        timeoutError.status = 504
-        throw timeoutError
-      }
-      throw error
     }
+    
+    // Si llegamos aquí, todos los intentos fallaron
+    throw lastError || new Error('Error desconocido al conectar con Strapi')
   },
 
   /**
