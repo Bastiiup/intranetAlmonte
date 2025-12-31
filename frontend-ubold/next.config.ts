@@ -33,6 +33,21 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
+        hostname: 'staging.moraleja.cl',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'moraleja.cl',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.moraleja.cl',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
         hostname: '*.wp.com',
         pathname: '/**',
       },
