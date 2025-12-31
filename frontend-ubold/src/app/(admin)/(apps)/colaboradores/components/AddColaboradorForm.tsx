@@ -286,11 +286,10 @@ const AddColaboradorForm = () => {
                   disabled={loading}
                 >
                   <option value="">Seleccionar rol...</option>
-                  <option value="super_admin">Super Admin</option>
-                  <option value="comercial">Comercial</option>
                   <option value="soporte">Soporte</option>
-                  <option value="comprobaciones">Comprobaciones</option>
-                  <option value="otro">Otro</option>
+                  <option value="encargado_adquisiciones">Encargado Adquisiciones</option>
+                  <option value="super_admin">Super Admin</option>
+                  <option value="supervisor">Supervisor</option>
                 </FormControl>
               </FormGroup>
             </Col>
