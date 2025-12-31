@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import product1 from '@/assets/images/products/1.png'
 import { currency } from '@/helpers'
@@ -95,6 +95,15 @@ const OrderSummaryEditable = ({ pedido, pedidoId }: OrderSummaryEditableProps) =
   const estadoActual = mapEstadoFromStrapi(pedido.status || 'pending')
   const [selectedEstado, setSelectedEstado] = useState(estadoActual)
 
+  // Sincronizar el estado cuando cambia el pedido
+  useEffect(() => {
+    const nuevoEstado = mapEstadoFromStrapi(pedido.status || 'pending')
+    setSelectedEstado(nuevoEstado)
+    setIsEditing(false)
+    setError(null)
+    setSuccess(false)
+  }, [pedido.status])
+
   // Calcular totales
   const subtotal = parseFloat(pedido.total || '0') - parseFloat(pedido.total_tax || '0') - parseFloat(pedido.shipping_total || '0') + parseFloat(pedido.discount_total || '0')
   const tax = parseFloat(pedido.total_tax || '0')
@@ -113,6 +122,12 @@ const OrderSummaryEditable = ({ pedido, pedidoId }: OrderSummaryEditableProps) =
     try {
       // Mapear estado de español a inglés antes de enviar
       const estadoParaEnviar = mapEstadoToStrapi(selectedEstado)
+      
+      console.log('[OrderSummaryEditable] Guardando estado:', {
+        estadoSeleccionado: selectedEstado,
+        estadoParaEnviar: estadoParaEnviar,
+        pedidoId: pedidoId
+      })
       
       const response = await fetch(`/api/tienda/pedidos/${pedidoId}`, {
         method: 'PUT',
@@ -136,14 +151,19 @@ const OrderSummaryEditable = ({ pedido, pedidoId }: OrderSummaryEditableProps) =
         throw new Error(result.error || 'Error al actualizar el estado')
       }
 
+      console.log('[OrderSummaryEditable] ✅ Estado actualizado exitosamente')
       setSuccess(true)
       setIsEditing(false)
       
+      // Actualizar el estado local para reflejar el cambio inmediatamente
+      const nuevoEstadoIngles = estadoParaEnviar
+      pedido.status = nuevoEstadoIngles
+      
       setTimeout(() => {
         router.refresh()
-      }, 1500)
+      }, 1000)
     } catch (err: any) {
-      console.error('[OrderSummaryEditable] Error al actualizar estado:', err)
+      console.error('[OrderSummaryEditable] ❌ Error al actualizar estado:', err)
       setError(err.message || 'Error al actualizar el estado')
     } finally {
       setLoading(false)
@@ -161,22 +181,22 @@ const OrderSummaryEditable = ({ pedido, pedidoId }: OrderSummaryEditableProps) =
     <div>
       {/* Mostrar alertas de éxito/error */}
       {error && (
-        <Alert variant="danger" dismissible onClose={() => setError(null)} className="mb-3">
-          {error}
+        <Alert variant="danger" dismissible onClose={() => setError(null)} className="mb-3 rounded">
+          <strong>Error:</strong> {error}
         </Alert>
       )}
       {success && (
-        <Alert variant="success" className="mb-3">
-          ¡Estado actualizado exitosamente! Recargando...
+        <Alert variant="success" className="mb-3 rounded">
+          <strong>¡Éxito!</strong> Estado actualizado correctamente. Recargando...
         </Alert>
       )}
 
-      <Card>
-        <CardHeader className="align-items-start p-4">
-          <div>
-            <h3 className="mb-1 d-flex fs-xl align-items-center">Pedido #{pedido.number || pedido.id}</h3>
-            <p className="text-muted mb-3">
-              <TbCalendar /> {date} <small className="text-muted">{time}</small>
+      <Card className="mb-3">
+        <CardHeader className="align-items-start p-4 border-bottom">
+          <div className="w-100">
+            <h3 className="mb-1 fs-xl">Pedido #{pedido.number || pedido.id}</h3>
+            <p className="text-muted mb-3 d-flex align-items-center">
+              <TbCalendar className="me-1" /> {date} <small className="text-muted ms-1">{time}</small>
             </p>
             <div className="d-flex align-items-center gap-2 flex-wrap">
               <span className={`badge badge-soft-${paymentStatus.variant} fs-xxs badge-label`}>
@@ -189,23 +209,40 @@ const OrderSummaryEditable = ({ pedido, pedidoId }: OrderSummaryEditableProps) =
                   </span>
                   <button
                     type="button"
-                    className="btn btn-sm btn-link p-0 ms-1"
+                    className="btn btn-sm btn-soft-primary p-1 ms-1"
                     onClick={() => setIsEditing(true)}
-                    title="Editar estado"
-                    style={{ lineHeight: 1 }}
+                    title="Editar estado del pedido"
+                    style={{ 
+                      lineHeight: 1, 
+                      cursor: 'pointer',
+                      border: 'none',
+                      borderRadius: '4px',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(85, 110, 230, 0.1)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent'
+                    }}
                   >
-                    <TbEdit className="fs-sm text-muted" />
+                    <TbEdit className="fs-sm" style={{ color: '#556ee6' }} />
                   </button>
                 </div>
               ) : (
-                <div className="d-flex align-items-center gap-2">
+                <div className="d-flex align-items-center gap-2 flex-wrap bg-light p-2 rounded border" style={{ marginTop: '4px' }}>
                   <FormControl
                     as="select"
                     size="sm"
                     value={selectedEstado}
                     onChange={(e) => setSelectedEstado(e.target.value)}
                     disabled={loading}
-                    style={{ minWidth: '150px', display: 'inline-block' }}
+                    style={{ 
+                      minWidth: '160px',
+                      display: 'inline-block',
+                      fontWeight: 500
+                    }}
+                    className="me-2"
                   >
                     <option value="pendiente">Pendiente</option>
                     <option value="procesando">Procesando</option>
@@ -220,26 +257,39 @@ const OrderSummaryEditable = ({ pedido, pedidoId }: OrderSummaryEditableProps) =
                     variant="success"
                     onClick={handleSave}
                     disabled={loading || selectedEstado === estadoActual}
-                    title="Guardar"
+                    title="Guardar cambios"
+                    className="me-1"
+                    style={{ minWidth: '90px' }}
                   >
-                    <LuSave className="fs-sm" />
+                    {loading ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                        <span>Guardando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <LuSave className="fs-sm me-1" />
+                        Guardar
+                      </>
+                    )}
                   </Button>
                   <Button
                     size="sm"
-                    variant="secondary"
+                    variant="outline-secondary"
                     onClick={handleCancel}
                     disabled={loading}
-                    title="Cancelar"
+                    title="Cancelar edición"
+                    style={{ minWidth: '80px' }}
                   >
-                    ✕
+                    Cancelar
                   </Button>
                 </div>
               )}
             </div>
           </div>
         </CardHeader>
-        <CardBody className="px-4">
-          <h4 className="fs-sm mb-3">Resumen del Pedido</h4>
+        <CardBody className="px-4 pt-4">
+          <h4 className="fs-sm mb-3 fw-semibold">Resumen del Pedido</h4>
           <Table responsive bordered className="table-custom table-nowrap align-middle mb-1">
             <thead className="bg-light align-middle bg-opacity-25 thead-sm">
               <tr className="text-uppercase fs-xxs">
