@@ -5,13 +5,6 @@ import { useRouter } from 'next/navigation'
 import { Card, CardHeader, CardBody, Form, Button, Row, Col, FormGroup, FormLabel, FormControl, Alert, FormCheck, InputGroup } from 'react-bootstrap'
 import { LuSave, LuX, LuEye, LuEyeOff, LuSearch } from 'react-icons/lu'
 
-const ROLES = [
-  'super_admin',
-  'encargado_adquisiciones',
-  'supervisor',
-  'soporte',
-]
-
 interface PersonaOption {
   id: string
   rut: string
@@ -269,12 +262,13 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
       // Preparar datos para Strapi
       const colaboradorUpdateData: any = {
         email_login: formData.email_login.trim(),
-        rol_principal: formData.rol_principal || null,
-        rol_operativo: formData.rol_operativo || null,
         auth_provider: formData.auth_provider || 'google',
         activo: formData.activo,
         // Solo enviar password si se proporcionó (no vacío)
         ...(formData.password && formData.password.trim().length > 0 && { password: formData.password }),
+        // Solo enviar roles si tienen valor válido
+        ...(formData.rol_principal && formData.rol_principal.trim() && { rol_principal: formData.rol_principal.trim() }),
+        ...(formData.rol_operativo && formData.rol_operativo.trim() && { rol_operativo: formData.rol_operativo.trim() }),
         // Datos de persona para actualizar/relacionar
         persona: {
           rut: formData.rut.trim() || null,
