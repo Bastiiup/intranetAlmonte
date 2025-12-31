@@ -164,7 +164,6 @@ const AddColaboradorForm = () => {
       const colaboradorData: any = {
         email_login: formData.email_login.trim(),
         password: formData.password,
-        auth_provider: formData.auth_provider && formData.auth_provider.trim() ? formData.auth_provider.trim() : 'google',
         activo: formData.activo,
         // Solo enviar roles si tienen valor válido
         ...(formData.rol_principal && formData.rol_principal.trim() && { rol_principal: formData.rol_principal.trim() }),
