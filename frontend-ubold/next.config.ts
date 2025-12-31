@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
     } : false,
   },
   // Optimizaciones de build
-  swcMinify: true, // Usar SWC para minificación (más rápido)
+  // SWC es el minificador por defecto en Next.js 16+ (swcMinify fue removido)
   poweredByHeader: false,
   compress: true,
   images: {
