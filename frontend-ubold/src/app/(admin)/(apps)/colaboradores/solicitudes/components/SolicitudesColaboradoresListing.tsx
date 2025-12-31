@@ -15,7 +15,7 @@ import {
 } from '@tanstack/react-table'
 import Link from 'next/link'
 import { useState, useEffect, useMemo } from 'react'
-import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge } from 'react-bootstrap'
+import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge, Modal } from 'react-bootstrap'
 import { LuSearch } from 'react-icons/lu'
 import { TbEye, TbCheck, TbX } from 'react-icons/tb'
 
@@ -284,9 +284,14 @@ const SolicitudesColaboradoresListing = ({ colaboradores, error }: SolicitudesCo
         )
       )
       
+      // Cerrar modal antes de refrescar
       setShowActivateModal(false)
       setSelectedColaborador(null)
-      router.refresh()
+      
+      // Refrescar después de un pequeño delay para que el modal se cierre
+      setTimeout(() => {
+        router.refresh()
+      }, 300)
     } catch (err: any) {
       console.error('[SolicitudesColaboradoresListing] Error al activar:', err)
       alert(`Error al activar colaborador: ${err.message}`)
@@ -397,54 +402,48 @@ const SolicitudesColaboradoresListing = ({ colaboradores, error }: SolicitudesCo
           )}
 
           {/* Modal de confirmación de activación */}
-          {selectedColaborador && (
-            <div className={`modal fade ${showActivateModal ? 'show' : ''}`} style={{ display: showActivateModal ? 'block' : 'none' }}>
-              <div className="modal-dialog">
-                <div className="modal-content">
-                  <div className="modal-header">
-                    <h5 className="modal-title">Activar Colaborador</h5>
-                    <button
-                      type="button"
-                      className="btn-close"
-                      onClick={() => {
-                        setShowActivateModal(false)
-                        setSelectedColaborador(null)
-                      }}
-                    />
-                  </div>
-                  <div className="modal-body">
-                    <p>
-                      ¿Está seguro de que desea activar la cuenta de{' '}
-                      <strong>{selectedColaborador.nombreCompleto || selectedColaborador.email_login}</strong>?
-                    </p>
-                    <p className="text-muted small">
-                      Una vez activada, el colaborador podrá iniciar sesión en el sistema.
-                    </p>
-                  </div>
-                  <div className="modal-footer">
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        setShowActivateModal(false)
-                        setSelectedColaborador(null)
-                      }}
-                      disabled={activating}
-                    >
-                      Cancelar
-                    </Button>
-                    <Button
-                      variant="success"
-                      onClick={handleActivate}
-                      disabled={activating}
-                    >
-                      {activating ? 'Activando...' : 'Activar Colaborador'}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-              {showActivateModal && <div className="modal-backdrop fade show" />}
-            </div>
-          )}
+          <Modal show={showActivateModal} onHide={() => {
+            if (!activating) {
+              setShowActivateModal(false)
+              setSelectedColaborador(null)
+            }
+          }}>
+            <Modal.Header closeButton>
+              <Modal.Title>Activar Colaborador</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              {selectedColaborador && (
+                <>
+                  <p>
+                    ¿Está seguro de que desea activar la cuenta de{' '}
+                    <strong>{selectedColaborador.nombreCompleto || selectedColaborador.email_login}</strong>?
+                  </p>
+                  <p className="text-muted small">
+                    Una vez activada, el colaborador podrá iniciar sesión en el sistema.
+                  </p>
+                </>
+              )}
+            </Modal.Body>
+            <Modal.Footer>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setShowActivateModal(false)
+                  setSelectedColaborador(null)
+                }}
+                disabled={activating}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="success"
+                onClick={handleActivate}
+                disabled={activating}
+              >
+                {activating ? 'Activando...' : 'Activar Colaborador'}
+              </Button>
+            </Modal.Footer>
+          </Modal>
         </Card>
       </Col>
     </Row>
