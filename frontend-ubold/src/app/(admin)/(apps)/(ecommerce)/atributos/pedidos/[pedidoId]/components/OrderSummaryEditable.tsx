@@ -159,9 +159,8 @@ const OrderSummaryEditable = ({ pedido, pedidoId }: OrderSummaryEditableProps) =
       const nuevoEstadoIngles = estadoParaEnviar
       pedido.status = nuevoEstadoIngles
       
-      setTimeout(() => {
-        router.refresh()
-      }, 1000)
+      // Recargar inmediatamente para actualizar ShippingActivity y otros componentes
+      router.refresh()
     } catch (err: any) {
       console.error('[OrderSummaryEditable] ❌ Error al actualizar estado:', err)
       setError(err.message || 'Error al actualizar el estado')
