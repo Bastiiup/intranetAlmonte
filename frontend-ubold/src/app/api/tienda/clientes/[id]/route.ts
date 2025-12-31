@@ -393,7 +393,7 @@ export async function DELETE(
     let cliente: any = null
     
     try {
-      const response = await strapiClient.get<any>(`/api/wo-clientes?filters[id][$eq]=${id}&populate=*`)
+      const response = await strapiClient.get<any>(`/api/wo-clientes?filters[id][$eq]=${id}&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`)
       
       if (response.data && Array.isArray(response.data) && response.data.length > 0) {
         cliente = response.data[0]
@@ -405,7 +405,7 @@ export async function DELETE(
     } catch (error: any) {
       // Si falla, intentar obtener todos y buscar
       try {
-        const allResponse = await strapiClient.get<any>('/api/wo-clientes?populate=*&pagination[pageSize]=1000')
+        const allResponse = await strapiClient.get<any>('/api/wo-clientes?populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*&pagination[pageSize]=1000')
         const allClientes = Array.isArray(allResponse) 
           ? allResponse 
           : (allResponse.data && Array.isArray(allResponse.data) ? allResponse.data : [])
