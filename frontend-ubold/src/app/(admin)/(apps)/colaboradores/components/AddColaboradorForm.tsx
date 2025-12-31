@@ -1,16 +1,20 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardHeader, CardBody, Form, Button, Row, Col, FormGroup, FormLabel, FormControl, Alert, FormCheck, InputGroup } from 'react-bootstrap'
-import { LuSave, LuX, LuEye, LuEyeOff } from 'react-icons/lu'
+import { LuSave, LuX, LuEye, LuEyeOff, LuSearch } from 'react-icons/lu'
 
-const ROLES = [
-  'super_admin',
-  'encargado_adquisiciones',
-  'supervisor',
-  'soporte',
-]
+interface PersonaOption {
+  id: string
+  rut: string
+  nombre_completo: string
+  nombres?: string
+  primer_apellido?: string
+  segundo_apellido?: string
+  genero?: string
+  cumpleagno?: string
+}
 
 const AddColaboradorForm = () => {
   const router = useRouter()
@@ -18,19 +22,112 @@ const AddColaboradorForm = () => {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [buscandoPersona, setBuscandoPersona] = useState(false)
+  const [personaSeleccionada, setPersonaSeleccionada] = useState<PersonaOption | null>(null)
+  const [rutBusqueda, setRutBusqueda] = useState('')
+  
   const [formData, setFormData] = useState({
     email_login: '',
     password: '',
     rol: '',
-    activo: true,
-    persona: null as string | null,
-    usuario: null as string | null,
+    activo: false, // Siempre false - requiere activación por super_admin
+    // Campos de persona
+    rut: '',
+    nombres: '',
+    primer_apellido: '',
+    segundo_apellido: '',
+    genero: '',
+    cumpleagno: '',
+    personaId: null as string | null,
   })
 
   const handleFieldChange = (field: string, value: any) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
+    }))
+  }
+
+  // Sincronizar RUT de búsqueda con el formulario
+  useEffect(() => {
+    if (rutBusqueda.trim() && !personaSeleccionada) {
+      setFormData((prev) => ({
+        ...prev,
+        rut: rutBusqueda.trim(),
+      }))
+    }
+  }, [rutBusqueda, personaSeleccionada])
+
+  // Buscar persona por RUT
+  const buscarPersonaPorRUT = async () => {
+    if (!rutBusqueda.trim()) {
+      setError('Por favor ingrese un RUT para buscar')
+      return
+    }
+
+    setBuscandoPersona(true)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/personas?filters[rut][$eq]=${encodeURIComponent(rutBusqueda.trim())}&pagination[pageSize]=1`)
+      const result = await response.json()
+
+      if (result.success && result.data && result.data.length > 0) {
+        const persona = result.data[0]
+        const attrs = persona.attributes || persona
+        
+        const personaData: PersonaOption = {
+          id: persona.id || persona.documentId,
+          rut: attrs.rut || rutBusqueda.trim(),
+          nombre_completo: attrs.nombre_completo || '',
+          nombres: attrs.nombres || '',
+          primer_apellido: attrs.primer_apellido || '',
+          segundo_apellido: attrs.segundo_apellido || '',
+          genero: attrs.genero || '',
+          cumpleagno: attrs.cumpleagno || '',
+        }
+
+        setPersonaSeleccionada(personaData)
+        setFormData((prev) => ({
+          ...prev,
+          rut: personaData.rut, // Siempre usar el RUT encontrado o ingresado
+          nombres: personaData.nombres || '',
+          primer_apellido: personaData.primer_apellido || '',
+          segundo_apellido: personaData.segundo_apellido || '',
+          genero: personaData.genero || '',
+          cumpleagno: personaData.cumpleagno || '',
+          personaId: personaData.id,
+        }))
+      } else {
+        // No se encontró, limpiar selección pero mantener RUT para crear nueva
+        setPersonaSeleccionada(null)
+        setFormData((prev) => ({
+          ...prev,
+          rut: rutBusqueda.trim(), // Usar el RUT ingresado
+          personaId: null,
+        }))
+      }
+    } catch (err: any) {
+      console.error('Error al buscar persona:', err)
+      setError('Error al buscar persona por RUT')
+    } finally {
+      setBuscandoPersona(false)
+    }
+  }
+
+  // Limpiar selección de persona
+  const limpiarPersona = () => {
+    setPersonaSeleccionada(null)
+    setRutBusqueda('')
+    setFormData((prev) => ({
+      ...prev,
+      rut: '',
+      nombres: '',
+      primer_apellido: '',
+      segundo_apellido: '',
+      genero: '',
+      cumpleagno: '',
+      personaId: null,
     }))
   }
 
@@ -57,17 +154,32 @@ const AddColaboradorForm = () => {
         throw new Error('La contraseña es obligatoria y debe tener al menos 6 caracteres')
       }
 
-      // Preparar datos para Strapi
+      // Validar que haya RUT
+      if (!formData.rut.trim()) {
+        throw new Error('El RUT es obligatorio')
+      }
+
+      // Preparar datos para enviar (incluye campos de persona)
+      // IMPORTANTE: activo siempre debe ser false - requiere activación por super_admin
       const colaboradorData: any = {
         email_login: formData.email_login.trim(),
         password: formData.password,
-        rol: formData.rol || null,
-        activo: formData.activo,
-        ...(formData.persona && { persona: formData.persona }),
-        ...(formData.usuario && { usuario: formData.usuario }),
+        activo: false, // Siempre false - requiere activación
+        // Solo enviar rol si tiene valor válido
+        ...(formData.rol && formData.rol.trim() && { rol: formData.rol.trim() }),
+        // Datos de persona para crear/relacionar
+        persona: {
+          rut: formData.rut.trim(),
+          nombres: formData.nombres.trim() || null,
+          primer_apellido: formData.primer_apellido.trim() || null,
+          segundo_apellido: formData.segundo_apellido.trim() || null,
+          genero: formData.genero || null,
+          cumpleagno: formData.cumpleagno || null,
+          personaId: formData.personaId, // Si existe, usar este ID para relacionar
+        },
       }
 
-      // Crear el colaborador
+      // Crear el colaborador (la API manejará la creación/relación de persona)
       const response = await fetch('/api/colaboradores', {
         method: 'POST',
         headers: {
@@ -113,6 +225,8 @@ const AddColaboradorForm = () => {
         )}
 
         <Form onSubmit={handleSubmit}>
+          {/* Sección: Información de Colaborador */}
+          <h5 className="mb-3">Información de Colaborador</h5>
           <Row>
             <Col md={6}>
               <FormGroup className="mb-3">
@@ -169,27 +283,179 @@ const AddColaboradorForm = () => {
                   disabled={loading}
                 >
                   <option value="">Seleccionar rol...</option>
-                  {ROLES.map((rol) => (
-                    <option key={rol} value={rol}>
-                      {rol}
-                    </option>
-                  ))}
+                  <option value="soporte">Soporte</option>
+                  <option value="encargado_adquisiciones">Encargado Adquisiciones</option>
+                  <option value="super_admin">Super Admin</option>
+                  <option value="supervisor">Supervisor</option>
                 </FormControl>
               </FormGroup>
             </Col>
 
+
             <Col md={12}>
-              <FormGroup className="mb-3">
-                <FormCheck
-                  type="checkbox"
-                  label="Activo"
-                  checked={formData.activo}
-                  onChange={(e) => handleFieldChange('activo', e.target.checked)}
-                  disabled={loading}
-                />
-                <small className="text-muted d-block mt-1">
-                  Los colaboradores inactivos no podrán iniciar sesión
+              <Alert variant="info" className="mb-0">
+                <small>
+                  <strong>Nota:</strong> Los nuevos colaboradores se crearán como inactivos. 
+                  Un administrador deberá activar la cuenta desde la sección de Solicitudes para que puedan iniciar sesión.
                 </small>
+              </Alert>
+            </Col>
+          </Row>
+
+          <hr className="my-4" />
+
+          {/* Sección: Información de Persona */}
+          <h5 className="mb-3">Información de Persona</h5>
+          
+          {/* Buscar persona existente por RUT */}
+          <Row className="mb-3">
+            <Col md={12}>
+              <FormGroup>
+                <FormLabel>Buscar Persona por RUT</FormLabel>
+                <InputGroup>
+                  <FormControl
+                    type="text"
+                    placeholder="Ingrese RUT (ej: 12345678-9)"
+                    value={rutBusqueda}
+                    onChange={(e) => {
+                      const rutValue = e.target.value
+                      setRutBusqueda(rutValue)
+                      // Sincronizar automáticamente con formData.rut
+                      if (!personaSeleccionada) {
+                        setFormData((prev) => ({
+                          ...prev,
+                          rut: rutValue.trim(),
+                        }))
+                      }
+                    }}
+                    disabled={loading || buscandoPersona}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        buscarPersonaPorRUT()
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="outline-primary"
+                    onClick={buscarPersonaPorRUT}
+                    disabled={loading || buscandoPersona || !rutBusqueda.trim()}
+                    type="button"
+                  >
+                    <LuSearch className="me-1" />
+                    {buscandoPersona ? 'Buscando...' : 'Buscar'}
+                  </Button>
+                  {personaSeleccionada && (
+                    <Button
+                      variant="outline-secondary"
+                      onClick={limpiarPersona}
+                      disabled={loading}
+                      type="button"
+                    >
+                      Limpiar
+                    </Button>
+                  )}
+                </InputGroup>
+                {personaSeleccionada && (
+                  <Alert variant="info" className="mt-2 mb-0">
+                    <strong>Persona encontrada:</strong> {personaSeleccionada.nombre_completo || `${personaSeleccionada.nombres} ${personaSeleccionada.primer_apellido}`.trim()}
+                  </Alert>
+                )}
+                <small className="text-muted d-block mt-1">
+                  Ingrese el RUT aquí. Este mismo RUT se usará para crear/relacionar la persona con el colaborador. Puede buscar una persona existente o completar los campos abajo para crear una nueva.
+                </small>
+              </FormGroup>
+            </Col>
+          </Row>
+
+          <Row>
+            <Col md={6}>
+              <FormGroup className="mb-3">
+                <FormLabel>
+                  RUT <span className="text-danger">*</span>
+                </FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="12345678-9"
+                  value={formData.rut}
+                  onChange={(e) => {
+                    handleFieldChange('rut', e.target.value)
+                    setRutBusqueda(e.target.value) // Sincronizar con el buscador
+                  }}
+                  required
+                  disabled={loading || !!personaSeleccionada}
+                  readOnly={!!personaSeleccionada} // Solo lectura si hay persona seleccionada
+                />
+                <small className="text-muted">
+                  {personaSeleccionada ? 'El RUT se toma del buscador arriba' : 'El RUT también puede ingresarse aquí'}
+                </small>
+              </FormGroup>
+            </Col>
+
+            <Col md={6}>
+              <FormGroup className="mb-3">
+                <FormLabel>Nombres</FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="Juan"
+                  value={formData.nombres}
+                  onChange={(e) => handleFieldChange('nombres', e.target.value)}
+                  disabled={loading || !!personaSeleccionada}
+                />
+              </FormGroup>
+            </Col>
+
+            <Col md={6}>
+              <FormGroup className="mb-3">
+                <FormLabel>Primer Apellido</FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="Pérez"
+                  value={formData.primer_apellido}
+                  onChange={(e) => handleFieldChange('primer_apellido', e.target.value)}
+                  disabled={loading || !!personaSeleccionada}
+                />
+              </FormGroup>
+            </Col>
+
+            <Col md={6}>
+              <FormGroup className="mb-3">
+                <FormLabel>Segundo Apellido</FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="González"
+                  value={formData.segundo_apellido}
+                  onChange={(e) => handleFieldChange('segundo_apellido', e.target.value)}
+                  disabled={loading || !!personaSeleccionada}
+                />
+              </FormGroup>
+            </Col>
+
+            <Col md={6}>
+              <FormGroup className="mb-3">
+                <FormLabel>Género</FormLabel>
+                <FormControl
+                  as="select"
+                  value={formData.genero}
+                  onChange={(e) => handleFieldChange('genero', e.target.value)}
+                  disabled={loading || !!personaSeleccionada}
+                >
+                  <option value="">Seleccionar...</option>
+                  <option value="Mujer">Mujer</option>
+                  <option value="Hombre">Hombre</option>
+                </FormControl>
+              </FormGroup>
+            </Col>
+
+            <Col md={6}>
+              <FormGroup className="mb-3">
+                <FormLabel>Fecha de Cumpleaños</FormLabel>
+                <FormControl
+                  type="date"
+                  value={formData.cumpleagno}
+                  onChange={(e) => handleFieldChange('cumpleagno', e.target.value)}
+                  disabled={loading || !!personaSeleccionada}
+                />
               </FormGroup>
             </Col>
           </Row>

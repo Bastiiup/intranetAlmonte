@@ -211,6 +211,7 @@ export const menuItems: MenuItemType[] = [
     icon: LuUsers,
     children: [
       { key: 'colaboradores', label: 'Colaboradores', url: '/colaboradores', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+      { key: 'colaboradores-solicitudes', label: 'Solicitudes de Colaboradores', url: '/colaboradores/solicitudes', roles: ['super_admin'] },
       { key: 'contacts', label: 'Contacts', url: '/users/contacts' },
       { key: 'profile', label: 'Profile', url: '/users/profile' },
       { key: 'roles', label: 'Roles', url: '/users/roles' },
