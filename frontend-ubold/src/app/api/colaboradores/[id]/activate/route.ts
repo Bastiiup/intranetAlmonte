@@ -25,6 +25,7 @@ export async function POST(
     // Validar que el usuario actual sea super_admin
     const authHeader = request.headers.get('authorization')
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('[API /colaboradores/[id]/activate] No se proporcionó token de autenticación')
       return NextResponse.json(
         { success: false, error: 'No se proporcionó un token de autenticación' },
         { status: 401 }
@@ -32,18 +33,42 @@ export async function POST(
     }
 
     const token = authHeader.replace('Bearer ', '')
+    console.log('[API /colaboradores/[id]/activate] Token recibido, validando con Strapi...')
 
     // Obtener el usuario autenticado desde Strapi
-    const userResponse = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/users/me`, {
+    const strapiUrl = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.STRAPI_URL
+    if (!strapiUrl) {
+      console.error('[API /colaboradores/[id]/activate] NEXT_PUBLIC_STRAPI_URL no está definido')
+      return NextResponse.json(
+        { success: false, error: 'Error de configuración del servidor' },
+        { status: 500 }
+      )
+    }
+
+    const userResponse = await fetch(`${strapiUrl}/api/users/me`, {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
     })
 
     if (!userResponse.ok) {
+      const errorText = await userResponse.text()
+      console.error('[API /colaboradores/[id]/activate] Error al validar token con Strapi:', {
+        status: userResponse.status,
+        statusText: userResponse.statusText,
+        error: errorText,
+      })
+      
+      if (userResponse.status === 401) {
+        return NextResponse.json(
+          { success: false, error: 'Token inválido o expirado. Por favor, cierra sesión y vuelve a iniciar sesión.' },
+          { status: 401 }
+        )
+      }
+      
       return NextResponse.json(
-        { success: false, error: 'Token inválido o expirado' },
-        { status: 401 }
+        { success: false, error: `Error al validar token: ${userResponse.statusText}` },
+        { status: userResponse.status }
       )
     }
 

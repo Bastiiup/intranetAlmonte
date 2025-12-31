@@ -261,8 +261,10 @@ const SolicitudesColaboradoresListing = ({ colaboradores, error }: SolicitudesCo
     try {
       const token = getAuthToken()
       if (!token) {
-        throw new Error('No se encontró un token de autenticación')
+        throw new Error('No se encontró un token de autenticación. Por favor, cierra sesión y vuelve a iniciar sesión.')
       }
+
+      console.log('[SolicitudesColaboradoresListing] Intentando activar colaborador:', selectedColaborador.strapiId)
 
       const response = await fetch(`/api/colaboradores/${selectedColaborador.strapiId}/activate`, {
         method: 'POST',
@@ -272,9 +274,18 @@ const SolicitudesColaboradoresListing = ({ colaboradores, error }: SolicitudesCo
         },
       })
 
+      const responseData = await response.json()
+
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Error al activar el colaborador')
+        // Si el error es de autenticación (401), sugerir cerrar sesión
+        if (response.status === 401) {
+          throw new Error(responseData.error || 'Tu sesión ha expirado. Por favor, cierra sesión y vuelve a iniciar sesión.')
+        }
+        throw new Error(responseData.error || `Error al activar el colaborador (${response.status})`)
+      }
+
+      if (!responseData.success) {
+        throw new Error(responseData.error || 'Error al activar el colaborador')
       }
 
       // Actualizar el estado local
@@ -294,7 +305,10 @@ const SolicitudesColaboradoresListing = ({ colaboradores, error }: SolicitudesCo
       }, 300)
     } catch (err: any) {
       console.error('[SolicitudesColaboradoresListing] Error al activar:', err)
-      alert(`Error al activar colaborador: ${err.message}`)
+      
+      // Mostrar error en un alert más informativo
+      const errorMessage = err.message || 'Error desconocido al activar colaborador'
+      alert(`Error al activar colaborador: ${errorMessage}`)
     } finally {
       setActivating(false)
     }
