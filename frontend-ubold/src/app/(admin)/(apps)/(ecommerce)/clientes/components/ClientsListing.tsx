@@ -29,10 +29,13 @@ import { format } from 'date-fns'
 
 // Tipo para clientes desde Strapi
 type ClienteType = {
-  id: number
+  id: number | string // Puede ser id numérico o documentId (string)
+  documentId?: string // documentId de Strapi v4
+  personaDocumentId?: string // documentId de Persona (para edición)
   nombre: string
   correo_electronico: string
   telefono?: string
+  rut?: string
   direccion?: string
   pedidos: number
   gasto_total: number
@@ -62,7 +65,32 @@ const mapStrapiClienteToClienteType = (cliente: any): ClienteType => {
   // Buscar nombre con múltiples variaciones
   const nombre = getField(data, 'nombre', 'NOMBRE', 'name', 'NAME') || 'Sin nombre'
   const correo = getField(data, 'correo_electronico', 'CORREO_ELECTRONICO', 'email', 'EMAIL') || 'Sin email'
-  const telefono = getField(data, 'telefono', 'TELEFONO', 'phone', 'PHONE') || ''
+  
+  // Buscar teléfono primero en los datos directos, luego en Persona relacionada
+  let telefono = getField(data, 'telefono', 'TELEFONO', 'phone', 'PHONE') || ''
+  
+  // Si no hay teléfono en los datos directos, buscarlo en la Persona relacionada
+  // También extraer RUT y documentId de la Persona
+  let rut = ''
+  let personaDocumentId: string | undefined = undefined
+  const persona = attrs.persona?.data || attrs.persona || cliente.persona?.data || cliente.persona
+  if (persona) {
+    const personaAttrs = persona.attributes || persona
+    // Extraer documentId de Persona (importante para edición)
+    personaDocumentId = persona.documentId || personaAttrs.documentId || persona.id?.toString()
+    if (!telefono) {
+      const telefonos = personaAttrs.telefonos || persona.telefonos
+      if (telefonos && Array.isArray(telefonos) && telefonos.length > 0) {
+        // Buscar el teléfono principal, sino tomar el primero
+        const telefonoPrincipal = telefonos.find((t: any) => t.principal === true || t.principal === 'true' || t.principal === 1) || telefonos[0]
+        const tel = typeof telefonoPrincipal === 'string' ? telefonoPrincipal : telefonoPrincipal
+        telefono = tel?.telefono_raw || tel?.telefono_norm || tel?.numero || tel?.telefono || tel?.value || ''
+      }
+    }
+    // Extraer RUT de la Persona
+    rut = personaAttrs.rut || persona.rut || ''
+  }
+  
   const direccion = getField(data, 'direccion', 'DIRECCION', 'address', 'ADDRESS') || ''
   
   // Obtener pedidos y gasto_total
@@ -77,18 +105,31 @@ const mapStrapiClienteToClienteType = (cliente: any): ClienteType => {
   // Obtener woocommerce_id
   const woocommerceId = getField(data, 'woocommerce_id', 'woocommerceId', 'WOCOMMERCE_ID')
 
+  // Priorizar documentId para Strapi v4, sino usar id numérico
+  // En Strapi v4, el documentId es el identificador principal (string) y está en el nivel raíz del objeto
+  const clienteDocumentId = cliente.documentId
+  const clienteId = cliente.id // id numérico también está en el nivel raíz
+  
+  // IMPORTANTE: En Strapi v4, siempre usar documentId para las operaciones (rutas, updates, etc.)
+  // El documentId es un string único que se usa en las APIs de Strapi v4
+  // Si no hay documentId, convertir el id numérico a string como fallback
+  const idParaUsar = clienteDocumentId || clienteId?.toString() || '0'
+  
   return {
-    id: cliente.id || cliente.documentId || 0,
+    id: idParaUsar, // Siempre usar documentId si existe, sino convertir id numérico a string
+    documentId: clienteDocumentId || undefined, // Guardar documentId por separado también
+    personaDocumentId: personaDocumentId || undefined, // Guardar documentId de Persona para edición
     nombre,
     correo_electronico: correo,
     telefono,
+    rut,
     direccion,
     pedidos,
     gasto_total: gastoTotal,
     fecha_registro: fechaRegistro,
     ultima_actividad: ultimaActividad,
     createdAt,
-    strapiId: cliente.id,
+    strapiId: clienteId, // Guardar el id numérico por si se necesita
     woocommerce_id: woocommerceId,
   }
 }
@@ -231,7 +272,18 @@ const ClientsListing = ({ clientes, error }: ClientsListingProps = {}) => {
             className="btn-icon rounded-circle"
             title="Editar"
             onClick={() => {
-              setSelectedCliente(row.original)
+              const clienteSeleccionado = row.original
+              console.log('[ClientsListing] 🔍 Cliente seleccionado para editar:', {
+                id: clienteSeleccionado.id,
+                documentId: clienteSeleccionado.documentId,
+                personaDocumentId: clienteSeleccionado.personaDocumentId,
+                nombre: clienteSeleccionado.nombre,
+                correo: clienteSeleccionado.correo_electronico,
+                tieneDocumentId: !!clienteSeleccionado.documentId,
+                tienePersonaDocumentId: !!clienteSeleccionado.personaDocumentId,
+                idUsado: clienteSeleccionado.documentId || clienteSeleccionado.id || 'NO ID',
+              })
+              setSelectedCliente(clienteSeleccionado)
               setShowEditModal(true)
             }}>
             <TbEdit className="fs-lg" />
@@ -508,15 +560,25 @@ const ClientsListing = ({ clientes, error }: ClientsListingProps = {}) => {
             itemName="cliente"
           />
 
-          <EditClienteModal
-            show={showEditModal}
-            onHide={() => {
-              setShowEditModal(false)
-              setSelectedCliente(null)
-            }}
-            cliente={selectedCliente}
-            onSave={handleEditSave}
-          />
+          {selectedCliente && (
+            <EditClienteModal
+              show={showEditModal}
+              onHide={() => {
+                setShowEditModal(false)
+                setSelectedCliente(null)
+              }}
+              cliente={{
+                id: selectedCliente.id,
+                documentId: selectedCliente.documentId,
+                personaDocumentId: selectedCliente.personaDocumentId,
+                nombre: selectedCliente.nombre,
+                correo_electronico: selectedCliente.correo_electronico,
+                telefono: selectedCliente.telefono,
+                rut: selectedCliente.rut,
+              }}
+              onSave={handleEditSave}
+            />
+          )}
         </Card>
       </Col>
     </Row>

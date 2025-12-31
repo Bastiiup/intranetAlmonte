@@ -314,6 +314,24 @@ export async function enviarClienteABothWordPress(
   const escolarResult = results.find(r => r.tipo === 'escolar')?.result || { success: false, error: 'No se ejecutó' }
   const moralejaResult = results.find(r => r.tipo === 'moraleja')?.result || { success: false, error: 'No se ejecutó' }
   
+  // Log detallado de los resultados
+  console.log('[enviarClienteABothWordPress] 📊 Resultados finales:', {
+    escolar: {
+      success: escolarResult.success,
+      hasData: !!escolarResult.data,
+      dataId: escolarResult.data?.id,
+      error: escolarResult.error,
+      created: escolarResult.created,
+    },
+    moraleja: {
+      success: moralejaResult.success,
+      hasData: !!moralejaResult.data,
+      dataId: moralejaResult.data?.id,
+      error: moralejaResult.error,
+      created: moralejaResult.created,
+    },
+  })
+  
   return {
     escolar: escolarResult,
     moraleja: moralejaResult,

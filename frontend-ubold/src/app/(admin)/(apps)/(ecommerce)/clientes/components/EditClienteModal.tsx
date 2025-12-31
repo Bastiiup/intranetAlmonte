@@ -2,13 +2,17 @@
 
 import { useState, useEffect } from 'react'
 import { Modal, Button, Form, Alert, Spinner } from 'react-bootstrap'
+import { validarRUTChileno, formatearRUT } from '@/lib/utils/rut'
 
 interface Cliente {
-  id: number
+  id: number | string
+  documentId?: string
+  personaDocumentId?: string
   woocommerce_id?: number | string
   nombre: string
   correo_electronico: string
   telefono?: string
+  rut?: string
 }
 
 interface EditClienteModalProps {
@@ -26,7 +30,17 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
     last_name: '',
     email: '',
     phone: '',
+    rut: '',
   })
+  const [rutError, setRutError] = useState<string | null>(null)
+  // Guardar datos originales y documentId de Persona para comparar cambios y editar correctamente
+  const [originalData, setOriginalData] = useState<{
+    nombre: string
+    email: string
+    phone: string
+    rut: string
+    personaDocumentId?: string
+  } | null>(null)
 
   // Cargar datos del cliente cuando se abre el modal
   useEffect(() => {
@@ -43,13 +57,33 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
         phoneValue = ''
       }
 
-      setFormData({
+      const formDataToSet = {
         first_name: firstName,
         last_name: lastName,
         email: cliente.correo_electronico || '',
         phone: phoneValue,
+        rut: cliente.rut || '',
+      }
+
+      setFormData(formDataToSet)
+      
+      // Guardar datos originales y documentId de Persona para comparación y edición
+      setOriginalData({
+        nombre: nombreCompleto,
+        email: cliente.correo_electronico || '',
+        phone: phoneValue,
+        rut: cliente.rut || '',
+        personaDocumentId: cliente.personaDocumentId,
       })
+      
       setError(null)
+      setRutError(null)
+      
+      console.log('[EditClienteModal] 📌 Datos originales guardados:', {
+        personaDocumentId: cliente.personaDocumentId,
+        nombre: nombreCompleto,
+        email: cliente.correo_electronico,
+      })
     }
   }, [cliente, show])
 
@@ -58,6 +92,26 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
       ...prev,
       [field]: value,
     }))
+    
+    // Validar RUT en tiempo real si se está editando
+    if (field === 'rut' && value.trim()) {
+      const validacion = validarRUTChileno(value.trim())
+      if (!validacion.valid) {
+        setRutError(validacion.error || 'RUT inválido')
+      } else {
+        setRutError(null)
+        // Formatear el RUT mientras se escribe
+        const rutFormateado = formatearRUT(value.trim())
+        if (rutFormateado !== value) {
+          setFormData((prev) => ({
+            ...prev,
+            rut: rutFormateado,
+          }))
+        }
+      }
+    } else if (field === 'rut' && !value.trim()) {
+      setRutError(null)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -80,30 +134,65 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
         throw new Error('El correo electrónico no tiene un formato válido')
       }
 
-      // Usar email como identificador (la API buscará por email si no es un ID numérico)
-      const clienteIdentifier = cliente?.woocommerce_id || cliente?.correo_electronico || formData.email.trim()
-      if (!clienteIdentifier) {
-        throw new Error('No se puede editar: el cliente no tiene email ni ID de WooCommerce')
+      // Validar RUT si se proporciona
+      let rutFormateado: string | undefined = undefined
+      if (formData.rut.trim()) {
+        const validacionRUT = validarRUTChileno(formData.rut.trim())
+        if (!validacionRUT.valid) {
+          setRutError(validacionRUT.error || 'El RUT no es válido')
+          throw new Error(validacionRUT.error || 'El RUT no es válido')
+        }
+        rutFormateado = validacionRUT.formatted
       }
 
-      // Preparar datos para la API
+      // IMPORTANTE: En Strapi v4, siempre usar documentId para las operaciones
+      // El documentId es el identificador correcto para las rutas de API
+      // Priorizar documentId, sino usar el id (que debería ser string si viene del mapeo)
+      const clienteId = cliente?.documentId || cliente?.id
+      if (!clienteId || clienteId === '0' || clienteId === 0) {
+        throw new Error('No se puede editar: el cliente no tiene ID válido (documentId o id)')
+      }
+
+      // Log para diagnóstico
+      console.log('[EditClienteModal] 🔍 ID del cliente a usar:', clienteId, '(tipo:', typeof clienteId, ')')
+      console.log('[EditClienteModal] 📦 Cliente completo:', cliente)
+      console.log('[EditClienteModal] 📌 documentId:', cliente?.documentId, '| id:', cliente?.id, '| id usado:', clienteId)
+
+      // Preparar datos para la API en formato Strapi
+      const nombreCompleto = `${formData.first_name.trim()} ${formData.last_name.trim()}`.trim()
       const updateData: any = {
-        email: formData.email.trim(),
-        first_name: formData.first_name.trim(),
-        last_name: formData.last_name.trim() || '',
+        data: {
+          nombre: nombreCompleto,
+          correo_electronico: formData.email.trim(),
+          persona: {},
+        },
       }
 
-      // Agregar teléfono directamente (la API lo manejará correctamente)
-      if (formData.phone.trim() && formData.phone.trim() !== 'Sin teléfono') {
-        updateData.phone = formData.phone.trim()
+      // Agregar documentId de Persona si está disponible (importante para edición correcta)
+      if (originalData?.personaDocumentId) {
+        updateData.data.persona.documentId = originalData.personaDocumentId
+        console.log('[EditClienteModal] 📌 Enviando personaDocumentId al backend:', originalData.personaDocumentId)
       }
 
-      // Actualizar el cliente (usar email como identificador si no hay woocommerce_id)
-      const identifier = typeof clienteIdentifier === 'number' || typeof clienteIdentifier === 'string' && !clienteIdentifier.includes('@')
-        ? clienteIdentifier.toString()
-        : formData.email.trim()
+      // Agregar teléfono si existe (se actualizará en Persona)
+      if (formData.phone.trim()) {
+        updateData.data.persona.telefonos = [
+          {
+            telefono_raw: formData.phone.trim(),
+            telefono_norm: formData.phone.trim(),
+            tipo: 'Personal',
+            principal: true,
+            status: true,
+          },
+        ]
+      }
+
+      // Agregar RUT si se proporcionó y es válido (se actualizará en Persona)
+      if (rutFormateado) {
+        updateData.data.persona.rut = rutFormateado
+      }
       
-      const response = await fetch(`/api/woocommerce/customers/${identifier}`, {
+      const response = await fetch(`/api/tienda/clientes/${clienteId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -177,6 +266,22 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
               onChange={(e) => handleFieldChange('email', e.target.value)}
               required
             />
+          </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label>RUT</Form.Label>
+            <Form.Control
+              type="text"
+              placeholder="Ej: 12345678-9"
+              value={formData.rut}
+              onChange={(e) => handleFieldChange('rut', e.target.value)}
+              isInvalid={!!rutError}
+            />
+            {rutError && (
+              <Form.Control.Feedback type="invalid">
+                {rutError}
+              </Form.Control.Feedback>
+            )}
           </Form.Group>
 
           <Form.Group className="mb-3">

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Card, CardHeader, CardBody, Form, Button, Row, Col, FormGroup, FormLabel, FormControl, Alert } from 'react-bootstrap'
 import { LuSave, LuX } from 'react-icons/lu'
 import PlatformSelector from './PlatformSelector'
+import { validarRUTChileno, formatearRUT } from '@/lib/utils/rut'
 
 interface AddClienteFormProps {
   onSave?: () => void
@@ -23,13 +24,36 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
     last_name: '',
     email: '',
     phone: '',
+    rut: '',
   })
+  const [rutError, setRutError] = useState<string | null>(null)
 
   const handleFieldChange = (field: string, value: any) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
     }))
+    
+    // Validar RUT en tiempo real si se está editando
+    if (field === 'rut' && value.trim()) {
+      const validacion = validarRUTChileno(value.trim())
+      if (!validacion.valid) {
+        setRutError(validacion.error || 'RUT inválido')
+      } else {
+        setRutError(null)
+        // Formatear el RUT mientras se escribe
+        const rutFormateado = formatearRUT(value.trim())
+        if (rutFormateado !== value) {
+          // Actualizar el campo con el formato correcto
+          setFormData((prev) => ({
+            ...prev,
+            rut: rutFormateado,
+          }))
+        }
+      }
+    } else if (field === 'rut' && !value.trim()) {
+      setRutError(null)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -53,42 +77,64 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
         throw new Error('El correo electrónico no tiene un formato válido')
       }
 
-      // Preparar datos para la API en el formato que espera /api/tienda/clientes
+      // Validar RUT si se proporciona
+      let rutFormateado: string | undefined = undefined
+      if (formData.rut.trim()) {
+        const validacionRUT = validarRUTChileno(formData.rut.trim())
+        if (!validacionRUT.valid) {
+          setRutError(validacionRUT.error || 'El RUT no es válido')
+          throw new Error(validacionRUT.error || 'El RUT no es válido')
+        }
+        // Usar el RUT formateado
+        rutFormateado = validacionRUT.formatted
+      }
+
+      // Preparar datos para la API en formato Strapi
       const nombreCompleto = `${formData.first_name.trim()} ${formData.last_name.trim()}`.trim()
-      
+      const personaData: any = {
+        nombre_completo: nombreCompleto,
+        nombres: formData.first_name.trim(),
+        primer_apellido: formData.last_name.trim() || null,
+        emails: [
+          {
+            email: formData.email.trim(),
+            tipo: 'Personal', // Valores válidos en Strapi: "Personal", "Laboral", "Institucional"
+          },
+        ],
+      }
+
+      // Agregar RUT si se proporcionó y es válido
+      if (rutFormateado) {
+        personaData.rut = rutFormateado
+      }
+
+      // Agregar teléfono si existe
+      // NOTA: No enviar 'tipo' ya que los valores válidos son "Personal", "Laboral", "Institucional"
+      // El backend lo manejará correctamente (null o un valor válido)
+      if (formData.phone.trim()) {
+        personaData.telefonos = [
+          {
+            numero: formData.phone.trim(),
+            // No incluir 'tipo' - el backend lo manejará
+          },
+        ]
+      }
+
       const dataToSend: any = {
         data: {
-          persona: {
-            nombre_completo: nombreCompleto,
-            nombres: formData.first_name.trim(),
-            primer_apellido: formData.last_name.trim() || null,
-            segundo_apellido: null,
-            emails: [
-              {
-                email: formData.email.trim(),
-                tipo: 'Personal', // Valores válidos: "Personal", "Laboral", "Institucional"
-              },
-            ],
-            telefonos: formData.phone.trim()
-              ? [
-                  {
-                    telefono: formData.phone.trim(),
-                    tipo: 'Personal',
-                  },
-                ]
-              : [],
-          },
+          persona: personaData,
         },
       }
 
       // Agregar plataformas seleccionadas (se usarán para determinar a qué WordPress enviar)
       // Si no se selecciona ninguna, se enviará a ambas por defecto
       if (selectedPlatforms.length > 0) {
+        // Convertir nombres de plataformas a formato que entienda el servidor
         dataToSend.data.canales = selectedPlatforms // Se usa el nombre de la plataforma directamente
         console.log('[AddCliente] 📡 Plataformas seleccionadas:', selectedPlatforms)
       }
 
-      // Crear el cliente (esto creará en Persona, WO-Clientes y ambos WordPress)
+      // Crear el cliente en Strapi (se sincronizará con WordPress según los canales)
       const response = await fetch('/api/tienda/clientes', {
         method: 'POST',
         headers: {
@@ -133,9 +179,7 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
             )}
             {success && (
               <Alert variant="success">
-                Cliente creado exitosamente. {selectedPlatforms.length > 0 
-                  ? `Plataformas seleccionadas: ${selectedPlatforms.join(', ')}.` 
-                  : 'Se ha agregado a ambas plataformas por defecto.'} Redirigiendo...
+                Cliente creado exitosamente. Se sincronizará con las plataformas seleccionadas según los canales asignados. Redirigiendo...
               </Alert>
             )}
 
@@ -187,6 +231,26 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
                     />
                   </FormGroup>
                 </Col>
+                <Col md={6}>
+                  <FormGroup className="mb-3">
+                    <FormLabel>RUT</FormLabel>
+                    <FormControl
+                      type="text"
+                      placeholder="Ej: 12345678-9"
+                      value={formData.rut}
+                      onChange={(e) => handleFieldChange('rut', e.target.value)}
+                      isInvalid={!!rutError}
+                    />
+                    {rutError && (
+                      <FormControl.Feedback type="invalid">
+                        {rutError}
+                      </FormControl.Feedback>
+                    )}
+                  </FormGroup>
+                </Col>
+              </Row>
+
+              <Row>
                 <Col md={6}>
                   <FormGroup className="mb-3">
                     <FormLabel>Teléfono</FormLabel>
