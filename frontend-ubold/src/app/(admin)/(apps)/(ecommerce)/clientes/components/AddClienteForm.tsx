@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardHeader, CardBody, Form, Button, Row, Col, FormGroup, FormLabel, FormControl, Alert } from 'react-bootstrap'
-import { LuSave, LuX } from 'react-icons/lu'
+import { LuSave, LuX, LuPlus, LuTrash2 } from 'react-icons/lu'
 import PlatformSelector from './PlatformSelector'
 import { validarRUTChileno, formatearRUT } from '@/lib/utils/rut'
 
@@ -13,6 +13,16 @@ interface AddClienteFormProps {
   showCard?: boolean
 }
 
+interface EmailItem {
+  email: string
+  tipo: 'Personal' | 'Laboral' | 'Institucional'
+}
+
+interface TelefonoItem {
+  numero: string
+  tipo: 'Personal' | 'Laboral' | 'Institucional'
+}
+
 const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormProps = {}) => {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -20,12 +30,14 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
   const [success, setSuccess] = useState(false)
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
   const [formData, setFormData] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    phone: '',
+    nombres: '',
+    primer_apellido: '',
+    segundo_apellido: '',
     rut: '',
+    genero: '' as 'Masculino' | 'Femenino' | '',
   })
+  const [emails, setEmails] = useState<EmailItem[]>([{ email: '', tipo: 'Personal' }])
+  const [telefonos, setTelefonos] = useState<TelefonoItem[]>([{ numero: '', tipo: 'Personal' }])
   const [rutError, setRutError] = useState<string | null>(null)
 
   const handleFieldChange = (field: string, value: any) => {
@@ -34,7 +46,7 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
       [field]: value,
     }))
     
-    // Validar RUT en tiempo real si se está editando
+    // Validar RUT en tiempo real
     if (field === 'rut' && value.trim()) {
       const validacion = validarRUTChileno(value.trim())
       if (!validacion.valid) {
@@ -56,6 +68,38 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
     }
   }
 
+  const handleEmailChange = (index: number, field: 'email' | 'tipo', value: string) => {
+    const newEmails = [...emails]
+    newEmails[index] = { ...newEmails[index], [field]: value }
+    setEmails(newEmails)
+  }
+
+  const handleTelefonoChange = (index: number, field: 'numero' | 'tipo', value: string) => {
+    const newTelefonos = [...telefonos]
+    newTelefonos[index] = { ...newTelefonos[index], [field]: value }
+    setTelefonos(newTelefonos)
+  }
+
+  const addEmail = () => {
+    setEmails([...emails, { email: '', tipo: 'Personal' }])
+  }
+
+  const removeEmail = (index: number) => {
+    if (emails.length > 1) {
+      setEmails(emails.filter((_, i) => i !== index))
+    }
+  }
+
+  const addTelefono = () => {
+    setTelefonos([...telefonos, { numero: '', tipo: 'Personal' }])
+  }
+
+  const removeTelefono = (index: number) => {
+    if (telefonos.length > 1) {
+      setTelefonos(telefonos.filter((_, i) => i !== index))
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -64,60 +108,66 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
 
     try {
       // Validar campos obligatorios
-      if (!formData.first_name.trim()) {
-        throw new Error('El nombre del cliente es obligatorio')
-      }
-      if (!formData.email.trim()) {
-        throw new Error('El correo electrónico es obligatorio')
+      if (!formData.nombres.trim()) {
+        throw new Error('Los nombres del cliente son obligatorios')
       }
       
-      // Validar formato de email
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      if (!emailRegex.test(formData.email.trim())) {
-        throw new Error('El correo electrónico no tiene un formato válido')
+      // Validar RUT (obligatorio)
+      if (!formData.rut.trim()) {
+        throw new Error('El RUT es obligatorio')
+      }
+      
+      const validacionRUT = validarRUTChileno(formData.rut.trim())
+      if (!validacionRUT.valid) {
+        setRutError(validacionRUT.error || 'El RUT no es válido')
+        throw new Error(validacionRUT.error || 'El RUT no es válido')
+      }
+      const rutFormateado = validacionRUT.formatted
+
+      // Validar emails (debe haber al menos uno)
+      const emailsValidos = emails.filter(e => e.email.trim())
+      if (emailsValidos.length === 0) {
+        throw new Error('Debe proporcionar al menos un correo electrónico')
       }
 
-      // Validar RUT si se proporciona
-      let rutFormateado: string | undefined = undefined
-      if (formData.rut.trim()) {
-        const validacionRUT = validarRUTChileno(formData.rut.trim())
-        if (!validacionRUT.valid) {
-          setRutError(validacionRUT.error || 'El RUT no es válido')
-          throw new Error(validacionRUT.error || 'El RUT no es válido')
+      // Validar formato de emails
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      for (const emailItem of emailsValidos) {
+        if (!emailRegex.test(emailItem.email.trim())) {
+          throw new Error(`El correo electrónico "${emailItem.email}" no tiene un formato válido`)
         }
-        // Usar el RUT formateado
-        rutFormateado = validacionRUT.formatted
       }
+
+      // Construir nombre completo
+      const partesNombre = [formData.nombres.trim(), formData.primer_apellido.trim(), formData.segundo_apellido.trim()]
+        .filter(p => p.length > 0)
+      const nombreCompleto = partesNombre.join(' ')
 
       // Preparar datos para la API en formato Strapi
-      const nombreCompleto = `${formData.first_name.trim()} ${formData.last_name.trim()}`.trim()
       const personaData: any = {
         nombre_completo: nombreCompleto,
-        nombres: formData.first_name.trim(),
-        primer_apellido: formData.last_name.trim() || null,
-        emails: [
-          {
-            email: formData.email.trim(),
-            tipo: 'Personal', // Valores válidos en Strapi: "Personal", "Laboral", "Institucional"
-          },
-        ],
+        nombres: formData.nombres.trim(),
+        primer_apellido: formData.primer_apellido.trim() || null,
+        segundo_apellido: formData.segundo_apellido.trim() || null,
+        rut: rutFormateado,
+        emails: emailsValidos.map(e => ({
+          email: e.email.trim(),
+          tipo: e.tipo,
+        })),
       }
 
-      // Agregar RUT si se proporcionó y es válido
-      if (rutFormateado) {
-        personaData.rut = rutFormateado
+      // Agregar género si se seleccionó
+      if (formData.genero) {
+        personaData.genero = formData.genero
       }
 
-      // Agregar teléfono si existe
-      // NOTA: No enviar 'tipo' ya que los valores válidos son "Personal", "Laboral", "Institucional"
-      // El backend lo manejará correctamente (null o un valor válido)
-      if (formData.phone.trim()) {
-        personaData.telefonos = [
-          {
-            numero: formData.phone.trim(),
-            // No incluir 'tipo' - el backend lo manejará
-          },
-        ]
+      // Agregar teléfonos si existen (filtrar vacíos)
+      const telefonosValidos = telefonos.filter(t => t.numero.trim())
+      if (telefonosValidos.length > 0) {
+        personaData.telefonos = telefonosValidos.map(t => ({
+          numero: t.numero.trim(),
+          tipo: t.tipo,
+        }))
       }
 
       const dataToSend: any = {
@@ -188,29 +238,44 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
                 selectedPlatforms={selectedPlatforms}
                 onChange={setSelectedPlatforms}
               />
+              
               <Row>
                 <Col md={6}>
                   <FormGroup className="mb-3">
                     <FormLabel>
-                      Nombre <span className="text-danger">*</span>
+                      Nombres <span className="text-danger">*</span>
                     </FormLabel>
                     <FormControl
                       type="text"
-                      placeholder="Ej: Juan"
-                      value={formData.first_name}
-                      onChange={(e) => handleFieldChange('first_name', e.target.value)}
+                      placeholder="Ej: Juan Carlos"
+                      value={formData.nombres}
+                      onChange={(e) => handleFieldChange('nombres', e.target.value)}
                       required
                     />
+                    <FormControl.Feedback type="invalid">
+                      Los nombres son obligatorios
+                    </FormControl.Feedback>
                   </FormGroup>
                 </Col>
-                <Col md={6}>
+                <Col md={3}>
                   <FormGroup className="mb-3">
-                    <FormLabel>Apellido</FormLabel>
+                    <FormLabel>Primer Apellido</FormLabel>
                     <FormControl
                       type="text"
                       placeholder="Ej: Pérez"
-                      value={formData.last_name}
-                      onChange={(e) => handleFieldChange('last_name', e.target.value)}
+                      value={formData.primer_apellido}
+                      onChange={(e) => handleFieldChange('primer_apellido', e.target.value)}
+                    />
+                  </FormGroup>
+                </Col>
+                <Col md={3}>
+                  <FormGroup className="mb-3">
+                    <FormLabel>Segundo Apellido</FormLabel>
+                    <FormControl
+                      type="text"
+                      placeholder="Ej: González"
+                      value={formData.segundo_apellido}
+                      onChange={(e) => handleFieldChange('segundo_apellido', e.target.value)}
                     />
                   </FormGroup>
                 </Col>
@@ -220,26 +285,15 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
                 <Col md={6}>
                   <FormGroup className="mb-3">
                     <FormLabel>
-                      Correo Electrónico <span className="text-danger">*</span>
+                      RUT <span className="text-danger">*</span>
                     </FormLabel>
-                    <FormControl
-                      type="email"
-                      placeholder="Ej: juan.perez@ejemplo.com"
-                      value={formData.email}
-                      onChange={(e) => handleFieldChange('email', e.target.value)}
-                      required
-                    />
-                  </FormGroup>
-                </Col>
-                <Col md={6}>
-                  <FormGroup className="mb-3">
-                    <FormLabel>RUT</FormLabel>
                     <FormControl
                       type="text"
                       placeholder="Ej: 12345678-9"
                       value={formData.rut}
                       onChange={(e) => handleFieldChange('rut', e.target.value)}
                       isInvalid={!!rutError}
+                      required
                     />
                     {rutError && (
                       <FormControl.Feedback type="invalid">
@@ -248,18 +302,129 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
                     )}
                   </FormGroup>
                 </Col>
+                <Col md={6}>
+                  <FormGroup className="mb-3">
+                    <FormLabel>Género</FormLabel>
+                    <FormControl
+                      as="select"
+                      value={formData.genero}
+                      onChange={(e) => handleFieldChange('genero', e.target.value)}
+                    >
+                      <option value="">Seleccione...</option>
+                      <option value="Masculino">Masculino</option>
+                      <option value="Femenino">Femenino</option>
+                    </FormControl>
+                  </FormGroup>
+                </Col>
               </Row>
 
               <Row>
-                <Col md={6}>
+                <Col xs={12}>
                   <FormGroup className="mb-3">
-                    <FormLabel>Teléfono</FormLabel>
-                    <FormControl
-                      type="tel"
-                      placeholder="Ej: +56 9 1234 5678"
-                      value={formData.phone}
-                      onChange={(e) => handleFieldChange('phone', e.target.value)}
-                    />
+                    <div className="d-flex justify-content-between align-items-center mb-2">
+                      <FormLabel className="mb-0">
+                        Email/s <span className="text-danger">*</span>
+                      </FormLabel>
+                      <Button
+                        variant="outline-primary"
+                        size="sm"
+                        type="button"
+                        onClick={addEmail}
+                      >
+                        <LuPlus className="me-1" /> Agregar Email
+                      </Button>
+                    </div>
+                    {emails.map((emailItem, index) => (
+                      <Row key={index} className="mb-2">
+                        <Col md={6}>
+                          <FormControl
+                            type="email"
+                            placeholder="Ej: juan.perez@ejemplo.com"
+                            value={emailItem.email}
+                            onChange={(e) => handleEmailChange(index, 'email', e.target.value)}
+                            required={index === 0}
+                          />
+                        </Col>
+                        <Col md={4}>
+                          <FormControl
+                            as="select"
+                            value={emailItem.tipo}
+                            onChange={(e) => handleEmailChange(index, 'tipo', e.target.value)}
+                          >
+                            <option value="Personal">Personal</option>
+                            <option value="Laboral">Laboral</option>
+                            <option value="Institucional">Institucional</option>
+                          </FormControl>
+                        </Col>
+                        <Col md={2}>
+                          {emails.length > 1 && (
+                            <Button
+                              variant="outline-danger"
+                              size="sm"
+                              type="button"
+                              onClick={() => removeEmail(index)}
+                              className="w-100"
+                            >
+                              <LuTrash2 />
+                            </Button>
+                          )}
+                        </Col>
+                      </Row>
+                    ))}
+                  </FormGroup>
+                </Col>
+              </Row>
+
+              <Row>
+                <Col xs={12}>
+                  <FormGroup className="mb-3">
+                    <div className="d-flex justify-content-between align-items-center mb-2">
+                      <FormLabel className="mb-0">Teléfono/s</FormLabel>
+                      <Button
+                        variant="outline-primary"
+                        size="sm"
+                        type="button"
+                        onClick={addTelefono}
+                      >
+                        <LuPlus className="me-1" /> Agregar Teléfono
+                      </Button>
+                    </div>
+                    {telefonos.map((telefonoItem, index) => (
+                      <Row key={index} className="mb-2">
+                        <Col md={6}>
+                          <FormControl
+                            type="tel"
+                            placeholder="Ej: +56 9 1234 5678"
+                            value={telefonoItem.numero}
+                            onChange={(e) => handleTelefonoChange(index, 'numero', e.target.value)}
+                          />
+                        </Col>
+                        <Col md={4}>
+                          <FormControl
+                            as="select"
+                            value={telefonoItem.tipo}
+                            onChange={(e) => handleTelefonoChange(index, 'tipo', e.target.value)}
+                          >
+                            <option value="Personal">Personal</option>
+                            <option value="Laboral">Laboral</option>
+                            <option value="Institucional">Institucional</option>
+                          </FormControl>
+                        </Col>
+                        <Col md={2}>
+                          {telefonos.length > 1 && (
+                            <Button
+                              variant="outline-danger"
+                              size="sm"
+                              type="button"
+                              onClick={() => removeTelefono(index)}
+                              className="w-100"
+                            >
+                              <LuTrash2 />
+                            </Button>
+                          )}
+                        </Col>
+                      </Row>
+                    ))}
                   </FormGroup>
                 </Col>
               </Row>
