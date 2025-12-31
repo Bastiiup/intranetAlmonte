@@ -19,7 +19,7 @@ import Link from 'next/link'
 import React, { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardBody, CardFooter, CardHeader, Col, Row, Alert, Badge, FormControl, FormLabel, FormGroup } from 'react-bootstrap'
 import { LuSearch } from 'react-icons/lu'
-import { TbChevronDown, TbChevronRight, TbList, TbPlus, TbTrash } from 'react-icons/tb'
+import { TbChevronDown, TbChevronRight, TbList, TbPlus, TbTrash, TbEye, TbEdit } from 'react-icons/tb'
 
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
@@ -306,9 +306,9 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
             </div>
             <div>
               <h5 className="mb-0">
-                <span className="link-reset fw-semibold" style={{ cursor: 'pointer' }} onClick={() => row.toggleExpanded()}>
+                <Link href={row.original.url} className="link-reset fw-semibold" style={{ textDecoration: 'none' }}>
                   #{numeroPedido}
-                </span>
+                </Link>
               </h5>
             </div>
           </div>
@@ -409,6 +409,15 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<PedidoType> }) => (
         <div className="d-flex gap-1">
+          <Link href={row.original.url} passHref>
+            <Button
+              variant="primary"
+              size="sm"
+              className="btn-icon rounded-circle"
+              title="Ver detalle del pedido">
+              <TbEye className="fs-lg" />
+            </Button>
+          </Link>
           <Button
             variant="default"
             size="sm"
@@ -416,7 +425,8 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
             onClick={() => {
               toggleDeleteModal()
               setSelectedRowIds({ [row.id]: true })
-            }}>
+            }}
+            title="Eliminar pedido">
             <TbTrash className="fs-lg" />
           </Button>
         </div>
