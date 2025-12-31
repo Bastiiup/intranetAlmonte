@@ -251,62 +251,94 @@ const strapiClient = {
       }
     }
     
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 60000)
+    // Retry logic con backoff exponencial para errores 502/503/504
+    const maxRetries = 2 // Menos reintentos para POST (solo 2)
+    let lastError: any = null
     
-    try {
-      const bodyString = data ? JSON.stringify(data) : undefined
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // Reducido a 30 segundos
       
-      // Log detallado para activity-logs (solo para debugging)
-      if (path.includes('activity-logs') && bodyString) {
-        const bodyObj = JSON.parse(bodyString)
-        console.log('[Strapi Client POST] 📤 Enviando a activity-logs:', {
-          url,
-          tieneData: !!bodyObj.data,
-          usuarioEnBody: bodyObj.data?.usuario || 'NO HAY USUARIO',
-          tipoUsuario: typeof bodyObj.data?.usuario,
-          bodyPreview: JSON.stringify(bodyObj, null, 2).substring(0, 500),
+      try {
+        const bodyString = data ? JSON.stringify(data) : undefined
+        
+        // Log detallado para activity-logs (solo para debugging)
+        if (path.includes('activity-logs') && bodyString) {
+          const bodyObj = JSON.parse(bodyString)
+          console.log('[Strapi Client POST] 📤 Enviando a activity-logs:', {
+            url,
+            tieneData: !!bodyObj.data,
+            usuarioEnBody: bodyObj.data?.usuario || 'NO HAY USUARIO',
+            tipoUsuario: typeof bodyObj.data?.usuario,
+            bodyPreview: JSON.stringify(bodyObj, null, 2).substring(0, 500),
+          })
+        }
+        
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: getHeaders(options?.headers),
+          body: bodyString,
+          signal: controller.signal,
+          ...options,
         })
+        
+        clearTimeout(timeoutId)
+        
+        // Si es 502/503/504 y no es el último intento, reintentar
+        if ((response.status === 502 || response.status === 503 || response.status === 504) && attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 5000)
+          console.warn(`[Strapi Client POST] ⚠️ Error ${response.status} en intento ${attempt + 1}/${maxRetries + 1}. Reintentando en ${delay}ms...`, { url })
+          await new Promise(resolve => setTimeout(resolve, delay))
+          continue
+        }
+        
+        // Log respuesta para activity-logs
+        if (path.includes('activity-logs')) {
+          const responseClone = response.clone()
+          responseClone.text().then(text => {
+            try {
+              const responseData = JSON.parse(text)
+              console.log('[Strapi Client POST] 📥 Respuesta de activity-logs:', {
+                status: response.status,
+                tieneData: !!responseData.data,
+                usuarioEnRespuesta: responseData.data?.attributes?.usuario || responseData.data?.usuario || 'NO HAY USUARIO',
+                responsePreview: text.substring(0, 500),
+              })
+            } catch (e) {
+              console.log('[Strapi Client POST] 📥 Respuesta de activity-logs (texto):', text.substring(0, 500))
+            }
+          }).catch(() => {})
+        }
+        
+        return handleResponse<T>(response)
+      } catch (error: any) {
+        clearTimeout(timeoutId)
+        lastError = error
+        
+        // Si es timeout o error de red y no es el último intento, reintentar
+        if ((error.name === 'AbortError' || error.message?.includes('fetch') || error.message?.includes('network')) && attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 5000)
+          console.warn(`[Strapi Client POST] ⚠️ Error de red/timeout en intento ${attempt + 1}/${maxRetries + 1}. Reintentando en ${delay}ms...`, { url, error: error.message })
+          await new Promise(resolve => setTimeout(resolve, delay))
+          continue
+        }
+        
+        // Si es timeout en el último intento
+        if (error.name === 'AbortError') {
+          const timeoutError = new Error('Timeout: La petición a Strapi tardó más de 30 segundos después de varios intentos') as Error & { status?: number }
+          timeoutError.status = 504
+          throw timeoutError
+        }
+        
+        // Si no es un error recuperable o es el último intento, lanzar el error
+        if (attempt === maxRetries) {
+          throw error
+        }
       }
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: getHeaders(options?.headers),
-        body: bodyString,
-        signal: controller.signal,
-        ...options,
-      })
-      
-      clearTimeout(timeoutId)
-      
-      // Log respuesta para activity-logs
-      if (path.includes('activity-logs')) {
-        const responseClone = response.clone()
-        responseClone.text().then(text => {
-          try {
-            const responseData = JSON.parse(text)
-            console.log('[Strapi Client POST] 📥 Respuesta de activity-logs:', {
-              status: response.status,
-              tieneData: !!responseData.data,
-              usuarioEnRespuesta: responseData.data?.attributes?.usuario || responseData.data?.usuario || 'NO HAY USUARIO',
-              responsePreview: text.substring(0, 500),
-            })
-          } catch (e) {
-            console.log('[Strapi Client POST] 📥 Respuesta de activity-logs (texto):', text.substring(0, 500))
-          }
-        }).catch(() => {})
-      }
-      
-      return handleResponse<T>(response)
-    } catch (error: any) {
-      clearTimeout(timeoutId)
-      if (error.name === 'AbortError') {
-        const timeoutError = new Error('Timeout: La petición a Strapi tardó más de 60 segundos') as Error & { status?: number }
-        timeoutError.status = 504
-        throw timeoutError
-      }
-      throw error
     }
+    
+    // Si llegamos aquí, todos los intentos fallaron
+    throw lastError || new Error('Error desconocido al conectar con Strapi')
   },
 
   /**
@@ -419,39 +451,71 @@ const strapiClient = {
   async delete<T>(path: string, options?: RequestInit): Promise<T> {
     const url = getStrapiUrl(path)
     
-    // Crear un AbortController para timeout (20 segundos para operaciones de escritura)
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 20000) // 20 segundos
+    // Retry logic con backoff exponencial para errores 502/503/504
+    const maxRetries = 2
+    let lastError: any = null
     
-    try {
-      const response = await fetch(url, {
-        method: 'DELETE',
-        headers: getHeaders(options?.headers),
-        signal: controller.signal,
-        ...options,
-      })
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 15000) // Reducido a 15 segundos
       
-      clearTimeout(timeoutId)
-      
-      // Log respuesta antes de manejar errores
-      if (!response.ok) {
-        console.error('[Strapi Client DELETE] ❌ Error en respuesta:', {
-          url,
-          status: response.status,
-          statusText: response.statusText,
+      try {
+        const response = await fetch(url, {
+          method: 'DELETE',
+          headers: getHeaders(options?.headers),
+          signal: controller.signal,
+          ...options,
         })
+        
+        clearTimeout(timeoutId)
+        
+        // Si es 502/503/504 y no es el último intento, reintentar
+        if ((response.status === 502 || response.status === 503 || response.status === 504) && attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 5000)
+          console.warn(`[Strapi Client DELETE] ⚠️ Error ${response.status} en intento ${attempt + 1}/${maxRetries + 1}. Reintentando en ${delay}ms...`, { url })
+          await new Promise(resolve => setTimeout(resolve, delay))
+          continue
+        }
+        
+        // Log respuesta antes de manejar errores
+        if (!response.ok) {
+          console.error('[Strapi Client DELETE] ❌ Error en respuesta:', {
+            url,
+            status: response.status,
+            statusText: response.statusText,
+            attempt: attempt + 1,
+          })
+        }
+        
+        return handleResponse<T>(response)
+      } catch (error: any) {
+        clearTimeout(timeoutId)
+        lastError = error
+        
+        // Si es timeout o error de red y no es el último intento, reintentar
+        if ((error.name === 'AbortError' || error.message?.includes('fetch') || error.message?.includes('network')) && attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 5000)
+          console.warn(`[Strapi Client DELETE] ⚠️ Error de red/timeout en intento ${attempt + 1}/${maxRetries + 1}. Reintentando en ${delay}ms...`, { url, error: error.message })
+          await new Promise(resolve => setTimeout(resolve, delay))
+          continue
+        }
+        
+        // Si es timeout en el último intento
+        if (error.name === 'AbortError') {
+          const timeoutError = new Error('Timeout: La petición a Strapi tardó más de 15 segundos después de varios intentos') as Error & { status?: number }
+          timeoutError.status = 504
+          throw timeoutError
+        }
+        
+        // Si no es un error recuperable o es el último intento, lanzar el error
+        if (attempt === maxRetries) {
+          throw error
+        }
       }
-      
-      return handleResponse<T>(response)
-    } catch (error: any) {
-      clearTimeout(timeoutId)
-      if (error.name === 'AbortError') {
-        const timeoutError = new Error('Timeout: La petición a Strapi tardó más de 20 segundos') as Error & { status?: number }
-        timeoutError.status = 504
-        throw timeoutError
-      }
-      throw error
     }
+    
+    // Si llegamos aquí, todos los intentos fallaron
+    throw lastError || new Error('Error desconocido al conectar con Strapi')
   },
 }
 
