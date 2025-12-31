@@ -8,6 +8,9 @@ import { createWooCommerceClient } from '@/lib/woocommerce/client'
 /**
  * Descuenta stock de un producto en Strapi
  * Maneja tanto el campo directo stock_quantity como la relación stocks
+ * 
+ * IMPORTANTE: productoId debe ser el documentId de Strapi, NO el ID de WooCommerce
+ * Si se pasa un ID de WooCommerce, la función fallará y solo se descontará en WooCommerce
  */
 export async function descontarStockEnStrapi(
   productoId: number | string,
@@ -18,54 +21,22 @@ export async function descontarStockEnStrapi(
     console.log(`[descontarStockEnStrapi] 🔍 Descontando ${cantidadADescontar} unidades del producto ${productoId}`)
 
     // 1. Obtener el producto de Strapi
-    // El productoId puede ser el ID de Strapi o el ID de WooCommerce
+    // El productoId debe ser el documentId de Strapi (NO el ID de WooCommerce)
+    // Nota: stocks no se puede hacer populate directamente, y woocommerce_id no existe como campo filtrable
     let producto: any
     try {
-      // Primero intentar obtener por ID de Strapi (directo)
-      const response = await strapiClient.get<any>(
-        `/api/libros/${productoId}?populate[stocks]=*&populate[STOCKS]=*`
-      )
+      // Intentar obtener por ID de Strapi (sin populate de stocks ya que no existe o no es válido)
+      const response = await strapiClient.get<any>(`/api/libros/${productoId}`)
       producto = response.data || response
       console.log(`[descontarStockEnStrapi] ✅ Producto encontrado por ID de Strapi: ${productoId}`)
     } catch (error: any) {
-      // Si falla, puede ser que productoId sea el ID de WooCommerce
-      // Intentar buscar por woocommerce_id
-      try {
-        console.log(`[descontarStockEnStrapi] 🔍 Intentando buscar producto por woocommerce_id: ${productoId}`)
-        const searchResponse = await strapiClient.get<any>(
-          `/api/libros?filters[woocommerce_id][$eq]=${productoId}&populate[stocks]=*&populate[STOCKS]=*`
-        )
-        
-        let productos: any[] = []
-        if (Array.isArray(searchResponse)) {
-          productos = searchResponse
-        } else if (searchResponse.data && Array.isArray(searchResponse.data)) {
-          productos = searchResponse.data
-        } else if (searchResponse.data) {
-          productos = [searchResponse.data]
-        } else {
-          productos = [searchResponse]
-        }
-        
-        if (productos.length > 0) {
-          producto = productos[0]
-          console.log(`[descontarStockEnStrapi] ✅ Producto encontrado por woocommerce_id: ${productoId}`)
-        } else {
-          throw new Error('Producto no encontrado por woocommerce_id')
-        }
-      } catch (searchError: any) {
-        // Si también falla, intentar sin populate
-        try {
-          const response = await strapiClient.get<any>(`/api/libros/${productoId}`)
-          producto = response.data || response
-          console.log(`[descontarStockEnStrapi] ✅ Producto encontrado sin populate: ${productoId}`)
-        } catch (error2: any) {
-          console.error(`[descontarStockEnStrapi] ❌ Error al obtener producto ${productoId}:`, error2.message)
-          return {
-            success: false,
-            error: `No se pudo obtener el producto: ${error2.message}`,
-          }
-        }
+      // Si falla, el productoId probablemente no es un ID de Strapi válido
+      console.error(`[descontarStockEnStrapi] ❌ Error al obtener producto ${productoId}:`, error.message)
+      console.warn(`[descontarStockEnStrapi] ⚠️ El productoId ${productoId} puede ser un ID de WooCommerce, no de Strapi`)
+      console.warn(`[descontarStockEnStrapi] ⚠️ Para descontar stock, necesitas el documentId de Strapi del producto`)
+      return {
+        success: false,
+        error: `No se pudo obtener el producto en Strapi. El ID ${productoId} puede ser un ID de WooCommerce. Se necesita el documentId de Strapi.`,
       }
     }
 
@@ -121,8 +92,11 @@ export async function descontarStockEnStrapi(
       }
     }
 
-    // Si no hay stock directo, calcular desde la relación stocks
+    // Si no hay stock directo, intentar calcular desde la relación stocks
+    // Nota: stocks puede no estar disponible si no se hizo populate (y no se puede hacer populate)
     if (stockActual === null) {
+      // Intentar obtener stocks manualmente si no están en el producto
+      // Pero como no podemos hacer populate, asumimos que si no está en stock_quantity, no hay stock
       const stocks = attrs.stocks?.data || attrs.STOCKS?.data || attrs.stocks || attrs.STOCKS || []
       if (Array.isArray(stocks) && stocks.length > 0) {
         stockActual = stocks.reduce((total: number, stock: any) => {
@@ -131,7 +105,9 @@ export async function descontarStockEnStrapi(
         }, 0)
         console.log(`[descontarStockEnStrapi] 📊 Stock calculado desde relación: ${stockActual}`)
       } else {
+        // Si no hay stock_quantity ni stocks, asumir 0
         stockActual = 0
+        console.log(`[descontarStockEnStrapi] ⚠️ No se encontró stock (ni stock_quantity ni stocks), asumiendo 0`)
       }
     }
 

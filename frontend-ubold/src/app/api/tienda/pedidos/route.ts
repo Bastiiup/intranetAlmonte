@@ -755,6 +755,9 @@ export async function POST(request: NextRequest) {
     const stockResults: Array<{ productoId: number; cantidad: number; success: boolean; error?: string }> = []
     
     for (const item of itemsValidos) {
+      // ⚠️ IMPORTANTE: producto_id puede ser el ID de WooCommerce o el documentId de Strapi
+      // Si es un ID de WooCommerce (números grandes como 10865), no podemos descontar en Strapi
+      // porque no tenemos forma de buscar el producto en Strapi por woocommerce_id (no es filtrable)
       const productoId = item.producto_id || item.product_id
       const cantidad = item.cantidad || item.quantity || 1
       
@@ -763,8 +766,24 @@ export async function POST(request: NextRequest) {
         continue
       }
 
+      // Verificar si el productoId parece ser un ID de WooCommerce (números grandes)
+      // Los IDs de Strapi suelen ser más pequeños o strings
+      // Si es un número muy grande (> 10000), probablemente es un ID de WooCommerce
+      const esIdWooCommerce = typeof productoId === 'number' && productoId > 10000
+      
+      if (esIdWooCommerce) {
+        console.log(`[API Pedidos POST] ⏭️ Producto ${productoId} parece ser un ID de WooCommerce. El stock se descontará automáticamente en WooCommerce cuando el pedido tenga status 'completed'.`)
+        stockResults.push({
+          productoId,
+          cantidad,
+          success: true,
+          error: 'ID de WooCommerce - stock se descontará automáticamente en WooCommerce',
+        })
+        continue
+      }
+
       try {
-        console.log(`[API Pedidos POST] 🔄 Descontando ${cantidad} unidades del producto ${productoId}...`)
+        console.log(`[API Pedidos POST] 🔄 Descontando ${cantidad} unidades del producto ${productoId} en Strapi...`)
         const stockResult = await descontarStockEnStrapi(productoId, cantidad, originPlatform as 'woo_escolar' | 'woo_moraleja')
         
         stockResults.push({
