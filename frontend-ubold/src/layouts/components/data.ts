@@ -190,11 +190,9 @@ export const menuItems: MenuItemType[] = [
       { key: 'add-pedido', label: 'Agregar Pedido', url: '/atributos/pedidos/agregar' },
     ],
   },
-  { key: 'logs', label: 'Logs de Actividades', icon: LuFileText, url: '/logs', roles: ['super_admin', 'supervisor', 'soporte'] },
+  { key: 'logs', label: 'Logs de Actividades', icon: LuFileText, url: '/logs', roles: ['super_admin', 'supervisor', 'soporte']   },
   { key: 'aplicaciones', label: 'APLICACIONES', isTitle: true },
   { key: 'chat', label: 'Chat', icon: LuMessageSquareDot, url: '/chat' },
-  { key: 'calendar', label: 'Calendario', icon: LuCalendar, url: '/calendar' },
-  { key: 'file-manager', label: 'Gestor de Archivos', icon: LuFolderOpenDot, url: '/file-manager' },
   { key: 'equipos-section', label: 'EQUIPOS', isTitle: true },
   {
     key: 'equipos',
