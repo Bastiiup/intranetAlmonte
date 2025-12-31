@@ -196,11 +196,11 @@ export async function POST(request: Request) {
     const colaboradorData: any = {
       data: {
         email_login: body.email_login.trim(),
-        rol_principal: body.rol_principal || null,
-        rol_operativo: body.rol_operativo || null,
         auth_provider: body.auth_provider || 'google',
         activo: body.activo !== undefined ? body.activo : true,
         ...(body.password && { password: body.password }),
+        ...(body.rol_principal && body.rol_principal.trim() && { rol_principal: body.rol_principal.trim() }),
+        ...(body.rol_operativo && body.rol_operativo.trim() && { rol_operativo: body.rol_operativo.trim() }),
         ...(personaId && { persona: personaId }),
         ...(body.usuario && { usuario: body.usuario }),
       },
