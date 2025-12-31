@@ -90,7 +90,6 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
     password: '', // Campo opcional para cambiar contraseña
     rol_principal: colaboradorData?.rol_principal || '',
     rol_operativo: colaboradorData?.rol_operativo || '',
-    auth_provider: colaboradorData?.auth_provider || 'google',
     activo: colaboradorData?.activo !== undefined ? colaboradorData.activo : true,
     // Campos de persona
     rut: personaData?.rut || '',
@@ -112,7 +111,6 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
         password: '', // No prellenar contraseña por seguridad
         rol_principal: colaboradorData.rol_principal || '',
         rol_operativo: colaboradorData.rol_operativo || '',
-        auth_provider: colaboradorData.auth_provider || 'google',
         activo: colaboradorData.activo !== undefined ? colaboradorData.activo : true,
         rut: personaAttrs.rut || '',
         nombres: personaAttrs.nombres || '',
@@ -262,7 +260,6 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
       // Preparar datos para Strapi
       const colaboradorUpdateData: any = {
         email_login: formData.email_login.trim(),
-        auth_provider: formData.auth_provider && formData.auth_provider.trim() ? formData.auth_provider.trim() : 'google',
         activo: formData.activo,
         // Solo enviar password si se proporcionó (no vacío)
         ...(formData.password && formData.password.trim().length > 0 && { password: formData.password }),
@@ -386,21 +383,6 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
               </FormGroup>
             </Col>
 
-            <Col md={6}>
-              <FormGroup className="mb-3">
-                <FormLabel>Proveedor de Autenticación</FormLabel>
-                <FormControl
-                  as="select"
-                  value={formData.auth_provider}
-                  onChange={(e) => handleFieldChange('auth_provider', e.target.value as any)}
-                  disabled={loading}
-                >
-                  <option value="google">Google</option>
-                  <option value="strapi">Strapi</option>
-                  <option value="otro">Otro</option>
-                </FormControl>
-              </FormGroup>
-            </Col>
 
             <Col md={6}>
               <FormGroup className="mb-3">

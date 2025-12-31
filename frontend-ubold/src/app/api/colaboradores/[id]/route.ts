@@ -261,16 +261,10 @@ export async function PUT(
     }
 
     // Preparar datos para Strapi
-    // Asegurar que auth_provider tenga un valor válido
-    const authProvider = body.auth_provider && body.auth_provider.trim() && ['google', 'strapi', 'otro'].includes(body.auth_provider.trim())
-      ? body.auth_provider.trim()
-      : 'google'
-
     // Solo enviar campos que existen en el modelo de Strapi
     const colaboradorData: any = {
       data: {
         email_login: body.email_login.trim(),
-        auth_provider: authProvider,
         activo: body.activo !== undefined ? body.activo : true,
         // Solo enviar password si se proporcionó (no vacío)
         ...(body.password && body.password.trim().length > 0 && { password: body.password }),

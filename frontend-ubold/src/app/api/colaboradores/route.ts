@@ -154,8 +154,17 @@ export async function POST(request: Request) {
                 updateData.data.nombre_completo = `${nombres} ${primerApellido} ${segundoApellido}`.trim()
               }
 
-              await strapiClient.put(`/api/personas/${personaId}`, updateData)
-              console.log('[API /colaboradores POST] ✅ Persona actualizada')
+              try {
+                await strapiClient.put(`/api/personas/${personaId}`, updateData)
+                console.log('[API /colaboradores POST] ✅ Persona actualizada')
+              } catch (updateError: any) {
+                // Si falla la actualización (404 u otro error), continuar con el personaId encontrado
+                if (updateError.status === 404) {
+                  console.log('[API /colaboradores POST] ⚠️ Persona no encontrada para actualizar (404), pero continuamos con el ID encontrado')
+                } else {
+                  console.warn('[API /colaboradores POST] ⚠️ Error al actualizar persona (no crítico):', updateError.message)
+                }
+              }
             }
           }
         } catch (searchError: any) {
@@ -208,17 +217,66 @@ export async function POST(request: Request) {
             console.log('[API /colaboradores POST] ✅ Persona creada exitosamente:', personaId)
           } catch (createError: any) {
             console.error('[API /colaboradores POST] ❌ Error al crear persona:', createError)
-            throw new Error(`Error al crear persona: ${createError.message || 'Error desconocido'}. La persona debe crearse antes del colaborador.`)
+            
+            // Si el error es que el RUT ya existe (debe ser único), buscar la persona existente
+            if (createError.status === 400 && createError.message?.includes('unique') && createError.details?.errors?.some((e: any) => e.path?.[0] === 'rut')) {
+              console.log('[API /colaboradores POST] ⚠️ RUT ya existe, buscando persona existente...')
+              
+              try {
+                // Buscar nuevamente la persona por RUT (puede que exista pero no se encontró antes)
+                const personaSearchResponse = await strapiClient.get<any>(
+                  `/api/personas?filters[rut][$eq]=${encodeURIComponent(personaData.rut.trim())}&pagination[pageSize]=1`
+                )
+
+                if (personaSearchResponse.data && Array.isArray(personaSearchResponse.data) && personaSearchResponse.data.length > 0) {
+                  personaId = personaSearchResponse.data[0].id || personaSearchResponse.data[0].documentId
+                  console.log('[API /colaboradores POST] ✅ Persona encontrada después del error de RUT único:', personaId)
+                  
+                  // Intentar actualizar solo si tenemos datos nuevos
+                  if (personaData.nombres || personaData.primer_apellido || personaData.genero || personaData.cumpleagno) {
+                    try {
+                      const updateData: any = {
+                        data: {},
+                      }
+                      
+                      if (personaData.nombres?.trim()) updateData.data.nombres = personaData.nombres.trim()
+                      if (personaData.primer_apellido?.trim()) updateData.data.primer_apellido = personaData.primer_apellido.trim()
+                      if (personaData.segundo_apellido?.trim()) updateData.data.segundo_apellido = personaData.segundo_apellido.trim()
+                      if (personaData.genero) updateData.data.genero = personaData.genero
+                      if (personaData.cumpleagno) updateData.data.cumpleagno = personaData.cumpleagno
+
+                      if (personaData.nombres || personaData.primer_apellido) {
+                        const nombres = personaData.nombres?.trim() || ''
+                        const primerApellido = personaData.primer_apellido?.trim() || ''
+                        const segundoApellido = personaData.segundo_apellido?.trim() || ''
+                        updateData.data.nombre_completo = `${nombres} ${primerApellido} ${segundoApellido}`.trim()
+                      }
+
+                      await strapiClient.put(`/api/personas/${personaId}`, updateData)
+                      console.log('[API /colaboradores POST] ✅ Persona actualizada')
+                    } catch (updateError: any) {
+                      // Si falla la actualización (404 u otro error), continuar con el personaId encontrado
+                      if (updateError.status === 404) {
+                        console.log('[API /colaboradores POST] ⚠️ Persona no encontrada para actualizar (404), pero continuamos con el ID encontrado')
+                      } else {
+                        console.warn('[API /colaboradores POST] ⚠️ Error al actualizar persona (no crítico):', updateError.message)
+                      }
+                    }
+                  }
+                } else {
+                  throw new Error('RUT duplicado pero no se pudo encontrar la persona existente')
+                }
+              } catch (searchError: any) {
+                throw new Error(`Error al buscar persona después de error de RUT único: ${searchError.message}`)
+              }
+            } else {
+              // Otro tipo de error al crear persona
+              throw new Error(`Error al crear persona: ${createError.message || 'Error desconocido'}. La persona debe crearse antes del colaborador.`)
+            }
           }
         }
       }
     }
-
-    // Preparar datos para Strapi
-    // Asegurar que auth_provider tenga un valor válido (siempre debe enviarse)
-    const authProvider = body.auth_provider && body.auth_provider.trim() && ['google', 'strapi', 'otro'].includes(body.auth_provider.trim())
-      ? body.auth_provider.trim()
-      : 'google'
 
     // Validar que si hay persona, tenga ID (debe haberse creado/buscado exitosamente)
     if (body.persona && body.persona.rut && !personaId) {
@@ -228,13 +286,13 @@ export async function POST(request: Request) {
     const colaboradorData: any = {
       data: {
         email_login: body.email_login.trim(),
-        auth_provider: authProvider, // Siempre enviar auth_provider con valor válido
         activo: body.activo !== undefined ? body.activo : true,
         ...(body.password && { password: body.password }),
         ...(body.rol_principal && body.rol_principal.trim() && { rol_principal: body.rol_principal.trim() }),
         ...(body.rol_operativo && body.rol_operativo.trim() && { rol_operativo: body.rol_operativo.trim() }),
         ...(personaId && { persona: personaId }),
         ...(body.usuario && { usuario: body.usuario }),
+        // NO enviar auth_provider - dejarlo vacío en Strapi
       },
     }
 

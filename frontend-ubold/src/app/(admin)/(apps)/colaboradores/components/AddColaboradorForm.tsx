@@ -31,7 +31,6 @@ const AddColaboradorForm = () => {
     password: '',
     rol_principal: '',
     rol_operativo: '',
-    auth_provider: 'google' as 'google' | 'strapi' | 'otro',
     activo: true,
     // Campos de persona
     rut: '',
@@ -294,21 +293,6 @@ const AddColaboradorForm = () => {
               </FormGroup>
             </Col>
 
-            <Col md={6}>
-              <FormGroup className="mb-3">
-                <FormLabel>Proveedor de Autenticación</FormLabel>
-                <FormControl
-                  as="select"
-                  value={formData.auth_provider}
-                  onChange={(e) => handleFieldChange('auth_provider', e.target.value as any)}
-                  disabled={loading}
-                >
-                  <option value="google">Google</option>
-                  <option value="strapi">Strapi</option>
-                  <option value="otro">Otro</option>
-                </FormControl>
-              </FormGroup>
-            </Col>
 
             <Col md={12}>
               <FormGroup className="mb-3">
