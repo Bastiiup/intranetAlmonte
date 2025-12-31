@@ -29,8 +29,7 @@ const AddColaboradorForm = () => {
   const [formData, setFormData] = useState({
     email_login: '',
     password: '',
-    rol_principal: '',
-    rol_operativo: '',
+    rol: '',
     activo: true,
     // Campos de persona
     rut: '',
@@ -165,9 +164,8 @@ const AddColaboradorForm = () => {
         email_login: formData.email_login.trim(),
         password: formData.password,
         activo: formData.activo,
-        // Solo enviar roles si tienen valor válido
-        ...(formData.rol_principal && formData.rol_principal.trim() && { rol_principal: formData.rol_principal.trim() }),
-        ...(formData.rol_operativo && formData.rol_operativo.trim() && { rol_operativo: formData.rol_operativo.trim() }),
+        // Solo enviar rol si tiene valor válido
+        ...(formData.rol && formData.rol.trim() && { rol: formData.rol.trim() }),
         // Datos de persona para crear/relacionar
         persona: {
           rut: formData.rut.trim(),
@@ -276,11 +274,11 @@ const AddColaboradorForm = () => {
 
             <Col md={6}>
               <FormGroup className="mb-3">
-                <FormLabel>Rol Principal</FormLabel>
+                <FormLabel>Rol</FormLabel>
                 <FormControl
                   as="select"
-                  value={formData.rol_principal}
-                  onChange={(e) => handleFieldChange('rol_principal', e.target.value)}
+                  value={formData.rol}
+                  onChange={(e) => handleFieldChange('rol', e.target.value)}
                   disabled={loading}
                 >
                   <option value="">Seleccionar rol...</option>

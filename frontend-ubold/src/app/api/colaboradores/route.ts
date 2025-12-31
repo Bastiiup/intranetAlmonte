@@ -288,8 +288,7 @@ export async function POST(request: Request) {
         email_login: body.email_login.trim(),
         activo: body.activo !== undefined ? body.activo : true,
         ...(body.password && { password: body.password }),
-        ...(body.rol_principal && body.rol_principal.trim() && { rol_principal: body.rol_principal.trim() }),
-        ...(body.rol_operativo && body.rol_operativo.trim() && { rol_operativo: body.rol_operativo.trim() }),
+        ...(body.rol && body.rol.trim() && { rol: body.rol.trim() }),
         ...(personaId && { persona: personaId }),
         ...(body.usuario && { usuario: body.usuario }),
         // NO enviar auth_provider - dejarlo vacío en Strapi
@@ -301,8 +300,8 @@ export async function POST(request: Request) {
       auth_provider: colaboradorData.data.auth_provider,
       tienePersona: !!colaboradorData.data.persona,
       personaId: colaboradorData.data.persona || 'NO HAY',
-      tieneRolPrincipal: !!colaboradorData.data.rol_principal,
-      rolPrincipal: colaboradorData.data.rol_principal || 'NO HAY',
+      tieneRol: !!colaboradorData.data.rol,
+      rol: colaboradorData.data.rol || 'NO HAY',
     })
 
     const response = await strapiClient.post<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(

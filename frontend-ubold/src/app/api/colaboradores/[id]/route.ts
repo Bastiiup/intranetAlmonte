@@ -268,9 +268,8 @@ export async function PUT(
         activo: body.activo !== undefined ? body.activo : true,
         // Solo enviar password si se proporcionó (no vacío)
         ...(body.password && body.password.trim().length > 0 && { password: body.password }),
-        // Solo enviar roles si tienen valor (evitar enviar strings vacías o null)
-        ...(body.rol_principal && body.rol_principal.trim() && { rol_principal: body.rol_principal.trim() }),
-        ...(body.rol_operativo && body.rol_operativo.trim() && { rol_operativo: body.rol_operativo.trim() }),
+        // Solo enviar rol si tiene valor (evitar enviar strings vacías o null)
+        ...(body.rol && body.rol.trim() && { rol: body.rol.trim() }),
         ...(personaId && { persona: personaId }),
         ...(body.usuario && { usuario: body.usuario }),
       },

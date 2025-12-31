@@ -88,8 +88,7 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
   const [formData, setFormData] = useState({
     email_login: colaboradorData?.email_login || '',
     password: '', // Campo opcional para cambiar contraseña
-    rol_principal: colaboradorData?.rol_principal || '',
-    rol_operativo: colaboradorData?.rol_operativo || '',
+    rol: colaboradorData?.rol || '',
     activo: colaboradorData?.activo !== undefined ? colaboradorData.activo : true,
     // Campos de persona
     rut: personaData?.rut || '',
@@ -109,8 +108,7 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
       setFormData({
         email_login: colaboradorData.email_login || '',
         password: '', // No prellenar contraseña por seguridad
-        rol_principal: colaboradorData.rol_principal || '',
-        rol_operativo: colaboradorData.rol_operativo || '',
+        rol: colaboradorData.rol || '',
         activo: colaboradorData.activo !== undefined ? colaboradorData.activo : true,
         rut: personaAttrs.rut || '',
         nombres: personaAttrs.nombres || '',
@@ -263,9 +261,8 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
         activo: formData.activo,
         // Solo enviar password si se proporcionó (no vacío)
         ...(formData.password && formData.password.trim().length > 0 && { password: formData.password }),
-        // Solo enviar roles si tienen valor válido
-        ...(formData.rol_principal && formData.rol_principal.trim() && { rol_principal: formData.rol_principal.trim() }),
-        ...(formData.rol_operativo && formData.rol_operativo.trim() && { rol_operativo: formData.rol_operativo.trim() }),
+        // Solo enviar rol si tiene valor válido
+        ...(formData.rol && formData.rol.trim() && { rol: formData.rol.trim() }),
         // Datos de persona para actualizar/relacionar
         persona: {
           rut: formData.rut.trim() || null,
@@ -367,11 +364,11 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
 
             <Col md={6}>
               <FormGroup className="mb-3">
-                <FormLabel>Rol Principal</FormLabel>
+                <FormLabel>Rol</FormLabel>
                 <FormControl
                   as="select"
-                  value={formData.rol_principal}
-                  onChange={(e) => handleFieldChange('rol_principal', e.target.value)}
+                  value={formData.rol}
+                  onChange={(e) => handleFieldChange('rol', e.target.value)}
                   disabled={loading}
                 >
                   <option value="">Seleccionar rol...</option>
