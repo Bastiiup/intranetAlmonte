@@ -300,7 +300,7 @@ export async function POST(request: NextRequest) {
     
     // URLs y credenciales de las plataformas
     const escolarUrl = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL_ESCOLAR || process.env.NEXT_PUBLIC_WOOCOMMERCE_URL || ''
-    const moralejaUrl = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL_MORALEJA || ''
+    const moralejaUrl = process.env.WOO_MORALEJA_URL || ''
     const escolarKey = process.env.WOO_ESCOLAR_CONSUMER_KEY || process.env.WOOCOMMERCE_CONSUMER_KEY || ''
     const escolarSecret = process.env.WOO_ESCOLAR_CONSUMER_SECRET || process.env.WOOCOMMERCE_CONSUMER_SECRET || ''
     const moralejaKey = process.env.WOO_MORALEJA_CONSUMER_KEY || ''
