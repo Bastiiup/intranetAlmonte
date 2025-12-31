@@ -12,7 +12,7 @@ import {
 } from '@tanstack/react-table'
 import Link from 'next/link'
 import { useState, useMemo } from 'react'
-import { Button, Card, CardBody, CardHeader, Alert } from 'react-bootstrap'
+import { Button, Card, CardBody, CardFooter, CardHeader, Alert } from 'react-bootstrap'
 import { LuSearch, LuMapPin, LuPhone, LuMail } from 'react-icons/lu'
 import { TbEye } from 'react-icons/tb'
 import DataTable from '@/components/table/DataTable'
@@ -177,6 +177,12 @@ const ColegiosListing = ({ colegios, error }: { colegios: any[]; error: string |
     },
   })
 
+  const pageIndex = table.getState().pagination.pageIndex
+  const pageSize = table.getState().pagination.pageSize
+  const totalItems = table.getFilteredRowModel().rows.length
+  const start = pageIndex * pageSize + 1
+  const end = Math.min(start + pageSize - 1, totalItems)
+
   if (error) {
     return (
       <Alert variant="danger">
@@ -204,8 +210,25 @@ const ColegiosListing = ({ colegios, error }: { colegios: any[]; error: string |
       </CardHeader>
       <CardBody>
         <DataTable table={table} />
-        <TablePagination table={table} />
       </CardBody>
+      {table.getFilteredRowModel().rows.length > 0 && (
+        <CardFooter className="border-0">
+          <TablePagination
+            totalItems={totalItems}
+            start={start}
+            end={end}
+            itemsName="colegios"
+            showInfo
+            previousPage={table.previousPage}
+            canPreviousPage={table.getCanPreviousPage()}
+            pageCount={table.getPageCount()}
+            pageIndex={pageIndex}
+            setPageIndex={table.setPageIndex}
+            nextPage={table.nextPage}
+            canNextPage={table.getCanNextPage()}
+          />
+        </CardFooter>
+      )}
     </Card>
   )
 }
