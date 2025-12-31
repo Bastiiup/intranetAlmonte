@@ -5,11 +5,12 @@ import type { Metadata } from 'next'
 import BillingDetails from '@/app/(admin)/(apps)/(ecommerce)/orders/[orderId]/components/BillingDetails'
 import CustomerDetails from '@/app/(admin)/(apps)/(ecommerce)/orders/[orderId]/components/CustomerDetails'
 import OrderSummary from '@/app/(admin)/(apps)/(ecommerce)/orders/[orderId]/components/OrderSummary'
+import OrderSummaryEditable from './components/OrderSummaryEditable'
 import ShippingActivity from '@/app/(admin)/(apps)/(ecommerce)/orders/[orderId]/components/ShippingActivity'
 import ShippingAddress from '@/app/(admin)/(apps)/(ecommerce)/orders/[orderId]/components/ShippingAddress'
 import ShipitInfo from '@/app/(admin)/(apps)/(ecommerce)/orders/[orderId]/components/ShipitInfo'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import OrderStatusEditor from './components/OrderStatusEditor'
+import PedidoTabs from './components/PedidoTabs'
 
 // Forzar renderizado dinámico
 export const dynamic = 'force-dynamic'
@@ -136,47 +137,66 @@ export default async function Page({ params }: PageProps) {
     )
   }
 
+  const pedidoIdForEdit = pedido._strapiData?.documentId || 
+    pedido._strapiData?.id || 
+    strapiPedido?.documentId || 
+    strapiPedido?.id || 
+    (strapiPedido?.attributes && (strapiPedido.attributes.documentId || strapiPedido.attributes.id)) ||
+    pedidoId
+
+  // Contenido común para ambas pestañas (sidebar)
+  const sidebarContent = (
+    <Col xl={3}>
+      <CustomerDetails pedido={pedido} />
+      <ShipitInfo pedido={pedido} />
+      <ShippingAddress pedido={pedido} />
+      <BillingDetails pedido={pedido} />
+    </Col>
+  )
+
+  // Contenido de la pestaña Detalle
+  const detalleContent = (
+    <Row className="justify-content-center">
+      <Col xxl={12}>
+        <Row>
+          <Col xl={9}>
+            {/* Pestaña Detalle: Copia exacta del estilo de /orders/[orderId] */}
+            <OrderSummary pedido={pedido} />
+            <ShippingActivity pedido={pedido} />
+          </Col>
+          {sidebarContent}
+        </Row>
+      </Col>
+    </Row>
+  )
+
+  // Contenido de la pestaña Editar Estado
+  const editarContent = (
+    <Row className="justify-content-center">
+      <Col xxl={12}>
+        <Row>
+          <Col xl={9}>
+            {/* Pestaña Editar Estado: Con editor de estado */}
+            <OrderSummaryEditable 
+              pedido={pedido}
+              pedidoId={pedidoIdForEdit}
+            />
+            <ShippingActivity pedido={pedido} />
+          </Col>
+          {sidebarContent}
+        </Row>
+      </Col>
+    </Row>
+  )
+
   return (
     <Container fluid>
       <PageBreadcrumb title={`Pedido #${pedido.number || pedido.id}`} subtitle="Ecommerce" />
 
-      {/* Editor de Estado - Siempre mostrar para permitir cambios */}
-      <Row className="mb-3">
-        <Col>
-          <OrderStatusEditor 
-            pedidoId={
-              pedido._strapiData?.documentId || 
-              pedido._strapiData?.id || 
-              strapiPedido?.documentId || 
-              strapiPedido?.id || 
-              (strapiPedido?.attributes && (strapiPedido.attributes.documentId || strapiPedido.attributes.id)) ||
-              pedidoId
-            }
-            currentStatus={pedido.status || pedido._strapiData?.estado || 'pending'}
-          />
-        </Col>
-      </Row>
-
-      <Row className="justify-content-center">
-        <Col xxl={12}>
-          <Row>
-            <Col xl={9}>
-              <OrderSummary pedido={pedido} />
-
-              <ShippingActivity pedido={pedido} />
-            </Col>
-            <Col xl={3}>
-              <CustomerDetails pedido={pedido} />
-
-              <ShipitInfo pedido={pedido} />
-
-              <ShippingAddress pedido={pedido} />
-
-              <BillingDetails pedido={pedido} />
-            </Col>
-          </Row>
-        </Col>
-      </Row>
+      <PedidoTabs 
+        detalleContent={detalleContent}
+        editarContent={editarContent}
+      />
     </Container>
   )
 }

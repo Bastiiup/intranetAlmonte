@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
       exclude: ['error', 'warn'],
     } : false,
   },
+  // Optimizaciones de build
+  // SWC es el minificador por defecto en Next.js 16+ (swcMinify fue removido)
+  poweredByHeader: false,
+  compress: true,
   images: {
     remotePatterns: [
       {

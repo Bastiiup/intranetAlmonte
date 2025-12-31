@@ -54,6 +54,20 @@ next-env.d.ts
 *.md
 !README.md
 
+# Test files (no necesarios en producción)
+**/__tests__/**
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+**/test/**
+**/tests/**
+
+# Storybook
+.storybook
+**/*.stories.tsx
+**/*.stories.ts
+
 # Railway
 .railway
 
