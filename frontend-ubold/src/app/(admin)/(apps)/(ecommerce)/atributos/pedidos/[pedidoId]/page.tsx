@@ -144,44 +144,59 @@ export default async function Page({ params }: PageProps) {
     (strapiPedido?.attributes && (strapiPedido.attributes.documentId || strapiPedido.attributes.id)) ||
     pedidoId
 
+  // Contenido común para ambas pestañas (sidebar)
+  const sidebarContent = (
+    <Col xl={3}>
+      <CustomerDetails pedido={pedido} />
+      <ShipitInfo pedido={pedido} />
+      <ShippingAddress pedido={pedido} />
+      <BillingDetails pedido={pedido} />
+    </Col>
+  )
+
+  // Contenido de la pestaña Detalle
+  const detalleContent = (
+    <Row className="justify-content-center">
+      <Col xxl={12}>
+        <Row>
+          <Col xl={9}>
+            {/* Pestaña Detalle: Copia exacta del estilo de /orders/[orderId] */}
+            <OrderSummary pedido={pedido} />
+            <ShippingActivity pedido={pedido} />
+          </Col>
+          {sidebarContent}
+        </Row>
+      </Col>
+    </Row>
+  )
+
+  // Contenido de la pestaña Editar Estado
+  const editarContent = (
+    <Row className="justify-content-center">
+      <Col xxl={12}>
+        <Row>
+          <Col xl={9}>
+            {/* Pestaña Editar Estado: Con editor de estado */}
+            <OrderSummaryEditable 
+              pedido={pedido}
+              pedidoId={pedidoIdForEdit}
+            />
+            <ShippingActivity pedido={pedido} />
+          </Col>
+          {sidebarContent}
+        </Row>
+      </Col>
+    </Row>
+  )
+
   return (
     <Container fluid>
       <PageBreadcrumb title={`Pedido #${pedido.number || pedido.id}`} subtitle="Ecommerce" />
 
-      <PedidoTabs>
-        {(activeTab) => (
-          <Row className="justify-content-center">
-            <Col xxl={12}>
-              <Row>
-                <Col xl={9}>
-                  {activeTab === 'detalle' ? (
-                    <>
-                      {/* Pestaña Detalle: Copia exacta del estilo de /orders/[orderId] */}
-                      <OrderSummary pedido={pedido} />
-                      <ShippingActivity pedido={pedido} />
-                    </>
-                  ) : (
-                    <>
-                      {/* Pestaña Editar Estado: Con editor de estado */}
-                      <OrderSummaryEditable 
-                        pedido={pedido}
-                        pedidoId={pedidoIdForEdit}
-                      />
-                      <ShippingActivity pedido={pedido} />
-                    </>
-                  )}
-                </Col>
-                <Col xl={3}>
-                  <CustomerDetails pedido={pedido} />
-                  <ShipitInfo pedido={pedido} />
-                  <ShippingAddress pedido={pedido} />
-                  <BillingDetails pedido={pedido} />
-                </Col>
-              </Row>
-            </Col>
-          </Row>
-        )}
-      </PedidoTabs>
+      <PedidoTabs 
+        detalleContent={detalleContent}
+        editarContent={editarContent}
+      />
     </Container>
   )
 }

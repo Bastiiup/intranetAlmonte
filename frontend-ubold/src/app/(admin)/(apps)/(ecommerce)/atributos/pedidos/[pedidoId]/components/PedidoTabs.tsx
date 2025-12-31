@@ -7,10 +7,11 @@ import { TbFileText, TbEdit } from 'react-icons/tb'
 export type PedidoTabType = 'detalle' | 'editar'
 
 interface PedidoTabsProps {
-  children: (activeTab: PedidoTabType) => React.ReactNode
+  detalleContent: React.ReactNode
+  editarContent: React.ReactNode
 }
 
-const PedidoTabs = ({ children }: PedidoTabsProps) => {
+const PedidoTabs = ({ detalleContent, editarContent }: PedidoTabsProps) => {
   const [activeTab, setActiveTab] = useState<PedidoTabType>('detalle')
 
   return (
@@ -41,7 +42,7 @@ const PedidoTabs = ({ children }: PedidoTabsProps) => {
       </Nav>
 
       <div>
-        {children(activeTab)}
+        {activeTab === 'detalle' ? detalleContent : editarContent}
       </div>
     </div>
   )
