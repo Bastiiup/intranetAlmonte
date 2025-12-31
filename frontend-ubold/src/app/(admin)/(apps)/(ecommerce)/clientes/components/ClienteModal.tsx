@@ -498,8 +498,8 @@ const ClienteModal = ({ show, onHide, cliente, onSave }: ClienteModalProps) => {
                   onChange={(e) => setFormData((prev) => ({ ...prev, genero: e.target.value }))}
                 >
                   <option value="">Seleccionar...</option>
-                  <option value="Masculino">Masculino</option>
-                  <option value="Femenino">Femenino</option>
+                  <option value="Hombre">Hombre</option>
+                  <option value="Mujer">Mujer</option>
                 </Form.Select>
               </Form.Group>
             </Col>
