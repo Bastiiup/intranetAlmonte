@@ -24,6 +24,7 @@ import TablePagination from '@/components/table/TablePagination'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { getAuthToken } from '@/lib/auth'
 
 // Tipo extendido para colaboradores
 type ColaboradorTypeExtended = {
@@ -258,10 +259,16 @@ const SolicitudesColaboradoresListing = ({ colaboradores, error }: SolicitudesCo
 
     setActivating(true)
     try {
+      const token = getAuthToken()
+      if (!token) {
+        throw new Error('No se encontró un token de autenticación')
+      }
+
       const response = await fetch(`/api/colaboradores/${selectedColaborador.strapiId}/activate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
       })
 
