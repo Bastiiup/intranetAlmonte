@@ -262,7 +262,7 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
       // Preparar datos para Strapi
       const colaboradorUpdateData: any = {
         email_login: formData.email_login.trim(),
-        auth_provider: formData.auth_provider || 'google',
+        auth_provider: formData.auth_provider && formData.auth_provider.trim() ? formData.auth_provider.trim() : 'google',
         activo: formData.activo,
         // Solo enviar password si se proporcionó (no vacío)
         ...(formData.password && formData.password.trim().length > 0 && { password: formData.password }),
@@ -378,6 +378,7 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
                   disabled={loading}
                 >
                   <option value="">Seleccionar rol...</option>
+                  <option value="super_admin">Super Admin</option>
                   <option value="comercial">Comercial</option>
                   <option value="soporte">Soporte</option>
                   <option value="comprobaciones">Comprobaciones</option>

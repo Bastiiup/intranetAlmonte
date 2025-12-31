@@ -155,8 +155,8 @@ export async function POST(request: Request) {
               console.log('[API /colaboradores POST] ✅ Persona actualizada')
             }
           } else {
-            // Persona no existe, crearla
-            console.log('[API /colaboradores POST] 📚 Creando nueva persona...')
+            // Persona no existe, crearla PRIMERO antes del colaborador
+            console.log('[API /colaboradores POST] 📚 Creando nueva persona primero...')
             
             const nombres = personaData.nombres?.trim() || ''
             const primerApellido = personaData.primer_apellido?.trim() || ''
@@ -183,20 +183,31 @@ export async function POST(request: Request) {
             )
 
             personaId = personaResponse.data?.id || personaResponse.data?.documentId || personaResponse.id || personaResponse.documentId
-            console.log('[API /colaboradores POST] ✅ Persona creada:', personaId)
+            
+            if (!personaId) {
+              throw new Error('No se pudo obtener el ID de la persona creada')
+            }
+            
+            console.log('[API /colaboradores POST] ✅ Persona creada exitosamente:', personaId)
           }
         } catch (personaError: any) {
-          console.error('[API /colaboradores POST] Error al manejar persona:', personaError)
-          // Continuar sin persona si hay error (no crítico)
+          console.error('[API /colaboradores POST] ❌ Error al manejar persona:', personaError)
+          // Si falla la creación de persona, fallar todo el proceso
+          throw new Error(`Error al crear/buscar persona: ${personaError.message || 'Error desconocido'}`)
         }
       }
     }
 
     // Preparar datos para Strapi
+    // Asegurar que auth_provider tenga un valor válido
+    const authProvider = body.auth_provider && body.auth_provider.trim() && ['google', 'strapi', 'otro'].includes(body.auth_provider.trim())
+      ? body.auth_provider.trim()
+      : 'google'
+
     const colaboradorData: any = {
       data: {
         email_login: body.email_login.trim(),
-        auth_provider: body.auth_provider || 'google',
+        auth_provider: authProvider,
         activo: body.activo !== undefined ? body.activo : true,
         ...(body.password && { password: body.password }),
         ...(body.rol_principal && body.rol_principal.trim() && { rol_principal: body.rol_principal.trim() }),
