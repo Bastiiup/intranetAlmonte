@@ -473,6 +473,9 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
       setError(null)
       setSuccessMessage('Colegio eliminado exitosamente')
       
+      // Revalidar datos para sincronización bidireccional
+      router.refresh()
+      
       // Recargar datos
       fetchColegios()
       
@@ -633,6 +636,8 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
           setAddModal(false)
           setSuccessMessage('Colegio creado exitosamente')
           setTimeout(() => setSuccessMessage(null), 3000)
+          // Revalidar datos para sincronización bidireccional
+          router.refresh()
           fetchColegios()
         }}
       />
@@ -646,6 +651,8 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
           setEditModal({ open: false, colegio: null })
           setSuccessMessage('Colegio actualizado exitosamente')
           setTimeout(() => setSuccessMessage(null), 3000)
+          // Revalidar datos para sincronización bidireccional
+          router.refresh()
           fetchColegios()
         }}
       />

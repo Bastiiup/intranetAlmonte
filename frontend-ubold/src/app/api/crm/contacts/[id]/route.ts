@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 
@@ -158,6 +159,14 @@ export async function DELETE(
 
     try {
       await strapiClient.delete(`/api/personas/${id}`)
+
+      // Revalidar para sincronización bidireccional
+      revalidatePath('/crm/personas')
+      revalidatePath(`/crm/personas/${id}`)
+      revalidatePath('/crm/personas/[id]', 'page')
+      revalidatePath('/crm/contacts')
+      revalidateTag('personas')
+      revalidateTag('contacts')
 
       return NextResponse.json({
         success: true,

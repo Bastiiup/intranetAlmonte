@@ -103,6 +103,9 @@ const EditarPersonaPage = () => {
         throw new Error(result.error || 'Error al actualizar el contacto')
       }
 
+      // Revalidar datos para sincronización bidireccional
+      router.refresh()
+      
       // Redirigir a la ficha del contacto
       router.push(`/crm/personas/${personaId}`)
     } catch (err: any) {

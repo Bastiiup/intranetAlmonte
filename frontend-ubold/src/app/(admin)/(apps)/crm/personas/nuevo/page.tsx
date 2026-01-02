@@ -46,6 +46,9 @@ const NuevaPersonaPage = () => {
         throw new Error(result.error || 'Error al crear el contacto')
       }
 
+      // Revalidar datos para sincronización bidireccional
+      router.refresh()
+      
       // Redirigir a la ficha del contacto creado
       const personaId = result.data?.id || result.data?.documentId
       if (personaId) {

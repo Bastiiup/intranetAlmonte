@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 
@@ -199,6 +200,13 @@ export async function POST(request: Request) {
       '/api/personas',
       personaData
     )
+
+    // Revalidar para sincronización bidireccional
+    revalidatePath('/crm/personas')
+    revalidatePath('/crm/personas/[id]', 'page')
+    revalidatePath('/crm/contacts')
+    revalidateTag('personas')
+    revalidateTag('contacts')
 
     return NextResponse.json({
       success: true,

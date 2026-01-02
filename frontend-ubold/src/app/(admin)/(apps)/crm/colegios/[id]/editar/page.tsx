@@ -104,6 +104,9 @@ const EditarColegioPage = () => {
         throw new Error(result.error || 'Error al actualizar el colegio')
       }
 
+      // Revalidar datos para sincronización bidireccional
+      router.refresh()
+      
       // Redirigir a la ficha del colegio
       router.push(`/crm/colegios/${colegioId}`)
     } catch (err: any) {

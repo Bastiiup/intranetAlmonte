@@ -44,6 +44,9 @@ const NuevoColegioPage = () => {
         throw new Error(result.error || 'Error al crear el colegio')
       }
 
+      // Revalidar datos para sincronización bidireccional
+      router.refresh()
+      
       // Redirigir a la ficha del colegio creado
       const colegioId = result.data?.id || result.data?.documentId
       if (colegioId) {
