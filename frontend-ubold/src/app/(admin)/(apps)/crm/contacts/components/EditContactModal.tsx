@@ -283,7 +283,7 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
                 >
                   <option value="">Seleccionar colegio...</option>
                   {colegios.map((colegio) => (
-                    <option key={colegio.id} value={colegio.documentId || colegio.id}>
+                    <option key={colegio.id} value={colegio.id}>
                       {colegio.nombre} {colegio.rbd ? `(RBD: ${colegio.rbd})` : ''}
                     </option>
                   ))}
