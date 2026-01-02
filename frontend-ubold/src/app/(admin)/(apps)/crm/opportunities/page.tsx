@@ -1,6 +1,6 @@
 'use client'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { CardBody, CardFooter, Col, Row } from 'react-bootstrap'
+import { CardBody, CardFooter, Col, Row, Spinner } from 'react-bootstrap'
 import {
   ColumnFiltersState,
   createColumnHelper,
@@ -15,9 +15,9 @@ import { OpportunitiesType } from '@/app/(admin)/(apps)/crm/types'
 import Image from 'next/image'
 import Link from 'next/link'
 import { toPascalCase } from '@/helpers/casing'
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import clsx from 'clsx'
-import { opportunities } from '@/app/(admin)/(apps)/crm/data'
+import { getOpportunities, type OpportunitiesQuery } from './data'
 import { LuCircleAlert, LuSearch, LuShuffle } from 'react-icons/lu'
 import { LiaCheckCircle } from 'react-icons/lia'
 import DataTable from '@/components/table/DataTable'
@@ -26,6 +26,51 @@ import TablePagination from '@/components/table/TablePagination'
 const columnHelper = createColumnHelper<OpportunitiesType>()
 
 const Opportunities = () => {
+  // Estados de datos
+  const [opportunitiesData, setOpportunitiesData] = useState<OpportunitiesType[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [totalRows, setTotalRows] = useState(0)
+  
+  // Estados de tabla
+  const [globalFilter, setGlobalFilter] = useState('')
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
+  const [filtroStage, setFiltroStage] = useState<string>('')
+  const [filtroStatus, setFiltroStatus] = useState<string>('')
+  const [filtroPriority, setFiltroPriority] = useState<string>('')
+
+  // Función para cargar oportunidades
+  const loadOpportunities = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const query: OpportunitiesQuery = {
+        page: pagination.pageIndex + 1, // Strapi usa página 1-indexed
+        pageSize: pagination.pageSize,
+        search: globalFilter || undefined,
+        stage: filtroStage || undefined,
+        status: filtroStatus || undefined,
+        priority: filtroPriority || undefined,
+      }
+      
+      const result = await getOpportunities(query)
+      setOpportunitiesData(result.opportunities)
+      setTotalRows(result.pagination.total)
+    } catch (err: any) {
+      console.error('Error loading opportunities:', err)
+      setError(err.message || 'Error al cargar oportunidades')
+    } finally {
+      setLoading(false)
+    }
+  }, [pagination.pageIndex, pagination.pageSize, globalFilter, filtroStage, filtroStatus, filtroPriority])
+
+  // Cargar datos cuando cambian los filtros o paginación
+  useEffect(() => {
+    loadOpportunities()
+  }, [loadOpportunities])
+
   const columns = [
     columnHelper.accessor('id', { header: 'ID' }),
     columnHelper.accessor('productBy', {
@@ -107,15 +152,10 @@ const Opportunities = () => {
     }),
   ]
 
-  const [data, setData] = useState<OpportunitiesType[]>(() => [...opportunities])
-  const [globalFilter, setGlobalFilter] = useState('')
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
-
   const table = useReactTable({
-    data,
+    data: opportunitiesData,
     columns,
+    pageCount: Math.ceil(totalRows / pagination.pageSize),
     state: { sorting, globalFilter, columnFilters, pagination },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
@@ -125,20 +165,37 @@ const Opportunities = () => {
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    manualPagination: true, // Paginación del servidor
     globalFilterFn: 'includesString',
     enableColumnFilters: true,
   })
 
   const pageIndex = table.getState().pagination.pageIndex
   const pageSize = table.getState().pagination.pageSize
-  const totalItems = table.getFilteredRowModel().rows.length
-
   const start = pageIndex * pageSize + 1
-  const end = Math.min(start + pageSize - 1, totalItems)
+  const end = Math.min(start + pageSize - 1, totalRows)
+
+  if (loading && opportunitiesData.length === 0) {
+    return (
+      <div className="container-fluid">
+        <PageBreadcrumb title={'Opportunities'} subtitle={'CRM'} />
+        <div className="text-center py-5">
+          <Spinner animation="border" variant="primary" />
+          <p className="mt-2 text-muted">Cargando oportunidades...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="container-fluid">
       <PageBreadcrumb title={'Opportunities'} subtitle={'CRM'} />
+
+      {error && (
+        <div className="alert alert-danger" role="alert">
+          <strong>Error:</strong> {error}
+        </div>
+      )}
 
       <Row>
         <Col xs={12}>
@@ -163,10 +220,10 @@ const Opportunities = () => {
 
                 <div className="app-search">
                   <select
-                    value={(table.getColumn('stage')?.getFilterValue() as string) ?? 'All'}
-                    onChange={(e) => table.getColumn('stage')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}
+                    value={filtroStage}
+                    onChange={(e) => setFiltroStage(e.target.value)}
                     className="form-select form-control my-1 my-md-0">
-                    <option value="All">Stage</option>
+                    <option value="">All Stages</option>
                     <option value="Qualification">Qualification</option>
                     <option value="Proposal Sent">Proposal Sent</option>
                     <option value="Negotiation">Negotiation</option>
@@ -178,10 +235,10 @@ const Opportunities = () => {
 
                 <div className="app-search">
                   <select
-                    value={(table.getColumn('status')?.getFilterValue() as string) ?? 'All'}
-                    onChange={(e) => table.getColumn('status')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}
+                    value={filtroStatus}
+                    onChange={(e) => setFiltroStatus(e.target.value)}
                     className="form-select form-control my-1 my-md-0">
-                    <option value="All">Status</option>
+                    <option value="">All Status</option>
                     <option value="open">Open</option>
                     <option value="in-progress">In Progress</option>
                     <option value="closed">Closed</option>
@@ -191,10 +248,10 @@ const Opportunities = () => {
 
                 <div className="app-search">
                   <select
-                    value={(table.getColumn('priority')?.getFilterValue() as string) ?? 'All'}
-                    onChange={(e) => table.getColumn('priority')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}
+                    value={filtroPriority}
+                    onChange={(e) => setFiltroPriority(e.target.value)}
                     className="form-select form-control my-1 my-md-0">
-                    <option value="All">Priority</option>
+                    <option value="">All Priority</option>
                     <option value="high">High</option>
                     <option value="medium">Medium</option>
                     <option value="low">Low</option>
@@ -218,13 +275,13 @@ const Opportunities = () => {
             </div>
 
             <CardBody className="p-0">
-              <DataTable<OpportunitiesType> table={table} emptyMessage="No records found" />
+              <DataTable<OpportunitiesType> table={table} emptyMessage="No se encontraron oportunidades" />
             </CardBody>
 
             {table.getRowModel().rows.length > 0 && (
               <CardFooter className="border-0">
                 <TablePagination
-                  totalItems={totalItems}
+                  totalItems={totalRows}
                   start={start}
                   end={end}
                   itemsName="Opportunities"

@@ -75,6 +75,8 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     { id: 'nombre', desc: false }
   ])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 25 })
+  const [totalRows, setTotalRows] = useState(0)
 
   // Función para obtener datos
   const fetchColegios = useCallback(async () => {
@@ -83,6 +85,8 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     
     try {
       const params = new URLSearchParams()
+      params.append('page', (pagination.pageIndex + 1).toString())
+      params.append('pageSize', pagination.pageSize.toString())
       if (search) params.append('search', search)
       if (estado) params.append('estado', estado)
       if (region) params.append('region', region)
@@ -92,6 +96,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
       
       if (data.success && data.data) {
         setColegios(Array.isArray(data.data) ? data.data : [data.data])
+        setTotalRows(data.meta?.pagination?.total || 0)
       } else {
         setError(data.error || 'Error al obtener colegios')
       }
@@ -100,7 +105,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     } finally {
       setLoading(false)
     }
-  }, [search, estado, region])
+  }, [search, estado, region, pagination.pageIndex, pagination.pageSize])
 
   // Debounce para búsqueda
   useEffect(() => {
@@ -109,7 +114,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     }, 300) // 300ms de debounce
 
     return () => clearTimeout(timeoutId)
-  }, [search, estado, region, fetchColegios])
+  }, [fetchColegios])
 
   // Mapear datos de Strapi al formato esperado
   const mappedColegios: ColegioType[] = useMemo(() => {
@@ -250,28 +255,26 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
   const table = useReactTable({
     data: mappedColegios,
     columns,
+    pageCount: Math.ceil(totalRows / pagination.pageSize),
     state: {
       sorting,
       columnFilters,
+      pagination,
     },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    initialState: {
-      pagination: {
-        pageSize: 25,
-      },
-    },
+    manualPagination: true, // Paginación del servidor
   })
 
   const pageIndex = table.getState().pagination.pageIndex
   const pageSize = table.getState().pagination.pageSize
-  const totalItems = table.getFilteredRowModel().rows.length
   const start = pageIndex * pageSize + 1
-  const end = Math.min(start + pageSize - 1, totalItems)
+  const end = Math.min(start + pageSize - 1, totalRows)
 
   const clearFilters = () => {
     setSearch('')
@@ -378,10 +381,10 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
           </>
         )}
       </CardBody>
-      {table.getFilteredRowModel().rows.length > 0 && (
+      {table.getRowModel().rows.length > 0 && (
         <CardFooter className="border-0">
           <TablePagination
-            totalItems={totalItems}
+            totalItems={totalRows}
             start={start}
             end={end}
             itemsName="colegios"
