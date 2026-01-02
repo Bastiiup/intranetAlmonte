@@ -71,9 +71,9 @@ const EditColegioModal = ({ show, onHide, colegio, onSuccess }: EditColegioModal
             .join(', ')
         : ''
 
-      // Obtener dirección de direcciones array o campo directo
+      // Obtener dirección de direcciones array o campo directo (usar campos correctos)
       const direccionStr = Array.isArray(data.direcciones) && data.direcciones.length > 0
-        ? `${data.direcciones[0].calle || ''} ${data.direcciones[0].numero || ''}`.trim()
+        ? `${data.direcciones[0].nombre_calle || ''} ${data.direcciones[0].numero_calle || ''}`.trim()
         : data.direccion || ''
 
       // Obtener comuna de direcciones o relación comuna
@@ -131,19 +131,26 @@ const EditColegioModal = ({ show, onHide, colegio, onSuccess }: EditColegioModal
           principal: index === 0,
         }))
 
+      // Preparar direcciones con campos correctos
+      const direccionesArray = formData.direccion
+        ? [{
+            nombre_calle: formData.direccion,
+            numero_calle: '',
+            tipo_direccion: 'Colegio',
+            direccion_principal_envio_facturacion: 'Principal',
+            ...(formData.comuna && { comuna: formData.comuna }),
+          }]
+        : []
+
       // Preparar datos para Strapi (solo campos válidos según schema)
-      // Nota: direcciones no se envía porque el componente contacto.direccion no tiene campo 'calle'
-      // La dirección se guarda en el campo 'region' y 'comuna' como texto
       const colegioData: any = {
         colegio_nombre: formData.colegio_nombre.trim(),
         ...(formData.dependencia && { dependencia: formData.dependencia }),
         ...(formData.region && { region: formData.region }),
-        ...(formData.comuna && { comuna_texto: formData.comuna }),
         ...(formData.website && { website: formData.website.trim() }),
         ...(telefonosArray.length > 0 && { telefonos: telefonosArray }),
         ...(emailsArray.length > 0 && { emails: emailsArray }),
-        // Direcciones comentadas hasta confirmar estructura exacta del componente
-        // ...(direccionesArray.length > 0 && { direcciones: direccionesArray }),
+        ...(direccionesArray.length > 0 && { direcciones: direccionesArray }),
       }
 
       // Obtener el ID correcto (documentId es el identificador principal en Strapi)

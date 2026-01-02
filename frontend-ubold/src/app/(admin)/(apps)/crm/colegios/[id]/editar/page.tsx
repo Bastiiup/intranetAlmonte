@@ -52,7 +52,11 @@ const EditarColegioPage = () => {
             principal: e.principal || false,
           })),
           direcciones: (attrs.direcciones || []).map((d: any) => ({
-            calle: d.calle || '',
+            nombre_calle: d.nombre_calle || '',
+            numero_calle: d.numero_calle || '',
+            complemento_direccion: d.complemento_direccion || '',
+            tipo_direccion: d.tipo_direccion || 'Colegio',
+            direccion_principal_envio_facturacion: d.direccion_principal_envio_facturacion || 'Principal',
             numero: d.numero || '',
             comuna: d.comuna || '',
             region: d.region || '',
@@ -87,7 +91,7 @@ const EditarColegioPage = () => {
         comunaId: data.comunaId,
         telefonos: data.telefonos.filter((t: any) => t.telefono_raw),
         emails: data.emails.filter((e: any) => e.email),
-        direcciones: data.direcciones.filter((d: any) => d.calle || d.numero),
+        direcciones: data.direcciones.filter((d: any) => d.nombre_calle || d.numero_calle),
       }
 
       const response = await fetch(`/api/crm/colegios/${colegioId}`, {

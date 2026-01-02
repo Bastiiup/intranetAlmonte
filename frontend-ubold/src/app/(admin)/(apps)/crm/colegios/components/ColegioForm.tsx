@@ -29,9 +29,12 @@ interface EmailItem {
 }
 
 interface DireccionItem {
-  calle?: string
-  numero?: string
-  comuna?: string
+  nombre_calle?: string
+  numero_calle?: string
+  complemento_direccion?: string
+  tipo_direccion?: string
+  direccion_principal_envio_facturacion?: string
+  comuna?: string | number
   region?: string
 }
 
@@ -144,7 +147,12 @@ const ColegioForm = ({ initialData, onSubmit, onCancel, loading = false, error: 
   const addDireccion = () => {
     setFormData((prev) => ({
       ...prev,
-      direcciones: [...prev.direcciones, { calle: '', numero: '' }],
+      direcciones: [...prev.direcciones, { 
+        nombre_calle: '', 
+        numero_calle: '',
+        tipo_direccion: 'Colegio',
+        direccion_principal_envio_facturacion: 'Principal'
+      }],
     }))
   }
 

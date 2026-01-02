@@ -70,19 +70,26 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
           principal: index === 0,
         }))
 
+      // Preparar direcciones con campos correctos
+      const direccionesArray = formData.direccion
+        ? [{
+            nombre_calle: formData.direccion,
+            numero_calle: '',
+            tipo_direccion: 'Colegio',
+            direccion_principal_envio_facturacion: 'Principal',
+            ...(formData.comuna && { comuna: formData.comuna }),
+          }]
+        : []
+
       // Preparar datos para Strapi (solo campos válidos según schema)
-      // Nota: direcciones no se envía porque el componente contacto.direccion no tiene campo 'calle'
-      // La dirección se guarda en el campo 'region' y 'comuna' como texto
       const colegioData: any = {
         colegio_nombre: formData.colegio_nombre.trim(),
         ...(formData.dependencia && { dependencia: formData.dependencia }),
         ...(formData.region && { region: formData.region }),
-        ...(formData.comuna && { comuna_texto: formData.comuna }), // Guardar como texto si no hay relación
         ...(formData.website && { website: formData.website.trim() }),
         ...(telefonosArray.length > 0 && { telefonos: telefonosArray }),
         ...(emailsArray.length > 0 && { emails: emailsArray }),
-        // Direcciones comentadas hasta confirmar estructura exacta del componente
-        // ...(direccionesArray.length > 0 && { direcciones: direccionesArray }),
+        ...(direccionesArray.length > 0 && { direcciones: direccionesArray }),
       }
 
       // Crear el colegio

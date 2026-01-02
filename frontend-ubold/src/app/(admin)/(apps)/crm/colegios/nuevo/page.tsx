@@ -27,7 +27,7 @@ const NuevoColegioPage = () => {
         comunaId: data.comunaId,
         telefonos: data.telefonos.filter((t: any) => t.telefono_raw),
         emails: data.emails.filter((e: any) => e.email),
-        direcciones: data.direcciones.filter((d: any) => d.calle || d.numero),
+        direcciones: data.direcciones.filter((d: any) => d.nombre_calle || d.numero_calle),
       }
 
       const response = await fetch('/api/crm/colegios', {
