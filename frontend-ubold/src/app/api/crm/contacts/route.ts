@@ -182,18 +182,28 @@ export async function POST(request: Request) {
 
     // Agregar emails si existen
     if (body.emails && Array.isArray(body.emails) && body.emails.length > 0) {
-      personaData.data.emails = body.emails.map((email: string, index: number) => ({
-        email: email.trim(),
-        principal: index === 0, // El primero es principal
-      }))
+      personaData.data.emails = body.emails.map((emailItem: any, index: number) => {
+        // Manejar tanto string como objeto
+        const emailValue = typeof emailItem === 'string' ? emailItem : emailItem.email || ''
+        return {
+          email: typeof emailValue === 'string' ? emailValue.trim() : String(emailValue).trim(),
+          principal: typeof emailItem === 'object' && emailItem.principal !== undefined ? emailItem.principal : index === 0,
+        }
+      })
     }
 
     // Agregar telefonos si existen
     if (body.telefonos && Array.isArray(body.telefonos) && body.telefonos.length > 0) {
-      personaData.data.telefonos = body.telefonos.map((telefono: string, index: number) => ({
-        telefono_raw: telefono.trim(),
-        principal: index === 0, // El primero es principal
-      }))
+      personaData.data.telefonos = body.telefonos.map((telefonoItem: any, index: number) => {
+        // Manejar tanto string como objeto
+        const telefonoValue = typeof telefonoItem === 'string' 
+          ? telefonoItem 
+          : telefonoItem.telefono_raw || telefonoItem.telefono || telefonoItem.numero || ''
+        return {
+          telefono_raw: typeof telefonoValue === 'string' ? telefonoValue.trim() : String(telefonoValue).trim(),
+          principal: typeof telefonoItem === 'object' && telefonoItem.principal !== undefined ? telefonoItem.principal : index === 0,
+        }
+      })
     }
 
     const response = await strapiClient.post<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
