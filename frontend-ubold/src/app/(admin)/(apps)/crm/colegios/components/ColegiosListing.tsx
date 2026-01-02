@@ -121,6 +121,15 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     return () => clearTimeout(timeoutId)
   }, [fetchColegios])
 
+  // Función para generar iniciales
+  const generarIniciales = (nombre: string) => {
+    const palabras = nombre.split(' ')
+    if (palabras.length >= 2) {
+      return (palabras[0][0] + palabras[1][0]).toUpperCase()
+    }
+    return nombre.substring(0, 2).toUpperCase()
+  }
+
   // Mapear datos de Strapi al formato esperado
   const mappedColegios: ColegioType[] = useMemo(() => {
     if (!colegios || !Array.isArray(colegios)) return []
@@ -129,34 +138,57 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
       const attrs = colegio.attributes || {}
       const data = Object.keys(attrs).length > 0 ? attrs : colegio
       
-      // Obtener primer teléfono, email y dirección de los componentes
-      const telefonos = data.telefonos || []
-      const emails = data.emails || []
-      const direcciones = data.direcciones || []
+      // Obtener teléfonos y emails (todos)
+      const telefonosArray = data.telefonos || []
+      const emailsArray = data.emails || []
+      const telefonos = telefonosArray.map((t: any) => t.telefono_norm || t.telefono_raw || t.numero || t.telefono || '').filter(Boolean)
+      const emails = emailsArray.map((e: any) => e.email || '').filter(Boolean)
       
       // Obtener comuna (puede venir como relación)
       let comunaNombre = ''
+      let regionNombre = ''
       if (data.comuna) {
-        if (data.comuna.data?.attributes?.nombre) {
-          comunaNombre = data.comuna.data.attributes.nombre
-        } else if (data.comuna.attributes?.nombre) {
-          comunaNombre = data.comuna.attributes.nombre
+        if (data.comuna.data?.attributes) {
+          comunaNombre = data.comuna.data.attributes.comuna_nombre || data.comuna.data.attributes.nombre || ''
+          regionNombre = data.comuna.data.attributes.region_nombre || ''
+        } else if (data.comuna.attributes) {
+          comunaNombre = data.comuna.attributes.comuna_nombre || data.comuna.attributes.nombre || ''
+          regionNombre = data.comuna.attributes.region_nombre || ''
         } else if (typeof data.comuna === 'string') {
           comunaNombre = data.comuna
-        } else if (data.comuna.nombre) {
-          comunaNombre = data.comuna.nombre
+        } else if (data.comuna.comuna_nombre || data.comuna.nombre) {
+          comunaNombre = data.comuna.comuna_nombre || data.comuna.nombre || ''
+          regionNombre = data.comuna.region_nombre || ''
         }
       }
       
+      // Obtener representante comercial
+      const asignaciones = data.cartera_asignaciones || []
+      const asignacionComercial = asignaciones
+        .filter((ca: any) => ca.is_current && ca.rol === 'comercial' && ca.estado === 'activa')
+        .sort((a: any, b: any) => {
+          const prioridadOrder = { alta: 3, media: 2, baja: 1 }
+          return (prioridadOrder[b.prioridad || 'baja'] || 0) - (prioridadOrder[a.prioridad || 'baja'] || 0)
+        })[0]
+      const representante = asignacionComercial?.ejecutivo?.nombre_completo || asignacionComercial?.ejecutivo?.data?.attributes?.nombre_completo || ''
+      
+      // Obtener tipo (puede venir de dependencia o tipo)
+      const tipo = data.tipo || data.dependencia || 'Colegio'
+      
       return {
-        id: colegio.id?.toString() || '',
+        id: colegio.id?.toString() || colegio.documentId || '',
         nombre: data.colegio_nombre || data.nombre || data.NOMBRE || 'Sin nombre',
         rbd: data.rbd?.toString() || '',
-        direccion: direcciones[0]?.calle || direcciones[0]?.direccion || direcciones[0]?.direccion_completa || data.direccion || data.DIRECCION || '',
+        tipo,
+        direccion: data.direccion || data.DIRECCION || '',
         comuna: comunaNombre,
-        region: data.region || data.REGION || '',
-        telefono: telefonos[0]?.numero || telefonos[0]?.telefono || data.telefono || data.TELEFONO || '',
-        email: emails[0]?.email || data.email || data.EMAIL || '',
+        region: regionNombre || data.region || data.REGION || '',
+        telefonos,
+        emails,
+        website: data.website || '',
+        contactosCount: 0, // TODO: calcular desde relaciones
+        representante,
+        origen: data.origen || '',
         estado: data.estado || data.ESTADO || '',
         createdAt: data.createdAt || colegio.createdAt || '',
       }
@@ -165,92 +197,172 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
 
   const columns = useMemo<ColumnDef<ColegioType>[]>(
     () => [
-      columnHelper.accessor('nombre', {
-        header: 'NOMBRE',
+      {
+        id: 'select',
+        maxSize: 45,
+        size: 45,
+        header: ({ table }) => (
+          <input
+            type="checkbox"
+            className="form-check-input form-check-input-light fs-14"
+            checked={table.getIsAllRowsSelected()}
+            onChange={table.getToggleAllRowsSelectedHandler()}
+          />
+        ),
+        cell: ({ row }) => (
+          <input
+            type="checkbox"
+            className="form-check-input form-check-input-light fs-14"
+            checked={row.getIsSelected()}
+            onChange={row.getToggleSelectedHandler()}
+          />
+        ),
+        enableSorting: false,
+        enableColumnFilter: false,
+      },
+      {
+        id: 'institucion',
+        header: 'INSTITUCIÓN',
         cell: ({ row }) => {
-          const nombre = row.original.nombre
+          const colegio = row.original
+          const iniciales = generarIniciales(colegio.nombre)
           return (
-            <div>
-              <h5 className="mb-0">
-                <Link href={`/crm/colegios/${row.original.id}`} className="link-reset fw-semibold">
-                  {nombre}
-                </Link>
-              </h5>
+            <div className="d-flex align-items-center">
+              <div className="avatar-sm rounded-circle me-2 flex-shrink-0 bg-secondary-subtle d-flex align-items-center justify-content-center">
+                <span className="avatar-title text-secondary fw-semibold fs-12">
+                  {iniciales}
+                </span>
+              </div>
+              <div>
+                <div className="fw-medium">{colegio.nombre}</div>
+                {colegio.tipo && (
+                  <div className="text-muted fs-xs">{colegio.tipo}</div>
+                )}
+              </div>
             </div>
           )
         },
-      }),
-      columnHelper.accessor('rbd', {
-        header: 'RBD',
-        cell: ({ getValue }) => getValue() || <span className="text-muted">-</span>,
-      }),
-      columnHelper.accessor('direccion', {
+      },
+      {
+        id: 'comunicacion',
+        header: 'COMUNICACIÓN',
+        cell: ({ row }) => {
+          const colegio = row.original
+          return (
+            <div className="fs-xs">
+              {colegio.emails && colegio.emails.length > 0 && (
+                <div className="mb-1">
+                  {colegio.emails.map((email, idx) => (
+                    <div key={idx} className="d-flex align-items-center">
+                      <LuMail className="me-1" size={12} />
+                      <span>{email}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {colegio.telefonos && colegio.telefonos.length > 0 && (
+                <div>
+                  {colegio.telefonos.map((tel, idx) => (
+                    <div key={idx} className="d-flex align-items-center">
+                      <LuPhone className="me-1" size={12} />
+                      <span>{tel}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(!colegio.emails?.length && !colegio.telefonos?.length) && (
+                <span className="text-muted">-</span>
+              )}
+            </div>
+          )
+        },
+      },
+      {
+        id: 'direccion',
         header: 'DIRECCIÓN',
         cell: ({ row }) => {
-          const direccion = row.original.direccion
-          const comuna = row.original.comuna
+          const colegio = row.original
           return (
-            <div className="d-flex align-items-center">
-              <LuMapPin className="me-1 text-muted" size={16} />
-              <span>
-                {direccion || '-'}
-                {comuna && `, ${comuna}`}
-              </span>
+            <div className="fs-xs">
+              {colegio.direccion && (
+                <div>{colegio.direccion}</div>
+              )}
+              {colegio.comuna && (
+                <div className="text-muted">{colegio.comuna}</div>
+              )}
+              {!colegio.direccion && !colegio.comuna && (
+                <span className="text-muted">-</span>
+              )}
             </div>
           )
         },
-      }),
-      columnHelper.accessor('telefono', {
-        header: 'TELÉFONO',
-        cell: ({ row }) => {
-          const telefono = row.original.telefono
-          return telefono ? (
-            <div className="d-flex align-items-center">
-              <LuPhone className="me-1 text-muted" size={16} />
-              <span>{telefono}</span>
-            </div>
-          ) : (
-            <span className="text-muted">-</span>
-          )
-        },
-      }),
-      columnHelper.accessor('email', {
-        header: 'EMAIL',
-        cell: ({ row }) => {
-          const email = row.original.email
-          return email ? (
-            <div className="d-flex align-items-center">
-              <LuMail className="me-1 text-muted" size={16} />
-              <span>{email}</span>
-            </div>
-          ) : (
-            <span className="text-muted">-</span>
-          )
-        },
-      }),
-      columnHelper.accessor('estado', {
-        header: 'ESTADO',
-        cell: ({ getValue }) => {
-          const estado = getValue()
-          if (!estado) return <span className="text-muted">-</span>
-          const variant = estado === 'Aprobado' ? 'success' : estado === 'Verificado' ? 'info' : 'warning'
-          return (
-            <span className={`badge badge-soft-${variant}`}>
-              {estado}
-            </span>
-          )
-        },
-      }),
+      },
       {
-        header: 'ACCIONES',
+        id: 'contactos',
+        header: 'CONTACTOS',
+        cell: ({ row }) => {
+          const colegio = row.original
+          return (
+            <div className="d-flex align-items-center">
+              <LuUsers className="me-1 text-muted" size={16} />
+              <span>{colegio.contactosCount || 0}</span>
+            </div>
+          )
+        },
+      },
+      {
+        id: 'representante',
+        header: 'REPRESENTANTE',
+        cell: ({ row }) => {
+          const colegio = row.original
+          return colegio.representante ? (
+            <span>{colegio.representante}</span>
+          ) : (
+            <span className="text-muted">-</span>
+          )
+        },
+      },
+      {
+        id: 'fechaOrigen',
+        header: 'FECHA / ORIGEN',
+        cell: ({ row }) => {
+          const colegio = row.original
+          const isNew = colegio.createdAt && 
+            (Date.now() - new Date(colegio.createdAt).getTime()) <= 7 * 24 * 60 * 60 * 1000
+          
+          const daysAgo = colegio.createdAt 
+            ? Math.floor((Date.now() - new Date(colegio.createdAt).getTime()) / (24 * 60 * 60 * 1000))
+            : null
+          
+          const origenLabel = colegio.origen || ''
+          
+          return (
+            <div className="fs-xs">
+              {isNew && (
+                <span className="badge bg-success-subtle text-success mb-1 d-block" style={{ width: 'fit-content' }}>Nuevo</span>
+              )}
+              {daysAgo !== null && (
+                <div className={isNew ? '' : 'mb-1'}>
+                  {daysAgo === 0 ? 'Hoy' : daysAgo === 1 ? '1 día' : `${daysAgo} días`}
+                </div>
+              )}
+              {origenLabel && (
+                <span className="badge badge-soft-primary">{origenLabel}</span>
+              )}
+              {!colegio.createdAt && !colegio.origen && (
+                <span className="text-muted">-</span>
+              )}
+            </div>
+          )
+        },
+      },
+      {
+        id: 'actions',
+        header: '',
         cell: ({ row }) => (
-          <div className="d-flex gap-1">
-            <Link href={`/crm/colegios/${row.original.id}`} passHref>
-              <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver detalle">
-                <TbEye className="fs-lg" />
-              </Button>
-            </Link>
-          </div>
+          <Button variant="default" size="sm" className="btn-icon">
+            <TbDots className="fs-lg" />
+          </Button>
         ),
       },
     ],
