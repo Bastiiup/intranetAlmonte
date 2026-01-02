@@ -85,17 +85,20 @@ export async function GET(request: Request) {
     })
 
     // Populate para relaciones (Strapi v4 syntax)
+    // Nivel 1: Datos básicos de la persona
     params.append('populate[emails]', 'true')
     params.append('populate[telefonos]', 'true')
     params.append('populate[imagen]', 'true') // Para campos Media, solo usar 'true'
     params.append('populate[tags]', 'true')
-    // Populate anidado correcto para trayectorias y colegio
+    
+    // Nivel 2: Solo populate básico de trayectorias y colegio
+    // Simplificado para evitar error 500 por populate demasiado profundo
     params.append('populate[trayectorias][populate][colegio]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][comuna]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][telefonos]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][emails]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones][populate][ejecutivo]', 'true')
+    
+    // NOTA: No populate más profundo aquí para evitar error 500
+    // Si necesitamos comuna, telefonos, emails del colegio, etc.,
+    // se pueden obtener desde el colegio directamente o hacer populate adicional
+    // solo cuando sea necesario (ej: en página de detalle)
 
     // Filtros
     params.append('filters[activo][$eq]', 'true')

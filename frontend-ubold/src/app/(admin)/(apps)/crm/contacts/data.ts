@@ -137,6 +137,14 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
     } else {
       colegio = trayectoriaActual.colegio
     }
+    
+    // Si el colegio viene solo con ID (sin populate), intentar obtener datos básicos
+    // En este caso, solo tendremos el ID, así que los datos del colegio serán limitados
+    if (colegio && !colegio.colegio_nombre && (colegio.id || colegio.documentId)) {
+      // El colegio no está populado, solo tenemos el ID
+      // En este caso, los datos del colegio no estarán disponibles
+      colegio = null
+    }
   }
   
   // Debug: log para ver qué datos tenemos (solo en desarrollo)
