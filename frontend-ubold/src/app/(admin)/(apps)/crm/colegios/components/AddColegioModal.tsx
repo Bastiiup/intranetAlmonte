@@ -10,31 +10,7 @@ const DEPENDENCIAS = [
   'Particular Pagado',
 ]
 
-const TIPOS_INSTITUCION = [
-  'Colegio',
-  'Escuela',
-  'Liceo',
-  'Jardín Infantil',
-  'Otro',
-]
-
-const ORIGENES = [
-  'Manual',
-  'MINEDUC',
-  'CSV',
-  'CRM',
-  'Web',
-  'Otro',
-]
-
-const ESTATUS_PIPELINE = [
-  'Calificado',
-  'Contactado',
-  'Propuesta Enviada',
-  'Negociación',
-  'Cerrado',
-  'Perdido',
-]
+// TIPOS_INSTITUCION, ORIGENES y ESTATUS_PIPELINE eliminados - no existen en Strapi para colegio
 
 interface AddColegioModalProps {
   show: boolean
@@ -48,16 +24,12 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
   const [formData, setFormData] = useState({
     colegio_nombre: '',
     dependencia: '',
-    tipo_institucion: '',
     region: '',
     comuna: '',
     direccion: '',
     telefonos: '',
     emails: '',
     website: '',
-    origen: 'Manual',
-    representante_comercial: '',
-    estatus_pipeline: '',
   })
 
   const handleFieldChange = (field: string, value: any) => {
@@ -107,17 +79,13 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
           }]
         : []
 
-      // Preparar datos para Strapi
+      // Preparar datos para Strapi (solo campos válidos según schema)
       const colegioData: any = {
         colegio_nombre: formData.colegio_nombre.trim(),
         ...(formData.dependencia && { dependencia: formData.dependencia }),
-        ...(formData.tipo_institucion && { tipo_institucion: formData.tipo_institucion }),
         ...(formData.region && { region: formData.region }),
         ...(formData.comuna && { comuna_texto: formData.comuna }), // Guardar como texto si no hay relación
         ...(formData.website && { website: formData.website.trim() }),
-        ...(formData.origen && { origen: formData.origen }),
-        ...(formData.representante_comercial && { representante_comercial: formData.representante_comercial.trim() }),
-        ...(formData.estatus_pipeline && { estatus_pipeline: formData.estatus_pipeline }),
         ...(telefonosArray.length > 0 && { telefonos: telefonosArray }),
         ...(emailsArray.length > 0 && { emails: emailsArray }),
         ...(direccionesArray.length > 0 && { direcciones: direccionesArray }),
@@ -143,16 +111,12 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
       setFormData({
         colegio_nombre: '',
         dependencia: '',
-        tipo_institucion: '',
         region: '',
         comuna: '',
         direccion: '',
         telefonos: '',
         emails: '',
         website: '',
-        origen: 'Manual',
-        representante_comercial: '',
-        estatus_pipeline: '',
       })
 
       if (onSuccess) {
@@ -213,24 +177,6 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
                   {DEPENDENCIAS.map((dep) => (
                     <option key={dep} value={dep}>
                       {dep}
-                    </option>
-                  ))}
-                </FormControl>
-              </FormGroup>
-            </Col>
-            <Col md={6}>
-              <FormGroup className="mb-3">
-                <FormLabel>Tipo Institución</FormLabel>
-                <FormControl
-                  as="select"
-                  value={formData.tipo_institucion}
-                  onChange={(e) => handleFieldChange('tipo_institucion', e.target.value)}
-                  disabled={loading}
-                >
-                  <option value="">Seleccionar...</option>
-                  {TIPOS_INSTITUCION.map((tipo) => (
-                    <option key={tipo} value={tipo}>
-                      {tipo}
                     </option>
                   ))}
                 </FormControl>
@@ -315,56 +261,6 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
               disabled={loading}
             />
           </FormGroup>
-
-          <Row>
-            <Col md={4}>
-              <FormGroup className="mb-3">
-                <FormLabel>Origen</FormLabel>
-                <FormControl
-                  as="select"
-                  value={formData.origen}
-                  onChange={(e) => handleFieldChange('origen', e.target.value)}
-                  disabled={loading}
-                >
-                  {ORIGENES.map((origen) => (
-                    <option key={origen} value={origen}>
-                      {origen}
-                    </option>
-                  ))}
-                </FormControl>
-              </FormGroup>
-            </Col>
-            <Col md={4}>
-              <FormGroup className="mb-3">
-                <FormLabel>Representante Comercial</FormLabel>
-                <FormControl
-                  type="text"
-                  placeholder="Nombre del representante"
-                  value={formData.representante_comercial}
-                  onChange={(e) => handleFieldChange('representante_comercial', e.target.value)}
-                  disabled={loading}
-                />
-              </FormGroup>
-            </Col>
-            <Col md={4}>
-              <FormGroup className="mb-3">
-                <FormLabel>Estatus Pipeline</FormLabel>
-                <FormControl
-                  as="select"
-                  value={formData.estatus_pipeline}
-                  onChange={(e) => handleFieldChange('estatus_pipeline', e.target.value)}
-                  disabled={loading}
-                >
-                  <option value="">Seleccionar...</option>
-                  {ESTATUS_PIPELINE.map((estatus) => (
-                    <option key={estatus} value={estatus}>
-                      {estatus}
-                    </option>
-                  ))}
-                </FormControl>
-              </FormGroup>
-            </Col>
-          </Row>
         </ModalBody>
         <ModalFooter>
           <Button variant="secondary" onClick={onHide} disabled={loading}>

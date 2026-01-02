@@ -125,13 +125,9 @@ export async function POST(request: Request) {
         ...(body.rbd && { rbd: parseInt(body.rbd) }),
         ...(body.estado && { estado: body.estado }),
         ...(body.dependencia && { dependencia: body.dependencia }),
-        ...(body.tipo_institucion && { tipo_institucion: body.tipo_institucion }),
         ...(body.region && { region: body.region }),
         ...(body.zona && { zona: body.zona }),
         ...(body.website && { website: body.website.trim() }),
-        ...(body.origen && { origen: body.origen }),
-        ...(body.representante_comercial && { representante_comercial: body.representante_comercial.trim() }),
-        ...(body.estatus_pipeline && { estatus_pipeline: body.estatus_pipeline }),
         // Relación comuna (usar connect para Strapi v4)
         ...(body.comunaId && { comuna: { connect: [parseInt(body.comunaId.toString())] } }),
         // Componentes repeatable

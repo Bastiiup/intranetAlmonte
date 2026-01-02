@@ -10,31 +10,7 @@ const DEPENDENCIAS = [
   'Particular Pagado',
 ]
 
-const TIPOS_INSTITUCION = [
-  'Colegio',
-  'Escuela',
-  'Liceo',
-  'Jardín Infantil',
-  'Otro',
-]
-
-const ORIGENES = [
-  'Manual',
-  'MINEDUC',
-  'CSV',
-  'CRM',
-  'Web',
-  'Otro',
-]
-
-const ESTATUS_PIPELINE = [
-  'Calificado',
-  'Contactado',
-  'Propuesta Enviada',
-  'Negociación',
-  'Cerrado',
-  'Perdido',
-]
+// TIPOS_INSTITUCION, ORIGENES y ESTATUS_PIPELINE eliminados - no existen en Strapi para colegio
 
 interface ColegioType {
   id?: number | string
@@ -42,16 +18,12 @@ interface ColegioType {
   colegio_nombre?: string
   rbd?: number | string
   dependencia?: string
-  tipo_institucion?: string
   region?: string
   comuna?: string
   direccion?: string
   telefonos?: string[] | any[]
   emails?: string[] | any[]
   website?: string
-  origen?: string
-  representante_comercial?: string
-  estatus_pipeline?: string
   attributes?: any
   [key: string]: any
 }
@@ -69,16 +41,12 @@ const EditColegioModal = ({ show, onHide, colegio, onSuccess }: EditColegioModal
   const [formData, setFormData] = useState({
     colegio_nombre: '',
     dependencia: '',
-    tipo_institucion: '',
     region: '',
     comuna: '',
     direccion: '',
     telefonos: '',
     emails: '',
     website: '',
-    origen: 'Manual',
-    representante_comercial: '',
-    estatus_pipeline: '',
   })
 
   // Cargar datos del colegio cuando se abre el modal
@@ -114,16 +82,12 @@ const EditColegioModal = ({ show, onHide, colegio, onSuccess }: EditColegioModal
       setFormData({
         colegio_nombre: data.colegio_nombre || colegio.colegio_nombre || '',
         dependencia: data.dependencia || colegio.dependencia || '',
-        tipo_institucion: data.tipo_institucion || '',
         region: data.region || data.comuna?.region_nombre || '',
         comuna: comunaStr,
         direccion: direccionStr,
         telefonos: telefonosStr,
         emails: emailsStr,
         website: data.website || '',
-        origen: data.origen || 'Manual',
-        representante_comercial: data.representante_comercial || '',
-        estatus_pipeline: data.estatus_pipeline || '',
       })
     }
   }, [colegio])
@@ -176,17 +140,13 @@ const EditColegioModal = ({ show, onHide, colegio, onSuccess }: EditColegioModal
           }]
         : []
 
-      // Preparar datos para Strapi
+      // Preparar datos para Strapi (solo campos válidos según schema)
       const colegioData: any = {
         colegio_nombre: formData.colegio_nombre.trim(),
         ...(formData.dependencia && { dependencia: formData.dependencia }),
-        ...(formData.tipo_institucion && { tipo_institucion: formData.tipo_institucion }),
         ...(formData.region && { region: formData.region }),
         ...(formData.comuna && { comuna_texto: formData.comuna }),
         ...(formData.website && { website: formData.website.trim() }),
-        ...(formData.origen && { origen: formData.origen }),
-        ...(formData.representante_comercial && { representante_comercial: formData.representante_comercial.trim() }),
-        ...(formData.estatus_pipeline && { estatus_pipeline: formData.estatus_pipeline }),
         ...(telefonosArray.length > 0 && { telefonos: telefonosArray }),
         ...(emailsArray.length > 0 && { emails: emailsArray }),
         ...(direccionesArray.length > 0 && { direcciones: direccionesArray }),
@@ -278,24 +238,6 @@ const EditColegioModal = ({ show, onHide, colegio, onSuccess }: EditColegioModal
                 </FormControl>
               </FormGroup>
             </Col>
-            <Col md={6}>
-              <FormGroup className="mb-3">
-                <FormLabel>Tipo Institución</FormLabel>
-                <FormControl
-                  as="select"
-                  value={formData.tipo_institucion}
-                  onChange={(e) => handleFieldChange('tipo_institucion', e.target.value)}
-                  disabled={loading}
-                >
-                  <option value="">Seleccionar...</option>
-                  {TIPOS_INSTITUCION.map((tipo) => (
-                    <option key={tipo} value={tipo}>
-                      {tipo}
-                    </option>
-                  ))}
-                </FormControl>
-              </FormGroup>
-            </Col>
           </Row>
 
           <Row>
@@ -375,56 +317,6 @@ const EditColegioModal = ({ show, onHide, colegio, onSuccess }: EditColegioModal
               disabled={loading}
             />
           </FormGroup>
-
-          <Row>
-            <Col md={4}>
-              <FormGroup className="mb-3">
-                <FormLabel>Origen</FormLabel>
-                <FormControl
-                  as="select"
-                  value={formData.origen}
-                  onChange={(e) => handleFieldChange('origen', e.target.value)}
-                  disabled={loading}
-                >
-                  {ORIGENES.map((origen) => (
-                    <option key={origen} value={origen}>
-                      {origen}
-                    </option>
-                  ))}
-                </FormControl>
-              </FormGroup>
-            </Col>
-            <Col md={4}>
-              <FormGroup className="mb-3">
-                <FormLabel>Representante Comercial</FormLabel>
-                <FormControl
-                  type="text"
-                  placeholder="Nombre del representante"
-                  value={formData.representante_comercial}
-                  onChange={(e) => handleFieldChange('representante_comercial', e.target.value)}
-                  disabled={loading}
-                />
-              </FormGroup>
-            </Col>
-            <Col md={4}>
-              <FormGroup className="mb-3">
-                <FormLabel>Estatus Pipeline</FormLabel>
-                <FormControl
-                  as="select"
-                  value={formData.estatus_pipeline}
-                  onChange={(e) => handleFieldChange('estatus_pipeline', e.target.value)}
-                  disabled={loading}
-                >
-                  <option value="">Seleccionar...</option>
-                  {ESTATUS_PIPELINE.map((estatus) => (
-                    <option key={estatus} value={estatus}>
-                      {estatus}
-                    </option>
-                  ))}
-                </FormControl>
-              </FormGroup>
-            </Col>
-          </Row>
         </ModalBody>
         <ModalFooter>
           <Button variant="secondary" onClick={onHide} disabled={loading}>
