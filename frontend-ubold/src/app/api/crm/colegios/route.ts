@@ -42,8 +42,11 @@ export async function GET(request: Request) {
       'sort[0]': 'colegio_nombre:asc',
     })
 
-    // Agregar populate de comuna si es necesario
-    params.append('populate[0]', 'comuna')
+    // Populate para relaciones (Strapi v4 syntax)
+    params.append('populate[comuna]', 'true')
+    params.append('populate[telefonos]', 'true')
+    params.append('populate[emails]', 'true')
+    params.append('populate[cartera_asignaciones][populate][ejecutivo]', 'true')
 
     // Agregar búsqueda por nombre si existe
     if (search) {

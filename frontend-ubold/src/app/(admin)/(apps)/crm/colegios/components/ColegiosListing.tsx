@@ -13,8 +13,8 @@ import {
 import Link from 'next/link'
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Button, Card, CardBody, CardFooter, CardHeader, Alert, Form } from 'react-bootstrap'
-import { LuSearch, LuMapPin, LuPhone, LuMail, LuX } from 'react-icons/lu'
-import { TbEye } from 'react-icons/tb'
+import { LuSearch, LuMapPin, LuPhone, LuMail, LuX, LuUsers } from 'react-icons/lu'
+import { TbEye, TbDots } from 'react-icons/tb'
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 
@@ -22,13 +22,18 @@ interface ColegioType {
   id: string
   nombre: string
   rbd?: string
+  tipo?: string
   direccion?: string
   comuna?: string
   region?: string
-  telefono?: string
-  email?: string
-  estado?: string
+  telefonos?: string[]
+  emails?: string[]
+  website?: string
+  contactosCount?: number
+  representante?: string
+  origen?: string
   createdAt?: string
+  estado?: string
 }
 
 const columnHelper = createColumnHelper<ColegioType>()
