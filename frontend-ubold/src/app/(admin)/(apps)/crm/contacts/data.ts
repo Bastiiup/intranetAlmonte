@@ -34,9 +34,14 @@ type PersonaAttributes = {
     colegio?: {
       colegio_nombre?: string
       dependencia?: string
+      zona?: string
+      telefonos?: Array<{ telefono_norm?: string; telefono_raw?: string; numero?: string }>
+      emails?: Array<{ email?: string }>
+      website?: string
       comuna?: {
         comuna_nombre?: string
         region_nombre?: string
+        zona?: string
       }
       cartera_asignaciones?: Array<{
         is_current?: boolean
@@ -140,19 +145,33 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
   
   const representanteComercial = asignacionComercial?.ejecutivo?.nombre_completo || ''
   
-  // 11. Descripción
+  // 9. Zona (del colegio o comuna)
+  const zona = colegio?.zona || comuna?.zona || ''
+  
+  // 10. Teléfonos del colegio
+  const telefonosColegio = colegio?.telefonos?.map(t => 
+    t.telefono_norm || t.telefono_raw || t.numero || ''
+  ).filter(t => t) || []
+  
+  // 11. Emails del colegio
+  const emailsColegio = colegio?.emails?.map(e => e.email || '').filter(e => e) || []
+  
+  // 12. Website del colegio
+  const websiteColegio = colegio?.website || ''
+  
+  // 13. Descripción
   const description = cargo ? `${cargo}${empresa ? ` en ${empresa}` : ''}` : empresa || ''
   
-  // 12. Label desde nivel_confianza
+  // 14. Label desde nivel_confianza
   const label = nivelConfianzaToLabel[attrs.nivel_confianza || 'media'] || nivelConfianzaToLabel['media']
   
-  // 13. Categorías desde tags + origen
+  // 15. Categorías desde tags + origen
   const categories = [
     ...(attrs.tags?.map(tag => ({ name: tag.name || '', variant: "secondary" as const })).filter(c => c.name) || []),
     ...(attrs.origen && origenToCategory[attrs.origen] ? [origenToCategory[attrs.origen]] : [])
   ]
   
-  // 14. Avatar/Imagen
+  // 16. Avatar/Imagen
   let avatar: string | undefined = undefined
   if (attrs.imagen) {
     if (typeof attrs.imagen === 'string') {
@@ -179,8 +198,12 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
     empresa,
     region,
     comuna: comunaNombre,
+    zona,
     dependencia,
     representanteComercial,
+    telefonosColegio,
+    emailsColegio,
+    websiteColegio,
     description,
     avatar,
     label,
@@ -209,6 +232,8 @@ export async function getContacts(query: ContactsQuery = {}): Promise<ContactsRe
   params.append('populate[imagen][populate]', 'media')
   params.append('populate[tags]', 'true')
   params.append('populate[trayectorias][populate][colegio][populate][comuna]', 'true')
+  params.append('populate[trayectorias][populate][colegio][populate][telefonos]', 'true')
+  params.append('populate[trayectorias][populate][colegio][populate][emails]', 'true')
   params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones][populate][ejecutivo]', 'true')
   
   // Filtros

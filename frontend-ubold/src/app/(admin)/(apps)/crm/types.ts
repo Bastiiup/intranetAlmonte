@@ -12,8 +12,12 @@ export type ContactType = {
   empresa?: string
   region?: string
   comuna?: string
+  zona?: string
   dependencia?: string
   representanteComercial?: string
+  telefonosColegio?: string[]
+  emailsColegio?: string[]
+  websiteColegio?: string
   avatar?: StaticImageData | string
   label: {
     text: string
