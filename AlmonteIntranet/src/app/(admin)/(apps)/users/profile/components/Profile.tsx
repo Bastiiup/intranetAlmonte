@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import user3 from '@/assets/images/users/user-3.jpg'
 import usFlag from '@/assets/images/flags/us.svg'
 import { Button, Card, CardBody, Dropdown, DropdownItem, DropdownMenu, DropdownToggle } from 'react-bootstrap'
@@ -12,18 +12,70 @@ import { useAuth, getPersonaNombre, getPersonaEmail, getRolLabel } from '@/hooks
 
 const Profile = () => {
     const { persona, colaborador, loading } = useAuth()
+    const [profileData, setProfileData] = useState<any>(null)
+    
+    // Cargar datos completos del perfil
+    useEffect(() => {
+        const loadProfile = async () => {
+            try {
+                const response = await fetch('/api/colaboradores/me/profile')
+                if (response.ok) {
+                    const result = await response.json()
+                    if (result.success && result.data) {
+                        setProfileData(result.data)
+                    }
+                }
+            } catch (err) {
+                console.error('[Profile] Error al cargar perfil:', err)
+            }
+        }
+        if (!loading) {
+            loadProfile()
+        }
+    }, [loading])
     
     const nombreCompleto = persona ? getPersonaNombre(persona) : (colaborador?.email_login || 'Usuario')
     const email = getPersonaEmail(persona, colaborador)
     const rolLabel = colaborador?.rol ? getRolLabel(colaborador.rol) : 'Usuario'
-    const avatarSrc = persona?.imagen?.url 
-        ? `${process.env.NEXT_PUBLIC_STRAPI_URL}${persona.imagen.url}`
-        : user3.src
+    
+    // Obtener avatar
+    let avatarSrc = user3.src
+    if (persona?.imagen?.url) {
+        avatarSrc = persona.imagen.url.startsWith('http') 
+            ? persona.imagen.url 
+            : `${process.env.NEXT_PUBLIC_STRAPI_URL}${persona.imagen.url}`
+    } else if (profileData?.persona?.imagen?.url) {
+        const imgUrl = profileData.persona.imagen.url
+        avatarSrc = imgUrl.startsWith('http') ? imgUrl : `${process.env.NEXT_PUBLIC_STRAPI_URL}${imgUrl}`
+    }
     
     // Obtener teléfono principal
-    const telefono = persona?.telefonos && Array.isArray(persona.telefonos) && persona.telefonos.length > 0
-        ? persona.telefonos[0]?.numero || ''
-        : ''
+    const telefono = profileData?.persona?.telefono_principal || 
+                     (persona?.telefonos && Array.isArray(persona.telefonos) && persona.telefonos.length > 0
+                        ? persona.telefonos[0]?.numero || ''
+                        : '')
+    
+    // Obtener redes sociales
+    const redesSociales = profileData?.persona?.redes_sociales || {}
+    
+    // Obtener skills
+    const skills = profileData?.persona?.skills || []
+    const skillsArray = Array.isArray(skills) ? skills : (typeof skills === 'string' ? skills.split(',').map(s => s.trim()) : [])
+    
+    // Función para navegar a Settings
+    const handleEditProfile = () => {
+        // Cambiar a la pestaña de Settings usando Bootstrap tab
+        const settingsTab = document.querySelector('[data-bs-toggle="tab"][aria-controls="settings"]') as HTMLElement
+        if (settingsTab) {
+            settingsTab.click()
+        } else {
+            // Fallback: buscar por eventKey
+            const tab = document.querySelector('[eventkey="settings"]') as HTMLElement
+            if (tab) {
+                tab.click()
+            }
+        }
+    }
 
     return (
         <Card className="card-top-sticky">
@@ -50,8 +102,7 @@ const Profile = () => {
                                 <TbDotsVertical className="fs-xl" />
                             </DropdownToggle>
                             <DropdownMenu align={'end'} className="dropdown-menu-end">
-                                <li><DropdownItem>Edit Profile</DropdownItem></li>
-                                <li><DropdownItem className="text-danger">Report</DropdownItem></li>
+                                <li><DropdownItem onClick={handleEditProfile}>Editar Perfil</DropdownItem></li>
                             </DropdownMenu>
                         </Dropdown>
                     </div>
@@ -98,42 +149,51 @@ const Profile = () => {
                             <p className="mb-0 fs-sm">Rol: <span className="text-dark fw-semibold">{getRolLabel(colaborador.rol)}</span></p>
                         </div>
                     )}
-                    <div className="d-flex justify-content-center gap-2 mt-4 mb-2">
-                        <Link href="" className="btn btn-icon rounded-circle btn-primary" title="Facebook">
-                            <LuFacebook className="fs-xl" />
-                        </Link>
-                        <Link href="" className="btn btn-icon rounded-circle btn-info" title="Twitter-x">
-                            <TbBrandX className="fs-xl" />
-                        </Link>
-                        <Link href="" className="btn btn-icon rounded-circle btn-danger" title="Instagram">
-                            <LuInstagram className="fs-xl" />
-                        </Link>
-                        <Link href="" className="btn btn-icon rounded-circle btn-success" title="WhatsApp">
-                            <LuDribbble className="fs-xl" />
-                        </Link>
-                        <Link href="" className="btn btn-icon rounded-circle btn-secondary" title="LinkedIn">
-                            <LuLinkedin className="fs-xl" />
-                        </Link>
-                        <Link href="" className="btn btn-icon rounded-circle btn-danger" title="YouTube">
-                            <LuYoutube className="fs-xl" />
-                        </Link>
-                    </div>
+                    {(redesSociales.facebook || redesSociales.twitter || redesSociales.instagram || redesSociales.linkedin || redesSociales.github || redesSociales.skype) && (
+                        <div className="d-flex justify-content-center gap-2 mt-4 mb-2">
+                            {redesSociales.facebook && (
+                                <Link href={redesSociales.facebook} target="_blank" rel="noopener noreferrer" className="btn btn-icon rounded-circle btn-primary" title="Facebook">
+                                    <LuFacebook className="fs-xl" />
+                                </Link>
+                            )}
+                            {redesSociales.twitter && (
+                                <Link href={redesSociales.twitter.startsWith('http') ? redesSociales.twitter : `https://twitter.com/${redesSociales.twitter.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="btn btn-icon rounded-circle btn-info" title="Twitter-x">
+                                    <TbBrandX className="fs-xl" />
+                                </Link>
+                            )}
+                            {redesSociales.instagram && (
+                                <Link href={redesSociales.instagram} target="_blank" rel="noopener noreferrer" className="btn btn-icon rounded-circle btn-danger" title="Instagram">
+                                    <LuInstagram className="fs-xl" />
+                                </Link>
+                            )}
+                            {redesSociales.linkedin && (
+                                <Link href={redesSociales.linkedin} target="_blank" rel="noopener noreferrer" className="btn btn-icon rounded-circle btn-secondary" title="LinkedIn">
+                                    <LuLinkedin className="fs-xl" />
+                                </Link>
+                            )}
+                            {redesSociales.github && (
+                                <Link href={redesSociales.github.startsWith('http') ? redesSociales.github : `https://github.com/${redesSociales.github}`} target="_blank" rel="noopener noreferrer" className="btn btn-icon rounded-circle btn-dark" title="GitHub">
+                                    <LuDribbble className="fs-xl" />
+                                </Link>
+                            )}
+                            {redesSociales.skype && (
+                                <Link href={`skype:${redesSociales.skype.replace('@', '')}?chat`} className="btn btn-icon rounded-circle btn-info" title="Skype">
+                                    <TbLink className="fs-xl" />
+                                </Link>
+                            )}
+                        </div>
+                    )}
                 </div>
-                <h4 className="card-title mb-3 mt-4">Skills</h4>
-                <div className="d-flex flex-wrap gap-1">
-                    <Button variant='light' size='sm'>Product Design</Button>
-                    <Button variant='light' size='sm'>UI/UX</Button>
-                    <Button variant='light' size='sm'>Tailwind CSS</Button>
-                    <Button variant='light' size='sm'>Bootstrap</Button>
-                    <Button variant='light' size='sm'>React.js</Button>
-                    <Button variant='light' size='sm'>Next.js</Button>
-                    <Button variant='light' size='sm'>Vue.js</Button>
-                    <Button variant='light' size='sm'>Figma</Button>
-                    <Button variant='light' size='sm'>Design Systems</Button>
-                    <Button variant='light' size='sm'>Template Authoring</Button>
-                    <Button variant='light' size='sm'>Responsive Design</Button>
-                    <Button variant='light' size='sm'>Component Libraries</Button>
-                </div>
+                {skillsArray.length > 0 && (
+                    <>
+                        <h4 className="card-title mb-3 mt-4">Habilidades</h4>
+                        <div className="d-flex flex-wrap gap-1">
+                            {skillsArray.map((skill: string, idx: number) => (
+                                <Button key={idx} variant='light' size='sm'>{skill}</Button>
+                            ))}
+                        </div>
+                    </>
+                )}
             </CardBody>
         </Card>
     )

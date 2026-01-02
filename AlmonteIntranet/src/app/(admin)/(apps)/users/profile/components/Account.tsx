@@ -1,5 +1,7 @@
-import React from 'react'
-import { Button, CardBody, CardHeader, CardTitle, Col, FormControl, FormLabel, Nav, NavItem, NavLink, Row, TabContainer, TabContent, Table, TabPane } from 'react-bootstrap'
+'use client'
+
+import React, { useState, useEffect } from 'react'
+import { Button, CardBody, CardHeader, CardTitle, Col, FormControl, FormLabel, Nav, NavItem, NavLink, Row, TabContainer, TabContent, Table, TabPane, Alert, Spinner } from 'react-bootstrap'
 import { TbArrowBackUp, TbBrandFacebook, TbBrandGithub, TbBrandInstagram, TbBrandLinkedin, TbBrandSkype, TbBrandX, TbBriefcase, TbBuildingSkyscraper, TbCamera, TbChecklist, TbDeviceFloppy, TbHeart, TbHome, TbMapPin, TbMoodSmile, TbPencil, TbQuote, TbSettings, TbShare3, TbUser, TbUserCircle, TbWorld } from 'react-icons/tb'
 import { taskData } from '../data'
 import Image from 'next/image'
@@ -11,20 +13,257 @@ import small1 from '@/assets/images/stock/small-1.jpg'
 import small2 from '@/assets/images/stock/small-2.jpg'
 import small3 from '@/assets/images/stock/small-3.jpg'
 import user1 from '@/assets/images/users/user-1.jpg'
+import { useAuth } from '@/hooks/useAuth'
 
 const Account = () => {
+    const { persona, colaborador, loading: authLoading } = useAuth()
+    const [profileLoading, setProfileLoading] = useState(true)
+    const [saving, setSaving] = useState(false)
+    const [success, setSuccess] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const [profilePhoto, setProfilePhoto] = useState<File | null>(null)
+    const [profilePhotoPreview, setProfilePhotoPreview] = useState<string | null>(null)
+    const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
+    // Estado del formulario
+    const [formData, setFormData] = useState({
+        nombres: '',
+        primer_apellido: '',
+        segundo_apellido: '',
+        job_title: '',
+        telefono: '',
+        bio: '',
+        email_login: '',
+        password: '',
+        address_line1: '',
+        address_line2: '',
+        city: '',
+        state: '',
+        zipcode: '',
+        country: '',
+        company_name: '',
+        company_website: '',
+        social_facebook: '',
+        social_twitter: '',
+        social_instagram: '',
+        social_linkedin: '',
+        social_github: '',
+        social_skype: '',
+    })
+
+    // Cargar datos del perfil
+    useEffect(() => {
+        const loadProfile = async () => {
+            if (authLoading) return
+
+            try {
+                const response = await fetch('/api/colaboradores/me/profile')
+                if (response.ok) {
+                    const result = await response.json()
+                    if (result.success && result.data) {
+                        const { persona: personaData, colaborador: colaboradorData } = result.data
+
+                        // Llenar formulario con datos existentes
+                        setFormData({
+                            nombres: personaData?.nombres || '',
+                            primer_apellido: personaData?.primer_apellido || '',
+                            segundo_apellido: personaData?.segundo_apellido || '',
+                            job_title: personaData?.job_title || '',
+                            telefono: personaData?.telefono_principal || 
+                                      (personaData?.telefonos && Array.isArray(personaData.telefonos) && personaData.telefonos.length > 0 
+                                        ? personaData.telefonos[0].numero || '' 
+                                        : ''),
+                            bio: personaData?.bio || '',
+                            email_login: colaboradorData?.email_login || '',
+                            password: '',
+                            address_line1: personaData?.direccion?.line1 || '',
+                            address_line2: personaData?.direccion?.line2 || '',
+                            city: personaData?.direccion?.city || '',
+                            state: personaData?.direccion?.state || '',
+                            zipcode: personaData?.direccion?.zipcode || '',
+                            country: personaData?.direccion?.country || '',
+                            company_name: personaData?.direccion?.company_name || '',
+                            company_website: personaData?.direccion?.company_website || '',
+                            social_facebook: personaData?.redes_sociales?.facebook || '',
+                            social_twitter: personaData?.redes_sociales?.twitter || '',
+                            social_instagram: personaData?.redes_sociales?.instagram || '',
+                            social_linkedin: personaData?.redes_sociales?.linkedin || '',
+                            social_github: personaData?.redes_sociales?.github || '',
+                            social_skype: personaData?.redes_sociales?.skype || '',
+                        })
+
+                        // Si hay imagen, crear preview
+                        if (personaData?.imagen?.url) {
+                            const imageUrl = personaData.imagen.url.startsWith('http') 
+                                ? personaData.imagen.url 
+                                : `${process.env.NEXT_PUBLIC_STRAPI_URL}${personaData.imagen.url}`
+                            setProfilePhotoPreview(imageUrl)
+                        }
+                    }
+                }
+            } catch (err: any) {
+                console.error('[Account] Error al cargar perfil:', err)
+            } finally {
+                setProfileLoading(false)
+            }
+        }
+
+        loadProfile()
+    }, [authLoading])
+
+    // Manejar cambio de foto
+    const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0]
+            setProfilePhoto(file)
+            
+            // Crear preview
+            const reader = new FileReader()
+            reader.onloadend = () => {
+                setProfilePhotoPreview(reader.result as string)
+            }
+            reader.readAsDataURL(file)
+        }
+    }
+
+    // Subir foto de perfil
+    const uploadProfilePhoto = async (): Promise<number | null> => {
+        if (!profilePhoto) return null
+
+        setUploadingPhoto(true)
+        try {
+            const formData = new FormData()
+            formData.append('file', profilePhoto)
+
+            const response = await fetch('/api/tienda/upload', {
+                method: 'POST',
+                body: formData,
+            })
+
+            if (!response.ok) {
+                const errorData = await response.json()
+                throw new Error(errorData.error || 'Error al subir la foto')
+            }
+
+            const result = await response.json()
+            if (result.success && result.id) {
+                return result.id
+            }
+            return null
+        } catch (err: any) {
+            console.error('[Account] Error al subir foto:', err)
+            throw err
+        } finally {
+            setUploadingPhoto(false)
+        }
+    }
+
+    // Manejar envío del formulario
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setSaving(true)
+        setSuccess(false)
+        setError(null)
+
+        try {
+            // Subir foto si hay una nueva
+            let imagenId: number | null = null
+            if (profilePhoto) {
+                imagenId = await uploadProfilePhoto()
+                if (!imagenId) {
+                    throw new Error('Error al subir la foto de perfil')
+                }
+            }
+
+            // Preparar datos para enviar
+            const updateData: any = {
+                nombres: formData.nombres,
+                primer_apellido: formData.primer_apellido,
+                segundo_apellido: formData.segundo_apellido,
+                job_title: formData.job_title,
+                telefono: formData.telefono,
+                bio: formData.bio,
+                email_login: formData.email_login,
+                ...(formData.password && { password: formData.password }),
+                ...(imagenId && { imagen_id: imagenId }),
+                direccion: {
+                    line1: formData.address_line1,
+                    line2: formData.address_line2,
+                    city: formData.city,
+                    state: formData.state,
+                    zipcode: formData.zipcode,
+                    country: formData.country,
+                },
+                redes_sociales: {
+                    facebook: formData.social_facebook,
+                    twitter: formData.social_twitter,
+                    instagram: formData.social_instagram,
+                    linkedin: formData.social_linkedin,
+                    github: formData.social_github,
+                    skype: formData.social_skype,
+                },
+            }
+
+            // Enviar actualización
+            const response = await fetch('/api/colaboradores/me/profile', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updateData),
+            })
+
+            const result = await response.json()
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || 'Error al actualizar el perfil')
+            }
+
+            setSuccess(true)
+            setProfilePhoto(null) // Limpiar foto después de guardar
+
+            // Recargar página después de 2 segundos para ver cambios
+            setTimeout(() => {
+                window.location.reload()
+            }, 2000)
+        } catch (err: any) {
+            console.error('[Account] Error al guardar perfil:', err)
+            setError(err.message || 'Error al guardar los cambios')
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    // Obtener nombre completo para About Me
+    const nombreCompleto = persona 
+        ? `${persona.nombres || ''} ${persona.primer_apellido || ''} ${persona.segundo_apellido || ''}`.trim() 
+        : colaborador?.email_login || 'Usuario'
+
+    const bio = persona?.bio || ''
+
+    if (profileLoading || authLoading) {
+        return (
+            <div className="card">
+                <CardBody className="text-center py-5">
+                    <Spinner animation="border" variant="primary" />
+                    <p className="mt-3 text-muted">Cargando perfil...</p>
+                </CardBody>
+            </div>
+        )
+    }
+
     return (
         <div className="card">
             <TabContainer defaultActiveKey='timeline'>
                 <CardHeader className="card-tabs d-flex align-items-center">
                     <div className="flex-grow-1">
-                        <CardTitle as={'h4'}>My Account</CardTitle>
+                        <CardTitle as={'h4'}>Mi Cuenta</CardTitle>
                     </div>
                     <Nav className="nav-tabs card-header-tabs nav-bordered">
                         <NavItem>
                             <NavLink eventKey="about-me" data-bs-toggle="tab" aria-expanded="false">
                                 <TbHome className="d-md-none d-block" />
-                                <span className="d-none d-md-block fw-bold">About Me</span>
+                                <span className="d-none d-md-block fw-bold">Sobre Mí</span>
                             </NavLink>
                         </NavItem>
                         <NavItem>
@@ -36,77 +275,43 @@ const Account = () => {
                         <NavItem>
                             <NavLink eventKey="settings" data-bs-toggle="tab" aria-expanded="false">
                                 <TbSettings className="d-md-none d-block" />
-                                <span className="d-none d-md-block fw-bold">Settings</span>
+                                <span className="d-none d-md-block fw-bold">Configuración</span>
                             </NavLink>
                         </NavItem>
                     </Nav>
                 </CardHeader>
                 <CardBody>
+                    {success && (
+                        <Alert variant="success" dismissible onClose={() => setSuccess(false)}>
+                            Perfil actualizado exitosamente
+                        </Alert>
+                    )}
+                    {error && (
+                        <Alert variant="danger" dismissible onClose={() => setError(null)}>
+                            {error}
+                        </Alert>
+                    )}
                     <TabContent>
                         <TabPane eventKey="about-me">
-                            <p>I'm an Admin Template Author dedicated to building clean, efficient, and highly customizable dashboards for developers and businesses. My goal is to create UI solutions that are modern, scalable, and easy to integrate.</p>
-                            <p>I specialize in crafting developer-friendly admin panels and UI kits using frameworks like Bootstrap, Tailwind CSS, React, Vue, Angular, Laravel, and Next.js. My templates are designed to accelerate development and provide a strong foundation for web apps, SaaS platforms, and enterprise tools.</p>
-                            <p className="mb-0">I focus on delivering well-structured, pixel-perfect layouts with a user-centric approach—ensuring responsive design, clean code, and seamless user experiences. Whether you're building a CRM, analytics dashboard, or backend system, my templates are made to help you build faster and smarter.</p>
-                            <h4 className="card-title my-3 text-uppercase fs-sm"><TbBriefcase /> Professional Experience:</h4>
-                            <div className="timeline">
-                                <div className="timeline-item d-flex align-items-stretch">
-                                    <div className="timeline-time pe-3 text-muted">2023 – Present</div>
-                                    <div className="timeline-dot bg-primary" />
-                                    <div className="timeline-content ps-3 pb-4">
-                                        <h5 className="mb-1">Lead UI Developer</h5>
-                                        <p className="mb-1 text-muted">Developing scalable and reusable UI components for SaaS dashboards using React, Tailwind CSS, and TypeScript.</p>
-                                        <span className="text-muted fw-semibold">at CraftCode Studio</span>
-                                    </div>
-                                </div>
-                                <div className="timeline-item d-flex align-items-stretch">
-                                    <div className="timeline-time pe-3 text-muted">2021 – 2023</div>
-                                    <div className="timeline-dot bg-success" />
-                                    <div className="timeline-content ps-3 pb-4">
-                                        <h5 className="mb-1">Frontend Engineer</h5>
-                                        <p className="mb-1 text-muted">Built modern, responsive admin templates and UI kits using Vue, Bootstrap 5, and Laravel Blade.</p>
-                                        <span className="text-muted fw-semibold">at CodeNova</span>
-                                    </div>
-                                </div>
-                                <div className="timeline-item d-flex align-items-stretch">
-                                    <div className="timeline-time pe-3 text-muted">2019 – 2021</div>
-                                    <div className="timeline-dot bg-warning" />
-                                    <div className="timeline-content ps-3 pb-4">
-                                        <h5 className="mb-1">UI/UX Designer &amp; Developer</h5>
-                                        <p className="mb-1 text-muted">Designed and developed dashboard layouts and admin panel concepts, focusing on accessibility and performance.</p>
-                                        <span className="text-muted fw-semibold">as Freelancer</span>
-                                    </div>
-                                </div>
-                                <div className="timeline-item d-flex align-items-stretch">
-                                    <div className="timeline-time pe-3 text-muted">2017 – 2019</div>
-                                    <div className="timeline-dot bg-info" />
-                                    <div className="timeline-content ps-3 pb-4">
-                                        <h5 className="mb-1">Web Designer</h5>
-                                        <p className="mb-1 text-muted">Created responsive HTML/CSS templates and themes for clients in eCommerce and portfolio niches.</p>
-                                        <span className="text-muted fw-semibold">at PixelFrame Agency</span>
-                                    </div>
-                                </div>
-                                <div className="timeline-item d-flex align-items-stretch">
-                                    <div className="timeline-time pe-3 text-muted">2015 – 2017</div>
-                                    <div className="timeline-dot bg-secondary" />
-                                    <div className="timeline-content ps-3">
-                                        <h5 className="mb-1">Junior Frontend Developer</h5>
-                                        <p className="mb-1 text-muted">Maintained and updated legacy UI projects, gaining hands-on experience in HTML, CSS, jQuery, and Bootstrap 3.</p>
-                                        <span className="text-muted fw-semibold">at DevLaunch</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <h4 className="card-title my-3 text-uppercase fs-sm"><TbChecklist /> Tasks Overview:</h4>
+                            {bio ? (
+                                <>
+                                    <p>{bio}</p>
+                                </>
+                            ) : (
+                                <p className="text-muted">No hay información personal disponible. Edita tu perfil en la pestaña "Configuración" para agregar información sobre ti.</p>
+                            )}
+                            <h4 className="card-title my-3 text-uppercase fs-sm"><TbChecklist /> Tareas:</h4>
                             <div className="table-responsive">
                                 <Table className="table-centered table-custom table-sm table-nowrap table-hover mb-0">
                                     <thead className="bg-light bg-opacity-25 thead-sm">
                                         <tr className="text-uppercase fs-xxs">
-                                            <th data-table-sort="task">Task</th>
-                                            <th data-table-sort>Status</th>
-                                            <th data-table-sort="name">Assigned By</th>
-                                            <th data-table-sort>Start Date</th>
-                                            <th data-table-sort>Priority</th>
-                                            <th data-table-sort>Progress</th>
-                                            <th data-table-sort>Total Time Spent</th>
+                                            <th data-table-sort="task">Tarea</th>
+                                            <th data-table-sort>Estado</th>
+                                            <th data-table-sort="name">Asignado Por</th>
+                                            <th data-table-sort>Fecha Inicio</th>
+                                            <th data-table-sort>Prioridad</th>
+                                            <th data-table-sort>Progreso</th>
+                                            <th data-table-sort>Tiempo Total</th>
                                             <th style={{ width: 30 }} />
                                         </tr>
                                     </thead>
@@ -144,7 +349,7 @@ const Account = () => {
                         </TabPane>
                         <TabPane eventKey="timeline">
                             <form action="#" className="mb-3">
-                                <textarea rows={3} className="form-control" placeholder="Write something..." defaultValue={""} />
+                                <textarea rows={3} className="form-control" placeholder="Escribe algo..." defaultValue={""} />
                                 <div className="d-flex py-2 justify-content-between">
                                     <div>
                                         <Link href="" className="btn btn-sm btn-icon btn-light"><TbUser className="fs-md" /></Link>&nbsp;
@@ -152,7 +357,7 @@ const Account = () => {
                                         <Link href="" className="btn btn-sm btn-icon btn-light"><TbCamera className="fs-md" /></Link>&nbsp;
                                         <Link href="" className="btn btn-sm btn-icon btn-light"><TbMoodSmile className="fs-md" /></Link>
                                     </div>
-                                    <button type="submit" className="btn btn-sm btn-dark">Post</button>
+                                    <button type="submit" className="btn btn-sm btn-dark">Publicar</button>
                                 </div>
                             </form>
                             <div className="border border-light border-dashed rounded p-2 mb-3">
@@ -160,264 +365,330 @@ const Account = () => {
                                     <Image className="me-2 avatar-md rounded-circle" src={user3} alt="Generic placeholder image" />
                                     <div className="w-100">
                                         <h5 className="m-0">Jeremy Tomlinson</h5>
-                                        <p className="text-muted mb-0"><small>about 2 minutes ago</small></p>
+                                        <p className="text-muted mb-0"><small>hace 2 minutos</small></p>
                                     </div>
                                 </div>
-                                <p>Story based around the idea of time lapse, animation to post soon!</p>
+                                <p>Historia basada en la idea de time lapse, animación próximamente!</p>
                                 <Image src={small1} alt="post-img" className="rounded me-1" height={60} />&nbsp;
                                 <Image src={small2} alt="post-img" className="rounded me-1" height={60} />&nbsp;
                                 <Image src={small3} alt="post-img" className="rounded" height={60} />
                                 <div className="mt-2">
-                                    <Link href="" className="btn btn-sm btn-link text-muted"><TbArrowBackUp className="fs-sm me-1" /> Reply</Link>
-                                    <Link href="" className="btn btn-sm btn-link text-muted"><TbHeart className="fs-sm me-1" /> Like</Link>
-                                    <Link href="" className="btn btn-sm btn-link text-muted"><TbShare3 className="fs-sm me-1" /> Share</Link>
+                                    <Link href="" className="btn btn-sm btn-link text-muted"><TbArrowBackUp className="fs-sm me-1" /> Responder</Link>
+                                    <Link href="" className="btn btn-sm btn-link text-muted"><TbHeart className="fs-sm me-1" /> Me gusta</Link>
+                                    <Link href="" className="btn btn-sm btn-link text-muted"><TbShare3 className="fs-sm me-1" /> Compartir</Link>
                                 </div>
-                            </div>
-                            <div className="border border-light border-dashed rounded p-2 mb-3">
-                                <div className="d-flex align-items-center mb-2">
-                                    <Image className="me-2 avatar-sm rounded-circle" src={user4} alt="Generic placeholder image" />
-                                    <div className="w-100">
-                                        <h5 className="m-0">Sophia Martinez</h5>
-                                        <p className="text-muted mb-0"><small>about 30 minutes ago</small></p>
-                                    </div>
-                                </div>
-                                <div className="fs-16 text-center mt-3 mb-4 fst-italic">
-                                    <TbQuote className="fs-20" />&nbsp;
-                                    Just finished a weekend project! Built a small weather app using React and OpenWeather API.
-                                    Feeling excited to share the results with everyone soon. 🚀
-                                </div>
-                                <div className="bg-light-subtle m-n2 p-2 border-top border-bottom border-dashed">
-                                    <div className="d-flex align-items-start">
-                                        <Image className="me-2 avatar-sm rounded-circle" src={user1} alt="Generic placeholder image" />
-                                        <div className="w-100">
-                                            <h5 className="mt-0 mb-1">
-                                                Liam Johnson <small className="text-muted">10 minutes ago</small>
-                                            </h5>
-                                            That sounds awesome! Can't wait to see how you designed the UI.
-                                            <br />
-                                            <Link href="" className="text-muted font-13 d-inline-block mt-2">
-                                                <TbArrowBackUp /> Reply
-                                            </Link>
-                                            <div className="d-flex align-items-start mt-3">
-                                                <Link className="pe-2" href="">
-                                                    <Image src={user2} className="avatar-sm rounded-circle" alt="Generic placeholder image" />
-                                                </Link>
-                                                <div className="w-100">
-                                                    <h5 className="mt-0 mb-1">
-                                                        Olivia Carter <small className="text-muted">15 minutes ago</small>
-                                                    </h5>
-                                                    I recently built something similar with Vue. Let's collaborate sometime!
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="d-flex align-items-start mt-2">
-                                        <Link className="pe-2" href="">
-                                            <Image src={user3} className="rounded-circle" alt="Generic placeholder image" height={31} />
-                                        </Link>
-                                        <div className="w-100">
-                                            <input type="text" id="simpleinput" className="form-control form-control-sm" placeholder="Add a comment..." />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="mt-3">
-                                    <Link href="" className="btn btn-sm btn-link text-danger">
-                                        <TbHeart className="me-1 fs-sm" /> Like (45)
-                                    </Link>
-                                    <Link href="" className="btn btn-sm btn-link text-muted">
-                                        <TbShare3 className="me-1 fs-sm" /> Share
-                                    </Link>
-                                </div>
-                            </div>
-                            <div className="border border-light border-dashed rounded p-2 mb-3">
-                                <div className="d-flex align-items-center mb-2">
-                                    <Image className="me-2 avatar-sm rounded-circle" src={user2} alt="Profile photo of Anika Roy" />
-                                    <div className="w-100">
-                                        <h5 className="m-0">Anika Roy</h5>
-                                        <p className="text-muted mb-0"><small>2 hours ago</small></p>
-                                    </div>
-                                </div>
-                                <p>Sharing a couple of timelapses from my recent Iceland trip. Let me know which one you like most!</p>
-                                <Row className="g-2">
-                                    <Col md={6}>
-                                        <div className="ratio ratio-16x9 rounded overflow-hidden">
-                                            <iframe src="https://player.vimeo.com/video/1084537" allowFullScreen />
-                                        </div>
-                                    </Col>
-                                    <Col md={6}>
-                                        <div className="ratio ratio-16x9 rounded overflow-hidden">
-                                            <iframe src="https://player.vimeo.com/video/76979871" allowFullScreen />
-                                        </div>
-                                    </Col>
-                                </Row>
                             </div>
                             <div className="d-flex align-items-center justify-content-center gap-2 p-3">
-                                <strong>Loading...</strong>
+                                <strong>Cargando...</strong>
                                 <div className="spinner-border spinner-border-sm text-danger" role="status" aria-hidden="true" />
                             </div>
                         </TabPane>
                         <TabPane eventKey="settings">
-                            <form>
-                                <h5 className="mb-3 text-uppercase bg-light-subtle p-1 border-dashed border rounded border-light text-center"><TbUserCircle className="me-1" /> Personal Info</h5>
+                            <form onSubmit={handleSubmit}>
+                                <h5 className="mb-3 text-uppercase bg-light-subtle p-1 border-dashed border rounded border-light text-center"><TbUserCircle className="me-1" /> Información Personal</h5>
                                 <Row>
                                     <Col md={6}>
                                         <div className="mb-3">
-                                            <FormLabel htmlFor="firstname">First Name</FormLabel>
-                                            <FormControl type="text" id="firstname" placeholder="Enter first name" />
+                                            <FormLabel htmlFor="firstname">Nombres</FormLabel>
+                                            <FormControl 
+                                                type="text" 
+                                                id="firstname" 
+                                                placeholder="Ingresa tus nombres"
+                                                value={formData.nombres}
+                                                onChange={(e) => setFormData({ ...formData, nombres: e.target.value })}
+                                            />
                                         </div>
                                     </Col>
                                     <Col md={6}>
                                         <div className="mb-3">
-                                            <FormLabel htmlFor="lastname">Last Name</FormLabel>
-                                            <FormControl type="text" id="lastname" placeholder="Enter last name" />
+                                            <FormLabel htmlFor="lastname">Apellidos</FormLabel>
+                                            <FormControl 
+                                                type="text" 
+                                                id="lastname" 
+                                                placeholder="Ingresa tus apellidos"
+                                                value={`${formData.primer_apellido} ${formData.segundo_apellido}`.trim()}
+                                                onChange={(e) => {
+                                                    const apellidos = e.target.value.split(' ')
+                                                    setFormData({ 
+                                                        ...formData, 
+                                                        primer_apellido: apellidos[0] || '',
+                                                        segundo_apellido: apellidos.slice(1).join(' ') || ''
+                                                    })
+                                                }}
+                                            />
                                         </div>
                                     </Col>
                                 </Row>
                                 <Row>
                                     <Col md={6}>
                                         <div className="mb-3">
-                                            <FormLabel htmlFor="jobtitle">Job Title</FormLabel>
-                                            <FormControl type="text" id="jobtitle" placeholder="e.g. UI Developer, Designer" />
+                                            <FormLabel htmlFor="jobtitle">Cargo / Título</FormLabel>
+                                            <FormControl 
+                                                type="text" 
+                                                id="jobtitle" 
+                                                placeholder="ej. Desarrollador UI, Diseñador"
+                                                value={formData.job_title}
+                                                onChange={(e) => setFormData({ ...formData, job_title: e.target.value })}
+                                            />
                                         </div>
                                     </Col>
                                     <Col md={6}>
                                         <div className="mb-3">
-                                            <FormLabel htmlFor="phone">Phone Number</FormLabel>
-                                            <FormControl type="text" id="phone" placeholder="+1 234 567 8901" />
+                                            <FormLabel htmlFor="phone">Teléfono</FormLabel>
+                                            <FormControl 
+                                                type="text" 
+                                                id="phone" 
+                                                placeholder="+56 9 1234 5678"
+                                                value={formData.telefono}
+                                                onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                                            />
                                         </div>
                                     </Col>
                                 </Row>
                                 <div className="mb-3">
-                                    <FormLabel htmlFor="userbio">Bio</FormLabel>
-                                    <FormControl as={'textarea'} id="userbio" rows={4} placeholder="Write something about yourself..." defaultValue={""} />
+                                    <FormLabel htmlFor="userbio">Biografía</FormLabel>
+                                    <FormControl 
+                                        as={'textarea'} 
+                                        id="userbio" 
+                                        rows={4} 
+                                        placeholder="Escribe algo sobre ti..."
+                                        value={formData.bio}
+                                        onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+                                    />
                                 </div>
                                 <Row>
                                     <Col md={6}>
                                         <div className="mb-3">
-                                            <FormLabel htmlFor="useremail">Email Address</FormLabel>
-                                            <FormControl type="email" id="useremail" placeholder="Enter email" />
-                                            <span className="form-text fs-xs fst-italic text-muted"><a href="#" className="link-reset">Click here to change your email</a></span>
+                                            <FormLabel htmlFor="useremail">Email</FormLabel>
+                                            <FormControl 
+                                                type="email" 
+                                                id="useremail" 
+                                                placeholder="Ingresa tu email"
+                                                value={formData.email_login}
+                                                onChange={(e) => setFormData({ ...formData, email_login: e.target.value })}
+                                            />
                                         </div>
                                     </Col>
                                     <Col md={6}>
                                         <div className="mb-3">
-                                            <FormLabel htmlFor="userpassword">Password</FormLabel>
-                                            <FormControl type="password" id="userpassword" placeholder="Enter new password" />
-                                            <span className="form-text fs-xs fst-italic text-muted"><a href="#" className="link-reset">Click here to change your password</a></span>
+                                            <FormLabel htmlFor="userpassword">Nueva Contraseña</FormLabel>
+                                            <FormControl 
+                                                type="password" 
+                                                id="userpassword" 
+                                                placeholder="Deja vacío para no cambiar"
+                                                value={formData.password}
+                                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                            />
+                                            <span className="form-text fs-xs fst-italic text-muted">Deja vacío si no quieres cambiar la contraseña</span>
                                         </div>
                                     </Col>
                                 </Row>
                                 <div className="mb-4">
-                                    <FormLabel htmlFor="profilephoto">Profile Photo</FormLabel>
-                                    <FormControl type="file" id="profilephoto" />
+                                    <FormLabel htmlFor="profilephoto">Foto de Perfil</FormLabel>
+                                    <div className="d-flex align-items-center gap-3 mb-2">
+                                        {profilePhotoPreview && (
+                                            <Image 
+                                                src={profilePhotoPreview} 
+                                                alt="Preview" 
+                                                width={80} 
+                                                height={80} 
+                                                className="rounded-circle"
+                                            />
+                                        )}
+                                        <FormControl 
+                                            type="file" 
+                                            id="profilephoto" 
+                                            accept="image/*"
+                                            onChange={handlePhotoChange}
+                                            disabled={uploadingPhoto}
+                                        />
+                                    </div>
+                                    {uploadingPhoto && (
+                                        <div className="d-flex align-items-center gap-2">
+                                            <Spinner animation="border" size="sm" />
+                                            <span className="text-muted fs-sm">Subiendo foto...</span>
+                                        </div>
+                                    )}
                                 </div>
                                 <h5 className="mb-3 text-uppercase bg-light-subtle p-1 border-dashed border rounded border-light text-center">
-                                    <TbMapPin className="me-1" /> Address Info
+                                    <TbMapPin className="me-1" /> Información de Dirección
                                 </h5>
                                 <Row>
                                     <Col md={6}>
                                         <div className="mb-3">
-                                            <FormLabel htmlFor="address-line1">Address Line 1</FormLabel>
-                                            <FormControl type="text" id="address-line1" placeholder="Street, Apartment, Unit, etc." />
+                                            <FormLabel htmlFor="address-line1">Dirección Línea 1</FormLabel>
+                                            <FormControl 
+                                                type="text" 
+                                                id="address-line1" 
+                                                placeholder="Calle, Apartamento, Unidad, etc."
+                                                value={formData.address_line1}
+                                                onChange={(e) => setFormData({ ...formData, address_line1: e.target.value })}
+                                            />
                                         </div>
                                     </Col>
                                     <Col md={6}>
                                         <div className="mb-3">
-                                            <FormLabel htmlFor="address-line2">Address Line 2</FormLabel>
-                                            <FormControl type="text" id="address-line2" placeholder="Optional" />
+                                            <FormLabel htmlFor="address-line2">Dirección Línea 2</FormLabel>
+                                            <FormControl 
+                                                type="text" 
+                                                id="address-line2" 
+                                                placeholder="Opcional"
+                                                value={formData.address_line2}
+                                                onChange={(e) => setFormData({ ...formData, address_line2: e.target.value })}
+                                            />
                                         </div>
                                     </Col>
                                 </Row>
                                 <Row>
                                     <Col md={4}>
                                         <div className="mb-3">
-                                            <FormLabel htmlFor="city">City</FormLabel>
-                                            <FormControl type="text" id="city" placeholder="City" />
+                                            <FormLabel htmlFor="city">Ciudad</FormLabel>
+                                            <FormControl 
+                                                type="text" 
+                                                id="city" 
+                                                placeholder="Ciudad"
+                                                value={formData.city}
+                                                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                                            />
                                         </div>
                                     </Col>
                                     <Col md={4}>
                                         <div className="mb-3">
-                                            <FormLabel htmlFor="state">State / Province</FormLabel>
-                                            <FormControl type="text" id="state" placeholder="State or Province" />
+                                            <FormLabel htmlFor="state">Región / Provincia</FormLabel>
+                                            <FormControl 
+                                                type="text" 
+                                                id="state" 
+                                                placeholder="Región o Provincia"
+                                                value={formData.state}
+                                                onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                                            />
                                         </div>
                                     </Col>
                                     <Col md={4}>
                                         <div className="mb-3">
-                                            <FormLabel htmlFor="zipcode">Postal / ZIP Code</FormLabel>
-                                            <FormControl type="text" id="zipcode" placeholder="Postal Code" />
+                                            <FormLabel htmlFor="zipcode">Código Postal</FormLabel>
+                                            <FormControl 
+                                                type="text" 
+                                                id="zipcode" 
+                                                placeholder="Código Postal"
+                                                value={formData.zipcode}
+                                                onChange={(e) => setFormData({ ...formData, zipcode: e.target.value })}
+                                            />
                                         </div>
                                     </Col>
                                 </Row>
                                 <Row>
                                     <Col md={6}>
                                         <div className="mb-3">
-                                            <FormLabel htmlFor="country">Country</FormLabel>
-                                            <FormControl type="text" id="country" placeholder="Country" />
+                                            <FormLabel htmlFor="country">País</FormLabel>
+                                            <FormControl 
+                                                type="text" 
+                                                id="country" 
+                                                placeholder="País"
+                                                value={formData.country}
+                                                onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                                            />
                                         </div>
                                     </Col>
                                 </Row>
-                                <h5 className="mb-3 text-uppercase bg-light-subtle p-1 border-dashed border rounded border-light text-center"><TbBuildingSkyscraper className="me-1" /> Company Info</h5>
-                                <Row>
-                                    <Col md={6}>
-                                        <div className="mb-3">
-                                            <FormLabel htmlFor="companyname">Company Name</FormLabel>
-                                            <FormControl type="text" id="companyname" placeholder="Enter company name" />
-                                        </div>
-                                    </Col>
-                                    <Col md={6}>
-                                        <div className="mb-3">
-                                            <FormLabel htmlFor="cwebsite">Website</FormLabel>
-                                            <FormControl type="text" id="cwebsite" placeholder="https://yourcompany.com" />
-                                        </div>
-                                    </Col>
-                                </Row>
-                                <h5 className="mb-3 text-uppercase bg-light-subtle p-1 border-dashed border rounded border-light text-center"><TbWorld className="me-1" /> Social</h5>
+                                <h5 className="mb-3 text-uppercase bg-light-subtle p-1 border-dashed border rounded border-light text-center"><TbWorld className="me-1" /> Redes Sociales</h5>
                                 <div className="row g-3">
                                     <Col md={6}>
                                         <FormLabel htmlFor="social-fb">Facebook</FormLabel>
                                         <div className="input-group">
                                             <span className="input-group-text"><TbBrandFacebook /></span>
-                                            <FormControl type="text" id="social-fb" placeholder="Facebook URL" />
+                                            <FormControl 
+                                                type="text" 
+                                                id="social-fb" 
+                                                placeholder="URL de Facebook"
+                                                value={formData.social_facebook}
+                                                onChange={(e) => setFormData({ ...formData, social_facebook: e.target.value })}
+                                            />
                                         </div>
                                     </Col>
                                     <Col md={6}>
                                         <FormLabel htmlFor="social-tw">Twitter X</FormLabel>
                                         <div className="input-group">
                                             <span className="input-group-text"><TbBrandX /></span>
-                                            <FormControl type="text" id="social-tw" placeholder="@username" />
+                                            <FormControl 
+                                                type="text" 
+                                                id="social-tw" 
+                                                placeholder="@usuario"
+                                                value={formData.social_twitter}
+                                                onChange={(e) => setFormData({ ...formData, social_twitter: e.target.value })}
+                                            />
                                         </div>
                                     </Col>
                                     <Col md={6}>
                                         <FormLabel htmlFor="social-insta">Instagram</FormLabel>
                                         <div className="input-group">
                                             <span className="input-group-text"><TbBrandInstagram /></span>
-                                            <FormControl type="text" id="social-insta" placeholder="Instagram URL" />
+                                            <FormControl 
+                                                type="text" 
+                                                id="social-insta" 
+                                                placeholder="URL de Instagram"
+                                                value={formData.social_instagram}
+                                                onChange={(e) => setFormData({ ...formData, social_instagram: e.target.value })}
+                                            />
                                         </div>
                                     </Col>
                                     <Col md={6}>
                                         <FormLabel htmlFor="social-lin">LinkedIn</FormLabel>
                                         <div className="input-group">
                                             <span className="input-group-text"><TbBrandLinkedin /></span>
-                                            <FormControl type="text" id="social-lin" placeholder="LinkedIn Profile" />
+                                            <FormControl 
+                                                type="text" 
+                                                id="social-lin" 
+                                                placeholder="Perfil de LinkedIn"
+                                                value={formData.social_linkedin}
+                                                onChange={(e) => setFormData({ ...formData, social_linkedin: e.target.value })}
+                                            />
                                         </div>
                                     </Col>
                                     <Col md={6}>
                                         <FormLabel htmlFor="social-gh">GitHub</FormLabel>
                                         <div className="input-group">
                                             <span className="input-group-text"><TbBrandGithub /></span>
-                                            <FormControl type="text" id="social-gh" placeholder="GitHub Username" />
+                                            <FormControl 
+                                                type="text" 
+                                                id="social-gh" 
+                                                placeholder="Usuario de GitHub"
+                                                value={formData.social_github}
+                                                onChange={(e) => setFormData({ ...formData, social_github: e.target.value })}
+                                            />
                                         </div>
                                     </Col>
                                     <Col md={6}>
                                         <FormLabel htmlFor="social-sky">Skype</FormLabel>
                                         <div className="input-group">
                                             <span className="input-group-text"><TbBrandSkype /></span>
-                                            <FormControl type="text" id="social-sky" placeholder="@username" />
+                                            <FormControl 
+                                                type="text" 
+                                                id="social-sky" 
+                                                placeholder="@usuario"
+                                                value={formData.social_skype}
+                                                onChange={(e) => setFormData({ ...formData, social_skype: e.target.value })}
+                                            />
                                         </div>
                                     </Col>
                                 </div>
                                 <div className="text-end mt-4">
-                                    <Button variant='success' type="submit"><TbDeviceFloppy className=" me-1" /> Save Changes</Button>
+                                    <Button 
+                                        variant='success' 
+                                        type="submit"
+                                        disabled={saving || uploadingPhoto}
+                                    >
+                                        {saving ? (
+                                            <>
+                                                <Spinner animation="border" size="sm" className="me-2" />
+                                                Guardando...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <TbDeviceFloppy className="me-1" /> Guardar Cambios
+                                            </>
+                                        )}
+                                    </Button>
                                 </div>
                             </form>
                         </TabPane>
