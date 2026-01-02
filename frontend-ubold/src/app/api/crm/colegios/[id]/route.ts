@@ -129,11 +129,10 @@ export async function PUT(
 
     // Preparar datos para Strapi
     const colegioData: any = {
-      data: {
-        colegio_nombre: body.colegio_nombre.trim(),
-        ...(body.rbd && { rbd: parseInt(body.rbd) }),
-        ...(body.rut && { rut: body.rut.trim() }),
-        ...(body.estado && { estado: body.estado }),
+          data: {
+            colegio_nombre: body.colegio_nombre.trim(),
+            ...(body.rbd && { rbd: parseInt(body.rbd) }),
+            ...(body.estado && { estado: body.estado }),
         ...(body.dependencia && { dependencia: body.dependencia }),
         ...(body.tipo_institucion && { tipo_institucion: body.tipo_institucion }),
         ...(body.region && { region: body.region }),

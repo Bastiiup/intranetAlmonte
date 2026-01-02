@@ -41,7 +41,6 @@ interface ColegioType {
   documentId?: string
   colegio_nombre?: string
   rbd?: number | string
-  rut?: string
   dependencia?: string
   tipo_institucion?: string
   region?: string
@@ -69,7 +68,6 @@ const EditColegioModal = ({ show, onHide, colegio, onSuccess }: EditColegioModal
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     colegio_nombre: '',
-    rut: '',
     dependencia: '',
     tipo_institucion: '',
     region: '',
@@ -115,7 +113,6 @@ const EditColegioModal = ({ show, onHide, colegio, onSuccess }: EditColegioModal
 
       setFormData({
         colegio_nombre: data.colegio_nombre || colegio.colegio_nombre || '',
-        rut: data.rut || '',
         dependencia: data.dependencia || colegio.dependencia || '',
         tipo_institucion: data.tipo_institucion || '',
         region: data.region || data.comuna?.region_nombre || '',
@@ -182,7 +179,6 @@ const EditColegioModal = ({ show, onHide, colegio, onSuccess }: EditColegioModal
       // Preparar datos para Strapi
       const colegioData: any = {
         colegio_nombre: formData.colegio_nombre.trim(),
-        ...(formData.rut && { rut: formData.rut.trim() }),
         ...(formData.dependencia && { dependencia: formData.dependencia }),
         ...(formData.tipo_institucion && { tipo_institucion: formData.tipo_institucion }),
         ...(formData.region && { region: formData.region }),
@@ -257,18 +253,6 @@ const EditColegioModal = ({ show, onHide, colegio, onSuccess }: EditColegioModal
                   value={formData.colegio_nombre}
                   onChange={(e) => handleFieldChange('colegio_nombre', e.target.value)}
                   required
-                  disabled={loading}
-                />
-              </FormGroup>
-            </Col>
-            <Col md={6}>
-              <FormGroup className="mb-3">
-                <FormLabel>RUT</FormLabel>
-                <FormControl
-                  type="text"
-                  placeholder="76.123.456-7"
-                  value={formData.rut}
-                  onChange={(e) => handleFieldChange('rut', e.target.value)}
                   disabled={loading}
                 />
               </FormGroup>

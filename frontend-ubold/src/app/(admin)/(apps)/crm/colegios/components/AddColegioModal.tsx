@@ -47,7 +47,6 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     colegio_nombre: '',
-    rut: '',
     dependencia: '',
     tipo_institucion: '',
     region: '',
@@ -111,7 +110,6 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
       // Preparar datos para Strapi
       const colegioData: any = {
         colegio_nombre: formData.colegio_nombre.trim(),
-        ...(formData.rut && { rut: formData.rut.trim() }),
         ...(formData.dependencia && { dependencia: formData.dependencia }),
         ...(formData.tipo_institucion && { tipo_institucion: formData.tipo_institucion }),
         ...(formData.region && { region: formData.region }),
@@ -144,7 +142,6 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
       // Limpiar formulario
       setFormData({
         colegio_nombre: '',
-        rut: '',
         dependencia: '',
         tipo_institucion: '',
         region: '',
@@ -196,18 +193,6 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
                   value={formData.colegio_nombre}
                   onChange={(e) => handleFieldChange('colegio_nombre', e.target.value)}
                   required
-                  disabled={loading}
-                />
-              </FormGroup>
-            </Col>
-            <Col md={6}>
-              <FormGroup className="mb-3">
-                <FormLabel>RUT</FormLabel>
-                <FormControl
-                  type="text"
-                  placeholder="76.123.456-7"
-                  value={formData.rut}
-                  onChange={(e) => handleFieldChange('rut', e.target.value)}
                   disabled={loading}
                 />
               </FormGroup>
