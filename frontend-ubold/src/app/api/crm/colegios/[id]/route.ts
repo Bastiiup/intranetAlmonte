@@ -155,15 +155,22 @@ export async function PUT(
           })),
         }),
         // Direcciones: usar campos correctos del componente contacto.direccion
+        // Nota: Solo incluir comuna si es un ID numérico válido
         ...(body.direcciones && Array.isArray(body.direcciones) && {
-          direcciones: body.direcciones.map((d: any) => ({
-            ...(d.nombre_calle && { nombre_calle: d.nombre_calle }),
-            ...(d.numero_calle && { numero_calle: d.numero_calle }),
-            ...(d.complemento_direccion && { complemento_direccion: d.complemento_direccion }),
-            ...(d.tipo_direccion && { tipo_direccion: d.tipo_direccion }),
-            ...(d.direccion_principal_envio_facturacion && { direccion_principal_envio_facturacion: d.direccion_principal_envio_facturacion }),
-            ...(d.comuna && { comuna: typeof d.comuna === 'object' ? d.comuna : { connect: [d.comuna] } }),
-          })),
+          direcciones: body.direcciones.map((d: any) => {
+            const direccion: any = {
+              ...(d.nombre_calle && { nombre_calle: d.nombre_calle }),
+              ...(d.numero_calle && { numero_calle: d.numero_calle }),
+              ...(d.complemento_direccion && { complemento_direccion: d.complemento_direccion }),
+              ...(d.tipo_direccion && { tipo_direccion: d.tipo_direccion }),
+              ...(d.direccion_principal_envio_facturacion && { direccion_principal_envio_facturacion: d.direccion_principal_envio_facturacion }),
+            }
+            // Solo incluir comuna si es un ID numérico válido
+            if (d.comuna && (typeof d.comuna === 'number' || (typeof d.comuna === 'string' && !isNaN(parseInt(d.comuna))))) {
+              direccion.comuna = { connect: [parseInt(d.comuna.toString())] }
+            }
+            return direccion
+          }),
         }),
       },
     }

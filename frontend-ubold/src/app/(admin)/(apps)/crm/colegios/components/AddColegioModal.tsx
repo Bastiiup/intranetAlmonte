@@ -71,13 +71,14 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
         }))
 
       // Preparar direcciones con campos correctos
+      // Nota: No incluir comuna si es un string (nombre), solo si es un ID numérico
       const direccionesArray = formData.direccion
         ? [{
             nombre_calle: formData.direccion,
             numero_calle: '',
             tipo_direccion: 'Colegio',
             direccion_principal_envio_facturacion: 'Principal',
-            ...(formData.comuna && { comuna: formData.comuna }),
+            // No incluir comuna aquí - se maneja a nivel de colegio si es necesario
           }]
         : []
 
