@@ -56,7 +56,8 @@ interface ColegioFormProps {
   error?: string | null
 }
 
-const ColegioForm = ({ initialData, onSubmit, onCancel, loading = false, error }: ColegioFormProps) => {
+const ColegioForm = ({ initialData, onSubmit, onCancel, loading = false, error: externalError }: ColegioFormProps) => {
+  const [formError, setFormError] = useState<string | null>(null)
   const [formData, setFormData] = useState<ColegioFormData>({
     rbd: '',
     colegio_nombre: '',
@@ -158,27 +159,30 @@ const ColegioForm = ({ initialData, onSubmit, onCancel, loading = false, error }
     e.preventDefault()
 
     // Validaciones
+    setFormError(null)
     if (!formData.rbd || !formData.rbd.trim()) {
-      setError('El RBD es obligatorio')
+      setFormError('El RBD es obligatorio')
       return
     }
     if (!formData.colegio_nombre || !formData.colegio_nombre.trim()) {
-      setError('El nombre del colegio es obligatorio')
+      setFormError('El nombre del colegio es obligatorio')
       return
     }
 
     try {
       await onSubmit(formData)
     } catch (err: any) {
-      setError(err.message || 'Error al guardar el colegio')
+      setFormError(err.message || 'Error al guardar el colegio')
     }
   }
 
+  const displayError = externalError || formError
+
   return (
     <Form onSubmit={handleSubmit}>
-      {error && (
-        <Alert variant="danger" dismissible onClose={() => {}}>
-          {error}
+      {displayError && (
+        <Alert variant="danger" dismissible onClose={() => { setFormError(null) }}>
+          {displayError}
         </Alert>
       )}
 
