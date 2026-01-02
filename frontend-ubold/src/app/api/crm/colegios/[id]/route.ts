@@ -12,9 +12,10 @@ export const dynamic = 'force-dynamic'
 interface ColegioAttributes {
   colegio_nombre?: string
   rbd?: number
+  estado?: string
   dependencia?: string
+  region?: string
   zona?: string
-  activo?: boolean
   comuna?: any
   telefonos?: any[]
   emails?: any[]
