@@ -126,10 +126,13 @@ const Account = () => {
                                 console.log('[Account] Estructura de componente imagen:', JSON.stringify(imagenComponent, null, 2))
                                 
                                 // Si es array directo
+                                // Si es array (ESTRUCTURA REAL: imagen.imagen es array de objetos con url directa)
                                 if (Array.isArray(imagenComponent) && imagenComponent.length > 0) {
                                     const primeraImagen = imagenComponent[0]
-                                    const url = primeraImagen?.attributes?.url || primeraImagen?.url || null
+                                    // La URL viene directamente en el objeto, no en attributes
+                                    const url = primeraImagen?.url || primeraImagen?.attributes?.url || null
                                     if (url) {
+                                        // La URL ya viene completa desde S3 (https://media.moraleja.cl/...)
                                         imageUrl = url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_STRAPI_URL}${url}`
                                         console.log('[Account] ✅ Imagen encontrada en array:', imageUrl)
                                     }
