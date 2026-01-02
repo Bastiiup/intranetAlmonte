@@ -169,12 +169,14 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
   const description = cargo ? `${cargo}${empresa ? ` en ${empresa}` : ''}` : empresa || ''
   
   // 14. Label desde nivel_confianza
-  const label = nivelConfianzaToLabel[attrs.nivel_confianza || 'media'] || nivelConfianzaToLabel['media']
+  const nivelConfianza = (attrs.nivel_confianza || 'media') as keyof typeof nivelConfianzaToLabel
+  const label = nivelConfianzaToLabel[nivelConfianza] || nivelConfianzaToLabel['media']
   
   // 15. Categorías desde tags + origen
+  const origen = attrs.origen as keyof typeof origenToCategory | undefined
   const categories = [
     ...(attrs.tags?.map((tag: { name?: string }) => ({ name: tag.name || '', variant: "secondary" as const })).filter((c: { name: string }) => c.name) || []),
-    ...(attrs.origen && origenToCategory[attrs.origen] ? [origenToCategory[attrs.origen]] : [])
+    ...(origen && origenToCategory[origen] ? [origenToCategory[origen]] : [])
   ]
   
   // 16. Avatar/Imagen
