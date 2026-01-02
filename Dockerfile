@@ -8,15 +8,15 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Copiar archivos de dependencias primero (para mejor cache de Docker)
-# Nota: Railway está configurado con rootDirectory: "frontend-ubold"
-# Por lo tanto, el contexto de build ya está en frontend-ubold/
+# Nota: Railway está configurado con rootDirectory: "AlmonteIntranet"
+# Por lo tanto, el contexto de build ya está en AlmonteIntranet/
 COPY package*.json ./
 
 # Instalar dependencias
 RUN npm ci --prefer-offline --no-audit --legacy-peer-deps || npm install --prefer-offline --no-audit --legacy-peer-deps
 
 # Copiar el resto de los archivos
-# Nota: Como Railway usa rootDirectory: "frontend-ubold", el contexto ya está ahí
+# Nota: Como Railway usa rootDirectory: "AlmonteIntranet", el contexto ya está ahí
 COPY . .
 
 # Variables de entorno para optimizar build
