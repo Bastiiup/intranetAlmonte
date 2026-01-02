@@ -17,7 +17,7 @@ type PersonaAttributes = {
   updatedAt?: string
   emails?: Array<{ email?: string; principal?: boolean }>
   telefonos?: Array<{ telefono_norm?: string; telefono_raw?: string; principal?: boolean }>
-  imagen?: {
+  imagen?: string | {
     url?: string
     media?: {
       data?: {
@@ -156,12 +156,17 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
   let avatar: string | undefined = undefined
   if (attrs.imagen) {
     if (typeof attrs.imagen === 'string') {
-      avatar = attrs.imagen.startsWith('http') ? attrs.imagen : `${STRAPI_API_URL}${attrs.imagen}`
-    } else if (attrs.imagen.url) {
-      avatar = attrs.imagen.url.startsWith('http') ? attrs.imagen.url : `${STRAPI_API_URL}${attrs.imagen.url}`
-    } else if (attrs.imagen.media?.data?.attributes?.url) {
-      const mediaUrl = attrs.imagen.media.data.attributes.url
-      avatar = mediaUrl.startsWith('http') ? mediaUrl : `${STRAPI_API_URL}${mediaUrl}`
+      const imagenUrl = attrs.imagen
+      avatar = imagenUrl.startsWith('http') ? imagenUrl : `${STRAPI_API_URL}${imagenUrl}`
+    } else {
+      // attrs.imagen es un objeto aquí
+      if (attrs.imagen.url) {
+        const url = attrs.imagen.url
+        avatar = url.startsWith('http') ? url : `${STRAPI_API_URL}${url}`
+      } else if (attrs.imagen.media?.data?.attributes?.url) {
+        const mediaUrl = attrs.imagen.media.data.attributes.url
+        avatar = mediaUrl.startsWith('http') ? mediaUrl : `${STRAPI_API_URL}${mediaUrl}`
+      }
     }
   }
   
