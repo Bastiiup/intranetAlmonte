@@ -123,6 +123,14 @@ export async function PUT(
       personaData
     )
 
+    // Revalidar para sincronización bidireccional
+    revalidatePath('/crm/personas')
+    revalidatePath(`/crm/personas/${id}`)
+    revalidatePath('/crm/personas/[id]', 'page')
+    revalidatePath('/crm/contacts')
+    revalidateTag('personas')
+    revalidateTag('contacts')
+
     return NextResponse.json({
       success: true,
       data: response.data,
