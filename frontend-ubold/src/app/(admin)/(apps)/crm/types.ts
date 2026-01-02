@@ -5,10 +5,16 @@ import { VariantType } from '@/types'
 export type ContactType = {
   id: number
   name: string
+  cargo?: string
   description: string
   email: string
   phone: string
-  avatar?: StaticImageData
+  empresa?: string
+  region?: string
+  comuna?: string
+  dependencia?: string
+  representanteComercial?: string
+  avatar?: StaticImageData | string
   label: {
     text: string
     variant: string
@@ -17,7 +23,10 @@ export type ContactType = {
     name: string
     variant: string
   }[]
-  stats: {
+  origen?: string
+  createdAt?: Date
+  updatedAt?: Date
+  stats?: {
     title: string
     count: number
     prefix?: string
