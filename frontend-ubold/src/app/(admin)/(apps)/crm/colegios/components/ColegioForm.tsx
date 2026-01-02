@@ -402,9 +402,9 @@ const ColegioForm = ({ initialData, onSubmit, onCancel, loading = false, error: 
               <Col md={6}>
                 <FormControl
                   type="text"
-                  placeholder="Calle"
-                  value={direccion.calle || ''}
-                  onChange={(e) => handleDireccionChange(index, 'calle', e.target.value)}
+                  placeholder="Nombre de Calle"
+                  value={direccion.nombre_calle || ''}
+                  onChange={(e) => handleDireccionChange(index, 'nombre_calle', e.target.value)}
                   disabled={loading}
                   className="mb-2"
                 />
@@ -412,12 +412,51 @@ const ColegioForm = ({ initialData, onSubmit, onCancel, loading = false, error: 
               <Col md={6}>
                 <FormControl
                   type="text"
-                  placeholder="Número"
-                  value={direccion.numero || ''}
-                  onChange={(e) => handleDireccionChange(index, 'numero', e.target.value)}
+                  placeholder="Número de Calle"
+                  value={direccion.numero_calle || ''}
+                  onChange={(e) => handleDireccionChange(index, 'numero_calle', e.target.value)}
                   disabled={loading}
                   className="mb-2"
                 />
+              </Col>
+              <Col md={6}>
+                <FormControl
+                  type="text"
+                  placeholder="Complemento"
+                  value={direccion.complemento_direccion || ''}
+                  onChange={(e) => handleDireccionChange(index, 'complemento_direccion', e.target.value)}
+                  disabled={loading}
+                  className="mb-2"
+                />
+              </Col>
+              <Col md={6}>
+                <FormControl
+                  as="select"
+                  value={direccion.tipo_direccion || ''}
+                  onChange={(e) => handleDireccionChange(index, 'tipo_direccion', e.target.value)}
+                  disabled={loading}
+                  className="mb-2"
+                >
+                  <option value="">Tipo de Dirección</option>
+                  <option value="Casa">Casa</option>
+                  <option value="Departamento">Departamento</option>
+                  <option value="Colegio">Colegio</option>
+                  <option value="Comercial">Comercial</option>
+                </FormControl>
+              </Col>
+              <Col md={6}>
+                <FormControl
+                  as="select"
+                  value={direccion.direccion_principal_envio_facturacion || ''}
+                  onChange={(e) => handleDireccionChange(index, 'direccion_principal_envio_facturacion', e.target.value)}
+                  disabled={loading}
+                  className="mb-2"
+                >
+                  <option value="">Tipo</option>
+                  <option value="Principal">Principal</option>
+                  <option value="Envío">Envío</option>
+                  <option value="Facturación">Facturación</option>
+                </FormControl>
               </Col>
             </Row>
             <div className="d-flex justify-content-end">
