@@ -119,7 +119,7 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
   const phone = telefonoPrincipal?.telefono_norm || telefonoPrincipal?.telefono_raw || ''
   
   // 4. Trayectoria actual (priorizar is_current)
-  const trayectoriaActual = attrs.trayectorias?.find(t => t.is_current) || attrs.trayectorias?.[0]
+  const trayectoriaActual = attrs.trayectorias?.find((t: { is_current?: boolean }) => t.is_current) || attrs.trayectorias?.[0]
   const colegio = trayectoriaActual?.colegio
   const comuna = colegio?.comuna
   
