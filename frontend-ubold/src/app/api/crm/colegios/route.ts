@@ -8,9 +8,7 @@ interface ColegioAttributes {
   colegio_nombre?: string
   rbd?: number
   dependencia?: string
-  tipo?: string
   zona?: string
-  website?: string
   activo?: boolean
   comuna?: any
   telefonos?: any[]
@@ -125,14 +123,15 @@ export async function POST(request: Request) {
         colegio_nombre: body.colegio_nombre.trim(),
         ...(body.rbd && { rbd: parseInt(body.rbd) }),
         ...(body.dependencia && { dependencia: body.dependencia }),
-        ...(body.tipo && { tipo: body.tipo }),
         ...(body.zona && { zona: body.zona }),
-        ...(body.website && { website: body.website.trim() }),
         activo: body.activo !== undefined ? body.activo : true,
         ...(body.origen && { origen: body.origen }),
-        ...(body.comuna && { comuna: body.comuna }),
+        ...(body.comunaId && { comuna: body.comunaId }),
       },
     }
+    
+    // Website es un componente, no un campo simple
+    // Si se necesita agregar website, debe hacerse como componente
 
     const response = await strapiClient.post<StrapiResponse<StrapiEntity<ColegioAttributes>>>(
       '/api/colegios',

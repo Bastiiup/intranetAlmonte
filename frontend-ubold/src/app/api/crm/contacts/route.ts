@@ -145,3 +145,81 @@ export async function GET(request: Request) {
   }
 }
 
+/**
+ * POST /api/crm/contacts
+ * Crea un nuevo contacto (persona)
+ */
+export async function POST(request: Request) {
+  try {
+    const body = await request.json()
+
+    // Validaciones básicas
+    if (!body.nombres || !body.nombres.trim()) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'El nombre es obligatorio',
+        },
+        { status: 400 }
+      )
+    }
+
+    // Preparar datos para Strapi
+    const personaData: any = {
+      data: {
+        nombres: body.nombres.trim(),
+        ...(body.primer_apellido && { primer_apellido: body.primer_apellido.trim() }),
+        ...(body.segundo_apellido && { segundo_apellido: body.segundo_apellido.trim() }),
+        ...(body.rut && { rut: body.rut.trim() }),
+        ...(body.genero && { genero: body.genero }),
+        ...(body.cumpleagno && { cumpleagno: body.cumpleagno }),
+        activo: body.activo !== undefined ? body.activo : true,
+        nivel_confianza: body.nivel_confianza || 'media',
+        origen: body.origen || 'manual',
+      },
+    }
+
+    // Agregar emails si existen
+    if (body.emails && Array.isArray(body.emails) && body.emails.length > 0) {
+      personaData.data.emails = body.emails.map((email: string, index: number) => ({
+        email: email.trim(),
+        principal: index === 0, // El primero es principal
+      }))
+    }
+
+    // Agregar telefonos si existen
+    if (body.telefonos && Array.isArray(body.telefonos) && body.telefonos.length > 0) {
+      personaData.data.telefonos = body.telefonos.map((telefono: string, index: number) => ({
+        telefono_raw: telefono.trim(),
+        principal: index === 0, // El primero es principal
+      }))
+    }
+
+    const response = await strapiClient.post<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
+      '/api/personas',
+      personaData
+    )
+
+    return NextResponse.json({
+      success: true,
+      data: response.data,
+      message: 'Contacto creado exitosamente',
+    }, { status: 201 })
+  } catch (error: any) {
+    console.error('[API /crm/contacts POST] Error:', {
+      message: error.message,
+      status: error.status,
+      details: error.details,
+    })
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message || 'Error al crear contacto',
+        details: error.details || {},
+        status: error.status || 500,
+      },
+      { status: error.status || 500 }
+    )
+  }
+}
+

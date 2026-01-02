@@ -10,11 +10,7 @@ const DEPENDENCIAS = [
   'Particular Pagado',
 ]
 
-const TIPOS = [
-  'Colegio',
-  'Liceo',
-  'Escuela',
-]
+// TIPOS removido - no existe en Strapi
 
 interface AddColegioModalProps {
   show: boolean
@@ -29,9 +25,7 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
     colegio_nombre: '',
     rbd: '',
     dependencia: '',
-    tipo: '',
     zona: '',
-    website: '',
     activo: true,
   })
 
@@ -59,9 +53,7 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
         colegio_nombre: formData.colegio_nombre.trim(),
         ...(formData.rbd && { rbd: formData.rbd }),
         ...(formData.dependencia && { dependencia: formData.dependencia }),
-        ...(formData.tipo && { tipo: formData.tipo }),
         ...(formData.zona && { zona: formData.zona }),
-        ...(formData.website && { website: formData.website.trim() }),
         activo: formData.activo,
         origen: 'manual',
       }
@@ -86,9 +78,7 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
         colegio_nombre: '',
         rbd: '',
         dependencia: '',
-        tipo: '',
         zona: '',
-        website: '',
         activo: true,
       })
 
@@ -164,45 +154,12 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
             </div>
             <div className="col-md-6">
               <FormGroup className="mb-3">
-                <FormLabel>Tipo</FormLabel>
-                <FormControl
-                  as="select"
-                  value={formData.tipo}
-                  onChange={(e) => handleFieldChange('tipo', e.target.value)}
-                  disabled={loading}
-                >
-                  <option value="">Seleccionar...</option>
-                  {TIPOS.map((tipo) => (
-                    <option key={tipo} value={tipo}>
-                      {tipo}
-                    </option>
-                  ))}
-                </FormControl>
-              </FormGroup>
-            </div>
-          </div>
-
-          <div className="row">
-            <div className="col-md-6">
-              <FormGroup className="mb-3">
                 <FormLabel>Zona</FormLabel>
                 <FormControl
                   type="text"
                   placeholder="Centro, Oriente, Poniente..."
                   value={formData.zona}
                   onChange={(e) => handleFieldChange('zona', e.target.value)}
-                  disabled={loading}
-                />
-              </FormGroup>
-            </div>
-            <div className="col-md-6">
-              <FormGroup className="mb-3">
-                <FormLabel>Website</FormLabel>
-                <FormControl
-                  type="url"
-                  placeholder="https://www.colegio.cl"
-                  value={formData.website}
-                  onChange={(e) => handleFieldChange('website', e.target.value)}
                   disabled={loading}
                 />
               </FormGroup>
