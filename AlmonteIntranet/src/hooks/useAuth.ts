@@ -63,19 +63,21 @@ export function useAuth(): AuthData {
         }
 
         // Si no, intentar obtener los datos completos desde la API
+        // Usar /api/colaboradores/me/profile que normaliza la imagen correctamente
         try {
-          const response = await fetch('/api/colaboradores/me', {
+          const response = await fetch('/api/colaboradores/me/profile', {
             headers: {
               'Authorization': `Bearer ${token}`,
             },
           })
 
           if (response.ok) {
-            const data = await response.json()
-            if (data.colaborador) {
+            const result = await response.json()
+            if (result.success && result.data) {
+              const { colaborador: colaboradorData, persona: personaData } = result.data
               setAuthData({
-                colaborador: data.colaborador as ColaboradorData,
-                persona: data.colaborador.persona as PersonaData | null,
+                colaborador: colaboradorData as ColaboradorData,
+                persona: personaData as PersonaData | null,
                 loading: false,
               })
               return
