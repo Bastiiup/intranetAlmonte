@@ -117,12 +117,31 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
+    if (!body.rbd) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'El RBD es obligatorio',
+        },
+        { status: 400 }
+      )
+    }
+    const rbdNumber = parseInt(body.rbd.toString())
+    if (isNaN(rbdNumber)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'El RBD debe ser un número válido',
+        },
+        { status: 400 }
+      )
+    }
 
     // Preparar datos para Strapi
     const colegioData: any = {
       data: {
         colegio_nombre: body.colegio_nombre.trim(),
-        ...(body.rbd && { rbd: parseInt(body.rbd) }),
+        rbd: rbdNumber, // RBD es obligatorio
         ...(body.estado && { estado: body.estado }),
         ...(body.dependencia && { dependencia: body.dependencia }),
         ...(body.region && { region: body.region }),
