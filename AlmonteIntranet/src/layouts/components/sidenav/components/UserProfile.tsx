@@ -15,9 +15,26 @@ const UserProfile = () => {
   
   const nombreUsuario = persona ? getPersonaNombreCorto(persona) : (colaborador?.email_login || 'Usuario')
   const rolLabel = colaborador?.rol ? getRolLabel(colaborador.rol) : 'Usuario'
-  const avatarSrc = persona?.imagen?.url 
-    ? `${process.env.NEXT_PUBLIC_STRAPI_URL}${persona.imagen.url}`
-    : user3.src
+  
+  // Obtener avatar - manejar estructura del componente contacto.imagen
+  let avatarSrc = user3.src
+  if (persona?.imagen) {
+    // Si imagen tiene url directa (estructura normalizada del API)
+    if (persona.imagen.url) {
+      avatarSrc = persona.imagen.url.startsWith('http') 
+        ? persona.imagen.url 
+        : `${process.env.NEXT_PUBLIC_STRAPI_URL}${persona.imagen.url}`
+    }
+    // Si imagen viene en estructura de componente contacto.imagen (imagen.imagen es array)
+    else if (persona.imagen.imagen && Array.isArray(persona.imagen.imagen) && persona.imagen.imagen.length > 0) {
+      const primeraImagen = persona.imagen.imagen[0]
+      const url = primeraImagen.url || primeraImagen.attributes?.url || null
+      if (url) {
+        // La URL ya viene completa desde S3 (https://media.moraleja.cl/...)
+        avatarSrc = url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_STRAPI_URL}${url}`
+      }
+    }
+  }
 
   return (
     <div className="sidenav-user">
