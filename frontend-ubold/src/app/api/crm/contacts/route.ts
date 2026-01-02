@@ -89,14 +89,13 @@ export async function GET(request: Request) {
     params.append('populate[telefonos]', 'true')
     params.append('populate[imagen]', 'true') // Para campos Media, solo usar 'true'
     params.append('populate[tags]', 'true')
-    // Populate de trayectorias con colegio (sintaxis simplificada)
-    params.append('populate[trayectorias]', 'true')
-    params.append('populate[trayectorias.colegio]', 'true')
-    params.append('populate[trayectorias.colegio.comuna]', 'true')
-    params.append('populate[trayectorias.colegio.telefonos]', 'true')
-    params.append('populate[trayectorias.colegio.emails]', 'true')
-    params.append('populate[trayectorias.colegio.cartera_asignaciones]', 'true')
-    params.append('populate[trayectorias.colegio.cartera_asignaciones.ejecutivo]', 'true')
+    // Populate anidado correcto para trayectorias y colegio
+    params.append('populate[trayectorias][populate][colegio]', 'true')
+    params.append('populate[trayectorias][populate][colegio][populate][comuna]', 'true')
+    params.append('populate[trayectorias][populate][colegio][populate][telefonos]', 'true')
+    params.append('populate[trayectorias][populate][colegio][populate][emails]', 'true')
+    params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones]', 'true')
+    params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones][populate][ejecutivo]', 'true')
 
     // Filtros
     params.append('filters[activo][$eq]', 'true')
