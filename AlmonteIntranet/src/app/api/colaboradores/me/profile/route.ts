@@ -64,66 +64,28 @@ export async function PUT(request: NextRequest) {
     })
 
     // Obtener persona actual para tener su ID/documentId
-    // PRIORIDAD: Usar RUT para buscar persona (más confiable, como en el chat)
+    // PRIORIDAD: Primero obtener colaborador completo, luego usar RUT si es necesario
     let personaId: string | null = null
     let personaDocumentId: string | null = null
     let personaRut: string | null = null
 
-    // Primero obtener el RUT de la persona (desde cookie o colaborador)
-    personaRut = colaborador.persona?.rut || colaborador.attributes?.persona?.rut || null
-    
-    // Si tenemos RUT, buscar persona directamente por RUT (más confiable que IDs)
-    if (personaRut) {
-      try {
-        const rutString = String(personaRut).trim()
-        console.log('[API /colaboradores/me/profile] 🔍 Buscando persona por RUT (prioridad):', rutString)
-        
-        const personaSearchResponse = await strapiClient.get<any>(
-          `/api/personas?filters[rut][$eq]=${encodeURIComponent(rutString)}&populate[imagen][populate]=*&pagination[pageSize]=1`
-        )
-        
-        if (personaSearchResponse.data && Array.isArray(personaSearchResponse.data) && personaSearchResponse.data.length > 0) {
-          const personaEncontrada = personaSearchResponse.data[0]
-          personaDocumentId = personaEncontrada.documentId || personaEncontrada.id?.toString() || null
-          personaId = personaEncontrada.id?.toString() || personaEncontrada.documentId || null
-          
-          console.log('[API /colaboradores/me/profile] ✅ Persona encontrada por RUT:', {
-            personaDocumentId,
-            personaId,
-            personaRut: rutString,
-          })
-        } else {
-          console.warn('[API /colaboradores/me/profile] ⚠️ No se encontró persona por RUT, intentando métodos alternativos')
-          personaRut = null // Resetear para intentar otros métodos
-        }
-      } catch (rutError: any) {
-        console.warn('[API /colaboradores/me/profile] Error al buscar persona por RUT:', {
-          error: rutError.message,
-          status: rutError.status,
-        })
-        // Continuar con métodos alternativos
-      }
+    // Primero intentar con datos de cookie (más rápido)
+    if (colaborador.persona?.documentId) {
+      personaDocumentId = colaborador.persona.documentId
+      personaId = colaborador.persona.id?.toString() || null
+      personaRut = colaborador.persona.rut || null
+      console.log('[API /colaboradores/me/profile] Usando datos de persona desde cookie:', {
+        personaDocumentId,
+        personaId,
+        personaRut,
+      })
+    } else if (colaborador.persona?.id) {
+      personaId = String(colaborador.persona.id)
+      personaRut = colaborador.persona.rut || null
+      console.log('[API /colaboradores/me/profile] Usando ID de persona desde cookie:', personaId)
     }
 
-    // Si no encontramos por RUT, intentar con datos de cookie
-    if (!personaDocumentId && !personaId) {
-      if (colaborador.persona?.documentId) {
-        personaDocumentId = colaborador.persona.documentId
-        personaId = colaborador.persona.id?.toString() || null
-        if (!personaRut) personaRut = colaborador.persona.rut
-        console.log('[API /colaboradores/me/profile] Usando datos de persona desde cookie:', {
-          personaDocumentId,
-          personaId,
-          personaRut,
-        })
-      } else if (colaborador.persona?.id) {
-        personaId = String(colaborador.persona.id)
-        if (!personaRut) personaRut = colaborador.persona.rut
-        console.log('[API /colaboradores/me/profile] Usando ID de persona desde cookie:', personaId)
-      }
-    }
-
-    // Si aún no tenemos datos de persona, intentar obtener desde Strapi por colaborador
+    // Si no tenemos datos de persona en cookie, obtener desde Strapi por colaborador
     if (!personaDocumentId && !personaId) {
       try {
         let colaboradorResponse: any
@@ -202,10 +164,41 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Validar que tenemos al menos el RUT o un ID
-    if (!personaRut && !personaDocumentId && !personaId) {
+    // Si tenemos RUT pero no ID, intentar buscar persona por RUT (método alternativo)
+    if (personaRut && !personaDocumentId && !personaId) {
+      try {
+        const rutString = String(personaRut).trim()
+        console.log('[API /colaboradores/me/profile] 🔍 Buscando persona por RUT (método alternativo):', rutString)
+        
+        const personaSearchResponse = await strapiClient.get<any>(
+          `/api/personas?filters[rut][$eq]=${encodeURIComponent(rutString)}&populate[imagen][populate]=*&pagination[pageSize]=1`
+        )
+        
+        if (personaSearchResponse.data && Array.isArray(personaSearchResponse.data) && personaSearchResponse.data.length > 0) {
+          const personaEncontrada = personaSearchResponse.data[0]
+          personaDocumentId = personaEncontrada.documentId || personaEncontrada.id?.toString() || null
+          personaId = personaEncontrada.id?.toString() || personaEncontrada.documentId || null
+          
+          console.log('[API /colaboradores/me/profile] ✅ Persona encontrada por RUT:', {
+            personaDocumentId,
+            personaId,
+            personaRut: rutString,
+          })
+        } else {
+          console.warn('[API /colaboradores/me/profile] ⚠️ No se encontró persona por RUT')
+        }
+      } catch (rutError: any) {
+        console.warn('[API /colaboradores/me/profile] Error al buscar persona por RUT:', {
+          error: rutError.message,
+          status: rutError.status,
+        })
+      }
+    }
+
+    // Validar que tenemos al menos un ID o RUT
+    if (!personaDocumentId && !personaId && !personaRut) {
       return NextResponse.json(
-        { success: false, error: 'No se pudo obtener información de la persona. El perfil debe tener un RUT configurado.' },
+        { success: false, error: 'No se pudo obtener información de la persona. Se requiere ID o RUT.' },
         { status: 400 }
       )
     }
