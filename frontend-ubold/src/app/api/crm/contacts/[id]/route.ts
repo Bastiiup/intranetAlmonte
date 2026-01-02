@@ -133,6 +133,49 @@ export async function PUT(
       personaData
     )
 
+    // Si se proporcionó una trayectoria, actualizarla o crearla
+    if (body.trayectoria) {
+      try {
+        // Primero, buscar trayectorias existentes de esta persona
+        const trayectoriasResponse = await strapiClient.get(
+          `/api/persona-trayectorias?filters[persona][id][$eq]=${id}&filters[is_current][$eq]=true`
+        )
+        
+        const trayectoriasExistentes = Array.isArray(trayectoriasResponse.data) 
+          ? trayectoriasResponse.data 
+          : trayectoriasResponse.data?.data || []
+
+        if (trayectoriasExistentes.length > 0) {
+          // Actualizar la trayectoria actual
+          const trayectoriaActual = trayectoriasExistentes[0]
+          const trayectoriaId = trayectoriaActual.documentId || trayectoriaActual.id
+          
+          const trayectoriaUpdateData = {
+            data: {
+              colegio: { connect: [body.trayectoria.colegio] },
+              cargo: body.trayectoria.cargo || null,
+              is_current: body.trayectoria.is_current !== undefined ? body.trayectoria.is_current : true,
+            },
+          }
+          await strapiClient.put(`/api/persona-trayectorias/${trayectoriaId}`, trayectoriaUpdateData)
+        } else {
+          // Crear nueva trayectoria
+          const trayectoriaData = {
+            data: {
+              persona: { connect: [id] },
+              colegio: { connect: [body.trayectoria.colegio] },
+              cargo: body.trayectoria.cargo || null,
+              is_current: body.trayectoria.is_current !== undefined ? body.trayectoria.is_current : true,
+            },
+          }
+          await strapiClient.post('/api/persona-trayectorias', trayectoriaData)
+        }
+      } catch (trayectoriaError: any) {
+        console.error('[API /crm/contacts/[id] PUT] Error al actualizar/crear trayectoria:', trayectoriaError)
+        // No fallar si la trayectoria no se puede crear/actualizar, solo loguear
+      }
+    }
+
     // Revalidar para sincronización bidireccional
     revalidatePath('/crm/personas')
     revalidatePath(`/crm/personas/${id}`)

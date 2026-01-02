@@ -211,6 +211,27 @@ export async function POST(request: Request) {
       personaData
     )
 
+    // Obtener el ID de la persona creada
+    const personaId = (response.data as any).documentId || (response.data as any).id
+
+    // Si se proporcionó una trayectoria, crearla
+    if (body.trayectoria && personaId) {
+      try {
+        const trayectoriaData = {
+          data: {
+            persona: { connect: [personaId] },
+            colegio: { connect: [body.trayectoria.colegio] },
+            cargo: body.trayectoria.cargo || null,
+            is_current: body.trayectoria.is_current !== undefined ? body.trayectoria.is_current : true,
+          },
+        }
+        await strapiClient.post('/api/persona-trayectorias', trayectoriaData)
+      } catch (trayectoriaError: any) {
+        console.error('[API /crm/contacts POST] Error al crear trayectoria:', trayectoriaError)
+        // No fallar si la trayectoria no se puede crear, solo loguear
+      }
+    }
+
     // Revalidar para sincronización bidireccional
     revalidatePath('/crm/personas')
     revalidatePath('/crm/personas/[id]', 'page')

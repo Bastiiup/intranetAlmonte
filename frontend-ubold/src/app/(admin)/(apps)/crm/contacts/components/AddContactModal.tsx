@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Button, Form, FormGroup, FormLabel, FormControl, Alert, Row, Col } from 'react-bootstrap'
 import { LuCheck } from 'react-icons/lu'
 
@@ -31,21 +31,52 @@ interface AddContactModalProps {
   onSuccess?: () => void
 }
 
+interface ColegioOption {
+  id: number
+  documentId?: string
+  nombre: string
+  rbd?: number | null
+}
+
 const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [colegios, setColegios] = useState<ColegioOption[]>([])
+  const [loadingColegios, setLoadingColegios] = useState(false)
   const [formData, setFormData] = useState({
     nombres: '',
     email: '',
     cargo: '',
     telefono: '',
-    institucion: '',
+    colegioId: '',
     region: '',
     comuna: '',
     dependencia: '',
     origen: 'manual',
     etiqueta: 'media',
   })
+
+  // Cargar lista de colegios cuando se abre el modal
+  useEffect(() => {
+    if (show) {
+      loadColegios()
+    }
+  }, [show])
+
+  const loadColegios = async () => {
+    setLoadingColegios(true)
+    try {
+      const response = await fetch('/api/crm/colegios/list')
+      const result = await response.json()
+      if (result.success && Array.isArray(result.data)) {
+        setColegios(result.data)
+      }
+    } catch (err) {
+      console.error('Error al cargar colegios:', err)
+    } finally {
+      setLoadingColegios(false)
+    }
+  }
 
   const handleFieldChange = (field: string, value: any) => {
     setFormData((prev) => ({
@@ -85,6 +116,14 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
         origen: formData.origen || 'manual',
         nivel_confianza: formData.etiqueta || 'media',
         activo: true,
+        // Agregar trayectoria si se seleccionó un colegio
+        ...(formData.colegioId && {
+          trayectoria: {
+            colegio: formData.colegioId,
+            cargo: formData.cargo || null,
+            is_current: true,
+          },
+        }),
       }
 
       // Crear el contacto
@@ -109,7 +148,7 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
         email: '',
         cargo: '',
         telefono: '',
-        institucion: '',
+        colegioId: '',
         region: '',
         comuna: '',
         dependencia: '',
@@ -208,14 +247,20 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
           <Row>
             <Col md={6}>
               <FormGroup className="mb-3">
-                <FormLabel>Institución</FormLabel>
+                <FormLabel>Institución (Colegio)</FormLabel>
                 <FormControl
-                  type="text"
-                  placeholder="Nombre del colegio"
-                  value={formData.institucion}
-                  onChange={(e) => handleFieldChange('institucion', e.target.value)}
-                  disabled={loading}
-                />
+                  as="select"
+                  value={formData.colegioId}
+                  onChange={(e) => handleFieldChange('colegioId', e.target.value)}
+                  disabled={loading || loadingColegios}
+                >
+                  <option value="">Seleccionar colegio...</option>
+                  {colegios.map((colegio) => (
+                    <option key={colegio.id} value={colegio.documentId || colegio.id}>
+                      {colegio.nombre} {colegio.rbd ? `(RBD: ${colegio.rbd})` : ''}
+                    </option>
+                  ))}
+                </FormControl>
               </FormGroup>
             </Col>
             <Col md={6}>

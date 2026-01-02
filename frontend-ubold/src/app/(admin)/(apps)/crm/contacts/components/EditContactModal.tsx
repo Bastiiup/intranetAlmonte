@@ -5,6 +5,13 @@ import { Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Button, Form, F
 import { LuCheck } from 'react-icons/lu'
 import type { ContactType } from '@/app/(admin)/(apps)/crm/types'
 
+interface ColegioOption {
+  id: number
+  documentId?: string
+  nombre: string
+  rbd?: number | null
+}
+
 const DEPENDENCIAS = [
   'Municipal',
   'Particular Subvencionado',
@@ -21,26 +28,56 @@ interface EditContactModalProps {
 const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModalProps) => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [colegios, setColegios] = useState<ColegioOption[]>([])
+  const [loadingColegios, setLoadingColegios] = useState(false)
   const [formData, setFormData] = useState({
     nombres: '',
     email: '',
     cargo: '',
     telefono: '',
+    colegioId: '',
     empresa: '',
     region: '',
     comuna: '',
     dependencia: '',
   })
 
+  // Cargar lista de colegios cuando se abre el modal
+  useEffect(() => {
+    if (show) {
+      loadColegios()
+    }
+  }, [show])
+
+  const loadColegios = async () => {
+    setLoadingColegios(true)
+    try {
+      const response = await fetch('/api/crm/colegios/list')
+      const result = await response.json()
+      if (result.success && Array.isArray(result.data)) {
+        setColegios(result.data)
+      }
+    } catch (err) {
+      console.error('Error al cargar colegios:', err)
+    } finally {
+      setLoadingColegios(false)
+    }
+  }
+
   // Cargar datos del contacto cuando se abre el modal
   useEffect(() => {
     if (contact && show) {
       console.log('[EditContactModal] Cargando datos del contacto:', contact)
+      // Obtener colegioId desde el contacto (necesitamos obtenerlo de trayectorias)
+      // Por ahora, usamos empresa para buscar el colegio
+      const colegioId = (contact as any).colegioId || ''
+      
       setFormData({
         nombres: contact.name || '',
         email: contact.email || '',
         cargo: contact.cargo || '',
         telefono: contact.phone || '',
+        colegioId: colegioId,
         empresa: contact.empresa || '',
         region: contact.region || '',
         comuna: contact.comuna || '',
@@ -85,6 +122,14 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
             telefono_raw: formData.telefono.trim(),
             principal: true,
           }],
+        }),
+        // Agregar/actualizar trayectoria si se seleccionó un colegio
+        ...(formData.colegioId && {
+          trayectoria: {
+            colegio: formData.colegioId,
+            cargo: formData.cargo || null,
+            is_current: true,
+          },
         }),
       }
 
@@ -229,14 +274,20 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
           <Row>
             <Col md={6}>
               <FormGroup className="mb-3">
-                <FormLabel>Empresa</FormLabel>
+                <FormLabel>Institución (Colegio)</FormLabel>
                 <FormControl
-                  type="text"
-                  placeholder="Nombre del colegio"
-                  value={formData.empresa}
-                  onChange={(e) => handleFieldChange('empresa', e.target.value)}
-                  disabled={loading}
-                />
+                  as="select"
+                  value={formData.colegioId}
+                  onChange={(e) => handleFieldChange('colegioId', e.target.value)}
+                  disabled={loading || loadingColegios}
+                >
+                  <option value="">Seleccionar colegio...</option>
+                  {colegios.map((colegio) => (
+                    <option key={colegio.id} value={colegio.documentId || colegio.id}>
+                      {colegio.nombre} {colegio.rbd ? `(RBD: ${colegio.rbd})` : ''}
+                    </option>
+                  ))}
+                </FormControl>
               </FormGroup>
             </Col>
             <Col md={6}>
