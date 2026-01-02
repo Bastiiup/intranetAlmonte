@@ -47,15 +47,44 @@ const Profile = () => {
     const email = getPersonaEmail(persona, colaborador)
     const rolLabel = colaborador?.rol ? getRolLabel(colaborador.rol) : 'Usuario'
     
-    // Obtener avatar
+    // Obtener avatar - normalizar diferentes estructuras de imagen
     let avatarSrc = user3.src
-    if (persona?.imagen?.url) {
+    
+    // Intentar desde profileData primero (más actualizado)
+    if (profileData?.persona?.imagen?.url) {
+        const imgUrl = profileData.persona.imagen.url
+        avatarSrc = imgUrl.startsWith('http') ? imgUrl : `${process.env.NEXT_PUBLIC_STRAPI_URL}${imgUrl}`
+    }
+    // Fallback a persona del hook useAuth
+    else if (persona?.imagen?.url) {
         avatarSrc = persona.imagen.url.startsWith('http') 
             ? persona.imagen.url 
             : `${process.env.NEXT_PUBLIC_STRAPI_URL}${persona.imagen.url}`
-    } else if (profileData?.persona?.imagen?.url) {
-        const imgUrl = profileData.persona.imagen.url
-        avatarSrc = imgUrl.startsWith('http') ? imgUrl : `${process.env.NEXT_PUBLIC_STRAPI_URL}${imgUrl}`
+    }
+    // Si imagen viene en estructura de componente contacto.imagen
+    else if (persona?.imagen?.imagen) {
+        const imagenComponent = persona.imagen.imagen
+        let imgUrl: string | null = null
+        
+        // Si es array
+        if (Array.isArray(imagenComponent) && imagenComponent.length > 0) {
+            imgUrl = imagenComponent[0]?.attributes?.url || imagenComponent[0]?.url || null
+        }
+        // Si tiene data
+        else if (imagenComponent.data) {
+            const dataArray = Array.isArray(imagenComponent.data) ? imagenComponent.data : [imagenComponent.data]
+            if (dataArray.length > 0) {
+                imgUrl = dataArray[0]?.attributes?.url || dataArray[0]?.url || null
+            }
+        }
+        // Si es objeto directo
+        else if (imagenComponent.url) {
+            imgUrl = imagenComponent.url
+        }
+        
+        if (imgUrl) {
+            avatarSrc = imgUrl.startsWith('http') ? imgUrl : `${process.env.NEXT_PUBLIC_STRAPI_URL}${imgUrl}`
+        }
     }
     
     // Obtener teléfono principal
@@ -63,6 +92,19 @@ const Profile = () => {
                      (persona?.telefonos && Array.isArray(persona.telefonos) && persona.telefonos.length > 0
                         ? persona.telefonos[0]?.numero || ''
                         : '')
+    
+    // Obtener dirección
+    const direccion = profileData?.persona?.direccion || null
+    const direccionCompleta = direccion && typeof direccion === 'object' 
+        ? [
+            direccion.line1,
+            direccion.line2,
+            direccion.city,
+            direccion.state,
+            direccion.zipcode,
+            direccion.country
+          ].filter(Boolean).join(', ')
+        : null
     
     // Obtener redes sociales
     const redesSociales = profileData?.persona?.redes_sociales || {}
@@ -140,6 +182,14 @@ const Profile = () => {
                                 <TbMapPin className="fs-xl" />
                             </div>
                             <p className="mb-0 fs-sm">Teléfono: <span className="text-dark fw-semibold">{telefono}</span></p>
+                        </div>
+                    )}
+                    {direccionCompleta && (
+                        <div className="d-flex align-items-center gap-2 mb-2">
+                            <div className="avatar-sm text-bg-light bg-opacity-75 d-flex align-items-center justify-content-center rounded-circle">
+                                <TbMapPin className="fs-xl" />
+                            </div>
+                            <p className="mb-0 fs-sm">Dirección: <span className="text-dark fw-semibold">{direccionCompleta}</span></p>
                         </div>
                     )}
                     {colaborador?.email_login && (

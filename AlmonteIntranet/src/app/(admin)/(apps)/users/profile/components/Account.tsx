@@ -101,11 +101,45 @@ const Account = () => {
                             social_skype: personaData?.redes_sociales?.skype || '',
                         })
 
-                        // Si hay imagen, crear preview
+                        // Si hay imagen, crear preview - normalizar diferentes estructuras
+                        let imageUrl: string | null = null
+                        
                         if (personaData?.imagen?.url) {
-                            const imageUrl = personaData.imagen.url.startsWith('http') 
+                            // Estructura normalizada del API
+                            imageUrl = personaData.imagen.url.startsWith('http') 
                                 ? personaData.imagen.url 
                                 : `${process.env.NEXT_PUBLIC_STRAPI_URL}${personaData.imagen.url}`
+                        }
+                        // Si imagen viene en estructura de componente contacto.imagen
+                        else if (personaData?.imagen?.imagen) {
+                            const imagenComponent = personaData.imagen.imagen
+                            
+                            // Si es array
+                            if (Array.isArray(imagenComponent) && imagenComponent.length > 0) {
+                                const url = imagenComponent[0]?.attributes?.url || imagenComponent[0]?.url || null
+                                if (url) {
+                                    imageUrl = url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_STRAPI_URL}${url}`
+                                }
+                            }
+                            // Si tiene data
+                            else if (imagenComponent.data) {
+                                const dataArray = Array.isArray(imagenComponent.data) ? imagenComponent.data : [imagenComponent.data]
+                                if (dataArray.length > 0) {
+                                    const url = dataArray[0]?.attributes?.url || dataArray[0]?.url || null
+                                    if (url) {
+                                        imageUrl = url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_STRAPI_URL}${url}`
+                                    }
+                                }
+                            }
+                            // Si es objeto directo
+                            else if (imagenComponent.url) {
+                                imageUrl = imagenComponent.url.startsWith('http') 
+                                    ? imagenComponent.url 
+                                    : `${process.env.NEXT_PUBLIC_STRAPI_URL}${imagenComponent.url}`
+                            }
+                        }
+                        
+                        if (imageUrl) {
                             setProfilePhotoPreview(imageUrl)
                         }
                     }

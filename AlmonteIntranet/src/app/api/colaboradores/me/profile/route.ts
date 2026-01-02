@@ -710,6 +710,89 @@ export async function GET(request: NextRequest) {
     // Normalizar estructura de persona
     const personaAttrs = persona?.attributes || persona || {}
     
+    // Normalizar imagen del componente contacto.imagen
+    // El componente tiene estructura: { imagen: { data: [...] }, tipo, formato, ... }
+    // O puede ser: { imagen: [...] } directamente
+    let imagenNormalizada: any = null
+    const imagenRaw = personaAttrs.imagen || persona?.imagen
+    
+    if (imagenRaw) {
+      // Si imagen es un componente con campo imagen (Multiple Media)
+      if (imagenRaw.imagen) {
+        const imagenData = imagenRaw.imagen
+        // Si es array directo
+        if (Array.isArray(imagenData) && imagenData.length > 0) {
+          const primeraImagen = imagenData[0]
+          imagenNormalizada = {
+            url: primeraImagen.attributes?.url || primeraImagen.url || null,
+            alternativeText: primeraImagen.attributes?.alternativeText || primeraImagen.alternativeText || null,
+            width: primeraImagen.attributes?.width || primeraImagen.width || null,
+            height: primeraImagen.attributes?.height || primeraImagen.height || null,
+          }
+        }
+        // Si tiene data (estructura Strapi estándar)
+        else if (imagenData.data) {
+          const dataArray = Array.isArray(imagenData.data) ? imagenData.data : [imagenData.data]
+          if (dataArray.length > 0) {
+            const primeraImagen = dataArray[0]
+            imagenNormalizada = {
+              url: primeraImagen.attributes?.url || primeraImagen.url || null,
+              alternativeText: primeraImagen.attributes?.alternativeText || primeraImagen.alternativeText || null,
+              width: primeraImagen.attributes?.width || primeraImagen.width || null,
+              height: primeraImagen.attributes?.height || primeraImagen.height || null,
+            }
+          }
+        }
+        // Si es objeto directo con url
+        else if (imagenData.url) {
+          imagenNormalizada = {
+            url: imagenData.url,
+            alternativeText: imagenData.alternativeText || null,
+            width: imagenData.width || null,
+            height: imagenData.height || null,
+          }
+        }
+      }
+      // Si imagen tiene url directa (estructura simple)
+      else if (imagenRaw.url) {
+        imagenNormalizada = {
+          url: imagenRaw.url,
+          alternativeText: imagenRaw.alternativeText || null,
+          width: imagenRaw.width || null,
+          height: imagenRaw.height || null,
+        }
+      }
+      // Si imagen tiene data (estructura Strapi estándar sin componente)
+      else if (imagenRaw.data) {
+        const dataArray = Array.isArray(imagenRaw.data) ? imagenRaw.data : [imagenRaw.data]
+        if (dataArray.length > 0) {
+          const primeraImagen = dataArray[0]
+          imagenNormalizada = {
+            url: primeraImagen.attributes?.url || primeraImagen.url || null,
+            alternativeText: primeraImagen.attributes?.alternativeText || primeraImagen.alternativeText || null,
+            width: primeraImagen.attributes?.width || primeraImagen.width || null,
+            height: primeraImagen.attributes?.height || primeraImagen.height || null,
+          }
+        }
+      }
+    }
+    
+    // Normalizar dirección (puede venir como JSON string o objeto)
+    let direccionNormalizada: any = null
+    const direccionRaw = personaAttrs.direccion || persona?.direccion
+    
+    if (direccionRaw) {
+      if (typeof direccionRaw === 'string') {
+        try {
+          direccionNormalizada = JSON.parse(direccionRaw)
+        } catch {
+          direccionNormalizada = null
+        }
+      } else if (typeof direccionRaw === 'object') {
+        direccionNormalizada = direccionRaw
+      }
+    }
+    
     const profileData = {
       colaborador: {
         id: colaboradorRawAny.id || colaboradorRawAny.documentId,
@@ -729,10 +812,10 @@ export async function GET(request: NextRequest) {
         bio: personaAttrs.bio || persona.bio,
         job_title: personaAttrs.job_title || persona.job_title,
         telefono_principal: personaAttrs.telefono_principal || persona.telefono_principal,
-        imagen: personaAttrs.imagen || persona.imagen,
+        imagen: imagenNormalizada,
         telefonos: personaAttrs.telefonos || persona.telefonos,
         emails: personaAttrs.emails || persona.emails,
-        direccion: personaAttrs.direccion || persona.direccion,
+        direccion: direccionNormalizada,
         redes_sociales: personaAttrs.redes_sociales || persona.redes_sociales,
         skills: personaAttrs.skills || persona.skills,
       } : null,
