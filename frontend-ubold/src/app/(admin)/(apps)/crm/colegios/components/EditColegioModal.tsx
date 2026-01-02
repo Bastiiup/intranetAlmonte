@@ -131,16 +131,9 @@ const EditColegioModal = ({ show, onHide, colegio, onSuccess }: EditColegioModal
           principal: index === 0,
         }))
 
-      // Preparar direcciones
-      const direccionesArray = formData.direccion
-        ? [{
-            calle: formData.direccion,
-            comuna: formData.comuna,
-            region: formData.region,
-          }]
-        : []
-
       // Preparar datos para Strapi (solo campos válidos según schema)
+      // Nota: direcciones no se envía porque el componente contacto.direccion no tiene campo 'calle'
+      // La dirección se guarda en el campo 'region' y 'comuna' como texto
       const colegioData: any = {
         colegio_nombre: formData.colegio_nombre.trim(),
         ...(formData.dependencia && { dependencia: formData.dependencia }),
@@ -149,7 +142,8 @@ const EditColegioModal = ({ show, onHide, colegio, onSuccess }: EditColegioModal
         ...(formData.website && { website: formData.website.trim() }),
         ...(telefonosArray.length > 0 && { telefonos: telefonosArray }),
         ...(emailsArray.length > 0 && { emails: emailsArray }),
-        ...(direccionesArray.length > 0 && { direcciones: direccionesArray }),
+        // Direcciones comentadas hasta confirmar estructura exacta del componente
+        // ...(direccionesArray.length > 0 && { direcciones: direccionesArray }),
       }
 
       // Obtener el ID correcto (documentId es el identificador principal en Strapi)

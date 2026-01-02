@@ -154,14 +154,16 @@ export async function PUT(
             ...(e.principal !== undefined && { principal: e.principal }),
           })),
         }),
-        ...(body.direcciones && Array.isArray(body.direcciones) && {
-          direcciones: body.direcciones.map((d: any) => ({
-            ...(d.calle && { calle: d.calle }),
-            ...(d.numero && { numero: d.numero }),
-            ...(d.comuna && { comuna: d.comuna }),
-            ...(d.region && { region: d.region }),
-          })),
-        }),
+        // Direcciones: el componente contacto.direccion no tiene campo 'calle'
+        // Solo enviar si tenemos la estructura correcta del componente
+        // Por ahora, no enviar direcciones hasta confirmar la estructura exacta
+        // ...(body.direcciones && Array.isArray(body.direcciones) && {
+        //   direcciones: body.direcciones.map((d: any) => ({
+        //     ...(d.numero && { numero: d.numero }),
+        //     ...(d.comuna && { comuna: d.comuna }),
+        //     ...(d.region && { region: d.region }),
+        //   })),
+        // }),
       },
     }
 
