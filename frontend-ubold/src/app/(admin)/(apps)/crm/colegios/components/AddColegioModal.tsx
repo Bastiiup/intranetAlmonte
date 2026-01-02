@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Button, Form, FormGroup, FormLabel, FormControl, Alert } from 'react-bootstrap'
-import { LuSave } from 'react-icons/lu'
+import { Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Button, Form, FormGroup, FormLabel, FormControl, Alert, Row, Col } from 'react-bootstrap'
+import { LuSave, LuCheck } from 'react-icons/lu'
 
 const DEPENDENCIAS = [
   'Municipal',
@@ -10,7 +10,31 @@ const DEPENDENCIAS = [
   'Particular Pagado',
 ]
 
-// TIPOS removido - no existe en Strapi
+const TIPOS_INSTITUCION = [
+  'Colegio',
+  'Escuela',
+  'Liceo',
+  'Jardín Infantil',
+  'Otro',
+]
+
+const ORIGENES = [
+  'Manual',
+  'MINEDUC',
+  'CSV',
+  'CRM',
+  'Web',
+  'Otro',
+]
+
+const ESTATUS_PIPELINE = [
+  'Calificado',
+  'Contactado',
+  'Propuesta Enviada',
+  'Negociación',
+  'Cerrado',
+  'Perdido',
+]
 
 interface AddColegioModalProps {
   show: boolean
@@ -23,11 +47,18 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     colegio_nombre: '',
-    rbd: '',
-    estado: 'Por Verificar',
+    rut: '',
     dependencia: '',
+    tipo_institucion: '',
     region: '',
-    zona: '',
+    comuna: '',
+    direccion: '',
+    telefonos: '',
+    emails: '',
+    website: '',
+    origen: 'Manual',
+    representante_comercial: '',
+    estatus_pipeline: '',
   })
 
   const handleFieldChange = (field: string, value: any) => {
@@ -46,20 +77,52 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
     try {
       // Validaciones
       if (!formData.colegio_nombre.trim()) {
-        throw new Error('El nombre del colegio es obligatorio')
+        throw new Error('El nombre de la institución es obligatorio')
       }
-      if (!formData.rbd || !formData.rbd.trim()) {
-        throw new Error('El RBD es obligatorio')
-      }
+
+      // Convertir teléfonos y emails separados por comas a arrays
+      const telefonosArray = formData.telefonos
+        .split(',')
+        .map(t => t.trim())
+        .filter(t => t.length > 0)
+        .map((telefono, index) => ({
+          telefono_raw: telefono,
+          principal: index === 0,
+        }))
+
+      const emailsArray = formData.emails
+        .split(',')
+        .map(e => e.trim())
+        .filter(e => e.length > 0)
+        .map((email, index) => ({
+          email: email,
+          principal: index === 0,
+        }))
+
+      // Preparar direcciones
+      const direccionesArray = formData.direccion
+        ? [{
+            calle: formData.direccion,
+            comuna: formData.comuna,
+            region: formData.region,
+          }]
+        : []
 
       // Preparar datos para Strapi
       const colegioData: any = {
-        rbd: parseInt(formData.rbd),
         colegio_nombre: formData.colegio_nombre.trim(),
-        estado: formData.estado,
+        ...(formData.rut && { rut: formData.rut.trim() }),
         ...(formData.dependencia && { dependencia: formData.dependencia }),
+        ...(formData.tipo_institucion && { tipo_institucion: formData.tipo_institucion }),
         ...(formData.region && { region: formData.region }),
-        ...(formData.zona && { zona: formData.zona }),
+        ...(formData.comuna && { comuna_texto: formData.comuna }), // Guardar como texto si no hay relación
+        ...(formData.website && { website: formData.website.trim() }),
+        ...(formData.origen && { origen: formData.origen }),
+        ...(formData.representante_comercial && { representante_comercial: formData.representante_comercial.trim() }),
+        ...(formData.estatus_pipeline && { estatus_pipeline: formData.estatus_pipeline }),
+        ...(telefonosArray.length > 0 && { telefonos: telefonosArray }),
+        ...(emailsArray.length > 0 && { emails: emailsArray }),
+        ...(direccionesArray.length > 0 && { direcciones: direccionesArray }),
       }
 
       // Crear el colegio
@@ -74,17 +137,25 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
       const result = await response.json()
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Error al crear el colegio')
+        const errorMessage = result.details?.errors?.[0]?.message || result.error || 'Error al crear la institución'
+        throw new Error(errorMessage)
       }
 
       // Limpiar formulario
       setFormData({
         colegio_nombre: '',
-        rbd: '',
-        estado: 'Por Verificar',
+        rut: '',
         dependencia: '',
+        tipo_institucion: '',
         region: '',
-        zona: '',
+        comuna: '',
+        direccion: '',
+        telefonos: '',
+        emails: '',
+        website: '',
+        origen: 'Manual',
+        representante_comercial: '',
+        estatus_pipeline: '',
       })
 
       if (onSuccess) {
@@ -93,8 +164,8 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
         onHide()
       }
     } catch (err: any) {
-      console.error('Error al crear colegio:', err)
-      setError(err.message || 'Error al crear el colegio')
+      console.error('Error al crear institución:', err)
+      setError(err.message || 'Error al crear la institución')
     } finally {
       setLoading(false)
     }
@@ -104,7 +175,7 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
     <Modal show={show} onHide={onHide} size="lg" centered>
       <Form onSubmit={handleSubmit}>
         <ModalHeader closeButton>
-          <ModalTitle>Agregar Nuevo Colegio</ModalTitle>
+          <ModalTitle>Añadir Nueva Institución</ModalTitle>
         </ModalHeader>
         <ModalBody>
           {error && (
@@ -113,52 +184,38 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
             </Alert>
           )}
 
-          <FormGroup className="mb-3">
-            <FormLabel>
-              Nombre del Colegio <span className="text-danger">*</span>
-            </FormLabel>
-            <FormControl
-              type="text"
-              placeholder="Colegio San Juan"
-              value={formData.colegio_nombre}
-              onChange={(e) => handleFieldChange('colegio_nombre', e.target.value)}
-              required
-              disabled={loading}
-            />
-          </FormGroup>
-
-          <FormGroup className="mb-3">
-            <FormLabel>
-              RBD <span className="text-danger">*</span>
-            </FormLabel>
-            <FormControl
-              type="text"
-              placeholder="12345"
-              value={formData.rbd}
-              onChange={(e) => handleFieldChange('rbd', e.target.value)}
-              required
-              disabled={loading}
-            />
-            <small className="text-muted">El RBD debe ser único</small>
-          </FormGroup>
-
-          <div className="row">
-            <div className="col-md-6">
+          <Row>
+            <Col md={6}>
               <FormGroup className="mb-3">
-                <FormLabel>Estado</FormLabel>
+                <FormLabel>
+                  Nombre de la Institución <span className="text-danger">*</span>
+                </FormLabel>
                 <FormControl
-                  as="select"
-                  value={formData.estado}
-                  onChange={(e) => handleFieldChange('estado', e.target.value)}
+                  type="text"
+                  placeholder="Ej: Colegio San Juan"
+                  value={formData.colegio_nombre}
+                  onChange={(e) => handleFieldChange('colegio_nombre', e.target.value)}
+                  required
                   disabled={loading}
-                >
-                  <option value="Por Verificar">Por Verificar</option>
-                  <option value="Verificado">Verificado</option>
-                  <option value="Aprobado">Aprobado</option>
-                </FormControl>
+                />
               </FormGroup>
-            </div>
-            <div className="col-md-6">
+            </Col>
+            <Col md={6}>
+              <FormGroup className="mb-3">
+                <FormLabel>RUT</FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="76.123.456-7"
+                  value={formData.rut}
+                  onChange={(e) => handleFieldChange('rut', e.target.value)}
+                  disabled={loading}
+                />
+              </FormGroup>
+            </Col>
+          </Row>
+
+          <Row>
+            <Col md={6}>
               <FormGroup className="mb-3">
                 <FormLabel>Dependencia</FormLabel>
                 <FormControl
@@ -175,44 +232,162 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
                   ))}
                 </FormControl>
               </FormGroup>
-            </div>
-          </div>
+            </Col>
+            <Col md={6}>
+              <FormGroup className="mb-3">
+                <FormLabel>Tipo Institución</FormLabel>
+                <FormControl
+                  as="select"
+                  value={formData.tipo_institucion}
+                  onChange={(e) => handleFieldChange('tipo_institucion', e.target.value)}
+                  disabled={loading}
+                >
+                  <option value="">Seleccionar...</option>
+                  {TIPOS_INSTITUCION.map((tipo) => (
+                    <option key={tipo} value={tipo}>
+                      {tipo}
+                    </option>
+                  ))}
+                </FormControl>
+              </FormGroup>
+            </Col>
+          </Row>
 
-          <div className="row">
-            <div className="col-md-6">
+          <Row>
+            <Col md={6}>
               <FormGroup className="mb-3">
                 <FormLabel>Región</FormLabel>
                 <FormControl
                   type="text"
-                  placeholder="Metropolitana"
+                  placeholder="Ej: Región Metropolitana"
                   value={formData.region}
                   onChange={(e) => handleFieldChange('region', e.target.value)}
                   disabled={loading}
                 />
               </FormGroup>
-            </div>
-            <div className="col-md-6">
+            </Col>
+            <Col md={6}>
               <FormGroup className="mb-3">
-                <FormLabel>Zona</FormLabel>
+                <FormLabel>Comuna</FormLabel>
                 <FormControl
                   type="text"
-                  placeholder="Centro, Oriente, Poniente..."
-                  value={formData.zona}
-                  onChange={(e) => handleFieldChange('zona', e.target.value)}
+                  placeholder="Ej: Santiago"
+                  value={formData.comuna}
+                  onChange={(e) => handleFieldChange('comuna', e.target.value)}
                   disabled={loading}
                 />
               </FormGroup>
-            </div>
-          </div>
+            </Col>
+          </Row>
 
+          <FormGroup className="mb-3">
+            <FormLabel>Dirección</FormLabel>
+            <FormControl
+              type="text"
+              placeholder="Av. Providencia 1234, Santiago"
+              value={formData.direccion}
+              onChange={(e) => handleFieldChange('direccion', e.target.value)}
+              disabled={loading}
+            />
+          </FormGroup>
+
+          <Row>
+            <Col md={6}>
+              <FormGroup className="mb-3">
+                <FormLabel>Teléfonos (separados por comas)</FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="+56 2 2345 6789"
+                  value={formData.telefonos}
+                  onChange={(e) => handleFieldChange('telefonos', e.target.value)}
+                  disabled={loading}
+                />
+                <small className="text-muted">Separar múltiples teléfonos con comas</small>
+              </FormGroup>
+            </Col>
+            <Col md={6}>
+              <FormGroup className="mb-3">
+                <FormLabel>Emails (separados por comas)</FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="contacto@colegio.cl"
+                  value={formData.emails}
+                  onChange={(e) => handleFieldChange('emails', e.target.value)}
+                  disabled={loading}
+                />
+                <small className="text-muted">Separar múltiples emails con comas</small>
+              </FormGroup>
+            </Col>
+          </Row>
+
+          <FormGroup className="mb-3">
+            <FormLabel>Website</FormLabel>
+            <FormControl
+              type="url"
+              placeholder="https://www.colegio.cl"
+              value={formData.website}
+              onChange={(e) => handleFieldChange('website', e.target.value)}
+              disabled={loading}
+            />
+          </FormGroup>
+
+          <Row>
+            <Col md={4}>
+              <FormGroup className="mb-3">
+                <FormLabel>Origen</FormLabel>
+                <FormControl
+                  as="select"
+                  value={formData.origen}
+                  onChange={(e) => handleFieldChange('origen', e.target.value)}
+                  disabled={loading}
+                >
+                  {ORIGENES.map((origen) => (
+                    <option key={origen} value={origen}>
+                      {origen}
+                    </option>
+                  ))}
+                </FormControl>
+              </FormGroup>
+            </Col>
+            <Col md={4}>
+              <FormGroup className="mb-3">
+                <FormLabel>Representante Comercial</FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="Nombre del representante"
+                  value={formData.representante_comercial}
+                  onChange={(e) => handleFieldChange('representante_comercial', e.target.value)}
+                  disabled={loading}
+                />
+              </FormGroup>
+            </Col>
+            <Col md={4}>
+              <FormGroup className="mb-3">
+                <FormLabel>Estatus Pipeline</FormLabel>
+                <FormControl
+                  as="select"
+                  value={formData.estatus_pipeline}
+                  onChange={(e) => handleFieldChange('estatus_pipeline', e.target.value)}
+                  disabled={loading}
+                >
+                  <option value="">Seleccionar...</option>
+                  {ESTATUS_PIPELINE.map((estatus) => (
+                    <option key={estatus} value={estatus}>
+                      {estatus}
+                    </option>
+                  ))}
+                </FormControl>
+              </FormGroup>
+            </Col>
+          </Row>
         </ModalBody>
         <ModalFooter>
           <Button variant="secondary" onClick={onHide} disabled={loading}>
             Cancelar
           </Button>
           <Button variant="primary" type="submit" disabled={loading}>
-            <LuSave className="me-1" />
-            {loading ? 'Creando...' : 'Crear Colegio'}
+            <LuCheck className="me-1" />
+            {loading ? 'Creando...' : 'Crear Institución'}
           </Button>
         </ModalFooter>
       </Form>
@@ -221,4 +396,3 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
 }
 
 export default AddColegioModal
-
