@@ -272,15 +272,46 @@ export async function getContacts(query: ContactsQuery = {}): Promise<ContactsRe
     throw new Error(result.error || 'Error al obtener contactos')
   }
   
-  const data = Array.isArray(result.data) ? result.data : [result.data]
+  // Manejar diferentes formatos de respuesta de Strapi
+  let data: any[] = []
+  if (Array.isArray(result.data)) {
+    data = result.data
+  } else if (result.data && typeof result.data === 'object') {
+    // Si viene como objeto con data array dentro
+    if (Array.isArray(result.data.data)) {
+      data = result.data.data
+    } else {
+      // Si viene como un solo objeto
+      data = [result.data]
+    }
+  }
+  
+  // Transformar cada persona a ContactType
+  const contacts = data.map((persona: any) => {
+    try {
+      return transformPersonaToContact(persona)
+    } catch (error) {
+      console.error('Error transformando persona:', error, persona)
+      // Retornar un contacto básico en caso de error
+      return {
+        id: persona.documentId || persona.id || 0,
+        name: persona.attributes?.nombre_completo || persona.nombre_completo || 'Sin nombre',
+        email: '',
+        phone: '',
+        description: '',
+        label: { text: 'Prospect', variant: 'warning' },
+        categories: [],
+      } as ContactType
+    }
+  })
   
   return {
-    contacts: data.map(transformPersonaToContact),
+    contacts,
     pagination: result.meta?.pagination || {
       page,
       pageSize,
-      total: 0,
-      pageCount: 0,
+      total: result.meta?.pagination?.total || data.length,
+      pageCount: result.meta?.pagination?.pageCount || 1,
     }
   }
 }
