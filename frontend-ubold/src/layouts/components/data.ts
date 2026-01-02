@@ -90,26 +90,25 @@ export const userDropdownItems: UserDropdownItemType[] = [
 ]
 
 export const menuItems: MenuItemType[] = [
-  // { key: 'comercial', label: 'COMERCIAL', isTitle: true },
-  // {
-  //   key: 'crm',
-  //   label: 'CRM',
-  //   icon: LuHandshake,
-  //   children: [
-  //     { key: 'crm-contacts', label: 'Contactos', url: '/crm/contacts' },
-  //     { key: 'crm-instituciones', label: 'Instituciones', url: '/crm/instituciones' },
-  //     { key: 'crm-opportunities', label: 'Oportunidades', url: '/crm/opportunities' },
-  //     { key: 'crm-deals', label: 'Negocios', url: '/crm/deals' },
-  //     { key: 'crm-leads', label: 'Leads', url: '/crm/leads' },
-  //     { key: 'crm-pipeline', label: 'Embudo', url: '/crm/pipeline' },
-  //     { key: 'crm-campaign', label: 'Campaña', url: '/crm/campaign' },
-  //     { key: 'crm-proposals', label: 'Propuestas', url: '/crm/proposals' },
-  //     { key: 'crm-estimations', label: 'Cotizaciones', url: '/crm/estimations' },
-  //     { key: 'crm-customers', label: 'Clientes', url: '/crm/customers' },
-  //     { key: 'crm-activities', label: 'Actividades', url: '/crm/activities' },
-  //     { key: 'crm-automatizaciones', label: 'Automatizaciones', url: '/crm/automatizaciones' },
-  //   ],
-  // },
+  { key: 'comercial', label: 'COMERCIAL', isTitle: true },
+  {
+    key: 'crm',
+    label: 'CRM',
+    icon: LuHandshake,
+    children: [
+      { key: 'crm-instituciones', label: 'Instituciones', url: '/crm/instituciones' },
+      { key: 'crm-opportunities', label: 'Oportunidades', url: '/crm/opportunities' },
+      { key: 'crm-deals', label: 'Negocios', url: '/crm/deals' },
+      { key: 'crm-leads', label: 'Leads', url: '/crm/leads' },
+      { key: 'crm-pipeline', label: 'Embudo', url: '/crm/pipeline' },
+      { key: 'crm-campaign', label: 'Campaña', url: '/crm/campaign' },
+      { key: 'crm-proposals', label: 'Propuestas', url: '/crm/proposals' },
+      { key: 'crm-estimations', label: 'Cotizaciones', url: '/crm/estimations' },
+      { key: 'crm-customers', label: 'Clientes', url: '/crm/customers' },
+      { key: 'crm-activities', label: 'Actividades', url: '/crm/activities' },
+      { key: 'crm-automatizaciones', label: 'Automatizaciones', url: '/crm/automatizaciones' },
+    ],
+  },
   // { key: 'atencion-clientes', label: 'ATENCIÓN CLIENTES', isTitle: true },
   // {
   //   key: 'support-center',
@@ -194,16 +193,6 @@ export const menuItems: MenuItemType[] = [
   { key: 'chat', label: 'Chat', icon: LuMessageSquareDot, url: '/chat' },
   { key: 'calendar', label: 'Calendario', icon: LuCalendar, url: '/calendar' },
   { key: 'file-manager', label: 'Gestor de Archivos', icon: LuFolderOpenDot, url: '/file-manager' },
-  { key: 'crm-section', label: 'CRM', isTitle: true },
-  {
-    key: 'crm',
-    label: 'CRM',
-    icon: LuHandshake,
-    children: [
-      { key: 'crm-colegios', label: 'Colegios', url: '/crm/colegios' },
-      { key: 'crm-personas', label: 'Personas', url: '/crm/personas' },
-    ],
-  },
   { key: 'equipos-section', label: 'EQUIPOS', isTitle: true },
   {
     key: 'equipos',
@@ -396,7 +385,6 @@ export const horizontalMenuItems: MenuItemType[] = [
         label: 'CRM',
         icon: LuHandshake,
         children: [
-          { key: 'crm-contacts', label: 'Contactos', url: '/crm/contacts' },
           { key: 'crm-instituciones', label: 'Instituciones', url: '/crm/instituciones' },
           { key: 'crm-opportunities', label: 'Oportunidades', url: '/crm/opportunities' },
           { key: 'crm-deals', label: 'Negocios', url: '/crm/deals' },
