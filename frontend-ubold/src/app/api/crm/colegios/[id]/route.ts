@@ -135,16 +135,30 @@ export async function PUT(
         ...(body.dependencia && { dependencia: body.dependencia }),
         ...(body.region && { region: body.region }),
         ...(body.zona && { zona: body.zona }),
-        ...(body.comunaId && { comuna: body.comunaId }),
+        // Relación comuna (usar connect para Strapi v4)
+        ...(body.comunaId && { comuna: { connect: [parseInt(body.comunaId.toString())] } }),
         // Componentes repeatable
         ...(body.telefonos && Array.isArray(body.telefonos) && {
-          telefonos: body.telefonos,
+          telefonos: body.telefonos.map((t: any) => ({
+            telefono_raw: t.telefono_raw || '',
+            ...(t.tipo && { tipo: t.tipo }),
+            ...(t.principal !== undefined && { principal: t.principal }),
+          })),
         }),
         ...(body.emails && Array.isArray(body.emails) && {
-          emails: body.emails,
+          emails: body.emails.map((e: any) => ({
+            email: e.email || '',
+            ...(e.tipo && { tipo: e.tipo }),
+            ...(e.principal !== undefined && { principal: e.principal }),
+          })),
         }),
         ...(body.direcciones && Array.isArray(body.direcciones) && {
-          direcciones: body.direcciones,
+          direcciones: body.direcciones.map((d: any) => ({
+            ...(d.calle && { calle: d.calle }),
+            ...(d.numero && { numero: d.numero }),
+            ...(d.comuna && { comuna: d.comuna }),
+            ...(d.region && { region: d.region }),
+          })),
         }),
       },
     }

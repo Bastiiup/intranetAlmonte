@@ -121,21 +121,35 @@ export async function POST(request: Request) {
     const colegioData: any = {
       data: {
         colegio_nombre: body.colegio_nombre.trim(),
-        ...(body.rbd && { rbd: parseInt(body.rbd) }),
+        rbd: parseInt(body.rbd),
         ...(body.estado && { estado: body.estado }),
         ...(body.dependencia && { dependencia: body.dependencia }),
         ...(body.region && { region: body.region }),
         ...(body.zona && { zona: body.zona }),
-        ...(body.comunaId && { comuna: body.comunaId }),
+        // Relación comuna (usar connect para Strapi v4)
+        ...(body.comunaId && { comuna: { connect: [parseInt(body.comunaId.toString())] } }),
         // Componentes repeatable
         ...(body.telefonos && Array.isArray(body.telefonos) && body.telefonos.length > 0 && {
-          telefonos: body.telefonos,
+          telefonos: body.telefonos.map((t: any) => ({
+            telefono_raw: t.telefono_raw || '',
+            ...(t.tipo && { tipo: t.tipo }),
+            ...(t.principal !== undefined && { principal: t.principal }),
+          })),
         }),
         ...(body.emails && Array.isArray(body.emails) && body.emails.length > 0 && {
-          emails: body.emails,
+          emails: body.emails.map((e: any) => ({
+            email: e.email || '',
+            ...(e.tipo && { tipo: e.tipo }),
+            ...(e.principal !== undefined && { principal: e.principal }),
+          })),
         }),
         ...(body.direcciones && Array.isArray(body.direcciones) && body.direcciones.length > 0 && {
-          direcciones: body.direcciones,
+          direcciones: body.direcciones.map((d: any) => ({
+            ...(d.calle && { calle: d.calle }),
+            ...(d.numero && { numero: d.numero }),
+            ...(d.comuna && { comuna: d.comuna }),
+            ...(d.region && { region: d.region }),
+          })),
         }),
       },
     }

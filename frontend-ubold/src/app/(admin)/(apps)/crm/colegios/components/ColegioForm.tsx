@@ -159,13 +159,19 @@ const ColegioForm = ({ initialData, onSubmit, onCancel, loading = false, error }
 
     // Validaciones
     if (!formData.rbd || !formData.rbd.trim()) {
-      throw new Error('El RBD es obligatorio')
+      setError('El RBD es obligatorio')
+      return
     }
     if (!formData.colegio_nombre || !formData.colegio_nombre.trim()) {
-      throw new Error('El nombre del colegio es obligatorio')
+      setError('El nombre del colegio es obligatorio')
+      return
     }
 
-    await onSubmit(formData)
+    try {
+      await onSubmit(formData)
+    } catch (err: any) {
+      setError(err.message || 'Error al guardar el colegio')
+    }
   }
 
   return (
