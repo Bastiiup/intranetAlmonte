@@ -53,10 +53,15 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const colaboradorId = colaborador.id
+    // Obtener colaboradorId (puede ser id o documentId)
+    const colaboradorId = colaborador.documentId || colaborador.id
     const body = await request.json()
 
-    console.log('[API /colaboradores/me/profile] Actualizando perfil:', { colaboradorId, body })
+    console.log('[API /colaboradores/me/profile] Actualizando perfil:', { 
+      colaboradorId, 
+      colaboradorIdType: colaborador.documentId ? 'documentId' : 'id',
+      body 
+    })
 
     // Obtener persona actual para tener su ID/documentId
     // PRIORIDAD: Obtener datos completos del colaborador desde Strapi para tener la estructura correcta
@@ -64,44 +69,95 @@ export async function PUT(request: NextRequest) {
     let personaDocumentId: string | null = null
     let personaRut: string | null = null
 
-    try {
-      // Obtener colaborador completo con persona poblada
-      // Excluir campos problemáticos como 'tags' que no se pueden poblar directamente
-      const colaboradorResponse = await strapiClient.get<any>(
-        `/api/colaboradores/${colaboradorId}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
-      )
-      
-      let colaboradorData = colaboradorResponse.data
-      if (Array.isArray(colaboradorData)) {
-        colaboradorData = colaboradorData[0]
-      }
-      colaboradorData = colaboradorData?.attributes || colaboradorData
-      
-      // Extraer persona con todas sus variantes posibles
-      const persona = colaboradorData?.persona?.data || colaboradorData?.persona
-      
-      if (persona) {
-        // Priorizar documentId (más confiable en Strapi v4/v5)
-        personaDocumentId = persona.documentId || persona.id?.toString()
-        personaId = persona.id?.toString() || persona.documentId
-        personaRut = persona.attributes?.rut || persona.rut || colaborador.persona?.rut
+    // Primero intentar usar datos de cookie directamente (más rápido y confiable)
+    if (colaborador.persona?.documentId) {
+      personaDocumentId = colaborador.persona.documentId
+      personaId = colaborador.persona.id?.toString() || null
+      personaRut = colaborador.persona.rut
+      console.log('[API /colaboradores/me/profile] Usando datos de persona desde cookie:', {
+        personaDocumentId,
+        personaId,
+        personaRut,
+      })
+    } else if (colaborador.persona?.id) {
+      personaId = String(colaborador.persona.id)
+      personaRut = colaborador.persona.rut
+      console.log('[API /colaboradores/me/profile] Usando ID de persona desde cookie:', personaId)
+    }
+
+    // Si no tenemos datos de persona en cookie, intentar obtener desde Strapi
+    if (!personaDocumentId && !personaId && colaboradorId) {
+      try {
+        // Obtener colaborador completo con persona poblada
+        // Excluir campos problemáticos como 'tags' que no se pueden poblar directamente
+        const colaboradorResponse = await strapiClient.get<any>(
+          `/api/colaboradores/${colaboradorId}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
+        )
         
-        console.log('[API /colaboradores/me/profile] Persona encontrada:', {
-          personaDocumentId,
-          personaId,
-          personaRut,
+        let colaboradorData = colaboradorResponse.data
+        if (Array.isArray(colaboradorData)) {
+          colaboradorData = colaboradorData[0]
+        }
+        colaboradorData = colaboradorData?.attributes || colaboradorData
+        
+        // Extraer persona con todas sus variantes posibles
+        const persona = colaboradorData?.persona?.data || colaboradorData?.persona
+        
+        if (persona) {
+          // Priorizar documentId (más confiable en Strapi v4/v5)
+          personaDocumentId = persona.documentId || persona.id?.toString()
+          personaId = persona.id?.toString() || persona.documentId
+          personaRut = persona.attributes?.rut || persona.rut || colaborador.persona?.rut
+          
+          console.log('[API /colaboradores/me/profile] Persona obtenida desde Strapi:', {
+            personaDocumentId,
+            personaId,
+            personaRut,
+          })
+        }
+      } catch (error: any) {
+        console.error('[API /colaboradores/me/profile] Error al obtener colaborador desde Strapi:', {
+          error: error.message,
+          status: error.status,
+          colaboradorId,
         })
+        
+        // Si es 404, intentar buscar por email_login como fallback
+        if (error.status === 404 && colaborador.email_login) {
+          try {
+            console.log('[API /colaboradores/me/profile] Intentando buscar colaborador por email_login:', colaborador.email_login)
+            const colaboradorSearchResponse = await strapiClient.get<any>(
+              `/api/colaboradores?filters[email_login][$eq]=${encodeURIComponent(colaborador.email_login)}&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
+            )
+            
+            if (colaboradorSearchResponse.data && Array.isArray(colaboradorSearchResponse.data) && colaboradorSearchResponse.data.length > 0) {
+              const colaboradorEncontrado = colaboradorSearchResponse.data[0]
+              const colaboradorData = colaboradorEncontrado.attributes || colaboradorEncontrado
+              const persona = colaboradorData?.persona?.data || colaboradorData?.persona
+              
+              if (persona) {
+                personaDocumentId = persona.documentId || persona.id?.toString()
+                personaId = persona.id?.toString() || persona.documentId
+                personaRut = persona.attributes?.rut || persona.rut
+                console.log('[API /colaboradores/me/profile] ✅ Colaborador encontrado por email_login')
+              }
+            }
+          } catch (searchError: any) {
+            console.error('[API /colaboradores/me/profile] Error en búsqueda por email_login:', searchError)
+          }
+        }
+        
+        // Si aún no tenemos datos de persona, usar datos de cookie como último recurso
+        if (!personaDocumentId && !personaId) {
+          if (colaborador.persona?.documentId) {
+            personaDocumentId = colaborador.persona.documentId
+          } else if (colaborador.persona?.id) {
+            personaId = String(colaborador.persona.id)
+          }
+          personaRut = colaborador.persona?.rut
+          console.log('[API /colaboradores/me/profile] Usando datos de cookie como fallback')
+        }
       }
-    } catch (error) {
-      console.error('[API /colaboradores/me/profile] Error al obtener colaborador desde Strapi:', error)
-      
-      // Fallback: usar datos de cookie
-      if (colaborador.persona?.documentId) {
-        personaDocumentId = colaborador.persona.documentId
-      } else if (colaborador.persona?.id) {
-        personaId = String(colaborador.persona.id)
-      }
-      personaRut = colaborador.persona?.rut
     }
 
     // Usar documentId preferentemente, si no está disponible usar id
@@ -278,8 +334,21 @@ export async function PUT(request: NextRequest) {
 
     // Actualizar colaborador si hay cambios
     if (Object.keys(colaboradorUpdateData.data).length > 0) {
-      await strapiClient.put(`/api/colaboradores/${colaboradorId}`, colaboradorUpdateData)
-      console.log('[API /colaboradores/me/profile] ✅ Colaborador actualizado')
+      // Usar documentId preferentemente para actualizar
+      const idParaActualizarColaborador = colaborador.documentId || colaboradorId
+      try {
+        await strapiClient.put(`/api/colaboradores/${idParaActualizarColaborador}`, colaboradorUpdateData)
+        console.log('[API /colaboradores/me/profile] ✅ Colaborador actualizado')
+      } catch (colaboradorError: any) {
+        // Si falla con documentId, intentar con id
+        if (colaboradorError.status === 404 && colaborador.documentId && colaborador.id) {
+          console.log('[API /colaboradores/me/profile] Intentando actualizar colaborador con id numérico:', colaborador.id)
+          await strapiClient.put(`/api/colaboradores/${colaborador.id}`, colaboradorUpdateData)
+          console.log('[API /colaboradores/me/profile] ✅ Colaborador actualizado con id numérico')
+        } else {
+          throw colaboradorError
+        }
+      }
     }
 
     // Actualizar usuario en Stream Chat si cambió nombre o imagen
@@ -360,17 +429,20 @@ export async function GET(request: NextRequest) {
       token = authHeader.replace('Bearer ', '')
     }
 
-    // Si no hay token en header, intentar obtener colaborador de cookies
+    // Obtener colaborador de cookies primero (más confiable)
     let colaboradorId: string | number | null = null
-    let colaboradorFromCookie: any = null
+    let colaboradorFromCookie: any = await getAuthColaborador()
+    
+    if (colaboradorFromCookie) {
+      colaboradorId = colaboradorFromCookie.documentId || colaboradorFromCookie.id
+      console.log('[API /colaboradores/me/profile GET] Colaborador desde cookie:', {
+        id: colaboradorId,
+        email: colaboradorFromCookie.email_login,
+      })
+    }
 
-    if (!token) {
-      colaboradorFromCookie = await getAuthColaborador()
-      if (colaboradorFromCookie) {
-        colaboradorId = colaboradorFromCookie.id || colaboradorFromCookie.documentId
-      }
-    } else {
-      // Obtener usuario desde Strapi usando token
+    // Si hay token y no tenemos colaboradorId, intentar obtener desde Strapi
+    if (token && !colaboradorId) {
       try {
         const userResponse = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/users/me`, {
           headers: {
@@ -388,15 +460,26 @@ export async function GET(request: NextRequest) {
 
           if (colaboradorResponse.data && Array.isArray(colaboradorResponse.data) && colaboradorResponse.data.length > 0) {
             const colaboradorRaw = colaboradorResponse.data[0]
-            colaboradorId = colaboradorRaw.id || colaboradorRaw.documentId
+            colaboradorId = colaboradorRaw.documentId || colaboradorRaw.id
+            console.log('[API /colaboradores/me/profile GET] Colaborador obtenido desde Strapi por token')
+          }
+        } else if (userResponse.status === 401) {
+          console.warn('[API /colaboradores/me/profile GET] Token JWT inválido o expirado (401), usando datos de cookie')
+          // Si el token es inválido, usar datos de cookie si están disponibles
+          if (!colaboradorFromCookie) {
+            return NextResponse.json(
+              { success: false, error: 'Token inválido y no hay datos de sesión' },
+              { status: 401 }
+            )
           }
         }
-      } catch (tokenError) {
+      } catch (tokenError: any) {
         console.error('[API /colaboradores/me/profile GET] Error al obtener usuario desde token:', tokenError)
+        // Continuar con datos de cookie si están disponibles
       }
     }
 
-    if (!colaboradorId) {
+    if (!colaboradorId && !colaboradorFromCookie) {
       return NextResponse.json(
         { success: false, error: 'No autenticado o colaborador no encontrado' },
         { status: 401 }
@@ -409,24 +492,50 @@ export async function GET(request: NextRequest) {
       response = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
         `/api/colaboradores/${colaboradorId}?populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
       )
-    } catch (strapiError: any) {
-      // Si falla con ID directo, intentar con filtro
-      if (strapiError.status === 404) {
-        const colaboradorFromCookie = await getAuthColaborador()
-        if (colaboradorFromCookie?.email_login) {
-          response = await strapiClient.get<any>(
-            `/api/colaboradores?filters[email_login][$eq]=${encodeURIComponent(colaboradorFromCookie.email_login)}&populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
-          )
-          if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-            response.data = response.data[0]
+      } catch (strapiError: any) {
+        // Si falla con ID directo, intentar con filtro por email_login
+        if (strapiError.status === 404 || strapiError.status === 400) {
+          const colaboradorFromCookie = await getAuthColaborador()
+          if (colaboradorFromCookie?.email_login) {
+            try {
+              console.log('[API /colaboradores/me/profile GET] Intentando buscar por email_login:', colaboradorFromCookie.email_login)
+              response = await strapiClient.get<any>(
+                `/api/colaboradores?filters[email_login][$eq]=${encodeURIComponent(colaboradorFromCookie.email_login)}&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
+              )
+              if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+                response.data = response.data[0]
+                console.log('[API /colaboradores/me/profile GET] ✅ Colaborador encontrado por email_login')
+              } else {
+                throw new Error('Colaborador no encontrado por email_login')
+              }
+            } catch (searchError: any) {
+              console.error('[API /colaboradores/me/profile GET] Error en búsqueda por email_login:', searchError)
+              // Si falla la búsqueda, usar datos de cookie directamente
+              if (colaboradorFromCookie) {
+                console.log('[API /colaboradores/me/profile GET] Usando datos de cookie como fallback')
+                // Construir respuesta con datos de cookie
+                return NextResponse.json({
+                  success: true,
+                  data: {
+                    colaborador: {
+                      id: colaboradorFromCookie.id || colaboradorFromCookie.documentId,
+                      email_login: colaboradorFromCookie.email_login,
+                      rol: colaboradorFromCookie.rol,
+                      activo: colaboradorFromCookie.activo !== false,
+                    },
+                    persona: colaboradorFromCookie.persona || null,
+                  },
+                }, { status: 200 })
+              }
+              throw strapiError
+            }
+          } else {
+            throw strapiError
           }
         } else {
           throw strapiError
         }
-      } else {
-        throw strapiError
       }
-    }
 
     // Manejar diferentes estructuras de respuesta de Strapi
     let colaboradorRaw = response.data
