@@ -205,8 +205,8 @@ export async function POST(request: Request) {
     revalidatePath('/crm/personas')
     revalidatePath('/crm/personas/[id]', 'page')
     revalidatePath('/crm/contacts')
-    revalidateTag('personas')
-    revalidateTag('contacts')
+    revalidateTag('personas', 'max')
+    revalidateTag('contacts', 'max')
 
     return NextResponse.json({
       success: true,

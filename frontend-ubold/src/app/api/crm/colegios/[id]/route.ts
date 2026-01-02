@@ -179,7 +179,7 @@ export async function PUT(
     revalidatePath('/crm/colegios')
     revalidatePath(`/crm/colegios/${id}`)
     revalidatePath('/crm/colegios/[id]', 'page')
-    revalidateTag('colegios')
+    revalidateTag('colegios', 'max')
 
     return NextResponse.json({
       success: true,
@@ -223,7 +223,7 @@ export async function DELETE(
       revalidatePath('/crm/colegios')
       revalidatePath(`/crm/colegios/${id}`)
       revalidatePath('/crm/colegios/[id]', 'page')
-      revalidateTag('colegios')
+      revalidateTag('colegios', 'max')
 
       return NextResponse.json({
         success: true,

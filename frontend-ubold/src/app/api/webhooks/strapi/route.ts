@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       case 'api::colegio.colegio':
         revalidatePath('/crm/colegios')
         revalidatePath('/crm/colegios/[id]', 'page')
-        revalidateTag('colegios')
+        revalidateTag('colegios', 'max')
         console.log('[Webhook Strapi] Revalidado: /crm/colegios')
         break
 
@@ -42,8 +42,8 @@ export async function POST(request: NextRequest) {
         revalidatePath('/crm/personas')
         revalidatePath('/crm/personas/[id]', 'page')
         revalidatePath('/crm/contacts')
-        revalidateTag('personas')
-        revalidateTag('contacts')
+        revalidateTag('personas', 'max')
+        revalidateTag('contacts', 'max')
         console.log('[Webhook Strapi] Revalidado: /crm/personas y /crm/contacts')
         break
 
