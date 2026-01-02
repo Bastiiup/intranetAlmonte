@@ -747,8 +747,8 @@ export async function GET(request: NextRequest) {
     // Normalizar imagen del componente contacto.imagen
     // El componente tiene estructura: { imagen: { data: [...] }, tipo, formato, ... }
     // O puede ser: { imagen: [...] } directamente
+    // imagenRaw ya está declarado arriba, no redeclarar
     let imagenNormalizada: any = null
-    let imagenRaw = personaAttrs.imagen || persona?.imagen
     
     console.log('[API /colaboradores/me/profile GET] Estructura de imagen raw:', JSON.stringify(imagenRaw, null, 2))
     
