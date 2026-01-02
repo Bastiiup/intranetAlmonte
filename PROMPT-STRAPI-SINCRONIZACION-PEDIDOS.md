@@ -224,3 +224,5 @@ Si hay errores, buscar:
 - ❌ Errores de productos no encontrados
 - ❌ Errores de formato de datos
 
+
+

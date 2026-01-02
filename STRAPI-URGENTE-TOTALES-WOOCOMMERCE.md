@@ -223,3 +223,5 @@ En los logs de Strapi, buscar:
 4. **Probar creando un pedido** desde la Intranet
 5. **Verificar en WooCommerce** que el total sea correcto
 
+
+

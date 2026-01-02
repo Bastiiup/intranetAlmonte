@@ -74,6 +74,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
   const [colegios, setColegios] = useState<any[]>(initialColegios)
   const [error, setError] = useState<string | null>(initialError)
   const [loading, setLoading] = useState(false)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   
   // Estados de búsqueda y filtros
   const [search, setSearch] = useState('')
@@ -246,9 +247,9 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
                 </span>
               </div>
               <div>
-                <div className="fw-medium">{colegio.nombre}</div>
+                <h5 className="mb-0 fw-semibold">{colegio.nombre}</h5>
                 {colegio.tipo && (
-                  <div className="text-muted fs-xs">{colegio.tipo}</div>
+                  <span className="badge badge-soft-info">{colegio.tipo}</span>
                 )}
               </div>
             </div>
@@ -260,29 +261,23 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
         header: 'COMUNICACIÓN',
         cell: ({ row }) => {
           const colegio = row.original
+          const emails = colegio.emails?.filter(e => e) || []
+          const telefonos = colegio.telefonos?.filter(t => t) || []
           return (
             <div className="fs-xs">
-              {colegio.emails && colegio.emails.length > 0 && (
-                <div className="mb-1">
-                  {colegio.emails.map((email, idx) => (
-                    <div key={idx} className="d-flex align-items-center">
-                      <LuMail className="me-1" size={12} />
-                      <span>{email}</span>
-                    </div>
-                  ))}
+              {emails.length > 0 && (
+                <div className="mb-1 d-flex align-items-center">
+                  <LuMail className="me-1" size={12} />
+                  <span>{emails.join(', ')}</span>
                 </div>
               )}
-              {colegio.telefonos && colegio.telefonos.length > 0 && (
-                <div>
-                  {colegio.telefonos.map((tel, idx) => (
-                    <div key={idx} className="d-flex align-items-center">
-                      <LuPhone className="me-1" size={12} />
-                      <span>{tel}</span>
-                    </div>
-                  ))}
+              {telefonos.length > 0 && (
+                <div className="d-flex align-items-center">
+                  <LuPhone className="me-1" size={12} />
+                  <span>{telefonos.join(', ')}</span>
                 </div>
               )}
-              {(!colegio.emails?.length && !colegio.telefonos?.length) && (
+              {emails.length === 0 && telefonos.length === 0 && (
                 <span className="text-muted">-</span>
               )}
             </div>
@@ -483,9 +478,13 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
       // Cerrar modal y limpiar error
       setDeleteModal({ open: false, colegio: null })
       setError(null)
+      setSuccessMessage('Colegio eliminado exitosamente')
       
       // Recargar datos
       fetchColegios()
+      
+      // Limpiar mensaje de éxito después de 3 segundos
+      setTimeout(() => setSuccessMessage(null), 3000)
     } catch (err: any) {
       setError(err.message || 'Error al eliminar colegio')
     } finally {
@@ -520,6 +519,16 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
           </div>
         </CardHeader>
       <CardBody>
+        {successMessage && (
+          <Alert variant="success" dismissible onClose={() => setSuccessMessage(null)} className="mb-3">
+            {successMessage}
+          </Alert>
+        )}
+        {error && (
+          <Alert variant="danger" dismissible onClose={() => setError(null)} className="mb-3">
+            <strong>Error:</strong> {error}
+          </Alert>
+        )}
         {/* Búsqueda */}
         <div className="mb-3">
           <div className="app-search">
@@ -624,25 +633,29 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     </Card>
 
     {/* Modal de agregar */}
-    <AddColegioModal
-      show={addModal}
-      onHide={() => setAddModal(false)}
-      onSuccess={() => {
-        setAddModal(false)
-        fetchColegios()
-      }}
-    />
+      <AddColegioModal
+        show={addModal}
+        onHide={() => setAddModal(false)}
+        onSuccess={() => {
+          setAddModal(false)
+          setSuccessMessage('Colegio creado exitosamente')
+          setTimeout(() => setSuccessMessage(null), 3000)
+          fetchColegios()
+        }}
+      />
 
     {/* Modal de edición */}
-    <EditColegioModal
-      show={editModal.open}
-      onHide={() => setEditModal({ open: false, colegio: null })}
-      colegio={editModal.colegio}
-      onSuccess={() => {
-        setEditModal({ open: false, colegio: null })
-        fetchColegios()
-      }}
-    />
+      <EditColegioModal
+        show={editModal.open}
+        onHide={() => setEditModal({ open: false, colegio: null })}
+        colegio={editModal.colegio}
+        onSuccess={() => {
+          setEditModal({ open: false, colegio: null })
+          setSuccessMessage('Colegio actualizado exitosamente')
+          setTimeout(() => setSuccessMessage(null), 3000)
+          fetchColegios()
+        }}
+      />
 
     {/* Modal de confirmación de eliminación */}
     <DeleteConfirmationModal

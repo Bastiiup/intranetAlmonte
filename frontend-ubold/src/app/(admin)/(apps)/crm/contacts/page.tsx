@@ -13,7 +13,7 @@ import {
   useReactTable,
   VisibilityState,
 } from '@tanstack/react-table'
-import { Button, Card, CardBody, CardFooter, CardHeader, Col, Container, OverlayTrigger, Row, Spinner, Tooltip } from 'react-bootstrap'
+import { Alert, Button, Card, CardBody, CardFooter, CardHeader, Col, Container, OverlayTrigger, Row, Spinner, Tooltip } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { TbEdit, TbEye, TbMail, TbPhone, TbWorld } from 'react-icons/tb'
 import { LuSearch, LuShuffle, LuPlus } from 'react-icons/lu'
@@ -52,6 +52,7 @@ const Contacts = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [totalRows, setTotalRows] = useState(0)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   
   // Estados de tabla
   const [globalFilter, setGlobalFilter] = useState('')
@@ -102,7 +103,7 @@ const Contacts = () => {
     },
     {
       id: 'contacto',
-      header: 'Contacto',
+      header: 'CONTACTO',
       cell: ({ row }) => {
         const contact = row.original
         return (
@@ -123,7 +124,7 @@ const Contacts = () => {
               </div>
             )}
             <div>
-              <div className="fw-medium">{contact.name}</div>
+              <h5 className="mb-0 fw-semibold">{contact.name}</h5>
               {contact.cargo && (
                 <div className="text-muted fs-xs">{contact.cargo}</div>
               )}
@@ -134,13 +135,13 @@ const Contacts = () => {
     },
     {
       id: 'empresa',
-      header: 'Institución',
+      header: 'INSTITUCIÓN',
       cell: ({ row }) => {
         const contact = row.original
         return (
           <div>
             {contact.empresa && (
-              <div className="fw-medium">{contact.empresa}</div>
+              <div className="fw-semibold mb-1">{contact.empresa}</div>
             )}
             {contact.dependencia && (
               <span className={`badge badge-soft-${contact.dependencia === 'Municipal' ? 'info' : contact.dependencia === 'Particular Subvencionado' ? 'warning' : 'success'}`}>
@@ -153,7 +154,7 @@ const Contacts = () => {
     },
     {
       id: 'ubicacion',
-      header: 'Ubicación',
+      header: 'UBICACIÓN',
       cell: ({ row }) => {
         const contact = row.original
         return (
@@ -172,29 +173,23 @@ const Contacts = () => {
     },
     {
       id: 'datosColegio',
-      header: 'Datos Colegio',
+      header: 'DATOS COLEGIO',
       cell: ({ row }) => {
         const contact = row.original
+        const telefonos = contact.telefonosColegio?.filter(t => t) || []
+        const emails = contact.emailsColegio?.filter(e => e) || []
         return (
           <div className="fs-xs">
-            {contact.telefonosColegio && contact.telefonosColegio.length > 0 && (
-              <div className="mb-1">
-                {contact.telefonosColegio.map((tel, idx) => (
-                  <div key={idx} className="d-flex align-items-center">
-                    <TbPhone className="me-1" size={12} />
-                    <span>{tel}</span>
-                  </div>
-                ))}
+            {telefonos.length > 0 && (
+              <div className="mb-1 d-flex align-items-center">
+                <TbPhone className="me-1" size={12} />
+                <span>{telefonos.join(', ')}</span>
               </div>
             )}
-            {contact.emailsColegio && contact.emailsColegio.length > 0 && (
-              <div className="mb-1">
-                {contact.emailsColegio.map((email, idx) => (
-                  <div key={idx} className="d-flex align-items-center">
-                    <TbMail className="me-1" size={12} />
-                    <span>{email}</span>
-                  </div>
-                ))}
+            {emails.length > 0 && (
+              <div className="mb-1 d-flex align-items-center">
+                <TbMail className="me-1" size={12} />
+                <span>{emails.join(', ')}</span>
               </div>
             )}
             {contact.websiteColegio && (
@@ -205,7 +200,7 @@ const Contacts = () => {
                 </Link>
               </div>
             )}
-            {!contact.telefonosColegio?.length && !contact.emailsColegio?.length && !contact.websiteColegio && (
+            {telefonos.length === 0 && emails.length === 0 && !contact.websiteColegio && (
               <span className="text-muted">-</span>
             )}
           </div>
@@ -214,20 +209,22 @@ const Contacts = () => {
     },
     {
       id: 'contactoInfo',
-      header: 'Comunicación',
+      header: 'COMUNICACIÓN',
       cell: ({ row }) => {
         const contact = row.original
         return (
           <div className="fs-xs">
             {contact.email && (
-              <div className="mb-1">
+              <div className="mb-1 d-flex align-items-center">
+                <TbMail className="me-1" size={12} />
                 <Link href={`mailto:${contact.email}`} className="link-reset">
                   {contact.email}
                 </Link>
               </div>
             )}
             {contact.phone && (
-              <div>
+              <div className="d-flex align-items-center">
+                <TbPhone className="me-1" size={12} />
                 <Link href={`tel:${contact.phone}`} className="link-reset">
                   {contact.phone}
                 </Link>
@@ -242,7 +239,7 @@ const Contacts = () => {
     },
     {
       id: 'representanteComercial',
-      header: 'Representante Comercial',
+      header: 'REPRESENTANTE COMERCIAL',
       cell: ({ row }) => {
         const contact = row.original
         return contact.representanteComercial ? (
@@ -254,7 +251,7 @@ const Contacts = () => {
     },
     {
       id: 'fechaOrigen',
-      header: 'Fecha / Origen',
+      header: 'FECHA / ORIGEN',
       cell: ({ row }) => {
         const contact = row.original
         const isNew = contact.createdAt && 
@@ -290,7 +287,7 @@ const Contacts = () => {
     },
     {
       id: 'label',
-      header: 'Etiqueta',
+      header: 'ETIQUETA',
       cell: ({ row }) => {
         const contact = row.original
         const variantMap: Record<string, string> = {
@@ -307,7 +304,7 @@ const Contacts = () => {
     },
     {
       id: 'categories',
-      header: 'Categorías',
+      header: 'CATEGORÍAS',
       cell: ({ row }) => {
         const contact = row.original
         return (
@@ -326,7 +323,7 @@ const Contacts = () => {
     },
     {
       id: 'actions',
-      header: 'Acciones',
+      header: '',
       cell: ({ row }) => (
         <div className="d-flex gap-1">
           <Button variant="default" size="sm" className="btn-icon">
@@ -415,12 +412,17 @@ const Contacts = () => {
 
   return (
     <Container fluid>
-      <PageBreadcrumb title={'Contacts'} subtitle={'CRM'} />
+      <PageBreadcrumb title={'Contactos'} subtitle={'CRM'} />
 
+      {successMessage && (
+        <Alert variant="success" dismissible onClose={() => setSuccessMessage(null)} className="mb-3">
+          {successMessage}
+        </Alert>
+      )}
       {error && (
-        <div className="alert alert-danger" role="alert">
+        <Alert variant="danger" dismissible onClose={() => setError(null)} className="mb-3">
           <strong>Error:</strong> {error}
-        </div>
+        </Alert>
       )}
 
       <Row>

@@ -177,3 +177,5 @@ line_items: pedido.rawWooData?.line_items || pedido.items.map(item => ({
 - **Lifecycle hook:** `afterCreate`
 - **Plataformas:** `woo_moraleja` y `woo_escolar`
 
+
+
