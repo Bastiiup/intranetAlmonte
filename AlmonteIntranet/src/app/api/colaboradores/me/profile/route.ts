@@ -748,7 +748,7 @@ export async function GET(request: NextRequest) {
     // El componente tiene estructura: { imagen: { data: [...] }, tipo, formato, ... }
     // O puede ser: { imagen: [...] } directamente
     let imagenNormalizada: any = null
-    const imagenRaw = personaAttrs.imagen || persona?.imagen
+    let imagenRaw = personaAttrs.imagen || persona?.imagen
     
     console.log('[API /colaboradores/me/profile GET] Estructura de imagen raw:', JSON.stringify(imagenRaw, null, 2))
     
