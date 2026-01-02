@@ -706,9 +706,13 @@ export async function GET(request: NextRequest) {
       persona = { ...persona, ...persona.attributes }
     }
 
+    console.log('[API /colaboradores/me/profile GET] Estructura completa de persona:', JSON.stringify(persona, null, 2))
+
     // Extraer datos del perfil
     // Normalizar estructura de persona
     const personaAttrs = persona?.attributes || persona || {}
+    
+    console.log('[API /colaboradores/me/profile GET] personaAttrs:', JSON.stringify(personaAttrs, null, 2))
     
     // Normalizar imagen del componente contacto.imagen
     // El componente tiene estructura: { imagen: { data: [...] }, tipo, formato, ... }

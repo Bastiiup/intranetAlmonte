@@ -71,6 +71,9 @@ const Account = () => {
                     const result = await response.json()
                     if (result.success && result.data) {
                         const { persona: personaData, colaborador: colaboradorData } = result.data
+                        
+                        console.log('[Account] Datos completos recibidos:', JSON.stringify(result.data, null, 2))
+                        console.log('[Account] Estructura de personaData:', JSON.stringify(personaData, null, 2))
 
                         // Llenar formulario con datos existentes
                         setFormData({
@@ -105,8 +108,11 @@ const Account = () => {
                         let imageUrl: string | null = null
                         
                         console.log('[Account] Estructura de imagen recibida:', JSON.stringify(personaData?.imagen, null, 2))
+                        console.log('[Account] Tipo de imagen:', typeof personaData?.imagen)
+                        console.log('[Account] ¿Es null/undefined?', personaData?.imagen === null || personaData?.imagen === undefined)
                         
                         if (personaData?.imagen) {
+                            console.log('[Account] ✅ Imagen existe, procesando...')
                             // Estructura normalizada del API (url directa)
                             if (personaData.imagen.url) {
                                 imageUrl = personaData.imagen.url.startsWith('http') 
