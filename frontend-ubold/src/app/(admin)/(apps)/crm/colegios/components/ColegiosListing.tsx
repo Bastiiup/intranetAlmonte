@@ -167,8 +167,10 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
       const asignacionComercial = asignaciones
         .filter((ca: any) => ca.is_current && ca.rol === 'comercial' && ca.estado === 'activa')
         .sort((a: any, b: any) => {
-          const prioridadOrder = { alta: 3, media: 2, baja: 1 }
-          return (prioridadOrder[b.prioridad || 'baja'] || 0) - (prioridadOrder[a.prioridad || 'baja'] || 0)
+          const prioridadOrder: Record<string, number> = { alta: 3, media: 2, baja: 1 }
+          const prioridadA = (a.prioridad || 'baja') as keyof typeof prioridadOrder
+          const prioridadB = (b.prioridad || 'baja') as keyof typeof prioridadOrder
+          return (prioridadOrder[prioridadB] || 0) - (prioridadOrder[prioridadA] || 0)
         })[0]
       const representante = asignacionComercial?.ejecutivo?.nombre_completo || asignacionComercial?.ejecutivo?.data?.attributes?.nombre_completo || ''
       
