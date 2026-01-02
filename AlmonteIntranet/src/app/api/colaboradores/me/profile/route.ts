@@ -673,7 +673,70 @@ export async function GET(request: NextRequest) {
         
         // Si falla, usar datos de cookie directamente como fallback
         if (colaboradorFromCookie) {
-          console.log('[API /colaboradores/me/profile GET] Usando datos de cookie como fallback')
+          console.log('[API /colaboradores/me/profile GET] Usando datos de cookie como fallback (Strapi falló)')
+          
+          // Intentar obtener imagen de la persona directamente si tenemos RUT o ID
+          let personaData = colaboradorFromCookie.persona || null
+          let imagenNormalizada: any = null
+          
+          if (personaData) {
+            const personaRut = personaData.rut
+            const personaId = personaData.documentId || personaData.id
+            
+            // Si no tenemos imagen populada, intentar obtenerla directamente
+            if (!personaData.imagen || !personaData.imagen.imagen) {
+              try {
+                let personaQuery = ''
+                if (personaId) {
+                  personaQuery = `/api/personas/${personaId}?populate[imagen][populate][imagen][populate]=*`
+                } else if (personaRut) {
+                  personaQuery = `/api/personas?filters[rut][$eq]=${encodeURIComponent(String(personaRut))}&populate[imagen][populate][imagen][populate]=*&pagination[pageSize]=1`
+                }
+                
+                if (personaQuery) {
+                  console.log('[API /colaboradores/me/profile GET] Consultando persona directamente desde fallback:', personaQuery)
+                  const personaResponse = await strapiClient.get<any>(personaQuery)
+                  const personaResponseData = Array.isArray(personaResponse.data) ? personaResponse.data[0] : personaResponse.data
+                  const personaResponseAttrs = personaResponseData?.attributes || personaResponseData || {}
+                  
+                  // Actualizar personaData con datos frescos de Strapi
+                  personaData = { ...personaData, ...personaResponseAttrs }
+                  
+                  // Normalizar imagen
+                  const imagenRaw = personaResponseAttrs.imagen
+                  if (imagenRaw?.imagen && Array.isArray(imagenRaw.imagen) && imagenRaw.imagen.length > 0) {
+                    const primeraImagen = imagenRaw.imagen[0]
+                    imagenNormalizada = {
+                      url: primeraImagen.url || null,
+                      alternativeText: primeraImagen.alternativeText || null,
+                      width: primeraImagen.width || null,
+                      height: primeraImagen.height || null,
+                    }
+                  }
+                }
+              } catch (error: any) {
+                console.warn('[API /colaboradores/me/profile GET] Error al obtener imagen en fallback:', error.message)
+              }
+            } else {
+              // Si ya tenemos imagen en cookie, normalizarla
+              const imagenRaw = personaData.imagen
+              if (imagenRaw?.imagen && Array.isArray(imagenRaw.imagen) && imagenRaw.imagen.length > 0) {
+                const primeraImagen = imagenRaw.imagen[0]
+                imagenNormalizada = {
+                  url: primeraImagen.url || null,
+                  alternativeText: primeraImagen.alternativeText || null,
+                  width: primeraImagen.width || null,
+                  height: primeraImagen.height || null,
+                }
+              }
+            }
+            
+            // Actualizar personaData con imagen normalizada
+            if (imagenNormalizada) {
+              personaData = { ...personaData, imagen: imagenNormalizada }
+            }
+          }
+          
           return NextResponse.json({
             success: true,
             data: {
@@ -683,7 +746,7 @@ export async function GET(request: NextRequest) {
                 rol: colaboradorFromCookie.rol,
                 activo: colaboradorFromCookie.activo !== false,
               },
-              persona: colaboradorFromCookie.persona || null,
+              persona: personaData,
             },
           }, { status: 200 })
         }
