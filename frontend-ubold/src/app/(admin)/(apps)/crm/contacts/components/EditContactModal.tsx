@@ -86,15 +86,32 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
         }),
       }
 
-      // Obtener el ID correcto
-      const contactId = contact.id
+      // Obtener el ID correcto (usar la misma lógica que en data.ts)
+      let contactId: number | string | undefined = undefined
+      
+      // Intentar obtener documentId primero (identificador principal en Strapi)
+      if ((contact as any).documentId) {
+        contactId = (contact as any).documentId
+      } else if (contact.id) {
+        // Si no hay documentId, usar id
+        if (typeof contact.id === 'number') {
+          contactId = contact.id
+        } else if (typeof contact.id === 'string') {
+          contactId = contact.id
+        } else {
+          contactId = String(contact.id)
+        }
+      }
       
       if (!contactId) {
         throw new Error('No se pudo obtener el ID del contacto')
       }
+      
+      // Convertir a string para la URL si es necesario
+      const contactIdStr = typeof contactId === 'number' ? contactId.toString() : contactId
 
       // Actualizar el contacto
-      const response = await fetch(`/api/crm/contacts/${contactId}`, {
+      const response = await fetch(`/api/crm/contacts/${contactIdStr}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
