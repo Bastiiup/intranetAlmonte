@@ -197,8 +197,22 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
     }
   }
   
+      // Obtener el ID correcto (documentId es el identificador principal en Strapi)
+      let personaId: number = 0
+      if (persona.documentId) {
+        personaId = parseInt(persona.documentId)
+      } else if (persona.id) {
+        if (typeof persona.id === 'number') {
+          personaId = persona.id
+        } else if (typeof persona.id === 'string') {
+          personaId = parseInt(persona.id)
+        } else {
+          personaId = parseInt(String(persona.id))
+        }
+      }
+      
       return {
-        id: persona.documentId ? parseInt(persona.documentId) : (typeof persona.id === 'number' ? persona.id : parseInt(persona.id?.toString() || '0')),
+        id: personaId,
     name,
     cargo,
     email,
