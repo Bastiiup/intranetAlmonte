@@ -269,12 +269,46 @@ export async function PUT(request: NextRequest) {
         console.log('[API /colaboradores/me/profile] ✅ Persona actualizada exitosamente')
         
         // Si hay imagen para actualizar, intentar actualizarla por separado
-        // NOTA: El componente imagen puede requerir una estructura específica
-        // Por ahora, omitimos la actualización de imagen para evitar errores
-        // TODO: Implementar actualización de componente imagen cuando se conozca la estructura exacta
+        // El componente contacto.imagen requiere una estructura específica
         if (imagenIdParaActualizar) {
-          console.log('[API /colaboradores/me/profile] ⚠️ Imagen pendiente de actualizar (ID:', imagenIdParaActualizar, ') - requiere estructura de componente')
-          // La imagen se puede actualizar manualmente desde Strapi Admin o implementar después
+          console.log('[API /colaboradores/me/profile] Intentando actualizar componente imagen con ID:', imagenIdParaActualizar)
+          
+          // Intentar diferentes estructuras para el componente imagen
+          const estructurasImagen = [
+            // Estructura 1: { file: id }
+            { file: imagenIdParaActualizar },
+            // Estructura 2: { file: { id: id } }
+            { file: { id: imagenIdParaActualizar } },
+            // Estructura 3: Solo el ID (puede funcionar si Strapi lo acepta)
+            imagenIdParaActualizar,
+          ]
+          
+          let imagenActualizada = false
+          for (const estructura of estructurasImagen) {
+            try {
+              console.log('[API /colaboradores/me/profile] Intentando estructura:', JSON.stringify(estructura))
+              await strapiClient.put(`/api/personas/${idParaActualizar}`, {
+                data: {
+                  imagen: estructura
+                }
+              })
+              console.log('[API /colaboradores/me/profile] ✅ Imagen actualizada exitosamente con estructura:', JSON.stringify(estructura))
+              imagenActualizada = true
+              break
+            } catch (imagenError: any) {
+              console.warn('[API /colaboradores/me/profile] Estructura falló:', {
+                estructura: JSON.stringify(estructura),
+                error: imagenError.message,
+                status: imagenError.status,
+              })
+              // Continuar con la siguiente estructura
+            }
+          }
+          
+          if (!imagenActualizada) {
+            console.warn('[API /colaboradores/me/profile] ⚠️ No se pudo actualizar imagen con ninguna estructura. Puede requerir configuración manual en Strapi Admin.')
+            // No fallar el proceso completo si la imagen no se puede actualizar
+          }
         }
       } catch (personaError: any) {
         console.error('[API /colaboradores/me/profile] Error al actualizar persona:', {
