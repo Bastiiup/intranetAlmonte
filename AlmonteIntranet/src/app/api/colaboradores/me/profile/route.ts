@@ -94,14 +94,14 @@ export async function PUT(request: NextRequest) {
         if (colaborador.documentId) {
           console.log('[API /colaboradores/me/profile] Obteniendo colaborador por documentId:', colaborador.documentId)
           colaboradorResponse = await strapiClient.get<any>(
-            `/api/colaboradores/${colaborador.documentId}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
+            `/api/colaboradores/${colaborador.documentId}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][imagen][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
           )
         } 
         // Si no hay documentId pero hay email_login, buscar por email (más confiable que ID numérico)
         else if (colaborador.email_login) {
           console.log('[API /colaboradores/me/profile] Obteniendo colaborador por email_login:', colaborador.email_login)
           colaboradorResponse = await strapiClient.get<any>(
-            `/api/colaboradores?filters[email_login][$eq]=${encodeURIComponent(colaborador.email_login)}&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
+            `/api/colaboradores?filters[email_login][$eq]=${encodeURIComponent(colaborador.email_login)}&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][imagen][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
           )
           // Si es búsqueda por filtro, la respuesta viene en array
           if (colaboradorResponse.data && Array.isArray(colaboradorResponse.data) && colaboradorResponse.data.length > 0) {
@@ -112,7 +112,7 @@ export async function PUT(request: NextRequest) {
         else if (colaboradorId) {
           console.log('[API /colaboradores/me/profile] Obteniendo colaborador por ID numérico (puede fallar):', colaboradorId)
           colaboradorResponse = await strapiClient.get<any>(
-            `/api/colaboradores/${colaboradorId}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
+            `/api/colaboradores/${colaboradorId}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][imagen][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
           )
         } else {
           throw new Error('No hay documentId, email_login ni ID disponible')
@@ -591,7 +591,7 @@ export async function GET(request: NextRequest) {
           
           // Buscar colaborador por usuario
           const colaboradorResponse = await strapiClient.get<any>(
-            `/api/colaboradores?filters[usuario][id][$eq]=${user.id}&populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
+            `/api/colaboradores?filters[usuario][id][$eq]=${user.id}&populate[persona][populate][imagen][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
           )
 
           if (colaboradorResponse.data && Array.isArray(colaboradorResponse.data) && colaboradorResponse.data.length > 0) {
@@ -630,14 +630,14 @@ export async function GET(request: NextRequest) {
       if (colaboradorFromCookie?.documentId) {
         console.log('[API /colaboradores/me/profile GET] Obteniendo por documentId:', colaboradorFromCookie.documentId)
         response = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
-          `/api/colaboradores/${colaboradorFromCookie.documentId}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
+          `/api/colaboradores/${colaboradorFromCookie.documentId}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][imagen][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
         )
       }
       // Prioridad 2: Si no hay documentId pero hay email_login, buscar por email (más confiable)
       else if (colaboradorFromCookie?.email_login) {
         console.log('[API /colaboradores/me/profile GET] Obteniendo por email_login:', colaboradorFromCookie.email_login)
         response = await strapiClient.get<any>(
-          `/api/colaboradores?filters[email_login][$eq]=${encodeURIComponent(colaboradorFromCookie.email_login)}&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
+          `/api/colaboradores?filters[email_login][$eq]=${encodeURIComponent(colaboradorFromCookie.email_login)}&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][imagen][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
         )
         if (response.data && Array.isArray(response.data) && response.data.length > 0) {
           response.data = response.data[0]
@@ -647,7 +647,7 @@ export async function GET(request: NextRequest) {
       else if (colaboradorId) {
         console.log('[API /colaboradores/me/profile GET] Obteniendo por ID numérico (puede fallar):', colaboradorId)
         response = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
-          `/api/colaboradores/${colaboradorId}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
+          `/api/colaboradores/${colaboradorId}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][imagen][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
         )
       } else {
         // Si no hay ninguna opción, usar datos de cookie directamente
