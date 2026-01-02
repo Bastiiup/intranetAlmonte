@@ -278,54 +278,133 @@ export async function PUT(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    // Verificar autenticación
-    const colaborador = await getAuthColaborador()
-    if (!colaborador) {
+    // Obtener el token del header Authorization (mismo método que /api/colaboradores/me)
+    const authHeader = request.headers.get('authorization')
+    let token: string | null = null
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.replace('Bearer ', '')
+    }
+
+    // Si no hay token en header, intentar obtener colaborador de cookies
+    let colaboradorId: string | number | null = null
+    let colaboradorFromCookie: any = null
+
+    if (!token) {
+      colaboradorFromCookie = await getAuthColaborador()
+      if (colaboradorFromCookie) {
+        colaboradorId = colaboradorFromCookie.id || colaboradorFromCookie.documentId
+      }
+    } else {
+      // Obtener usuario desde Strapi usando token
+      try {
+        const userResponse = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/users/me`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        })
+
+        if (userResponse.ok) {
+          const user = await userResponse.json()
+          
+          // Buscar colaborador por usuario
+          const colaboradorResponse = await strapiClient.get<any>(
+            `/api/colaboradores?filters[usuario][id][$eq]=${user.id}&populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
+          )
+
+          if (colaboradorResponse.data && Array.isArray(colaboradorResponse.data) && colaboradorResponse.data.length > 0) {
+            const colaboradorRaw = colaboradorResponse.data[0]
+            colaboradorId = colaboradorRaw.id || colaboradorRaw.documentId
+          }
+        }
+      } catch (tokenError) {
+        console.error('[API /colaboradores/me/profile GET] Error al obtener usuario desde token:', tokenError)
+      }
+    }
+
+    if (!colaboradorId) {
       return NextResponse.json(
-        { success: false, error: 'No autenticado' },
+        { success: false, error: 'No autenticado o colaborador no encontrado' },
         { status: 401 }
       )
     }
 
-    const colaboradorId = colaborador.id
+    // Obtener datos completos del colaborador usando el ID
+    let response: any
+    try {
+      response = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
+        `/api/colaboradores/${colaboradorId}?populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
+      )
+    } catch (strapiError: any) {
+      // Si falla con ID directo, intentar con filtro
+      if (strapiError.status === 404) {
+        const colaboradorFromCookie = await getAuthColaborador()
+        if (colaboradorFromCookie?.email_login) {
+          response = await strapiClient.get<any>(
+            `/api/colaboradores?filters[email_login][$eq]=${encodeURIComponent(colaboradorFromCookie.email_login)}&populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
+          )
+          if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+            response.data = response.data[0]
+          }
+        } else {
+          throw strapiError
+        }
+      } else {
+        throw strapiError
+      }
+    }
 
-    // Obtener datos completos del colaborador
-    const response = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
-      `/api/colaboradores/${colaboradorId}?populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
-    )
-
-    const colaboradorRaw = response.data
+    // Manejar diferentes estructuras de respuesta de Strapi
+    let colaboradorRaw = response.data
+    if (Array.isArray(colaboradorRaw) && colaboradorRaw.length > 0) {
+      colaboradorRaw = colaboradorRaw[0]
+    }
+    
     const colaboradorRawAny = colaboradorRaw as any
     const colaboradorAttrs = colaboradorRawAny.attributes || colaboradorRawAny
-    const persona = colaboradorAttrs.persona?.data || colaboradorAttrs.persona
+    
+    // Extraer persona (puede venir en diferentes formatos)
+    let persona = colaboradorAttrs.persona?.data || colaboradorAttrs.persona
+    if (persona?.attributes) {
+      persona = { ...persona, ...persona.attributes }
+    }
 
     // Extraer datos del perfil
+    // Normalizar estructura de persona
+    const personaAttrs = persona?.attributes || persona || {}
+    
     const profileData = {
       colaborador: {
-        id: colaboradorRawAny.id,
+        id: colaboradorRawAny.id || colaboradorRawAny.documentId,
         email_login: colaboradorAttrs.email_login || colaboradorRawAny.email_login,
         rol: colaboradorAttrs.rol || colaboradorRawAny.rol,
         activo: colaboradorAttrs.activo !== undefined ? colaboradorAttrs.activo : colaboradorRawAny.activo,
       },
       persona: persona ? {
         id: persona.id || persona.documentId,
-        rut: persona.attributes?.rut || persona.rut,
-        nombres: persona.attributes?.nombres || persona.nombres,
-        primer_apellido: persona.attributes?.primer_apellido || persona.primer_apellido,
-        segundo_apellido: persona.attributes?.segundo_apellido || persona.segundo_apellido,
-        nombre_completo: persona.attributes?.nombre_completo || persona.nombre_completo,
-        genero: persona.attributes?.genero || persona.genero,
-        cumpleagno: persona.attributes?.cumpleagno || persona.cumpleagno,
-        bio: persona.attributes?.bio || persona.bio,
-        job_title: persona.attributes?.job_title || persona.job_title,
-        imagen: persona.attributes?.imagen || persona.imagen,
-        telefonos: persona.attributes?.telefonos || persona.telefonos,
-        emails: persona.attributes?.emails || persona.emails,
-        direccion: persona.attributes?.direccion || persona.direccion,
-        redes_sociales: persona.attributes?.redes_sociales || persona.redes_sociales,
-        skills: persona.attributes?.skills || persona.skills,
+        rut: personaAttrs.rut || persona.rut,
+        nombres: personaAttrs.nombres || persona.nombres,
+        primer_apellido: personaAttrs.primer_apellido || persona.primer_apellido,
+        segundo_apellido: personaAttrs.segundo_apellido || persona.segundo_apellido,
+        nombre_completo: personaAttrs.nombre_completo || persona.nombre_completo,
+        genero: personaAttrs.genero || persona.genero,
+        cumpleagno: personaAttrs.cumpleagno || persona.cumpleagno,
+        bio: personaAttrs.bio || persona.bio,
+        job_title: personaAttrs.job_title || persona.job_title,
+        telefono_principal: personaAttrs.telefono_principal || persona.telefono_principal,
+        imagen: personaAttrs.imagen || persona.imagen,
+        telefonos: personaAttrs.telefonos || persona.telefonos,
+        emails: personaAttrs.emails || persona.emails,
+        direccion: personaAttrs.direccion || persona.direccion,
+        redes_sociales: personaAttrs.redes_sociales || persona.redes_sociales,
+        skills: personaAttrs.skills || persona.skills,
       } : null,
     }
+    
+    console.log('[API /colaboradores/me/profile GET] ✅ Perfil obtenido exitosamente:', {
+      colaboradorId: profileData.colaborador.id,
+      tienePersona: !!profileData.persona,
+    })
 
     return NextResponse.json({
       success: true,

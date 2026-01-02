@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { TbBrandX, TbBriefcase, TbDotsVertical, TbLink, TbMail, TbMapPin, TbSchool, TbUsers, TbWorld } from 'react-icons/tb'
 import { LuDribbble, LuFacebook, LuInstagram, LuLinkedin, LuYoutube } from 'react-icons/lu'
 import { useAuth, getPersonaNombre, getPersonaEmail, getRolLabel } from '@/hooks/useAuth'
+import { getAuthToken } from '@/lib/auth'
 
 const Profile = () => {
     const { persona, colaborador, loading } = useAuth()
@@ -18,7 +19,15 @@ const Profile = () => {
     useEffect(() => {
         const loadProfile = async () => {
             try {
-                const response = await fetch('/api/colaboradores/me/profile')
+                const token = getAuthToken()
+                const headers: HeadersInit = {}
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`
+                }
+
+                const response = await fetch('/api/colaboradores/me/profile', {
+                    headers,
+                })
                 if (response.ok) {
                     const result = await response.json()
                     if (result.success && result.data) {

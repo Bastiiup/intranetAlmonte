@@ -14,6 +14,7 @@ import small2 from '@/assets/images/stock/small-2.jpg'
 import small3 from '@/assets/images/stock/small-3.jpg'
 import user1 from '@/assets/images/users/user-1.jpg'
 import { useAuth } from '@/hooks/useAuth'
+import { getAuthToken } from '@/lib/auth'
 
 const Account = () => {
     const { persona, colaborador, loading: authLoading } = useAuth()
@@ -57,7 +58,15 @@ const Account = () => {
             if (authLoading) return
 
             try {
-                const response = await fetch('/api/colaboradores/me/profile')
+                const token = getAuthToken()
+                const headers: HeadersInit = {}
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`
+                }
+
+                const response = await fetch('/api/colaboradores/me/profile', {
+                    headers,
+                })
                 if (response.ok) {
                     const result = await response.json()
                     if (result.success && result.data) {
@@ -205,11 +214,17 @@ const Account = () => {
             }
 
             // Enviar actualización
+            const token = getAuthToken()
+            const headers: HeadersInit = {
+                'Content-Type': 'application/json',
+            }
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`
+            }
+
             const response = await fetch('/api/colaboradores/me/profile', {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers,
                 body: JSON.stringify(updateData),
             })
 
