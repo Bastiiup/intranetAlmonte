@@ -88,21 +88,9 @@ const nextConfig: NextConfig = {
       'lodash',
       'bootstrap',
     ],
-    // Optimizar compilación de TypeScript
-    typedRoutes: false, // Desactivar si no se usa
   },
-  // Optimizaciones de build
-  swcMinify: true, // Ya está activado por defecto en Next.js 16+, pero lo dejamos explícito
-  // Reducir el tamaño del bundle
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      // Optimizar imports de node_modules
-      config.resolve.alias = {
-        ...config.resolve.alias,
-      }
-    }
-    return config
-  },
+  // Typed routes (movido fuera de experimental en Next.js 16)
+  typedRoutes: false,
   // Headers CSP únicos para Stream Chat (necesita unsafe-eval)
   // IMPORTANTE: Solo debe haber un CSP, configurado aquí en next.config.ts
   async headers() {
