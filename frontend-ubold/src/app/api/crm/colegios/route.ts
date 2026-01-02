@@ -168,7 +168,7 @@ export async function POST(request: Request) {
 
     // Revalidar para sincronización bidireccional
     revalidatePath('/crm/colegios')
-    revalidatePath('/crm/colegios/[id]', 'page')
+    revalidatePath('/crm/colegios/[id]', { type: 'page' })
     revalidateTag('colegios')
 
     return NextResponse.json({
