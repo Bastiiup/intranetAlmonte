@@ -48,10 +48,13 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
       if (!formData.colegio_nombre.trim()) {
         throw new Error('El nombre del colegio es obligatorio')
       }
+      if (!formData.rbd || !formData.rbd.trim()) {
+        throw new Error('El RBD es obligatorio')
+      }
 
       // Preparar datos para Strapi
       const colegioData: any = {
-        rbd: formData.rbd,
+        rbd: parseInt(formData.rbd),
         colegio_nombre: formData.colegio_nombre.trim(),
         estado: formData.estado,
         ...(formData.dependencia && { dependencia: formData.dependencia }),
@@ -125,14 +128,18 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
           </FormGroup>
 
           <FormGroup className="mb-3">
-            <FormLabel>RBD</FormLabel>
+            <FormLabel>
+              RBD <span className="text-danger">*</span>
+            </FormLabel>
             <FormControl
               type="text"
               placeholder="12345"
               value={formData.rbd}
               onChange={(e) => handleFieldChange('rbd', e.target.value)}
+              required
               disabled={loading}
             />
+            <small className="text-muted">El RBD debe ser único</small>
           </FormGroup>
 
           <div className="row">
