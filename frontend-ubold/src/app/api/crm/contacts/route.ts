@@ -89,15 +89,10 @@ export async function GET(request: Request) {
     params.append('populate[telefonos]', 'true')
     params.append('populate[imagen]', 'true') // Para campos Media, solo usar 'true'
     params.append('populate[tags]', 'true')
-    // Populate completo de trayectorias y colegio
-    params.append('populate[trayectorias]', 'true')
-    params.append('populate[trayectorias][populate][colegio]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][comuna]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][telefonos]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][emails]', 'true')
-    // website es un campo directo del colegio, no una relación, no necesita populate
-    params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones][populate][ejecutivo]', 'true')
+    // Populate de trayectorias con colegio y sus relaciones
+    // Usar sintaxis más simple y compatible
+    params.append('populate[trayectorias][populate]', '*')
+    params.append('populate[trayectorias][populate][colegio][populate]', '*')
 
     // Filtros
     params.append('filters[activo][$eq]', 'true')
