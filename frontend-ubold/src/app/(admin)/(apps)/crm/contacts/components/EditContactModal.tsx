@@ -35,6 +35,7 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
   // Cargar datos del contacto cuando se abre el modal
   useEffect(() => {
     if (contact && show) {
+      console.log('[EditContactModal] Cargando datos del contacto:', contact)
       setFormData({
         nombres: contact.name || '',
         email: contact.email || '',
@@ -45,6 +46,7 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
         comuna: contact.comuna || '',
         dependencia: contact.dependencia || '',
       })
+      setError(null) // Limpiar errores previos
     }
   }, [contact, show])
 
@@ -87,15 +89,20 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
       }
 
       // Obtener el ID correcto (usar la misma lógica que en data.ts)
+      console.log('[EditContactModal] Contacto recibido:', contact)
+      console.log('[EditContactModal] contact.id:', contact.id)
+      console.log('[EditContactModal] contact.documentId:', (contact as any).documentId)
+      
       let contactId: number | string | undefined = undefined
       
       // Intentar obtener documentId primero (identificador principal en Strapi)
-      if ((contact as any).documentId) {
-        contactId = (contact as any).documentId
-      } else if (contact.id) {
+      const documentId = (contact as any).documentId
+      if (documentId) {
+        contactId = typeof documentId === 'number' ? documentId.toString() : String(documentId)
+      } else if (contact.id !== undefined && contact.id !== null) {
         // Si no hay documentId, usar id
         if (typeof contact.id === 'number') {
-          contactId = contact.id
+          contactId = contact.id.toString()
         } else if (typeof contact.id === 'string') {
           contactId = contact.id
         } else {
@@ -103,12 +110,19 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
         }
       }
       
-      if (!contactId) {
-        throw new Error('No se pudo obtener el ID del contacto')
+      console.log('[EditContactModal] contactId final:', contactId)
+      
+      if (!contactId || contactId === '0' || contactId === 'undefined' || contactId === 'null') {
+        console.error('[EditContactModal] Error: No se pudo obtener un ID válido del contacto', {
+          contact,
+          documentId,
+          id: contact.id,
+        })
+        throw new Error('No se pudo obtener el ID del contacto. Por favor, recarga la página e intenta nuevamente.')
       }
       
-      // Convertir a string para la URL si es necesario
-      const contactIdStr = typeof contactId === 'number' ? contactId.toString() : contactId
+      // Asegurar que sea string para la URL
+      const contactIdStr = String(contactId)
 
       // Actualizar el contacto
       const response = await fetch(`/api/crm/contacts/${contactIdStr}`, {

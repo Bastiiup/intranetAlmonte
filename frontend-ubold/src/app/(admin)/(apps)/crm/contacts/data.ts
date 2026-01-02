@@ -211,8 +211,13 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
         }
       }
       
+      // Guardar también documentId para referencia
+      const documentId = persona.documentId || (persona.id ? String(persona.id) : undefined)
+      
       return {
         id: personaId,
+        // Guardar documentId también para referencia (usar type assertion para agregar campo extra)
+        ...(documentId && { documentId } as any),
     name,
     cargo,
     email,
