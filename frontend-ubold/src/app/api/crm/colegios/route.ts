@@ -122,16 +122,25 @@ export async function POST(request: Request) {
       data: {
         colegio_nombre: body.colegio_nombre.trim(),
         ...(body.rbd && { rbd: parseInt(body.rbd) }),
+        ...(body.estado && { estado: body.estado }),
         ...(body.dependencia && { dependencia: body.dependencia }),
+        ...(body.region && { region: body.region }),
         ...(body.zona && { zona: body.zona }),
         activo: body.activo !== undefined ? body.activo : true,
         ...(body.origen && { origen: body.origen }),
         ...(body.comunaId && { comuna: body.comunaId }),
+        // Componentes repeatable
+        ...(body.telefonos && Array.isArray(body.telefonos) && body.telefonos.length > 0 && {
+          telefonos: body.telefonos,
+        }),
+        ...(body.emails && Array.isArray(body.emails) && body.emails.length > 0 && {
+          emails: body.emails,
+        }),
+        ...(body.direcciones && Array.isArray(body.direcciones) && body.direcciones.length > 0 && {
+          direcciones: body.direcciones,
+        }),
       },
     }
-    
-    // Website es un componente, no un campo simple
-    // Si se necesita agregar website, debe hacerse como componente
 
     const response = await strapiClient.post<StrapiResponse<StrapiEntity<ColegioAttributes>>>(
       '/api/colegios',
