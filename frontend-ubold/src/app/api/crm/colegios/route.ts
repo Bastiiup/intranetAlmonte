@@ -170,10 +170,19 @@ export async function POST(request: Request) {
       status: error.status,
       details: error.details,
     })
+    // Extraer mensaje de error más descriptivo
+    let errorMessage = error.message || 'Error al crear colegio'
+    if (error.details?.errors && Array.isArray(error.details.errors)) {
+      const firstError = error.details.errors[0]
+      if (firstError?.message) {
+        errorMessage = `${firstError.path?.[0] || 'Campo'}: ${firstError.message}`
+      }
+    }
+
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Error al crear colegio',
+        error: errorMessage,
         details: error.details || {},
         status: error.status || 500,
       },

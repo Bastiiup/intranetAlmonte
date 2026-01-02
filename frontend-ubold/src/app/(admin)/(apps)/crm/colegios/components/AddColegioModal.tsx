@@ -24,9 +24,10 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
   const [formData, setFormData] = useState({
     colegio_nombre: '',
     rbd: '',
+    estado: 'Por Verificar',
     dependencia: '',
+    region: '',
     zona: '',
-    activo: true,
   })
 
   const handleFieldChange = (field: string, value: any) => {
@@ -50,9 +51,11 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
 
       // Preparar datos para Strapi
       const colegioData: any = {
+        rbd: formData.rbd,
         colegio_nombre: formData.colegio_nombre.trim(),
-        ...(formData.rbd && { rbd: formData.rbd }),
+        estado: formData.estado,
         ...(formData.dependencia && { dependencia: formData.dependencia }),
+        ...(formData.region && { region: formData.region }),
         ...(formData.zona && { zona: formData.zona }),
       }
 
@@ -75,9 +78,10 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
       setFormData({
         colegio_nombre: '',
         rbd: '',
+        estado: 'Por Verificar',
         dependencia: '',
+        region: '',
         zona: '',
-        activo: true,
       })
 
       if (onSuccess) {
@@ -134,6 +138,21 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
           <div className="row">
             <div className="col-md-6">
               <FormGroup className="mb-3">
+                <FormLabel>Estado</FormLabel>
+                <FormControl
+                  as="select"
+                  value={formData.estado}
+                  onChange={(e) => handleFieldChange('estado', e.target.value)}
+                  disabled={loading}
+                >
+                  <option value="Por Verificar">Por Verificar</option>
+                  <option value="Verificado">Verificado</option>
+                  <option value="Aprobado">Aprobado</option>
+                </FormControl>
+              </FormGroup>
+            </div>
+            <div className="col-md-6">
+              <FormGroup className="mb-3">
                 <FormLabel>Dependencia</FormLabel>
                 <FormControl
                   as="select"
@@ -150,6 +169,21 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
                 </FormControl>
               </FormGroup>
             </div>
+          </div>
+
+          <div className="row">
+            <div className="col-md-6">
+              <FormGroup className="mb-3">
+                <FormLabel>Región</FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="Metropolitana"
+                  value={formData.region}
+                  onChange={(e) => handleFieldChange('region', e.target.value)}
+                  disabled={loading}
+                />
+              </FormGroup>
+            </div>
             <div className="col-md-6">
               <FormGroup className="mb-3">
                 <FormLabel>Zona</FormLabel>
@@ -164,18 +198,6 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
             </div>
           </div>
 
-          <FormGroup className="mb-3">
-            <FormControl
-              type="checkbox"
-              checked={formData.activo}
-              onChange={(e) => handleFieldChange('activo', (e.target as HTMLInputElement).checked)}
-              disabled={loading}
-            />
-            <FormLabel className="ms-2">Activo</FormLabel>
-            <small className="text-muted d-block mt-1">
-              Los colegios inactivos no aparecerán en las listas principales
-            </small>
-          </FormGroup>
         </ModalBody>
         <ModalFooter>
           <Button variant="secondary" onClick={onHide} disabled={loading}>
