@@ -57,7 +57,6 @@ const EditarColegioPage = () => {
             comuna: d.comuna || '',
             region: d.region || '',
           })),
-          activo: attrs.activo !== undefined ? attrs.activo : true,
         }
 
         setColegioData(formData)
@@ -89,7 +88,6 @@ const EditarColegioPage = () => {
         telefonos: data.telefonos.filter((t: any) => t.telefono_raw),
         emails: data.emails.filter((e: any) => e.email),
         direcciones: data.direcciones.filter((d: any) => d.calle || d.numero),
-        activo: data.activo,
       }
 
       const response = await fetch(`/api/crm/colegios/${colegioId}`, {

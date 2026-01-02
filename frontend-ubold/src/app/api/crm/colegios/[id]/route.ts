@@ -135,7 +135,6 @@ export async function PUT(
         ...(body.dependencia && { dependencia: body.dependencia }),
         ...(body.region && { region: body.region }),
         ...(body.zona && { zona: body.zona }),
-        ...(body.activo !== undefined && { activo: body.activo }),
         ...(body.origen && { origen: body.origen }),
         ...(body.comunaId && { comuna: body.comunaId }),
         // Componentes repeatable

@@ -46,7 +46,6 @@ interface ColegioFormData {
   telefonos: TelefonoItem[]
   emails: EmailItem[]
   direcciones: DireccionItem[]
-  activo: boolean
 }
 
 interface ColegioFormProps {
@@ -69,7 +68,6 @@ const ColegioForm = ({ initialData, onSubmit, onCancel, loading = false, error }
     telefonos: [],
     emails: [],
     direcciones: [],
-    activo: true,
   })
 
   useEffect(() => {
@@ -85,7 +83,6 @@ const ColegioForm = ({ initialData, onSubmit, onCancel, loading = false, error }
         telefonos: initialData.telefonos || [],
         emails: initialData.emails || [],
         direcciones: initialData.direcciones || [],
-        activo: initialData.activo !== undefined ? initialData.activo : true,
       })
     }
   }, [initialData])
@@ -420,15 +417,6 @@ const ColegioForm = ({ initialData, onSubmit, onCancel, loading = false, error }
         ))}
       </FormGroup>
 
-      <FormGroup className="mb-3">
-        <FormControl
-          type="checkbox"
-          checked={formData.activo}
-          onChange={(e) => handleFieldChange('activo', (e.target as HTMLInputElement).checked)}
-          disabled={loading}
-        />
-        <FormLabel className="ms-2">Activo</FormLabel>
-      </FormGroup>
 
       <div className="d-flex gap-2 justify-content-end">
         {onCancel && (

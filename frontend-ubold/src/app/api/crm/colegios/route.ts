@@ -126,7 +126,6 @@ export async function POST(request: Request) {
         ...(body.dependencia && { dependencia: body.dependencia }),
         ...(body.region && { region: body.region }),
         ...(body.zona && { zona: body.zona }),
-        activo: body.activo !== undefined ? body.activo : true,
         ...(body.origen && { origen: body.origen }),
         ...(body.comunaId && { comuna: body.comunaId }),
         // Componentes repeatable

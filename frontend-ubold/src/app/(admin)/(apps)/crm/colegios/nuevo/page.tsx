@@ -28,7 +28,6 @@ const NuevoColegioPage = () => {
         telefonos: data.telefonos.filter((t: any) => t.telefono_raw),
         emails: data.emails.filter((e: any) => e.email),
         direcciones: data.direcciones.filter((d: any) => d.calle || d.numero),
-        activo: data.activo,
         origen: 'manual',
       }
 
