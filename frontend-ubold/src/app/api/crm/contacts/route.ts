@@ -86,12 +86,11 @@ export async function GET(request: Request) {
     // Populate para relaciones (Strapi v4 syntax)
     params.append('populate[emails]', 'true')
     params.append('populate[telefonos]', 'true')
-    params.append('populate[imagen][populate]', 'media')
+    params.append('populate[imagen]', 'true') // Para campos Media, solo usar 'true'
     params.append('populate[tags]', 'true')
     params.append('populate[trayectorias][populate][colegio][populate][comuna]', 'true')
     params.append('populate[trayectorias][populate][colegio][populate][telefonos]', 'true')
     params.append('populate[trayectorias][populate][colegio][populate][emails]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][website]', 'true')
     params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones][populate][ejecutivo]', 'true')
 
     // Filtros

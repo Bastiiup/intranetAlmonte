@@ -16,7 +16,7 @@ import {
 import { Button, Card, CardBody, CardFooter, CardHeader, Col, Container, OverlayTrigger, Row, Spinner, Tooltip } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { TbEdit, TbEye, TbMail, TbPhone, TbWorld } from 'react-icons/tb'
-import { LuSearch, LuShuffle } from 'react-icons/lu'
+import { LuSearch, LuShuffle, LuPlus } from 'react-icons/lu'
 import { getContacts, type ContactsQuery } from './data'
 import type { ContactType } from '@/app/(admin)/(apps)/crm/types'
 import Image from 'next/image'
@@ -134,7 +134,7 @@ const Contacts = () => {
     },
     {
       id: 'empresa',
-      header: 'Empresa',
+      header: 'Institución',
       cell: ({ row }) => {
         const contact = row.original
         return (
@@ -143,7 +143,9 @@ const Contacts = () => {
               <div className="fw-medium">{contact.empresa}</div>
             )}
             {contact.dependencia && (
-              <div className="text-muted fs-xs">{contact.dependencia}</div>
+              <span className={`badge badge-soft-${contact.dependencia === 'Municipal' ? 'info' : contact.dependencia === 'Particular Subvencionado' ? 'warning' : 'success'}`}>
+                {contact.dependencia}
+              </span>
             )}
           </div>
         )
@@ -154,17 +156,17 @@ const Contacts = () => {
       header: 'Ubicación',
       cell: ({ row }) => {
         const contact = row.original
-        const parts = [
-          contact.comuna,
-          contact.region,
-          contact.zona,
-        ].filter(Boolean)
-        return parts.length > 0 ? (
+        return (
           <div className="fs-xs">
-            {parts.join(', ')}
+            {contact.comuna && <div>{contact.comuna}</div>}
+            {contact.region && <div className="text-muted">{contact.region}</div>}
+            {contact.zona && (
+              <span className="badge badge-soft-info mt-1">{contact.zona}</span>
+            )}
+            {!contact.comuna && !contact.region && !contact.zona && (
+              <span className="text-muted">-</span>
+            )}
           </div>
-        ) : (
-          <span className="text-muted">-</span>
         )
       },
     },
@@ -176,21 +178,29 @@ const Contacts = () => {
         return (
           <div className="fs-xs">
             {contact.telefonosColegio && contact.telefonosColegio.length > 0 && (
-              <div className="d-flex align-items-center mb-1">
-                <TbPhone className="me-1" size={14} />
-                <span>{contact.telefonosColegio[0]}</span>
+              <div className="mb-1">
+                {contact.telefonosColegio.map((tel, idx) => (
+                  <div key={idx} className="d-flex align-items-center">
+                    <TbPhone className="me-1" size={12} />
+                    <span>{tel}</span>
+                  </div>
+                ))}
               </div>
             )}
             {contact.emailsColegio && contact.emailsColegio.length > 0 && (
-              <div className="d-flex align-items-center mb-1">
-                <TbMail className="me-1" size={14} />
-                <span>{contact.emailsColegio[0]}</span>
+              <div className="mb-1">
+                {contact.emailsColegio.map((email, idx) => (
+                  <div key={idx} className="d-flex align-items-center">
+                    <TbMail className="me-1" size={12} />
+                    <span>{email}</span>
+                  </div>
+                ))}
               </div>
             )}
             {contact.websiteColegio && (
               <div className="d-flex align-items-center">
-                <TbWorld className="me-1" size={14} />
-                <Link href={contact.websiteColegio} target="_blank" rel="noopener noreferrer" className="link-reset">
+                <TbWorld className="me-1" size={12} />
+                <Link href={contact.websiteColegio} target="_blank" rel="noopener noreferrer" className="link-reset text-truncate" style={{ maxWidth: '150px' }}>
                   {contact.websiteColegio}
                 </Link>
               </div>
@@ -204,22 +214,20 @@ const Contacts = () => {
     },
     {
       id: 'contactoInfo',
-      header: 'Contacto',
+      header: 'Comunicación',
       cell: ({ row }) => {
         const contact = row.original
         return (
           <div className="fs-xs">
             {contact.email && (
-              <div className="d-flex align-items-center mb-1">
-                <TbMail className="me-1" size={14} />
+              <div className="mb-1">
                 <Link href={`mailto:${contact.email}`} className="link-reset">
                   {contact.email}
                 </Link>
               </div>
             )}
             {contact.phone && (
-              <div className="d-flex align-items-center">
-                <TbPhone className="me-1" size={14} />
+              <div>
                 <Link href={`tel:${contact.phone}`} className="link-reset">
                   {contact.phone}
                 </Link>
@@ -251,18 +259,30 @@ const Contacts = () => {
         const contact = row.original
         const isNew = contact.createdAt && 
           (Date.now() - new Date(contact.createdAt).getTime()) <= 7 * 24 * 60 * 60 * 1000
+        
+        const daysAgo = contact.createdAt 
+          ? Math.floor((Date.now() - new Date(contact.createdAt).getTime()) / (24 * 60 * 60 * 1000))
+          : null
+        
+        const origenLabel = contact.origen 
+          ? ORIGENES.find(o => o.value === contact.origen)?.label || contact.origen
+          : null
+        
         return (
-          <div>
-            {contact.createdAt && (
-              <div className="mb-1">
-                {format(new Date(contact.createdAt), 'dd/MM/yyyy', { locale: es })}
-                {isNew && (
-                  <span className="badge bg-success-subtle text-success ms-1">Nuevo</span>
-                )}
+          <div className="fs-xs">
+            {isNew && (
+              <span className="badge bg-success-subtle text-success mb-1 d-block" style={{ width: 'fit-content' }}>Nuevo</span>
+            )}
+            {daysAgo !== null && (
+              <div className={isNew ? '' : 'mb-1'}>
+                {daysAgo === 0 ? 'Hoy' : daysAgo === 1 ? '1 día' : `${daysAgo} días`}
               </div>
             )}
-            {contact.origen && (
-              <div className="text-muted fs-xs">{ORIGENES.find(o => o.value === contact.origen)?.label || contact.origen}</div>
+            {origenLabel && (
+              <span className="badge badge-soft-primary">{origenLabel}</span>
+            )}
+            {!contact.createdAt && !contact.origen && (
+              <span className="text-muted">-</span>
             )}
           </div>
         )
@@ -270,11 +290,16 @@ const Contacts = () => {
     },
     {
       id: 'label',
-      header: 'Label',
+      header: 'Etiqueta',
       cell: ({ row }) => {
         const contact = row.original
+        const variantMap: Record<string, string> = {
+          'success': 'badge-soft-success',
+          'warning': 'badge-soft-warning',
+          'info': 'badge-soft-info',
+        }
         return (
-          <span className={`badge badge-label bg-${contact.label.variant}`}>
+          <span className={`badge ${variantMap[contact.label.variant] || 'badge-soft-secondary'}`}>
             {contact.label.text}
           </span>
         )
@@ -379,7 +404,7 @@ const Contacts = () => {
   if (loading && contactsData.length === 0) {
     return (
       <Container fluid>
-        <PageBreadcrumb title={'Contacts'} subtitle={'CRM'} />
+        <PageBreadcrumb title={'Contactos'} subtitle={'CRM'} />
         <div className="text-center py-5">
           <Spinner animation="border" variant="primary" />
           <p className="mt-2 text-muted">Cargando contactos...</p>
@@ -407,28 +432,50 @@ const Contacts = () => {
                   <input
                     type="search"
                     className="form-control"
-                    placeholder="Buscar contactos..."
+                    placeholder="Buscar contacto..."
                     value={globalFilter ?? ''}
                     onChange={(e) => setGlobalFilter(e.target.value)}
                   />
                   <LuSearch className="app-search-icon text-muted" />
                 </div>
+                <Button variant="primary" className="d-flex align-items-center gap-1">
+                  <LuPlus size={18} />
+                  Agregar Contacto
+                </Button>
               </div>
 
               <div className="d-flex align-items-center gap-2">
-                <span className="me-2 fw-semibold">Filtros:</span>
+                <span className="me-2 fw-semibold">Filtrar por:</span>
 
                 <div className="app-search">
                   <select
                     className="form-select form-control my-1 my-md-0"
-                    value={filtroOrigen}
-                    onChange={(e) => setFiltroOrigen(e.target.value)}
+                    value=""
+                    onChange={(e) => {}}
                   >
-                    {ORIGENES.map((origen) => (
-                      <option key={origen.value} value={origen.value}>
-                        {origen.label}
-                      </option>
-                    ))}
+                    <option value="">Comuna</option>
+                  </select>
+                  <LuShuffle className="app-search-icon text-muted" />
+                </div>
+
+                <div className="app-search">
+                  <select
+                    className="form-select form-control my-1 my-md-0"
+                    value=""
+                    onChange={(e) => {}}
+                  >
+                    <option value="">Región</option>
+                  </select>
+                  <LuShuffle className="app-search-icon text-muted" />
+                </div>
+
+                <div className="app-search">
+                  <select
+                    className="form-select form-control my-1 my-md-0"
+                    value=""
+                    onChange={(e) => {}}
+                  >
+                    <option value="">Cargo</option>
                   </select>
                   <LuShuffle className="app-search-icon text-muted" />
                 </div>
@@ -439,7 +486,8 @@ const Contacts = () => {
                     value={filtroConfianza}
                     onChange={(e) => setFiltroConfianza(e.target.value)}
                   >
-                    {CONFIANZA.map((conf) => (
+                    <option value="">Etiqueta</option>
+                    {CONFIANZA.filter(c => c.value).map((conf) => (
                       <option key={conf.value} value={conf.value}>
                         {conf.label}
                       </option>
@@ -448,19 +496,31 @@ const Contacts = () => {
                   <LuShuffle className="app-search-icon text-muted" />
                 </div>
 
-                <div>
+                <div className="app-search">
                   <select
                     className="form-select form-control my-1 my-md-0"
-                    value={table.getState().pagination.pageSize}
-                    onChange={(e) => table.setPageSize(Number(e.target.value))}
+                    value={filtroOrigen}
+                    onChange={(e) => setFiltroOrigen(e.target.value)}
                   >
-                    {[10, 25, 50, 100].map((size) => (
-                      <option key={size} value={size}>
-                        {size}
+                    <option value="">Categoría</option>
+                    {ORIGENES.filter(o => o.value).map((origen) => (
+                      <option key={origen.value} value={origen.value}>
+                        {origen.label}
                       </option>
                     ))}
                   </select>
+                  <LuShuffle className="app-search-icon text-muted" />
                 </div>
+
+                <Button variant="primary" className="btn-icon">
+                  <LuShuffle size={18} />
+                </Button>
+
+                <Button variant="primary" className="btn-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                  </svg>
+                </Button>
               </div>
             </CardHeader>
 
