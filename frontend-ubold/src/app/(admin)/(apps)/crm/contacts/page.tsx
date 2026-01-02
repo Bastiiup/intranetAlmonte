@@ -26,6 +26,9 @@ import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import AddContactModal from './components/AddContactModal'
+import EditContactModal from './components/EditContactModal'
+import { useRouter } from 'next/navigation'
 
 const columnHelper = createColumnHelper<ContactType>()
 
@@ -47,12 +50,17 @@ const CONFIANZA = [
 ]
 
 const Contacts = () => {
+  const router = useRouter()
   // Estados de datos
   const [contactsData, setContactsData] = useState<ContactType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [totalRows, setTotalRows] = useState(0)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  
+  // Estados de modales
+  const [addModal, setAddModal] = useState(false)
+  const [editModal, setEditModal] = useState<{ open: boolean; contact: ContactType | null }>({ open: false, contact: null })
   
   // Estados de tabla
   const [globalFilter, setGlobalFilter] = useState('')
@@ -113,18 +121,18 @@ const Contacts = () => {
                 src={typeof contact.avatar === 'string' ? contact.avatar : contact.avatar}
                 alt={contact.name}
                 className="rounded-circle me-2"
-                width="32"
-                height="32"
+                width="40"
+                height="40"
               />
             ) : (
-              <div className="avatar-sm rounded-circle me-2 flex-shrink-0 bg-primary-subtle d-flex align-items-center justify-content-center">
-                <span className="avatar-title text-primary fw-semibold fs-12">
+              <div className="avatar-sm rounded-circle me-2 flex-shrink-0 bg-secondary-subtle d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px' }}>
+                <span className="avatar-title text-secondary fw-semibold fs-12">
                   {generateInitials(contact.name)}
                 </span>
               </div>
             )}
             <div>
-              <h5 className="mb-0 fw-semibold">{contact.name}</h5>
+              <div className="fw-medium mb-1">{contact.name}</div>
               {contact.cargo && (
                 <div className="text-muted fs-xs">{contact.cargo}</div>
               )}
@@ -141,12 +149,15 @@ const Contacts = () => {
         return (
           <div>
             {contact.empresa && (
-              <div className="fw-semibold mb-1">{contact.empresa}</div>
+              <div className="fw-medium mb-1">{contact.empresa}</div>
             )}
             {contact.dependencia && (
-              <span className={`badge badge-soft-${contact.dependencia === 'Municipal' ? 'info' : contact.dependencia === 'Particular Subvencionado' ? 'warning' : 'success'}`}>
+              <span className={`badge badge-soft-${contact.dependencia === 'Municipal' ? 'info' : contact.dependencia === 'Particular Subvencionado' ? 'info' : 'success'}`}>
                 {contact.dependencia}
               </span>
+            )}
+            {!contact.empresa && !contact.dependencia && (
+              <span className="text-muted">-</span>
             )}
           </div>
         )
@@ -159,10 +170,10 @@ const Contacts = () => {
         const contact = row.original
         return (
           <div className="fs-xs">
-            {contact.comuna && <div>{contact.comuna}</div>}
-            {contact.region && <div className="text-muted">{contact.region}</div>}
+            {contact.comuna && <div className="mb-1">{contact.comuna}</div>}
+            {contact.region && <div className="text-muted mb-1">{contact.region}</div>}
             {contact.zona && (
-              <span className="badge badge-soft-info mt-1">{contact.zona}</span>
+              <span className="badge badge-soft-info">{contact.zona}</span>
             )}
             {!contact.comuna && !contact.region && !contact.zona && (
               <span className="text-muted">-</span>
@@ -291,9 +302,9 @@ const Contacts = () => {
       cell: ({ row }) => {
         const contact = row.original
         const variantMap: Record<string, string> = {
-          'success': 'badge-soft-success',
-          'warning': 'badge-soft-warning',
-          'info': 'badge-soft-info',
+          'success': 'bg-success-subtle text-success',
+          'warning': 'bg-warning-subtle text-warning',
+          'info': 'bg-info-subtle text-info',
         }
         return (
           <span className={`badge ${variantMap[contact.label.variant] || 'badge-soft-secondary'}`}>
@@ -309,14 +320,18 @@ const Contacts = () => {
         const contact = row.original
         return (
           <div className="d-flex flex-wrap gap-1">
-            {contact.categories.map((category, idx) => (
-              <span
-                key={idx}
-                className={`badge ${category.variant === 'light' ? `text-bg-${category.variant}` : `badge-soft-${category.variant}`}`}
-              >
-                {category.name}
-              </span>
-            ))}
+            {contact.categories && contact.categories.length > 0 ? (
+              contact.categories.map((category, idx) => (
+                <span
+                  key={idx}
+                  className={`badge badge-soft-${category.variant || 'primary'}`}
+                >
+                  {category.name}
+                </span>
+              ))
+            ) : (
+              <span className="text-muted">-</span>
+            )}
           </div>
         )
       },
@@ -326,10 +341,12 @@ const Contacts = () => {
       header: '',
       cell: ({ row }) => (
         <div className="d-flex gap-1">
-          <Button variant="default" size="sm" className="btn-icon">
-            <TbEye className="fs-lg" />
-          </Button>
-          <Button variant="default" size="sm" className="btn-icon">
+          <Button 
+            variant="default" 
+            size="sm" 
+            className="btn-icon"
+            onClick={() => setEditModal({ open: true, contact: row.original })}
+          >
             <TbEdit className="fs-lg" />
           </Button>
         </div>
@@ -440,7 +457,11 @@ const Contacts = () => {
                   />
                   <LuSearch className="app-search-icon text-muted" />
                 </div>
-                <Button variant="primary" className="d-flex align-items-center gap-1">
+                <Button 
+                  variant="primary" 
+                  className="d-flex align-items-center gap-1"
+                  onClick={() => setAddModal(true)}
+                >
                   <LuPlus size={18} />
                   Agregar Contacto
                 </Button>
@@ -555,6 +576,28 @@ const Contacts = () => {
           </Card>
         </Col>
       </Row>
+
+      {/* Modales */}
+      <AddContactModal
+        show={addModal}
+        onHide={() => setAddModal(false)}
+        onSuccess={() => {
+          setAddModal(false)
+          router.refresh()
+          loadContacts()
+        }}
+      />
+
+      <EditContactModal
+        show={editModal.open}
+        onHide={() => setEditModal({ open: false, contact: null })}
+        contact={editModal.contact}
+        onSuccess={() => {
+          setEditModal({ open: false, contact: null })
+          router.refresh()
+          loadContacts()
+        }}
+      />
     </Container>
   )
 }
