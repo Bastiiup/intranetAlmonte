@@ -52,18 +52,11 @@ export function useAuth(): AuthData {
           return
         }
 
-        // Si el colaborador ya tiene la persona cargada, usarla directamente
-        if (colaborador.persona) {
-          setAuthData({
-            colaborador: colaborador as ColaboradorData,
-            persona: colaborador.persona as PersonaData,
-            loading: false,
-          })
-          return
-        }
-
-        // Si no, intentar obtener los datos completos desde la API
-        // Usar /api/colaboradores/me/profile que normaliza la imagen correctamente
+        // Si el colaborador ya tiene la persona cargada, intentar obtener imagen actualizada
+        // pero primero intentar obtener datos completos desde la API para tener imagen normalizada
+        let personaFromCookie = colaborador.persona
+        
+        // Intentar obtener datos completos desde la API (incluye imagen normalizada)
         try {
           const response = await fetch('/api/colaboradores/me/profile', {
             headers: {
@@ -93,6 +86,18 @@ export function useAuth(): AuthData {
         } catch (error) {
           console.error('[useAuth] Error al obtener datos completos:', error)
         }
+        
+        // Si falla la API pero tenemos persona en cookie, usarla
+        if (personaFromCookie) {
+          console.log('[useAuth] Usando persona de cookie (API falló):', personaFromCookie)
+          setAuthData({
+            colaborador: colaborador as ColaboradorData,
+            persona: personaFromCookie as PersonaData,
+            loading: false,
+          })
+          return
+        }
+
 
         // Fallback: usar los datos que ya tenemos
         setAuthData({
