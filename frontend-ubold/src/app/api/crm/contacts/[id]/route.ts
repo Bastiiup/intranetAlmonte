@@ -126,7 +126,7 @@ export async function PUT(
     // Revalidar para sincronización bidireccional
     revalidatePath('/crm/personas')
     revalidatePath(`/crm/personas/${id}`)
-    revalidatePath('/crm/personas/[id]', { type: 'page' })
+    revalidatePath('/crm/personas/[id]', 'page')
     revalidatePath('/crm/contacts')
     revalidateTag('personas')
     revalidateTag('contacts')
@@ -171,7 +171,7 @@ export async function DELETE(
       // Revalidar para sincronización bidireccional
       revalidatePath('/crm/personas')
       revalidatePath(`/crm/personas/${id}`)
-      revalidatePath('/crm/personas/[id]', { type: 'page' })
+      revalidatePath('/crm/personas/[id]', 'page')
       revalidatePath('/crm/contacts')
       revalidateTag('personas')
       revalidateTag('contacts')
