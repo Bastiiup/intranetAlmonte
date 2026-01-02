@@ -725,9 +725,11 @@ export async function GET(request: NextRequest) {
         try {
           let personaQuery = ''
           if (personaId) {
-            personaQuery = `/api/personas/${personaId}?populate[imagen][populate]=*`
+            // Populate el componente imagen y dentro de él, el campo imagen (Multiple Media)
+            personaQuery = `/api/personas/${personaId}?populate[imagen][populate][imagen][populate]=*`
           } else if (personaRut) {
-            personaQuery = `/api/personas?filters[rut][$eq]=${encodeURIComponent(String(personaRut))}&populate[imagen][populate]=*&pagination[pageSize]=1`
+            // Populate el componente imagen y dentro de él, el campo imagen (Multiple Media)
+            personaQuery = `/api/personas?filters[rut][$eq]=${encodeURIComponent(String(personaRut))}&populate[imagen][populate][imagen][populate]=*&pagination[pageSize]=1`
           }
           
           if (personaQuery) {
