@@ -213,7 +213,7 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
             <FormControl
               type="checkbox"
               checked={formData.activo}
-              onChange={(e) => handleFieldChange('activo', e.target.checked)}
+              onChange={(e) => handleFieldChange('activo', (e.target as HTMLInputElement).checked)}
               disabled={loading}
             />
             <FormLabel className="ms-2">Activo</FormLabel>
