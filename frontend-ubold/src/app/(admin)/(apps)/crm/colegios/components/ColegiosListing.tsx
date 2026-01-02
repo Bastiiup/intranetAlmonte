@@ -188,7 +188,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
       const tipo = data.tipo || data.dependencia || 'Colegio'
       
       return {
-        id: colegio.id?.toString() || colegio.documentId || '',
+        id: colegio.documentId || colegio.id?.toString() || '',
         nombre: data.colegio_nombre || data.nombre || data.NOMBRE || 'Sin nombre',
         rbd: data.rbd?.toString() || '',
         tipo,
@@ -424,7 +424,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
   const handleDelete = async () => {
     if (!deleteModal.colegio) return
 
-    // Obtener el ID correcto (documentId si existe, sino id)
+    // Obtener el ID correcto (documentId es el identificador principal en Strapi)
     const colegioId = deleteModal.colegio.documentId || deleteModal.colegio.id
     
     if (!colegioId) {
@@ -464,7 +464,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
 
       // Actualizar la lista localmente removiendo el colegio eliminado
       setColegios(prev => prev.filter(c => {
-        const cId = (c as any).documentId || c.id
+        const cId = (c as any).documentId || (c as any).id
         return cId !== colegioId
       }))
       

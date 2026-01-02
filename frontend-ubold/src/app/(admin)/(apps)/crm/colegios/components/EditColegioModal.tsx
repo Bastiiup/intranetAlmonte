@@ -90,7 +90,7 @@ const EditColegioModal = ({ show, onHide, colegio, onSuccess }: EditColegioModal
         activo: formData.activo,
       }
 
-      // Obtener el ID correcto (documentId si existe, sino id)
+      // Obtener el ID correcto (documentId es el identificador principal en Strapi)
       const colegioId = (colegio as any).documentId || colegio.id
       
       if (!colegioId) {

@@ -197,8 +197,8 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
     }
   }
   
-  return {
-    id: persona.documentId ? parseInt(persona.documentId) : (persona.id || 0),
+      return {
+        id: persona.documentId ? parseInt(persona.documentId) : (typeof persona.id === 'number' ? persona.id : parseInt(persona.id?.toString() || '0')),
     name,
     cargo,
     email,

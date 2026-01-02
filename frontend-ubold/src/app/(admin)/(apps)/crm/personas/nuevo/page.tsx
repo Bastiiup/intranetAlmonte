@@ -50,7 +50,7 @@ const NuevaPersonaPage = () => {
       router.refresh()
       
       // Redirigir a la ficha del contacto creado
-      const personaId = result.data?.id || result.data?.documentId
+      const personaId = result.data?.documentId || result.data?.id
       if (personaId) {
         router.push(`/crm/personas/${personaId}`)
       } else {

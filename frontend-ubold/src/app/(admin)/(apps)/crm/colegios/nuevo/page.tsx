@@ -48,7 +48,7 @@ const NuevoColegioPage = () => {
       router.refresh()
       
       // Redirigir a la ficha del colegio creado
-      const colegioId = result.data?.id || result.data?.documentId
+      const colegioId = result.data?.documentId || result.data?.id
       if (colegioId) {
         router.push(`/crm/colegios/${colegioId}`)
       } else {
