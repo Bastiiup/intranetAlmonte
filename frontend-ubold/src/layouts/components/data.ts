@@ -96,7 +96,9 @@ export const menuItems: MenuItemType[] = [
     label: 'CRM',
     icon: LuHandshake,
     children: [
-      { key: 'crm-instituciones', label: 'Instituciones', url: '/crm/instituciones' },
+      { key: 'crm-contacts', label: 'Contactos', url: '/crm/contacts' },
+      { key: 'crm-colegios', label: 'Colegios', url: '/crm/colegios' },
+      { key: 'crm-personas', label: 'Personas', url: '/crm/personas' },
       { key: 'crm-opportunities', label: 'Oportunidades', url: '/crm/opportunities' },
       { key: 'crm-deals', label: 'Negocios', url: '/crm/deals' },
       { key: 'crm-leads', label: 'Leads', url: '/crm/leads' },
@@ -385,7 +387,9 @@ export const horizontalMenuItems: MenuItemType[] = [
         label: 'CRM',
         icon: LuHandshake,
         children: [
-          { key: 'crm-instituciones', label: 'Instituciones', url: '/crm/instituciones' },
+          { key: 'crm-contacts', label: 'Contactos', url: '/crm/contacts' },
+          { key: 'crm-colegios', label: 'Colegios', url: '/crm/colegios' },
+          { key: 'crm-personas', label: 'Personas', url: '/crm/personas' },
           { key: 'crm-opportunities', label: 'Oportunidades', url: '/crm/opportunities' },
           { key: 'crm-deals', label: 'Negocios', url: '/crm/deals' },
           { key: 'crm-leads', label: 'Leads', url: '/crm/leads' },
