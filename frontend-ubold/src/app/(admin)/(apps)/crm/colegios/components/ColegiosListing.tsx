@@ -13,10 +13,14 @@ import {
 import Link from 'next/link'
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Button, Card, CardBody, CardFooter, CardHeader, Alert, Form } from 'react-bootstrap'
-import { LuSearch, LuMapPin, LuPhone, LuMail, LuX, LuUsers } from 'react-icons/lu'
-import { TbEye, TbDots } from 'react-icons/tb'
+import { LuSearch, LuMapPin, LuPhone, LuMail, LuX, LuUsers, LuPlus } from 'react-icons/lu'
+import { TbEye, TbDots, TbEdit, TbTrash } from 'react-icons/tb'
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
+import EditColegioModal from './EditColegioModal'
+import AddColegioModal from './AddColegioModal'
+import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
+import { useRouter } from 'next/navigation'
 
 interface ColegioType {
   id: string
@@ -66,6 +70,7 @@ const ESTADOS = [
 ]
 
 const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { colegios: any[]; error: string | null }) => {
+  const router = useRouter()
   const [colegios, setColegios] = useState<any[]>(initialColegios)
   const [error, setError] = useState<string | null>(initialError)
   const [loading, setLoading] = useState(false)
@@ -82,6 +87,11 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 25 })
   const [totalRows, setTotalRows] = useState(0)
+  
+  // Estados de modales
+  const [editModal, setEditModal] = useState<{ open: boolean; colegio: any | null }>({ open: false, colegio: null })
+  const [addModal, setAddModal] = useState(false)
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; colegio: any | null }>({ open: false, colegio: null })
 
   // Función para obtener datos
   const fetchColegios = useCallback(async () => {
@@ -361,11 +371,31 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
       {
         id: 'actions',
         header: '',
-        cell: ({ row }) => (
-          <Button variant="default" size="sm" className="btn-icon">
-            <TbDots className="fs-lg" />
-          </Button>
-        ),
+        cell: ({ row }) => {
+          const colegio = row.original
+          return (
+            <div className="d-flex gap-1">
+              <Button
+                variant="default"
+                size="sm"
+                className="btn-icon"
+                title="Editar"
+                onClick={() => setEditModal({ open: true, colegio })}
+              >
+                <TbEdit className="fs-lg" />
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                className="btn-icon text-danger"
+                title="Eliminar"
+                onClick={() => setDeleteModal({ open: true, colegio })}
+              >
+                <TbTrash className="fs-lg" />
+              </Button>
+            </div>
+          )
+        },
       },
     ],
     []
@@ -403,6 +433,70 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
 
   const hasActiveFilters = search || estado || region
 
+  const handleDelete = async () => {
+    if (!deleteModal.colegio) return
+
+    // Obtener el ID correcto (documentId si existe, sino id)
+    const colegioId = deleteModal.colegio.documentId || deleteModal.colegio.id
+    
+    if (!colegioId) {
+      setError('No se pudo obtener el ID del colegio')
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/crm/colegios/${colegioId}`, {
+        method: 'DELETE',
+      })
+
+      // Manejar respuestas vacías (204 No Content) o con JSON
+      let result: any = { success: true }
+      
+      if (response.ok) {
+        const contentType = response.headers.get('content-type')
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const text = await response.text()
+            if (text && text.trim().length > 0) {
+              result = JSON.parse(text)
+            }
+          } catch (parseError) {
+            result = { success: true }
+          }
+        } else {
+          result = { success: true }
+        }
+      }
+
+      if (!response.ok || result.success === false) {
+        throw new Error(result.error || 'Error al eliminar colegio')
+      }
+
+      // Actualizar la lista localmente removiendo el colegio eliminado
+      setColegios(prev => prev.filter(c => {
+        const cId = (c as any).documentId || c.id
+        return cId !== colegioId
+      }))
+      
+      // Cerrar modal y limpiar error
+      setDeleteModal({ open: false, colegio: null })
+      setError(null)
+      
+      // Recargar datos
+      fetchColegios()
+    } catch (err: any) {
+      setError(err.message || 'Error al eliminar colegio')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRefresh = () => {
+    fetchColegios()
+  }
+
   if (error && !colegios.length) {
     return (
       <Alert variant="danger">
@@ -412,10 +506,19 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <h4 className="mb-0">Listado de Colegios</h4>
-      </CardHeader>
+    <>
+      <Card>
+        <CardHeader className="justify-content-between align-items-center">
+          <h4 className="mb-0">Listado de Colegios</h4>
+          <div className="d-flex gap-2">
+            <Button variant="soft-secondary" size="sm" onClick={handleRefresh} disabled={loading}>
+              Actualizar
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => setAddModal(true)}>
+              <LuPlus className="me-1" /> Agregar Colegio
+            </Button>
+          </div>
+        </CardHeader>
       <CardBody>
         {/* Búsqueda */}
         <div className="mb-3">
@@ -519,6 +622,47 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
         </CardFooter>
       )}
     </Card>
+
+    {/* Modal de agregar */}
+    <AddColegioModal
+      show={addModal}
+      onHide={() => setAddModal(false)}
+      onSuccess={() => {
+        setAddModal(false)
+        fetchColegios()
+      }}
+    />
+
+    {/* Modal de edición */}
+    <EditColegioModal
+      show={editModal.open}
+      onHide={() => setEditModal({ open: false, colegio: null })}
+      colegio={editModal.colegio}
+      onSuccess={() => {
+        setEditModal({ open: false, colegio: null })
+        fetchColegios()
+      }}
+    />
+
+    {/* Modal de confirmación de eliminación */}
+    <DeleteConfirmationModal
+      show={deleteModal.open}
+      onHide={() => setDeleteModal({ open: false, colegio: null })}
+      onConfirm={handleDelete}
+      selectedCount={1}
+      itemName="colegio"
+      modalTitle="Eliminar Colegio"
+      confirmButtonText="Eliminar Permanentemente"
+      cancelButtonText="Cancelar"
+    >
+      <div>
+        <p>¿Estás seguro de que deseas eliminar permanentemente <strong>{deleteModal.colegio?.nombre || deleteModal.colegio?.colegio_nombre}</strong>?</p>
+        <p className="text-danger mb-0">
+          <small>Esta acción no se puede deshacer. El colegio será eliminado permanentemente del sistema.</small>
+        </p>
+      </div>
+    </DeleteConfirmationModal>
+    </>
   )
 }
 

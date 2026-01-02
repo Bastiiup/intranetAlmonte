@@ -153,11 +153,7 @@ const ColaboradoresListing = ({ colaboradores: propsColaboradores, error: propsE
             <Button
               variant="soft-primary"
               size="sm"
-              onClick={() => {
-                // Usar documentId si existe, sino id
-                const colaboradorId = row.original.documentId || row.original.id
-                router.push(`/colaboradores/${colaboradorId}`)
-              }}
+              onClick={() => setEditModal({ open: true, colaborador: row.original })}
             >
               <TbEdit className="fs-base" />
             </Button>

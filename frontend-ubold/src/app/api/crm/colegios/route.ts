@@ -5,14 +5,18 @@ import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 export const dynamic = 'force-dynamic'
 
 interface ColegioAttributes {
-  nombre?: string
-  rut?: string
-  direccion?: string
-  comuna?: string
-  region?: string
-  telefono?: string
-  email?: string
+  colegio_nombre?: string
+  rbd?: number
+  dependencia?: string
+  tipo?: string
+  zona?: string
+  website?: string
   activo?: boolean
+  comuna?: any
+  telefonos?: any[]
+  emails?: any[]
+  direcciones?: any[]
+  origen?: string
 }
 
 /**
@@ -88,6 +92,68 @@ export async function GET(request: Request) {
       {
         success: false,
         error: error.message || 'Error al obtener colegios',
+        details: error.details || {},
+        status: error.status || 500,
+      },
+      { status: error.status || 500 }
+    )
+  }
+}
+
+/**
+ * POST /api/crm/colegios
+ * Crea un nuevo colegio
+ */
+export async function POST(request: Request) {
+  try {
+    const body = await request.json()
+
+    // Validaciones básicas
+    if (!body.colegio_nombre || !body.colegio_nombre.trim()) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'El nombre del colegio es obligatorio',
+        },
+        { status: 400 }
+      )
+    }
+
+    // Preparar datos para Strapi
+    const colegioData: any = {
+      data: {
+        colegio_nombre: body.colegio_nombre.trim(),
+        ...(body.rbd && { rbd: parseInt(body.rbd) }),
+        ...(body.dependencia && { dependencia: body.dependencia }),
+        ...(body.tipo && { tipo: body.tipo }),
+        ...(body.zona && { zona: body.zona }),
+        ...(body.website && { website: body.website.trim() }),
+        activo: body.activo !== undefined ? body.activo : true,
+        ...(body.origen && { origen: body.origen }),
+        ...(body.comuna && { comuna: body.comuna }),
+      },
+    }
+
+    const response = await strapiClient.post<StrapiResponse<StrapiEntity<ColegioAttributes>>>(
+      '/api/colegios',
+      colegioData
+    )
+
+    return NextResponse.json({
+      success: true,
+      data: response.data,
+      message: 'Colegio creado exitosamente',
+    }, { status: 201 })
+  } catch (error: any) {
+    console.error('[API /crm/colegios POST] Error:', {
+      message: error.message,
+      status: error.status,
+      details: error.details,
+    })
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message || 'Error al crear colegio',
         details: error.details || {},
         status: error.status || 500,
       },
