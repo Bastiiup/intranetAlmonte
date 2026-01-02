@@ -15,7 +15,6 @@ interface ColegioAttributes {
   telefonos?: any[]
   emails?: any[]
   direcciones?: any[]
-  origen?: string
 }
 
 /**
@@ -127,7 +126,6 @@ export async function POST(request: Request) {
         ...(body.dependencia && { dependencia: body.dependencia }),
         ...(body.region && { region: body.region }),
         ...(body.zona && { zona: body.zona }),
-        ...(body.origen && { origen: body.origen }),
         ...(body.comunaId && { comuna: body.comunaId }),
         // Componentes repeatable
         ...(body.telefonos && Array.isArray(body.telefonos) && body.telefonos.length > 0 && {
