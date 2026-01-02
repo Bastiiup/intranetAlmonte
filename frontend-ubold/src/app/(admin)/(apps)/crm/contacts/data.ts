@@ -111,11 +111,11 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
     'Sin nombre'
   
   // 2. Email (principal o primero)
-  const emailPrincipal = attrs.emails?.find(e => e.principal) || attrs.emails?.[0]
+  const emailPrincipal = attrs.emails?.find((e: { email?: string; principal?: boolean }) => e.principal) || attrs.emails?.[0]
   const email = emailPrincipal?.email || ''
   
   // 3. Teléfono (principal o primero)
-  const telefonoPrincipal = attrs.telefonos?.find(t => t.principal) || attrs.telefonos?.[0]
+  const telefonoPrincipal = attrs.telefonos?.find((t: { telefono_norm?: string; telefono_raw?: string; principal?: boolean }) => t.principal) || attrs.telefonos?.[0]
   const phone = telefonoPrincipal?.telefono_norm || telefonoPrincipal?.telefono_raw || ''
   
   // 4. Trayectoria actual (priorizar is_current)
@@ -140,10 +140,11 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
   
   // 10. Representante Comercial
   const asignacionesComerciales = colegio?.cartera_asignaciones?.filter(
-    ca => ca.is_current && ca.rol === 'comercial' && ca.estado === 'activa'
+    (ca: { is_current?: boolean; rol?: string; estado?: string; prioridad?: 'alta' | 'media' | 'baja' }) => 
+      ca.is_current && ca.rol === 'comercial' && ca.estado === 'activa'
   ) || []
   
-  const asignacionComercial = asignacionesComerciales.sort((a, b) => {
+  const asignacionComercial = asignacionesComerciales.sort((a: { prioridad?: 'alta' | 'media' | 'baja' }, b: { prioridad?: 'alta' | 'media' | 'baja' }) => {
     const prioridadOrder = { alta: 3, media: 2, baja: 1 }
     return (prioridadOrder[b.prioridad || 'baja'] || 0) - (prioridadOrder[a.prioridad || 'baja'] || 0)
   })[0]
@@ -154,12 +155,12 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
   const zona = colegio?.zona || comuna?.zona || ''
   
   // 10. Teléfonos del colegio
-  const telefonosColegio = colegio?.telefonos?.map(t => 
+  const telefonosColegio = colegio?.telefonos?.map((t: { telefono_norm?: string; telefono_raw?: string; numero?: string }) => 
     t.telefono_norm || t.telefono_raw || t.numero || ''
-  ).filter(t => t) || []
+  ).filter((t: string) => t) || []
   
   // 11. Emails del colegio
-  const emailsColegio = colegio?.emails?.map(e => e.email || '').filter(e => e) || []
+  const emailsColegio = colegio?.emails?.map((e: { email?: string }) => e.email || '').filter((e: string) => e) || []
   
   // 12. Website del colegio
   const websiteColegio = colegio?.website || ''
@@ -172,7 +173,7 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
   
   // 15. Categorías desde tags + origen
   const categories = [
-    ...(attrs.tags?.map(tag => ({ name: tag.name || '', variant: "secondary" as const })).filter(c => c.name) || []),
+    ...(attrs.tags?.map((tag: { name?: string }) => ({ name: tag.name || '', variant: "secondary" as const })).filter((c: { name: string }) => c.name) || []),
     ...(attrs.origen && origenToCategory[attrs.origen] ? [origenToCategory[attrs.origen]] : [])
   ]
   
