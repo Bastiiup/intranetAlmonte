@@ -137,13 +137,15 @@ export async function PUT(
     if (body.trayectoria) {
       try {
         // Primero, buscar trayectorias existentes de esta persona
-        const trayectoriasResponse = await strapiClient.get(
+        const trayectoriasResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
           `/api/persona-trayectorias?filters[persona][id][$eq]=${id}&filters[is_current][$eq]=true`
         )
         
         const trayectoriasExistentes = Array.isArray(trayectoriasResponse.data) 
           ? trayectoriasResponse.data 
-          : trayectoriasResponse.data?.data || []
+          : (trayectoriasResponse.data && typeof trayectoriasResponse.data === 'object' && 'data' in trayectoriasResponse.data && Array.isArray((trayectoriasResponse.data as any).data))
+          ? (trayectoriasResponse.data as any).data
+          : []
 
         if (trayectoriasExistentes.length > 0) {
           // Actualizar la trayectoria actual
