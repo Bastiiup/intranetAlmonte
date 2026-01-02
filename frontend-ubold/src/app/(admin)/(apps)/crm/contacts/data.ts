@@ -1,7 +1,6 @@
-import strapiClient from '@/lib/strapi/client'
-import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 import { ContactType } from '@/app/(admin)/(apps)/crm/types'
 import { STRAPI_API_URL } from '@/lib/strapi/config'
+import type { StrapiEntity } from '@/lib/strapi/types'
 
 // Tipos Strapi para Persona
 type PersonaAttributes = {
@@ -56,9 +55,14 @@ type PersonaAttributes = {
   }>
 }
 
-// Extender StrapiEntity para incluir documentId si existe
-type PersonaEntity = StrapiEntity<PersonaAttributes> & {
+// Tipo para la respuesta de la API (puede venir como StrapiEntity o como objeto plano)
+type PersonaEntity = (StrapiEntity<PersonaAttributes> & {
   documentId?: string
+}) | {
+  id?: number
+  documentId?: string
+  attributes?: PersonaAttributes
+  [key: string]: any
 }
 
 export type ContactsQuery = {
@@ -98,7 +102,8 @@ const origenToCategory = {
 
 // Función de transformación
 function transformPersonaToContact(persona: PersonaEntity): ContactType {
-  const attrs = persona.attributes
+  // Manejar diferentes formatos de respuesta
+  const attrs = persona.attributes || persona as any
   
   // 1. Nombre
   const name = attrs.nombre_completo || 
@@ -190,7 +195,7 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
   }
   
   return {
-    id: persona.documentId ? parseInt(persona.documentId) : persona.id,
+    id: persona.documentId ? parseInt(persona.documentId) : (persona.id || 0),
     name,
     cargo,
     email,
@@ -219,59 +224,42 @@ export async function getContacts(query: ContactsQuery = {}): Promise<ContactsRe
   const page = query.page || 1
   const pageSize = query.pageSize || 50
   
-  // Construir parámetros de query
+  // Construir parámetros de query para la API route
   const params = new URLSearchParams({
-    'pagination[page]': page.toString(),
-    'pagination[pageSize]': pageSize.toString(),
-    'sort[0]': 'updatedAt:desc',
+    page: page.toString(),
+    pageSize: pageSize.toString(),
   })
   
-  // Populate para relaciones (Strapi v4 syntax)
-  params.append('populate[emails]', 'true')
-  params.append('populate[telefonos]', 'true')
-  params.append('populate[imagen][populate]', 'media')
-  params.append('populate[tags]', 'true')
-  params.append('populate[trayectorias][populate][colegio][populate][comuna]', 'true')
-  params.append('populate[trayectorias][populate][colegio][populate][telefonos]', 'true')
-  params.append('populate[trayectorias][populate][colegio][populate][emails]', 'true')
-  params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones][populate][ejecutivo]', 'true')
-  
-  // Filtros
-  params.append('filters[activo][$eq]', 'true')
-  
-  // Búsqueda
   if (query.search) {
-    // Intentar primero como RUT (formato exacto)
-    if (query.search.match(/^\d{1,2}\.\d{3}\.\d{3}-[\dkK]$/)) {
-      params.append('filters[rut][$eq]', query.search)
-    } else {
-      // Si no es RUT, buscar por nombre completo o email
-      params.append('filters[$or][0][nombre_completo][$containsi]', query.search)
-      params.append('filters[$or][1][emails][email][$containsi]', query.search)
-      params.append('filters[$or][2][rut][$containsi]', query.search)
-    }
+    params.append('search', query.search)
   }
   
-  // Filtro por origen
   if (query.origin && query.origin.length > 0) {
-    query.origin.forEach((origin, index) => {
-      params.append(`filters[origen][$in][${index}]`, origin)
-    })
+    params.append('origin', query.origin[0]) // Por ahora solo el primero
   }
   
-  // Filtro por nivel de confianza
   if (query.confidence) {
-    params.append('filters[nivel_confianza][$eq]', query.confidence)
+    params.append('confidence', query.confidence)
   }
   
-  const url = `/api/personas?${params.toString()}`
-  const response = await strapiClient.get<StrapiResponse<PersonaEntity>>(url)
+  // Llamar a la API route del servidor
+  const response = await fetch(`/api/crm/contacts?${params.toString()}`)
   
-  const data = Array.isArray(response.data) ? response.data : [response.data]
+  if (!response.ok) {
+    throw new Error(`Error al obtener contactos: ${response.statusText}`)
+  }
+  
+  const result = await response.json()
+  
+  if (!result.success) {
+    throw new Error(result.error || 'Error al obtener contactos')
+  }
+  
+  const data = Array.isArray(result.data) ? result.data : [result.data]
   
   return {
     contacts: data.map(transformPersonaToContact),
-    pagination: response.meta?.pagination || {
+    pagination: result.meta?.pagination || {
       page,
       pageSize,
       total: 0,
