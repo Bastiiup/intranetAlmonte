@@ -58,32 +58,53 @@ export async function PUT(request: NextRequest) {
 
     console.log('[API /colaboradores/me/profile] Actualizando perfil:', { colaboradorId, body })
 
-    // Obtener persona actual para tener su ID
+    // Obtener persona actual para tener su ID/documentId
+    // PRIORIDAD: Obtener datos completos del colaborador desde Strapi para tener la estructura correcta
     let personaId: string | null = null
-    if (colaborador.persona?.id) {
-      personaId = String(colaborador.persona.id)
-    } else if (colaborador.persona?.documentId) {
-      personaId = colaborador.persona.documentId
+    let personaDocumentId: string | null = null
+    let personaRut: string | null = null
+
+    try {
+      // Obtener colaborador completo con persona poblada
+      const colaboradorResponse = await strapiClient.get<any>(
+        `/api/colaboradores/${colaboradorId}?populate[persona]=*`
+      )
+      
+      let colaboradorData = colaboradorResponse.data
+      if (Array.isArray(colaboradorData)) {
+        colaboradorData = colaboradorData[0]
+      }
+      colaboradorData = colaboradorData?.attributes || colaboradorData
+      
+      // Extraer persona con todas sus variantes posibles
+      const persona = colaboradorData?.persona?.data || colaboradorData?.persona
+      
+      if (persona) {
+        // Priorizar documentId (más confiable en Strapi v4/v5)
+        personaDocumentId = persona.documentId || persona.id?.toString()
+        personaId = persona.id?.toString() || persona.documentId
+        personaRut = persona.attributes?.rut || persona.rut || colaborador.persona?.rut
+        
+        console.log('[API /colaboradores/me/profile] Persona encontrada:', {
+          personaDocumentId,
+          personaId,
+          personaRut,
+        })
+      }
+    } catch (error) {
+      console.error('[API /colaboradores/me/profile] Error al obtener colaborador desde Strapi:', error)
+      
+      // Fallback: usar datos de cookie
+      if (colaborador.persona?.documentId) {
+        personaDocumentId = colaborador.persona.documentId
+      } else if (colaborador.persona?.id) {
+        personaId = String(colaborador.persona.id)
+      }
+      personaRut = colaborador.persona?.rut
     }
 
-    // Si no hay personaId, intentar obtenerlo desde Strapi
-    if (!personaId) {
-      try {
-        const colaboradorResponse = await strapiClient.get<any>(
-          `/api/colaboradores/${colaboradorId}?populate[persona]=*`
-        )
-        const colaboradorData = colaboradorResponse.data?.attributes || colaboradorResponse.data
-        if (colaboradorData?.persona?.data?.id) {
-          personaId = String(colaboradorData.persona.data.id)
-        } else if (colaboradorData?.persona?.data?.documentId) {
-          personaId = colaboradorData.persona.data.documentId
-        } else if (colaboradorData?.persona?.id) {
-          personaId = String(colaboradorData.persona.id)
-        }
-      } catch (error) {
-        console.error('[API /colaboradores/me/profile] Error al obtener persona:', error)
-      }
-    }
+    // Usar documentId preferentemente, si no está disponible usar id
+    const personaIdFinal = personaDocumentId || personaId
 
     // Preparar datos de actualización de persona
     const personaUpdateData: any = {
@@ -166,13 +187,49 @@ export async function PUT(request: NextRequest) {
     }
 
     // Actualizar persona en Strapi
-    if (personaId && Object.keys(personaUpdateData.data).length > 0) {
+    if (personaIdFinal && Object.keys(personaUpdateData.data).length > 0) {
       try {
-        await strapiClient.put(`/api/personas/${personaId}`, personaUpdateData)
-        console.log('[API /colaboradores/me/profile] ✅ Persona actualizada')
+        // Intentar primero con documentId si está disponible
+        const idParaActualizar = personaDocumentId || personaIdFinal
+        
+        console.log('[API /colaboradores/me/profile] Intentando actualizar persona con ID:', idParaActualizar)
+        
+        await strapiClient.put(`/api/personas/${idParaActualizar}`, personaUpdateData)
+        console.log('[API /colaboradores/me/profile] ✅ Persona actualizada exitosamente')
       } catch (personaError: any) {
-        console.error('[API /colaboradores/me/profile] Error al actualizar persona:', personaError)
-        // Continuar aunque falle la actualización de persona
+        console.error('[API /colaboradores/me/profile] Error al actualizar persona:', {
+          error: personaError.message,
+          status: personaError.status,
+          personaIdFinal,
+          personaDocumentId,
+        })
+        
+        // Si falla con el ID directo y tenemos RUT, intentar buscar por RUT
+        if (personaError.status === 404 && personaRut) {
+          try {
+            console.log('[API /colaboradores/me/profile] Intentando buscar persona por RUT:', personaRut)
+            const personaSearchResponse = await strapiClient.get<any>(
+              `/api/personas?filters[rut][$eq]=${encodeURIComponent(personaRut)}&pagination[pageSize]=1`
+            )
+            
+            if (personaSearchResponse.data && Array.isArray(personaSearchResponse.data) && personaSearchResponse.data.length > 0) {
+              const personaEncontrada = personaSearchResponse.data[0]
+              const personaIdAlternativo = personaEncontrada.documentId || personaEncontrada.id?.toString()
+              
+              console.log('[API /colaboradores/me/profile] Persona encontrada por RUT, actualizando con ID:', personaIdAlternativo)
+              await strapiClient.put(`/api/personas/${personaIdAlternativo}`, personaUpdateData)
+              console.log('[API /colaboradores/me/profile] ✅ Persona actualizada usando RUT como fallback')
+            } else {
+              console.warn('[API /colaboradores/me/profile] No se encontró persona por RUT')
+            }
+          } catch (rutError: any) {
+            console.error('[API /colaboradores/me/profile] Error al buscar/actualizar persona por RUT:', rutError)
+            // Continuar aunque falle la actualización de persona (no crítico)
+          }
+        } else {
+          // Continuar aunque falle la actualización de persona (no crítico)
+          console.warn('[API /colaboradores/me/profile] Continuando sin actualizar persona')
+        }
       }
     }
 
@@ -210,11 +267,12 @@ export async function PUT(request: NextRequest) {
     }
 
     // Actualizar usuario en Stream Chat si cambió nombre o imagen
-    if (personaId && (body.nombres !== undefined || body.primer_apellido !== undefined || body.imagen_id !== undefined)) {
+    if (personaIdFinal && (body.nombres !== undefined || body.primer_apellido !== undefined || body.imagen_id !== undefined)) {
       try {
-        // Obtener datos actualizados de persona
+        // Obtener datos actualizados de persona usando el ID correcto
+        const idParaObtener = personaDocumentId || personaIdFinal
         const personaResponse = await strapiClient.get<any>(
-          `/api/personas/${personaId}?populate[imagen][populate]=*`
+          `/api/personas/${idParaObtener}?populate[imagen][populate]=*`
         )
         const personaData = personaResponse.data?.attributes || personaResponse.data
 
