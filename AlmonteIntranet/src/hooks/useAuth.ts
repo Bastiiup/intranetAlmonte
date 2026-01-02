@@ -75,6 +75,13 @@ export function useAuth(): AuthData {
             const result = await response.json()
             if (result.success && result.data) {
               const { colaborador: colaboradorData, persona: personaData } = result.data
+              
+              console.log('[useAuth] Datos recibidos de /api/colaboradores/me/profile:', {
+                colaborador: colaboradorData,
+                persona: personaData,
+                personaImagen: personaData?.imagen,
+              })
+              
               setAuthData({
                 colaborador: colaboradorData as ColaboradorData,
                 persona: personaData as PersonaData | null,

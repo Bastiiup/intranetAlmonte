@@ -20,12 +20,17 @@ const UserProfile = () => {
   
   // Obtener avatar - manejar estructura del componente contacto.imagen
   let avatarSrc = user3.src
+  
+  console.log('[Topbar UserProfile] persona:', persona)
+  console.log('[Topbar UserProfile] persona?.imagen:', persona?.imagen)
+  
   if (persona?.imagen) {
     // Si imagen tiene url directa (estructura normalizada del API)
     if (persona.imagen.url) {
       avatarSrc = persona.imagen.url.startsWith('http') 
         ? persona.imagen.url 
         : `${process.env.NEXT_PUBLIC_STRAPI_URL}${persona.imagen.url}`
+      console.log('[Topbar UserProfile] ✅ Usando imagen.url:', avatarSrc)
     }
     // Si imagen viene en estructura de componente contacto.imagen (imagen.imagen es array)
     else if (persona.imagen.imagen && Array.isArray(persona.imagen.imagen) && persona.imagen.imagen.length > 0) {
@@ -34,8 +39,15 @@ const UserProfile = () => {
       if (url) {
         // La URL ya viene completa desde S3 (https://media.moraleja.cl/...)
         avatarSrc = url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_STRAPI_URL}${url}`
+        console.log('[Topbar UserProfile] ✅ Usando imagen.imagen[0].url:', avatarSrc)
+      } else {
+        console.warn('[Topbar UserProfile] ⚠️ No se encontró URL en imagen.imagen[0]:', primeraImagen)
       }
+    } else {
+      console.warn('[Topbar UserProfile] ⚠️ Estructura de imagen no reconocida:', persona.imagen)
     }
+  } else {
+    console.warn('[Topbar UserProfile] ⚠️ No hay imagen en persona')
   }
 
   const handleLogout = () => {
