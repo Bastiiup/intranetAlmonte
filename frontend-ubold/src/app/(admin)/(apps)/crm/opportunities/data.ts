@@ -20,7 +20,7 @@ type OportunidadAttributes = {
   producto?: {
     nombre?: string
     empresa?: string
-    logo?: {
+    logo?: string | {
       url?: string
       media?: {
         data?: {
@@ -34,7 +34,7 @@ type OportunidadAttributes = {
   contacto?: {
     nombre_completo?: string
     email?: string
-    imagen?: {
+    imagen?: string | {
       url?: string
       media?: {
         data?: {
