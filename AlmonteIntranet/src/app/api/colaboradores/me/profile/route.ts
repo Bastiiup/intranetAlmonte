@@ -716,6 +716,8 @@ export async function GET(request: NextRequest) {
     let imagenNormalizada: any = null
     const imagenRaw = personaAttrs.imagen || persona?.imagen
     
+    console.log('[API /colaboradores/me/profile GET] Estructura de imagen raw:', JSON.stringify(imagenRaw, null, 2))
+    
     if (imagenRaw) {
       // Si imagen es un componente con campo imagen (Multiple Media)
       if (imagenRaw.imagen) {
@@ -776,6 +778,8 @@ export async function GET(request: NextRequest) {
         }
       }
     }
+    
+    console.log('[API /colaboradores/me/profile GET] Imagen normalizada:', JSON.stringify(imagenNormalizada, null, 2))
     
     // Normalizar dirección (puede venir como JSON string o objeto)
     let direccionNormalizada: any = null

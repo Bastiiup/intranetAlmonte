@@ -104,43 +104,69 @@ const Account = () => {
                         // Si hay imagen, crear preview - normalizar diferentes estructuras
                         let imageUrl: string | null = null
                         
-                        if (personaData?.imagen?.url) {
-                            // Estructura normalizada del API
-                            imageUrl = personaData.imagen.url.startsWith('http') 
-                                ? personaData.imagen.url 
-                                : `${process.env.NEXT_PUBLIC_STRAPI_URL}${personaData.imagen.url}`
-                        }
-                        // Si imagen viene en estructura de componente contacto.imagen
-                        else if (personaData?.imagen?.imagen) {
-                            const imagenComponent = personaData.imagen.imagen
-                            
-                            // Si es array
-                            if (Array.isArray(imagenComponent) && imagenComponent.length > 0) {
-                                const url = imagenComponent[0]?.attributes?.url || imagenComponent[0]?.url || null
-                                if (url) {
-                                    imageUrl = url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_STRAPI_URL}${url}`
-                                }
+                        console.log('[Account] Estructura de imagen recibida:', JSON.stringify(personaData?.imagen, null, 2))
+                        
+                        if (personaData?.imagen) {
+                            // Estructura normalizada del API (url directa)
+                            if (personaData.imagen.url) {
+                                imageUrl = personaData.imagen.url.startsWith('http') 
+                                    ? personaData.imagen.url 
+                                    : `${process.env.NEXT_PUBLIC_STRAPI_URL}${personaData.imagen.url}`
+                                console.log('[Account] ✅ Imagen encontrada en estructura normalizada:', imageUrl)
                             }
-                            // Si tiene data
-                            else if (imagenComponent.data) {
-                                const dataArray = Array.isArray(imagenComponent.data) ? imagenComponent.data : [imagenComponent.data]
-                                if (dataArray.length > 0) {
-                                    const url = dataArray[0]?.attributes?.url || dataArray[0]?.url || null
+                            // Si imagen viene en estructura de componente contacto.imagen
+                            else if (personaData.imagen.imagen) {
+                                const imagenComponent = personaData.imagen.imagen
+                                console.log('[Account] Estructura de componente imagen:', JSON.stringify(imagenComponent, null, 2))
+                                
+                                // Si es array directo
+                                if (Array.isArray(imagenComponent) && imagenComponent.length > 0) {
+                                    const primeraImagen = imagenComponent[0]
+                                    const url = primeraImagen?.attributes?.url || primeraImagen?.url || null
                                     if (url) {
                                         imageUrl = url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_STRAPI_URL}${url}`
+                                        console.log('[Account] ✅ Imagen encontrada en array:', imageUrl)
                                     }
                                 }
+                                // Si tiene data (estructura Strapi estándar)
+                                else if (imagenComponent.data) {
+                                    const dataArray = Array.isArray(imagenComponent.data) ? imagenComponent.data : [imagenComponent.data]
+                                    if (dataArray.length > 0) {
+                                        const primeraImagen = dataArray[0]
+                                        const url = primeraImagen?.attributes?.url || primeraImagen?.url || null
+                                        if (url) {
+                                            imageUrl = url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_STRAPI_URL}${url}`
+                                            console.log('[Account] ✅ Imagen encontrada en data:', imageUrl)
+                                        }
+                                    }
+                                }
+                                // Si es objeto directo con url
+                                else if (imagenComponent.url) {
+                                    imageUrl = imagenComponent.url.startsWith('http') 
+                                        ? imagenComponent.url 
+                                        : `${process.env.NEXT_PUBLIC_STRAPI_URL}${imagenComponent.url}`
+                                    console.log('[Account] ✅ Imagen encontrada en objeto directo:', imageUrl)
+                                }
                             }
-                            // Si es objeto directo
-                            else if (imagenComponent.url) {
-                                imageUrl = imagenComponent.url.startsWith('http') 
-                                    ? imagenComponent.url 
-                                    : `${process.env.NEXT_PUBLIC_STRAPI_URL}${imagenComponent.url}`
+                            // Si imagen tiene data directamente (sin componente)
+                            else if (personaData.imagen.data) {
+                                const dataArray = Array.isArray(personaData.imagen.data) ? personaData.imagen.data : [personaData.imagen.data]
+                                if (dataArray.length > 0) {
+                                    const primeraImagen = dataArray[0]
+                                    const url = primeraImagen?.attributes?.url || primeraImagen?.url || null
+                                    if (url) {
+                                        imageUrl = url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_STRAPI_URL}${url}`
+                                        console.log('[Account] ✅ Imagen encontrada en data directa:', imageUrl)
+                                    }
+                                }
                             }
                         }
                         
                         if (imageUrl) {
+                            console.log('[Account] ✅ Estableciendo preview de imagen:', imageUrl)
                             setProfilePhotoPreview(imageUrl)
+                        } else {
+                            console.warn('[Account] ⚠️ No se pudo encontrar URL de imagen en ninguna estructura')
                         }
                     }
                 }
