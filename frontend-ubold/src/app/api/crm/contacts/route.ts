@@ -89,9 +89,13 @@ export async function GET(request: Request) {
     params.append('populate[telefonos]', 'true')
     params.append('populate[imagen]', 'true') // Para campos Media, solo usar 'true'
     params.append('populate[tags]', 'true')
+    // Populate completo de trayectorias y colegio
+    params.append('populate[trayectorias]', 'true')
+    params.append('populate[trayectorias][populate][colegio]', 'true')
     params.append('populate[trayectorias][populate][colegio][populate][comuna]', 'true')
     params.append('populate[trayectorias][populate][colegio][populate][telefonos]', 'true')
     params.append('populate[trayectorias][populate][colegio][populate][emails]', 'true')
+    params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones]', 'true')
     params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones][populate][ejecutivo]', 'true')
 
     // Filtros

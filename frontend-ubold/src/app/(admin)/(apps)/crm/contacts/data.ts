@@ -120,8 +120,31 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
   
   // 4. Trayectoria actual (priorizar is_current)
   const trayectoriaActual = attrs.trayectorias?.find((t: { is_current?: boolean }) => t.is_current) || attrs.trayectorias?.[0]
-  const colegio = trayectoriaActual?.colegio
-  const comuna = colegio?.comuna
+  
+  // Extraer colegio de diferentes formatos posibles
+  let colegio: any = null
+  if (trayectoriaActual?.colegio) {
+    // Puede venir como objeto directo, con data, o con attributes
+    if (trayectoriaActual.colegio.data) {
+      colegio = trayectoriaActual.colegio.data.attributes || trayectoriaActual.colegio.data
+    } else if (trayectoriaActual.colegio.attributes) {
+      colegio = trayectoriaActual.colegio.attributes
+    } else {
+      colegio = trayectoriaActual.colegio
+    }
+  }
+  
+  // Extraer comuna de diferentes formatos posibles
+  let comuna: any = null
+  if (colegio?.comuna) {
+    if (colegio.comuna.data) {
+      comuna = colegio.comuna.data.attributes || colegio.comuna.data
+    } else if (colegio.comuna.attributes) {
+      comuna = colegio.comuna.attributes
+    } else {
+      comuna = colegio.comuna
+    }
+  }
   
   // 5. Cargo
   const cargo = trayectoriaActual?.cargo || ''
@@ -139,17 +162,38 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
   const dependencia = colegio?.dependencia || ''
   
   // 10. Representante Comercial
-  const asignacionesComerciales = colegio?.cartera_asignaciones?.filter(
-    (ca: { is_current?: boolean; rol?: string; estado?: string; prioridad?: 'alta' | 'media' | 'baja' }) => 
-      ca.is_current && ca.rol === 'comercial' && ca.estado === 'activa'
-  ) || []
+  let asignacionesComerciales: any[] = []
+  if (colegio?.cartera_asignaciones) {
+    // Manejar diferentes formatos de cartera_asignaciones
+    const asignaciones = Array.isArray(colegio.cartera_asignaciones) 
+      ? colegio.cartera_asignaciones 
+      : Array.isArray(colegio.cartera_asignaciones.data)
+      ? colegio.cartera_asignaciones.data
+      : []
+    
+    asignacionesComerciales = asignaciones
+      .map((ca: any) => {
+        // Extraer atributos si vienen en formato Strapi
+        const attrs = ca.attributes || ca
+        return {
+          is_current: attrs.is_current,
+          rol: attrs.rol,
+          estado: attrs.estado,
+          prioridad: attrs.prioridad,
+          ejecutivo: attrs.ejecutivo?.attributes || attrs.ejecutivo?.data?.attributes || attrs.ejecutivo,
+        }
+      })
+      .filter((ca: any) => 
+        ca.is_current && ca.rol === 'comercial' && ca.estado === 'activa'
+      )
+  }
   
-  const asignacionComercial = asignacionesComerciales.sort((a: { prioridad?: 'alta' | 'media' | 'baja' }, b: { prioridad?: 'alta' | 'media' | 'baja' }) => {
+  const asignacionComercial = asignacionesComerciales.sort((a: any, b: any) => {
     const prioridadOrder = { alta: 3, media: 2, baja: 1 }
     return (prioridadOrder[b.prioridad || 'baja'] || 0) - (prioridadOrder[a.prioridad || 'baja'] || 0)
   })[0]
   
-  const representanteComercial = asignacionComercial?.ejecutivo?.nombre_completo || ''
+  const representanteComercial = asignacionComercial?.ejecutivo?.nombre_completo || asignacionComercial?.ejecutivo?.data?.attributes?.nombre_completo || ''
   
   // 9. Zona (del colegio o comuna)
   const zona = colegio?.zona || comuna?.zona || ''
