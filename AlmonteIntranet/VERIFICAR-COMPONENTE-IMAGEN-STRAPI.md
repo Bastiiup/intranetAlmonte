@@ -1,48 +1,38 @@
 # Verificar Estructura del Componente contacto.imagen en Strapi
 
-## 🔍 Cómo verificar la estructura del componente
+## ✅ Estructura del Componente Verificada
 
-Para que la actualización de foto de perfil funcione correctamente, necesitamos conocer la estructura exacta del componente `contacto.imagen`.
+El componente `contacto.imagen` tiene la siguiente estructura:
 
-### Pasos para verificar:
+### Campos del Componente:
 
-1. **Ve a Strapi Admin** → **Content-Type Builder** → **Components**
-2. **Busca el componente** `contacto.imagen` (o `contacto` → `imagen`)
-3. **Revisa los campos del componente:**
-   - ¿Tiene un campo `file` de tipo Media?
-   - ¿Tiene otros campos además de `file`?
-   - ¿Cuál es el nombre exacto del campo que almacena el archivo?
+- **`imagen`** (Multiple Media) - Array de archivos de imagen
+- **`tipo`** (Enumeration) - Tipo de imagen
+- **`formato`** (Enumeration) - Formato de la imagen
+- **`estado`** (Enumeration) - Estado de la imagen
+- **`vigente_hasta`** (Date) - Fecha de vigencia
+- **`status`** (Boolean) - Estado activo/inactivo
 
-### Estructuras posibles:
+### Estructura para Actualizar:
 
-El componente `contacto.imagen` puede tener estas estructuras:
+El componente se actualiza con esta estructura:
 
-**Opción 1: Campo `file` directo**
 ```json
 {
-  "imagen": {
-    "file": 2697  // ID del archivo
-  }
+  "imagen": [2697],  // Array de IDs (Multiple Media)
+  "tipo": "...",
+  "formato": "...",
+  "estado": "...",
+  "vigente_hasta": "2024-12-31",
+  "status": true
 }
 ```
 
-**Opción 2: Campo `file` con objeto**
-```json
-{
-  "imagen": {
-    "file": {
-      "id": 2697
-    }
-  }
-}
-```
+O simplemente:
 
-**Opción 3: Campo con otro nombre**
 ```json
 {
-  "imagen": {
-    "archivo": 2697
-  }
+  "imagen": [2697]  // Solo el array de IDs
 }
 ```
 

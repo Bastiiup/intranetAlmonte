@@ -269,18 +269,46 @@ export async function PUT(request: NextRequest) {
         console.log('[API /colaboradores/me/profile] ✅ Persona actualizada exitosamente')
         
         // Si hay imagen para actualizar, intentar actualizarla por separado
-        // El componente contacto.imagen requiere una estructura específica
+        // El componente contacto.imagen tiene estructura: { imagen: [array], tipo, formato, estado, vigente_hasta, status }
+        // Donde 'imagen' es Multiple Media (array de IDs de archivos)
         if (imagenIdParaActualizar) {
           console.log('[API /colaboradores/me/profile] Intentando actualizar componente imagen con ID:', imagenIdParaActualizar)
           
+          // Obtener la estructura actual del componente imagen para preservar otros campos
+          let estructuraActual: any = null
+          try {
+            const personaActual = await strapiClient.get<any>(
+              `/api/personas/${idParaActualizar}?populate[imagen][populate]=*`
+            )
+            const personaData = personaActual.data?.attributes || personaActual.data
+            estructuraActual = personaData?.imagen || null
+          } catch (error) {
+            console.warn('[API /colaboradores/me/profile] No se pudo obtener estructura actual de imagen')
+          }
+          
           // Intentar diferentes estructuras para el componente imagen
           const estructurasImagen = [
-            // Estructura 1: { file: id }
-            { file: imagenIdParaActualizar },
-            // Estructura 2: { file: { id: id } }
-            { file: { id: imagenIdParaActualizar } },
-            // Estructura 3: Solo el ID (puede funcionar si Strapi lo acepta)
-            imagenIdParaActualizar,
+            // Estructura 1: Array de IDs (Multiple Media)
+            {
+              imagen: [imagenIdParaActualizar],
+              ...(estructuraActual && {
+                tipo: estructuraActual.tipo,
+                formato: estructuraActual.formato,
+                estado: estructuraActual.estado,
+                vigente_hasta: estructuraActual.vigente_hasta,
+                status: estructuraActual.status !== undefined ? estructuraActual.status : true,
+              }),
+            },
+            // Estructura 2: Solo el array de imagen (sin otros campos)
+            {
+              imagen: [imagenIdParaActualizar],
+            },
+            // Estructura 3: Array directo (si Strapi lo acepta)
+            [imagenIdParaActualizar],
+            // Estructura 4: Objeto con imagen como objeto
+            {
+              imagen: { id: imagenIdParaActualizar },
+            },
           ]
           
           let imagenActualizada = false
