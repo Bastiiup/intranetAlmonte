@@ -185,14 +185,29 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
       const representante = asignacionComercial?.ejecutivo?.nombre_completo || asignacionComercial?.ejecutivo?.data?.attributes?.nombre_completo || ''
       
       // Obtener tipo (puede venir de dependencia o tipo)
-      const tipo = data.tipo || data.dependencia || 'Colegio'
+      const tipo = data.dependencia || data.tipo || ''
+      
+      // Obtener dirección de direcciones array (usar campos correctos)
+      let direccionStr = ''
+      if (Array.isArray(data.direcciones) && data.direcciones.length > 0) {
+        const primeraDireccion = data.direcciones[0]
+        direccionStr = `${primeraDireccion.nombre_calle || ''} ${primeraDireccion.numero_calle || ''}`.trim()
+        // Si no hay dirección en direcciones, usar comuna como fallback
+        if (!direccionStr && comunaNombre) {
+          direccionStr = comunaNombre
+        }
+      } else if (data.direccion || data.DIRECCION) {
+        direccionStr = data.direccion || data.DIRECCION
+      } else if (comunaNombre) {
+        direccionStr = comunaNombre
+      }
       
       return {
         id: colegio.documentId || colegio.id?.toString() || '',
         nombre: data.colegio_nombre || data.nombre || data.NOMBRE || 'Sin nombre',
         rbd: data.rbd?.toString() || '',
         tipo,
-        direccion: data.direccion || data.DIRECCION || '',
+        direccion: direccionStr,
         comuna: comunaNombre,
         region: regionNombre || data.region || data.REGION || '',
         telefonos,

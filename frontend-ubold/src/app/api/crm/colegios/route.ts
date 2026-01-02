@@ -49,6 +49,7 @@ export async function GET(request: Request) {
     params.append('populate[comuna]', 'true')
     params.append('populate[telefonos]', 'true')
     params.append('populate[emails]', 'true')
+    params.append('populate[direcciones]', 'true')
     params.append('populate[cartera_asignaciones][populate][ejecutivo]', 'true')
 
     // Agregar búsqueda por nombre si existe

@@ -39,8 +39,17 @@ export async function GET(
 
     // Intentar primero con el endpoint directo
     try {
+      const paramsObj = new URLSearchParams({
+        'populate[comuna]': 'true',
+        'populate[telefonos]': 'true',
+        'populate[emails]': 'true',
+        'populate[direcciones]': 'true',
+        'populate[cartera_asignaciones]': 'true',
+        'populate[cartera_asignaciones.ejecutivo]': 'true',
+      })
+      
       const response = await strapiClient.get<StrapiResponse<StrapiEntity<ColegioAttributes>>>(
-        `/api/colegios/${id}?populate[comuna]=true&populate[telefonos]=true&populate[emails]=true`
+        `/api/colegios/${id}?${paramsObj.toString()}`
       )
       
       if (response.data) {
@@ -52,8 +61,18 @@ export async function GET(
       
       // Si falla, intentar buscar por filtro
       try {
+        const filterParamsObj = new URLSearchParams({
+          'filters[id][$eq]': id.toString(),
+          'populate[comuna]': 'true',
+          'populate[telefonos]': 'true',
+          'populate[emails]': 'true',
+          'populate[direcciones]': 'true',
+          'populate[cartera_asignaciones]': 'true',
+          'populate[cartera_asignaciones.ejecutivo]': 'true',
+        })
+        
         const filterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<ColegioAttributes>>>(
-          `/api/colegios?filters[id][$eq]=${id}&populate[comuna]=true&populate[telefonos]=true&populate[emails]=true`
+          `/api/colegios?${filterParamsObj.toString()}`
         )
         
         if (filterResponse.data) {

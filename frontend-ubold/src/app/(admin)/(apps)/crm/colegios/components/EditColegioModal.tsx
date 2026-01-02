@@ -39,6 +39,7 @@ const EditColegioModal = ({ show, onHide, colegio, onSuccess }: EditColegioModal
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
+    rbd: '',
     colegio_nombre: '',
     dependencia: '',
     region: '',
@@ -80,6 +81,7 @@ const EditColegioModal = ({ show, onHide, colegio, onSuccess }: EditColegioModal
       const comunaStr = data.comuna?.comuna_nombre || data.comuna?.nombre || data.comuna || ''
 
       setFormData({
+        rbd: data.rbd?.toString() || colegio.rbd?.toString() || '',
         colegio_nombre: data.colegio_nombre || colegio.colegio_nombre || '',
         dependencia: data.dependencia || colegio.dependencia || '',
         region: data.region || data.comuna?.region_nombre || '',
@@ -110,6 +112,13 @@ const EditColegioModal = ({ show, onHide, colegio, onSuccess }: EditColegioModal
       // Validaciones
       if (!formData.colegio_nombre.trim()) {
         throw new Error('El nombre de la institución es obligatorio')
+      }
+      if (!formData.rbd || !formData.rbd.trim()) {
+        throw new Error('El RBD es obligatorio')
+      }
+      const rbdNumber = parseInt(formData.rbd.trim())
+      if (isNaN(rbdNumber)) {
+        throw new Error('El RBD debe ser un número válido')
       }
 
       // Convertir teléfonos y emails separados por comas a arrays
@@ -145,6 +154,7 @@ const EditColegioModal = ({ show, onHide, colegio, onSuccess }: EditColegioModal
 
       // Preparar datos para Strapi (solo campos válidos según schema)
       const colegioData: any = {
+        rbd: rbdNumber, // RBD es obligatorio
         colegio_nombre: formData.colegio_nombre.trim(),
         ...(formData.dependencia && { dependencia: formData.dependencia }),
         ...(formData.region && { region: formData.region }),
@@ -217,6 +227,22 @@ const EditColegioModal = ({ show, onHide, colegio, onSuccess }: EditColegioModal
                   required
                   disabled={loading}
                 />
+              </FormGroup>
+            </Col>
+            <Col md={6}>
+              <FormGroup className="mb-3">
+                <FormLabel>
+                  RBD <span className="text-danger">*</span>
+                </FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="12345"
+                  value={formData.rbd}
+                  onChange={(e) => handleFieldChange('rbd', e.target.value)}
+                  required
+                  disabled={loading}
+                />
+                <small className="text-muted">El RBD debe ser único</small>
               </FormGroup>
             </Col>
           </Row>
