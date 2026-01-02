@@ -206,8 +206,19 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
   // 11. Emails del colegio
   const emailsColegio = colegio?.emails?.map((e: { email?: string }) => e.email || '').filter((e: string) => e) || []
   
-  // 12. Website del colegio
-  const websiteColegio = colegio?.website || ''
+  // 12. Website del colegio (puede venir en diferentes formatos)
+  let websiteColegio = ''
+  if (colegio?.website) {
+    if (typeof colegio.website === 'string') {
+      websiteColegio = colegio.website
+    } else if (colegio.website.data) {
+      websiteColegio = colegio.website.data.attributes?.url || colegio.website.data.url || ''
+    } else if (colegio.website.attributes) {
+      websiteColegio = colegio.website.attributes.url || ''
+    } else if (colegio.website.url) {
+      websiteColegio = colegio.website.url
+    }
+  }
   
   // 13. Descripción
   const description = cargo ? `${cargo}${empresa ? ` en ${empresa}` : ''}` : empresa || ''

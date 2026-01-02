@@ -583,8 +583,11 @@ const Contacts = () => {
         onHide={() => setAddModal(false)}
         onSuccess={() => {
           setAddModal(false)
-          router.refresh()
-          loadContacts()
+          // Forzar recarga de datos
+          setTimeout(() => {
+            router.refresh()
+            loadContacts()
+          }, 500)
         }}
       />
 
