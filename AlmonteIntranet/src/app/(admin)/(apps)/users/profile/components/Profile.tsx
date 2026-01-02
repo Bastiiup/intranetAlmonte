@@ -66,9 +66,10 @@ const Profile = () => {
         const imagenComponent = persona.imagen.imagen
         let imgUrl: string | null = null
         
-        // Si es array
+        // Si es array (ESTRUCTURA REAL: imagen.imagen es array de objetos con url directa)
         if (Array.isArray(imagenComponent) && imagenComponent.length > 0) {
-            imgUrl = imagenComponent[0]?.attributes?.url || imagenComponent[0]?.url || null
+            // La URL viene directamente en el objeto, no en attributes
+            imgUrl = imagenComponent[0]?.url || imagenComponent[0]?.attributes?.url || null
         }
         // Si tiene data
         else if (imagenComponent.data) {

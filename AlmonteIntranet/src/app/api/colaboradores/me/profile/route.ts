@@ -756,19 +756,24 @@ export async function GET(request: NextRequest) {
     
     if (imagenRaw) {
       // Si imagen es un componente con campo imagen (Multiple Media)
+      // ESTRUCTURA REAL: { id, tipo, formato, estado, vigente_hasta, status, imagen: [array de objetos] }
       if (imagenRaw.imagen) {
         const imagenData = imagenRaw.imagen
-        // Si es array directo
+        // Si es array directo (ESTRUCTURA REAL DE STRAPI)
         if (Array.isArray(imagenData) && imagenData.length > 0) {
           const primeraImagen = imagenData[0]
+          // La URL viene directamente en el objeto, no en attributes
           imagenNormalizada = {
-            url: primeraImagen.attributes?.url || primeraImagen.url || null,
-            alternativeText: primeraImagen.attributes?.alternativeText || primeraImagen.alternativeText || null,
-            width: primeraImagen.attributes?.width || primeraImagen.width || null,
-            height: primeraImagen.attributes?.height || primeraImagen.height || null,
+            url: primeraImagen.url || null,
+            alternativeText: primeraImagen.alternativeText || null,
+            width: primeraImagen.width || null,
+            height: primeraImagen.height || null,
+            name: primeraImagen.name || null,
+            formats: primeraImagen.formats || null,
           }
+          console.log('[API /colaboradores/me/profile GET] ✅ Imagen normalizada desde array:', imagenNormalizada)
         }
-        // Si tiene data (estructura Strapi estándar)
+        // Si tiene data (estructura Strapi estándar alternativa)
         else if (imagenData.data) {
           const dataArray = Array.isArray(imagenData.data) ? imagenData.data : [imagenData.data]
           if (dataArray.length > 0) {
