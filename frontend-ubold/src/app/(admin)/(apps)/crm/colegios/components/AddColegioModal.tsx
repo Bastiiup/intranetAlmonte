@@ -54,8 +54,6 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
         ...(formData.rbd && { rbd: formData.rbd }),
         ...(formData.dependencia && { dependencia: formData.dependencia }),
         ...(formData.zona && { zona: formData.zona }),
-        activo: formData.activo,
-        origen: 'manual',
       }
 
       // Crear el colegio

@@ -35,7 +35,6 @@ interface ColegioType {
   website?: string
   contactosCount?: number
   representante?: string
-  origen?: string
   createdAt?: string
   estado?: string
 }
@@ -201,7 +200,6 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
         website: data.website || '',
         contactosCount: 0, // TODO: calcular desde relaciones
         representante,
-        origen: data.origen || '',
         estado: data.estado || data.ESTADO || '',
         createdAt: data.createdAt || colegio.createdAt || '',
       }
@@ -329,9 +327,9 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
           )
         },
       },
-      {
-        id: 'fechaOrigen',
-        header: 'FECHA / ORIGEN',
+        {
+          id: 'fecha',
+          header: 'FECHA',
         cell: ({ row }) => {
           const colegio = row.original
           const isNew = colegio.createdAt && 
@@ -340,8 +338,6 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
           const daysAgo = colegio.createdAt 
             ? Math.floor((Date.now() - new Date(colegio.createdAt).getTime()) / (24 * 60 * 60 * 1000))
             : null
-          
-          const origenLabel = colegio.origen || ''
           
           return (
             <div className="fs-xs">
@@ -353,10 +349,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
                   {daysAgo === 0 ? 'Hoy' : daysAgo === 1 ? '1 día' : `${daysAgo} días`}
                 </div>
               )}
-              {origenLabel && (
-                <span className="badge badge-soft-primary">{origenLabel}</span>
-              )}
-              {!colegio.createdAt && !colegio.origen && (
+              {!colegio.createdAt && (
                 <span className="text-muted">-</span>
               )}
             </div>
