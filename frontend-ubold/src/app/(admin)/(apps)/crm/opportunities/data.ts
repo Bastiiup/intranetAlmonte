@@ -90,13 +90,17 @@ function transformOportunidadToOpportunity(oportunidad: OportunidadEntity): Oppo
   let productLogo = '/assets/images/logos/default.svg' // Logo por defecto
   if (producto?.logo) {
     if (typeof producto.logo === 'string') {
-      productLogo = producto.logo.startsWith('http') ? producto.logo : `${STRAPI_API_URL}${producto.logo}`
-    } else if (producto.logo.url) {
-      const url = producto.logo.url
-      productLogo = url.startsWith('http') ? url : `${STRAPI_API_URL}${url}`
-    } else if (producto.logo.media?.data?.attributes?.url) {
-      const mediaUrl = producto.logo.media.data.attributes.url
-      productLogo = mediaUrl.startsWith('http') ? mediaUrl : `${STRAPI_API_URL}${mediaUrl}`
+      const logoUrl = producto.logo
+      productLogo = logoUrl.startsWith('http') ? logoUrl : `${STRAPI_API_URL}${logoUrl}`
+    } else {
+      // producto.logo es un objeto aquí
+      if (producto.logo.url) {
+        const url = producto.logo.url
+        productLogo = url.startsWith('http') ? url : `${STRAPI_API_URL}${url}`
+      } else if (producto.logo.media?.data?.attributes?.url) {
+        const mediaUrl = producto.logo.media.data.attributes.url
+        productLogo = mediaUrl.startsWith('http') ? mediaUrl : `${STRAPI_API_URL}${mediaUrl}`
+      }
     }
   }
   
@@ -109,13 +113,17 @@ function transformOportunidadToOpportunity(oportunidad: OportunidadEntity): Oppo
   let customerAvatar = '/assets/images/users/user-dummy-img.jpg' // Avatar por defecto
   if (contacto?.imagen) {
     if (typeof contacto.imagen === 'string') {
-      customerAvatar = contacto.imagen.startsWith('http') ? contacto.imagen : `${STRAPI_API_URL}${contacto.imagen}`
-    } else if (contacto.imagen.url) {
-      const url = contacto.imagen.url
-      customerAvatar = url.startsWith('http') ? url : `${STRAPI_API_URL}${url}`
-    } else if (contacto.imagen.media?.data?.attributes?.url) {
-      const mediaUrl = contacto.imagen.media.data.attributes.url
-      customerAvatar = mediaUrl.startsWith('http') ? mediaUrl : `${STRAPI_API_URL}${mediaUrl}`
+      const imagenUrl = contacto.imagen
+      customerAvatar = imagenUrl.startsWith('http') ? imagenUrl : `${STRAPI_API_URL}${imagenUrl}`
+    } else {
+      // contacto.imagen es un objeto aquí
+      if (contacto.imagen.url) {
+        const url = contacto.imagen.url
+        customerAvatar = url.startsWith('http') ? url : `${STRAPI_API_URL}${url}`
+      } else if (contacto.imagen.media?.data?.attributes?.url) {
+        const mediaUrl = contacto.imagen.media.data.attributes.url
+        customerAvatar = mediaUrl.startsWith('http') ? mediaUrl : `${STRAPI_API_URL}${mediaUrl}`
+      }
     }
   }
   
