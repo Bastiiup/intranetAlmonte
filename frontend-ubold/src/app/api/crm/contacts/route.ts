@@ -91,14 +91,9 @@ export async function GET(request: Request) {
     params.append('populate[imagen]', 'true') // Para campos Media, solo usar 'true'
     params.append('populate[tags]', 'true')
     
-    // Nivel 2: Solo populate básico de trayectorias y colegio
-    // Simplificado para evitar error 500 por populate demasiado profundo
-    params.append('populate[trayectorias][populate][colegio]', 'true')
-    
-    // NOTA: No populate más profundo aquí para evitar error 500
-    // Si necesitamos comuna, telefonos, emails del colegio, etc.,
-    // se pueden obtener desde el colegio directamente o hacer populate adicional
-    // solo cuando sea necesario (ej: en página de detalle)
+    // Nivel 2: Populate de trayectorias con wildcard para colegio
+    // Usar wildcard para populate profundo del colegio (más simple y menos propenso a errores)
+    params.append('populate[trayectorias][populate][colegio][populate]', '*')
 
     // Filtros
     params.append('filters[activo][$eq]', 'true')
