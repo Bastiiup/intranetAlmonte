@@ -126,12 +126,29 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
   if (trayectoriaActual?.colegio) {
     // Puede venir como objeto directo, con data, o con attributes
     if (trayectoriaActual.colegio.data) {
-      colegio = trayectoriaActual.colegio.data.attributes || trayectoriaActual.colegio.data
+      // Si viene con data, puede ser data.attributes o data directamente
+      if (Array.isArray(trayectoriaActual.colegio.data)) {
+        colegio = trayectoriaActual.colegio.data[0]?.attributes || trayectoriaActual.colegio.data[0]
+      } else {
+        colegio = trayectoriaActual.colegio.data.attributes || trayectoriaActual.colegio.data
+      }
     } else if (trayectoriaActual.colegio.attributes) {
       colegio = trayectoriaActual.colegio.attributes
     } else {
       colegio = trayectoriaActual.colegio
     }
+  }
+  
+  // Debug: log para ver qué datos tenemos (solo en desarrollo)
+  if (colegio && typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    console.log('[transformPersonaToContact] Colegio extraído:', {
+      colegio_nombre: colegio.colegio_nombre,
+      dependencia: colegio.dependencia,
+      telefonos: colegio.telefonos,
+      emails: colegio.emails,
+      website: colegio.website,
+      comuna: colegio.comuna,
+    })
   }
   
   // Extraer comuna de diferentes formatos posibles
