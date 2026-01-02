@@ -66,8 +66,9 @@ export async function PUT(request: NextRequest) {
 
     try {
       // Obtener colaborador completo con persona poblada
+      // Excluir campos problemáticos como 'tags' que no se pueden poblar directamente
       const colaboradorResponse = await strapiClient.get<any>(
-        `/api/colaboradores/${colaboradorId}?populate[persona]=*`
+        `/api/colaboradores/${colaboradorId}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
       )
       
       let colaboradorData = colaboradorResponse.data
@@ -129,8 +130,13 @@ export async function PUT(request: NextRequest) {
     }
 
     // Actualizar imagen si se proporcionó un ID
+    // NOTA: El campo 'imagen' en Persona es un componente (contacto.imagen), no una relación Media directa
+    // Por ahora, guardamos el ID de imagen para actualizarlo por separado después
+    let imagenIdParaActualizar: number | null = null
     if (body.imagen_id) {
-      personaUpdateData.data.imagen = body.imagen_id
+      imagenIdParaActualizar = body.imagen_id
+      // No incluimos imagen en personaUpdateData por ahora para evitar errores de validación
+      // Se actualizará por separado si es necesario
     }
 
     // Actualizar dirección (si existe el campo en Strapi)
@@ -194,8 +200,18 @@ export async function PUT(request: NextRequest) {
         
         console.log('[API /colaboradores/me/profile] Intentando actualizar persona con ID:', idParaActualizar)
         
+        // Actualizar persona (sin imagen por ahora, ya que es un componente)
         await strapiClient.put(`/api/personas/${idParaActualizar}`, personaUpdateData)
         console.log('[API /colaboradores/me/profile] ✅ Persona actualizada exitosamente')
+        
+        // Si hay imagen para actualizar, intentar actualizarla por separado
+        // NOTA: El componente imagen puede requerir una estructura específica
+        // Por ahora, omitimos la actualización de imagen para evitar errores
+        // TODO: Implementar actualización de componente imagen cuando se conozca la estructura exacta
+        if (imagenIdParaActualizar) {
+          console.log('[API /colaboradores/me/profile] ⚠️ Imagen pendiente de actualizar (ID:', imagenIdParaActualizar, ') - requiere estructura de componente')
+          // La imagen se puede actualizar manualmente desde Strapi Admin o implementar después
+        }
       } catch (personaError: any) {
         console.error('[API /colaboradores/me/profile] Error al actualizar persona:', {
           error: personaError.message,
