@@ -92,14 +92,18 @@ export async function GET(request: Request) {
     params.append('populate[tags]', 'true')
     
     // Nivel 2: Trayectorias con populate completo del colegio
-    // Populate componentes del colegio
     params.append('populate[trayectorias][populate][colegio][populate][telefonos]', 'true')
     params.append('populate[trayectorias][populate][colegio][populate][emails]', 'true')
-    // Populate comuna (region_nombre es campo directo, no relación)
+    // Populate comuna (region_nombre es campo directo, no relación - solo true, sin populate anidado)
     params.append('populate[trayectorias][populate][colegio][populate][comuna]', 'true')
-    // Populate cartera_asignaciones con ejecutivo
-    params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones][populate]', 'ejecutivo')
+    params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones][populate][ejecutivo]', 'true')
     // Nota: website es un campo string directo, no necesita populate
+    // Campos específicos del colegio (Strapi trae todos por defecto, pero especificamos para claridad)
+    params.append('populate[trayectorias][populate][colegio][fields][0]', 'colegio_nombre')
+    params.append('populate[trayectorias][populate][colegio][fields][1]', 'rbd')
+    params.append('populate[trayectorias][populate][colegio][fields][2]', 'dependencia')
+    params.append('populate[trayectorias][populate][colegio][fields][3]', 'zona')
+    params.append('populate[trayectorias][populate][colegio][fields][4]', 'direccion')
 
     // Filtros
     params.append('filters[activo][$eq]', 'true')
