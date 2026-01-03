@@ -95,8 +95,8 @@ export async function GET(request: Request) {
     // Populate componentes del colegio
     params.append('populate[trayectorias][populate][colegio][populate][telefonos]', 'true')
     params.append('populate[trayectorias][populate][colegio][populate][emails]', 'true')
-    // Populate comuna con su región
-    params.append('populate[trayectorias][populate][colegio][populate][comuna][populate]', 'region')
+    // Populate comuna (region_nombre es campo directo, no relación)
+    params.append('populate[trayectorias][populate][colegio][populate][comuna]', 'true')
     // Populate cartera_asignaciones con ejecutivo
     params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones][populate]', 'ejecutivo')
     // Nota: website es un campo string directo, no necesita populate
