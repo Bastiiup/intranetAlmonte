@@ -92,16 +92,14 @@ export async function GET(request: Request) {
     params.append('populate[tags]', 'true')
     
     // Nivel 2: Trayectorias con populate completo del colegio
+    // Populate componentes del colegio
     params.append('populate[trayectorias][populate][colegio][populate][telefonos]', 'true')
     params.append('populate[trayectorias][populate][colegio][populate][emails]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][website]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][comuna][populate][0]', 'region')
-    params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones][populate][ejecutivo]', 'true')
-    params.append('populate[trayectorias][populate][colegio][fields][0]', 'colegio_nombre')
-    params.append('populate[trayectorias][populate][colegio][fields][1]', 'rbd')
-    params.append('populate[trayectorias][populate][colegio][fields][2]', 'dependencia')
-    params.append('populate[trayectorias][populate][colegio][fields][3]', 'zona')
-    params.append('populate[trayectorias][populate][colegio][fields][4]', 'direccion')
+    // Populate comuna con su región
+    params.append('populate[trayectorias][populate][colegio][populate][comuna][populate]', 'region')
+    // Populate cartera_asignaciones con ejecutivo
+    params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones][populate]', 'ejecutivo')
+    // Nota: website es un campo string directo, no necesita populate
 
     // Filtros
     params.append('filters[activo][$eq]', 'true')
