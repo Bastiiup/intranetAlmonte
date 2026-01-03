@@ -97,13 +97,8 @@ export async function GET(request: Request) {
     // Populate comuna (region_nombre es campo directo, no relación - solo true, sin populate anidado)
     params.append('populate[trayectorias][populate][colegio][populate][comuna]', 'true')
     params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones][populate][ejecutivo]', 'true')
-    // Nota: website es un campo string directo, no necesita populate
-    // Campos específicos del colegio (Strapi trae todos por defecto, pero especificamos para claridad)
-    params.append('populate[trayectorias][populate][colegio][fields][0]', 'colegio_nombre')
-    params.append('populate[trayectorias][populate][colegio][fields][1]', 'rbd')
-    params.append('populate[trayectorias][populate][colegio][fields][2]', 'dependencia')
-    params.append('populate[trayectorias][populate][colegio][fields][3]', 'zona')
-    params.append('populate[trayectorias][populate][colegio][fields][4]', 'direccion')
+    // Nota: website y direccion son campos directos/componentes, Strapi los trae automáticamente con populate
+    // No necesitamos especificar fields porque Strapi trae todos los campos por defecto
 
     // Filtros
     params.append('filters[activo][$eq]', 'true')
