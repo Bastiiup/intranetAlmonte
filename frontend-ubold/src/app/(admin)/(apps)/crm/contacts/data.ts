@@ -121,53 +121,87 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
   // 4. Trayectoria actual (priorizar is_current)
   const trayectoriaActual = attrs.trayectorias?.find((t: { is_current?: boolean }) => t.is_current) || attrs.trayectorias?.[0]
   
+  // Debug logging para desarrollo
+  if (process.env.NODE_ENV === 'development') {
+    console.group('[transformPersonaToContact] Debug Trayectoria')
+    console.log('Persona:', attrs.nombre_completo)
+    console.log('Trayectorias completas:', JSON.stringify(attrs.trayectorias, null, 2))
+    console.log('Trayectoria actual:', trayectoriaActual)
+    if (trayectoriaActual?.colegio) {
+      console.log('Estructura del colegio:', JSON.stringify(trayectoriaActual.colegio, null, 2))
+    }
+    console.groupEnd()
+  }
+  
   // Extraer colegio de diferentes formatos posibles
   let colegio: any = null
   if (trayectoriaActual?.colegio) {
-    // Puede venir como objeto directo, con data, o con attributes
-    if (trayectoriaActual.colegio.data) {
-      // Si viene con data, puede ser data.attributes o data directamente
-      if (Array.isArray(trayectoriaActual.colegio.data)) {
-        colegio = trayectoriaActual.colegio.data[0]?.attributes || trayectoriaActual.colegio.data[0]
+    const colegioRaw = trayectoriaActual.colegio
+    
+    // Caso 1: colegio viene con { data: { id, attributes } }
+    if (colegioRaw.data) {
+      if (Array.isArray(colegioRaw.data)) {
+        colegio = colegioRaw.data[0]?.attributes || colegioRaw.data[0]
       } else {
-        colegio = trayectoriaActual.colegio.data.attributes || trayectoriaActual.colegio.data
+        colegio = colegioRaw.data.attributes || colegioRaw.data
       }
-    } else if (trayectoriaActual.colegio.attributes) {
-      colegio = trayectoriaActual.colegio.attributes
-    } else {
-      colegio = trayectoriaActual.colegio
+    }
+    // Caso 2: colegio viene con { id, attributes }
+    else if (colegioRaw.attributes) {
+      colegio = colegioRaw.attributes
+    }
+    // Caso 3: colegio viene directo (ya populado)
+    else if (colegioRaw.colegio_nombre || colegioRaw.id || colegioRaw.documentId) {
+      colegio = colegioRaw
     }
     
-    // Si el colegio viene solo con ID (sin populate), intentar obtener datos básicos
-    // En este caso, solo tendremos el ID, así que los datos del colegio serán limitados
-    if (colegio && !colegio.colegio_nombre && (colegio.id || colegio.documentId)) {
-      // El colegio no está populado, solo tenemos el ID
-      // En este caso, los datos del colegio no estarán disponibles
+    // Si después de todo esto solo tenemos un ID sin datos, el colegio no está populado
+    if (colegio && !colegio.colegio_nombre && !colegio.rbd) {
+      console.warn('[transformPersonaToContact] Colegio no populado correctamente:', colegio)
       colegio = null
     }
-  }
-  
-  // Debug: log para ver qué datos tenemos (solo en desarrollo)
-  if (colegio && typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    console.log('[transformPersonaToContact] Colegio extraído:', {
-      colegio_nombre: colegio.colegio_nombre,
-      dependencia: colegio.dependencia,
-      telefonos: colegio.telefonos,
-      emails: colegio.emails,
-      website: colegio.website,
-      comuna: colegio.comuna,
-    })
+    
+    // Log del resultado final
+    if (process.env.NODE_ENV === 'development' && colegio) {
+      console.log('[transformPersonaToContact] Colegio extraído exitosamente:', {
+        nombre: colegio.colegio_nombre,
+        rbd: colegio.rbd,
+        dependencia: colegio.dependencia,
+        hasEmails: !!colegio.emails,
+        hasTelefonos: !!colegio.telefonos,
+        hasComuna: !!colegio.comuna,
+      })
+    }
   }
   
   // Extraer comuna de diferentes formatos posibles
   let comuna: any = null
   if (colegio?.comuna) {
-    if (colegio.comuna.data) {
-      comuna = colegio.comuna.data.attributes || colegio.comuna.data
-    } else if (colegio.comuna.attributes) {
-      comuna = colegio.comuna.attributes
-    } else {
-      comuna = colegio.comuna
+    const comunaRaw = colegio.comuna
+    
+    // Caso 1: comuna viene con { data: { id, attributes } }
+    if (comunaRaw.data) {
+      if (Array.isArray(comunaRaw.data)) {
+        comuna = comunaRaw.data[0]?.attributes || comunaRaw.data[0]
+      } else {
+        comuna = comunaRaw.data.attributes || comunaRaw.data
+      }
+    }
+    // Caso 2: comuna viene con { id, attributes }
+    else if (comunaRaw.attributes) {
+      comuna = comunaRaw.attributes
+    }
+    // Caso 3: comuna viene directo
+    else if (comunaRaw.comuna_nombre || comunaRaw.region_nombre) {
+      comuna = comunaRaw
+    }
+    
+    if (process.env.NODE_ENV === 'development' && comuna) {
+      console.log('[transformPersonaToContact] Comuna extraída:', {
+        nombre: comuna.comuna_nombre,
+        region: comuna.region_nombre,
+        zona: comuna.zona,
+      })
     }
   }
   
@@ -236,14 +270,24 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
   // 12. Website del colegio (puede venir en diferentes formatos)
   let websiteColegio = ''
   if (colegio?.website) {
-    if (typeof colegio.website === 'string') {
-      websiteColegio = colegio.website
-    } else if (colegio.website.data) {
-      websiteColegio = colegio.website.data.attributes?.url || colegio.website.data.url || ''
-    } else if (colegio.website.attributes) {
-      websiteColegio = colegio.website.attributes.url || ''
-    } else if (colegio.website.url) {
-      websiteColegio = colegio.website.url
+    const websiteRaw = colegio.website
+    
+    // Si es string directo
+    if (typeof websiteRaw === 'string') {
+      websiteColegio = websiteRaw
+    }
+    // Si viene como objeto con data
+    else if (websiteRaw.data) {
+      const websiteData = Array.isArray(websiteRaw.data) ? websiteRaw.data[0] : websiteRaw.data
+      websiteColegio = websiteData?.attributes?.url || websiteData?.url || ''
+    }
+    // Si viene como objeto con attributes
+    else if (websiteRaw.attributes) {
+      websiteColegio = websiteRaw.attributes.url || ''
+    }
+    // Si viene como objeto con url directo
+    else if (websiteRaw.url) {
+      websiteColegio = websiteRaw.url
     }
   }
   

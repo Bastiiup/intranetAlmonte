@@ -88,12 +88,20 @@ export async function GET(request: Request) {
     // Nivel 1: Datos básicos de la persona
     params.append('populate[emails]', 'true')
     params.append('populate[telefonos]', 'true')
-    params.append('populate[imagen]', 'true') // Para campos Media, solo usar 'true'
+    params.append('populate[imagen]', 'true')
     params.append('populate[tags]', 'true')
     
-    // Nivel 2: Populate de trayectorias con wildcard para colegio
-    // Usar wildcard para populate profundo del colegio (más simple y menos propenso a errores)
-    params.append('populate[trayectorias][populate][colegio][populate]', '*')
+    // Nivel 2: Trayectorias con populate completo del colegio
+    params.append('populate[trayectorias][populate][colegio][populate][telefonos]', 'true')
+    params.append('populate[trayectorias][populate][colegio][populate][emails]', 'true')
+    params.append('populate[trayectorias][populate][colegio][populate][website]', 'true')
+    params.append('populate[trayectorias][populate][colegio][populate][comuna][populate][0]', 'region')
+    params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones][populate][ejecutivo]', 'true')
+    params.append('populate[trayectorias][populate][colegio][fields][0]', 'colegio_nombre')
+    params.append('populate[trayectorias][populate][colegio][fields][1]', 'rbd')
+    params.append('populate[trayectorias][populate][colegio][fields][2]', 'dependencia')
+    params.append('populate[trayectorias][populate][colegio][fields][3]', 'zona')
+    params.append('populate[trayectorias][populate][colegio][fields][4]', 'direccion')
 
     // Filtros
     params.append('filters[activo][$eq]', 'true')
