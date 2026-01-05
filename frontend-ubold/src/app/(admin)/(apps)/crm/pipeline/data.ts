@@ -7,27 +7,27 @@ import user1 from '@/assets/images/users/user-1.jpg'
 export const kanbanSectionsData: KanbanSectionType[] = [
   {
     id: 'qualification',
-    title: 'Qualification',
+    title: 'Calificación',
     variant: 'warning',
   },
   {
     id: 'proposal-sent',
-    title: 'Proposal Sent',
+    title: 'Propuesta Enviada',
     variant: 'info',
   },
   {
     id: 'negotiation',
-    title: 'Negotiation',
+    title: 'Negociación',
     variant: 'primary',
   },
   {
     id: 'won',
-    title: 'Won',
+    title: 'Ganada',
     variant: 'success',
   },
   {
     id: 'lost',
-    title: 'Lost',
+    title: 'Perdida',
     variant: 'danger',
   },
 ]
