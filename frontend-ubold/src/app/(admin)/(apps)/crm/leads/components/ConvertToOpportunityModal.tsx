@@ -136,7 +136,7 @@ const ConvertToOpportunityModal = ({ show, onHide, lead, onSuccess }: ConvertToO
           estado: 'open',
           prioridad: etiquetaToPrioridad[attrs.etiqueta || 'media'] || 'medium',
           fecha_cierre: '',
-          fuente: attrs.fuente || lead?.source || 'Lead',
+          fuente: attrs.fuente || 'Lead',
           contacto: attrs.relacionado_con_persona?.data?.id || attrs.relacionado_con_persona?.id || attrs.relacionado_con_persona?.documentId || '',
           producto: '',
           propietario: attrs.asignado_a?.data?.id || attrs.asignado_a?.id || attrs.asignado_a?.documentId || '',
