@@ -162,8 +162,13 @@ export async function PUT(
       console.log('[API /crm/oportunidades/[id] PUT] ✅ moneda:', oportunidadData.data.moneda)
     }
     if (body.etapa !== undefined) {
-      oportunidadData.data.etapa = body.etapa || null
-      console.log('[API /crm/oportunidades/[id] PUT] ✅ etapa:', oportunidadData.data.etapa)
+      const etapaValue = body.etapa || null
+      oportunidadData.data.etapa = etapaValue
+      console.log('[API /crm/oportunidades/[id] PUT] ✅ etapa recibida:', body.etapa)
+      console.log('[API /crm/oportunidades/[id] PUT] ✅ etapa a enviar a Strapi:', etapaValue)
+      console.log('[API /crm/oportunidades/[id] PUT] ✅ tipo de etapa:', typeof etapaValue)
+    } else {
+      console.log('[API /crm/oportunidades/[id] PUT] ⚠️ etapa NO está en el body')
     }
     if (body.estado !== undefined) {
       oportunidadData.data.estado = body.estado || null
@@ -217,17 +222,48 @@ export async function PUT(
       }
     }
 
-    console.log('[API /crm/oportunidades/[id] PUT] 📤 Datos finales para Strapi:', JSON.stringify(oportunidadData, null, 2))
+    console.log('[API /crm/oportunidades/[id] PUT] 📤 ========================================')
+    console.log('[API /crm/oportunidades/[id] PUT] 📤 DATOS FINALES PARA STRAPI:')
+    console.log('[API /crm/oportunidades/[id] PUT] 📤 JSON completo:', JSON.stringify(oportunidadData, null, 2))
+    console.log('[API /crm/oportunidades/[id] PUT] 📤 Campos en data:', Object.keys(oportunidadData.data))
+    if (oportunidadData.data.etapa !== undefined) {
+      console.log('[API /crm/oportunidades/[id] PUT] 📤 Valor de etapa:', oportunidadData.data.etapa)
+      console.log('[API /crm/oportunidades/[id] PUT] 📤 Tipo de etapa:', typeof oportunidadData.data.etapa)
+    }
     console.log('[API /crm/oportunidades/[id] PUT] 🌐 URL de Strapi:', `/api/oportunidades/${documentId}`)
     console.log('[API /crm/oportunidades/[id] PUT] 📋 Usando documentId:', documentId, '(ID recibido:', id, ')')
+    console.log('[API /crm/oportunidades/[id] PUT] 📤 ========================================')
     
-    const response = await strapiClient.put<StrapiResponse<StrapiEntity<OportunidadAttributes>>>(
-      `/api/oportunidades/${documentId}`,
-      oportunidadData
-    )
-    
-    console.log('[API /crm/oportunidades/[id] PUT] 📡 Respuesta de Strapi recibida')
-    console.log('[API /crm/oportunidades/[id] PUT] Response data:', JSON.stringify(response, null, 2))
+    let response: any
+    try {
+      response = await strapiClient.put<StrapiResponse<StrapiEntity<OportunidadAttributes>>>(
+        `/api/oportunidades/${documentId}`,
+        oportunidadData
+      )
+      
+      console.log('[API /crm/oportunidades/[id] PUT] 📡 ========================================')
+      console.log('[API /crm/oportunidades/[id] PUT] 📡 RESPUESTA DE STRAPI RECIBIDA')
+      console.log('[API /crm/oportunidades/[id] PUT] 📡 Response completo:', JSON.stringify(response, null, 2))
+      if (response.data) {
+        console.log('[API /crm/oportunidades/[id] PUT] 📡 Response.data:', JSON.stringify(response.data, null, 2))
+        if (response.data.attributes) {
+          console.log('[API /crm/oportunidades/[id] PUT] 📡 Response.data.attributes.etapa:', response.data.attributes.etapa)
+        }
+      }
+      console.log('[API /crm/oportunidades/[id] PUT] 📡 ========================================')
+    } catch (strapiError: any) {
+      console.error('[API /crm/oportunidades/[id] PUT] ❌ ========================================')
+      console.error('[API /crm/oportunidades/[id] PUT] ❌ ERROR AL LLAMAR A STRAPI')
+      console.error('[API /crm/oportunidades/[id] PUT] ❌ Error completo:', strapiError)
+      console.error('[API /crm/oportunidades/[id] PUT] ❌ Error message:', strapiError.message)
+      console.error('[API /crm/oportunidades/[id] PUT] ❌ Error status:', strapiError.status)
+      console.error('[API /crm/oportunidades/[id] PUT] ❌ Error response:', strapiError.response)
+      if (strapiError.response?.data) {
+        console.error('[API /crm/oportunidades/[id] PUT] ❌ Error response.data:', JSON.stringify(strapiError.response.data, null, 2))
+      }
+      console.error('[API /crm/oportunidades/[id] PUT] ❌ ========================================')
+      throw strapiError
+    }
 
     console.log('[API /crm/oportunidades/[id] PUT] 🔄 Revalidando cache...')
     
