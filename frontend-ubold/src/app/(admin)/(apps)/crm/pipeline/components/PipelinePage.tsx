@@ -73,6 +73,10 @@ const PipelinePage = () => {
   // Función para recargar tareas después de crear
   const handleOpportunityCreated = () => {
     loadTasks()
+    // También recargar la página para asegurar sincronización
+    setTimeout(() => {
+      window.location.reload()
+    }, 500)
   }
 
 
