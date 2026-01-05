@@ -189,7 +189,10 @@ const Account = () => {
     // Cargar timeline (logs de actividades del usuario)
     useEffect(() => {
         const loadTimeline = async () => {
-            if (authLoading || !colaborador?.id) return
+            if (authLoading || !colaborador?.id) {
+                console.log('[Timeline] ⏳ Esperando autenticación o colaborador:', { authLoading, colaboradorId: colaborador?.id })
+                return
+            }
             
             setLoadingTimeline(true)
             try {
@@ -199,16 +202,40 @@ const Account = () => {
                     headers['Authorization'] = `Bearer ${token}`
                 }
                 
-                // Obtener logs de actividades del usuario actual
-                const response = await fetch(`/api/logs?page=1&pageSize=20&sort=fecha:desc`, {
-                    headers,
-                })
+                const colaboradorId = colaborador.id || colaborador.documentId
+                console.log('[Timeline] 🔍 Cargando timeline para colaborador:', colaboradorId)
+                
+                // Intentar usar el endpoint específico del usuario primero
+                let response: Response
+                try {
+                    response = await fetch(`/api/logs/usuario/${colaboradorId}?page=1&pageSize=20&sort=fecha:desc`, {
+                        headers,
+                    })
+                    if (!response.ok) {
+                        throw new Error('Endpoint específico no disponible')
+                    }
+                } catch (err) {
+                    // Fallback: obtener todos los logs y filtrar
+                    console.log('[Timeline] ⚠️ Usando fallback: obtener todos los logs')
+                    response = await fetch(`/api/logs?page=1&pageSize=100&sort=fecha:desc`, {
+                        headers,
+                    })
+                }
                 
                 if (response.ok) {
                     const result = await response.json()
+                    console.log('[Timeline] 📥 Respuesta recibida:', {
+                        success: result.success,
+                        totalLogs: result.data?.length || 0,
+                        primerLog: result.data?.[0] ? {
+                            id: result.data[0].id,
+                            tieneUsuario: !!(result.data[0].attributes?.usuario || result.data[0].usuario),
+                            estructuraUsuario: result.data[0].attributes?.usuario || result.data[0].usuario,
+                        } : null,
+                    })
+                    
                     if (result.success && result.data) {
                         // Filtrar solo los logs del usuario actual
-                        // El campo 'usuario' es una relación manyToOne con 'Colaboradores'
                         const userLogs = result.data.filter((log: any) => {
                             const logAttrs = log.attributes || log
                             const logUsuario = logAttrs.usuario?.data || logAttrs.usuario || log.usuario?.data || log.usuario
@@ -217,21 +244,51 @@ const Account = () => {
                             let logUsuarioId: string | number | null = null
                             if (logUsuario) {
                                 if (typeof logUsuario === 'object') {
-                                    logUsuarioId = logUsuario.id || logUsuario.documentId || logUsuario
+                                    // Puede ser un objeto con id, documentId, o directamente el ID
+                                    logUsuarioId = logUsuario.id || logUsuario.documentId
+                                    // Si no tiene id/documentId, puede ser que el objeto mismo sea el ID
+                                    if (!logUsuarioId && Object.keys(logUsuario).length === 0) {
+                                        logUsuarioId = null
+                                    }
                                 } else {
                                     logUsuarioId = logUsuario
                                 }
                             }
                             
                             // Comparar con el ID del colaborador actual
-                            const colaboradorId = colaborador.id || colaborador.documentId
-                            return logUsuarioId && colaboradorId && String(logUsuarioId) === String(colaboradorId)
+                            const match = logUsuarioId && colaboradorId && String(logUsuarioId) === String(colaboradorId)
+                            
+                            if (!match && logUsuario) {
+                                console.log('[Timeline] 🔍 Log no coincide:', {
+                                    logId: log.id || logAttrs.id,
+                                    logUsuarioId,
+                                    colaboradorId,
+                                    logUsuarioEstructura: typeof logUsuario,
+                                })
+                            }
+                            
+                            return match
                         })
+                        
+                        console.log('[Timeline] ✅ Logs filtrados:', {
+                            total: result.data.length,
+                            filtrados: userLogs.length,
+                            colaboradorId,
+                        })
+                        
                         setTimelinePosts(userLogs)
+                    } else {
+                        console.warn('[Timeline] ⚠️ Respuesta sin éxito o sin datos:', result)
+                        setTimelinePosts([])
                     }
+                } else {
+                    const errorText = await response.text()
+                    console.error('[Timeline] ❌ Error en respuesta:', response.status, errorText)
+                    setTimelinePosts([])
                 }
             } catch (err: any) {
-                console.error('[Account] Error al cargar timeline:', err)
+                console.error('[Timeline] ❌ Error al cargar timeline:', err)
+                setTimelinePosts([])
             } finally {
                 setLoadingTimeline(false)
             }
@@ -514,6 +571,66 @@ const Account = () => {
                             </Row>
                         </TabPane>
                         <TabPane eventKey="timeline">
+                            <div className="d-flex justify-content-between align-items-center mb-3">
+                                <h6 className="mb-0">Timeline de Actividades</h6>
+                                <Button 
+                                    variant="outline-primary" 
+                                    size="sm"
+                                    onClick={async () => {
+                                        setLoadingTimeline(true)
+                                        const token = getAuthToken()
+                                        const headers: HeadersInit = {}
+                                        if (token) {
+                                            headers['Authorization'] = `Bearer ${token}`
+                                        }
+                                        const colaboradorId = colaborador?.id || colaborador?.documentId
+                                        
+                                        try {
+                                            let response: Response
+                                            try {
+                                                response = await fetch(`/api/logs/usuario/${colaboradorId}?page=1&pageSize=20&sort=fecha:desc`, { headers })
+                                                if (!response.ok) throw new Error('Endpoint no disponible')
+                                            } catch (err) {
+                                                response = await fetch(`/api/logs?page=1&pageSize=100&sort=fecha:desc`, { headers })
+                                            }
+                                            
+                                            if (response.ok) {
+                                                const result = await response.json()
+                                                if (result.success && result.data) {
+                                                    const userLogs = result.data.filter((log: any) => {
+                                                        const logAttrs = log.attributes || log
+                                                        const logUsuario = logAttrs.usuario?.data || logAttrs.usuario || log.usuario?.data || log.usuario
+                                                        let logUsuarioId: string | number | null = null
+                                                        if (logUsuario) {
+                                                            if (typeof logUsuario === 'object') {
+                                                                logUsuarioId = logUsuario.id || logUsuario.documentId
+                                                            } else {
+                                                                logUsuarioId = logUsuario
+                                                            }
+                                                        }
+                                                        return logUsuarioId && colaboradorId && String(logUsuarioId) === String(colaboradorId)
+                                                    })
+                                                    setTimelinePosts(userLogs)
+                                                }
+                                            }
+                                        } catch (err) {
+                                            console.error('[Timeline] Error al recargar:', err)
+                                        } finally {
+                                            setLoadingTimeline(false)
+                                        }
+                                    }}
+                                    disabled={loadingTimeline}
+                                >
+                                    {loadingTimeline ? (
+                                        <>
+                                            <Spinner animation="border" size="sm" className="me-2" />
+                                            Cargando...
+                                        </>
+                                    ) : (
+                                        '🔄 Recargar'
+                                    )}
+                                </Button>
+                            </div>
                             <form onSubmit={async (e) => {
                                 e.preventDefault()
                                 if (!newPostText.trim() || posting) return
@@ -541,13 +658,31 @@ const Account = () => {
                                     })
                                     
                                     if (response.ok) {
+                                        const postResult = await response.json()
+                                        console.log('[Timeline] ✅ Post creado:', postResult)
                                         setNewPostText('')
-                                        // Recargar timeline
-                                        const timelineResponse = await fetch(`/api/logs?page=1&pageSize=20&sort=fecha:desc`, { headers })
+                                        setSuccess(true)
+                                        
+                                        // Esperar un momento para que Strapi procese el log
+                                        await new Promise(resolve => setTimeout(resolve, 500))
+                                        
+                                        // Recargar timeline usando el mismo método que loadTimeline
+                                        const colaboradorId = colaborador?.id || colaborador?.documentId
+                                        
+                                        // Intentar endpoint específico primero
+                                        let timelineResponse: Response
+                                        try {
+                                            timelineResponse = await fetch(`/api/logs/usuario/${colaboradorId}?page=1&pageSize=20&sort=fecha:desc`, { headers })
+                                            if (!timelineResponse.ok) {
+                                                throw new Error('Endpoint específico no disponible')
+                                            }
+                                        } catch (err) {
+                                            timelineResponse = await fetch(`/api/logs?page=1&pageSize=100&sort=fecha:desc`, { headers })
+                                        }
+                                        
                                         if (timelineResponse.ok) {
                                             const result = await timelineResponse.json()
                                             if (result.success && result.data) {
-                                                const colaboradorId = colaborador?.id || colaborador?.documentId
                                                 const userLogs = result.data.filter((log: any) => {
                                                     const logAttrs = log.attributes || log
                                                     const logUsuario = logAttrs.usuario?.data || logAttrs.usuario || log.usuario?.data || log.usuario
@@ -555,7 +690,7 @@ const Account = () => {
                                                     let logUsuarioId: string | number | null = null
                                                     if (logUsuario) {
                                                         if (typeof logUsuario === 'object') {
-                                                            logUsuarioId = logUsuario.id || logUsuario.documentId || logUsuario
+                                                            logUsuarioId = logUsuario.id || logUsuario.documentId
                                                         } else {
                                                             logUsuarioId = logUsuario
                                                         }
@@ -563,9 +698,14 @@ const Account = () => {
                                                     
                                                     return logUsuarioId && colaboradorId && String(logUsuarioId) === String(colaboradorId)
                                                 })
+                                                console.log('[Timeline] 🔄 Timeline recargado después de post:', userLogs.length, 'logs')
                                                 setTimelinePosts(userLogs)
                                             }
                                         }
+                                    } else {
+                                        const errorData = await response.json()
+                                        console.error('[Timeline] ❌ Error al crear post:', errorData)
+                                        setError(errorData.error || 'Error al publicar el post')
                                     }
                                 } catch (err: any) {
                                     console.error('[Account] Error al publicar post:', err)
@@ -613,7 +753,20 @@ const Account = () => {
                                 </div>
                             ) : timelinePosts.length === 0 ? (
                                 <Alert variant="info">
-                                    <p className="mb-0">Aún no hay actividades en tu timeline. Realiza alguna acción en el sistema o publica algo arriba.</p>
+                                    <p className="mb-0">
+                                        <strong>No hay actividades en tu timeline.</strong>
+                                        <br />
+                                        <small>
+                                            Esto puede deberse a que:
+                                            <ul className="mb-0 mt-2">
+                                                <li>No has realizado acciones en el sistema aún</li>
+                                                <li>Los logs no están asociados correctamente a tu usuario</li>
+                                                <li>Intenta recargar usando el botón arriba</li>
+                                            </ul>
+                                            <br />
+                                            <strong>Colaborador ID:</strong> {colaborador?.id || colaborador?.documentId || 'No disponible'}
+                                        </small>
+                                    </p>
                                 </Alert>
                             ) : (
                                 <div className="timeline timeline-icon-bordered">
