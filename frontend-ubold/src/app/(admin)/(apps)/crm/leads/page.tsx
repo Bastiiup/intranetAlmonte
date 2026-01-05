@@ -1,6 +1,5 @@
 'use client'
-import { Button, Card, CardBody, CardFooter, CardHeader, Col, Container, OverlayTrigger, Row, Tooltip } from 'react-bootstrap'
-import { deals, leadsData } from '@/app/(admin)/(apps)/crm/data'
+import { Button, Card, CardBody, CardFooter, CardHeader, Col, Container, OverlayTrigger, Row, Spinner, Tooltip, Alert } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { TbEdit, TbEye, TbPlus, TbTrash } from 'react-icons/tb'
 import { LuDollarSign, LuSearch, LuShuffle } from 'react-icons/lu'
@@ -18,7 +17,7 @@ import {
 import { LeadType } from '@/app/(admin)/(apps)/crm/types'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Row as TableRow, type Table as TableType } from '@tanstack/table-core'
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
@@ -26,6 +25,7 @@ import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import { currency } from '@/helpers'
 import { useToggle } from 'usehooks-ts'
 import AddNewLeadModal from '@/app/(admin)/(apps)/crm/leads/components/AddNewLeadModal'
+import { getLeads, type LeadsQuery } from './data'
 
 const columnHelper = createColumnHelper<LeadType>()
 
@@ -38,6 +38,55 @@ const priceRangeFilterFn: FilterFn<any> = (row, columnId, value) => {
 }
 
 const Leads = () => {
+  // Estados de datos
+  const [leadsData, setLeadsData] = useState<LeadType[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [totalRows, setTotalRows] = useState(0)
+  
+  // Estados de tabla
+  const [globalFilter, setGlobalFilter] = useState('')
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
+  const [filtroEtiqueta, setFiltroEtiqueta] = useState<string>('')
+  const [filtroEstado, setFiltroEstado] = useState<string>('')
+  const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
+  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false)
+  const [showDealModal, toggleDealModal] = useToggle(false)
+
+  // Función para cargar leads
+  const loadLeads = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const query: LeadsQuery = {
+        page: pagination.pageIndex + 1, // Strapi usa página 1-indexed
+        pageSize: pagination.pageSize,
+        search: globalFilter || undefined,
+        etiqueta: filtroEtiqueta || undefined,
+        estado: filtroEstado || undefined,
+      }
+      
+      const result = await getLeads(query)
+      setLeadsData(result.leads)
+      setTotalRows(result.pagination.total)
+    } catch (err: any) {
+      setError(err.message || 'Error al cargar leads')
+    } finally {
+      setLoading(false)
+    }
+  }, [pagination.pageIndex, pagination.pageSize, globalFilter, filtroEtiqueta, filtroEstado])
+
+  const handleLeadCreated = () => {
+    loadLeads()
+  }
+
+  // Cargar datos cuando cambian los filtros o paginación
+  useEffect(() => {
+    loadLeads()
+  }, [loadLeads])
+
   const columns = [
     {
       id: 'select',
@@ -141,16 +190,10 @@ const Leads = () => {
     },
   ]
 
-  const [data, setData] = useState<LeadType[]>(() => [...leadsData])
-  const [globalFilter, setGlobalFilter] = useState('')
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
-  const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
-
   const table = useReactTable({
-    data,
+    data: leadsData,
     columns,
+    pageCount: Math.ceil(totalRows / pagination.pageSize),
     state: { sorting, globalFilter, columnFilters, pagination, rowSelection: selectedRowIds },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
@@ -161,6 +204,7 @@ const Leads = () => {
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    manualPagination: true, // Paginación del servidor
     globalFilterFn: 'includesString',
     enableColumnFilters: true,
     enableRowSelection: true,
@@ -171,28 +215,55 @@ const Leads = () => {
 
   const pageIndex = table.getState().pagination.pageIndex
   const pageSize = table.getState().pagination.pageSize
-  const totalItems = table.getFilteredRowModel().rows.length
-
   const start = pageIndex * pageSize + 1
-  const end = Math.min(start + pageSize - 1, totalItems)
-
-  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false)
-  const [showDealModal, toggleDealModal] = useToggle(false)
+  const end = Math.min(start + pageSize - 1, totalRows)
 
   const toggleDeleteModal = () => {
     setShowDeleteModal(!showDeleteModal)
   }
 
-  const handleDelete = () => {
-    const selectedIds = new Set(Object.keys(selectedRowIds))
-    setData((old) => old.filter((_, idx) => !selectedIds.has(idx.toString())))
-    setSelectedRowIds({})
-    setPagination({ ...pagination, pageIndex: 0 })
-    setShowDeleteModal(false)
+  const handleDelete = async () => {
+    const selectedIds = Object.keys(selectedRowIds)
+    try {
+      // Eliminar cada lead seleccionado
+      for (const rowId of selectedIds) {
+        const lead = leadsData[parseInt(rowId)]
+        if (lead) {
+          const cleanId = lead.id.replace(/^#LD/, '').replace(/^#/, '')
+          await fetch(`/api/crm/leads/${cleanId}`, {
+            method: 'DELETE',
+          })
+        }
+      }
+      // Recargar leads
+      await loadLeads()
+      setSelectedRowIds({})
+      setShowDeleteModal(false)
+    } catch (err: any) {
+      setError(err.message || 'Error al eliminar leads')
+    }
+  }
+
+  if (loading && leadsData.length === 0) {
+    return (
+      <Container fluid>
+        <PageBreadcrumb title={'Leads'} subtitle={'CRM'} />
+        <div className="text-center py-5">
+          <Spinner animation="border" variant="primary" />
+          <p className="mt-2 text-muted">Cargando leads...</p>
+        </div>
+      </Container>
+    )
   }
   return (
     <Container fluid>
       <PageBreadcrumb title={'Leads'} subtitle={'CRM'} />
+
+      {error && (
+        <Alert variant="warning" className="mb-3">
+          <strong>Advertencia:</strong> {error}
+        </Alert>
+      )}
 
       <Row>
         <Col xs={12}>
@@ -203,39 +274,51 @@ const Leads = () => {
                   <input
                     type="search"
                     className="form-control"
-                    placeholder="Search deals..."
+                    placeholder="Buscar leads..."
                     value={globalFilter ?? ''}
                     onChange={(e) => setGlobalFilter(e.target.value)}
                   />
                   <LuSearch className="app-search-icon text-muted" />
                 </div>
                 <Button variant="primary" onClick={toggleDealModal}>
-                  <TbPlus className="me-1" /> New Lead
+                  <TbPlus className="me-1" /> Nuevo Lead
                 </Button>
                 {Object.keys(selectedRowIds).length > 0 && (
                   <Button variant="danger" size="sm" onClick={toggleDeleteModal}>
-                    Delete
+                    Eliminar
                   </Button>
                 )}
               </div>
 
               <div className="d-flex align-items-center gap-2">
-                <span className="me-2 fw-semibold">Filter By:</span>
+                <span className="me-2 fw-semibold">Filtrar por:</span>
 
                 <div className="app-search">
                   <select
                     className="form-select form-control my-1 my-md-0"
-                    value={(table.getColumn('status')?.getFilterValue() as string) ?? 'All'}
-                    onChange={(e) => table.getColumn('status')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
-                    <option value="All">Status</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Proposal Sent">Proposal Sent</option>
-                    <option value="Follow Up">Follow Up</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Negotiation">Negotiation</option>
-                    <option value="Rejected">Rejected</option>
+                    value={filtroEtiqueta}
+                    onChange={(e) => setFiltroEtiqueta(e.target.value)}>
+                    <option value="">Todas las Etiquetas</option>
+                    <option value="baja">Cold Lead</option>
+                    <option value="media">Prospect</option>
+                    <option value="alta">Hot Lead</option>
                   </select>
+                  <LuShuffle className="app-search-icon text-muted" />
+                </div>
 
+                <div className="app-search">
+                  <select
+                    className="form-select form-control my-1 my-md-0"
+                    value={filtroEstado}
+                    onChange={(e) => setFiltroEstado(e.target.value)}>
+                    <option value="">Todos los Estados</option>
+                    <option value="in-progress">In Progress</option>
+                    <option value="proposal-sent">Proposal Sent</option>
+                    <option value="follow-up">Follow Up</option>
+                    <option value="pending">Pending</option>
+                    <option value="negotiation">Negotiation</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
                   <LuShuffle className="app-search-icon text-muted" />
                 </div>
 
@@ -275,7 +358,7 @@ const Leads = () => {
             {table.getRowModel().rows.length > 0 && (
               <CardFooter className="border-0">
                 <TablePagination
-                  totalItems={totalItems}
+                  totalItems={totalRows}
                   start={start}
                   end={end}
                   itemsName="leads"
@@ -299,7 +382,7 @@ const Leads = () => {
               itemName="lead"
             />
 
-            <AddNewLeadModal show={showDealModal} toggleModal={toggleDealModal} />
+            <AddNewLeadModal show={showDealModal} toggleModal={toggleDealModal} onLeadCreated={handleLeadCreated} />
           </Card>
         </Col>
       </Row>
