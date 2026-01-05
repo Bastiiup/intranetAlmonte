@@ -53,7 +53,8 @@ export async function GET(request: Request) {
     })
 
     // Populate para relaciones (Strapi v4 syntax)
-    params.append('populate[producto][populate][logo][populate]', 'media')
+    // Libro usa 'portada_libro' no 'logo'
+    params.append('populate[producto][populate]', 'portada_libro')
     params.append('populate[contacto][populate][imagen][populate]', 'media')
     params.append('populate[propietario]', 'true')
 

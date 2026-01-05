@@ -17,9 +17,25 @@ type OportunidadAttributes = {
   createdAt?: string
   updatedAt?: string
   producto?: {
-    nombre?: string
-    empresa?: string
-    logo?: string | {
+    nombre_libro?: string
+    nombre?: string // Fallback
+    editorial?: {
+      nombre?: string
+    }
+    empresa?: string // Fallback
+    portada_libro?: string | {
+      url?: string
+      data?: {
+        attributes?: {
+          url?: string
+        }
+      } | Array<{
+        attributes?: {
+          url?: string
+        }
+      }>
+    }
+    logo?: string | { // Fallback para compatibilidad
       url?: string
       media?: {
         data?: {
@@ -105,24 +121,26 @@ function transformOportunidadToOpportunity(oportunidad: OportunidadEntity | any)
     }
   }
   
-  const productName = producto?.nombre || attrs.nombre || 'Sin nombre'
-  const productBy = producto?.empresa || 'Sin empresa'
+  // Libro usa 'nombre_libro' no 'nombre', y 'portada_libro' no 'logo'
+  const productName = producto?.nombre_libro || producto?.nombre || attrs.nombre || 'Sin nombre'
+  const productBy = producto?.editorial?.nombre || producto?.empresa || 'Sin empresa'
   
-  // Logo del producto
+  // Portada del libro (libro usa 'portada_libro' no 'logo')
   let productLogo = '/assets/images/logos/default.svg' // Logo por defecto
-  if (producto?.logo) {
-    if (typeof producto.logo === 'string') {
-      const logoUrl = producto.logo
-      productLogo = logoUrl.startsWith('http') ? logoUrl : `${STRAPI_API_URL}${logoUrl}`
-    } else {
-      // producto.logo es un objeto aquí
-      if (producto.logo.url) {
-        const url = producto.logo.url
+  if (producto?.portada_libro) {
+    const portada = producto.portada_libro
+    if (typeof portada === 'string') {
+      const portadaUrl = portada
+      productLogo = portadaUrl.startsWith('http') ? portadaUrl : `${STRAPI_API_URL}${portadaUrl}`
+    } else if (portada.data) {
+      // Strapi v4 format: { data: { attributes: { url: ... } } }
+      const portadaData = Array.isArray(portada.data) ? portada.data[0] : portada.data
+      const url = portadaData?.attributes?.url || portadaData?.url
+      if (url) {
         productLogo = url.startsWith('http') ? url : `${STRAPI_API_URL}${url}`
-      } else if (producto.logo.media?.data?.attributes?.url) {
-        const mediaUrl = producto.logo.media.data.attributes.url
-        productLogo = mediaUrl.startsWith('http') ? mediaUrl : `${STRAPI_API_URL}${mediaUrl}`
       }
+    } else if (portada.url) {
+      productLogo = portada.url.startsWith('http') ? portada.url : `${STRAPI_API_URL}${portada.url}`
     }
   }
   

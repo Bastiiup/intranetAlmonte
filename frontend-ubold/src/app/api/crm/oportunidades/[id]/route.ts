@@ -33,7 +33,7 @@ export async function GET(
     const { id } = await params
 
     const paramsObj = new URLSearchParams({
-      'populate[producto][populate][logo][populate]': 'media',
+      'populate[producto][populate]': 'portada_libro',
       'populate[contacto][populate][imagen][populate]': 'media',
       'populate[propietario]': 'true',
     })
