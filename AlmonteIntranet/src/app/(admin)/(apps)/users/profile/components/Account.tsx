@@ -236,34 +236,57 @@ const Account = () => {
                     
                     if (result.success && result.data) {
                         // Filtrar solo los logs del usuario actual
-                        const userLogs = result.data.filter((log: any) => {
+                        // Extraer IDs del colaborador actual (tanto id como documentId)
+                        const colaboradorIdNum = colaborador.id
+                        const colaboradorDocumentId = (colaborador as any).documentId
+                        const colaboradorIds = [
+                            colaboradorIdNum,
+                            colaboradorDocumentId,
+                            String(colaboradorIdNum),
+                            String(colaboradorDocumentId),
+                        ].filter(Boolean)
+                        
+                        console.log('[Timeline] 🔑 IDs del colaborador a buscar:', colaboradorIds)
+                        
+                        const userLogs = result.data.filter((log: any, index: number) => {
                             const logAttrs = log.attributes || log
-                            const logUsuario = logAttrs.usuario?.data || logAttrs.usuario || log.usuario?.data || log.usuario
                             
-                            // Extraer ID del colaborador del log
-                            let logUsuarioId: string | number | null = null
-                            if (logUsuario) {
-                                if (typeof logUsuario === 'object') {
-                                    // Puede ser un objeto con id, documentId, o directamente el ID
-                                    logUsuarioId = logUsuario.id || logUsuario.documentId
-                                    // Si no tiene id/documentId, puede ser que el objeto mismo sea el ID
-                                    if (!logUsuarioId && Object.keys(logUsuario).length === 0) {
-                                        logUsuarioId = null
-                                    }
-                                } else {
-                                    logUsuarioId = logUsuario
+                            // Intentar todas las posibles estructuras de usuario
+                            const posiblesUsuarios = [
+                                logAttrs.usuario?.data,
+                                logAttrs.usuario,
+                                log.usuario?.data,
+                                log.usuario,
+                            ].filter(Boolean)
+                            
+                            // Extraer todos los posibles IDs del usuario del log
+                            const logUsuarioIds: (string | number)[] = []
+                            
+                            posiblesUsuarios.forEach((usuario: any) => {
+                                if (typeof usuario === 'object') {
+                                    if (usuario.id) logUsuarioIds.push(usuario.id, String(usuario.id))
+                                    if (usuario.documentId) logUsuarioIds.push(usuario.documentId, String(usuario.documentId))
+                                } else if (typeof usuario === 'number' || typeof usuario === 'string') {
+                                    logUsuarioIds.push(usuario, String(usuario))
                                 }
-                            }
+                            })
                             
-                            // Comparar con el ID del colaborador actual
-                            const match = logUsuarioId && colaboradorId && String(logUsuarioId) === String(colaboradorId)
+                            // Verificar si alguno de los IDs del log coincide con alguno del colaborador
+                            const match = colaboradorIds.some(cId => 
+                                logUsuarioIds.some(lId => String(cId) === String(lId))
+                            )
                             
-                            if (!match && logUsuario) {
-                                console.log('[Timeline] 🔍 Log no coincide:', {
+                            if (index < 3) { // Log solo los primeros 3 para no saturar
+                                console.log('[Timeline] 🔍 Log', index + 1, ':', {
                                     logId: log.id || logAttrs.id,
-                                    logUsuarioId,
-                                    colaboradorId,
-                                    logUsuarioEstructura: typeof logUsuario,
+                                    tieneUsuario: posiblesUsuarios.length > 0,
+                                    logUsuarioIds: logUsuarioIds.length > 0 ? logUsuarioIds : 'ninguno',
+                                    colaboradorIds,
+                                    match,
+                                    estructuraCompleta: JSON.stringify({
+                                        logAttrsUsuario: logAttrs.usuario,
+                                        logUsuario: log.usuario,
+                                    }).substring(0, 200),
                                 })
                             }
                             
@@ -597,18 +620,37 @@ const Account = () => {
                                             if (response.ok) {
                                                 const result = await response.json()
                                                 if (result.success && result.data) {
+                                                    const colaboradorIdNum = colaborador?.id
+                                                    const colaboradorDocumentId = (colaborador as any)?.documentId
+                                                    const colaboradorIds = [
+                                                        colaboradorIdNum,
+                                                        colaboradorDocumentId,
+                                                        String(colaboradorIdNum),
+                                                        String(colaboradorDocumentId),
+                                                    ].filter(Boolean)
+                                                    
                                                     const userLogs = result.data.filter((log: any) => {
                                                         const logAttrs = log.attributes || log
-                                                        const logUsuario = logAttrs.usuario?.data || logAttrs.usuario || log.usuario?.data || log.usuario
-                                                        let logUsuarioId: string | number | null = null
-                                                        if (logUsuario) {
-                                                            if (typeof logUsuario === 'object') {
-                                                                logUsuarioId = logUsuario.id || logUsuario.documentId
-                                                            } else {
-                                                                logUsuarioId = logUsuario
+                                                        const posiblesUsuarios = [
+                                                            logAttrs.usuario?.data,
+                                                            logAttrs.usuario,
+                                                            log.usuario?.data,
+                                                            log.usuario,
+                                                        ].filter(Boolean)
+                                                        
+                                                        const logUsuarioIds: (string | number)[] = []
+                                                        posiblesUsuarios.forEach((usuario: any) => {
+                                                            if (typeof usuario === 'object') {
+                                                                if (usuario.id) logUsuarioIds.push(usuario.id, String(usuario.id))
+                                                                if (usuario.documentId) logUsuarioIds.push(usuario.documentId, String(usuario.documentId))
+                                                            } else if (typeof usuario === 'number' || typeof usuario === 'string') {
+                                                                logUsuarioIds.push(usuario, String(usuario))
                                                             }
-                                                        }
-                                                        return logUsuarioId && colaboradorId && String(logUsuarioId) === String(colaboradorId)
+                                                        })
+                                                        
+                                                        return colaboradorIds.some(cId => 
+                                                            logUsuarioIds.some(lId => String(cId) === String(lId))
+                                                        )
                                                     })
                                                     setTimelinePosts(userLogs)
                                                 }
@@ -683,20 +725,37 @@ const Account = () => {
                                         if (timelineResponse.ok) {
                                             const result = await timelineResponse.json()
                                             if (result.success && result.data) {
+                                                const colaboradorIdNum = colaborador?.id
+                                                const colaboradorDocumentId = (colaborador as any)?.documentId
+                                                const colaboradorIds = [
+                                                    colaboradorIdNum,
+                                                    colaboradorDocumentId,
+                                                    String(colaboradorIdNum),
+                                                    String(colaboradorDocumentId),
+                                                ].filter(Boolean)
+                                                
                                                 const userLogs = result.data.filter((log: any) => {
                                                     const logAttrs = log.attributes || log
-                                                    const logUsuario = logAttrs.usuario?.data || logAttrs.usuario || log.usuario?.data || log.usuario
+                                                    const posiblesUsuarios = [
+                                                        logAttrs.usuario?.data,
+                                                        logAttrs.usuario,
+                                                        log.usuario?.data,
+                                                        log.usuario,
+                                                    ].filter(Boolean)
                                                     
-                                                    let logUsuarioId: string | number | null = null
-                                                    if (logUsuario) {
-                                                        if (typeof logUsuario === 'object') {
-                                                            logUsuarioId = logUsuario.id || logUsuario.documentId
-                                                        } else {
-                                                            logUsuarioId = logUsuario
+                                                    const logUsuarioIds: (string | number)[] = []
+                                                    posiblesUsuarios.forEach((usuario: any) => {
+                                                        if (typeof usuario === 'object') {
+                                                            if (usuario.id) logUsuarioIds.push(usuario.id, String(usuario.id))
+                                                            if (usuario.documentId) logUsuarioIds.push(usuario.documentId, String(usuario.documentId))
+                                                        } else if (typeof usuario === 'number' || typeof usuario === 'string') {
+                                                            logUsuarioIds.push(usuario, String(usuario))
                                                         }
-                                                    }
+                                                    })
                                                     
-                                                    return logUsuarioId && colaboradorId && String(logUsuarioId) === String(colaboradorId)
+                                                    return colaboradorIds.some(cId => 
+                                                        logUsuarioIds.some(lId => String(cId) === String(lId))
+                                                    )
                                                 })
                                                 console.log('[Timeline] 🔄 Timeline recargado después de post:', userLogs.length, 'logs')
                                                 setTimelinePosts(userLogs)
@@ -764,7 +823,10 @@ const Account = () => {
                                                 <li>Intenta recargar usando el botón arriba</li>
                                             </ul>
                                             <br />
-                                            <strong>Colaborador ID:</strong> {colaborador?.id || colaborador?.documentId || 'No disponible'}
+                                            <strong>Colaborador ID:</strong> {colaborador?.id || 'N/A'}
+                                            {colaborador && (colaborador as any).documentId && (
+                                                <> | <strong>Document ID:</strong> {(colaborador as any).documentId}</>
+                                            )}
                                         </small>
                                     </p>
                                 </Alert>
