@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
+import { getAuthColaborador, getAuthToken } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,6 +63,88 @@ export async function GET(request: NextRequest) {
         success: false,
         error: error.message || 'Error al obtener logs',
         data: [],
+      },
+      { status: error.status || 500 }
+    )
+  }
+}
+
+/**
+ * POST /api/logs
+ * Crea un nuevo log de actividad (para posts del timeline)
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { accion, entidad, descripcion, metadata } = body
+    
+    if (!descripcion || !descripcion.trim()) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'La descripción es requerida',
+        },
+        { status: 400 }
+      )
+    }
+    
+    // Obtener usuario autenticado
+    const colaborador = getAuthColaborador()
+    if (!colaborador || !colaborador.id) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Usuario no autenticado',
+        },
+        { status: 401 }
+      )
+    }
+    
+    // Obtener IP y User-Agent
+    const ipAddress = request.headers.get('x-forwarded-for') || 
+                     request.headers.get('x-real-ip') || 
+                     'unknown'
+    const userAgent = request.headers.get('user-agent') || 'unknown'
+    
+    // Preparar datos del log
+    const logData: any = {
+      accion: accion || 'publicar',
+      entidad: entidad || 'timeline',
+      descripcion: descripcion.trim(),
+      usuario: colaborador.id,
+      fecha: new Date().toISOString(),
+      ip_address: ipAddress,
+      user_agent: userAgent,
+    }
+    
+    // Agregar metadata si existe
+    if (metadata) {
+      logData.metadata = typeof metadata === 'string' ? metadata : JSON.stringify(metadata)
+    }
+    
+    // Crear log en Strapi
+    const response = await strapiClient.post<any>(
+      '/api/activity-logs',
+      { data: logData }
+    )
+    
+    console.log('[API /logs POST] ✅ Log creado exitosamente:', {
+      logId: response?.data?.id || response?.id,
+      accion: logData.accion,
+      entidad: logData.entidad,
+    })
+    
+    return NextResponse.json({
+      success: true,
+      data: response?.data || response,
+    }, { status: 201 })
+  } catch (error: any) {
+    console.error('[API /logs POST] ❌ Error:', error.message)
+    
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message || 'Error al crear el log',
       },
       { status: error.status || 500 }
     )

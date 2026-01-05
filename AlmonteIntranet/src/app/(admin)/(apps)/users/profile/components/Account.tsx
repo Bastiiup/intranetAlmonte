@@ -2,17 +2,8 @@
 
 import React, { useState, useEffect } from 'react'
 import { Button, CardBody, CardHeader, CardTitle, Col, FormControl, FormLabel, Nav, NavItem, NavLink, Row, TabContainer, TabContent, Table, TabPane, Alert, Spinner } from 'react-bootstrap'
-import { TbArrowBackUp, TbBrandFacebook, TbBrandGithub, TbBrandInstagram, TbBrandLinkedin, TbBrandSkype, TbBrandX, TbBriefcase, TbBuildingSkyscraper, TbCamera, TbChecklist, TbDeviceFloppy, TbHeart, TbHome, TbMapPin, TbMoodSmile, TbPencil, TbQuote, TbSettings, TbShare3, TbUser, TbUserCircle, TbWorld } from 'react-icons/tb'
-import { taskData } from '../data'
-import Image from 'next/image'
+import { TbArrowBackUp, TbBrandFacebook, TbBrandGithub, TbBrandInstagram, TbBrandLinkedin, TbBrandSkype, TbBrandX, TbBriefcase, TbCamera, TbChecklist, TbDeviceFloppy, TbHome, TbMapPin, TbMoodSmile, TbPencil, TbSettings, TbShare3, TbUser, TbUserCircle, TbWorld } from 'react-icons/tb'
 import Link from 'next/link'
-import user3 from '@/assets/images/users/user-3.jpg'
-import user2 from '@/assets/images/users/user-2.jpg'
-import user4 from '@/assets/images/users/user-4.jpg'
-import small1 from '@/assets/images/stock/small-1.jpg'
-import small2 from '@/assets/images/stock/small-2.jpg'
-import small3 from '@/assets/images/stock/small-3.jpg'
-import user1 from '@/assets/images/users/user-1.jpg'
 import { useAuth } from '@/hooks/useAuth'
 import { getAuthToken } from '@/lib/auth'
 
@@ -25,6 +16,12 @@ const Account = () => {
     const [profilePhoto, setProfilePhoto] = useState<File | null>(null)
     const [profilePhotoPreview, setProfilePhotoPreview] = useState<string | null>(null)
     const [uploadingPhoto, setUploadingPhoto] = useState(false)
+    
+    // Estado para Timeline
+    const [timelinePosts, setTimelinePosts] = useState<any[]>([])
+    const [loadingTimeline, setLoadingTimeline] = useState(true)
+    const [newPostText, setNewPostText] = useState('')
+    const [posting, setPosting] = useState(false)
 
     // Estado del formulario
     const [formData, setFormData] = useState({
@@ -188,6 +185,60 @@ const Account = () => {
 
         loadProfile()
     }, [authLoading])
+    
+    // Cargar timeline (logs de actividades del usuario)
+    useEffect(() => {
+        const loadTimeline = async () => {
+            if (authLoading || !colaborador?.id) return
+            
+            setLoadingTimeline(true)
+            try {
+                const token = getAuthToken()
+                const headers: HeadersInit = {}
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`
+                }
+                
+                // Obtener logs de actividades del usuario actual
+                const response = await fetch(`/api/logs?page=1&pageSize=20&sort=fecha:desc`, {
+                    headers,
+                })
+                
+                if (response.ok) {
+                    const result = await response.json()
+                    if (result.success && result.data) {
+                        // Filtrar solo los logs del usuario actual
+                        // El campo 'usuario' es una relación manyToOne con 'Colaboradores'
+                        const userLogs = result.data.filter((log: any) => {
+                            const logAttrs = log.attributes || log
+                            const logUsuario = logAttrs.usuario?.data || logAttrs.usuario || log.usuario?.data || log.usuario
+                            
+                            // Extraer ID del colaborador del log
+                            let logUsuarioId: string | number | null = null
+                            if (logUsuario) {
+                                if (typeof logUsuario === 'object') {
+                                    logUsuarioId = logUsuario.id || logUsuario.documentId || logUsuario
+                                } else {
+                                    logUsuarioId = logUsuario
+                                }
+                            }
+                            
+                            // Comparar con el ID del colaborador actual
+                            const colaboradorId = colaborador.id || colaborador.documentId
+                            return logUsuarioId && colaboradorId && String(logUsuarioId) === String(colaboradorId)
+                        })
+                        setTimelinePosts(userLogs)
+                    }
+                }
+            } catch (err: any) {
+                console.error('[Account] Error al cargar timeline:', err)
+            } finally {
+                setLoadingTimeline(false)
+            }
+        }
+        
+        loadTimeline()
+    }, [authLoading, colaborador?.id])
 
     // Manejar cambio de foto
     const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -377,95 +428,268 @@ const Account = () => {
                     )}
                     <TabContent>
                         <TabPane eventKey="about-me">
-                            {bio ? (
-                                <>
-                                    <p>{bio}</p>
-                                </>
-                            ) : (
-                                <p className="text-muted">No hay información personal disponible. Edita tu perfil en la pestaña "Configuración" para agregar información sobre ti.</p>
-                            )}
-                            <h4 className="card-title my-3 text-uppercase fs-sm"><TbChecklist /> Tareas:</h4>
-                            <div className="table-responsive">
-                                <Table className="table-centered table-custom table-sm table-nowrap table-hover mb-0">
-                                    <thead className="bg-light bg-opacity-25 thead-sm">
-                                        <tr className="text-uppercase fs-xxs">
-                                            <th data-table-sort="task">Tarea</th>
-                                            <th data-table-sort>Estado</th>
-                                            <th data-table-sort="name">Asignado Por</th>
-                                            <th data-table-sort>Fecha Inicio</th>
-                                            <th data-table-sort>Prioridad</th>
-                                            <th data-table-sort>Progreso</th>
-                                            <th data-table-sort>Tiempo Total</th>
-                                            <th style={{ width: 30 }} />
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {
-                                            taskData.map((item, idx) => (
-                                                <tr key={idx}>
-                                                    <td>
-                                                        <h5 className="fs-sm my-1"><a href="#" className="text-body">{item.title}</a></h5>
-                                                        <span className="text-muted fs-xs">{item.due}</span>
-                                                    </td>
-                                                    <td><span className={`badge badge-${item.status.color} `}>{item.status.label}</span></td>
-                                                    <td>
-                                                        <div className="d-flex align-items-center gap-2">
-                                                            <div className="avatar avatar-sm">
-                                                                <Image src={item.assignedBy.avatar} alt="avatar" className="img-fluid rounded-circle" />
-                                                            </div>
-                                                            <div>
-                                                                <h5 className="text-nowrap fs-sm mb-0">{item.assignedBy.name}</h5>
-                                                                <p className="text-muted fs-xs mb-0">{item.assignedBy.email}</p>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td>{item.startDate}</td>
-                                                    <td><span className={`badge badge-${item.priority.color}`}>{item.priority.label}</span></td>
-                                                    <td>{item.progress}</td>
-                                                    <td>{item.timeSpent}</td>
-                                                    <td><a href="#" className="text-muted fs-xxl"><TbPencil /></a></td>
-                                                </tr>
-                                            ))
-                                        }
-                                    </tbody>
-                                </Table>
-                            </div>
+                            <Row>
+                                <Col md={12}>
+                                    <h5 className="mb-3"><TbUser className="me-2" /> Información Personal</h5>
+                                    {bio ? (
+                                        <div className="mb-4">
+                                            <p className="text-muted mb-2">Biografía:</p>
+                                            <p>{bio}</p>
+                                        </div>
+                                    ) : (
+                                        <Alert variant="info" className="mb-4">
+                                            <p className="mb-0">No hay biografía disponible. Edita tu perfil en la pestaña "Configuración" para agregar información sobre ti.</p>
+                                        </Alert>
+                                    )}
+                                    
+                                    <Row className="mb-4">
+                                        <Col md={6}>
+                                            <div className="mb-3">
+                                                <p className="text-muted mb-1"><TbBriefcase className="me-2" /> Cargo / Título</p>
+                                                <p className="mb-0">{formData.job_title || <span className="text-muted">No especificado</span>}</p>
+                                            </div>
+                                        </Col>
+                                        <Col md={6}>
+                                            <div className="mb-3">
+                                                <p className="text-muted mb-1"><TbWorld className="me-2" /> Teléfono</p>
+                                                <p className="mb-0">{formData.telefono || <span className="text-muted">No especificado</span>}</p>
+                                            </div>
+                                        </Col>
+                                    </Row>
+                                    
+                                    {(formData.address_line1 || formData.city || formData.country) && (
+                                        <div className="mb-4">
+                                            <h6 className="mb-2"><TbMapPin className="me-2" /> Dirección</h6>
+                                            <p className="mb-0">
+                                                {[
+                                                    formData.address_line1,
+                                                    formData.address_line2,
+                                                    formData.city,
+                                                    formData.state,
+                                                    formData.zipcode,
+                                                    formData.country
+                                                ].filter(Boolean).join(', ') || <span className="text-muted">No especificada</span>}
+                                            </p>
+                                        </div>
+                                    )}
+                                    
+                                    {(formData.social_facebook || formData.social_twitter || formData.social_instagram || formData.social_linkedin || formData.social_github || formData.social_skype) && (
+                                        <div className="mb-4">
+                                            <h6 className="mb-2"><TbWorld className="me-2" /> Redes Sociales</h6>
+                                            <div className="d-flex flex-wrap gap-2">
+                                                {formData.social_facebook && (
+                                                    <Link href={formData.social_facebook} target="_blank" className="btn btn-sm btn-outline-primary">
+                                                        <TbBrandFacebook className="me-1" /> Facebook
+                                                    </Link>
+                                                )}
+                                                {formData.social_twitter && (
+                                                    <Link href={formData.social_twitter} target="_blank" className="btn btn-sm btn-outline-dark">
+                                                        <TbBrandX className="me-1" /> Twitter
+                                                    </Link>
+                                                )}
+                                                {formData.social_instagram && (
+                                                    <Link href={formData.social_instagram} target="_blank" className="btn btn-sm btn-outline-danger">
+                                                        <TbBrandInstagram className="me-1" /> Instagram
+                                                    </Link>
+                                                )}
+                                                {formData.social_linkedin && (
+                                                    <Link href={formData.social_linkedin} target="_blank" className="btn btn-sm btn-outline-primary">
+                                                        <TbBrandLinkedin className="me-1" /> LinkedIn
+                                                    </Link>
+                                                )}
+                                                {formData.social_github && (
+                                                    <Link href={formData.social_github} target="_blank" className="btn btn-sm btn-outline-dark">
+                                                        <TbBrandGithub className="me-1" /> GitHub
+                                                    </Link>
+                                                )}
+                                                {formData.social_skype && (
+                                                    <Link href={formData.social_skype} target="_blank" className="btn btn-sm btn-outline-info">
+                                                        <TbBrandSkype className="me-1" /> Skype
+                                                    </Link>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </Col>
+                            </Row>
                         </TabPane>
                         <TabPane eventKey="timeline">
-                            <form action="#" className="mb-3">
-                                <textarea rows={3} className="form-control" placeholder="Escribe algo..." defaultValue={""} />
+                            <form onSubmit={async (e) => {
+                                e.preventDefault()
+                                if (!newPostText.trim() || posting) return
+                                
+                                setPosting(true)
+                                try {
+                                    const token = getAuthToken()
+                                    const headers: HeadersInit = {
+                                        'Content-Type': 'application/json',
+                                    }
+                                    if (token) {
+                                        headers['Authorization'] = `Bearer ${token}`
+                                    }
+                                    
+                                    // Crear un log de actividad como post
+                                    const response = await fetch('/api/logs', {
+                                        method: 'POST',
+                                        headers,
+                                        body: JSON.stringify({
+                                            accion: 'publicar',
+                                            entidad: 'timeline',
+                                            descripcion: newPostText.trim(),
+                                            metadata: { tipo: 'post_timeline' },
+                                        }),
+                                    })
+                                    
+                                    if (response.ok) {
+                                        setNewPostText('')
+                                        // Recargar timeline
+                                        const timelineResponse = await fetch(`/api/logs?page=1&pageSize=20&sort=fecha:desc`, { headers })
+                                        if (timelineResponse.ok) {
+                                            const result = await timelineResponse.json()
+                                            if (result.success && result.data) {
+                                                const colaboradorId = colaborador?.id || colaborador?.documentId
+                                                const userLogs = result.data.filter((log: any) => {
+                                                    const logAttrs = log.attributes || log
+                                                    const logUsuario = logAttrs.usuario?.data || logAttrs.usuario || log.usuario?.data || log.usuario
+                                                    
+                                                    let logUsuarioId: string | number | null = null
+                                                    if (logUsuario) {
+                                                        if (typeof logUsuario === 'object') {
+                                                            logUsuarioId = logUsuario.id || logUsuario.documentId || logUsuario
+                                                        } else {
+                                                            logUsuarioId = logUsuario
+                                                        }
+                                                    }
+                                                    
+                                                    return logUsuarioId && colaboradorId && String(logUsuarioId) === String(colaboradorId)
+                                                })
+                                                setTimelinePosts(userLogs)
+                                            }
+                                        }
+                                    }
+                                } catch (err: any) {
+                                    console.error('[Account] Error al publicar post:', err)
+                                    setError('Error al publicar el post')
+                                } finally {
+                                    setPosting(false)
+                                }
+                            }} className="mb-3">
+                                <textarea 
+                                    rows={3} 
+                                    className="form-control" 
+                                    placeholder="Escribe algo..." 
+                                    value={newPostText}
+                                    onChange={(e) => setNewPostText(e.target.value)}
+                                    disabled={posting}
+                                />
                                 <div className="d-flex py-2 justify-content-between">
                                     <div>
-                                        <Link href="" className="btn btn-sm btn-icon btn-light"><TbUser className="fs-md" /></Link>&nbsp;
-                                        <Link href="" className="btn btn-sm btn-icon btn-light"><TbMapPin className="fs-md" /></Link>&nbsp;
-                                        <Link href="" className="btn btn-sm btn-icon btn-light"><TbCamera className="fs-md" /></Link>&nbsp;
-                                        <Link href="" className="btn btn-sm btn-icon btn-light"><TbMoodSmile className="fs-md" /></Link>
+                                        <button type="button" className="btn btn-sm btn-icon btn-light" disabled><TbUser className="fs-md" /></button>&nbsp;
+                                        <button type="button" className="btn btn-sm btn-icon btn-light" disabled><TbMapPin className="fs-md" /></button>&nbsp;
+                                        <button type="button" className="btn btn-sm btn-icon btn-light" disabled><TbCamera className="fs-md" /></button>&nbsp;
+                                        <button type="button" className="btn btn-sm btn-icon btn-light" disabled><TbMoodSmile className="fs-md" /></button>
                                     </div>
-                                    <button type="submit" className="btn btn-sm btn-dark">Publicar</button>
+                                    <button 
+                                        type="submit" 
+                                        className="btn btn-sm btn-dark"
+                                        disabled={!newPostText.trim() || posting}
+                                    >
+                                        {posting ? (
+                                            <>
+                                                <Spinner animation="border" size="sm" className="me-2" />
+                                                Publicando...
+                                            </>
+                                        ) : (
+                                            'Publicar'
+                                        )}
+                                    </button>
                                 </div>
                             </form>
-                            <div className="border border-light border-dashed rounded p-2 mb-3">
-                                <div className="d-flex align-items-center mb-2">
-                                    <Image className="me-2 avatar-md rounded-circle" src={user3} alt="Generic placeholder image" />
-                                    <div className="w-100">
-                                        <h5 className="m-0">Jeremy Tomlinson</h5>
-                                        <p className="text-muted mb-0"><small>hace 2 minutos</small></p>
-                                    </div>
+                            
+                            {loadingTimeline ? (
+                                <div className="d-flex align-items-center justify-content-center gap-2 p-3">
+                                    <Spinner animation="border" size="sm" variant="primary" />
+                                    <strong>Cargando actividades...</strong>
                                 </div>
-                                <p>Historia basada en la idea de time lapse, animación próximamente!</p>
-                                <Image src={small1} alt="post-img" className="rounded me-1" height={60} />&nbsp;
-                                <Image src={small2} alt="post-img" className="rounded me-1" height={60} />&nbsp;
-                                <Image src={small3} alt="post-img" className="rounded" height={60} />
-                                <div className="mt-2">
-                                    <Link href="" className="btn btn-sm btn-link text-muted"><TbArrowBackUp className="fs-sm me-1" /> Responder</Link>
-                                    <Link href="" className="btn btn-sm btn-link text-muted"><TbHeart className="fs-sm me-1" /> Me gusta</Link>
-                                    <Link href="" className="btn btn-sm btn-link text-muted"><TbShare3 className="fs-sm me-1" /> Compartir</Link>
+                            ) : timelinePosts.length === 0 ? (
+                                <Alert variant="info">
+                                    <p className="mb-0">Aún no hay actividades en tu timeline. Realiza alguna acción en el sistema o publica algo arriba.</p>
+                                </Alert>
+                            ) : (
+                                <div className="timeline timeline-icon-bordered">
+                                    {timelinePosts.map((log: any, idx: number) => {
+                                        const attrs = log.attributes || log
+                                        const fecha = attrs.fecha || attrs.createdAt || new Date().toISOString()
+                                        const fechaDate = new Date(fecha)
+                                        const fechaFormateada = fechaDate.toLocaleDateString('es-CL', { 
+                                            day: 'numeric', 
+                                            month: 'short', 
+                                            year: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                        })
+                                        
+                                        // Calcular tiempo relativo
+                                        const ahora = new Date()
+                                        const diffMs = ahora.getTime() - fechaDate.getTime()
+                                        const diffMins = Math.floor(diffMs / 60000)
+                                        const diffHours = Math.floor(diffMs / 3600000)
+                                        const diffDays = Math.floor(diffMs / 86400000)
+                                        
+                                        let tiempoRelativo = 'hace un momento'
+                                        if (diffMins < 1) {
+                                            tiempoRelativo = 'hace un momento'
+                                        } else if (diffMins < 60) {
+                                            tiempoRelativo = `hace ${diffMins} ${diffMins === 1 ? 'minuto' : 'minutos'}`
+                                        } else if (diffHours < 24) {
+                                            tiempoRelativo = `hace ${diffHours} ${diffHours === 1 ? 'hora' : 'horas'}`
+                                        } else if (diffDays < 7) {
+                                            tiempoRelativo = `hace ${diffDays} ${diffDays === 1 ? 'día' : 'días'}`
+                                        } else {
+                                            tiempoRelativo = fechaFormateada
+                                        }
+                                        
+                                        const descripcion = attrs.descripcion || attrs.descripcion || 'Sin descripción'
+                                        const accion = attrs.accion || 'Acción'
+                                        const entidad = attrs.entidad || 'Sistema'
+                                        
+                                        // Determinar icono según acción
+                                        let icono = TbUserCircle
+                                        let variant = 'primary'
+                                        if (accion.includes('crear') || accion.includes('crear')) {
+                                            icono = TbChecklist
+                                            variant = 'success'
+                                        } else if (accion.includes('editar') || accion.includes('actualizar')) {
+                                            icono = TbPencil
+                                            variant = 'warning'
+                                        } else if (accion.includes('eliminar') || accion.includes('borrar')) {
+                                            icono = TbArrowBackUp
+                                            variant = 'danger'
+                                        } else if (accion.includes('publicar')) {
+                                            icono = TbShare3
+                                            variant = 'info'
+                                        }
+                                        
+                                        const Icono = icono
+                                        
+                                        return (
+                                            <div key={log.id || idx} className="timeline-item d-flex align-items-start">
+                                                <div className="timeline-time pe-3 text-muted">{tiempoRelativo}</div>
+                                                <div className="timeline-dot">
+                                                    <Icono className={`text-${variant}`} />
+                                                </div>
+                                                <div className={`timeline-content ps-3 ${idx !== timelinePosts.length - 1 ? 'pb-4' : ''}`}>
+                                                    <h5 className="mb-1">{nombreCompleto}</h5>
+                                                    <p className="mb-1">{descripcion}</p>
+                                                    <small className="text-muted">
+                                                        {accion} • {entidad}
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
                                 </div>
-                            </div>
-                            <div className="d-flex align-items-center justify-content-center gap-2 p-3">
-                                <strong>Cargando...</strong>
-                                <div className="spinner-border spinner-border-sm text-danger" role="status" aria-hidden="true" />
-                            </div>
+                            )}
                         </TabPane>
                         <TabPane eventKey="settings">
                             <form onSubmit={handleSubmit}>
