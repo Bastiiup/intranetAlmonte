@@ -13,7 +13,7 @@ type PipelineBoardProps = {
 }
 
 const PipelineBoard = ({ onTaskMove, onAddClick }: PipelineBoardProps) => {
-  const { sections, getAllTasksPerSection, newTaskModal } = useKanbanContext()
+  const { sections, getAllTasksPerSection, newTaskModal, onDragEnd: contextOnDragEnd } = useKanbanContext()
   
   const handleAddClick = (sectionId: string) => {
     if (onAddClick) {
@@ -72,12 +72,19 @@ const PipelineBoard = ({ onTaskMove, onAddClick }: PipelineBoardProps) => {
       toSection: newSectionId,
     })
 
-    // Actualizar en Strapi
+    // Actualizar en Strapi primero
     try {
       const taskIdStr = String(task.id)
       console.log('[PipelineBoard] Llamando onTaskMove con:', { taskId: taskIdStr, newSectionId })
       await onTaskMove(taskIdStr, newSectionId)
-      console.log('[PipelineBoard] Tarea actualizada exitosamente')
+      console.log('[PipelineBoard] Tarea actualizada exitosamente en Strapi')
+      
+      // Después de actualizar en Strapi, actualizar el estado local del contexto
+      // Esto mantiene la UI sincronizada mientras se recargan las tareas
+      if (contextOnDragEnd) {
+        console.log('[PipelineBoard] Actualizando estado local del contexto')
+        contextOnDragEnd(result)
+      }
     } catch (error: any) {
       console.error('[PipelineBoard] Error al actualizar oportunidad:', error)
       alert(`Error al actualizar la oportunidad: ${error.message || 'Error desconocido'}. Por favor, intenta de nuevo.`)
