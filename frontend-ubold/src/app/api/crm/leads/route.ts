@@ -104,6 +104,27 @@ export async function GET(request: Request) {
       details: error.details,
     })
 
+    // Si Strapi está caído (502 Bad Gateway)
+    if (error.status === 502 || error.message?.includes('Bad Gateway') || error.message?.includes('502')) {
+      return NextResponse.json(
+        {
+          success: false,
+          data: [],
+          meta: {
+            pagination: {
+              page: 1,
+              pageSize: 50,
+              total: 0,
+              pageCount: 0,
+            },
+          },
+          message: 'Strapi está caído (502 Bad Gateway). Por favor, reinicia el servidor de Strapi.',
+          error: 'Strapi no disponible',
+        },
+        { status: 502 }
+      )
+    }
+
     // Si el content-type no existe, retornar mensaje informativo
     if (error.status === 404 || error.message?.includes('Not Found')) {
       return NextResponse.json(
@@ -118,7 +139,7 @@ export async function GET(request: Request) {
               pageCount: 0,
             },
           },
-          message: 'El content-type "Lead" no existe en Strapi. Necesitas crearlo primero.',
+          message: 'El content-type "Lead" no existe en Strapi. Necesitas crearlo primero usando el prompt en PROMPT-CURSOR-CREAR-LEAD.md',
         },
         { status: 404 }
       )
@@ -218,6 +239,32 @@ export async function POST(request: Request) {
       status: error.status,
       details: error.details,
     })
+
+    // Si Strapi está caído (502 Bad Gateway)
+    if (error.status === 502 || error.message?.includes('Bad Gateway') || error.message?.includes('502')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Strapi está caído (502 Bad Gateway). Por favor, reinicia el servidor de Strapi.',
+          message: 'El servidor de Strapi no está disponible. Verifica que esté funcionando.',
+          status: 502,
+        },
+        { status: 502 }
+      )
+    }
+
+    // Si el content-type no existe (404 o 405)
+    if (error.status === 404 || error.status === 405 || error.message?.includes('Not Found') || error.message?.includes('Method Not Allowed')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'El content-type "Lead" no existe en Strapi',
+          message: 'Necesitas crear el content-type "Lead" primero. Usa el prompt en PROMPT-CURSOR-CREAR-LEAD.md',
+          status: error.status || 404,
+        },
+        { status: error.status || 404 }
+      )
+    }
 
     return NextResponse.json(
       {
