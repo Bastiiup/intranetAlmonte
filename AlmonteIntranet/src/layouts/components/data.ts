@@ -190,9 +190,10 @@ export const menuItems: MenuItemType[] = [
       { key: 'add-pedido', label: 'Agregar Pedido', url: '/atributos/pedidos/agregar' },
     ],
   },
-  { key: 'logs', label: 'Logs de Actividades', icon: LuFileText, url: '/logs', roles: ['super_admin', 'supervisor', 'soporte']   },
   { key: 'aplicaciones', label: 'APLICACIONES', isTitle: true },
   { key: 'chat', label: 'Chat', icon: LuMessageSquareDot, url: '/chat' },
+  { key: 'logs', label: 'Logs de Actividades', icon: LuFileText, url: '/logs', roles: ['super_admin', 'supervisor', 'soporte'] },
+  { key: 'tienda-test', label: 'Test Strapi', url: '/tienda/test-strapi' },
   { key: 'equipos-section', label: 'EQUIPOS', isTitle: true },
   {
     key: 'equipos',
@@ -201,11 +202,7 @@ export const menuItems: MenuItemType[] = [
     children: [
       { key: 'colaboradores', label: 'Colaboradores', url: '/colaboradores', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
       { key: 'colaboradores-solicitudes', label: 'Solicitudes de Colaboradores', url: '/colaboradores/solicitudes', roles: ['super_admin'] },
-      { key: 'contacts', label: 'Contacts', url: '/users/contacts' },
-      { key: 'profile', label: 'Profile', url: '/users/profile' },
-      { key: 'roles', label: 'Roles', url: '/users/roles' },
-      { key: 'roles-details', label: 'Roles Details', url: '/users/roles-details' },
-      { key: 'permissions', label: 'Permissions', url: '/users/permissions' },
+      { key: 'profile', label: 'Perfil', url: '/users/profile' },
     ],
   },
   { key: 'tienda-section', label: 'TIENDA', isTitle: true },
@@ -218,30 +215,12 @@ export const menuItems: MenuItemType[] = [
       { key: 'tienda-pos', label: 'POS', url: '/tienda/pos' },
       { key: 'tienda-turno', label: 'Número de atención', url: '/tienda/turno' },
       {
-        key: 'tienda-productos',
-        label: 'Productos',
-        children: [
-          { key: 'tienda-productos-listing', label: 'Listing', url: '/tienda/productos' },
-          { key: 'tienda-productos-editar', label: 'Editar Producto', url: '/tienda/productos/editar' },
-        ],
-      },
-      {
-        key: 'tienda-pedidos',
-        label: 'Pedidos',
-        roles: ['super_admin', 'supervisor', 'soporte'],
-        children: [
-          { key: 'tienda-pedidos-listing', label: 'Pedidos', url: '/tienda/pedidos' },
-          { key: 'tienda-pedidos-editar', label: 'Edición de pedidos', url: '/tienda/pedidos/editar' },
-        ],
-      },
-      {
         key: 'tienda-facturas',
         label: 'Facturas',
         children: [
           { key: 'tienda-facturas-listing', label: 'Todas las Facturas', url: '/tienda/facturas' },
         ],
       },
-      { key: 'tienda-test', label: 'Test Strapi', url: '/tienda/test-strapi' },
     ],
   },
 ]
