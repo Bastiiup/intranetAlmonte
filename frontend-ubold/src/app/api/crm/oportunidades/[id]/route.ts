@@ -181,10 +181,15 @@ export async function PUT(
       oportunidadData
     )
 
+    console.log('[API /crm/oportunidades/[id] PUT] 🔄 Revalidando cache...')
+    
     // Revalidar para sincronización bidireccional
     revalidatePath('/crm/opportunities')
+    revalidatePath('/crm/pipeline')
     revalidatePath(`/crm/opportunities/${id}`)
     revalidateTag('oportunidades', 'max')
+    
+    console.log('[API /crm/oportunidades/[id] PUT] ✅ Cache revalidado')
 
     return NextResponse.json({
       success: true,
