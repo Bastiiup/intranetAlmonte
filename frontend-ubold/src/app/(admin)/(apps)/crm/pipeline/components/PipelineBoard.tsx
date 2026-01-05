@@ -4,8 +4,9 @@ import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { Button, CardBody } from 'react-bootstrap'
 import { TbPlus } from 'react-icons/tb'
 import TaskItem from '@/app/(admin)/(apps)/crm/pipeline/components/TaskItem'
-import type { DropResult } from '@hello-pangea/dnd'
+import type { DropResult, DragStart } from '@hello-pangea/dnd'
 import { getEtapaFromSectionId } from '../data'
+import { useEffect } from 'react'
 
 type PipelineBoardProps = {
   onTaskMove: (taskId: string, newSectionId: string) => Promise<void>
