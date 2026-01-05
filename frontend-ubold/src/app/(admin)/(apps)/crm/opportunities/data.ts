@@ -191,16 +191,11 @@ function transformOportunidadToOpportunity(oportunidad: OportunidadEntity | any)
     }
   }
   
-  // Etapa - mapear a español
+  // Etapa - mantener el valor original de Strapi (en inglés) para mapeos
+  // La traducción se hace en la UI cuando se muestra
   const etapaRaw = attrs.etapa || 'Qualification'
-  const etapaLabels: Record<string, string> = {
-    'Qualification': 'Calificación',
-    'Proposal Sent': 'Propuesta Enviada',
-    'Negotiation': 'Negociación',
-    'Won': 'Ganada',
-    'Lost': 'Perdida'
-  }
-  const stage = etapaLabels[etapaRaw] || etapaRaw
+  // Guardar el valor original de Strapi (en inglés) para que funcione el mapeo en pipeline
+  const stage = etapaRaw
   
   // Monto
   const monto = attrs.monto || 0

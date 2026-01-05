@@ -123,7 +123,21 @@ const Opportunities = () => {
         </div>
       ),
     }),
-    columnHelper.accessor('stage', { header: 'Etapa', enableColumnFilter: true }),
+    columnHelper.accessor('stage', { 
+      header: 'Etapa', 
+      enableColumnFilter: true,
+      cell: ({ row }) => {
+        const etapaLabels: Record<string, string> = {
+          'Qualification': 'Calificación',
+          'Proposal Sent': 'Propuesta Enviada',
+          'Negotiation': 'Negociación',
+          'Won': 'Ganada',
+          'Lost': 'Perdida'
+        }
+        const etapaTraducida = etapaLabels[row.original.stage] || row.original.stage
+        return <span>{etapaTraducida}</span>
+      }
+    }),
 
     columnHelper.accessor('amount', { header: 'Valor (USD)' }),
     columnHelper.accessor('closeDate', { header: 'Fecha de Cierre' }),
