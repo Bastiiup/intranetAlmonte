@@ -99,7 +99,8 @@ El content-type se llama "Oportunidad" (singular, con mayúscula inicial) y es p
 13. **propietario**
     - Tipo: Relation
     - Relation type: Many-to-one
-    - Target: Intranet-colaboradores (este content-type ya existe)
+    - Target: **intranet-colaboradores** (este content-type ya existe - son los usuarios internos que pueden loguearse en la intranet)
+    - Target exacto: `api::intranet-colaboradores.intranet-colaboradores`
     - Required: ❌ No
 
 **Pasos a seguir:**

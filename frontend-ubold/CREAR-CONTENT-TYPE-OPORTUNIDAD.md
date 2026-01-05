@@ -100,7 +100,8 @@ Agrega los siguientes campos en este orden:
 
 13. **propietario** (Relation)
     - Type: **Many-to-one**
-    - Target: **Intranet-colaboradores**
+    - Target: **intranet-colaboradores** (usuarios internos de la empresa que pueden loguearse en la intranet)
+    - Target exacto: `api::intranet-colaboradores.intranet-colaboradores`
     - Required: ❌ No (puede ser opcional)
 
 ### 4. Guardar el Content-Type
