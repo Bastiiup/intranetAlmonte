@@ -63,8 +63,11 @@ const PipelinePage = () => {
 
       console.log('[Pipeline] Oportunidad actualizada exitosamente')
       
-      // Recargar tareas en lugar de recargar toda la página
-      await loadTasks()
+      // Recargar tareas después de un pequeño delay para asegurar que Strapi procesó el cambio
+      // El estado local ya está actualizado (optimistic update), así que esto solo sincroniza
+      setTimeout(async () => {
+        await loadTasks()
+      }, 300)
     } catch (err: any) {
       console.error('[Pipeline] Error al actualizar oportunidad:', err)
       throw err

@@ -72,24 +72,39 @@ const PipelineBoard = ({ onTaskMove, onAddClick }: PipelineBoardProps) => {
       toSection: newSectionId,
     })
 
-    // Actualizar en Strapi primero
+    // Actualizar el estado local primero para feedback inmediato (optimistic update)
+    if (contextOnDragEnd) {
+      console.log('[PipelineBoard] Actualizando estado local del contexto (optimistic update)')
+      contextOnDragEnd(result)
+    }
+
+    // Luego actualizar en Strapi
     try {
       const taskIdStr = String(task.id)
       console.log('[PipelineBoard] Llamando onTaskMove con:', { taskId: taskIdStr, newSectionId })
       await onTaskMove(taskIdStr, newSectionId)
       console.log('[PipelineBoard] Tarea actualizada exitosamente en Strapi')
       
-      // Después de actualizar en Strapi, actualizar el estado local del contexto
-      // Esto mantiene la UI sincronizada mientras se recargan las tareas
-      if (contextOnDragEnd) {
-        console.log('[PipelineBoard] Actualizando estado local del contexto')
-        contextOnDragEnd(result)
-      }
+      // Recargar tareas después de un pequeño delay para asegurar que Strapi procesó el cambio
+      // El estado local ya está actualizado, así que esto solo sincroniza
+      setTimeout(async () => {
+        console.log('[PipelineBoard] Sincronizando con Strapi...')
+        // Esto se maneja en PipelinePage con loadTasks()
+      }, 500)
     } catch (error: any) {
       console.error('[PipelineBoard] Error al actualizar oportunidad:', error)
+      
+      // Revertir el cambio optimista si falla
+      if (contextOnDragEnd) {
+        const revertResult = {
+          ...result,
+          destination: source,
+          source: destination,
+        }
+        contextOnDragEnd(revertResult)
+      }
+      
       alert(`Error al actualizar la oportunidad: ${error.message || 'Error desconocido'}. Por favor, intenta de nuevo.`)
-      // Recargar la página para restaurar el estado anterior
-      window.location.reload()
     }
   }
 
