@@ -217,10 +217,17 @@ export async function PUT(
       }
     }
 
+    console.log('[API /crm/oportunidades/[id] PUT] 📤 Datos finales para Strapi:', JSON.stringify(oportunidadData, null, 2))
+    console.log('[API /crm/oportunidades/[id] PUT] 🌐 URL de Strapi:', `/api/oportunidades/${documentId}`)
+    console.log('[API /crm/oportunidades/[id] PUT] 📋 Usando documentId:', documentId, '(ID recibido:', id, ')')
+    
     const response = await strapiClient.put<StrapiResponse<StrapiEntity<OportunidadAttributes>>>(
-      `/api/oportunidades/${id}`,
+      `/api/oportunidades/${documentId}`,
       oportunidadData
     )
+    
+    console.log('[API /crm/oportunidades/[id] PUT] 📡 Respuesta de Strapi recibida')
+    console.log('[API /crm/oportunidades/[id] PUT] Response data:', JSON.stringify(response, null, 2))
 
     console.log('[API /crm/oportunidades/[id] PUT] 🔄 Revalidando cache...')
     
