@@ -16,6 +16,7 @@ export type KanbanDialogType = {
 
 export type KanbanTaskType = {
   id: string
+  realId?: string // ID real (documentId) para actualizaciones en Strapi
   sectionId: KanbanSectionType['id']
   title: string
   user: StaticImageData

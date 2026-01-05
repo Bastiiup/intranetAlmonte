@@ -116,8 +116,10 @@ const PipelineBoard = ({ onTaskMove, onAddClick }: PipelineBoardProps) => {
 
     // Luego actualizar en Strapi
     try {
-      const taskIdStr = String(task.id)
+      // Usar realId si está disponible, sino usar id
+      const taskIdStr = String(task.realId || task.id)
       console.log('[PipelineBoard] 🌐 Llamando onTaskMove (API Strapi)...')
+      console.log('[PipelineBoard] Task completo:', { id: task.id, realId: task.realId, title: task.title })
       console.log('[PipelineBoard] Parámetros:', { taskId: taskIdStr, newSectionId })
       
       await onTaskMove(taskIdStr, newSectionId)

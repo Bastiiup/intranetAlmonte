@@ -80,8 +80,12 @@ export function transformOpportunityToKanbanTask(opportunity: OpportunitiesType)
     taskId = taskId.replace('#', '')
   }
   
+  // Guardar el realId para actualizaciones en Strapi
+  const realId = opportunity.realId || taskId
+  
   return {
-    id: taskId, // Usar el ID real para actualizaciones
+    id: taskId, // ID para el draggable
+    realId: realId, // ID real (documentId) para actualizaciones en Strapi
     sectionId,
     title: opportunity.productName,
     user: opportunity.customerAvatar || user1,
