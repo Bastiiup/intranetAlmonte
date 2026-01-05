@@ -161,7 +161,7 @@ const RecentOrders = ({ orders: propsOrders }: RecentOrdersProps) => {
         </div>
       </CardHeader>
       <CardBody className="p-0">
-        <DataTable<OrderType> table={table} emptyMessage="No records found" showHeaders={false} />
+        <DataTable<OrderType> table={table} emptyMessage="Aún no hay pedidos recientes" showHeaders={false} />
       </CardBody>
       {table.getRowModel().rows.length > 0 && (
         <CardFooter className="border-0">

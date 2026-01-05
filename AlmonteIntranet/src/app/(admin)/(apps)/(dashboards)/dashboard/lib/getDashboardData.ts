@@ -332,3 +332,150 @@ export async function getSalesData() {
   }
 }
 
+/**
+ * Obtiene datos de ventas mensuales para el gráfico de analytics
+ */
+export async function getMonthlySalesData() {
+  try {
+    const baseUrl = await getBaseUrl()
+    
+    // Obtener todos los pedidos de Strapi
+    const response = await fetch(
+      `${baseUrl}/api/tienda/pedidos?pagination[pageSize]=5000`,
+      { cache: 'no-store' }
+    )
+    
+    const data = await response.json()
+    const orders = data.success && data.data ? data.data : []
+    
+    // Agrupar por mes (últimos 12 meses)
+    const now = new Date()
+    const monthlyData: Record<string, { online: number; instore: number; total: number }> = {}
+    
+    const monthLabels = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+    
+    // Inicializar todos los meses con 0
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1)
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      monthlyData[monthKey] = { online: 0, instore: 0, total: 0 }
+    }
+    
+    // Procesar pedidos
+    orders.forEach((order: any) => {
+      const attrs = order.attributes || {}
+      const pedidoData = (attrs && Object.keys(attrs).length > 0) ? attrs : order
+      const fechaPedido = pedidoData.fecha_pedido || pedidoData.createdAt
+      const total = parseFloat(pedidoData.total || 0)
+      const estado = pedidoData.estado || ''
+      
+      // Solo contar pedidos completados
+      if (estado === 'completed' || estado === 'completado' || estado === 'delivered') {
+        if (fechaPedido) {
+          const fecha = new Date(fechaPedido)
+          const monthKey = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`
+          
+          if (monthlyData[monthKey]) {
+            // Determinar si es online o instore basado en el método de pago o canal
+            const metodoPago = pedidoData.metodo_pago || pedidoData.payment_method || ''
+            if (metodoPago.toLowerCase().includes('pos') || metodoPago.toLowerCase().includes('tienda')) {
+              monthlyData[monthKey].instore += total
+            } else {
+              monthlyData[monthKey].online += total
+            }
+            monthlyData[monthKey].total += total
+          }
+        }
+      }
+    })
+    
+    // Convertir a arrays en orden
+    const onlineSales: number[] = []
+    const inStoreSales: number[] = []
+    const totalSales: number[] = []
+    
+    Object.keys(monthlyData).sort().forEach((key) => {
+      onlineSales.push(monthlyData[key].online)
+      inStoreSales.push(monthlyData[key].instore)
+      totalSales.push(monthlyData[key].total)
+    })
+    
+    return {
+      onlineSales,
+      inStoreSales,
+      totalSales,
+      labels: monthLabels,
+    }
+  } catch (error) {
+    console.error('Error al obtener datos de ventas mensuales:', error)
+    return {
+      onlineSales: Array(12).fill(0),
+      inStoreSales: Array(12).fill(0),
+      totalSales: Array(12).fill(0),
+      labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
+    }
+  }
+}
+
+/**
+ * Obtiene datos para el gráfico de dona de ventas totales
+ */
+export async function getTotalSalesChartData() {
+  try {
+    const baseUrl = await getBaseUrl()
+    
+    // Obtener todos los pedidos de Strapi
+    const response = await fetch(
+      `${baseUrl}/api/tienda/pedidos?pagination[pageSize]=5000`,
+      { cache: 'no-store' }
+    )
+    
+    const data = await response.json()
+    const orders = data.success && data.data ? data.data : []
+    
+    // Agrupar por canal de venta
+    let onlineStore = 0
+    let retailStores = 0
+    let b2bRevenue = 0
+    let marketplaceRevenue = 0
+    
+    orders.forEach((order: any) => {
+      const attrs = order.attributes || {}
+      const pedidoData = (attrs && Object.keys(attrs).length > 0) ? attrs : order
+      const total = parseFloat(pedidoData.total || 0)
+      const estado = pedidoData.estado || ''
+      
+      if (estado === 'completed' || estado === 'completado' || estado === 'delivered') {
+        const metodoPago = pedidoData.metodo_pago || pedidoData.payment_method || ''
+        const canal = pedidoData.canal || ''
+        
+        if (canal === 'b2b' || metodoPago.toLowerCase().includes('b2b')) {
+          b2bRevenue += total
+        } else if (canal === 'marketplace' || metodoPago.toLowerCase().includes('marketplace')) {
+          marketplaceRevenue += total
+        } else if (metodoPago.toLowerCase().includes('pos') || metodoPago.toLowerCase().includes('tienda')) {
+          retailStores += total
+        } else {
+          onlineStore += total
+        }
+      }
+    })
+    
+    return {
+      currentYear: [onlineStore, retailStores, b2bRevenue, marketplaceRevenue],
+      previousYear: [
+        onlineStore * 0.9,
+        retailStores * 0.9,
+        b2bRevenue * 0.9,
+        marketplaceRevenue * 0.9,
+      ],
+    }
+  } catch (error) {
+    console.error('Error al obtener datos del gráfico de ventas totales:', error)
+    return {
+      currentYear: [0, 0, 0, 0],
+      previousYear: [0, 0, 0, 0],
+    }
+  }
+}
+

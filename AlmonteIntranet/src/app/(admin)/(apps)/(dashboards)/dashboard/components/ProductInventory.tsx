@@ -172,7 +172,7 @@ const ProductInventory = ({ products: propsProducts }: ProductInventoryProps) =>
         </div>
       </CardHeader>
       <CardBody className="p-0">
-        <DataTable<ProductType> table={table} emptyMessage="No records found" showHeaders={false} />
+        <DataTable<ProductType> table={table} emptyMessage="Aún no hay productos en el inventario" showHeaders={false} />
       </CardBody>
       {table.getRowModel().rows.length > 0 && (
         <CardFooter className="border-0">

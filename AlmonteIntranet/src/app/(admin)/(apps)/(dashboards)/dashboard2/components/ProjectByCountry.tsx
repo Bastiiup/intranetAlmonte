@@ -4,9 +4,23 @@ import Link from 'next/link'
 import { TbBriefcase } from 'react-icons/tb'
 
 import ComponentCard from '@/components/cards/ComponentCard'
-import { countriesData } from '../data'
+import { CountryDataType } from '../data'
 
-const ProjectByCountry = () => {
+interface ProjectByCountryProps {
+  countriesData: CountryDataType[]
+}
+
+const ProjectByCountry = ({ countriesData }: ProjectByCountryProps) => {
+  if (!countriesData || countriesData.length === 0) {
+    return (
+      <ComponentCard title="Top Projects by Country" isCloseable isCollapsible isRefreshable>
+        <div className="text-center py-4">
+          <p className="text-muted mb-0">Aún no hay datos de pedidos por país</p>
+        </div>
+      </ComponentCard>
+    )
+  }
+
   return (
     <ComponentCard title="Top Projects by Country" isCloseable isCollapsible isRefreshable>
       {countriesData.map((country, idx) => (

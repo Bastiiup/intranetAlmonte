@@ -6,7 +6,7 @@ import StatCard from '@/app/(admin)/(apps)/(dashboards)/dashboard/components/Sta
 import SalesCharts from '@/app/(admin)/(apps)/(dashboards)/dashboard/components/SalesCharts'
 import ProductInventory from '@/app/(admin)/(apps)/(dashboards)/dashboard/components/ProductInventory'
 import RecentOrders from '@/app/(admin)/(apps)/(dashboards)/dashboard/components/RecentOrders'
-import { getDashboardStats, getRecentOrders, getProducts } from './lib/getDashboardData'
+import { getDashboardStats, getRecentOrders, getProducts, getMonthlySalesData, getTotalSalesChartData } from './lib/getDashboardData'
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -16,11 +16,16 @@ export const dynamic = 'force-dynamic'
 
 const Page = async () => {
   // Obtener datos reales
-  const [stats, orders, products] = await Promise.all([
+  const [stats, orders, products, monthlyData, totalSalesData] = await Promise.all([
     getDashboardStats(),
     getRecentOrders(10),
     getProducts(9),
+    getMonthlySalesData(),
+    getTotalSalesChartData(),
   ])
+  
+  // Contar pedidos pendientes
+  const pendingOrders = orders.filter(o => o.statusVariant === 'warning').length
 
   // Crear las tarjetas de estadísticas con datos reales
   const statCards = [
@@ -69,7 +74,7 @@ const Page = async () => {
 
       <Row>
         <Col xs={12}>
-          <SalesCharts />
+          <SalesCharts monthlyData={monthlyData} totalSalesData={totalSalesData} pendingOrders={pendingOrders} />
         </Col>
       </Row>
 
