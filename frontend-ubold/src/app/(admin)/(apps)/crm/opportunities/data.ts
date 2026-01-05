@@ -238,8 +238,17 @@ function transformOportunidadToOpportunity(oportunidad: OportunidadEntity | any)
   }
 }
 
+// Variable para habilitar datos mock (útil mientras se crea el content-type en Strapi)
+const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_OPPORTUNITIES === 'true'
+
 // Función principal para obtener oportunidades
 export async function getOpportunities(query: OpportunitiesQuery = {}): Promise<OpportunitiesResult> {
+  // Si está habilitado el uso de datos mock, retornarlos
+  if (USE_MOCK_DATA) {
+    console.warn('[getOpportunities] Usando datos mock. El content-type Oportunidad no existe en Strapi.')
+    return getMockOpportunities(query)
+  }
+
   const page = query.page || 1
   const pageSize = query.pageSize || 50
   
@@ -285,6 +294,11 @@ export async function getOpportunities(query: OpportunitiesQuery = {}): Promise<
   // Si el resultado es exitoso pero viene con mensaje (content-type no existe)
   if (result.message && result.data && Array.isArray(result.data) && result.data.length === 0) {
     console.warn('[getOpportunities]', result.message)
+    // Opcionalmente, usar datos mock si el content-type no existe
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[getOpportunities] Modo desarrollo: usando datos mock temporalmente')
+      return getMockOpportunities(query)
+    }
   }
   
   // Manejar diferentes formatos de respuesta de Strapi
@@ -335,6 +349,102 @@ export async function getOpportunities(query: OpportunitiesQuery = {}): Promise<
       total: result.meta?.pagination?.total || data.length,
       pageCount: result.meta?.pagination?.pageCount || 1,
     }
+  }
+}
+
+// Función para obtener datos mock (temporal mientras se crea el content-type)
+function getMockOpportunities(query: OpportunitiesQuery): OpportunitiesResult {
+  const mockOpportunities: OpportunitiesType[] = [
+    {
+      id: 'mock-1',
+      productName: 'Plataforma Escolar Completa',
+      productBy: 'Colegio San José',
+      productLogo: '/assets/images/logos/default.svg' as any,
+      customerName: 'Juan Pérez',
+      customerEmail: 'juan.perez@colegiosanjose.cl',
+      customerAvatar: '/assets/images/users/user-dummy-img.jpg' as any,
+      stage: 'Negotiation',
+      amount: '$50,000',
+      closeDate: '15 Mar, 2026',
+      source: 'Referral',
+      owner: 'María González',
+      status: 'in-progress',
+      priority: 'high',
+    },
+    {
+      id: 'mock-2',
+      productName: 'Sistema de Gestión Académica',
+      productBy: 'Colegio Los Andes',
+      productLogo: '/assets/images/logos/default.svg' as any,
+      customerName: 'Ana Martínez',
+      customerEmail: 'ana.martinez@colegiolosandes.cl',
+      customerAvatar: '/assets/images/users/user-dummy-img.jpg' as any,
+      stage: 'Proposal Sent',
+      amount: '$35,000',
+      closeDate: '20 Mar, 2026',
+      source: 'Web',
+      owner: 'Carlos Rodríguez',
+      status: 'open',
+      priority: 'medium',
+    },
+    {
+      id: 'mock-3',
+      productName: 'Plataforma de Comunicación Escolar',
+      productBy: 'Instituto Nacional',
+      productLogo: '/assets/images/logos/default.svg' as any,
+      customerName: 'Pedro Silva',
+      customerEmail: 'pedro.silva@institucionacional.cl',
+      customerAvatar: '/assets/images/users/user-dummy-img.jpg' as any,
+      stage: 'Qualification',
+      amount: '$28,000',
+      closeDate: '25 Mar, 2026',
+      source: 'LinkedIn',
+      owner: 'Laura Fernández',
+      status: 'open',
+      priority: 'low',
+    },
+  ]
+
+  // Aplicar filtros
+  let filtered = mockOpportunities
+
+  if (query.search) {
+    const searchLower = query.search.toLowerCase()
+    filtered = filtered.filter(
+      (opp) =>
+        opp.productName.toLowerCase().includes(searchLower) ||
+        opp.customerName.toLowerCase().includes(searchLower) ||
+        opp.customerEmail.toLowerCase().includes(searchLower)
+    )
+  }
+
+  if (query.stage) {
+    filtered = filtered.filter((opp) => opp.stage === query.stage)
+  }
+
+  if (query.status) {
+    filtered = filtered.filter((opp) => opp.status === query.status)
+  }
+
+  if (query.priority) {
+    filtered = filtered.filter((opp) => opp.priority === query.priority)
+  }
+
+  // Aplicar paginación
+  const page = query.page || 1
+  const pageSize = query.pageSize || 50
+  const start = (page - 1) * pageSize
+  const end = start + pageSize
+  const paginated = filtered.slice(start, end)
+
+  return {
+    opportunities: paginated,
+    pagination: {
+      page,
+      pageSize,
+      total: filtered.length,
+      pageCount: Math.ceil(filtered.length / pageSize),
+    },
   }
 }
 
