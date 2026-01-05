@@ -73,12 +73,20 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  console.log('========================================')
+  console.log('[API /crm/oportunidades/[id] PUT] 🎯 INICIADO')
+  
   try {
     const { id } = await params
     const body = await request.json()
 
+    console.log('[API /crm/oportunidades/[id] PUT] 📥 Parámetros recibidos')
+    console.log('[API /crm/oportunidades/[id] PUT] ID:', id, 'tipo:', typeof id)
+    console.log('[API /crm/oportunidades/[id] PUT] Body recibido:', JSON.stringify(body, null, 2))
+
     // Validaciones básicas
     if (body.nombre !== undefined && (!body.nombre || !body.nombre.trim())) {
+      console.log('[API /crm/oportunidades/[id] PUT] ❌ Validación fallida: nombre vacío')
       return NextResponse.json(
         {
           success: false,
@@ -93,21 +101,28 @@ export async function PUT(
       data: {},
     }
 
+    console.log('[API /crm/oportunidades/[id] PUT] 🔨 Preparando datos para Strapi...')
+
     // Solo incluir campos que se están actualizando
     if (body.nombre !== undefined) {
       oportunidadData.data.nombre = body.nombre.trim()
+      console.log('[API /crm/oportunidades/[id] PUT] ✅ nombre:', oportunidadData.data.nombre)
     }
     if (body.descripcion !== undefined) {
       oportunidadData.data.descripcion = body.descripcion?.trim() || null
+      console.log('[API /crm/oportunidades/[id] PUT] ✅ descripcion:', oportunidadData.data.descripcion)
     }
     if (body.monto !== undefined) {
       oportunidadData.data.monto = body.monto !== null ? Number(body.monto) : null
+      console.log('[API /crm/oportunidades/[id] PUT] ✅ monto:', oportunidadData.data.monto)
     }
     if (body.moneda !== undefined) {
       oportunidadData.data.moneda = body.moneda || null
+      console.log('[API /crm/oportunidades/[id] PUT] ✅ moneda:', oportunidadData.data.moneda)
     }
     if (body.etapa !== undefined) {
       oportunidadData.data.etapa = body.etapa || null
+      console.log('[API /crm/oportunidades/[id] PUT] ✅ etapa:', oportunidadData.data.etapa)
     }
     if (body.estado !== undefined) {
       oportunidadData.data.estado = body.estado || null
@@ -177,11 +192,14 @@ export async function PUT(
       message: 'Oportunidad actualizada exitosamente',
     }, { status: 200 })
   } catch (error: any) {
-    console.error('[API /crm/oportunidades/[id] PUT] Error:', {
-      message: error.message,
-      status: error.status,
-      details: error.details,
-    })
+    console.error('[API /crm/oportunidades/[id] PUT] ❌ ERROR')
+    console.error('[API /crm/oportunidades/[id] PUT] Error completo:', error)
+    console.error('[API /crm/oportunidades/[id] PUT] Error message:', error.message)
+    console.error('[API /crm/oportunidades/[id] PUT] Error status:', error.status)
+    console.error('[API /crm/oportunidades/[id] PUT] Error details:', error.details)
+    console.error('[API /crm/oportunidades/[id] PUT] Error stack:', error.stack)
+    console.log('========================================')
+    
     return NextResponse.json(
       {
         success: false,
