@@ -1,7 +1,7 @@
 import { KanbanSectionType, KanbanTaskType } from '@/types/kanban'
 import { getOpportunities, type OpportunitiesQuery } from '../opportunities/data'
 import type { OpportunitiesType } from '../types'
-import userDummy from '@/assets/images/users/user-dummy-img.jpg'
+import user1 from '@/assets/images/users/user-1.jpg'
 
 // Secciones del pipeline (etapas del proceso de venta)
 export const kanbanSectionsData: KanbanSectionType[] = [
@@ -75,7 +75,7 @@ export function transformOpportunityToKanbanTask(opportunity: OpportunitiesType)
     id: opportunity.id,
     sectionId,
     title: opportunity.productName,
-    user: opportunity.customerAvatar || userDummy,
+    user: opportunity.customerAvatar || user1,
     userName: opportunity.customerName,
     company: opportunity.productBy,
     date: opportunity.closeDate,
