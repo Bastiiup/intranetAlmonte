@@ -1,206 +1,124 @@
 import { KanbanSectionType, KanbanTaskType } from '@/types/kanban'
+import { getOpportunities, type OpportunitiesQuery } from '../opportunities/data'
+import type { OpportunitiesType } from '../types'
+import userDummy from '@/assets/images/users/user-dummy-img.jpg'
 
-import user1 from '@/assets/images/users/user-1.jpg'
-import user2 from '@/assets/images/users/user-2.jpg'
-import user3 from '@/assets/images/users/user-3.jpg'
-import user4 from '@/assets/images/users/user-4.jpg'
-import user5 from '@/assets/images/users/user-5.jpg'
-import user6 from '@/assets/images/users/user-6.jpg'
-import user7 from '@/assets/images/users/user-7.jpg'
-import user8 from '@/assets/images/users/user-8.jpg'
-import user9 from '@/assets/images/users/user-9.jpg'
-
+// Secciones del pipeline (etapas del proceso de venta)
 export const kanbanSectionsData: KanbanSectionType[] = [
   {
-    id: '501',
-    title: 'Lead',
+    id: 'qualification',
+    title: 'Qualification',
     variant: 'warning',
   },
   {
-    id: '502',
-    title: 'Negotiation',
+    id: 'proposal-sent',
+    title: 'Proposal Sent',
     variant: 'info',
   },
   {
-    id: '503',
+    id: 'negotiation',
+    title: 'Negotiation',
+    variant: 'primary',
+  },
+  {
+    id: 'won',
     title: 'Won',
     variant: 'success',
   },
   {
-    id: '504',
+    id: 'lost',
     title: 'Lost',
     variant: 'danger',
   },
 ]
 
-export const KanbanTaskData: KanbanTaskType[] = [
-  {
-    id:'601',
-    sectionId: '501',
-    title: "AI Analytics Dashboard",
-    user: user4,
-    userName: "Mark Allen",
-    company: "Amazon Web Services",
-    date: "30 May, 2025",
-    messages: 2,
-    tasks: 3,
-    amount: 95000,
-    status: "lead",
-  },
-  {
-    id:'602',
-    sectionId: '501',
-    title: "Mobile App Redesign",
-    user: user2,
-    userName: "Alex Carter",
-    company: "ByteCraft Studios",
-    date: "12 Jun, 2025",
-    messages: 1,
-    tasks: 5,
-    amount: 72000,
-    status: "lead",
-  },
-  {
-    id:'603',
-    sectionId: '501',
-    title: "Website Revamp",
-    user: user5,
-    userName: "Emily Rose",
-    company: "NextGen UI",
-    date: "18 Jun, 2025",
-    messages: 4,
-    tasks: 2,
-    amount: 45500,
-    status: "lead",
-  },
-  {
-    id:'604',
-    sectionId: '501',
-    title: "Campaign Strategy",
-    user: user6,
-    userName: "Ryan King",
-    company: "Visionary Labs",
-    date: "05 Jul, 2025",
-    messages: 0,
-    tasks: 1,
-    amount: 23000,
-    status: "lead",
-  },
-  {
-    id:'605',
-    sectionId: '502',
-    title: "Product Demo Scheduling",
-    user: user8,
-    userName: "Nina White",
-    company: "Innovexa",
-    date: "15 Jul, 2025",
-    messages: 3,
-    tasks: 4,
-    amount: 18750,
-    status: "negotiation",
-  },
-  {
-    id:'606',
-    sectionId: '502',
-    title: "CRM Integration Task",
-    user: user9,
-    userName: "Amit Rao",
-    company: "CoreSync Ltd.",
-    date: "22 Jul, 2025",
-    messages: 7,
-    tasks: 4,
-    amount: 39900,
-    status: "negotiation",
-  },
-  {
-    id:'607',
-    sectionId: '503',
-    title: "Enterprise License Upgrade",
-    user: user1,
-    userName: "Sophia Lee",
-    company: "Zentrix Corp",
-    date: "01 Jul, 2025",
-    messages: 5,
-    tasks: 7,
-    amount: 120000,
-    status: "won",
-  },
-  {
-    id:'608',
-    sectionId: '503',
-    title: "Custom CRM Implementation",
-    user: user2,
-    userName: "Mark J.",
-    company: "DeltaSoft",
-    date: "28 Jun, 2025",
-    messages: 3,
-    tasks: 1,
-    amount: 89500,
-    status: "won",
-  },
-  {
-    id:'609',
-    sectionId: '503',
-    title: "API Subscription Expansion",
-    user: user3,
-    userName: "Raj Patel",
-    company: "Netwise Solutions",
-    date: "25 Jun, 2025",
-    messages: 1,
-    tasks: 5,
-    amount: 58000,
-    status: "won",
-  },
-  {
-    id:'610',
-    sectionId: '503',
-    title: "Annual Cloud Retainer",
-    user: user5,
-    userName: "Tina Ray",
-    company: "SkyVault Inc.",
-    date: "21 Jun, 2025",
-    messages: 9,
-    tasks: 6,
-    amount: 135000,
-    status: "won",
-  },
-  {
-    id:'611',
-    sectionId: '503',
-    title: "Marketing Automation Deal",
-    user: user6,
-    userName: "Mohit Chauhan",
-    company: "CloudReach",
-    date: "18 Jun, 2025",
-    messages: 5,
-    tasks: 4,
-    amount: 62500,
-    status: "won",
-  },
-  {
-    id:'612',
-    sectionId: '504',
-    title: "E-commerce Platform Proposal",
-    user: user7,
-    userName: "Julia Mason",
-    company: "QuickCart",
-    date: "14 Jul, 2025",
-    messages: 2,
-    tasks: 6,
-    amount: 55000,
-    status: "lost",
-  },
-  {
-    id:'613',
-    sectionId: '504',
-    title: "Social Media Integration Deal",
-    user: user8,
-    userName: "Ethan Cruz",
-    company: "BuzzPro Media",
-    date: "10 Jul, 2025",
-    messages: 8,
-    tasks: 3,
-    amount: 38400,
-    status: "lost",
-  },
-]
+// Mapeo de etapas de Strapi a IDs de secciones del kanban
+const etapaToSectionId: Record<string, string> = {
+  'Qualification': 'qualification',
+  'Proposal Sent': 'proposal-sent',
+  'Negotiation': 'negotiation',
+  'Won': 'won',
+  'Lost': 'lost',
+}
+
+// Mapeo inverso: ID de sección a etapa de Strapi
+const sectionIdToEtapa: Record<string, string> = {
+  'qualification': 'Qualification',
+  'proposal-sent': 'Proposal Sent',
+  'negotiation': 'Negotiation',
+  'won': 'Won',
+  'lost': 'Lost',
+}
+
+/**
+ * Transforma una oportunidad a KanbanTaskType
+ */
+export function transformOpportunityToKanbanTask(opportunity: OpportunitiesType): KanbanTaskType {
+  // Mapear etapa a sectionId
+  const sectionId = etapaToSectionId[opportunity.stage] || 'qualification'
+  
+  // Mapear status a status del kanban
+  let status: 'lead' | 'negotiation' | 'won' | 'lost' = 'lead'
+  if (opportunity.stage === 'Won') {
+    status = 'won'
+  } else if (opportunity.stage === 'Lost') {
+    status = 'lost'
+  } else if (opportunity.stage === 'Negotiation') {
+    status = 'negotiation'
+  }
+  
+  // Extraer monto numérico del string (ej: "$50,000" -> 50000)
+  const amountMatch = opportunity.amount.match(/[\d,]+/)
+  const amount = amountMatch ? parseInt(amountMatch[0].replace(/,/g, '')) : 0
+  
+  return {
+    id: opportunity.id,
+    sectionId,
+    title: opportunity.productName,
+    user: opportunity.customerAvatar || userDummy,
+    userName: opportunity.customerName,
+    company: opportunity.productBy,
+    date: opportunity.closeDate,
+    messages: 0, // Por ahora, se puede implementar después
+    tasks: 0, // Por ahora, se puede implementar después
+    amount,
+    status,
+  }
+}
+
+/**
+ * Obtiene las oportunidades desde Strapi y las transforma a KanbanTaskType
+ */
+export async function getPipelineTasks(): Promise<KanbanTaskType[]> {
+  try {
+    const query: OpportunitiesQuery = {
+      page: 1,
+      pageSize: 100, // Obtener todas las oportunidades activas
+    }
+    
+    const result = await getOpportunities(query)
+    
+    // Transformar cada oportunidad a KanbanTaskType
+    return result.opportunities.map(transformOpportunityToKanbanTask)
+  } catch (error) {
+    console.error('Error al obtener tareas del pipeline:', error)
+    return []
+  }
+}
+
+/**
+ * Obtiene el nombre de la etapa desde el ID de sección
+ */
+export function getEtapaFromSectionId(sectionId: string): string {
+  return sectionIdToEtapa[sectionId] || 'Qualification'
+}
+
+/**
+ * Obtiene el ID de sección desde el nombre de la etapa
+ */
+export function getSectionIdFromEtapa(etapa: string): string {
+  return etapaToSectionId[etapa] || 'qualification'
+}
+
+// Mantener datos mock para compatibilidad (se pueden eliminar después)
+export const KanbanTaskData: KanbanTaskType[] = []

@@ -1,5 +1,4 @@
-import strapiClient from '@/lib/strapi/client'
-import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import type { StrapiEntity } from '@/lib/strapi/types'
 import { OpportunitiesType } from '@/app/(admin)/(apps)/crm/types'
 import { STRAPI_API_URL } from '@/lib/strapi/config'
 
@@ -75,14 +74,37 @@ export type OpportunitiesResult = {
 }
 
 // Función de transformación
-function transformOportunidadToOpportunity(oportunidad: OportunidadEntity): OpportunitiesType {
-  const attrs = oportunidad.attributes
+function transformOportunidadToOpportunity(oportunidad: OportunidadEntity | any): OpportunitiesType {
+  // Manejar diferentes formatos de respuesta
+  const attrs = oportunidad.attributes || oportunidad
   
   // ID
-  const id = oportunidad.documentId || oportunidad.id?.toString() || `#OP${oportunidad.id}`
+  const oportunidadId = oportunidad.documentId || oportunidad.id
+  const id = oportunidadId ? (typeof oportunidadId === 'string' ? oportunidadId : oportunidadId.toString()) : `#OP${oportunidad.id || '0'}`
   
-  // Producto
-  const producto = attrs.producto
+  // Extraer producto de diferentes formatos posibles
+  let producto: any = null
+  if (attrs.producto) {
+    const productoRaw = attrs.producto
+    
+    // Caso 1: producto viene con { data: { id, attributes } }
+    if (productoRaw.data) {
+      if (Array.isArray(productoRaw.data)) {
+        producto = productoRaw.data[0]?.attributes || productoRaw.data[0]
+      } else {
+        producto = productoRaw.data.attributes || productoRaw.data
+      }
+    }
+    // Caso 2: producto viene con { id, attributes }
+    else if (productoRaw.attributes) {
+      producto = productoRaw.attributes
+    }
+    // Caso 3: producto viene directo (ya populado)
+    else if (productoRaw.nombre || productoRaw.id || productoRaw.documentId) {
+      producto = productoRaw
+    }
+  }
+  
   const productName = producto?.nombre || attrs.nombre || 'Sin nombre'
   const productBy = producto?.empresa || 'Sin empresa'
   
@@ -104,8 +126,29 @@ function transformOportunidadToOpportunity(oportunidad: OportunidadEntity): Oppo
     }
   }
   
-  // Contacto
-  const contacto = attrs.contacto
+  // Extraer contacto de diferentes formatos posibles
+  let contacto: any = null
+  if (attrs.contacto) {
+    const contactoRaw = attrs.contacto
+    
+    // Caso 1: contacto viene con { data: { id, attributes } }
+    if (contactoRaw.data) {
+      if (Array.isArray(contactoRaw.data)) {
+        contacto = contactoRaw.data[0]?.attributes || contactoRaw.data[0]
+      } else {
+        contacto = contactoRaw.data.attributes || contactoRaw.data
+      }
+    }
+    // Caso 2: contacto viene con { id, attributes }
+    else if (contactoRaw.attributes) {
+      contacto = contactoRaw.attributes
+    }
+    // Caso 3: contacto viene directo (ya populado)
+    else if (contactoRaw.nombre_completo || contactoRaw.id || contactoRaw.documentId) {
+      contacto = contactoRaw
+    }
+  }
+  
   const customerName = contacto?.nombre_completo || 'Sin contacto'
   const customerEmail = contacto?.email || ''
   
@@ -146,8 +189,30 @@ function transformOportunidadToOpportunity(oportunidad: OportunidadEntity): Oppo
   // Fuente
   const source = attrs.fuente || 'Manual'
   
-  // Propietario
-  const owner = attrs.propietario?.nombre_completo || 'Sin asignar'
+  // Extraer propietario de diferentes formatos posibles
+  let propietario: any = null
+  if (attrs.propietario) {
+    const propietarioRaw = attrs.propietario
+    
+    // Caso 1: propietario viene con { data: { id, attributes } }
+    if (propietarioRaw.data) {
+      if (Array.isArray(propietarioRaw.data)) {
+        propietario = propietarioRaw.data[0]?.attributes || propietarioRaw.data[0]
+      } else {
+        propietario = propietarioRaw.data.attributes || propietarioRaw.data
+      }
+    }
+    // Caso 2: propietario viene con { id, attributes }
+    else if (propietarioRaw.attributes) {
+      propietario = propietarioRaw.attributes
+    }
+    // Caso 3: propietario viene directo (ya populado)
+    else if (propietarioRaw.nombre_completo || propietarioRaw.id || propietarioRaw.documentId) {
+      propietario = propietarioRaw
+    }
+  }
+  
+  const owner = propietario?.nombre_completo || 'Sin asignar'
   
   // Estado
   const status = attrs.estado || 'open'
@@ -178,55 +243,88 @@ export async function getOpportunities(query: OpportunitiesQuery = {}): Promise<
   const page = query.page || 1
   const pageSize = query.pageSize || 50
   
-  // Construir parámetros de query
+  // Construir parámetros de query para la API route
   const params = new URLSearchParams({
-    'pagination[page]': page.toString(),
-    'pagination[pageSize]': pageSize.toString(),
-    'sort[0]': 'updatedAt:desc',
+    page: page.toString(),
+    pageSize: pageSize.toString(),
   })
   
-  // Populate para relaciones (Strapi v4 syntax)
-  params.append('populate[producto][populate][logo][populate]', 'media')
-  params.append('populate[contacto][populate][imagen][populate]', 'media')
-  params.append('populate[propietario]', 'true')
-  
-  // Filtros
-  params.append('filters[activo][$eq]', 'true')
-  
-  // Búsqueda
   if (query.search) {
-    params.append('filters[$or][0][nombre][$containsi]', query.search)
-    params.append('filters[$or][1][descripcion][$containsi]', query.search)
-    params.append('filters[$or][2][contacto][nombre_completo][$containsi]', query.search)
+    params.append('search', query.search)
   }
   
-  // Filtro por etapa
   if (query.stage) {
-    params.append('filters[etapa][$eq]', query.stage)
+    params.append('stage', query.stage)
   }
   
-  // Filtro por estado
   if (query.status) {
-    params.append('filters[estado][$eq]', query.status)
+    params.append('status', query.status)
   }
   
-  // Filtro por prioridad
   if (query.priority) {
-    params.append('filters[prioridad][$eq]', query.priority)
+    params.append('priority', query.priority)
   }
   
-  const url = `/api/oportunidades?${params.toString()}`
-  const response = await strapiClient.get<StrapiResponse<OportunidadEntity>>(url)
+  // Llamar a la API route del servidor
+  const response = await fetch(`/api/crm/oportunidades?${params.toString()}`)
   
-  const data = Array.isArray(response.data) ? response.data : [response.data]
+  if (!response.ok) {
+    throw new Error(`Error al obtener oportunidades: ${response.statusText}`)
+  }
+  
+  const result = await response.json()
+  
+  if (!result.success) {
+    throw new Error(result.error || 'Error al obtener oportunidades')
+  }
+  
+  // Manejar diferentes formatos de respuesta de Strapi
+  let data: any[] = []
+  if (Array.isArray(result.data)) {
+    data = result.data
+  } else if (result.data && typeof result.data === 'object') {
+    // Si viene como objeto con data array dentro
+    if (Array.isArray(result.data.data)) {
+      data = result.data.data
+    } else {
+      // Si viene como un solo objeto
+      data = [result.data]
+    }
+  }
+  
+  // Transformar cada oportunidad a OpportunitiesType
+  const opportunities = data.map((oportunidad: any) => {
+    try {
+      return transformOportunidadToOpportunity(oportunidad)
+    } catch (error) {
+      console.error('Error transformando oportunidad:', error, oportunidad)
+      // Retornar una oportunidad básica en caso de error
+      return {
+        id: oportunidad.documentId || oportunidad.id || '0',
+        productName: oportunidad.attributes?.nombre || oportunidad.nombre || 'Sin nombre',
+        productBy: 'Sin empresa',
+        productLogo: '/assets/images/logos/default.svg' as any,
+        customerName: 'Sin contacto',
+        customerEmail: '',
+        customerAvatar: '/assets/images/users/user-dummy-img.jpg' as any,
+        stage: 'Qualification',
+        amount: '$0',
+        closeDate: '-',
+        source: 'Manual',
+        owner: 'Sin asignar',
+        status: 'open' as const,
+        priority: 'medium' as const,
+      } as OpportunitiesType
+    }
+  })
   
   return {
-    opportunities: data.map(transformOportunidadToOpportunity),
-    pagination: response.meta?.pagination || {
+    opportunities,
+    pagination: result.meta?.pagination || {
       page,
       pageSize,
-      total: 0,
-      pageCount: 0,
+      total: result.meta?.pagination?.total || data.length,
+      pageCount: result.meta?.pagination?.pageCount || 1,
     }
   }
 }
