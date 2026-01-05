@@ -37,41 +37,66 @@ const PipelinePage = () => {
 
   // Función para actualizar la etapa cuando se mueve un card
   const handleTaskMove = useCallback(async (taskId: string, newSectionId: string) => {
+    console.log('========================================')
+    console.log('[PipelinePage] 🎯 handleTaskMove INICIADO')
+    console.log('[PipelinePage] Parámetros recibidos:', { taskId, newSectionId })
+    
     try {
       const nuevaEtapa = getEtapaFromSectionId(newSectionId)
+      console.log('[PipelinePage] 📝 Mapeo de sección a etapa:', { newSectionId, nuevaEtapa })
       
-      console.log('[Pipeline] Actualizando oportunidad:', { taskId, nuevaEtapa, newSectionId })
+      const url = `/api/crm/oportunidades/${taskId}`
+      const body = { etapa: nuevaEtapa }
+      
+      console.log('[PipelinePage] 🌐 Preparando request a Strapi')
+      console.log('[PipelinePage] URL:', url)
+      console.log('[PipelinePage] Body:', body)
       
       // Actualizar la oportunidad en Strapi
-      const response = await fetch(`/api/crm/oportunidades/${taskId}`, {
+      const response = await fetch(url, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          etapa: nuevaEtapa,
-        }),
+        body: JSON.stringify(body),
       })
 
+      console.log('[PipelinePage] 📡 Response recibido')
+      console.log('[PipelinePage] Status:', response.status)
+      console.log('[PipelinePage] StatusText:', response.statusText)
+      console.log('[PipelinePage] OK:', response.ok)
+
       const result = await response.json()
+      console.log('[PipelinePage] 📦 Response data:', result)
 
       if (!response.ok || !result.success) {
         const errorMessage = result.error || result.details?.errors?.[0]?.message || 'Error al actualizar la oportunidad'
-        console.error('[Pipeline] Error al actualizar:', errorMessage)
+        console.error('[PipelinePage] ❌ ERROR en respuesta de Strapi')
+        console.error('[PipelinePage] Error message:', errorMessage)
+        console.error('[PipelinePage] Response completa:', result)
         throw new Error(errorMessage)
       }
 
-      console.log('[Pipeline] Oportunidad actualizada exitosamente')
+      console.log('[PipelinePage] ✅ Oportunidad actualizada exitosamente en Strapi')
+      console.log('[PipelinePage] ⏳ Programando recarga de tareas en 300ms...')
       
       // Recargar tareas después de un pequeño delay para asegurar que Strapi procesó el cambio
       // El estado local ya está actualizado (optimistic update), así que esto solo sincroniza
       setTimeout(async () => {
+        console.log('[PipelinePage] 🔄 Ejecutando loadTasks()...')
         await loadTasks()
+        console.log('[PipelinePage] ✅ loadTasks() completado')
       }, 300)
     } catch (err: any) {
-      console.error('[Pipeline] Error al actualizar oportunidad:', err)
+      console.error('[PipelinePage] ❌ ERROR en handleTaskMove')
+      console.error('[PipelinePage] Error completo:', err)
+      console.error('[PipelinePage] Error message:', err.message)
+      console.error('[PipelinePage] Error stack:', err.stack)
       throw err
     }
+    
+    console.log('[PipelinePage] ✅ handleTaskMove COMPLETADO')
+    console.log('========================================')
   }, [loadTasks])
 
   // Función para abrir modal desde una sección específica
