@@ -92,7 +92,7 @@ export const totalSalesChart: () => ChartJSOptionsType = () => ({
     ],
   },
   options: {
-    cutout: '30%' as any,
+    cutout: '30%',
     plugins: {
       legend: {
         position: 'bottom',
@@ -118,7 +118,7 @@ export const totalSalesChart: () => ChartJSOptionsType = () => ({
       x: { display: false },
       y: { display: false },
     },
-  },
+  } as any,
 })
 
 const generateRandomData = (min: number, max: number) => Array.from({ length: 12 }, () => Math.floor(Math.random() * (max - min + 1)) + min)

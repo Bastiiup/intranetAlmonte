@@ -59,7 +59,7 @@ const SalesCharts = ({ monthlyData, totalSalesData, pendingOrders = 0 }: SalesCh
         ],
       },
       options: {
-        cutout: '30%' as any,
+        cutout: '30%',
         plugins: {
           legend: {
             position: 'bottom',
@@ -85,7 +85,7 @@ const SalesCharts = ({ monthlyData, totalSalesData, pendingOrders = 0 }: SalesCh
           x: { display: false },
           y: { display: false },
         },
-      },
+      } as any,
     }
   }, [totalSalesData])
 
