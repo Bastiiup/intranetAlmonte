@@ -795,12 +795,13 @@ const Account = () => {
                                     <FormLabel htmlFor="profilephoto">Foto de Perfil</FormLabel>
                                     <div className="d-flex align-items-center gap-3 mb-2">
                                         {profilePhotoPreview && (
-                                            <Image 
+                                            <img 
                                                 src={profilePhotoPreview} 
                                                 alt="Preview" 
                                                 width={80} 
                                                 height={80} 
                                                 className="rounded-circle"
+                                                style={{ objectFit: 'cover' }}
                                             />
                                         )}
                                         <FormControl 
