@@ -75,7 +75,7 @@ const SalesCharts = ({ monthlyData, totalSalesData, pendingOrders = 0 }: SalesCh
           },
           tooltip: {
             callbacks: {
-              label: function (ctx) {
+              label: function (ctx: any) {
                 return `${ctx.dataset.label} - ${ctx.label}: $${ctx.parsed.toLocaleString('es-CL')}`
               },
             },

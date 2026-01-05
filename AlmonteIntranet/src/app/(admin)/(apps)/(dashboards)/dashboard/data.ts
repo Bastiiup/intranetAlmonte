@@ -108,7 +108,7 @@ export const totalSalesChart: () => ChartJSOptionsType = () => ({
       },
       tooltip: {
         callbacks: {
-          label: function (ctx) {
+          label: function (ctx: any) {
             return `${ctx.dataset.label} - ${ctx.label}: ${ctx.parsed}`
           },
         },
