@@ -92,7 +92,7 @@ export const totalSalesChart: () => ChartJSOptionsType = () => ({
     ],
   },
   options: {
-    cutout: '30%',
+    cutout: '30%' as any,
     plugins: {
       legend: {
         position: 'bottom',

@@ -32,7 +32,6 @@ const SalesCharts = ({ monthlyData, totalSalesData, pendingOrders = 0 }: SalesCh
     const data = totalSalesData || defaultData
     
     return {
-      type: 'doughnut',
       data: {
         labels: ['Tienda Online', 'Tienda Física', 'B2B', 'Marketplace'],
         datasets: [
@@ -60,7 +59,7 @@ const SalesCharts = ({ monthlyData, totalSalesData, pendingOrders = 0 }: SalesCh
         ],
       },
       options: {
-        cutout: '30%',
+        cutout: '30%' as any,
         plugins: {
           legend: {
             position: 'bottom',
