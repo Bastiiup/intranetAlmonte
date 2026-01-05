@@ -2,7 +2,6 @@ import type { StrapiEntity } from '@/lib/strapi/types'
 import { LeadType } from '@/app/(admin)/(apps)/crm/types'
 import { STRAPI_API_URL } from '@/lib/strapi/config'
 import user1 from '@/assets/images/users/user-1.jpg'
-import defaultLogo from '@/assets/images/logos/default.svg'
 
 // Tipos Strapi para Lead
 type LeadAttributes = {
@@ -81,7 +80,7 @@ function transformLeadToLeadType(lead: LeadEntity | any): LeadType {
   const company = attrs.empresa || 'Sin empresa'
   
   // Logo - intentar obtener de relacionado_con_colegio o usar default
-  let logo: any = defaultLogo
+  let logo: any = '/assets/images/logos/default.svg'
   if (attrs.relacionado_con_colegio) {
     const colegio = attrs.relacionado_con_colegio
     const colegioAttrs = colegio.attributes || colegio
