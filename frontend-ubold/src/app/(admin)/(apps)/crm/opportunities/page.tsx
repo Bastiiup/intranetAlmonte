@@ -179,7 +179,7 @@ const Opportunities = () => {
     {
       id: 'actions',
       header: 'Acciones',
-      cell: ({ row }) => (
+      cell: ({ row }: { row: { original: OpportunitiesType } }) => (
         <div className="d-flex gap-1">
           <Button 
             variant="default" 
