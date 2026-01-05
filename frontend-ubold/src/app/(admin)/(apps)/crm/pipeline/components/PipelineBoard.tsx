@@ -158,9 +158,28 @@ const PipelineBoard = ({ onTaskMove, onAddClick }: PipelineBoardProps) => {
     console.log('========================================')
   }
 
+  // Log cuando el componente se monta
+  useEffect(() => {
+    console.log('[PipelineBoard] 🎬 Componente montado')
+    console.log('[PipelineBoard] handleDragEnd disponible:', typeof handleDragEnd)
+    console.log('[PipelineBoard] contextOnDragEnd disponible:', typeof contextOnDragEnd)
+  }, [])
+
+  // Handler para cuando inicia el drag
+  const handleDragStart = (initial: any) => {
+    console.log('========================================')
+    console.log('[PipelineBoard] 🎯 DRAG INICIADO')
+    console.log('[PipelineBoard] DraggableId:', initial.draggableId)
+    console.log('[PipelineBoard] Source:', initial.source)
+    console.log('========================================')
+  }
+
   return (
     <CardBody className="p-0">
-      <DragDropContext onDragEnd={handleDragEnd}>
+      <DragDropContext 
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
         <div className="kanban-content">
           {sections.map((section) => (
             <Droppable key={section.id} droppableId={section.id}>

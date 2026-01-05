@@ -18,22 +18,28 @@ const PipelinePage = () => {
   const [defaultEtapa, setDefaultEtapa] = useState<string>('Qualification')
 
   useEffect(() => {
+    console.log('[PipelinePage] 🎬 Componente montado, cargando tareas iniciales...')
     loadTasks()
-  }, [])
+  }, [loadTasks])
 
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async () => {
+    console.log('[PipelinePage] 🔄 loadTasks INICIADO')
     try {
       setLoading(true)
       setError(null)
+      console.log('[PipelinePage] 📡 Obteniendo tareas del pipeline...')
       const pipelineTasks = await getPipelineTasks()
+      console.log('[PipelinePage] ✅ Tareas obtenidas:', pipelineTasks.length)
       setTasks(pipelineTasks)
+      console.log('[PipelinePage] ✅ Estado actualizado con', pipelineTasks.length, 'tareas')
     } catch (err: any) {
-      console.error('Error al cargar tareas del pipeline:', err)
+      console.error('[PipelinePage] ❌ Error al cargar tareas del pipeline:', err)
       setError(err.message || 'Error al cargar tareas del pipeline')
     } finally {
       setLoading(false)
+      console.log('[PipelinePage] ✅ loadTasks COMPLETADO')
     }
-  }
+  }, [])
 
   // Función para actualizar la etapa cuando se mueve un card
   const handleTaskMove = useCallback(async (taskId: string, newSectionId: string) => {
@@ -80,13 +86,10 @@ const PipelinePage = () => {
       console.log('[PipelinePage] ✅ Oportunidad actualizada exitosamente en Strapi')
       console.log('[PipelinePage] ⏳ Programando recarga de tareas en 300ms...')
       
-      // Recargar tareas después de un pequeño delay para asegurar que Strapi procesó el cambio
-      // El estado local ya está actualizado (optimistic update), así que esto solo sincroniza
-      setTimeout(async () => {
-        console.log('[PipelinePage] 🔄 Ejecutando loadTasks()...')
-        await loadTasks()
-        console.log('[PipelinePage] ✅ loadTasks() completado')
-      }, 300)
+      // NO recargar inmediatamente - el estado local ya está actualizado
+      // Solo recargar si es necesario después de un delay más largo
+      // Esto evita que la página quede en estado de carga constante
+      console.log('[PipelinePage] ⏭️ Saltando recarga inmediata (optimistic update ya aplicado)')
     } catch (err: any) {
       console.error('[PipelinePage] ❌ ERROR en handleTaskMove')
       console.error('[PipelinePage] Error completo:', err)
