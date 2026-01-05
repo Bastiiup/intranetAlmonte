@@ -234,26 +234,50 @@ export async function getProducts(limit: number = 9): Promise<DashboardProduct[]
     const data = await response.json()
     const products = data.success && data.data ? data.data : []
     
+    // Helper para obtener un campo con múltiples variaciones
+    const getField = (obj: any, ...fields: string[]): any => {
+      for (const field of fields) {
+        if (obj?.[field] !== undefined && obj?.[field] !== null && obj?.[field] !== '') {
+          return obj[field]
+        }
+      }
+      return null
+    }
+    
     return products.slice(0, limit).map((product: any, index: number) => {
       const attrs = product.attributes || product
       
-      // Obtener imagen
-      const imagen = attrs.imagen?.data?.[0]?.attributes?.url || 
-                     attrs.imagen?.url ||
-                     attrs.portada?.data?.attributes?.url ||
-                     attrs.portada?.url
-      
+      // Obtener imagen (portada_libro)
+      const portada = attrs.PORTADA_LIBRO?.data || attrs.portada_libro?.data
+      const imagen = portada?.attributes?.url || portada?.url
       const imageUrl = imagen 
         ? (imagen.startsWith('http') ? imagen : `${process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'}${imagen}`)
         : undefined
       
-      // Obtener stock (usar stock disponible o 0)
-      const stock = attrs.stock_disponible || attrs.stock || 0
+      // Obtener stock de la relación stocks
+      let stock = 0
+      const stocks = attrs.stocks?.data || attrs.STOCKS?.data || []
+      if (Array.isArray(stocks) && stocks.length > 0) {
+        stock = stocks.reduce((sum: number, stockItem: any) => {
+          const cantidad = stockItem?.attributes?.cantidad || stockItem?.cantidad || 0
+          return sum + (typeof cantidad === 'number' ? cantidad : parseFloat(cantidad) || 0)
+        }, 0)
+      }
       const stockText = stock > 0 ? `${stock} unidades` : '0 unidades'
       
-      // Obtener precio
-      const precio = attrs.precio_venta || attrs.precio || 0
-      const priceText = `$${parseFloat(precio.toString()).toLocaleString('es-CL')}`
+      // Obtener precio de la relación precios
+      let precio = 0
+      const precios = attrs.precios?.data || attrs.PRECIOS?.data || []
+      if (Array.isArray(precios) && precios.length > 0) {
+        // Obtener el precio mínimo o el primero disponible
+        const preciosValidos = precios
+          .map((p: any) => p?.attributes?.precio || p?.precio || 0)
+          .filter((p: number) => p > 0)
+        if (preciosValidos.length > 0) {
+          precio = Math.min(...preciosValidos)
+        }
+      }
+      const priceText = precio > 0 ? `$${parseFloat(precio.toString()).toLocaleString('es-CL')}` : '$0'
       
       // Determinar estado según stock
       let status = 'Active'
@@ -267,15 +291,20 @@ export async function getProducts(limit: number = 9): Promise<DashboardProduct[]
         statusVariant = 'warning'
       }
       
-      // Obtener categoría
-      const categoria = attrs.categoria?.data?.attributes?.nombre || 
-                       attrs.categoria?.nombre ||
-                       'Sin categoría'
+      // Obtener categoría (tipo_libro o categorias_producto)
+      const tipoLibro = getField(attrs, 'TIPO_LIBRO', 'tipo_libro', 'tipoLibro')
+      const categorias = attrs.categorias_producto?.data || attrs.CATEGORIAS_PRODUCTO?.data || []
+      const categoriaNombre = categorias.length > 0 
+        ? (categorias[0]?.attributes?.nombre || categorias[0]?.nombre || 'Sin categoría')
+        : (tipoLibro || 'Sin categoría')
+      
+      // Obtener nombre del producto (NOMBRE_LIBRO o nombre_libro)
+      const nombre = getField(attrs, 'NOMBRE_LIBRO', 'nombre_libro', 'nombreLibro', 'NOMBRE', 'nombre', 'name', 'NAME') || 'Producto sin nombre'
       
       return {
         id: product.id || index + 1,
-        name: attrs.titulo || attrs.nombre || 'Producto sin nombre',
-        category: categoria,
+        name: nombre,
+        category: categoriaNombre,
         stock: stockText,
         price: priceText,
         ratings: 4, // Por defecto, ya que no tenemos ratings en Strapi
