@@ -205,7 +205,7 @@ export async function POST(request: Request) {
 
     // Revalidar cache
     revalidatePath('/crm/leads')
-    revalidateTag('leads')
+    revalidateTag('leads', 'max')
 
     return NextResponse.json({
       success: true,

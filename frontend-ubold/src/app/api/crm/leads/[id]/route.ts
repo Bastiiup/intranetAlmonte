@@ -269,7 +269,7 @@ export async function PUT(
     
     // Revalidar para sincronización bidireccional
     revalidatePath('/crm/leads')
-    revalidateTag('leads')
+    revalidateTag('leads', 'max')
     
     console.log('[API /crm/leads/[id] PUT] ✅ Cache revalidado')
 
@@ -355,7 +355,7 @@ export async function DELETE(
 
     // Revalidar cache
     revalidatePath('/crm/leads')
-    revalidateTag('leads')
+    revalidateTag('leads', 'max')
 
     return NextResponse.json({
       success: true,
