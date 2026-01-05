@@ -71,10 +71,10 @@ Si prefieres crear los archivos directamente en el código:
    ```
 
 3. **Copiar archivos:**
-   - `SCHEMA-LEAD-STRAPI.json` → `strapi/src/api/lead/content-types/lead/schema.json`
-   - `STRAPI-LEAD-CONTROLLER.ts` → `strapi/src/api/lead/controllers/lead.ts`
-   - `STRAPI-LEAD-SERVICE.ts` → `strapi/src/api/lead/services/lead.ts`
-   - `STRAPI-LEAD-ROUTES.ts` → `strapi/src/api/lead/routes/lead.ts`
+   - `strapi-files/lead-schema.json` → `strapi/src/api/lead/content-types/lead/schema.json`
+   - `strapi-files/lead-controller.ts` → `strapi/src/api/lead/controllers/lead.ts`
+   - `strapi-files/lead-service.ts` → `strapi/src/api/lead/services/lead.ts`
+   - `strapi-files/lead-routes.ts` → `strapi/src/api/lead/routes/lead.ts`
 
 4. **Compilar y reiniciar:**
    ```bash
@@ -136,11 +136,11 @@ Después de crear el content-type:
 
 ## Archivos Creados
 
-He creado los siguientes archivos en este proyecto:
+He creado los siguientes archivos en la carpeta `strapi-files/`:
 
-- `SCHEMA-LEAD-STRAPI.json` - Schema completo del content-type
-- `STRAPI-LEAD-CONTROLLER.ts` - Controller
-- `STRAPI-LEAD-SERVICE.ts` - Service
-- `STRAPI-LEAD-ROUTES.ts` - Routes
+- `strapi-files/lead-schema.json` - Schema completo del content-type
+- `strapi-files/lead-controller.ts` - Controller
+- `strapi-files/lead-service.ts` - Service
+- `strapi-files/lead-routes.ts` - Routes
 
-Puedes copiar estos archivos al proyecto de Strapi o usar Strapi Admin para crear el content-type manualmente.
+**Nota:** Estos archivos están en `strapi-files/` para evitar que Next.js intente compilarlos. Puedes copiar estos archivos al proyecto de Strapi o usar Strapi Admin para crear el content-type manualmente.

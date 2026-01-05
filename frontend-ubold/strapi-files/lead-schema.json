@@ -1,0 +1,92 @@
+{
+  "kind": "collectionType",
+  "collectionName": "leads",
+  "info": {
+    "singularName": "lead",
+    "pluralName": "leads",
+    "displayName": "Lead",
+    "description": "Prospectos iniciales que pueden convertirse en Oportunidades"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "nombre": {
+      "type": "string",
+      "required": true
+    },
+    "email": {
+      "type": "email"
+    },
+    "telefono": {
+      "type": "string"
+    },
+    "empresa": {
+      "type": "string"
+    },
+    "monto_estimado": {
+      "type": "decimal",
+      "min": 0
+    },
+    "etiqueta": {
+      "type": "enumeration",
+      "enum": [
+        "baja",
+        "media",
+        "alta"
+      ],
+      "default": "baja",
+      "required": true
+    },
+    "estado": {
+      "type": "enumeration",
+      "enum": [
+        "in-progress",
+        "proposal-sent",
+        "follow-up",
+        "pending",
+        "negotiation",
+        "rejected"
+      ],
+      "default": "in-progress",
+      "required": true
+    },
+    "fuente": {
+      "type": "string",
+      "default": "Manual"
+    },
+    "fecha_creacion": {
+      "type": "date"
+    },
+    "activo": {
+      "type": "boolean",
+      "default": true,
+      "required": true
+    },
+    "notas": {
+      "type": "richtext"
+    },
+    "fecha_proximo_seguimiento": {
+      "type": "datetime"
+    },
+    "asignado_a": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::intranet-colaborador.intranet-colaborador",
+      "inversedBy": null
+    },
+    "relacionado_con_persona": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::persona.persona",
+      "inversedBy": null
+    },
+    "relacionado_con_colegio": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::colegio.colegio",
+      "inversedBy": null
+    }
+  }
+}

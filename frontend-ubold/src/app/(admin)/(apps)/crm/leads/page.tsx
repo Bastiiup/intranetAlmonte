@@ -2,7 +2,7 @@
 import { Button, Card, CardBody, CardFooter, CardHeader, Col, Container, OverlayTrigger, Row, Spinner, Tooltip, Alert } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { TbEdit, TbEye, TbPlus, TbTrash } from 'react-icons/tb'
-import { LuDollarSign, LuSearch, LuShuffle } from 'react-icons/lu'
+import { LuArrowRight, LuDollarSign, LuSearch, LuShuffle } from 'react-icons/lu'
 import {
   ColumnFiltersState,
   createColumnHelper,
@@ -25,6 +25,7 @@ import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import { currency } from '@/helpers'
 import { useToggle } from 'usehooks-ts'
 import AddNewLeadModal from '@/app/(admin)/(apps)/crm/leads/components/AddNewLeadModal'
+import ConvertToOpportunityModal from '@/app/(admin)/(apps)/crm/leads/components/ConvertToOpportunityModal'
 import { getLeads, type LeadsQuery } from './data'
 
 const columnHelper = createColumnHelper<LeadType>()
@@ -54,6 +55,8 @@ const Leads = () => {
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false)
   const [showDealModal, toggleDealModal] = useToggle(false)
+  const [showConvertModal, setShowConvertModal] = useState(false)
+  const [selectedLead, setSelectedLead] = useState<LeadType | null>(null)
 
   // Función para cargar leads
   const loadLeads = useCallback(async () => {
@@ -80,6 +83,17 @@ const Leads = () => {
 
   const handleLeadCreated = () => {
     loadLeads()
+  }
+
+  const handleConvertToOpportunity = (lead: LeadType) => {
+    setSelectedLead(lead)
+    setShowConvertModal(true)
+  }
+
+  const handleConversionSuccess = () => {
+    loadLeads()
+    setShowConvertModal(false)
+    setSelectedLead(null)
   }
 
   // Cargar datos cuando cambian los filtros o paginación
@@ -175,6 +189,15 @@ const Leads = () => {
           <Button variant="default" size="sm" className="btn-icon">
             <TbEdit className="fs-lg" />
           </Button>
+          <OverlayTrigger overlay={<Tooltip>Convertir a Oportunidad</Tooltip>}>
+            <Button
+              variant="success"
+              size="sm"
+              className="btn-icon"
+              onClick={() => handleConvertToOpportunity(row.original)}>
+              <LuArrowRight className="fs-lg" />
+            </Button>
+          </OverlayTrigger>
           <Button
             variant="default"
             size="sm"
@@ -383,6 +406,16 @@ const Leads = () => {
             />
 
             <AddNewLeadModal show={showDealModal} toggleModal={toggleDealModal} onLeadCreated={handleLeadCreated} />
+            
+            <ConvertToOpportunityModal
+              show={showConvertModal}
+              onHide={() => {
+                setShowConvertModal(false)
+                setSelectedLead(null)
+              }}
+              lead={selectedLead}
+              onSuccess={handleConversionSuccess}
+            />
           </Card>
         </Col>
       </Row>
