@@ -1,6 +1,7 @@
 import type { StrapiEntity } from '@/lib/strapi/types'
 import { OpportunitiesType } from '@/app/(admin)/(apps)/crm/types'
 import { STRAPI_API_URL } from '@/lib/strapi/config'
+import user1 from '@/assets/images/users/user-1.jpg'
 
 // Tipos Strapi para Oportunidad
 type OportunidadAttributes = {
@@ -173,7 +174,7 @@ function transformOportunidadToOpportunity(oportunidad: OportunidadEntity | any)
   const customerEmail = contacto?.email || ''
   
   // Avatar del contacto
-  let customerAvatar = '/assets/images/users/user-1.jpg' // Avatar por defecto
+  let customerAvatar: string | any = user1 // Avatar por defecto
   if (contacto?.imagen) {
     if (typeof contacto.imagen === 'string') {
       const imagenUrl = contacto.imagen
@@ -358,7 +359,7 @@ export async function getOpportunities(query: OpportunitiesQuery = {}): Promise<
         productLogo: '/assets/images/logos/default.svg' as any,
         customerName: 'Sin contacto',
         customerEmail: '',
-        customerAvatar: '/assets/images/users/user-1.jpg' as any,
+        customerAvatar: user1 as any,
         stage: 'Qualification',
         amount: '$0',
         closeDate: '-',
@@ -391,7 +392,7 @@ function getMockOpportunities(query: OpportunitiesQuery): OpportunitiesResult {
       productLogo: '/assets/images/logos/default.svg' as any,
       customerName: 'Juan Pérez',
       customerEmail: 'juan.perez@colegiosanjose.cl',
-      customerAvatar: '/assets/images/users/user-dummy-img.jpg' as any,
+      customerAvatar: user1 as any,
       stage: 'Negotiation',
       amount: '$50,000',
       closeDate: '15 Mar, 2026',
@@ -407,7 +408,7 @@ function getMockOpportunities(query: OpportunitiesQuery): OpportunitiesResult {
       productLogo: '/assets/images/logos/default.svg' as any,
       customerName: 'Ana Martínez',
       customerEmail: 'ana.martinez@colegiolosandes.cl',
-      customerAvatar: '/assets/images/users/user-dummy-img.jpg' as any,
+      customerAvatar: user1 as any,
       stage: 'Proposal Sent',
       amount: '$35,000',
       closeDate: '20 Mar, 2026',
@@ -423,7 +424,7 @@ function getMockOpportunities(query: OpportunitiesQuery): OpportunitiesResult {
       productLogo: '/assets/images/logos/default.svg' as any,
       customerName: 'Pedro Silva',
       customerEmail: 'pedro.silva@institucionacional.cl',
-      customerAvatar: '/assets/images/users/user-dummy-img.jpg' as any,
+      customerAvatar: user1 as any,
       stage: 'Qualification',
       amount: '$28,000',
       closeDate: '25 Mar, 2026',
