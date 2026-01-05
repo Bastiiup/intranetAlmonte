@@ -67,7 +67,7 @@ export const totalSalesChart: () => ChartJSOptionsType = () => ({
   type: 'doughnut',
   data: {
     labels: ['Online Store', 'Retail Stores', 'B2B Revenue', 'Marketplace Revenue'],
-    datasets: [
+      datasets: [
       {
         label: '2024',
         data: [300, 150, 100, 80],
@@ -75,8 +75,6 @@ export const totalSalesChart: () => ChartJSOptionsType = () => ({
         borderColor: 'transparent',
         borderWidth: 1,
         weight: 1, // Outer ring
-        cutout: '30%',
-        radius: '90%',
       },
       {
         label: '2023',
@@ -90,12 +88,11 @@ export const totalSalesChart: () => ChartJSOptionsType = () => ({
         borderColor: 'transparent',
         borderWidth: 3,
         weight: 0.8, // Inner ring
-        cutout: '30%',
-        radius: '60%', // smaller to create spacing
       },
     ],
   },
   options: {
+    cutout: '30%',
     plugins: {
       legend: {
         position: 'bottom',

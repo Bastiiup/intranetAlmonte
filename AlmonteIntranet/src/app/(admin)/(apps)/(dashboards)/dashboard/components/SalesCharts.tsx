@@ -43,8 +43,6 @@ const SalesCharts = ({ monthlyData, totalSalesData, pendingOrders = 0 }: SalesCh
             borderColor: 'transparent',
             borderWidth: 1,
             weight: 1,
-            cutout: '30%',
-            radius: '90%',
           },
           {
             label: '2023',
@@ -58,12 +56,11 @@ const SalesCharts = ({ monthlyData, totalSalesData, pendingOrders = 0 }: SalesCh
             borderColor: 'transparent',
             borderWidth: 3,
             weight: 0.8,
-            cutout: '30%',
-            radius: '60%',
           },
         ],
       },
       options: {
+        cutout: '30%',
         plugins: {
           legend: {
             position: 'bottom',
