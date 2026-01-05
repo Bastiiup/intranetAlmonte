@@ -69,7 +69,7 @@ const PipelinePage = () => {
       console.error('[Pipeline] Error al actualizar oportunidad:', err)
       throw err
     }
-  }, [])
+  }, [loadTasks])
 
   // Función para abrir modal desde una sección específica
   const handleOpenAddModal = (sectionId?: string) => {

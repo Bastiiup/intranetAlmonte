@@ -27,20 +27,33 @@ const PipelineBoard = ({ onTaskMove, onAddClick }: PipelineBoardProps) => {
   const handleDragEnd = async (result: DropResult) => {
     const { destination, draggableId, source } = result
     
+    console.log('[PipelineBoard] handleDragEnd llamado:', { destination, draggableId, source })
+    
     // Si no hay destino, cancelar
-    if (!destination) return
+    if (!destination) {
+      console.log('[PipelineBoard] No hay destino, cancelando')
+      return
+    }
 
     // Si se soltó en la misma posición, no hacer nada
     if (destination.droppableId === source.droppableId && destination.index === source.index) {
+      console.log('[PipelineBoard] Misma posición, no hacer nada')
       return
     }
 
     // Obtener todas las tareas de todas las secciones
     const allTasks = sections.flatMap((section) => getAllTasksPerSection(section.id))
-    const task = allTasks.find((t) => String(t.id) === String(draggableId))
+    console.log('[PipelineBoard] Todas las tareas:', allTasks.map(t => ({ id: t.id, sectionId: t.sectionId })))
+    
+    const task = allTasks.find((t) => {
+      const taskIdStr = String(t.id)
+      const draggableIdStr = String(draggableId)
+      console.log('[PipelineBoard] Comparando:', { taskIdStr, draggableIdStr, match: taskIdStr === draggableIdStr })
+      return taskIdStr === draggableIdStr
+    })
     
     if (!task) {
-      console.error('[PipelineBoard] No se encontró la tarea con ID:', draggableId)
+      console.error('[PipelineBoard] No se encontró la tarea con ID:', draggableId, 'Tareas disponibles:', allTasks.map(t => t.id))
       return
     }
 
@@ -48,19 +61,22 @@ const PipelineBoard = ({ onTaskMove, onAddClick }: PipelineBoardProps) => {
 
     // Si la sección no cambió, no hacer nada
     if (task.sectionId === newSectionId) {
-      console.log('[PipelineBoard] La tarea ya está en la misma sección')
+      console.log('[PipelineBoard] La tarea ya está en la misma sección:', newSectionId)
       return
     }
 
     console.log('[PipelineBoard] Moviendo tarea:', {
       taskId: task.id,
+      taskIdType: typeof task.id,
       fromSection: task.sectionId,
       toSection: newSectionId,
     })
 
     // Actualizar en Strapi
     try {
-      await onTaskMove(String(task.id), newSectionId)
+      const taskIdStr = String(task.id)
+      console.log('[PipelineBoard] Llamando onTaskMove con:', { taskId: taskIdStr, newSectionId })
+      await onTaskMove(taskIdStr, newSectionId)
       console.log('[PipelineBoard] Tarea actualizada exitosamente')
     } catch (error: any) {
       console.error('[PipelineBoard] Error al actualizar oportunidad:', error)
@@ -88,15 +104,27 @@ const PipelineBoard = ({ onTaskMove, onAddClick }: PipelineBoardProps) => {
                   </div>
                   <SimplebarClient className="kanban-board-group px-2">
                     <ul>
-                      {getAllTasksPerSection(section.id).map((task, idx) => (
-                        <Draggable draggableId={task.id} index={idx} key={task.id}>
-                          {(provided) => (
-                            <li className="kanban-item" ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
-                              <TaskItem item={task} />
-                            </li>
-                          )}
-                        </Draggable>
-                      ))}
+                      {getAllTasksPerSection(section.id).map((task, idx) => {
+                        const taskIdStr = String(task.id)
+                        return (
+                          <Draggable key={taskIdStr} draggableId={taskIdStr} index={idx}>
+                            {(provided, snapshot) => (
+                              <li 
+                                className={`kanban-item ${snapshot.isDragging ? 'dragging' : ''}`}
+                                ref={provided.innerRef} 
+                                {...provided.draggableProps} 
+                                {...provided.dragHandleProps}
+                                style={{
+                                  ...provided.draggableProps.style,
+                                  opacity: snapshot.isDragging ? 0.5 : 1,
+                                }}
+                              >
+                                <TaskItem item={task} />
+                              </li>
+                            )}
+                          </Draggable>
+                        )
+                      })}
                       {provided.placeholder}
                     </ul>
                   </SimplebarClient>
