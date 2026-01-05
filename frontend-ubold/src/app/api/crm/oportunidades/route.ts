@@ -96,6 +96,27 @@ export async function GET(request: Request) {
       status: error.status,
       details: error.details,
     })
+    
+    // Si el error es 404, significa que el content-type no existe en Strapi
+    if (error.status === 404) {
+      return NextResponse.json(
+        {
+          success: true,
+          data: [],
+          meta: {
+            pagination: {
+              page: 1,
+              pageSize: 50,
+              total: 0,
+              pageCount: 0,
+            }
+          },
+          message: 'El content-type "Oportunidad" no existe en Strapi. Por favor, créalo primero.',
+        },
+        { status: 200 }
+      )
+    }
+    
     return NextResponse.json(
       {
         success: false,

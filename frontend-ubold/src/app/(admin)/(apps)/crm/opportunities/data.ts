@@ -275,7 +275,16 @@ export async function getOpportunities(query: OpportunitiesQuery = {}): Promise<
   const result = await response.json()
   
   if (!result.success) {
+    // Si hay un mensaje informativo, mostrarlo
+    if (result.message) {
+      throw new Error(result.message)
+    }
     throw new Error(result.error || 'Error al obtener oportunidades')
+  }
+  
+  // Si el resultado es exitoso pero viene con mensaje (content-type no existe)
+  if (result.message && result.data && Array.isArray(result.data) && result.data.length === 0) {
+    console.warn('[getOpportunities]', result.message)
   }
   
   // Manejar diferentes formatos de respuesta de Strapi

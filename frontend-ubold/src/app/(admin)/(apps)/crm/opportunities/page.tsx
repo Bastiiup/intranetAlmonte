@@ -192,8 +192,26 @@ const Opportunities = () => {
       <PageBreadcrumb title={'Opportunities'} subtitle={'CRM'} />
 
       {error && (
-        <div className="alert alert-danger" role="alert">
-          <strong>Error:</strong> {error}
+        <div className="alert alert-warning" role="alert">
+          <strong>Advertencia:</strong> {error}
+          <div className="mt-2">
+            <small>
+              Si el content-type "Oportunidad" no existe en Strapi, necesitas crearlo primero con los siguientes campos:
+              <ul className="mt-2 mb-0">
+                <li><code>nombre</code> (Text)</li>
+                <li><code>descripcion</code> (Text/Rich Text)</li>
+                <li><code>monto</code> (Number)</li>
+                <li><code>moneda</code> (Enum: USD, CLP, etc.)</li>
+                <li><code>etapa</code> (Enum: Qualification, Proposal Sent, Negotiation, Won, Lost)</li>
+                <li><code>estado</code> (Enum: open, in-progress, closed)</li>
+                <li><code>prioridad</code> (Enum: low, medium, high)</li>
+                <li><code>fecha_cierre</code> (Date)</li>
+                <li><code>fuente</code> (Text)</li>
+                <li><code>activo</code> (Boolean)</li>
+                <li>Relaciones: <code>producto</code>, <code>contacto</code> (Persona), <code>propietario</code> (Intranet-colaboradores)</li>
+              </ul>
+            </small>
+          </div>
         </div>
       )}
 
