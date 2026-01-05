@@ -173,7 +173,7 @@ function transformOportunidadToOpportunity(oportunidad: OportunidadEntity | any)
   const customerEmail = contacto?.email || ''
   
   // Avatar del contacto
-  let customerAvatar = '/assets/images/users/user-dummy-img.jpg' // Avatar por defecto
+  let customerAvatar = '/assets/images/users/user-1.jpg' // Avatar por defecto
   if (contacto?.imagen) {
     if (typeof contacto.imagen === 'string') {
       const imagenUrl = contacto.imagen
@@ -358,7 +358,7 @@ export async function getOpportunities(query: OpportunitiesQuery = {}): Promise<
         productLogo: '/assets/images/logos/default.svg' as any,
         customerName: 'Sin contacto',
         customerEmail: '',
-        customerAvatar: '/assets/images/users/user-dummy-img.jpg' as any,
+        customerAvatar: '/assets/images/users/user-1.jpg' as any,
         stage: 'Qualification',
         amount: '$0',
         closeDate: '-',

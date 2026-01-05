@@ -25,28 +25,48 @@ const PipelineBoard = ({ onTaskMove, onAddClick }: PipelineBoardProps) => {
   }
 
   const handleDragEnd = async (result: DropResult) => {
-    const { destination, draggableId } = result
+    const { destination, draggableId, source } = result
+    
+    // Si no hay destino, cancelar
     if (!destination) return
+
+    // Si se soltó en la misma posición, no hacer nada
+    if (destination.droppableId === source.droppableId && destination.index === source.index) {
+      return
+    }
 
     // Obtener todas las tareas de todas las secciones
     const allTasks = sections.flatMap((section) => getAllTasksPerSection(section.id))
     const task = allTasks.find((t) => String(t.id) === String(draggableId))
-    if (!task) return
+    
+    if (!task) {
+      console.error('[PipelineBoard] No se encontró la tarea con ID:', draggableId)
+      return
+    }
 
     const newSectionId = destination.droppableId
 
     // Si la sección no cambió, no hacer nada
-    if (task.sectionId === newSectionId) return
+    if (task.sectionId === newSectionId) {
+      console.log('[PipelineBoard] La tarea ya está en la misma sección')
+      return
+    }
+
+    console.log('[PipelineBoard] Moviendo tarea:', {
+      taskId: task.id,
+      fromSection: task.sectionId,
+      toSection: newSectionId,
+    })
 
     // Actualizar en Strapi
     try {
       await onTaskMove(String(task.id), newSectionId)
-      
-      // Recargar la página para reflejar los cambios
+      console.log('[PipelineBoard] Tarea actualizada exitosamente')
+    } catch (error: any) {
+      console.error('[PipelineBoard] Error al actualizar oportunidad:', error)
+      alert(`Error al actualizar la oportunidad: ${error.message || 'Error desconocido'}. Por favor, intenta de nuevo.`)
+      // Recargar la página para restaurar el estado anterior
       window.location.reload()
-    } catch (error) {
-      console.error('Error al actualizar oportunidad:', error)
-      alert('Error al actualizar la oportunidad. Por favor, intenta de nuevo.')
     }
   }
 

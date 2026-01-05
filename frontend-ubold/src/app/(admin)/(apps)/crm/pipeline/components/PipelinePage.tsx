@@ -40,6 +40,8 @@ const PipelinePage = () => {
     try {
       const nuevaEtapa = getEtapaFromSectionId(newSectionId)
       
+      console.log('[Pipeline] Actualizando oportunidad:', { taskId, nuevaEtapa, newSectionId })
+      
       // Actualizar la oportunidad en Strapi
       const response = await fetch(`/api/crm/oportunidades/${taskId}`, {
         method: 'PUT',
@@ -51,12 +53,20 @@ const PipelinePage = () => {
         }),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Error al actualizar la oportunidad')
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        const errorMessage = result.error || result.details?.errors?.[0]?.message || 'Error al actualizar la oportunidad'
+        console.error('[Pipeline] Error al actualizar:', errorMessage)
+        throw new Error(errorMessage)
       }
+
+      console.log('[Pipeline] Oportunidad actualizada exitosamente')
+      
+      // Recargar tareas en lugar de recargar toda la página
+      await loadTasks()
     } catch (err: any) {
-      console.error('Error al actualizar oportunidad:', err)
+      console.error('[Pipeline] Error al actualizar oportunidad:', err)
       throw err
     }
   }, [])

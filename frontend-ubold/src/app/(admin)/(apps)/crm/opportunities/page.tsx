@@ -20,9 +20,12 @@ import clsx from 'clsx'
 import { getOpportunities, type OpportunitiesQuery } from './data'
 import { LuCircleAlert, LuSearch, LuShuffle, LuPlus } from 'react-icons/lu'
 import { LiaCheckCircle } from 'react-icons/lia'
+import { TbEdit, TbTrash } from 'react-icons/tb'
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import AddOpportunityModal from './components/AddOpportunityModal'
+import EditOpportunityModal from './components/EditOpportunityModal'
+import DeleteOpportunityModal from './components/DeleteOpportunityModal'
 import { Button } from 'react-bootstrap'
 
 const columnHelper = createColumnHelper<OpportunitiesType>()
@@ -43,6 +46,8 @@ const Opportunities = () => {
   const [filtroStatus, setFiltroStatus] = useState<string>('')
   const [filtroPriority, setFiltroPriority] = useState<string>('')
   const [addModal, setAddModal] = useState(false)
+  const [editModal, setEditModal] = useState<{ open: boolean; opportunity: OpportunitiesType | null }>({ open: false, opportunity: null })
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; opportunity: OpportunitiesType | null }>({ open: false, opportunity: null })
 
   // Función para cargar oportunidades
   const loadOpportunities = useCallback(async () => {
@@ -171,6 +176,30 @@ const Opportunities = () => {
         )
       },
     }),
+    {
+      id: 'actions',
+      header: 'Acciones',
+      cell: ({ row }) => (
+        <div className="d-flex gap-1">
+          <Button 
+            variant="default" 
+            size="sm" 
+            className="btn-icon"
+            onClick={() => setEditModal({ open: true, opportunity: row.original })}
+          >
+            <TbEdit className="fs-lg" />
+          </Button>
+          <Button 
+            variant="default" 
+            size="sm" 
+            className="btn-icon text-danger"
+            onClick={() => setDeleteModal({ open: true, opportunity: row.original })}
+          >
+            <TbTrash className="fs-lg" />
+          </Button>
+        </div>
+      ),
+    },
   ]
 
   const table = useReactTable({
@@ -352,6 +381,26 @@ const Opportunities = () => {
         show={addModal}
         onHide={() => setAddModal(false)}
         onSuccess={handleOpportunityCreated}
+      />
+
+      <EditOpportunityModal
+        show={editModal.open}
+        onHide={() => setEditModal({ open: false, opportunity: null })}
+        opportunity={editModal.opportunity}
+        onSuccess={() => {
+          setEditModal({ open: false, opportunity: null })
+          loadOpportunities()
+        }}
+      />
+
+      <DeleteOpportunityModal
+        show={deleteModal.open}
+        onHide={() => setDeleteModal({ open: false, opportunity: null })}
+        opportunity={deleteModal.opportunity}
+        onSuccess={() => {
+          setDeleteModal({ open: false, opportunity: null })
+          loadOpportunities()
+        }}
       />
     </div>
   )
