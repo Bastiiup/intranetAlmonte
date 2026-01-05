@@ -74,12 +74,12 @@ const Opportunities = () => {
   const columns = [
     columnHelper.accessor('id', { header: 'ID' }),
     columnHelper.accessor('productBy', {
-      header: 'Opportunity',
+      header: 'Oportunidad',
       enableSorting:false,
       cell: ({ row }) => (
         <div className="d-flex align-items-center">
           <div className="avatar-sm border flex-shrink-0 border-dashed rounded me-2 justify-content-center d-flex align-items-center">
-            <Image src={row.original.productLogo} alt="Product" height="20" />
+            <Image src={row.original.productLogo} alt="Producto" height="20" />
           </div>
           <div>
             <p className="mb-0 fw-medium">
@@ -87,18 +87,18 @@ const Opportunities = () => {
                 {row.original.productName}
               </Link>
             </p>
-            <p className="text-muted mb-0 small">By: {row.original.productBy}</p>
+            <p className="text-muted mb-0 small">Por: {row.original.productBy}</p>
           </div>
         </div>
       ),
     }),
     columnHelper.accessor('customerName', {
-      header: 'Contact Person',
+      header: 'Contacto',
       enableSorting:false,
       cell: ({ row }) => (
         <div className="d-flex align-items-center">
           <div className="avatar-sm me-2">
-            <Image src={row.original.customerAvatar} alt="Product" className="img-fluid rounded-circle" />
+            <Image src={row.original.customerAvatar} alt="Contacto" className="img-fluid rounded-circle" />
           </div>
           <div>
             <p className="mb-0 fw-medium">
@@ -111,44 +111,58 @@ const Opportunities = () => {
         </div>
       ),
     }),
-    columnHelper.accessor('stage', { header: 'Stage', enableColumnFilter: true }),
+    columnHelper.accessor('stage', { header: 'Etapa', enableColumnFilter: true }),
 
-    columnHelper.accessor('amount', { header: 'Value(usd)' }),
-    columnHelper.accessor('closeDate', { header: 'Close Date' }),
-    columnHelper.accessor('source', { header: 'Lead Source' }),
-    columnHelper.accessor('owner', { header: 'Owner ',enableSorting:false, }),
+    columnHelper.accessor('amount', { header: 'Valor (USD)' }),
+    columnHelper.accessor('closeDate', { header: 'Fecha de Cierre' }),
+    columnHelper.accessor('source', { header: 'Origen' }),
+    columnHelper.accessor('owner', { header: 'Propietario', enableSorting:false, }),
 
     columnHelper.accessor('status', {
-      header: 'Status',
+      header: 'Estado',
       filterFn: 'equalsString',
       enableColumnFilter: true,
-      cell: ({ row }) => (
-        <span
-          className={clsx(
-            'badge badge-label  fs-xs',
-            row.original.status == 'closed'
-              ? 'badge-soft-danger'
-              : row.original.status == 'in-progress'
-                ? 'badge-soft-warning'
-                : 'badge-soft-success',
-          )}>
-          {toPascalCase(row.original.status)}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const statusLabels: Record<string, string> = {
+          'open': 'Abierto',
+          'in-progress': 'En Progreso',
+          'closed': 'Cerrado'
+        }
+        return (
+          <span
+            className={clsx(
+              'badge badge-label  fs-xs',
+              row.original.status == 'closed'
+                ? 'badge-soft-danger'
+                : row.original.status == 'in-progress'
+                  ? 'badge-soft-warning'
+                  : 'badge-soft-success',
+            )}>
+            {statusLabels[row.original.status] || toPascalCase(row.original.status)}
+          </span>
+        )
+      },
     }),
     columnHelper.accessor('priority', {
-      header: 'Status',
+      header: 'Prioridad',
       filterFn: 'equalsString',
       enableColumnFilter: true,
-      cell: ({ row }) => (
-        <span
-          className={clsx(
-            'badge fs-xs',
-            row.original.priority == 'low' ? 'text-bg-danger' : row.original.priority == 'medium' ? 'text-bg-warning' : 'text-bg-success',
-          )}>
-          {toPascalCase(row.original.priority)}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const priorityLabels: Record<string, string> = {
+          'low': 'Baja',
+          'medium': 'Media',
+          'high': 'Alta'
+        }
+        return (
+          <span
+            className={clsx(
+              'badge fs-xs',
+              row.original.priority == 'low' ? 'text-bg-danger' : row.original.priority == 'medium' ? 'text-bg-warning' : 'text-bg-success',
+            )}>
+            {priorityLabels[row.original.priority] || toPascalCase(row.original.priority)}
+          </span>
+        )
+      },
     }),
   ]
 
@@ -178,7 +192,7 @@ const Opportunities = () => {
   if (loading && opportunitiesData.length === 0) {
     return (
       <div className="container-fluid">
-        <PageBreadcrumb title={'Opportunities'} subtitle={'CRM'} />
+        <PageBreadcrumb title={'Oportunidades'} subtitle={'CRM'} />
         <div className="text-center py-5">
           <Spinner animation="border" variant="primary" />
           <p className="mt-2 text-muted">Cargando oportunidades...</p>
@@ -189,7 +203,7 @@ const Opportunities = () => {
 
   return (
     <div className="container-fluid">
-      <PageBreadcrumb title={'Opportunities'} subtitle={'CRM'} />
+      <PageBreadcrumb title={'Oportunidades'} subtitle={'CRM'} />
 
       {error && (
         <div className="alert alert-warning" role="alert">
@@ -225,7 +239,7 @@ const Opportunities = () => {
                     data-table-search
                     type="search"
                     className="form-control"
-                    placeholder="Search opportunity..."
+                    placeholder="Buscar oportunidad..."
                     value={globalFilter ?? ''}
                     onChange={(e) => setGlobalFilter(e.target.value)}
                   />
@@ -234,19 +248,19 @@ const Opportunities = () => {
               </div>
 
               <div className="d-flex align-items-center gap-2">
-                <span className="me-2 fw-semibold">Filter By:</span>
+                <span className="me-2 fw-semibold">Filtrar por:</span>
 
                 <div className="app-search">
                   <select
                     value={filtroStage}
                     onChange={(e) => setFiltroStage(e.target.value)}
                     className="form-select form-control my-1 my-md-0">
-                    <option value="">All Stages</option>
-                    <option value="Qualification">Qualification</option>
-                    <option value="Proposal Sent">Proposal Sent</option>
-                    <option value="Negotiation">Negotiation</option>
-                    <option value="Won">Won</option>
-                    <option value="Lost">Lost</option>
+                    <option value="">Todas las Etapas</option>
+                    <option value="Qualification">Calificación</option>
+                    <option value="Proposal Sent">Propuesta Enviada</option>
+                    <option value="Negotiation">Negociación</option>
+                    <option value="Won">Ganada</option>
+                    <option value="Lost">Perdida</option>
                   </select>
                   <LuShuffle className="app-search-icon text-muted" />
                 </div>
@@ -256,10 +270,10 @@ const Opportunities = () => {
                     value={filtroStatus}
                     onChange={(e) => setFiltroStatus(e.target.value)}
                     className="form-select form-control my-1 my-md-0">
-                    <option value="">All Status</option>
-                    <option value="open">Open</option>
-                    <option value="in-progress">In Progress</option>
-                    <option value="closed">Closed</option>
+                    <option value="">Todos los Estados</option>
+                    <option value="open">Abierto</option>
+                    <option value="in-progress">En Progreso</option>
+                    <option value="closed">Cerrado</option>
                   </select>
                   <LiaCheckCircle className="app-search-icon text-muted" />
                 </div>
@@ -269,10 +283,10 @@ const Opportunities = () => {
                     value={filtroPriority}
                     onChange={(e) => setFiltroPriority(e.target.value)}
                     className="form-select form-control my-1 my-md-0">
-                    <option value="">All Priority</option>
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
+                    <option value="">Todas las Prioridades</option>
+                    <option value="high">Alta</option>
+                    <option value="medium">Media</option>
+                    <option value="low">Baja</option>
                   </select>
                   <LuCircleAlert className="app-search-icon text-muted" />
                 </div>
@@ -302,7 +316,7 @@ const Opportunities = () => {
                   totalItems={totalRows}
                   start={start}
                   end={end}
-                  itemsName="Opportunities"
+                  itemsName="Oportunidades"
                   showInfo
                   previousPage={table.previousPage}
                   canPreviousPage={table.getCanPreviousPage()}

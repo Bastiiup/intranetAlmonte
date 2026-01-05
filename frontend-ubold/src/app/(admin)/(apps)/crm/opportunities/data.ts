@@ -188,8 +188,16 @@ function transformOportunidadToOpportunity(oportunidad: OportunidadEntity | any)
     }
   }
   
-  // Etapa
-  const stage = attrs.etapa || 'Qualification'
+  // Etapa - mapear a español
+  const etapaRaw = attrs.etapa || 'Qualification'
+  const etapaLabels: Record<string, string> = {
+    'Qualification': 'Calificación',
+    'Proposal Sent': 'Propuesta Enviada',
+    'Negotiation': 'Negociación',
+    'Won': 'Ganada',
+    'Lost': 'Perdida'
+  }
+  const stage = etapaLabels[etapaRaw] || etapaRaw
   
   // Monto
   const monto = attrs.monto || 0
