@@ -55,7 +55,8 @@ export async function GET(request: Request) {
     // Populate para relaciones (Strapi v4 syntax)
     // Libro usa 'portada_libro' no 'logo'
     params.append('populate[producto][populate]', 'portada_libro')
-    params.append('populate[contacto][populate][imagen][populate]', 'media')
+    // imagen es un componente (logo-o-avatar) que tiene un campo 'imagen' de tipo media
+    params.append('populate[contacto][populate][imagen][populate]', 'imagen')
     params.append('populate[propietario]', 'true')
 
     // Filtros

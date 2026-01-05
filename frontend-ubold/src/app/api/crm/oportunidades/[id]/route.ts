@@ -34,7 +34,8 @@ export async function GET(
 
     const paramsObj = new URLSearchParams({
       'populate[producto][populate]': 'portada_libro',
-      'populate[contacto][populate][imagen][populate]': 'media',
+      // imagen es un componente (logo-o-avatar) que tiene un campo 'imagen' de tipo media
+      'populate[contacto][populate][imagen][populate]': 'imagen',
       'populate[propietario]': 'true',
     })
 
