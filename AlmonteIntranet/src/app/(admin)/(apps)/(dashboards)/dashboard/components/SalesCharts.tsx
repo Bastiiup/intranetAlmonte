@@ -23,7 +23,7 @@ interface SalesChartsProps {
 }
 
 const SalesCharts = ({ monthlyData, totalSalesData, pendingOrders = 0 }: SalesChartsProps) => {
-  const totalSalesChart = useMemo((): ChartJSOptionsType => {
+  const totalSalesChart = useMemo(() => (): ChartJSOptionsType => {
     const defaultData = {
       currentYear: [0, 0, 0, 0],
       previousYear: [0, 0, 0, 0],
@@ -89,7 +89,7 @@ const SalesCharts = ({ monthlyData, totalSalesData, pendingOrders = 0 }: SalesCh
     }
   }, [totalSalesData])
 
-  const salesAnalyticsChart = useMemo((): ChartJSOptionsType => {
+  const salesAnalyticsChart = useMemo(() => (): ChartJSOptionsType => {
     const defaultData = {
       onlineSales: Array(12).fill(0),
       inStoreSales: Array(12).fill(0),
