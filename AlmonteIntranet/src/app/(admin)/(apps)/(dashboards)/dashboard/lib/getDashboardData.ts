@@ -254,27 +254,44 @@ export async function getProducts(limit: number = 9): Promise<DashboardProduct[]
         ? (imagen.startsWith('http') ? imagen : `${process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'}${imagen}`)
         : undefined
       
-      // Obtener stock de la relación stocks
+      // Obtener stock: primero del campo directo, luego de la relación (fallback)
       let stock = 0
-      const stocks = attrs.stocks?.data || attrs.STOCKS?.data || []
-      if (Array.isArray(stocks) && stocks.length > 0) {
-        stock = stocks.reduce((sum: number, stockItem: any) => {
-          const cantidad = stockItem?.attributes?.cantidad || stockItem?.cantidad || 0
-          return sum + (typeof cantidad === 'number' ? cantidad : parseFloat(cantidad) || 0)
-        }, 0)
+      const stockDirecto = getField(attrs, 'stock_quantity', 'STOCK_QUANTITY', 'stockQuantity')
+      if (stockDirecto !== undefined && stockDirecto !== null && stockDirecto !== '') {
+        const stockNum = parseInt(stockDirecto.toString())
+        if (!isNaN(stockNum) && stockNum >= 0) {
+          stock = stockNum
+        }
+      } else {
+        // Fallback: buscar en la relación (método antiguo)
+        const stocks = attrs.stocks?.data || attrs.STOCKS?.data || []
+        if (Array.isArray(stocks) && stocks.length > 0) {
+          stock = stocks.reduce((sum: number, stockItem: any) => {
+            const cantidad = stockItem?.attributes?.cantidad || stockItem?.cantidad || 0
+            return sum + (typeof cantidad === 'number' ? cantidad : parseFloat(cantidad) || 0)
+          }, 0)
+        }
       }
       const stockText = stock > 0 ? `${stock} unidades` : '0 unidades'
       
-      // Obtener precio de la relación precios
+      // Obtener precio: primero del campo directo, luego de la relación (fallback)
       let precio = 0
-      const precios = attrs.precios?.data || attrs.PRECIOS?.data || []
-      if (Array.isArray(precios) && precios.length > 0) {
-        // Obtener el precio mínimo o el primero disponible
-        const preciosValidos = precios
-          .map((p: any) => p?.attributes?.precio || p?.precio || 0)
-          .filter((p: number) => p > 0)
-        if (preciosValidos.length > 0) {
-          precio = Math.min(...preciosValidos)
+      const precioDirecto = getField(attrs, 'precio', 'PRECIO', 'precio_venta', 'PRECIO_VENTA')
+      if (precioDirecto !== undefined && precioDirecto !== null && precioDirecto !== '') {
+        const precioNum = parseFloat(precioDirecto.toString())
+        if (!isNaN(precioNum) && precioNum > 0) {
+          precio = precioNum
+        }
+      } else {
+        // Fallback: buscar en la relación (método antiguo)
+        const precios = attrs.precios?.data || attrs.PRECIOS?.data || []
+        if (Array.isArray(precios) && precios.length > 0) {
+          const preciosValidos = precios
+            .map((p: any) => p?.attributes?.precio || p?.precio || 0)
+            .filter((p: number) => p > 0)
+          if (preciosValidos.length > 0) {
+            precio = Math.min(...preciosValidos)
+          }
         }
       }
       const priceText = precio > 0 ? `$${parseFloat(precio.toString()).toLocaleString('es-CL')}` : '$0'
