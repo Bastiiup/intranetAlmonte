@@ -86,7 +86,8 @@
       "type": "relation",
       "relation": "manyToOne",
       "target": "api::colaborador.colaborador",
-      "inversedBy": null
+      "inversedBy": null,
+      "comment": "⚠️ VERIFICAR: El target debe ser el nombre exacto del content-type. Puede ser: api::colaborador.colaborador, api::colaboradores.colaboradores, o api::intranet-colaboradores.intranet-colaboradores. Verificar en Strapi Admin → Content-Type Builder"
     },
     "producto": {
       "type": "relation",
