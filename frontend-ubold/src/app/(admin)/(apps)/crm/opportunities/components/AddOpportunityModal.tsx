@@ -20,7 +20,11 @@ interface ContactOption {
 interface LibroOption {
   id: number | string
   documentId?: string
-  nombre_libro: string
+  nombre_libro?: string
+  name?: string // Para productos de WooCommerce
+  sku?: string
+  price?: string
+  platform?: 'moraleja' | 'escolar' | 'strapi'
 }
 
 interface ColaboradorOption {
@@ -65,6 +69,7 @@ const AddOpportunityModal = ({ show, onHide, onSuccess, defaultEtapa }: AddOppor
   const [libros, setLibros] = useState<LibroOption[]>([])
   const [colaboradores, setColaboradores] = useState<ColaboradorOption[]>([])
   const [loadingData, setLoadingData] = useState(false)
+  const [productPlatform, setProductPlatform] = useState<'moraleja' | 'escolar' | 'strapi'>('strapi')
   
   const [formData, setFormData] = useState({
     nombre: '',
@@ -102,7 +107,43 @@ const AddOpportunityModal = ({ show, onHide, onSuccess, defaultEtapa }: AddOppor
       })
       setError(null)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show, defaultEtapa])
+
+  const loadProducts = async (platform: 'moraleja' | 'escolar' | 'strapi') => {
+    try {
+      if (platform === 'strapi') {
+        // Cargar libros desde Strapi
+        const librosRes = await fetch('/api/tienda/productos?pagination[pageSize]=1000')
+        const librosData = await librosRes.json()
+        if (librosData.success && Array.isArray(librosData.data)) {
+          setLibros(librosData.data.map((libro: any) => ({
+            id: libro.documentId || libro.id,
+            documentId: libro.documentId,
+            nombre_libro: libro.nombre_libro || libro.attributes?.nombre_libro,
+            platform: 'strapi',
+          })))
+        }
+      } else {
+        // Cargar productos desde WooCommerce
+        const productosRes = await fetch(`/api/woocommerce/products?platform=${platform}&per_page=100&page=1`)
+        const productosData = await productosRes.json()
+        if (productosData.success && Array.isArray(productosData.data)) {
+          setLibros(productosData.data.map((producto: any) => ({
+            id: `woo_${platform}_${producto.id}`, // ID único para productos de WooCommerce
+            nombre_libro: producto.name,
+            name: producto.name,
+            sku: producto.sku,
+            price: producto.price,
+            platform,
+          })))
+        }
+      }
+    } catch (err) {
+      console.error('Error al cargar productos:', err)
+      setLibros([])
+    }
+  }
 
   const loadData = async () => {
     setLoadingData(true)
@@ -130,8 +171,8 @@ const AddOpportunityModal = ({ show, onHide, onSuccess, defaultEtapa }: AddOppor
         })))
       }
 
-      // TODO: Cargar libros cuando tengamos el endpoint
-      // Por ahora dejamos vacío
+      // Cargar productos según la plataforma seleccionada
+      await loadProducts(productPlatform)
     } catch (err) {
       console.error('Error al cargar datos:', err)
     } finally {
@@ -179,8 +220,16 @@ const AddOpportunityModal = ({ show, onHide, onSuccess, defaultEtapa }: AddOppor
       if (formData.propietario) {
         opportunityData.propietario = formData.propietario
       }
-      if (formData.producto) {
+      // Solo relacionar producto si es de Strapi (no WooCommerce)
+      if (formData.producto && !formData.producto.startsWith('woo_')) {
         opportunityData.producto = formData.producto
+      }
+      // Si es producto de WooCommerce, guardar la referencia en la descripción o como metadata
+      if (formData.producto && formData.producto.startsWith('woo_')) {
+        const productoWoo = libros.find(l => l.id === formData.producto)
+        if (productoWoo) {
+          opportunityData.descripcion = (opportunityData.descripcion || '') + `\n\nProducto WooCommerce: ${productoWoo.nombre_libro || productoWoo.name} (${productoWoo.platform}) - SKU: ${productoWoo.sku || 'N/A'}`
+        }
       }
 
       // Crear la oportunidad
@@ -314,6 +363,26 @@ const AddOpportunityModal = ({ show, onHide, onSuccess, defaultEtapa }: AddOppor
           <Row>
             <Col md={6}>
               <FormGroup className="mb-3">
+                <FormLabel>Origen del Producto</FormLabel>
+                <FormControl
+                  as="select"
+                  value={productPlatform}
+                  onChange={(e) => {
+                    const newPlatform = e.target.value as 'moraleja' | 'escolar' | 'strapi'
+                    setProductPlatform(newPlatform)
+                    setFormData((prev) => ({ ...prev, producto: '' })) // Limpiar selección
+                    loadProducts(newPlatform)
+                  }}
+                  disabled={loading || loadingData}
+                >
+                  <option value="strapi">Strapi (Libros)</option>
+                  <option value="moraleja">WooCommerce - Moraleja</option>
+                  <option value="escolar">WooCommerce - Escolar</option>
+                </FormControl>
+              </FormGroup>
+            </Col>
+            <Col md={6}>
+              <FormGroup className="mb-3">
                 <FormLabel>Producto/Libro</FormLabel>
                 <FormControl
                   as="select"
@@ -324,11 +393,13 @@ const AddOpportunityModal = ({ show, onHide, onSuccess, defaultEtapa }: AddOppor
                   <option value="">Seleccionar producto (opcional)...</option>
                   {libros.map((libro) => (
                     <option key={libro.id} value={libro.id}>
-                      {libro.nombre_libro}
+                      {libro.nombre_libro || libro.name} {libro.price ? `(${libro.price})` : ''}
                     </option>
                   ))}
                 </FormControl>
-                <small className="text-muted">Por ahora no hay libros disponibles. Se puede agregar después.</small>
+                {libros.length === 0 && (
+                  <small className="text-muted">No hay productos disponibles en {productPlatform === 'strapi' ? 'Strapi' : `WooCommerce ${productPlatform}`}.</small>
+                )}
               </FormGroup>
             </Col>
             <Col md={6}>

@@ -40,6 +40,7 @@ export type ContactType = {
 
 export type OpportunitiesType = {
   id: string
+  realId?: string // ID real para actualizaciones (documentId o id numérico)
   productName: string
   productBy: string
   productLogo: string

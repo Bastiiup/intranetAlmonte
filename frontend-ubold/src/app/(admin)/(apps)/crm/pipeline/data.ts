@@ -71,8 +71,17 @@ export function transformOpportunityToKanbanTask(opportunity: OpportunitiesType)
   const amountMatch = opportunity.amount.match(/[\d,]+/)
   const amount = amountMatch ? parseInt(amountMatch[0].replace(/,/g, '')) : 0
   
+  // Usar realId si está disponible, sino extraer del id formateado
+  let taskId = opportunity.realId || opportunity.id
+  // Si el ID está formateado como "#OP123", extraer el número
+  if (taskId.startsWith('#OP')) {
+    taskId = taskId.replace('#OP', '')
+  } else if (taskId.startsWith('#')) {
+    taskId = taskId.replace('#', '')
+  }
+  
   return {
-    id: opportunity.id,
+    id: taskId, // Usar el ID real para actualizaciones
     sectionId,
     title: opportunity.productName,
     user: opportunity.customerAvatar || user1,

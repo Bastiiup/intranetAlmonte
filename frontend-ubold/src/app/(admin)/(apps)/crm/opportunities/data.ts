@@ -94,9 +94,11 @@ function transformOportunidadToOpportunity(oportunidad: OportunidadEntity | any)
   // Manejar diferentes formatos de respuesta
   const attrs = oportunidad.attributes || oportunidad
   
-  // ID
+  // ID - Guardar el ID real (documentId o id numérico) para actualizaciones
   const oportunidadId = oportunidad.documentId || oportunidad.id
-  const id = oportunidadId ? (typeof oportunidadId === 'string' ? oportunidadId : oportunidadId.toString()) : `#OP${oportunidad.id || '0'}`
+  const idReal = oportunidadId ? (typeof oportunidadId === 'string' ? oportunidadId : oportunidadId.toString()) : String(oportunidad.id || '0')
+  // ID formateado para mostrar
+  const id = idReal.startsWith('#') ? idReal : `#OP${idReal}`
   
   // Extraer producto de diferentes formatos posibles
   let producto: any = null
@@ -248,6 +250,7 @@ function transformOportunidadToOpportunity(oportunidad: OportunidadEntity | any)
   
   return {
     id,
+    realId: idReal, // ID real para actualizaciones (documentId o id numérico)
     productName,
     productBy,
     productLogo: productLogo as any, // Cast necesario para StaticImageData
