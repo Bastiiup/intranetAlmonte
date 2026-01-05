@@ -17,11 +17,6 @@ const PipelinePage = () => {
   const [addModal, setAddModal] = useState(false)
   const [defaultEtapa, setDefaultEtapa] = useState<string>('Qualification')
 
-  useEffect(() => {
-    console.log('[PipelinePage] 🎬 Componente montado, cargando tareas iniciales...')
-    loadTasks()
-  }, [loadTasks])
-
   const loadTasks = useCallback(async () => {
     console.log('[PipelinePage] 🔄 loadTasks INICIADO')
     try {
@@ -40,6 +35,11 @@ const PipelinePage = () => {
       console.log('[PipelinePage] ✅ loadTasks COMPLETADO')
     }
   }, [])
+
+  useEffect(() => {
+    console.log('[PipelinePage] 🎬 Componente montado, cargando tareas iniciales...')
+    loadTasks()
+  }, [loadTasks])
 
   // Función para actualizar la etapa cuando se mueve un card
   const handleTaskMove = useCallback(async (taskId: string, newSectionId: string) => {
