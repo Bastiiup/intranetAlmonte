@@ -5,7 +5,7 @@ import user3 from '@/assets/images/users/user-3.jpg'
 import { KanbanDialogType, KanbanProviderProps, KanbanSectionType, KanbanTaskType, KanbanType } from '@/types/kanban'
 import type { DropResult } from '@hello-pangea/dnd'
 import { yupResolver } from '@hookform/resolvers/yup'
-import { createContext, startTransition, use, useCallback, useMemo, useState } from 'react'
+import { createContext, startTransition, use, useCallback, useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import * as yup from 'yup'
 import { VariantType } from '@/types'
@@ -49,6 +49,15 @@ const KanbanProvider = ({ children, tasksData, sectionsData }: KanbanProviderPro
     showNewTaskModal: false,
     showSectionModal: false,
   })
+
+  // Sincronizar estado cuando cambian las props
+  useEffect(() => {
+    setTasks(tasksData)
+  }, [tasksData])
+
+  useEffect(() => {
+    setSections(sectionsData)
+  }, [sectionsData])
 
   const {
     control: newTaskControl,
