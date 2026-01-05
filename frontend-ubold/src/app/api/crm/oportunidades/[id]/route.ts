@@ -81,8 +81,49 @@ export async function PUT(
     const body = await request.json()
 
     console.log('[API /crm/oportunidades/[id] PUT] 📥 Parámetros recibidos')
-    console.log('[API /crm/oportunidades/[id] PUT] ID:', id, 'tipo:', typeof id)
+    console.log('[API /crm/oportunidades/[id] PUT] ID recibido:', id, 'tipo:', typeof id)
     console.log('[API /crm/oportunidades/[id] PUT] Body recibido:', JSON.stringify(body, null, 2))
+
+    // Buscar la oportunidad primero para obtener el documentId correcto
+    let oportunidad: any = null
+    try {
+      console.log('[API /crm/oportunidades/[id] PUT] 🔍 Buscando oportunidad con ID:', id)
+      const searchResponse = await strapiClient.get<any>(`/api/oportunidades?filters[id][$eq]=${id}&populate=*`)
+      
+      if (searchResponse.data && Array.isArray(searchResponse.data) && searchResponse.data.length > 0) {
+        oportunidad = searchResponse.data[0]
+      } else if (searchResponse.data && !Array.isArray(searchResponse.data)) {
+        oportunidad = searchResponse.data
+      } else if (Array.isArray(searchResponse) && searchResponse.length > 0) {
+        oportunidad = searchResponse[0]
+      }
+      
+      // Si no se encuentra con id, intentar con documentId
+      if (!oportunidad) {
+        console.log('[API /crm/oportunidades/[id] PUT] 🔍 No encontrado con id, buscando con documentId:', id)
+        const docIdResponse = await strapiClient.get<any>(`/api/oportunidades/${id}?populate=*`)
+        if (docIdResponse.data) {
+          oportunidad = docIdResponse.data
+        } else if (docIdResponse) {
+          oportunidad = docIdResponse
+        }
+      }
+    } catch (searchError: any) {
+      console.warn('[API /crm/oportunidades/[id] PUT] ⚠️ Error al buscar oportunidad:', searchError.message)
+      // Continuar con el ID recibido como fallback
+    }
+
+    // Determinar el documentId a usar
+    let documentId = id
+    if (oportunidad) {
+      documentId = oportunidad.documentId || oportunidad.data?.documentId || oportunidad.id?.toString() || id
+      console.log('[API /crm/oportunidades/[id] PUT] ✅ Oportunidad encontrada')
+      console.log('[API /crm/oportunidades/[id] PUT] 📋 documentId:', documentId)
+      console.log('[API /crm/oportunidades/[id] PUT] 📋 id original:', oportunidad.id)
+    } else {
+      console.log('[API /crm/oportunidades/[id] PUT] ⚠️ Oportunidad no encontrada, usando ID recibido:', id)
+      documentId = id
+    }
 
     // Validaciones básicas
     if (body.nombre !== undefined && (!body.nombre || !body.nombre.trim())) {
