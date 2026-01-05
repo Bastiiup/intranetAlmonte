@@ -113,10 +113,6 @@ export function getEtapaFromSectionId(sectionId: string): string {
   return sectionIdToEtapa[sectionId] || 'Qualification'
 }
 
-export function getSectionIdFromEtapa(etapa: string): string {
-  return etapaToSectionId[etapa] || 'qualification'
-}
-
 /**
  * Obtiene el ID de sección desde el nombre de la etapa
  */
