@@ -35,7 +35,7 @@ Busca la sección `"propietario"` y corrige el `target`:
 }
 ```
 
-### Si el nombre es `api::intranet-colaboradores.intranet-colaboradores`:
+### ✅ CORRECTO (basado en el código existente):
 ```json
 "propietario": {
   "type": "relation",
@@ -43,6 +43,8 @@ Busca la sección `"propietario"` y corrige el `target`:
   "target": "api::intranet-colaboradores.intranet-colaboradores"
 }
 ```
+
+**Nota:** Los colaboradores son los usuarios internos de la empresa que pueden loguearse en la intranet. El content-type se llama `intranet-colaboradores` y el endpoint es `/api/colaboradores`.
 
 ### Si el nombre es otro:
 Usa el nombre exacto que encontraste en el paso 1.

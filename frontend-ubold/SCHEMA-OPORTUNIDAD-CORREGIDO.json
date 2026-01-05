@@ -85,9 +85,9 @@
     "propietario": {
       "type": "relation",
       "relation": "manyToOne",
-      "target": "api::colaborador.colaborador",
+      "target": "api::intranet-colaboradores.intranet-colaboradores",
       "inversedBy": null,
-      "comment": "⚠️ VERIFICAR: El target debe ser el nombre exacto del content-type. Puede ser: api::colaborador.colaborador, api::colaboradores.colaboradores, o api::intranet-colaboradores.intranet-colaboradores. Verificar en Strapi Admin → Content-Type Builder"
+      "comment": "Relación con colaboradores (usuarios internos de la empresa que pueden loguearse en la intranet)"
     },
     "producto": {
       "type": "relation",
