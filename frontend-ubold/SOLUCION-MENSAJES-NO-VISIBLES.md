@@ -124,3 +124,4 @@ useEffect(() => {
 
 Esto te ayudará a ver en tiempo real qué está pasando con el canal.
 
+

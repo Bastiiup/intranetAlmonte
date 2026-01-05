@@ -66,3 +66,4 @@ Después de agregar las 3 variables, deberías tener:
 - Los nombres deben ser **EXACTAMENTE** como se muestran arriba (con mayúsculas y guiones bajos)
 - Después de agregar las variables, Railway hará un nuevo build automáticamente
 
+

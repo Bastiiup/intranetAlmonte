@@ -92,3 +92,4 @@ Si después de verificar esto el problema sigue, el problema probablemente está
 2. **El canal no está siendo "watched" correctamente**
 3. **Los usuarios no están conectados al mismo tiempo**
 
+

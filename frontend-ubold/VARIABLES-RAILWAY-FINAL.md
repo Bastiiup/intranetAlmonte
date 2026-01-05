@@ -68,3 +68,4 @@ Después de agregar las variables, deberías tener:
 - La tercera (`NEXT_PUBLIC_STREAM_API_KEY`) es necesaria para que el código del cliente del navegador pueda acceder al API Key
 - El prefijo `NEXT_PUBLIC_` es requerido por Next.js para variables que se usan en el cliente
 
+

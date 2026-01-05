@@ -390,3 +390,4 @@ Si encuentras problemas durante el merge:
 **Rama**: ramaBastian-V2  
 **Estado**: ✅ Lista para merge
 
+

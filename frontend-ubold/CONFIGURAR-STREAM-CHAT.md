@@ -176,3 +176,4 @@ Después de agregar las variables:
 
 Una vez configuradas las variables de entorno, el siguiente paso es integrar Stream Chat en el componente del chat. Esto se hará actualizando `page.tsx` para usar el hook `useStreamChat`.
 
+

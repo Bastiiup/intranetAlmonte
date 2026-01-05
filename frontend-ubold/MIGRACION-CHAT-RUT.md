@@ -751,3 +751,4 @@ El sistema ahora es más robusto y confiable usando RUTs como identificadores ú
 **Última actualización:** Diciembre 2025  
 **Versión del documento:** 1.0
 
+
