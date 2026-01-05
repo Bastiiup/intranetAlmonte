@@ -9,10 +9,20 @@ import { getEtapaFromSectionId } from '../data'
 
 type PipelineBoardProps = {
   onTaskMove: (taskId: string, newSectionId: string) => Promise<void>
+  onAddClick?: (sectionId?: string) => void
 }
 
-const PipelineBoard = ({ onTaskMove }: PipelineBoardProps) => {
+const PipelineBoard = ({ onTaskMove, onAddClick }: PipelineBoardProps) => {
   const { sections, getAllTasksPerSection, newTaskModal } = useKanbanContext()
+  
+  const handleAddClick = (sectionId: string) => {
+    if (onAddClick) {
+      onAddClick(sectionId)
+    } else {
+      // Fallback al comportamiento original si no hay callback
+      newTaskModal.toggle(sectionId)
+    }
+  }
 
   const handleDragEnd = async (result: DropResult) => {
     const { destination, draggableId } = result
@@ -52,7 +62,7 @@ const PipelineBoard = ({ onTaskMove }: PipelineBoardProps) => {
                     <h5 className="m-0">
                       {section.title} ({getAllTasksPerSection(section.id).length})
                     </h5>
-                    <Button className="ms-auto btn btn-sm btn-icon rounded-circle btn-primary" onClick={() => newTaskModal.toggle(section.id)}>
+                    <Button className="ms-auto btn btn-sm btn-icon rounded-circle btn-primary" onClick={() => handleAddClick(section.id)}>
                       <TbPlus />
                     </Button>
                   </div>

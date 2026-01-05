@@ -166,27 +166,31 @@ export async function POST(request: Request) {
       },
     }
 
-    // Relación con contacto (Persona)
+    // Relación con contacto (Persona) - manyToOne: usar ID directamente o connect
     if (body.contacto) {
       const contactoId = typeof body.contacto === 'object' ? body.contacto.id || body.contacto.documentId : body.contacto
       if (contactoId) {
-        oportunidadData.data.contacto = { connect: [typeof contactoId === 'number' ? contactoId : parseInt(String(contactoId))] }
+        // Para manyToOne, Strapi v4 acepta el ID directamente
+        const idNum = typeof contactoId === 'number' ? contactoId : parseInt(String(contactoId))
+        oportunidadData.data.contacto = idNum
       }
     }
 
-    // Relación con propietario (Colaborador)
+    // Relación con propietario (Colaborador) - manyToOne: usar ID directamente
     if (body.propietario) {
       const propietarioId = typeof body.propietario === 'object' ? body.propietario.id || body.propietario.documentId : body.propietario
       if (propietarioId) {
-        oportunidadData.data.propietario = { connect: [typeof propietarioId === 'number' ? propietarioId : parseInt(String(propietarioId))] }
+        const idNum = typeof propietarioId === 'number' ? propietarioId : parseInt(String(propietarioId))
+        oportunidadData.data.propietario = idNum
       }
     }
 
-    // Relación con producto (si existe)
+    // Relación con producto (Libro) - manyToOne: usar ID directamente
     if (body.producto) {
       const productoId = typeof body.producto === 'object' ? body.producto.id || body.producto.documentId : body.producto
       if (productoId) {
-        oportunidadData.data.producto = { connect: [typeof productoId === 'number' ? productoId : parseInt(String(productoId))] }
+        const idNum = typeof productoId === 'number' ? productoId : parseInt(String(productoId))
+        oportunidadData.data.producto = idNum
       }
     }
 

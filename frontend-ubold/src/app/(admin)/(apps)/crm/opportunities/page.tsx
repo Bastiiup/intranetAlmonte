@@ -18,10 +18,12 @@ import { toPascalCase } from '@/helpers/casing'
 import { useState, useEffect, useCallback } from 'react'
 import clsx from 'clsx'
 import { getOpportunities, type OpportunitiesQuery } from './data'
-import { LuCircleAlert, LuSearch, LuShuffle } from 'react-icons/lu'
+import { LuCircleAlert, LuSearch, LuShuffle, LuPlus } from 'react-icons/lu'
 import { LiaCheckCircle } from 'react-icons/lia'
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
+import AddOpportunityModal from './components/AddOpportunityModal'
+import { Button } from 'react-bootstrap'
 
 const columnHelper = createColumnHelper<OpportunitiesType>()
 
@@ -40,6 +42,7 @@ const Opportunities = () => {
   const [filtroStage, setFiltroStage] = useState<string>('')
   const [filtroStatus, setFiltroStatus] = useState<string>('')
   const [filtroPriority, setFiltroPriority] = useState<string>('')
+  const [addModal, setAddModal] = useState(false)
 
   // Función para cargar oportunidades
   const loadOpportunities = useCallback(async () => {
@@ -65,6 +68,10 @@ const Opportunities = () => {
       setLoading(false)
     }
   }, [pagination.pageIndex, pagination.pageSize, globalFilter, filtroStage, filtroStatus, filtroPriority])
+
+  const handleOpportunityCreated = () => {
+    loadOpportunities()
+  }
 
   // Cargar datos cuando cambian los filtros o paginación
   useEffect(() => {
@@ -245,6 +252,14 @@ const Opportunities = () => {
                   />
                   <LuSearch className="app-search-icon text-muted" />
                 </div>
+                <Button 
+                  variant="primary" 
+                  className="d-flex align-items-center gap-1"
+                  onClick={() => setAddModal(true)}
+                >
+                  <LuPlus size={18} />
+                  Agregar Oportunidad
+                </Button>
               </div>
 
               <div className="d-flex align-items-center gap-2">
@@ -331,6 +346,13 @@ const Opportunities = () => {
           </div>
         </Col>
       </Row>
+
+      {/* Modal de agregar oportunidad */}
+      <AddOpportunityModal
+        show={addModal}
+        onHide={() => setAddModal(false)}
+        onSuccess={handleOpportunityCreated}
+      />
     </div>
   )
 }

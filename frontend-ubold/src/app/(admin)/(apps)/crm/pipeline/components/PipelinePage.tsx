@@ -3,16 +3,19 @@ import { Card, Spinner } from 'react-bootstrap'
 import { useEffect, useState, useCallback } from 'react'
 
 import { KanbanProvider } from '@/context/useKanbanContext'
-import { kanbanSectionsData, getPipelineTasks, getEtapaFromSectionId } from '@/app/(admin)/(apps)/crm/pipeline/data'
+import { kanbanSectionsData, getPipelineTasks, getEtapaFromSectionId, getSectionIdFromEtapa } from '@/app/(admin)/(apps)/crm/pipeline/data'
 import type { KanbanTaskType } from '@/types/kanban'
 import PipelineHeader from '@/app/(admin)/(apps)/crm/pipeline/components/PipelineHeader'
 import PipelineBoard from '@/app/(admin)/(apps)/crm/pipeline/components/PipelineBoard'
 import Modals from '@/app/(admin)/(apps)/crm/pipeline/components/Modals'
+import AddOpportunityModal from '@/app/(admin)/(apps)/crm/opportunities/components/AddOpportunityModal'
 
 const PipelinePage = () => {
   const [tasks, setTasks] = useState<KanbanTaskType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [addModal, setAddModal] = useState(false)
+  const [defaultEtapa, setDefaultEtapa] = useState<string>('Qualification')
 
   useEffect(() => {
     loadTasks()
@@ -58,6 +61,20 @@ const PipelinePage = () => {
     }
   }, [])
 
+  // Función para abrir modal desde una sección específica
+  const handleOpenAddModal = (sectionId?: string) => {
+    if (sectionId) {
+      const etapa = getEtapaFromSectionId(sectionId)
+      setDefaultEtapa(etapa)
+    }
+    setAddModal(true)
+  }
+
+  // Función para recargar tareas después de crear
+  const handleOpportunityCreated = () => {
+    loadTasks()
+  }
+
 
   if (loading) {
     return (
@@ -91,11 +108,19 @@ const PipelinePage = () => {
     <KanbanProvider sectionsData={kanbanSectionsData} tasksData={tasks}>
       <div className="outlook-box kanban-app">
         <Card className="h-100 mb-0 flex-grow-1">
-          <PipelineHeader />
-          <PipelineBoard onTaskMove={handleTaskMove} />
+          <PipelineHeader onAddClick={() => handleOpenAddModal()} />
+          <PipelineBoard onTaskMove={handleTaskMove} onAddClick={handleOpenAddModal} />
           <Modals />
         </Card>
       </div>
+      
+      {/* Modal de agregar oportunidad */}
+      <AddOpportunityModal
+        show={addModal}
+        onHide={() => setAddModal(false)}
+        onSuccess={handleOpportunityCreated}
+        defaultEtapa={defaultEtapa}
+      />
     </KanbanProvider>
   )
 }
