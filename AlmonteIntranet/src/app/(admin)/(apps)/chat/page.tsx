@@ -538,7 +538,7 @@ const Page = () => {
     if (!persona) return undefined
     
     // Intentar diferentes estructuras de imagen
-    const imagen = persona.imagen || persona.attributes?.imagen
+    const imagen = persona.imagen
     
     if (imagen?.url) {
       const imgUrl = imagen.url
