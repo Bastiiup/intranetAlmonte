@@ -3,7 +3,7 @@
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Link from 'next/link'
 import { Card, CardBody, Col, Container, Row, Spinner, Alert, Button } from 'react-bootstrap'
-import { TbBriefcase, TbCalendarEvent, TbEdit, TbMail, TbMessage, TbPencil, TbPhoneCall, TbStar, TbUserCircle, TbUserPlus, TbX, TbCheck, TbClock, TbDots, TbPlus } from 'react-icons/tb'
+import { TbBriefcase, TbCalendarEvent, TbEdit, TbMail, TbMessage, TbPencil, TbPhoneCall, TbStar, TbUserCircle, TbUserPlus, TbX, TbCheck, TbClock, TbDots, TbPlus, TbRefresh } from 'react-icons/tb'
 import { useState, useEffect, useMemo } from 'react'
 import { type ActivityType, estadoToBadge } from './data'
 import { format } from 'date-fns'
@@ -45,13 +45,19 @@ const Page = () => {
     loadActivities()
   }, [])
 
-  const loadActivities = async () => {
+  const loadActivities = async (forceRefresh = false) => {
     setLoading(true)
     setError(null)
     try {
+      // Agregar timestamp para forzar recarga y evitar cache
+      const timestamp = forceRefresh ? `&_t=${Date.now()}` : ''
       // Lógica similar a logs: fetch directo desde la API
-      const response = await fetch('/api/crm/activities?pageSize=100', {
+      const response = await fetch(`/api/crm/activities?pageSize=100${timestamp}`, {
         cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+        },
       })
       
       const result = await response.json()
@@ -212,7 +218,9 @@ const Page = () => {
       console.log('[Activities Page] 📅 Actividades agrupadas por fecha:', Object.keys(grouped).length, 'fechas')
       console.log('═══════════════════════════════════════════════════════')
       
+      // Actualizar estado con las actividades transformadas
       setActivities(transformed)
+      console.log('[Activities Page] ✅ Estado actualizado con', transformed.length, 'actividades')
     } catch (err: any) {
       console.error('[Activities Page] ❌ Error al cargar actividades:', err)
       setError(err.message || 'Error al cargar actividades')
@@ -282,9 +290,21 @@ const Page = () => {
             <CardBody>
               <div className="d-flex justify-content-between align-items-center mb-3">
                 <h5 className="mb-0">Historial de Actividades</h5>
-                <Button variant="primary" onClick={toggleAddModal}>
-                  <TbPlus className="me-1" /> Nueva Actividad
-                </Button>
+                <div className="d-flex gap-2">
+                  <Button 
+                    variant="outline-secondary" 
+                    onClick={() => {
+                      console.log('[Activities Page] 🔄 Refrescando manualmente...')
+                      loadActivities(true)
+                    }}
+                    disabled={loading}
+                  >
+                    <TbRefresh className="me-1" /> {loading ? 'Cargando...' : 'Refrescar'}
+                  </Button>
+                  <Button variant="primary" onClick={toggleAddModal}>
+                    <TbPlus className="me-1" /> Nueva Actividad
+                  </Button>
+                </div>
               </div>
               
               {activities.length === 0 && !loading && (
@@ -361,7 +381,9 @@ const Page = () => {
             show={showAddModal}
             toggleModal={toggleAddModal}
             onActivityCreated={() => {
-              loadActivities()
+              console.log('[Activities Page] 🔄 Recargando actividades después de crear...')
+              // Forzar recarga con timestamp para evitar cache
+              loadActivities(true)
               toggleAddModal()
             }}
           />

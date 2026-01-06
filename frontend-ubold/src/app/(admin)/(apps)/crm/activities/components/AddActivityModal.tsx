@@ -160,10 +160,18 @@ const AddActivityModal = ({ show, toggleModal, onActivityCreated, relacionadoCon
         throw new Error(result.error || 'Error al crear actividad')
       }
 
-      // Éxito
+      console.log('[AddActivityModal] ✅ Actividad creada exitosamente:', result.data)
+      
+      // Éxito - cerrar modal primero
       toggleModal()
+      
+      // Llamar callback después de un pequeño delay para dar tiempo a Strapi
       if (onActivityCreated) {
-        onActivityCreated()
+        console.log('[AddActivityModal] 🔄 Llamando onActivityCreated para recargar lista...')
+        // Pequeño delay para asegurar que Strapi haya procesado la creación
+        setTimeout(() => {
+          onActivityCreated()
+        }, 500)
       }
     } catch (err: any) {
       setError(err.message || 'Error al crear actividad')
