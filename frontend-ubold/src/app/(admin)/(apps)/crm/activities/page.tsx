@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Card, CardBody, Col, Container, Row, Spinner, Alert, Button } from 'react-bootstrap'
 import { TbBriefcase, TbCalendarEvent, TbEdit, TbMail, TbMessage, TbPencil, TbPhoneCall, TbStar, TbUserCircle, TbUserPlus, TbX, TbCheck, TbClock, TbDots, TbPlus } from 'react-icons/tb'
 import { useState, useEffect, useMemo } from 'react'
-import { getActivities, type ActivityType, tipoToIcon, estadoToBadge } from './data'
+import { type ActivityType, estadoToBadge } from './data'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useToggle } from 'usehooks-ts'
@@ -49,10 +49,149 @@ const Page = () => {
     setLoading(true)
     setError(null)
     try {
-      const result = await getActivities({ pageSize: 100 })
-      setActivities(result.activities)
+      // Lógica similar a logs: fetch directo desde la API
+      const response = await fetch('/api/crm/activities?pageSize=100', {
+        cache: 'no-store',
+      })
+      
+      const result = await response.json()
+      
+      if (!response.ok || !result.success) {
+        // Si el content-type no existe o hay error de permisos
+        if (result.message?.includes('no existe en Strapi') || result.error === 'Content-type no encontrado') {
+          setError('El content-type "Actividad" no existe en Strapi. Verifica que esté creado y los permisos configurados.')
+          setActivities([])
+          return
+        }
+        if (result.error === 'Permisos insuficientes') {
+          setError('Error de permisos. Verifica que el rol tenga permisos para "Actividad" en Strapi Admin.')
+          setActivities([])
+          return
+        }
+        throw new Error(result.error || result.message || 'Error al obtener actividades')
+      }
+      
+      // Manejar respuesta flexible (puede ser array o objeto con data)
+      let activitiesData: any[] = []
+      if (Array.isArray(result.data)) {
+        activitiesData = result.data
+      } else if (result.data && Array.isArray(result.data)) {
+        activitiesData = result.data
+      } else if (result.data) {
+        activitiesData = [result.data]
+      }
+      
+      console.log('[Activities Page] ✅ Actividades obtenidas:', activitiesData.length)
+      
+      // Transformar usando la función de transformación
+      const transformed = activitiesData.map((actividad: any) => {
+        const attrs = actividad.attributes || actividad
+        
+        // ID
+        const actividadId = actividad.documentId || actividad.id
+        const idReal = actividadId ? (typeof actividadId === 'string' ? actividadId : actividadId.toString()) : String(actividad.id || '0')
+        const id = idReal.startsWith('#') ? idReal : `#ACT${idReal.padStart(6, '0')}`
+        
+        // Tipo
+        const tipo = attrs.tipo || 'nota'
+        
+        // Título y descripción
+        const titulo = attrs.titulo || 'Sin título'
+        const descripcion = attrs.descripcion || ''
+        
+        // Fecha
+        const fecha = attrs.fecha || attrs.createdAt || new Date().toISOString()
+        const fechaObj = new Date(fecha)
+        const fechaFormateada = fechaObj.toLocaleDateString('es-ES', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric'
+        })
+        const hora = fechaObj.toLocaleTimeString('es-ES', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        })
+        
+        // Estado
+        const estadoRaw = attrs.estado || 'pendiente'
+        const estado = estadoToBadge[estadoRaw]?.label || estadoRaw
+        
+        // Notas
+        const notas = attrs.notas || ''
+        
+        // Relacionado con
+        let relacionadoCon: any = undefined
+        if (attrs.relacionado_con_contacto) {
+          const contacto = attrs.relacionado_con_contacto.data || attrs.relacionado_con_contacto
+          const contactoAttrs = contacto?.attributes || contacto
+          relacionadoCon = {
+            tipo: 'contacto',
+            nombre: contactoAttrs?.nombre_completo || contactoAttrs?.nombres || 'Contacto',
+            id: contacto?.documentId || contacto?.id
+          }
+        } else if (attrs.relacionado_con_lead) {
+          const lead = attrs.relacionado_con_lead.data || attrs.relacionado_con_lead
+          const leadAttrs = lead?.attributes || lead
+          relacionadoCon = {
+            tipo: 'lead',
+            nombre: leadAttrs?.nombre || 'Lead',
+            id: lead?.documentId || lead?.id
+          }
+        } else if (attrs.relacionado_con_oportunidad) {
+          const oportunidad = attrs.relacionado_con_oportunidad.data || attrs.relacionado_con_oportunidad
+          const oportunidadAttrs = oportunidad?.attributes || oportunidad
+          relacionadoCon = {
+            tipo: 'oportunidad',
+            nombre: oportunidadAttrs?.nombre || 'Oportunidad',
+            id: oportunidad?.documentId || oportunidad?.id
+          }
+        } else if (attrs.relacionado_con_colegio) {
+          const colegio = attrs.relacionado_con_colegio.data || attrs.relacionado_con_colegio
+          const colegioAttrs = colegio?.attributes || colegio
+          relacionadoCon = {
+            tipo: 'colegio',
+            nombre: colegioAttrs?.colegio_nombre || colegioAttrs?.nombre || 'Colegio',
+            id: colegio?.documentId || colegio?.id
+          }
+        }
+        
+        // Creado por
+        let creadoPor: any = undefined
+        if (attrs.creado_por) {
+          const colaborador = attrs.creado_por.data || attrs.creado_por
+          const colaboradorAttrs = colaborador?.attributes || colaborador
+          const nombre = colaboradorAttrs?.persona?.nombre_completo || 
+                         colaboradorAttrs?.nombre_completo || 
+                         colaboradorAttrs?.email_login || 
+                         'Sin nombre'
+          creadoPor = {
+            nombre,
+            avatar: undefined
+          }
+        }
+        
+        return {
+          id,
+          realId: idReal,
+          tipo,
+          titulo,
+          descripcion,
+          fecha,
+          fechaFormateada,
+          hora,
+          estado,
+          notas,
+          relacionadoCon,
+          creadoPor,
+        }
+      })
+      
+      setActivities(transformed)
     } catch (err: any) {
+      console.error('[Activities Page] ❌ Error al cargar actividades:', err)
       setError(err.message || 'Error al cargar actividades')
+      setActivities([])
     } finally {
       setLoading(false)
     }
