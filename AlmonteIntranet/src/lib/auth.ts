@@ -24,7 +24,8 @@ export interface AuthUser {
 }
 
 export interface AuthColaborador {
-  id: number
+  id: number | string
+  documentId?: number | string
   email_login: string
   rol?: 'super_admin' | 'encargado_adquisiciones' | 'supervisor' | 'soporte'
   activo: boolean
@@ -139,17 +140,34 @@ export function getAuthUser(): AuthUser | null {
 
 /**
  * Obtiene los datos del colaborador vinculado (intenta cookies primero, luego localStorage)
+ * Busca en múltiples nombres de cookie para compatibilidad:
+ * 1. auth_colaborador (nombre estándar)
+ * 2. colaboradorData (usado por login y logging)
+ * 3. colaborador (compatibilidad)
  */
 export function getAuthColaborador(): AuthColaborador | null {
   if (typeof window === 'undefined') return null
   
-  // Intentar leer de cookies primero
-  const cookieColab = getCookie(AUTH_COLABORADOR_COOKIE)
-  if (cookieColab) {
-    try {
-      return JSON.parse(cookieColab)
-    } catch {
-      // Si falla, continuar con localStorage
+  // Intentar leer de cookies en este orden de prioridad:
+  // 1. auth_colaborador (nombre estándar usado por lib/auth.ts)
+  // 2. colaboradorData (usado por login y logging)
+  // 3. colaborador (compatibilidad)
+  const cookieNames = [AUTH_COLABORADOR_COOKIE, 'colaboradorData', 'colaborador']
+  
+  for (const cookieName of cookieNames) {
+    const cookieColab = getCookie(cookieName)
+    if (cookieColab) {
+      try {
+        const colaborador = JSON.parse(cookieColab)
+        // Asegurar que tenga id y documentId si están disponibles
+        if (colaborador && !colaborador.documentId && colaborador.id) {
+          colaborador.documentId = colaborador.id
+        }
+        return colaborador
+      } catch {
+        // Si falla el parseo, continuar con siguiente cookie
+        continue
+      }
     }
   }
   
@@ -157,7 +175,12 @@ export function getAuthColaborador(): AuthColaborador | null {
   const colaboradorStr = localStorage.getItem(AUTH_COLABORADOR_KEY)
   if (!colaboradorStr) return null
   try {
-    return JSON.parse(colaboradorStr)
+    const colaborador = JSON.parse(colaboradorStr)
+    // Asegurar que tenga id y documentId si están disponibles
+    if (colaborador && !colaborador.documentId && colaborador.id) {
+      colaborador.documentId = colaborador.id
+    }
+    return colaborador
   } catch {
     return null
   }

@@ -64,14 +64,19 @@ export async function getUserFromRequest(request: NextRequest | Request): Promis
   
   try {
     // Intentar obtener colaborador de las cookies
-    // Primero intentar desde request.cookies (si es NextRequest)
+    // Buscar en múltiples nombres de cookie para compatibilidad:
+    // 1. colaboradorData (usado por login y middleware)
+    // 2. colaborador (compatibilidad)
+    // 3. auth_colaborador (usado por lib/auth.ts y otros endpoints)
     let colaboradorCookieValue: string | undefined = undefined
     
     if (isNextRequest(request)) {
       // Es NextRequest, usar cookies directamente
-      const colaboradorCookie = request.cookies.get('colaboradorData')?.value
-      console.log('[LOGGING] 📋 Cookie colaboradorData (desde cookies):', colaboradorCookie ? colaboradorCookie.substring(0, 500) : 'NO HAY COOKIE')
-      colaboradorCookieValue = colaboradorCookie || request.cookies.get('colaborador')?.value
+      // Buscar en orden de prioridad
+      colaboradorCookieValue = request.cookies.get('colaboradorData')?.value ||
+                               request.cookies.get('colaborador')?.value ||
+                               request.cookies.get('auth_colaborador')?.value
+      console.log('[LOGGING] 📋 Cookie encontrada (desde cookies):', colaboradorCookieValue ? colaboradorCookieValue.substring(0, 500) : 'NO HAY COOKIE')
     } else {
       // Es Request normal, extraer del header Cookie
       console.log('[LOGGING] ⚠️ Request no tiene cookies, intentando extraer del header Cookie')
@@ -103,7 +108,10 @@ export async function getUserFromRequest(request: NextRequest | Request): Promis
           }
         }
         
-        colaboradorCookieValue = cookies['colaboradorData'] || cookies['colaborador']
+        // Buscar en orden de prioridad: colaboradorData, colaborador, auth_colaborador
+        colaboradorCookieValue = cookies['colaboradorData'] || 
+                                 cookies['colaborador'] || 
+                                 cookies['auth_colaborador']
         console.log('[LOGGING] 📋 Cookie extraída del header:', colaboradorCookieValue ? colaboradorCookieValue.substring(0, 500) : 'NO HAY COOKIE EN HEADER')
         console.log('[LOGGING] 🔍 Cookies parseadas del header:', Object.keys(cookies).join(', '))
       }
@@ -412,9 +420,13 @@ export async function logActivity(
 
     // Obtener cookies y token para logging
     // Manejar tanto NextRequest (con cookies) como Request (sin cookies)
+    // Buscar en múltiples nombres de cookie para compatibilidad
     let colaboradorCookie: string | undefined = undefined
     if (isNextRequest(request)) {
-      colaboradorCookie = request.cookies.get('colaboradorData')?.value || request.cookies.get('colaborador')?.value
+      // Buscar en orden de prioridad: colaboradorData, colaborador, auth_colaborador
+      colaboradorCookie = request.cookies.get('colaboradorData')?.value || 
+                         request.cookies.get('colaborador')?.value ||
+                         request.cookies.get('auth_colaborador')?.value
     } else {
       // Es Request normal, extraer del header
       const cookieHeader = request.headers.get('cookie')
@@ -433,7 +445,10 @@ export async function logActivity(
           }
           return acc
         }, {})
-        colaboradorCookie = cookies['colaboradorData'] || cookies['colaborador']
+        // Buscar en orden de prioridad: colaboradorData, colaborador, auth_colaborador
+        colaboradorCookie = cookies['colaboradorData'] || 
+                           cookies['colaborador'] || 
+                           cookies['auth_colaborador']
         console.log('[LOGGING] 🔍 Cookies extraídas del header:', Object.keys(cookies).join(', '))
         console.log('[LOGGING] 🔍 ColaboradorCookie encontrada?:', !!colaboradorCookie)
       }

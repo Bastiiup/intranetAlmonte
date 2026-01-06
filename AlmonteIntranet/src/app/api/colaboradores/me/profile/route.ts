@@ -21,17 +21,36 @@ interface ColaboradorAttributes {
 
 /**
  * Obtiene el colaborador autenticado desde las cookies
+ * Busca en múltiples nombres de cookie para compatibilidad:
+ * 1. auth_colaborador (nombre estándar)
+ * 2. colaboradorData (usado por login y logging)
+ * 3. colaborador (compatibilidad)
  */
 async function getAuthColaborador() {
   try {
     const cookieStore = await cookies()
-    const colaboradorStr = cookieStore.get('auth_colaborador')?.value
-
-    if (!colaboradorStr) {
-      return null
+    
+    // Buscar en orden de prioridad: auth_colaborador, colaboradorData, colaborador
+    const cookieNames = ['auth_colaborador', 'colaboradorData', 'colaborador']
+    
+    for (const cookieName of cookieNames) {
+      const colaboradorStr = cookieStore.get(cookieName)?.value
+      if (colaboradorStr) {
+        try {
+          const colaborador = JSON.parse(colaboradorStr)
+          // Asegurar que tenga id y documentId si están disponibles
+          if (colaborador && !colaborador.documentId && colaborador.id) {
+            colaborador.documentId = colaborador.id
+          }
+          return colaborador
+        } catch (parseError) {
+          console.warn(`[API /colaboradores/me/profile] Error al parsear cookie ${cookieName}:`, parseError)
+          continue
+        }
+      }
     }
 
-    return JSON.parse(colaboradorStr)
+    return null
   } catch (error) {
     console.error('[API /colaboradores/me/profile] Error al obtener colaborador de cookies:', error)
     return null

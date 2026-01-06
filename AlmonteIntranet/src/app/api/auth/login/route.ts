@@ -234,10 +234,13 @@ export async function POST(request: Request) {
       }
       
       // Crear estructura limpia para la cookie (sin estructuras anidadas de Strapi)
+      // Incluir todos los campos necesarios: id, documentId, email_login, rol, activo, persona
       const colaboradorParaCookie = {
         id: colaboradorCompleto.id || colaboradorCompleto.documentId,
         documentId: colaboradorCompleto.documentId || colaboradorCompleto.id,
         email_login: colaboradorCompleto.email_login || colaboradorCompleto.email,
+        rol: colaboradorCompleto.rol || 'soporte',
+        activo: colaboradorCompleto.activo !== undefined ? colaboradorCompleto.activo : true,
         persona: colaboradorCompleto.persona || null,
       }
       
@@ -249,14 +252,19 @@ export async function POST(request: Request) {
         tieneDocumentId: !!colaboradorParaCookie.documentId,
         documentId: colaboradorParaCookie.documentId,
         email_login: colaboradorParaCookie.email_login,
+        rol: colaboradorParaCookie.rol,
+        activo: colaboradorParaCookie.activo,
         tienePersona: !!colaboradorParaCookie.persona,
       })
       
-      // El middleware busca 'colaboradorData', así que usamos ese nombre
       // Guardar estructura limpia en cookie (sin estructuras anidadas de Strapi)
       const cookieValue = JSON.stringify(colaboradorParaCookie)
       console.log('[API /auth/login] 💾 Valor de cookie a guardar (primeros 200 chars):', cookieValue.substring(0, 200))
       
+      // Guardar en múltiples nombres de cookie para compatibilidad:
+      // 1. colaboradorData - usado por logging y middleware
+      // 2. colaborador - compatibilidad con código existente
+      // 3. auth_colaborador - usado por lib/auth.ts y otros endpoints
       response.cookies.set('colaboradorData', cookieValue, {
         httpOnly: false,
         secure: process.env.NODE_ENV === 'production',
@@ -265,7 +273,6 @@ export async function POST(request: Request) {
         maxAge: 60 * 60 * 24 * 7, // 7 días
       })
       
-      // También establecer 'colaborador' para compatibilidad con el código existente
       response.cookies.set('colaborador', cookieValue, {
         httpOnly: false,
         secure: process.env.NODE_ENV === 'production',
@@ -274,7 +281,15 @@ export async function POST(request: Request) {
         maxAge: 60 * 60 * 24 * 7,
       })
       
-      console.log('[API /auth/login] ✅ Cookie guardada exitosamente con ID:', colaboradorParaCookie.id)
+      response.cookies.set('auth_colaborador', cookieValue, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 7,
+      })
+      
+      console.log('[API /auth/login] ✅ Cookies guardadas exitosamente (colaboradorData, colaborador, auth_colaborador) con ID:', colaboradorParaCookie.id)
     }
 
     if (data.usuario) {
