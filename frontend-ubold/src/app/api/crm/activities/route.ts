@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
       'pagination[page]': page.toString(),
       'pagination[pageSize]': pageSize.toString(),
       'sort[0]': 'fecha:desc',
+      'publicationState': 'live', // Solo obtener actividades publicadas (si draftAndPublish está habilitado)
       'populate[creado_por]': 'true',
       'populate[relacionado_con_contacto]': 'true',
       'populate[relacionado_con_lead]': 'true',
@@ -133,10 +134,11 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Si el content-type no existe
+    // Detectar tipos específicos de errores
     if (error.status === 404 || error.message?.includes('Not Found')) {
-      console.error('[API /crm/activities] ❌ Content-type "Actividad" no existe en Strapi')
+      console.error('[API /crm/activities] ❌ Content-type "Actividad" no existe en Strapi o el endpoint es incorrecto')
       console.error('[API /crm/activities] Verifica que el content-type esté creado con el nombre "actividad"')
+      console.error('[API /crm/activities] Endpoint esperado: /api/actividades')
       return NextResponse.json(
         {
           success: false,
@@ -153,6 +155,31 @@ export async function GET(request: NextRequest) {
           error: 'Content-type no encontrado',
         },
         { status: 404 }
+      )
+    }
+    
+    // Error de permisos
+    if (error.status === 403 || error.message?.includes('Forbidden')) {
+      console.error('[API /crm/activities] ❌ Error de permisos (403 Forbidden)')
+      console.error('[API /crm/activities] Verifica que los permisos estén configurados en Strapi:')
+      console.error('[API /crm/activities] Settings → Users & Permissions → Roles → [Tu Rol] → Actividad')
+      console.error('[API /crm/activities] Debe tener habilitado: find, findOne, create, update, delete')
+      return NextResponse.json(
+        {
+          success: false,
+          data: [],
+          meta: {
+            pagination: {
+              page: 1,
+              pageSize: 50,
+              total: 0,
+              pageCount: 0,
+            },
+          },
+          message: 'Error de permisos. Verifica que el rol tenga permisos para "Actividad" en Strapi Admin.',
+          error: 'Permisos insuficientes',
+        },
+        { status: 403 }
       )
     }
 
