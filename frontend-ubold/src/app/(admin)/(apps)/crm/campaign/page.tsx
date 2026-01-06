@@ -1,9 +1,3 @@
-import PageBreadcrumb from '@/components/PageBreadcrumb'
-import React from 'react'
-import { Col, Container, Row } from 'react-bootstrap'
-import CampaignCard from './components/CampaignCard'
-import CampaignTable from './components/CampaignTable'
-
 'use client'
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
