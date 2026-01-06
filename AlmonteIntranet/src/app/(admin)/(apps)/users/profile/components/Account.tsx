@@ -692,7 +692,7 @@ const Account = () => {
                                         method: 'POST',
                                         headers,
                                         body: JSON.stringify({
-                                            accion: 'publicar',
+                                            accion: 'crear',
                                             entidad: 'timeline',
                                             descripcion: newPostText.trim(),
                                             metadata: { tipo: 'post_timeline' },
@@ -871,7 +871,13 @@ const Account = () => {
                                         // Determinar icono según acción
                                         let icono = TbUserCircle
                                         let variant = 'primary'
-                                        if (accion.includes('crear') || accion.includes('crear')) {
+                                        
+                                        // Verificar primero si es un post del timeline (debe tener prioridad)
+                                        if (accion.includes('crear') && (log.metadata?.tipo === 'post_timeline' || log.entidad === 'timeline')) {
+                                            // Post del timeline - mostrar como publicación
+                                            icono = TbShare3
+                                            variant = 'info'
+                                        } else if (accion.includes('crear')) {
                                             icono = TbChecklist
                                             variant = 'success'
                                         } else if (accion.includes('editar') || accion.includes('actualizar')) {
@@ -881,6 +887,7 @@ const Account = () => {
                                             icono = TbArrowBackUp
                                             variant = 'danger'
                                         } else if (accion.includes('publicar')) {
+                                            // Mantener compatibilidad por si acaso
                                             icono = TbShare3
                                             variant = 'info'
                                         }

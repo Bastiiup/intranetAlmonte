@@ -133,8 +133,9 @@ export async function POST(request: NextRequest) {
     const userAgent = request.headers.get('user-agent') || 'unknown'
     
     // Preparar datos del log
+    // Usar 'crear' como acción válida (no 'publicar' que no está en la lista de acciones permitidas)
     const logData: any = {
-      accion: accion || 'publicar',
+      accion: accion || 'crear',
       entidad: entidad || 'timeline',
       descripcion: descripcion.trim(),
       usuario: usuarioId, // Usar documentId o id
