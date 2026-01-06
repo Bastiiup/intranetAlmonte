@@ -32,6 +32,9 @@ export async function createActivity(activityData: {
   relacionado_con_colegio?: string | number
   creado_por?: string | number // Opcional - ya no es requerido según cambios en Strapi
 }): Promise<void> {
+  // Declarar actividadPayload fuera del try para que esté disponible en el catch
+  let actividadPayload: any = null
+  
   try {
     // IMPORTANTE: fecha es requerida por Strapi - siempre enviarla
     // Si no se proporciona, usar fecha/hora actual
@@ -41,7 +44,7 @@ export async function createActivity(activityData: {
     const tipo = activityData.tipo || 'nota'
     const estado = activityData.estado || 'pendiente'
     
-    const actividadPayload: any = {
+    actividadPayload = {
       data: {
         titulo: activityData.titulo, // Campo requerido
         fecha: fecha, // SIEMPRE enviar fecha (requerida por Strapi)
@@ -193,7 +196,11 @@ export async function createActivity(activityData: {
     console.error('  - Título intentado:', activityData.titulo)
     console.error('  - Tipo:', activityData.tipo || 'nota (por defecto)')
     console.error('[Activity Helper] 📋 Payload que causó el error:')
-    console.error(JSON.stringify(actividadPayload, null, 2))
+    if (actividadPayload) {
+      console.error(JSON.stringify(actividadPayload, null, 2))
+    } else {
+      console.error('  (Payload no disponible - error ocurrió antes de construir el payload)')
+    }
     
     // Detectar tipos específicos de errores
     if (error.status === 404 || error.message?.includes('Not Found')) {
