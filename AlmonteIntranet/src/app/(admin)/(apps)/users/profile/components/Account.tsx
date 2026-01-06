@@ -589,62 +589,30 @@ const Account = () => {
                                     size="sm"
                                     onClick={async () => {
                                         setLoadingTimeline(true)
-                                        const token = getAuthToken()
-                                        const headers: HeadersInit = {}
-                                        if (token) {
-                                            headers['Authorization'] = `Bearer ${token}`
-                                        }
-                                        const colaboradorId = colaborador?.id || colaborador?.documentId
-                                        
                                         try {
-                                            let response: Response
-                                            try {
-                                                response = await fetch(`/api/logs/usuario/${colaboradorId}?page=1&pageSize=20&sort=fecha:desc`, { headers })
-                                                if (!response.ok) throw new Error('Endpoint no disponible')
-                                            } catch (err) {
-                                                response = await fetch(`/api/logs?page=1&pageSize=100&sort=fecha:desc`, { headers })
+                                            const colaboradorId = (colaborador as any)?.documentId || colaborador?.id
+                                            
+                                            if (!colaboradorId) {
+                                                console.error('[Línea de Tiempo] ❌ No se pudo obtener ID del colaborador')
+                                                setLoadingTimeline(false)
+                                                return
                                             }
+                                            
+                                            // Usar el endpoint específico del usuario (igual que loadTimeline)
+                                            const response = await fetch(`/api/logs/usuario/${colaboradorId}?page=1&pageSize=50&sort=fecha:desc`, {
+                                                cache: 'no-store',
+                                            })
                                             
                                             if (response.ok) {
                                                 const result = await response.json()
                                                 if (result.success && result.data) {
-                                                    const colaboradorIdNum = colaborador?.id
-                                                    const colaboradorDocumentId = (colaborador as any)?.documentId
-                                                    const colaboradorIds = [
-                                                        colaboradorIdNum,
-                                                        colaboradorDocumentId,
-                                                        String(colaboradorIdNum),
-                                                        String(colaboradorDocumentId),
-                                                    ].filter(Boolean)
-                                                    
-                                                    const userLogs = result.data.filter((log: any) => {
-                                                        const logAttrs = log.attributes || log
-                                                        const posiblesUsuarios = [
-                                                            logAttrs.usuario?.data,
-                                                            logAttrs.usuario,
-                                                            log.usuario?.data,
-                                                            log.usuario,
-                                                        ].filter(Boolean)
-                                                        
-                                                        const logUsuarioIds: (string | number)[] = []
-                                                        posiblesUsuarios.forEach((usuario: any) => {
-                                                            if (typeof usuario === 'object') {
-                                                                if (usuario.id) logUsuarioIds.push(usuario.id, String(usuario.id))
-                                                                if (usuario.documentId) logUsuarioIds.push(usuario.documentId, String(usuario.documentId))
-                                                            } else if (typeof usuario === 'number' || typeof usuario === 'string') {
-                                                                logUsuarioIds.push(usuario, String(usuario))
-                                                            }
-                                                        })
-                                                        
-                                                        return colaboradorIds.some(cId => 
-                                                            logUsuarioIds.some(lId => String(cId) === String(lId))
-                                                        )
-                                                    })
-                                                    setTimelinePosts(userLogs)
+                                                    const logsArray = Array.isArray(result.data) ? result.data : [result.data]
+                                                    console.log('[Línea de Tiempo] 🔄 Recargado:', logsArray.length, 'logs')
+                                                    setTimelinePosts(logsArray)
                                                 }
                                             }
-                                        } catch (err) {
-                                            console.error('[Timeline] Error al recargar:', err)
+                                        } catch (err: any) {
+                                            console.error('[Línea de Tiempo] Error al recargar:', err)
                                         } finally {
                                             setLoadingTimeline(false)
                                         }
