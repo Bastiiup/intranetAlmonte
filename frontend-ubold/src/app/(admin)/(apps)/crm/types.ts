@@ -78,6 +78,7 @@ export type DealType = {
 
 export type LeadType = {
   id: string;
+  realId?: string; // ID real para actualizaciones (documentId o id numérico)
   customer: string;
   company: string;
   logo: StaticImageData;

@@ -25,6 +25,7 @@ import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import { currency } from '@/helpers'
 import { useToggle } from 'usehooks-ts'
 import AddNewLeadModal from '@/app/(admin)/(apps)/crm/leads/components/AddNewLeadModal'
+import EditLeadModal from '@/app/(admin)/(apps)/crm/leads/components/EditLeadModal'
 import ConvertToOpportunityModal from '@/app/(admin)/(apps)/crm/leads/components/ConvertToOpportunityModal'
 import { getLeads, type LeadsQuery } from './data'
 
@@ -55,6 +56,7 @@ const Leads = () => {
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false)
   const [showDealModal, toggleDealModal] = useToggle(false)
+  const [showEditModal, setShowEditModal] = useState<{ open: boolean; lead: LeadType | null }>({ open: false, lead: null })
   const [showConvertModal, setShowConvertModal] = useState(false)
   const [selectedLead, setSelectedLead] = useState<LeadType | null>(null)
 
@@ -179,14 +181,18 @@ const Leads = () => {
       ),
     }),
     columnHelper.accessor('created', { header: 'Created' }),
-    {
+      {
       header: 'Actions',
       cell: ({ row }: { row: TableRow<LeadType> }) => (
         <div className="d-flex  gap-1">
           <Button variant="default" size="sm" className="btn-icon">
             <TbEye className="fs-lg" />
           </Button>
-          <Button variant="default" size="sm" className="btn-icon">
+          <Button 
+            variant="default" 
+            size="sm" 
+            className="btn-icon"
+            onClick={() => setShowEditModal({ open: true, lead: row.original })}>
             <TbEdit className="fs-lg" />
           </Button>
           <OverlayTrigger overlay={<Tooltip>Convertir a Oportunidad</Tooltip>}>
@@ -203,7 +209,7 @@ const Leads = () => {
             size="sm"
             className="btn-icon"
             onClick={() => {
-              toggleDeleteModal()
+              setShowDeleteModal(true)
               setSelectedRowIds({ [row.id]: true })
             }}>
             <TbTrash className="fs-lg" />
@@ -252,10 +258,19 @@ const Leads = () => {
       for (const rowId of selectedIds) {
         const lead = leadsData[parseInt(rowId)]
         if (lead) {
-          const cleanId = lead.id.replace(/^#LD/, '').replace(/^#/, '')
-          await fetch(`/api/crm/leads/${cleanId}`, {
+          // Usar realId si está disponible, sino limpiar el id formateado
+          const cleanId = lead.realId 
+            ? lead.realId.replace(/^#LD/, '').replace(/^#/, '')
+            : lead.id.replace(/^#LD/, '').replace(/^#/, '')
+          
+          const response = await fetch(`/api/crm/leads/${cleanId}`, {
             method: 'DELETE',
           })
+          
+          const result = await response.json()
+          if (!response.ok || !result.success) {
+            throw new Error(result.error || 'Error al eliminar lead')
+          }
         }
       }
       // Recargar leads
@@ -406,6 +421,16 @@ const Leads = () => {
             />
 
             <AddNewLeadModal show={showDealModal} toggleModal={toggleDealModal} onLeadCreated={handleLeadCreated} />
+            
+            <EditLeadModal
+              show={showEditModal.open}
+              onHide={() => setShowEditModal({ open: false, lead: null })}
+              lead={showEditModal.lead}
+              onSuccess={() => {
+                setShowEditModal({ open: false, lead: null })
+                loadLeads()
+              }}
+            />
             
             <ConvertToOpportunityModal
               show={showConvertModal}

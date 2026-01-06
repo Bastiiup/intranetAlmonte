@@ -147,6 +147,7 @@ function transformLeadToLeadType(lead: LeadEntity | any): LeadType {
   
   return {
     id,
+    realId: idReal, // Guardar el ID real para actualizaciones
     customer,
     company,
     logo,
