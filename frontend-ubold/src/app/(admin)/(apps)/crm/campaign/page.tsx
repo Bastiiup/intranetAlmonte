@@ -4,7 +4,21 @@ import { Col, Container, Row } from 'react-bootstrap'
 import CampaignCard from './components/CampaignCard'
 import CampaignTable from './components/CampaignTable'
 
+'use client'
+
+import PageBreadcrumb from '@/components/PageBreadcrumb'
+import React, { useState } from 'react'
+import { Col, Container, Row } from 'react-bootstrap'
+import CampaignCard from './components/CampaignCard'
+import CampaignTable from './components/CampaignTable'
+
 const Page = () => {
+    const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+    const handleCampaignCreated = () => {
+        setRefreshTrigger(prev => prev + 1)
+    }
+
     return (
         <Container fluid>
             <PageBreadcrumb 
@@ -14,8 +28,8 @@ const Page = () => {
             />
             <Row>
                 <Col xs={12}>
-                    <CampaignCard />
-                    <CampaignTable />
+                    <CampaignCard refreshTrigger={refreshTrigger} />
+                    <CampaignTable onCampaignCreated={handleCampaignCreated} />
                 </Col>
             </Row>
         </Container>

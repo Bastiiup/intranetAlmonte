@@ -224,9 +224,30 @@ export async function POST(request: Request) {
       leadData
     )
 
+    // Obtener el ID del lead creado
+    const leadId = response.data?.id || response.data?.documentId || null
+
+    // Crear actividad automáticamente
+    if (leadId) {
+      const colaboradorId = await getColaboradorIdFromRequest(request) || body.asignado_a || null
+      
+      createActivity({
+        tipo: 'nota',
+        titulo: `Lead creado: ${body.nombre}`,
+        descripcion: `Se creó un nuevo lead${body.empresa ? ` para ${body.empresa}` : ''}${body.monto_estimado ? ` con monto estimado de $${body.monto_estimado.toLocaleString()}` : ''}`,
+        relacionado_con_lead: leadId,
+        creado_por: colaboradorId,
+        estado: 'completada',
+      }).catch(() => {
+        // Ignorar errores de creación de actividad
+      })
+    }
+
     // Revalidar cache
     revalidatePath('/crm/leads')
+    revalidatePath('/crm/activities')
     revalidateTag('leads', 'max')
+    revalidateTag('activities', 'max')
 
     return NextResponse.json({
       success: true,

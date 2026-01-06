@@ -26,7 +26,11 @@ import { Spinner, Alert } from 'react-bootstrap'
 
 const columnHelper = createColumnHelper<CampaignType>()
 
-const CampaignTable = () => {
+interface CampaignTableProps {
+    onCampaignCreated?: () => void
+}
+
+const CampaignTable = ({ onCampaignCreated }: CampaignTableProps) => {
     const [showModal, setShowModal] = useState(false);
     const [campaignsData, setCampaignsData] = useState<CampaignType[]>([])
     const [loading, setLoading] = useState(true)
@@ -270,6 +274,9 @@ const CampaignTable = () => {
                         onSuccess={() => {
                             setShowModal(false)
                             loadCampaigns()
+                            if (onCampaignCreated) {
+                                onCampaignCreated()
+                            }
                         }}
                     />
                 </div>

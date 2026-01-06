@@ -36,6 +36,8 @@ export type CampaignType = {
   tags: string[]
   dateCreated: string
   dateCreatedTime: string
+  fechaInicio?: string
+  fechaFin?: string
 }
 
 export type CampaignsQuery = {
@@ -137,6 +139,8 @@ function transformCampanaToCampaignType(campana: CampanaEntity | any): CampaignT
     tags,
     dateCreated,
     dateCreatedTime,
+    fechaInicio: attrs.fecha_inicio || undefined,
+    fechaFin: attrs.fecha_fin || undefined,
   }
 }
 

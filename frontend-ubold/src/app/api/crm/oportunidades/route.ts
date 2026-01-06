@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import { createActivity, getColaboradorIdFromRequest } from '@/lib/crm/activity-helper'
 
 export const dynamic = 'force-dynamic'
 
@@ -135,7 +136,7 @@ export async function GET(request: Request) {
  * POST /api/crm/oportunidades
  * Crea una nueva oportunidad
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
@@ -199,9 +200,30 @@ export async function POST(request: Request) {
       oportunidadData
     )
 
+    // Obtener el ID de la oportunidad creada
+    const oportunidadId = response.data?.id || response.data?.documentId || null
+
+    // Crear actividad automáticamente
+    if (oportunidadId) {
+      const colaboradorId = await getColaboradorIdFromRequest(request) || body.propietario || null
+      
+      createActivity({
+        tipo: 'nota',
+        titulo: `Oportunidad creada: ${body.nombre}`,
+        descripcion: `Se creó una nueva oportunidad${body.monto ? ` con monto de ${body.moneda || 'CLP'} $${body.monto.toLocaleString()}` : ''}${body.etapa ? ` en etapa ${body.etapa}` : ''}`,
+        relacionado_con_oportunidad: oportunidadId,
+        creado_por: colaboradorId,
+        estado: 'completada',
+      }).catch(() => {
+        // Ignorar errores de creación de actividad
+      })
+    }
+
     // Revalidar para sincronización bidireccional
     revalidatePath('/crm/opportunities')
+    revalidatePath('/crm/activities')
     revalidateTag('oportunidades', 'max')
+    revalidateTag('activities', 'max')
 
     return NextResponse.json({
       success: true,

@@ -12,13 +12,17 @@ type CampaignCardProps = {
     desc: string,
 }
 
-const CampaignCard = () => {
+interface CampaignCardProps {
+    refreshTrigger?: number
+}
+
+const CampaignCard = ({ refreshTrigger }: CampaignCardProps) => {
     const [campaigns, setCampaigns] = useState<CampaignType[]>([])
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         loadCampaigns()
-    }, [])
+    }, [refreshTrigger])
 
     const loadCampaigns = async () => {
         try {
@@ -40,8 +44,57 @@ const CampaignCard = () => {
         return budget > max ? budget : max
     }, 0)
     
-    // Calcular duración promedio (simplificado - se puede mejorar con fechas reales)
-    const avgDuration = campaigns.length > 0 ? 5.7 : 0
+    // Calcular duración promedio usando fechas reales
+    let avgDuration = 0
+    if (campaigns.length > 0) {
+        const durations = campaigns
+            .map(c => {
+                // Si tiene fecha de inicio y fin, calcular la duración real
+                if (c.fechaInicio && c.fechaFin) {
+                    try {
+                        const inicio = new Date(c.fechaInicio)
+                        const fin = new Date(c.fechaFin)
+                        const diffTime = Math.abs(fin.getTime() - inicio.getTime())
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+                        return diffDays
+                    } catch (e) {
+                        return null
+                    }
+                }
+                // Si solo tiene fecha de inicio, calcular desde entonces hasta ahora
+                else if (c.fechaInicio) {
+                    try {
+                        const inicio = new Date(c.fechaInicio)
+                        const now = new Date()
+                        const diffTime = Math.abs(now.getTime() - inicio.getTime())
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+                        return diffDays
+                    } catch (e) {
+                        return null
+                    }
+                }
+                // Si no tiene fechas, usar fecha de creación
+                else {
+                    try {
+                        const dateStr = c.dateCreated
+                        if (!dateStr) return null
+                        // Formato: "Jan 06, 2026"
+                        const date = new Date(dateStr)
+                        const now = new Date()
+                        const diffTime = Math.abs(now.getTime() - date.getTime())
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+                        return diffDays
+                    } catch (e) {
+                        return null
+                    }
+                }
+            })
+            .filter((d): d is number => d !== null)
+        
+        if (durations.length > 0) {
+            avgDuration = durations.reduce((sum, d) => sum + d, 0) / durations.length
+        }
+    }
 
     const cards: CampaignCardProps[] = [
         {
