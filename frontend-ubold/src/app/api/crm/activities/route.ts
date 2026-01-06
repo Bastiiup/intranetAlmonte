@@ -38,11 +38,11 @@ export async function GET(request: NextRequest) {
     const relacionado_id = searchParams.get('relacionado_id') || ''
 
     // Construir query params para Strapi
+    // Nota: draftAndPublish está deshabilitado, así que no necesitamos publicationState
     const params = new URLSearchParams({
       'pagination[page]': page.toString(),
       'pagination[pageSize]': pageSize.toString(),
       'sort[0]': 'fecha:desc',
-      'publicationState': 'live', // Solo obtener actividades publicadas (si draftAndPublish está habilitado)
       'populate[creado_por]': 'true',
       'populate[relacionado_con_contacto]': 'true',
       'populate[relacionado_con_lead]': 'true',
@@ -204,6 +204,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
 
     // Validaciones básicas
+    // Nota: Según cambios en Strapi, solo titulo es requerido
+    // fecha, tipo y estado tienen valores por defecto automáticos
     if (!body.titulo || !body.titulo.trim()) {
       return NextResponse.json(
         {
@@ -214,25 +216,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!body.fecha) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'La fecha de la actividad es obligatoria',
-        },
-        { status: 400 }
-      )
-    }
-
     // Preparar datos para Strapi
+    // Solo enviar campos que queremos establecer explícitamente
+    // Strapi establecerá automáticamente: fecha (actual), tipo ("nota"), estado ("pendiente")
     const actividadData: any = {
       data: {
-        tipo: body.tipo || 'nota',
         titulo: body.titulo.trim(),
-        descripcion: body.descripcion?.trim() || null,
-        fecha: body.fecha,
-        estado: body.estado || 'pendiente',
-        notas: body.notas?.trim() || null,
+        // Enviar solo si queremos sobrescribir los valores por defecto
+        ...(body.tipo && { tipo: body.tipo }),
+        ...(body.descripcion && { descripcion: body.descripcion.trim() }),
+        ...(body.fecha && { fecha: body.fecha }),
+        ...(body.estado && { estado: body.estado }),
+        ...(body.notas && { notas: body.notas.trim() }),
       },
     }
 

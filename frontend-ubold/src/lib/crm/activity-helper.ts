@@ -20,26 +20,33 @@ interface ActividadAttributes {
  * Esta función se puede llamar desde las API routes cuando se crean/actualizan entidades del CRM
  */
 export async function createActivity(activityData: {
-  tipo: ActividadAttributes['tipo']
-  titulo: string
+  titulo: string // Único campo requerido
+  tipo?: ActividadAttributes['tipo'] // Opcional - por defecto "nota" en Strapi
   descripcion?: string
+  fecha?: string // Opcional - por defecto fecha/hora actual en Strapi
+  estado?: ActividadAttributes['estado'] // Opcional - por defecto "pendiente" en Strapi
+  notas?: string
   relacionado_con_contacto?: string | number
   relacionado_con_lead?: string | number
   relacionado_con_oportunidad?: string | number
   relacionado_con_colegio?: string | number
-  creado_por?: string | number
-  estado?: ActividadAttributes['estado']
-  notas?: string
+  creado_por?: string | number // Opcional - ya no es requerido según cambios en Strapi
 }): Promise<void> {
   try {
+    // Nota: Strapi ahora establece automáticamente valores por defecto:
+    // - fecha: fecha/hora actual si no se envía
+    // - tipo: "nota" si no se envía
+    // - estado: "pendiente" si no se envía
+    // Solo necesitamos enviar los campos que queremos establecer explícitamente
     const actividadPayload: any = {
       data: {
-        tipo: activityData.tipo || 'nota',
-        titulo: activityData.titulo,
-        descripcion: activityData.descripcion || null,
-        fecha: new Date().toISOString(),
-        estado: activityData.estado || 'completada',
-        notas: activityData.notas || null,
+        titulo: activityData.titulo, // Único campo realmente requerido
+        // Enviar solo si queremos sobrescribir los valores por defecto
+        ...(activityData.tipo && { tipo: activityData.tipo }),
+        ...(activityData.descripcion && { descripcion: activityData.descripcion }),
+        ...(activityData.fecha && { fecha: activityData.fecha }),
+        ...(activityData.estado && { estado: activityData.estado }),
+        ...(activityData.notas && { notas: activityData.notas }),
       },
     }
 
@@ -77,7 +84,7 @@ export async function createActivity(activityData: {
       }
     }
     
-    // creado_por es requerido - validar que sea válido
+    // creado_por es opcional - solo agregar si es válido
     if (activityData.creado_por) {
       const creadoPorId = typeof activityData.creado_por === 'string' 
         ? parseInt(activityData.creado_por) 
@@ -87,9 +94,8 @@ export async function createActivity(activityData: {
       } else {
         console.warn('[Activity Helper] ⚠️ ID de creado_por inválido, omitiendo:', activityData.creado_por)
       }
-    } else {
-      console.warn('[Activity Helper] ⚠️ creado_por no proporcionado - la actividad puede fallar si es requerido')
     }
+    // Nota: creado_por ya NO es requerido según los cambios en Strapi
 
     console.log('[Activity Helper] 📝 Intentando crear actividad:', {
       titulo: activityData.titulo,
@@ -98,33 +104,12 @@ export async function createActivity(activityData: {
     })
 
     // Usar el endpoint correcto: /api/actividades (confirmado por el usuario)
+    // Nota: draftAndPublish está deshabilitado, así que las actividades se guardan directamente
+    // No necesitamos publicar manualmente
     const response = await strapiClient.post<StrapiResponse<StrapiEntity<ActividadAttributes>>>(
       '/api/actividades',
       actividadPayload
     )
-    
-    // Si draftAndPublish está habilitado, publicar la actividad automáticamente
-    // En Strapi v5, los registros se crean como draft por defecto
-    const actividadData = Array.isArray(response.data) ? response.data[0] : response.data
-    const actividadId = (actividadData as any)?.documentId || (actividadData as any)?.id
-    
-    if (actividadId) {
-      try {
-        // En Strapi v5, el endpoint de publicación puede variar
-        // Intentar primero con el formato estándar
-        await strapiClient.post(`/api/actividades/${actividadId}/actions/publish`, {})
-        console.log('[Activity Helper] ✅ Actividad publicada automáticamente')
-      } catch (publishError: any) {
-        // Si falla, puede ser que el endpoint sea diferente o que no tenga permisos
-        // No es crítico - la actividad se creó, solo está en draft
-        console.warn('[Activity Helper] ⚠️ No se pudo publicar la actividad automáticamente:', {
-          message: publishError.message,
-          status: publishError.status,
-          actividadId,
-        })
-        console.warn('[Activity Helper] La actividad fue creada pero está en estado "draft". Puedes publicarla manualmente desde Strapi Admin.')
-      }
-    }
 
     console.log('[Activity Helper] ✅ Actividad creada automáticamente:', {
       titulo: activityData.titulo,
