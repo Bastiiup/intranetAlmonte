@@ -189,128 +189,116 @@ const Account = () => {
     // Cargar timeline (logs de actividades del usuario)
     useEffect(() => {
         const loadTimeline = async () => {
-            if (authLoading || !colaborador?.id) {
-                console.log('[Timeline] ⏳ Esperando autenticación o colaborador:', { authLoading, colaboradorId: colaborador?.id })
+            if (authLoading || !colaborador) {
+                console.log('[Línea de Tiempo] ⏳ Esperando autenticación o colaborador:', { authLoading, colaboradorId: colaborador?.id })
                 return
             }
             
             setLoadingTimeline(true)
             try {
-                const token = getAuthToken()
-                const headers: HeadersInit = {}
-                if (token) {
-                    headers['Authorization'] = `Bearer ${token}`
+                
+                // Obtener ID del colaborador (priorizar documentId, luego id)
+                const colaboradorId = (colaborador as any).documentId || colaborador.id
+                
+                if (!colaboradorId) {
+                    console.error('[Línea de Tiempo] ❌ No se pudo obtener ID del colaborador')
+                    setTimelinePosts([])
+                    setLoadingTimeline(false)
+                    return
                 }
                 
-                const colaboradorId = colaborador.id || colaborador.documentId
-                console.log('[Timeline] 🔍 Cargando timeline para colaborador:', colaboradorId)
+                console.log('[Línea de Tiempo] 🔍 Cargando logs para colaborador:', colaboradorId, {
+                    tieneId: !!colaborador.id,
+                    tieneDocumentId: !!(colaborador as any).documentId,
+                })
                 
-                // Intentar usar el endpoint específico del usuario primero
-                let response: Response
-                try {
-                    response = await fetch(`/api/logs/usuario/${colaboradorId}?page=1&pageSize=20&sort=fecha:desc`, {
-                        headers,
-                    })
-                    if (!response.ok) {
-                        throw new Error('Endpoint específico no disponible')
-                    }
-                } catch (err) {
-                    // Fallback: obtener todos los logs y filtrar
-                    console.log('[Timeline] ⚠️ Usando fallback: obtener todos los logs')
-                    response = await fetch(`/api/logs?page=1&pageSize=100&sort=fecha:desc`, {
-                        headers,
-                    })
-                }
+                // Usar el endpoint específico del usuario (igual que la página de logs)
+                // Este endpoint ya filtra por usuario, así que no necesitamos filtrar manualmente
+                const response = await fetch(`/api/logs/usuario/${colaboradorId}?page=1&pageSize=50&sort=fecha:desc`, {
+                    cache: 'no-store',
+                })
                 
                 if (response.ok) {
                     const result = await response.json()
-                    console.log('[Timeline] 📥 Respuesta recibida:', {
+                    console.log('[Línea de Tiempo] 📥 Respuesta recibida:', {
                         success: result.success,
                         totalLogs: result.data?.length || 0,
-                        primerLog: result.data?.[0] ? {
-                            id: result.data[0].id,
-                            tieneUsuario: !!(result.data[0].attributes?.usuario || result.data[0].usuario),
-                            estructuraUsuario: result.data[0].attributes?.usuario || result.data[0].usuario,
-                        } : null,
+                        usuarioInfo: result.usuarioInfo,
                     })
                     
                     if (result.success && result.data) {
-                        // Filtrar solo los logs del usuario actual
-                        // Extraer IDs del colaborador actual (tanto id como documentId)
-                        const colaboradorIdNum = colaborador.id
-                        const colaboradorDocumentId = (colaborador as any).documentId
-                        const colaboradorIds = [
-                            colaboradorIdNum,
-                            colaboradorDocumentId,
-                            String(colaboradorIdNum),
-                            String(colaboradorDocumentId),
-                        ].filter(Boolean)
+                        // El endpoint ya filtra por usuario, así que usar directamente los datos
+                        const logsArray = Array.isArray(result.data) ? result.data : [result.data]
                         
-                        console.log('[Timeline] 🔑 IDs del colaborador a buscar:', colaboradorIds)
-                        
-                        const userLogs = result.data.filter((log: any, index: number) => {
-                            const logAttrs = log.attributes || log
-                            
-                            // Intentar todas las posibles estructuras de usuario
-                            const posiblesUsuarios = [
-                                logAttrs.usuario?.data,
-                                logAttrs.usuario,
-                                log.usuario?.data,
-                                log.usuario,
-                            ].filter(Boolean)
-                            
-                            // Extraer todos los posibles IDs del usuario del log
-                            const logUsuarioIds: (string | number)[] = []
-                            
-                            posiblesUsuarios.forEach((usuario: any) => {
-                                if (typeof usuario === 'object') {
-                                    if (usuario.id) logUsuarioIds.push(usuario.id, String(usuario.id))
-                                    if (usuario.documentId) logUsuarioIds.push(usuario.documentId, String(usuario.documentId))
-                                } else if (typeof usuario === 'number' || typeof usuario === 'string') {
-                                    logUsuarioIds.push(usuario, String(usuario))
-                                }
-                            })
-                            
-                            // Verificar si alguno de los IDs del log coincide con alguno del colaborador
-                            const match = colaboradorIds.some(cId => 
-                                logUsuarioIds.some(lId => String(cId) === String(lId))
-                            )
-                            
-                            if (index < 3) { // Log solo los primeros 3 para no saturar
-                                console.log('[Timeline] 🔍 Log', index + 1, ':', {
-                                    logId: log.id || logAttrs.id,
-                                    tieneUsuario: posiblesUsuarios.length > 0,
-                                    logUsuarioIds: logUsuarioIds.length > 0 ? logUsuarioIds : 'ninguno',
-                                    colaboradorIds,
-                                    match,
-                                    estructuraCompleta: JSON.stringify({
-                                        logAttrsUsuario: logAttrs.usuario,
-                                        logUsuario: log.usuario,
-                                    }).substring(0, 200),
-                                })
-                            }
-                            
-                            return match
-                        })
-                        
-                        console.log('[Timeline] ✅ Logs filtrados:', {
-                            total: result.data.length,
-                            filtrados: userLogs.length,
-                            colaboradorId,
-                        })
-                        
-                        setTimelinePosts(userLogs)
+                        console.log('[Línea de Tiempo] ✅ Logs obtenidos:', logsArray.length)
+                        setTimelinePosts(logsArray)
                     } else {
-                        console.warn('[Timeline] ⚠️ Respuesta sin éxito o sin datos:', result)
+                        console.warn('[Línea de Tiempo] ⚠️ Respuesta sin éxito o sin datos:', result)
                         setTimelinePosts([])
                     }
                 } else {
                     const errorText = await response.text()
-                    console.error('[Timeline] ❌ Error en respuesta:', response.status, errorText)
-                    setTimelinePosts([])
+                    console.error('[Línea de Tiempo] ❌ Error en respuesta:', response.status, errorText)
+                    
+                    // Si el endpoint falla, intentar obtener todos los logs y filtrar manualmente
+                    console.log('[Línea de Tiempo] ⚠️ Intentando fallback: obtener todos los logs')
+                    try {
+                        const fallbackResponse = await fetch(`/api/logs?page=1&pageSize=200&sort=fecha:desc`, {
+                            cache: 'no-store',
+                        })
+                        
+                        if (fallbackResponse.ok) {
+                            const fallbackResult = await fallbackResponse.json()
+                            if (fallbackResult.success && fallbackResult.data) {
+                                // Filtrar manualmente por usuario
+                                const colaboradorIdNum = colaborador.id
+                                const colaboradorDocumentId = (colaborador as any).documentId
+                                const colaboradorIds = [
+                                    colaboradorIdNum,
+                                    colaboradorDocumentId,
+                                    String(colaboradorIdNum),
+                                    String(colaboradorDocumentId),
+                                ].filter(Boolean)
+                                
+                                const userLogs = fallbackResult.data.filter((log: any) => {
+                                    const logAttrs = log.attributes || log
+                                    const posiblesUsuarios = [
+                                        logAttrs.usuario?.data,
+                                        logAttrs.usuario,
+                                        log.usuario?.data,
+                                        log.usuario,
+                                    ].filter(Boolean)
+                                    
+                                    const logUsuarioIds: (string | number)[] = []
+                                    posiblesUsuarios.forEach((usuario: any) => {
+                                        if (typeof usuario === 'object') {
+                                            if (usuario.id) logUsuarioIds.push(usuario.id, String(usuario.id))
+                                            if (usuario.documentId) logUsuarioIds.push(usuario.documentId, String(usuario.documentId))
+                                        } else if (typeof usuario === 'number' || typeof usuario === 'string') {
+                                            logUsuarioIds.push(usuario, String(usuario))
+                                        }
+                                    })
+                                    
+                                    return colaboradorIds.some(cId => 
+                                        logUsuarioIds.some(lId => String(cId) === String(lId))
+                                    )
+                                })
+                                
+                                console.log('[Línea de Tiempo] ✅ Logs filtrados (fallback):', userLogs.length)
+                                setTimelinePosts(userLogs)
+                            } else {
+                                setTimelinePosts([])
+                            }
+                        } else {
+                            setTimelinePosts([])
+                        }
+                    } catch (fallbackErr) {
+                        console.error('[Línea de Tiempo] ❌ Error en fallback:', fallbackErr)
+                        setTimelinePosts([])
+                    }
                 }
             } catch (err: any) {
-                console.error('[Timeline] ❌ Error al cargar timeline:', err)
+                console.error('[Línea de Tiempo] ❌ Error al cargar timeline:', err)
                 setTimelinePosts([])
             } finally {
                 setLoadingTimeline(false)
@@ -318,7 +306,7 @@ const Account = () => {
         }
         
         loadTimeline()
-    }, [authLoading, colaborador?.id])
+    }, [authLoading, colaborador?.id, (colaborador as any)?.documentId])
 
     // Manejar cambio de foto
     const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -709,56 +697,20 @@ const Account = () => {
                                         await new Promise(resolve => setTimeout(resolve, 500))
                                         
                                         // Recargar timeline usando el mismo método que loadTimeline
-                                        const colaboradorId = colaborador?.id || colaborador?.documentId
+                                        const colaboradorId = (colaborador as any)?.documentId || colaborador?.id
                                         
-                                        // Intentar endpoint específico primero
-                                        let timelineResponse: Response
-                                        try {
-                                            timelineResponse = await fetch(`/api/logs/usuario/${colaboradorId}?page=1&pageSize=20&sort=fecha:desc`, { headers })
-                                            if (!timelineResponse.ok) {
-                                                throw new Error('Endpoint específico no disponible')
-                                            }
-                                        } catch (err) {
-                                            timelineResponse = await fetch(`/api/logs?page=1&pageSize=100&sort=fecha:desc`, { headers })
-                                        }
-                                        
-                                        if (timelineResponse.ok) {
-                                            const result = await timelineResponse.json()
-                                            if (result.success && result.data) {
-                                                const colaboradorIdNum = colaborador?.id
-                                                const colaboradorDocumentId = (colaborador as any)?.documentId
-                                                const colaboradorIds = [
-                                                    colaboradorIdNum,
-                                                    colaboradorDocumentId,
-                                                    String(colaboradorIdNum),
-                                                    String(colaboradorDocumentId),
-                                                ].filter(Boolean)
-                                                
-                                                const userLogs = result.data.filter((log: any) => {
-                                                    const logAttrs = log.attributes || log
-                                                    const posiblesUsuarios = [
-                                                        logAttrs.usuario?.data,
-                                                        logAttrs.usuario,
-                                                        log.usuario?.data,
-                                                        log.usuario,
-                                                    ].filter(Boolean)
-                                                    
-                                                    const logUsuarioIds: (string | number)[] = []
-                                                    posiblesUsuarios.forEach((usuario: any) => {
-                                                        if (typeof usuario === 'object') {
-                                                            if (usuario.id) logUsuarioIds.push(usuario.id, String(usuario.id))
-                                                            if (usuario.documentId) logUsuarioIds.push(usuario.documentId, String(usuario.documentId))
-                                                        } else if (typeof usuario === 'number' || typeof usuario === 'string') {
-                                                            logUsuarioIds.push(usuario, String(usuario))
-                                                        }
-                                                    })
-                                                    
-                                                    return colaboradorIds.some(cId => 
-                                                        logUsuarioIds.some(lId => String(cId) === String(lId))
-                                                    )
-                                                })
-                                                console.log('[Timeline] 🔄 Timeline recargado después de post:', userLogs.length, 'logs')
-                                                setTimelinePosts(userLogs)
+                                        if (colaboradorId) {
+                                            const timelineResponse = await fetch(`/api/logs/usuario/${colaboradorId}?page=1&pageSize=50&sort=fecha:desc`, {
+                                                cache: 'no-store',
+                                            })
+                                            
+                                            if (timelineResponse.ok) {
+                                                const result = await timelineResponse.json()
+                                                if (result.success && result.data) {
+                                                    const logsArray = Array.isArray(result.data) ? result.data : [result.data]
+                                                    console.log('[Línea de Tiempo] 🔄 Recargado después de post:', logsArray.length, 'logs')
+                                                    setTimelinePosts(logsArray)
+                                                }
                                             }
                                         }
                                     } else {
