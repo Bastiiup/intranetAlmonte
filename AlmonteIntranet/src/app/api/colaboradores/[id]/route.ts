@@ -79,6 +79,96 @@ export async function GET(
       )
     }
 
+    // Normalizar estructura de persona y portada
+    const colaboradorAttrs = colaborador.attributes || colaborador
+    let persona = colaboradorAttrs.persona?.data || colaboradorAttrs.persona
+    if (persona?.attributes) {
+      persona = { ...persona, ...persona.attributes }
+    }
+
+    // Normalizar portada (similar a imagen)
+    let portadaNormalizada: any = null
+    const portadaRaw = persona?.portada
+    console.log('[API /colaboradores/[id] GET] Portada raw:', JSON.stringify(portadaRaw, null, 2))
+    
+    if (portadaRaw) {
+      // Estructura de componente contacto.imagen
+      if (portadaRaw.imagen) {
+        const portadaData = portadaRaw.imagen
+        // Si es array directo (ESTRUCTURA REAL DE STRAPI)
+        if (Array.isArray(portadaData) && portadaData.length > 0) {
+          const primeraPortada = portadaData[0]
+          portadaNormalizada = {
+            url: primeraPortada.url || null,
+            alternativeText: primeraPortada.alternativeText || null,
+            width: primeraPortada.width || null,
+            height: primeraPortada.height || null,
+          }
+          console.log('[API /colaboradores/[id] GET] ✅ Portada normalizada desde array:', portadaNormalizada)
+        }
+        // Si tiene data
+        else if (portadaData.data) {
+          const dataArray = Array.isArray(portadaData.data) ? portadaData.data : [portadaData.data]
+          if (dataArray.length > 0) {
+            const primeraPortada = dataArray[0]
+            portadaNormalizada = {
+              url: primeraPortada.attributes?.url || primeraPortada.url || null,
+              alternativeText: primeraPortada.attributes?.alternativeText || primeraPortada.alternativeText || null,
+              width: primeraPortada.attributes?.width || primeraPortada.width || null,
+              height: primeraPortada.attributes?.height || primeraPortada.height || null,
+            }
+          }
+        }
+        // Si es objeto directo con url
+        else if (portadaData.url) {
+          portadaNormalizada = {
+            url: portadaData.url,
+            alternativeText: portadaData.alternativeText || null,
+            width: portadaData.width || null,
+            height: portadaData.height || null,
+          }
+        }
+      }
+      // Si portada tiene url directa
+      else if (portadaRaw.url) {
+        portadaNormalizada = {
+          url: portadaRaw.url,
+          alternativeText: portadaRaw.alternativeText || null,
+          width: portadaRaw.width || null,
+          height: portadaRaw.height || null,
+        }
+      }
+      // Si portada tiene data
+      else if (portadaRaw.data) {
+        const dataArray = Array.isArray(portadaRaw.data) ? portadaRaw.data : [portadaRaw.data]
+        if (dataArray.length > 0) {
+          const primeraPortada = dataArray[0]
+          portadaNormalizada = {
+            url: primeraPortada.attributes?.url || primeraPortada.url || null,
+            alternativeText: primeraPortada.attributes?.alternativeText || primeraPortada.alternativeText || null,
+            width: primeraPortada.attributes?.width || primeraPortada.width || null,
+            height: primeraPortada.attributes?.height || primeraPortada.height || null,
+          }
+        }
+      }
+    }
+
+    // Actualizar persona con portada normalizada
+    if (persona && portadaNormalizada) {
+      persona.portada = portadaNormalizada
+    }
+
+    // Actualizar colaborador con persona normalizada
+    if (persona) {
+      if (colaborador.attributes) {
+        colaborador.attributes.persona = persona
+      } else {
+        colaborador.persona = persona
+      }
+    }
+
+    console.log('[API /colaboradores/[id] GET] ✅ Colaborador normalizado con portada')
+
     return NextResponse.json({
       success: true,
       data: colaborador,

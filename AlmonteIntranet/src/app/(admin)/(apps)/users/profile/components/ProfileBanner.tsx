@@ -70,6 +70,9 @@ const ProfileBanner = ({ colaboradorId }: ProfileBannerProps) => {
 
                         // Obtener portada
                         const portada = personaData?.portada
+                        console.log('[ProfileBanner] 🔍 Portada raw recibida:', JSON.stringify(portada, null, 2))
+                        console.log('[ProfileBanner] 🔍 Estructura completa personaData:', JSON.stringify(personaData, null, 2))
+                        
                         if (portada) {
                             let portadaUrl: string | null = null
 
@@ -78,49 +81,70 @@ const ProfileBanner = ({ colaboradorId }: ProfileBannerProps) => {
                                 portadaUrl = portada.url.startsWith('http') 
                                     ? portada.url 
                                     : `${process.env.NEXT_PUBLIC_STRAPI_URL}${portada.url}`
+                                console.log('[ProfileBanner] ✅ Portada URL directa:', portadaUrl)
                             }
-                            // Caso 2: Estructura de componente contacto.imagen
+                            // Caso 2: Estructura de componente contacto.imagen (ESTRUCTURA REAL)
                             else if (portada.imagen) {
                                 const imagenComponent = portada.imagen
+                                console.log('[ProfileBanner] 🔍 Estructura imagenComponent:', JSON.stringify(imagenComponent, null, 2))
                                 
-                                // Si es array
+                                // Si es array directo (ESTRUCTURA REAL DE STRAPI)
                                 if (Array.isArray(imagenComponent) && imagenComponent.length > 0) {
-                                    const url = imagenComponent[0]?.url || imagenComponent[0]?.attributes?.url || null
+                                    const primeraImagen = imagenComponent[0]
+                                    console.log('[ProfileBanner] 🔍 Primera imagen del array:', JSON.stringify(primeraImagen, null, 2))
+                                    const url = primeraImagen?.url || primeraImagen?.attributes?.url || null
                                     if (url) {
                                         portadaUrl = url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_STRAPI_URL}${url}`
+                                        console.log('[ProfileBanner] ✅ Portada URL desde array:', portadaUrl)
+                                    } else {
+                                        console.warn('[ProfileBanner] ⚠️ No se encontró URL en primera imagen del array')
                                     }
                                 }
-                                // Si tiene data
+                                // Si tiene data (estructura Strapi estándar alternativa)
                                 else if (imagenComponent.data) {
                                     const dataArray = Array.isArray(imagenComponent.data) ? imagenComponent.data : [imagenComponent.data]
                                     if (dataArray.length > 0) {
-                                        const url = dataArray[0]?.attributes?.url || dataArray[0]?.url || null
+                                        const primeraImagen = dataArray[0]
+                                        const url = primeraImagen?.attributes?.url || primeraImagen?.url || null
                                         if (url) {
                                             portadaUrl = url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_STRAPI_URL}${url}`
+                                            console.log('[ProfileBanner] ✅ Portada URL desde data:', portadaUrl)
                                         }
                                     }
                                 }
-                                // Si es objeto directo
+                                // Si es objeto directo con url
                                 else if (imagenComponent.url) {
                                     portadaUrl = imagenComponent.url.startsWith('http') 
                                         ? imagenComponent.url 
                                         : `${process.env.NEXT_PUBLIC_STRAPI_URL}${imagenComponent.url}`
+                                    console.log('[ProfileBanner] ✅ Portada URL desde objeto directo:', portadaUrl)
+                                } else {
+                                    console.warn('[ProfileBanner] ⚠️ Estructura de imagenComponent no reconocida:', JSON.stringify(imagenComponent, null, 2))
                                 }
                             }
                             // Caso 3: Data directamente
                             else if (portada.data) {
                                 const dataArray = Array.isArray(portada.data) ? portada.data : [portada.data]
                                 if (dataArray.length > 0) {
-                                    const url = dataArray[0]?.attributes?.url || dataArray[0]?.url || null
+                                    const primeraImagen = dataArray[0]
+                                    const url = primeraImagen?.attributes?.url || primeraImagen?.url || null
                                     if (url) {
                                         portadaUrl = url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_STRAPI_URL}${url}`
+                                        console.log('[ProfileBanner] ✅ Portada URL desde data directo:', portadaUrl)
                                     }
                                 }
+                            } else {
+                                console.warn('[ProfileBanner] ⚠️ Estructura de portada no reconocida:', JSON.stringify(portada, null, 2))
                             }
 
                             if (portadaUrl) {
+                                console.log('[ProfileBanner] ✅ Estableciendo bannerImage:', portadaUrl)
                                 setBannerImage(portadaUrl)
+                            } else {
+                                console.warn('[ProfileBanner] ⚠️ No se pudo extraer URL de portada')
                             }
+                        } else {
+                            console.log('[ProfileBanner] ℹ️ No hay portada en personaData')
                         }
                     }
                 }
