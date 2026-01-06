@@ -257,7 +257,11 @@ const Opportunities = () => {
 
   return (
     <div className="container-fluid">
-      <PageBreadcrumb title={'Oportunidades'} subtitle={'CRM'} />
+      <PageBreadcrumb 
+        title={'Oportunidades'} 
+        subtitle={'CRM'} 
+        infoText="Las Oportunidades son posibles ventas o negocios en proceso. Aquí puedes gestionar cada oportunidad desde la calificación inicial hasta el cierre (ganada o perdida). Incluye información del contacto, producto, monto estimado, etapa del proceso, prioridad y propietario asignado."
+      />
 
       {error && (
         <div className="alert alert-warning" role="alert">

@@ -299,7 +299,11 @@ const Leads = () => {
   }
   return (
     <Container fluid>
-      <PageBreadcrumb title={'Leads'} subtitle={'CRM'} />
+        <PageBreadcrumb 
+          title={'Leads'} 
+          subtitle={'CRM'} 
+          infoText="Los Leads son posibles clientes o contactos interesados en tus productos o servicios. Aquí puedes gestionar leads potenciales, clasificarlos por etiqueta (Cold Lead, Prospect, Hot Lead), asignarlos a colaboradores, y convertirlos en Oportunidades cuando estén listos para avanzar en el proceso de venta."
+        />
 
       {error && (
         <Alert variant="warning" className="mb-3">

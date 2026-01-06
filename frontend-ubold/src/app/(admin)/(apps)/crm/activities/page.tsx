@@ -6,7 +6,11 @@ import { TbBriefcase, TbCalendarEvent, TbEdit, TbMail, TbMessage, TbPencil, TbPh
 const Page = () => {
     return (
         <Container fluid>
-            <PageBreadcrumb title='Activities' subtitle='CRM' />
+            <PageBreadcrumb 
+              title='Activities' 
+              subtitle='CRM' 
+              infoText="Las Actividades registran todas las interacciones y eventos relacionados con tus contactos, leads y oportunidades. Aquí puedes ver el historial completo: llamadas, emails, reuniones, notas, cambios de estado, y más. Cada actividad muestra quién la realizó, cuándo, y está relacionada con la entidad correspondiente del CRM."
+            />
             <Row className="justify-content-center">
                 <Col xxl={9}>
                     <Card>
