@@ -36,21 +36,39 @@ export async function createActivity(activityData: {
   let actividadPayload: any = null
   
   try {
+    // ========== ESTRUCTURA DE STRAPI ==========
+    // Campos REQUERIDOS (*):
+    // - tipo* (Enumeration)
+    // - titulo* (Text)
+    // - fecha* (Datetime)
+    // - estado* (Enumeration)
+    //
+    // Campos OPCIONALES:
+    // - descripcion (Text)
+    // - notas (Text)
+    // - relacionado_con_contacto (Relation manyToOne con Persona)
+    // - relacionado_con_lead (Relation manyToOne con Lead)
+    // - relacionado_con_oportunidad (Relation manyToOne con Oportunidad)
+    // - relacionado_con_colegio (Relation manyToOne con Colegio)
+    // - creado_por (Relation manyToOne con "Intranet · Colaboradores")
+    
     // IMPORTANTE: fecha es requerida por Strapi - siempre enviarla
     // Si no se proporciona, usar fecha/hora actual
     const fecha = activityData.fecha || new Date().toISOString()
     
-    // Valores por defecto si no se proporcionan
-    const tipo = activityData.tipo || 'nota'
-    const estado = activityData.estado || 'pendiente'
+    // Valores por defecto si no se proporcionan (campos requeridos)
+    const tipo = activityData.tipo || 'nota' // Enumeration requerido
+    const estado = activityData.estado || 'pendiente' // Enumeration requerido
     
     actividadPayload = {
       data: {
-        titulo: activityData.titulo, // Campo requerido
-        fecha: fecha, // SIEMPRE enviar fecha (requerida por Strapi)
-        tipo: tipo, // Valor por defecto si no se proporciona
-        estado: estado, // Valor por defecto si no se proporciona
-        // Campos opcionales
+        // Campos REQUERIDOS - siempre enviar
+        titulo: activityData.titulo, // Text requerido
+        fecha: fecha, // Datetime requerido
+        tipo: tipo, // Enumeration requerido (por defecto: "nota")
+        estado: estado, // Enumeration requerido (por defecto: "pendiente")
+        
+        // Campos OPCIONALES - solo enviar si existen
         ...(activityData.descripcion && { descripcion: activityData.descripcion }),
         ...(activityData.notas && { notas: activityData.notas }),
       },
@@ -95,7 +113,7 @@ export async function createActivity(activityData: {
       }
     }
     
-    // creado_por es opcional - solo agregar si es válido
+    // creado_por es opcional - Relation manyToOne con "Intranet · Colaboradores"
     // IMPORTANTE: Si el colaborador no existe en Strapi, esto causará un error 400
     // Por seguridad, solo agregar si el ID es válido, pero si falla, el error será capturado
     // y no interrumpirá el flujo principal (la creación del lead/oportunidad)
@@ -104,15 +122,16 @@ export async function createActivity(activityData: {
         ? parseInt(activityData.creado_por) 
         : activityData.creado_por
       if (!isNaN(creadoPorId) && creadoPorId > 0) {
-        // Formato correcto: solo el ID numérico
+        // Formato correcto: solo el ID numérico del colaborador
+        // Target: "Intranet · Colaboradores" (endpoint: /api/colaboradores)
         // Strapi puede transformarlo internamente a {"set":[{"id":X}]}, pero eso es normal
         actividadPayload.data.creado_por = creadoPorId
       } else {
         console.warn('[Activity Helper] ⚠️ ID de creado_por inválido, omitiendo:', activityData.creado_por)
       }
     }
-    // Nota: creado_por es opcional según los cambios en Strapi
-    // Si no se proporciona o es inválido, la actividad se creará sin creado_por
+    // Nota: creado_por es opcional - si no se proporciona o es inválido, 
+    // la actividad se creará sin creado_por
 
     // Asegurarse de que NO se envíe publishedAt (draftAndPublish está deshabilitado)
     // Limpiar cualquier campo que no deba enviarse - hacerlo antes de enviar
