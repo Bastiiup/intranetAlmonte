@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import { createActivity, getColaboradorIdFromRequest } from '@/lib/crm/activity-helper'
 
 export const dynamic = 'force-dynamic'
 
@@ -161,7 +162,7 @@ export async function GET(request: Request) {
  * POST /api/crm/leads
  * Crea un nuevo lead en Strapi
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
