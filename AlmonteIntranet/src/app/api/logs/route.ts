@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import strapiClient from '@/lib/strapi/client'
-import { getAuthColaborador, getAuthToken } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -88,9 +88,31 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // Obtener usuario autenticado
-    const colaborador = getAuthColaborador()
-    if (!colaborador || !colaborador.id) {
+    // Obtener usuario autenticado desde cookies del servidor
+    // Buscar en múltiples nombres de cookie para compatibilidad
+    const cookieStore = await cookies()
+    const cookieNames = ['auth_colaborador', 'colaboradorData', 'colaborador']
+    
+    let colaborador: any = null
+    for (const cookieName of cookieNames) {
+      const colaboradorStr = cookieStore.get(cookieName)?.value
+      if (colaboradorStr) {
+        try {
+          colaborador = JSON.parse(colaboradorStr)
+          // Asegurar que tenga id y documentId
+          if (colaborador && !colaborador.documentId && colaborador.id) {
+            colaborador.documentId = colaborador.id
+          }
+          break
+        } catch (parseError) {
+          console.warn(`[API /logs POST] Error al parsear cookie ${cookieName}:`, parseError)
+          continue
+        }
+      }
+    }
+    
+    if (!colaborador || (!colaborador.id && !colaborador.documentId)) {
+      console.error('[API /logs POST] ❌ Usuario no autenticado - no se encontró colaborador en cookies')
       return NextResponse.json(
         {
           success: false,
@@ -100,8 +122,12 @@ export async function POST(request: NextRequest) {
       )
     }
     
+    // Usar documentId si está disponible (Strapi v5 prefiere documentId para relaciones)
+    // Si no, usar id como fallback
+    const usuarioId = colaborador.documentId || colaborador.id
+    
     // Obtener IP y User-Agent
-    const ipAddress = request.headers.get('x-forwarded-for') || 
+    const ipAddress = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
                      request.headers.get('x-real-ip') || 
                      'unknown'
     const userAgent = request.headers.get('user-agent') || 'unknown'
@@ -111,11 +137,18 @@ export async function POST(request: NextRequest) {
       accion: accion || 'publicar',
       entidad: entidad || 'timeline',
       descripcion: descripcion.trim(),
-      usuario: colaborador.id,
+      usuario: usuarioId, // Usar documentId o id
       fecha: new Date().toISOString(),
       ip_address: ipAddress,
       user_agent: userAgent,
     }
+    
+    console.log('[API /logs POST] 📝 Creando log con usuario:', {
+      colaboradorId: colaborador.id,
+      colaboradorDocumentId: colaborador.documentId,
+      usuarioIdEnviado: usuarioId,
+      tipoUsuarioId: typeof usuarioId,
+    })
     
     // Agregar metadata si existe
     if (metadata) {
