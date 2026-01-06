@@ -224,40 +224,50 @@ export async function POST(request: Request) {
     if (body.trayectoria && personaId && body.trayectoria.colegio) {
       try {
         // El colegio puede venir como documentId (string) o id (number)
-        // Strapi necesita el ID numérico para la relación
+        // Validar que el ID sea válido (no 0, no null, no undefined, no string vacío)
         let colegioId = body.trayectoria.colegio
-        if (typeof colegioId === 'string') {
-          // Si es documentId, necesitamos obtener el id numérico
-          // Por ahora intentamos usar el string directamente, Strapi puede manejarlo
-          colegioId = colegioId
+        
+        // Convertir a número si es string
+        const colegioIdNum = typeof colegioId === 'string' 
+          ? (colegioId.trim() === '' ? null : parseInt(colegioId.trim()))
+          : colegioId
+        
+        // Validar que el ID sea válido
+        if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
+          console.warn('[API /crm/contacts POST] ⚠️ ID de colegio inválido, omitiendo creación de trayectoria:', {
+            colegioIdOriginal: body.trayectoria.colegio,
+            colegioIdNum,
+            cargo: body.trayectoria.cargo,
+          })
+          // No crear la trayectoria si el colegio no es válido
+        } else {
+          console.log('[API /crm/contacts POST] Creando trayectoria:', {
+            personaId,
+            colegioId: colegioIdNum,
+            cargo: body.trayectoria.cargo,
+          })
+          
+          const trayectoriaData = {
+            data: {
+              persona: { connect: [typeof personaId === 'number' ? personaId : parseInt(String(personaId))] },
+              colegio: { connect: [colegioIdNum] },
+              cargo: body.trayectoria.cargo || null,
+              is_current: body.trayectoria.is_current !== undefined ? body.trayectoria.is_current : true,
+            },
+          }
+          
+          const trayectoriaResponse = await strapiClient.post('/api/persona-trayectorias', trayectoriaData)
+          console.log('[API /crm/contacts POST] ✅ Trayectoria creada exitosamente:', trayectoriaResponse)
         }
-        
-        console.log('[API /crm/contacts POST] Creando trayectoria:', {
-          personaId,
-          colegioId: body.trayectoria.colegio,
-          cargo: body.trayectoria.cargo,
-        })
-        
-        const trayectoriaData = {
-          data: {
-            persona: { connect: [typeof personaId === 'number' ? personaId : parseInt(String(personaId))] },
-            colegio: { connect: [typeof colegioId === 'number' ? colegioId : parseInt(String(colegioId))] },
-            cargo: body.trayectoria.cargo || null,
-            is_current: body.trayectoria.is_current !== undefined ? body.trayectoria.is_current : true,
-          },
-        }
-        
-        const trayectoriaResponse = await strapiClient.post('/api/persona-trayectorias', trayectoriaData)
-        console.log('[API /crm/contacts POST] Trayectoria creada exitosamente:', trayectoriaResponse)
       } catch (trayectoriaError: any) {
-        console.error('[API /crm/contacts POST] Error al crear trayectoria:', {
+        console.error('[API /crm/contacts POST] ❌ Error al crear trayectoria:', {
           message: trayectoriaError.message,
           status: trayectoriaError.status,
           details: trayectoriaError.details,
           response: trayectoriaError.response,
         })
         // No fallar si la trayectoria no se puede crear, solo loguear
-        // Pero informar al usuario
+        // El contacto ya fue creado exitosamente
       }
     }
 
