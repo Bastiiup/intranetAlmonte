@@ -534,20 +534,29 @@ const Page = () => {
 
   // Obtener avatar del colaborador
   const getColaboradorAvatar = (col: Colaborador) => {
-    const persona = col.attributes?.persona || col.persona
+    // Primero intentar con persona normalizada (ya tiene imagen.url)
+    if (col.persona?.imagen?.url) {
+      const imgUrl = col.persona.imagen.url
+      return imgUrl.startsWith('http') ? imgUrl : `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${imgUrl}`
+    }
+    
+    // Si no, intentar con persona de attributes (estructura original de Strapi)
+    const persona = col.attributes?.persona
     if (!persona) return undefined
     
-    // Intentar diferentes estructuras de imagen
+    // Intentar diferentes estructuras de imagen desde Strapi
     const imagen = persona.imagen
+    if (!imagen) return undefined
     
-    if (imagen?.url) {
+    // Caso 1: URL directa
+    if (imagen.url) {
       const imgUrl = imagen.url
       return imgUrl.startsWith('http') ? imgUrl : `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${imgUrl}`
     }
     
-    // Si imagen viene en estructura de componente contacto.imagen
-    if (imagen?.imagen) {
-      const imagenComponent = imagen.imagen
+    // Caso 2: Estructura de componente contacto.imagen (solo si imagen es un objeto con propiedad imagen)
+    if (typeof imagen === 'object' && 'imagen' in imagen) {
+      const imagenComponent = (imagen as any).imagen
       let imgUrl: string | null = null
       
       // Si es array
@@ -555,19 +564,30 @@ const Page = () => {
         imgUrl = imagenComponent[0]?.url || imagenComponent[0]?.attributes?.url || null
       }
       // Si tiene data
-      else if (imagenComponent.data) {
+      else if (imagenComponent?.data) {
         const dataArray = Array.isArray(imagenComponent.data) ? imagenComponent.data : [imagenComponent.data]
         if (dataArray.length > 0) {
           imgUrl = dataArray[0]?.attributes?.url || dataArray[0]?.url || null
         }
       }
       // Si es objeto directo
-      else if (imagenComponent.url) {
+      else if (imagenComponent?.url) {
         imgUrl = imagenComponent.url
       }
       
       if (imgUrl) {
         return imgUrl.startsWith('http') ? imgUrl : `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${imgUrl}`
+      }
+    }
+    
+    // Caso 3: Data directamente
+    if ('data' in imagen && imagen.data) {
+      const dataArray = Array.isArray(imagen.data) ? imagen.data : [imagen.data]
+      if (dataArray.length > 0) {
+        const url = (dataArray[0] as any)?.attributes?.url || (dataArray[0] as any)?.url || null
+        if (url) {
+          return url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${url}`
+        }
       }
     }
     
