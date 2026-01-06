@@ -342,7 +342,7 @@ const CampaignTable = () => {
             {table.getRowModel().rows.length > 0 && (
                 <CardFooter className="border-0">
                     <TablePagination
-                        totalItems={totalItems}
+                        totalItems={totalRows}
                         start={start}
                         end={end}
                         itemsName="customers"
