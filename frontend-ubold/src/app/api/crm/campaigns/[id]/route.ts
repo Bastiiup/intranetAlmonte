@@ -78,28 +78,39 @@ export async function PUT(
     const { id } = await params
     const body = await request.json()
 
-    // Buscar la campaña primero para obtener el documentId
-    let campana: any = null
+    // En Strapi v5, intentar primero usar el endpoint directo con el ID
+    // Si el ID es un documentId (string largo), esto debería funcionar
+    let documentId = id
+    
     try {
-      const searchResponse = await strapiClient.get<any>(`/api/campanas?filters[id][$eq]=${id}&populate=*`)
-      
-      if (searchResponse.data && Array.isArray(searchResponse.data) && searchResponse.data.length > 0) {
-        campana = searchResponse.data[0]
-      } else if (searchResponse.data && !Array.isArray(searchResponse.data)) {
-        campana = searchResponse.data
+      // Primero intentar el endpoint directo (funciona con documentId)
+      const directResponse = await strapiClient.get<any>(`/api/campanas/${id}?populate=*`)
+      if (directResponse.data) {
+        const campana = directResponse.data
+        documentId = campana.documentId || campana.id?.toString() || id
       }
-      
-      if (!campana) {
-        const docIdResponse = await strapiClient.get<any>(`/api/campanas/${id}?populate=*`)
-        if (docIdResponse.data) {
-          campana = docIdResponse.data
+    } catch (directError: any) {
+      // Si falla y el ID es numérico, intentar buscar por filters
+      if (!isNaN(Number(id))) {
+        try {
+          const searchResponse = await strapiClient.get<any>(`/api/campanas?filters[id][$eq]=${id}&populate=*`)
+          
+          if (searchResponse.data && Array.isArray(searchResponse.data) && searchResponse.data.length > 0) {
+            const campana = searchResponse.data[0]
+            documentId = campana.documentId || campana.id?.toString() || id
+          } else if (searchResponse.data && !Array.isArray(searchResponse.data)) {
+            const campana = searchResponse.data
+            documentId = campana.documentId || campana.id?.toString() || id
+          }
+        } catch (searchError: any) {
+          // Si ambos fallan, usar el ID recibido como documentId
+          console.warn('[API /crm/campaigns/[id] PUT] No se pudo encontrar campaña, usando ID recibido:', id)
         }
+      } else {
+        // Si el ID no es numérico, asumir que es un documentId y usarlo directamente
+        console.log('[API /crm/campaigns/[id] PUT] Usando ID como documentId:', id)
       }
-    } catch (searchError: any) {
-      // Continuar con el ID recibido como fallback
     }
-
-    const documentId = campana?.documentId || campana?.data?.documentId || campana?.id?.toString() || id
 
     // Preparar datos para Strapi
     const campanaData: any = {
@@ -172,28 +183,39 @@ export async function DELETE(
   try {
     const { id } = await params
 
-    // Buscar la campaña primero para obtener el documentId
-    let campana: any = null
+    // En Strapi v5, intentar primero usar el endpoint directo con el ID
+    // Si el ID es un documentId (string largo), esto debería funcionar
+    let documentId = id
+    
     try {
-      const searchResponse = await strapiClient.get<any>(`/api/campanas?filters[id][$eq]=${id}&populate=*`)
-      
-      if (searchResponse.data && Array.isArray(searchResponse.data) && searchResponse.data.length > 0) {
-        campana = searchResponse.data[0]
-      } else if (searchResponse.data && !Array.isArray(searchResponse.data)) {
-        campana = searchResponse.data
+      // Primero intentar el endpoint directo (funciona con documentId)
+      const directResponse = await strapiClient.get<any>(`/api/campanas/${id}?populate=*`)
+      if (directResponse.data) {
+        const campana = directResponse.data
+        documentId = campana.documentId || campana.id?.toString() || id
       }
-      
-      if (!campana) {
-        const docIdResponse = await strapiClient.get<any>(`/api/campanas/${id}?populate=*`)
-        if (docIdResponse.data) {
-          campana = docIdResponse.data
+    } catch (directError: any) {
+      // Si falla y el ID es numérico, intentar buscar por filters
+      if (!isNaN(Number(id))) {
+        try {
+          const searchResponse = await strapiClient.get<any>(`/api/campanas?filters[id][$eq]=${id}&populate=*`)
+          
+          if (searchResponse.data && Array.isArray(searchResponse.data) && searchResponse.data.length > 0) {
+            const campana = searchResponse.data[0]
+            documentId = campana.documentId || campana.id?.toString() || id
+          } else if (searchResponse.data && !Array.isArray(searchResponse.data)) {
+            const campana = searchResponse.data
+            documentId = campana.documentId || campana.id?.toString() || id
+          }
+        } catch (searchError: any) {
+          // Si ambos fallan, usar el ID recibido como documentId
+          console.warn('[API /crm/campaigns/[id] DELETE] No se pudo encontrar campaña, usando ID recibido:', id)
         }
+      } else {
+        // Si el ID no es numérico, asumir que es un documentId y usarlo directamente
+        console.log('[API /crm/campaigns/[id] DELETE] Usando ID como documentId:', id)
       }
-    } catch (searchError: any) {
-      // Continuar con el ID recibido como fallback
     }
-
-    const documentId = campana?.documentId || campana?.data?.documentId || campana?.id?.toString() || id
 
     await strapiClient.delete(`/api/campanas/${documentId}`)
 
