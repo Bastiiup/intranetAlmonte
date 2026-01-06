@@ -12,7 +12,7 @@ import {
 } from '@tanstack/react-table'
 import Image from 'next/image'
 import { useState } from 'react'
-import { Button, Card, CardFooter, CardHeader } from 'react-bootstrap'
+import { Button, Card, CardBody, CardFooter, CardHeader } from 'react-bootstrap'
 import { LuDollarSign, LuSearch, LuShuffle } from 'react-icons/lu'
 import { TbEdit, TbEye, TbPlus, TbTrash } from 'react-icons/tb'
 
