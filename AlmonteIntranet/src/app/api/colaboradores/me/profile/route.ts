@@ -318,8 +318,10 @@ export async function PUT(request: NextRequest) {
     }
 
     // Actualizar persona en Strapi
+    // IMPORTANTE: aunque no haya campos básicos para actualizar, igual debemos permitir actualizar
+    // imagen/portada cuando venga imagen_id / portada_id.
     // PRIORIDAD: Si tenemos RUT pero no ID, buscar por RUT primero
-    if (Object.keys(personaUpdateData.data).length > 0) {
+    if (Object.keys(personaUpdateData.data).length > 0 || imagenIdParaActualizar || portadaIdParaActualizar) {
       try {
         let idParaActualizar: string | null = null
         
@@ -354,9 +356,13 @@ export async function PUT(request: NextRequest) {
         
         console.log('[API /colaboradores/me/profile] Intentando actualizar persona con ID:', idParaActualizar)
         
-        // Actualizar persona (sin imagen por ahora, ya que es un componente)
-        await strapiClient.put(`/api/personas/${idParaActualizar}`, personaUpdateData)
-        console.log('[API /colaboradores/me/profile] ✅ Persona actualizada exitosamente')
+        // Actualizar persona (sin imagen/portada por ahora, ya que son componentes)
+        if (Object.keys(personaUpdateData.data).length > 0) {
+          await strapiClient.put(`/api/personas/${idParaActualizar}`, personaUpdateData)
+          console.log('[API /colaboradores/me/profile] ✅ Persona actualizada exitosamente')
+        } else {
+          console.log('[API /colaboradores/me/profile] ℹ️ Sin campos básicos para actualizar; se actualizará solo imagen/portada si corresponde')
+        }
         
         // Si hay imagen para actualizar, intentar actualizarla por separado
         // El componente contacto.imagen tiene estructura: { imagen: [array], tipo, formato, estado, vigente_hasta, status }
@@ -521,8 +527,12 @@ export async function PUT(request: NextRequest) {
               const personaIdAlternativo = personaEncontrada.documentId || personaEncontrada.id?.toString()
               
               console.log('[API /colaboradores/me/profile] Persona encontrada por RUT, actualizando con ID:', personaIdAlternativo)
-              await strapiClient.put(`/api/personas/${personaIdAlternativo}`, personaUpdateData)
-              console.log('[API /colaboradores/me/profile] ✅ Persona actualizada usando RUT como fallback')
+              if (Object.keys(personaUpdateData.data).length > 0) {
+                await strapiClient.put(`/api/personas/${personaIdAlternativo}`, personaUpdateData)
+                console.log('[API /colaboradores/me/profile] ✅ Persona actualizada usando RUT como fallback')
+              } else {
+                console.log('[API /colaboradores/me/profile] ℹ️ Fallback por RUT: sin campos básicos para actualizar (solo imagen/portada), omitiendo updateData')
+              }
             } else {
               console.warn('[API /colaboradores/me/profile] No se encontró persona por RUT')
             }
