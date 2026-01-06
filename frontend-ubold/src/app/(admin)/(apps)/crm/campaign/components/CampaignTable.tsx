@@ -56,10 +56,10 @@ const CampaignTable = () => {
             enableColumnFilter: false,
         },
 
-        columnHelper.accessor('name', { header: 'Camaping name' }),
+        columnHelper.accessor('name', { header: 'Nombre de Campaña' }),
 
         columnHelper.accessor('creator', {
-            header: 'creator'
+            header: 'Creador'
             , cell: ({ row }) => (
                 <div className="d-flex gap-2 align-items-center">
                     <Image
@@ -72,28 +72,26 @@ const CampaignTable = () => {
                 </div>
             ),
         }),
-        columnHelper.accessor('budget', { header: 'budget' }),
-        columnHelper.accessor('goals', { header: 'goals' }),
+        columnHelper.accessor('budget', { header: 'Presupuesto' }),
+        columnHelper.accessor('goals', { header: 'Objetivo' }),
 
         columnHelper.accessor('status', {
-            header: 'Status',
+            header: 'Estado',
             cell: ({ row }) => {
-                const color =
-                    row.original.status === 'In Progress'
-                        ? 'bg-warning-subtle text-warning'
-                        : row.original.status === 'Success'
-                            ? 'bg-success-subtle text-success'
-                            : row.original.status === 'Scheduled'
-                                ? 'bg-info-subtle text-info'
-                                : row.original.status === 'Failed'
-                                    ? 'bg-danger-subtle text-danger'
-                                    : 'bg-primary-subtle text-primary'
-                return <span className={`badge ${color}`}>{row.original.status}</span>
+                const statusMap: Record<string, { label: string; color: string }> = {
+                    'In Progress': { label: 'En Progreso', color: 'bg-warning-subtle text-warning' },
+                    'Success': { label: 'Exitosa', color: 'bg-success-subtle text-success' },
+                    'Scheduled': { label: 'Programada', color: 'bg-info-subtle text-info' },
+                    'Failed': { label: 'Fallida', color: 'bg-danger-subtle text-danger' },
+                    'Ongoing': { label: 'En Curso', color: 'bg-primary-subtle text-primary' },
+                }
+                const statusInfo = statusMap[row.original.status] || { label: row.original.status, color: 'bg-secondary-subtle text-secondary' }
+                return <span className={`badge ${statusInfo.color}`}>{statusInfo.label}</span>
             },
         }),
 
         columnHelper.accessor('tags', {
-            header: 'Tags',
+            header: 'Etiquetas',
             cell: ({ row }) => (
                 <div className="d-flex gap-1 flex-wrap">
                     {row.original.tags.map((tag, index) => (
@@ -105,7 +103,7 @@ const CampaignTable = () => {
             ),
         }),
         columnHelper.accessor('dateCreated', {
-            header: 'Date Created',
+            header: 'Fecha de Creación',
             cell: ({ row }) => (
                 <>
                     {row.original.dateCreated} <small className="text-muted">{row.original.dateCreatedTime}</small>
@@ -114,7 +112,7 @@ const CampaignTable = () => {
         }),
 
         {
-            header: 'Actions',
+            header: 'Acciones',
             cell: ({ row }: { row: TableRow<CampaignType> }) => (
                 <div className="d-flex  gap-1">
                     <Button variant="default" size="sm" className="btn btn-default btn-icon btn-sm rounded">
@@ -250,7 +248,7 @@ const CampaignTable = () => {
                         <input
                             type="text"
                             className="form-control"
-                            placeholder="Search Campaign..."
+                            placeholder="Buscar campaña..."
                             value={globalFilter ?? ''}
                             onChange={(e) => setGlobalFilter(e.target.value)}
                         />
@@ -259,18 +257,25 @@ const CampaignTable = () => {
 
                     {Object.keys(selectedRowIds).length > 0 && (
                         <Button variant="danger" size="sm" onClick={toggleDeleteModal}>
-                            Delete
+                            Eliminar
                         </Button>
                     )}
 
                     <Button className="btn btn-primary" onClick={() => setShowModal(true)}>
-                        <TbPlus className="fs-lg" /> Create Campaign
+                        <TbPlus className="fs-lg" /> Crear Campaña
                     </Button>
-                    <CampaignModal show={showModal} onHide={() => setShowModal(false)} />
+                    <CampaignModal 
+                        show={showModal} 
+                        onHide={() => setShowModal(false)}
+                        onSuccess={() => {
+                            setShowModal(false)
+                            loadCampaigns()
+                        }}
+                    />
                 </div>
 
                 <div className="d-flex align-items-center gap-2">
-                    <span className="me-2 fw-semibold">Filter By:</span>
+                    <span className="me-2 fw-semibold">Filtrar por:</span>
 
                     <div className="app-search">
                         <select
@@ -298,7 +303,7 @@ const CampaignTable = () => {
                                 }
                                 setFiltroEstado(value === 'All' ? '' : (estadoMap[value] || value))
                             }}>
-                            <option value="All">Status</option>
+                            <option value="All">Estado</option>
                             <option value="Success">Success</option>
                             <option value="In Progress">In Progress</option>
                             <option value="Scheduled">Scheduled</option>
@@ -313,7 +318,7 @@ const CampaignTable = () => {
                             className="form-select form-control my-1 my-md-0"
                             value={(table.getColumn('budget')?.getFilterValue() as string) ?? 'All'}
                             onChange={(e) => table.getColumn('budget')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
-                            <option value="All">Budget Range</option>
+                            <option value="All">Rango de Presupuesto</option>
                             <option value="0-5000">$0 - $5,000</option>
                             <option value="5001-10000">$5,001 - $10,000</option>
                             <option value="10001-20000">$10,001 - $20,000</option>
@@ -337,7 +342,7 @@ const CampaignTable = () => {
                     </div>
                 </div>
             </CardHeader>
-            <DataTable<CampaignType> table={table} emptyMessage="No records found" />
+            <DataTable<CampaignType> table={table} emptyMessage="No se encontraron campañas" />
 
             {table.getRowModel().rows.length > 0 && (
                 <CardFooter className="border-0">
@@ -345,7 +350,7 @@ const CampaignTable = () => {
                         totalItems={totalRows}
                         start={start}
                         end={end}
-                        itemsName="customers"
+                        itemsName="campañas"
                         showInfo
                         previousPage={table.previousPage}
                         canPreviousPage={table.getCanPreviousPage()}
@@ -363,7 +368,7 @@ const CampaignTable = () => {
                 onHide={toggleDeleteModal}
                 onConfirm={handleDelete}
                 selectedCount={Object.keys(selectedRowIds).length}
-                itemName="customers"
+                itemName="campaña"
             />
         </Card>
 

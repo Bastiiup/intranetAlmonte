@@ -48,25 +48,25 @@ const CampaignCard = () => {
             value: totalCampaigns.toString(),
             change: totalCampaigns > 0 ? '+22.2%' : '0%',
             icon: <TbArrowUp className="text-success" />,
-            desc: 'Total campaigns launched',
+            desc: 'Total de campañas lanzadas',
         },
         {
             value: successfulCampaigns.toString(),
             change: totalCampaigns > 0 ? `+${((successfulCampaigns / totalCampaigns) * 100).toFixed(1)}%` : '0%',
             icon: <TbArrowUp className="text-success" />,
-            desc: 'Successful campaigns',
+            desc: 'Campañas exitosas',
         },
         {
             value: failedCampaigns.toString(),
             change: totalCampaigns > 0 ? `-${((failedCampaigns / totalCampaigns) * 100).toFixed(1)}%` : '0%',
             icon: <TbArrowDown className="text-danger" />,
-            desc: 'Failed campaigns',
+            desc: 'Campañas fallidas',
         },
         {
             value: `$${highestBudget.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
             change: 'Top value',
             icon: <TbCurrencyDollar className="text-success" />,
-            desc: 'Highest campaign budget',
+            desc: 'Presupuesto más alto',
         },
         {
             value: (
@@ -76,7 +76,7 @@ const CampaignCard = () => {
             ),
             change: '+1.4%',
             icon: <TbClock className="text-warning" />,
-            desc: 'Avg. campaign duration',
+            desc: 'Duración promedio',
         },
     ]
 

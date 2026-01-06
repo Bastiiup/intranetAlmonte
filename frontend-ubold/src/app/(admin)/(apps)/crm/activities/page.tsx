@@ -2,12 +2,14 @@
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Link from 'next/link'
-import { Card, CardBody, Col, Container, Row, Spinner, Alert } from 'react-bootstrap'
-import { TbBriefcase, TbCalendarEvent, TbEdit, TbMail, TbMessage, TbPencil, TbPhoneCall, TbStar, TbUserCircle, TbUserPlus, TbX, TbCheck, TbClock, TbDots } from 'react-icons/tb'
+import { Card, CardBody, Col, Container, Row, Spinner, Alert, Button } from 'react-bootstrap'
+import { TbBriefcase, TbCalendarEvent, TbEdit, TbMail, TbMessage, TbPencil, TbPhoneCall, TbStar, TbUserCircle, TbUserPlus, TbX, TbCheck, TbClock, TbDots, TbPlus } from 'react-icons/tb'
 import { useState, useEffect, useMemo } from 'react'
 import { getActivities, type ActivityType, tipoToIcon, estadoToBadge } from './data'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { useToggle } from 'usehooks-ts'
+import AddActivityModal from './components/AddActivityModal'
 
 // Mapeo de tipos a iconos
 const tipoIconMap: Record<string, any> = {
@@ -37,6 +39,7 @@ const Page = () => {
   const [activities, setActivities] = useState<ActivityType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showAddModal, toggleAddModal] = useToggle(false)
 
   useEffect(() => {
     loadActivities()
@@ -98,9 +101,9 @@ const Page = () => {
   return (
     <Container fluid>
       <PageBreadcrumb 
-        title='Activities' 
+        title='Actividades' 
         subtitle='CRM' 
-        infoText="Las Actividades registran todas las interacciones y eventos relacionados con tus contactos, leads y oportunidades. Aquí puedes ver el historial completo: llamadas, emails, reuniones, notas, cambios de estado, y más. Cada actividad muestra quién la realizó, cuándo, y está relacionada con la entidad correspondiente del CRM."
+        infoText="Las Actividades registran todas las interacciones y eventos relacionados con tus contactos, leads y oportunidades. Aquí puedes ver el historial completo: llamadas, emails, reuniones, notas, cambios de estado, y más. Cada actividad muestra quién la realizó, cuándo, y está relacionada con la entidad correspondiente del CRM. Para crear una nueva actividad, haz clic en el botón 'Nueva Actividad'."
       />
       
       {error && (
@@ -113,11 +116,27 @@ const Page = () => {
         <Col xxl={9}>
           <Card>
             <CardBody>
-              {activities.length === 0 ? (
-                <div className="text-center py-5">
-                  <p className="text-muted">No hay actividades registradas aún.</p>
-                </div>
-              ) : (
+              <div className="d-flex justify-content-between align-items-center mb-3">
+                <h5 className="mb-0">Historial de Actividades</h5>
+                <Button variant="primary" onClick={toggleAddModal}>
+                  <TbPlus className="me-1" /> Nueva Actividad
+                </Button>
+              </div>
+              
+              {activities.length === 0 && !loading && (
+                <Alert variant="info" className="mb-3">
+                  <strong>No hay actividades registradas.</strong>
+                  <p className="mb-0 mt-2">
+                    Las actividades se crean automáticamente cuando realizas acciones en el CRM (como crear un lead, 
+                    cambiar el estado de una oportunidad, etc.) o puedes crearlas manualmente haciendo clic en "Nueva Actividad".
+                    <br />
+                    <small className="text-muted">
+                      Tipos de actividades: Llamadas, Emails, Reuniones, Notas, Cambios de Estado, Tareas, Recordatorios.
+                    </small>
+                  </p>
+                </Alert>
+              )}
+              {activities.length > 0 && (
                 <div className="timeline timeline-icon-bordered">
                   {activitiesByDate.map(([dateKey, dateActivities]) => (
                     <div key={dateKey} className="mb-3">
@@ -173,6 +192,15 @@ const Page = () => {
               )}
             </CardBody>
           </Card>
+          
+          <AddActivityModal
+            show={showAddModal}
+            toggleModal={toggleAddModal}
+            onActivityCreated={() => {
+              loadActivities()
+              toggleAddModal()
+            }}
+          />
         </Col>
       </Row>
     </Container>
