@@ -5,7 +5,7 @@ import { Card, CardBody, Col, Row, Spinner } from 'react-bootstrap'
 import { TbArrowDown, TbArrowUp, TbClock, TbCurrencyDollar } from 'react-icons/tb'
 import { getCampaigns, type CampaignType } from '../data'
 
-type CampaignCardProps = {
+type CampaignCardData = {
     value: string | React.ReactNode,
     change: string,
     icon: React.ReactNode,
@@ -96,7 +96,7 @@ const CampaignCard = ({ refreshTrigger }: CampaignCardProps) => {
         }
     }
 
-    const cards: CampaignCardProps[] = [
+    const cards: CampaignCardData[] = [
         {
             value: totalCampaigns.toString(),
             change: totalCampaigns > 0 ? '+22.2%' : '0%',
