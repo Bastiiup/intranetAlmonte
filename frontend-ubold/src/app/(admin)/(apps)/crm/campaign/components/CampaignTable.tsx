@@ -19,13 +19,19 @@ import { TbEdit, TbEye, TbPlus, TbTrash } from 'react-icons/tb'
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
-import { campaigns, CampaignType } from '../data'
+import { getCampaigns, type CampaignType, type CampaignsQuery } from '../data'
 import CampaignModal from './CampaignModal'
+import { useEffect, useCallback } from 'react'
+import { Spinner, Alert } from 'react-bootstrap'
 
 const columnHelper = createColumnHelper<CampaignType>()
 
 const CampaignTable = () => {
     const [showModal, setShowModal] = useState(false);
+    const [campaignsData, setCampaignsData] = useState<CampaignType[]>([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+    const [totalRows, setTotalRows] = useState(0)
 
     const columns = [
         {
@@ -133,15 +139,40 @@ const CampaignTable = () => {
     ]
 
 
-    const [data, setData] = useState<CampaignType[]>(() => [...campaigns])
     const [globalFilter, setGlobalFilter] = useState('')
     const [sorting, setSorting] = useState<SortingState>([])
     const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
+    const [filtroEstado, setFiltroEstado] = useState<string>('')
+
+    const loadCampaigns = useCallback(async () => {
+        setLoading(true)
+        setError(null)
+        try {
+            const query: CampaignsQuery = {
+                page: pagination.pageIndex + 1,
+                pageSize: pagination.pageSize,
+                search: globalFilter || undefined,
+                estado: filtroEstado || undefined,
+            }
+            
+            const result = await getCampaigns(query)
+            setCampaignsData(result.campaigns)
+            setTotalRows(result.pagination.total)
+        } catch (err: any) {
+            setError(err.message || 'Error al cargar campañas')
+        } finally {
+            setLoading(false)
+        }
+    }, [pagination.pageIndex, pagination.pageSize, globalFilter, filtroEstado])
+
+    useEffect(() => {
+        loadCampaigns()
+    }, [loadCampaigns])
 
     const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
 
     const table = useReactTable({
-        data,
+        data: campaignsData,
         columns,
         state: { sorting, globalFilter, pagination, rowSelection: selectedRowIds },
         onSortingChange: setSorting,
@@ -155,14 +186,15 @@ const CampaignTable = () => {
         globalFilterFn: 'includesString',
         enableColumnFilters: true,
         enableRowSelection: true,
+        manualPagination: true,
+        pageCount: Math.ceil(totalRows / pagination.pageSize),
     })
 
     const pageIndex = table.getState().pagination.pageIndex
     const pageSize = table.getState().pagination.pageSize
-    const totalItems = table.getFilteredRowModel().rows.length
 
     const start = pageIndex * pageSize + 1
-    const end = Math.min(start + pageSize - 1, totalItems)
+    const end = Math.min(start + pageSize - 1, totalRows)
 
     const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false)
 
@@ -170,17 +202,48 @@ const CampaignTable = () => {
         setShowDeleteModal(!showDeleteModal)
     }
 
-    const handleDelete = () => {
-        const selectedIds = new Set(Object.keys(selectedRowIds))
-        setData((old) => old.filter((_, idx) => !selectedIds.has(idx.toString())))
-        setSelectedRowIds({})
-        setPagination({ ...pagination, pageIndex: 0 })
-        setShowDeleteModal(false)
+    const handleDelete = async () => {
+        const selectedIds = Object.keys(selectedRowIds)
+        try {
+            for (const rowId of selectedIds) {
+                const campaign = campaignsData[parseInt(rowId)]
+                if (campaign?.realId) {
+                    const cleanId = campaign.realId.replace(/^#CAMP/, '').replace(/^#/, '')
+                    const response = await fetch(`/api/crm/campaigns/${cleanId}`, {
+                        method: 'DELETE',
+                    })
+                    const result = await response.json()
+                    if (!response.ok || !result.success) {
+                        throw new Error(result.error || 'Error al eliminar campaña')
+                    }
+                }
+            }
+            await loadCampaigns()
+            setSelectedRowIds({})
+            setShowDeleteModal(false)
+        } catch (err: any) {
+            setError(err.message || 'Error al eliminar campañas')
+        }
+    }
+
+    if (loading && campaignsData.length === 0) {
+        return (
+            <Card>
+                <CardBody className="text-center py-5">
+                    <Spinner animation="border" variant="primary" />
+                    <p className="mt-2 text-muted">Cargando campañas...</p>
+                </CardBody>
+            </Card>
+        )
     }
 
     return (
-
         <Card>
+            {error && (
+                <Alert variant="danger" className="m-3">
+                    <strong>Error:</strong> {error}
+                </Alert>
+            )}
             <CardHeader className="border-light justify-content-between">
                 <div className="d-flex gap-2">
                     <div className="app-search">
@@ -212,8 +275,29 @@ const CampaignTable = () => {
                     <div className="app-search">
                         <select
                             className="form-select form-control my-1 my-md-0"
-                            value={(table.getColumn('status')?.getFilterValue() as string) ?? 'All'}
-                            onChange={(e) => table.getColumn('status')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
+                            value={(() => {
+                                // Mapear estado Strapi a estado UI para mostrar
+                                const estadoMap: Record<string, string> = {
+                                    'en_progreso': 'In Progress',
+                                    'exitosa': 'Success',
+                                    'programada': 'Scheduled',
+                                    'fallida': 'Failed',
+                                    'en_curso': 'Ongoing',
+                                }
+                                return estadoMap[filtroEstado] || 'All'
+                            })()}
+                            onChange={(e) => {
+                                const value = e.target.value
+                                // Mapear estado UI a estado Strapi
+                                const estadoMap: Record<string, string> = {
+                                    'In Progress': 'en_progreso',
+                                    'Success': 'exitosa',
+                                    'Scheduled': 'programada',
+                                    'Failed': 'fallida',
+                                    'Ongoing': 'en_curso',
+                                }
+                                setFiltroEstado(value === 'All' ? '' : (estadoMap[value] || value))
+                            }}>
                             <option value="All">Status</option>
                             <option value="Success">Success</option>
                             <option value="In Progress">In Progress</option>
