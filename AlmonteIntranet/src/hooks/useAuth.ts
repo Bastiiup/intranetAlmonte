@@ -73,7 +73,16 @@ export function useAuth(): AuthData {
                 colaborador: colaboradorData,
                 persona: personaData,
                 personaImagen: personaData?.imagen,
+                personaImagenRaw: JSON.stringify(personaData?.imagen, null, 2),
               })
+              
+              // Verificar si la imagen está normalizada
+              if (personaData && !personaData.imagen) {
+                console.warn('[useAuth] ⚠️ Persona recibida pero sin imagen normalizada')
+                console.warn('[useAuth] Estructura completa de personaData:', JSON.stringify(personaData, null, 2))
+              } else if (personaData?.imagen) {
+                console.log('[useAuth] ✅ Imagen encontrada en persona:', personaData.imagen)
+              }
               
               setAuthData({
                 colaborador: colaboradorData as ColaboradorData,

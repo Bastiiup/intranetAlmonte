@@ -981,6 +981,12 @@ export async function GET(request: NextRequest) {
     
     console.log('[API /colaboradores/me/profile GET] Imagen normalizada:', JSON.stringify(imagenNormalizada, null, 2))
     
+    if (!imagenNormalizada && imagenRaw) {
+      console.warn('[API /colaboradores/me/profile GET] ⚠️ imagenRaw existe pero no se pudo normalizar:', JSON.stringify(imagenRaw, null, 2))
+    } else if (!imagenRaw) {
+      console.warn('[API /colaboradores/me/profile GET] ⚠️ imagenRaw es null/undefined. personaAttrs:', JSON.stringify(personaAttrs, null, 2))
+    }
+    
     // Normalizar portada (similar a imagen)
     let portadaRaw = personaAttrs.portada || persona?.portada
     if (!portadaRaw || (portadaRaw && !portadaRaw.imagen && !portadaRaw.url && !portadaRaw.data)) {
