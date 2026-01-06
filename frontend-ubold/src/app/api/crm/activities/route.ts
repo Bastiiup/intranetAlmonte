@@ -69,20 +69,48 @@ export async function GET(request: NextRequest) {
       params.append('filters[$or][1][descripcion][$containsi]', search)
     }
 
-    const response = await strapiClient.get<StrapiResponse<StrapiEntity<ActividadAttributes>[]>>(
-      `/api/actividades?${params.toString()}`
-    )
+    // Intentar primero con "actividades" (plural español)
+    // Si falla, intentar con "actividads" (plural que Strapi puede generar)
+    let response: any
+    try {
+      response = await strapiClient.get<StrapiResponse<StrapiEntity<ActividadAttributes>[]>>(
+        `/api/actividades?${params.toString()}`
+      )
+    } catch (firstError: any) {
+      // Si falla con 404, intentar con "actividads" (sin la 'e')
+      if (firstError.status === 404) {
+        console.log('[API /crm/activities] Intentando con endpoint alternativo: /api/actividads')
+        try {
+          response = await strapiClient.get<StrapiResponse<StrapiEntity<ActividadAttributes>[]>>(
+            `/api/actividads?${params.toString()}`
+          )
+        } catch (secondError: any) {
+          // Si ambos fallan, lanzar el error original
+          throw firstError
+        }
+      } else {
+        throw firstError
+      }
+    }
+
+    const activitiesData = response.data || []
+    const pagination = response.meta?.pagination || {
+      page: 1,
+      pageSize: 50,
+      total: 0,
+      pageCount: 0,
+    }
+
+    console.log('[API /crm/activities] ✅ Actividades obtenidas:', {
+      count: Array.isArray(activitiesData) ? activitiesData.length : activitiesData ? 1 : 0,
+      total: pagination.total,
+    })
 
     return NextResponse.json({
       success: true,
-      data: response.data || [],
-      meta: response.meta || {
-        pagination: {
-          page: 1,
-          pageSize: 50,
-          total: 0,
-          pageCount: 0,
-        },
+      data: activitiesData,
+      meta: {
+        pagination,
       },
     })
   } catch (error: any) {
@@ -107,6 +135,8 @@ export async function GET(request: NextRequest) {
 
     // Si el content-type no existe
     if (error.status === 404 || error.message?.includes('Not Found')) {
+      console.error('[API /crm/activities] ❌ Content-type "Actividad" no existe en Strapi')
+      console.error('[API /crm/activities] Verifica que el content-type esté creado con el nombre "actividad"')
       return NextResponse.json(
         {
           success: false,
@@ -119,7 +149,8 @@ export async function GET(request: NextRequest) {
               pageCount: 0,
             },
           },
-          message: 'El content-type "Actividad" no existe en Strapi. Necesitas crearlo primero.',
+          message: 'El content-type "Actividad" no existe en Strapi. Necesitas crearlo primero usando el prompt en PROMPT-CURSOR-CREAR-ACTIVIDADES-Y-CAMPAÑAS-STRAPI.md',
+          error: 'Content-type no encontrado',
         },
         { status: 404 }
       )

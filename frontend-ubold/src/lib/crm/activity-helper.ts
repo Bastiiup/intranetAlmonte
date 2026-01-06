@@ -66,10 +66,31 @@ export async function createActivity(activityData: {
       payload: JSON.stringify(actividadPayload, null, 2),
     })
 
-    const response = await strapiClient.post<StrapiResponse<StrapiEntity<ActividadAttributes>>>(
-      '/api/actividades',
-      actividadPayload
-    )
+    // Intentar primero con "actividades" (plural español)
+    // Si falla, intentar con "actividads" (plural que Strapi puede generar)
+    let response: any
+    try {
+      response = await strapiClient.post<StrapiResponse<StrapiEntity<ActividadAttributes>>>(
+        '/api/actividades',
+        actividadPayload
+      )
+    } catch (firstError: any) {
+      // Si falla con 404, intentar con "actividads" (sin la 'e')
+      if (firstError.status === 404) {
+        console.log('[Activity Helper] Intentando con endpoint alternativo: /api/actividads')
+        try {
+          response = await strapiClient.post<StrapiResponse<StrapiEntity<ActividadAttributes>>>(
+            '/api/actividads',
+            actividadPayload
+          )
+        } catch (secondError: any) {
+          // Si ambos fallan, lanzar el error original
+          throw firstError
+        }
+      } else {
+        throw firstError
+      }
+    }
 
     console.log('[Activity Helper] ✅ Actividad creada automáticamente:', {
       titulo: activityData.titulo,
