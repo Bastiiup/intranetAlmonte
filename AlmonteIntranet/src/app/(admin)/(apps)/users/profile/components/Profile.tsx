@@ -11,13 +11,19 @@ import { LuDribbble, LuFacebook, LuInstagram, LuLinkedin, LuYoutube } from 'reac
 import { useAuth, getPersonaNombre, getPersonaEmail, getRolLabel } from '@/hooks/useAuth'
 import { getAuthToken } from '@/lib/auth'
 
-const Profile = () => {
+interface ProfileProps {
+    colaboradorId?: string
+}
+
+const Profile = ({ colaboradorId }: ProfileProps) => {
     const { persona, colaborador, loading } = useAuth()
     const [profileData, setProfileData] = useState<any>(null)
+    const [isLoadingProfile, setIsLoadingProfile] = useState(true)
     
     // Cargar datos completos del perfil
     useEffect(() => {
         const loadProfile = async () => {
+            setIsLoadingProfile(true)
             try {
                 const token = getAuthToken()
                 const headers: HeadersInit = {}
@@ -25,45 +31,54 @@ const Profile = () => {
                     headers['Authorization'] = `Bearer ${token}`
                 }
 
-                const response = await fetch('/api/colaboradores/me/profile', {
+                // Si hay colaboradorId, cargar perfil de otro colaborador
+                const endpoint = colaboradorId 
+                    ? `/api/colaboradores/${colaboradorId}`
+                    : '/api/colaboradores/me/profile'
+
+                const response = await fetch(endpoint, {
                     headers,
                 })
                 if (response.ok) {
                     const result = await response.json()
                     if (result.success && result.data) {
-                        setProfileData(result.data)
+                        // Normalizar estructura: puede venir como data.data o data directamente
+                        const data = result.data.data || result.data
+                        setProfileData(data)
                     }
                 }
             } catch (err) {
                 console.error('[Profile] Error al cargar perfil:', err)
+            } finally {
+                setIsLoadingProfile(false)
             }
         }
         if (!loading) {
             loadProfile()
         }
-    }, [loading])
+    }, [loading, colaboradorId])
     
-    const nombreCompleto = persona ? getPersonaNombre(persona) : (colaborador?.email_login || 'Usuario')
-    const email = getPersonaEmail(persona, colaborador)
-    const rolLabel = colaborador?.rol ? getRolLabel(colaborador.rol) : 'Usuario'
+    // Si estamos viendo otro perfil, usar datos de profileData
+    const displayPersona = profileData?.persona || profileData?.attributes?.persona || persona
+    const displayColaborador = profileData?.attributes || profileData || colaborador
+    
+    const nombreCompleto = displayPersona ? getPersonaNombre(displayPersona) : (displayColaborador?.email_login || 'Usuario')
+    const email = getPersonaEmail(displayPersona, displayColaborador)
+    const rolLabel = displayColaborador?.rol ? getRolLabel(displayColaborador.rol) : 'Usuario'
     
     // Obtener avatar - normalizar diferentes estructuras de imagen
     let avatarSrc = user3.src
     
+    const personaImagen = displayPersona?.imagen || displayPersona?.attributes?.imagen
+    
     // Intentar desde profileData primero (más actualizado)
-    if (profileData?.persona?.imagen?.url) {
-        const imgUrl = profileData.persona.imagen.url
+    if (personaImagen?.url) {
+        const imgUrl = personaImagen.url
         avatarSrc = imgUrl.startsWith('http') ? imgUrl : `${process.env.NEXT_PUBLIC_STRAPI_URL}${imgUrl}`
     }
-    // Fallback a persona del hook useAuth
-    else if (persona?.imagen?.url) {
-        avatarSrc = persona.imagen.url.startsWith('http') 
-            ? persona.imagen.url 
-            : `${process.env.NEXT_PUBLIC_STRAPI_URL}${persona.imagen.url}`
-    }
     // Si imagen viene en estructura de componente contacto.imagen
-    else if (persona?.imagen?.imagen) {
-        const imagenComponent = persona.imagen.imagen
+    else if (personaImagen?.imagen) {
+        const imagenComponent = personaImagen.imagen
         let imgUrl: string | null = null
         
         // Si es array (ESTRUCTURA REAL: imagen.imagen es array de objetos con url directa)
@@ -89,13 +104,13 @@ const Profile = () => {
     }
     
     // Obtener teléfono principal
-    const telefono = profileData?.persona?.telefono_principal || 
-                     (persona?.telefonos && Array.isArray(persona.telefonos) && persona.telefonos.length > 0
-                        ? persona.telefonos[0]?.numero || ''
+    const telefono = displayPersona?.telefono_principal || 
+                     (displayPersona?.telefonos && Array.isArray(displayPersona.telefonos) && displayPersona.telefonos.length > 0
+                        ? displayPersona.telefonos[0]?.numero || ''
                         : '')
     
     // Obtener dirección
-    const direccion = profileData?.persona?.direccion || null
+    const direccion = displayPersona?.direccion || null
     const direccionCompleta = direccion && typeof direccion === 'object' 
         ? [
             direccion.line1,
@@ -108,10 +123,10 @@ const Profile = () => {
         : null
     
     // Obtener redes sociales
-    const redesSociales = profileData?.persona?.redes_sociales || {}
+    const redesSociales = displayPersona?.redes_sociales || {}
     
     // Obtener skills
-    const skills = profileData?.persona?.skills || []
+    const skills = displayPersona?.skills || []
     const skillsArray = Array.isArray(skills) ? skills : (typeof skills === 'string' ? skills.split(',').map(s => s.trim()) : [])
     
     // Función para navegar a Settings
@@ -138,34 +153,36 @@ const Profile = () => {
                     </div>
                     <div>
                         <h5 className="mb-0 d-flex align-items-center">
-                            <Link href="" className="link-reset">{loading ? 'Cargando...' : nombreCompleto}</Link>
-                            {persona?.rut && (
-                                <span className="ms-2 text-muted fs-sm">({persona.rut})</span>
+                            <Link href="" className="link-reset">{isLoadingProfile || loading ? 'Cargando...' : nombreCompleto}</Link>
+                            {displayPersona?.rut && (
+                                <span className="ms-2 text-muted fs-sm">({displayPersona.rut})</span>
                             )}
                         </h5>
-                        <p className="text-muted mb-2">{loading ? '...' : rolLabel}</p>
-                        {colaborador?.activo && (
+                        <p className="text-muted mb-2">{isLoadingProfile || loading ? '...' : rolLabel}</p>
+                        {displayColaborador?.activo && (
                             <span className="badge text-bg-success badge-label">Activo</span>
                         )}
                     </div>
-                    <div className="ms-auto">
-                        <Dropdown >
-                            <DropdownToggle className="btn btn-icon btn-ghost-light text-muted drop-arrow-none" data-bs-toggle="dropdown">
-                                <TbDotsVertical className="fs-xl" />
-                            </DropdownToggle>
-                            <DropdownMenu align={'end'} className="dropdown-menu-end">
-                                <li><DropdownItem onClick={handleEditProfile}>Editar Perfil</DropdownItem></li>
-                            </DropdownMenu>
-                        </Dropdown>
-                    </div>
+                    {!colaboradorId && (
+                        <div className="ms-auto">
+                            <Dropdown >
+                                <DropdownToggle className="btn btn-icon btn-ghost-light text-muted drop-arrow-none" data-bs-toggle="dropdown">
+                                    <TbDotsVertical className="fs-xl" />
+                                </DropdownToggle>
+                                <DropdownMenu align={'end'} className="dropdown-menu-end">
+                                    <li><DropdownItem onClick={handleEditProfile}>Editar Perfil</DropdownItem></li>
+                                </DropdownMenu>
+                            </Dropdown>
+                        </div>
+                    )}
                 </div>
                 <div>
-                    {persona?.rut && (
+                    {displayPersona?.rut && (
                         <div className="d-flex align-items-center gap-2 mb-2">
                             <div className="avatar-sm text-bg-light bg-opacity-75 d-flex align-items-center justify-content-center rounded-circle">
                                 <TbBriefcase className="fs-xl" />
                             </div>
-                            <p className="mb-0 fs-sm">RUT: <span className="text-dark fw-semibold">{persona.rut}</span></p>
+                            <p className="mb-0 fs-sm">RUT: <span className="text-dark fw-semibold">{displayPersona.rut}</span></p>
                         </div>
                     )}
                     {email && (
@@ -193,20 +210,20 @@ const Profile = () => {
                             <p className="mb-0 fs-sm">Dirección: <span className="text-dark fw-semibold">{direccionCompleta}</span></p>
                         </div>
                     )}
-                    {colaborador?.email_login && (
+                    {displayColaborador?.email_login && (
                         <div className="d-flex align-items-center gap-2 mb-2">
                             <div className="avatar-sm text-bg-light bg-opacity-75 d-flex align-items-center justify-content-center rounded-circle">
                                 <TbUsers className="fs-xl" />
                             </div>
-                            <p className="mb-0 fs-sm">Email de login: <span className="text-dark fw-semibold">{colaborador.email_login}</span></p>
+                            <p className="mb-0 fs-sm">Email de login: <span className="text-dark fw-semibold">{displayColaborador.email_login}</span></p>
                         </div>
                     )}
-                    {colaborador?.rol && (
+                    {displayColaborador?.rol && (
                         <div className="d-flex align-items-center gap-2 mb-2">
                             <div className="avatar-sm text-bg-light bg-opacity-75 d-flex align-items-center justify-content-center rounded-circle">
                                 <TbSchool className="fs-xl" />
                             </div>
-                            <p className="mb-0 fs-sm">Rol: <span className="text-dark fw-semibold">{getRolLabel(colaborador.rol)}</span></p>
+                            <p className="mb-0 fs-sm">Rol: <span className="text-dark fw-semibold">{getRolLabel(displayColaborador.rol)}</span></p>
                         </div>
                     )}
                     {(redesSociales.facebook || redesSociales.twitter || redesSociales.instagram || redesSociales.linkedin || redesSociales.github || redesSociales.skype) && (

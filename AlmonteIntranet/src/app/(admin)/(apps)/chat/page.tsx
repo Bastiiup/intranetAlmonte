@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Container, Alert, Spinner, ListGroup, Badge } from 'react-bootstrap'
+import { Container, Alert, Spinner, ListGroup, Badge, Button } from 'react-bootstrap'
+import Link from 'next/link'
+import { TbUser } from 'react-icons/tb'
 import { StreamChat } from 'stream-chat'
 import {
   Chat,
@@ -587,7 +589,7 @@ const Page = () => {
                         color: isSelected ? 'white' : 'inherit',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', width: '100%' }}>
                         <div
                           style={{
                             width: '40px',
@@ -613,6 +615,26 @@ const Page = () => {
                             {col.attributes?.email_login || col.email_login || ''}
                           </div>
                         </div>
+                        <Link 
+                          href={`/users/profile/${col.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ 
+                            textDecoration: 'none',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <Button
+                            variant={isSelected ? 'light' : 'outline-primary'}
+                            size="sm"
+                            style={{
+                              minWidth: 'auto',
+                              padding: '0.25rem 0.5rem',
+                            }}
+                            title="Ver Perfil"
+                          >
+                            <TbUser style={{ fontSize: '1rem' }} />
+                          </Button>
+                        </Link>
                       </div>
                     </ListGroup.Item>
                   )

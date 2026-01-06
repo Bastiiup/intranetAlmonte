@@ -7,7 +7,11 @@ import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { getAuthToken } from '@/lib/auth'
 
-const Account = () => {
+interface AccountProps {
+    colaboradorId?: string
+}
+
+const Account = ({ colaboradorId }: AccountProps) => {
     const { persona, colaborador, loading: authLoading } = useAuth()
     const [profileLoading, setProfileLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -61,13 +65,25 @@ const Account = () => {
                     headers['Authorization'] = `Bearer ${token}`
                 }
 
-                const response = await fetch('/api/colaboradores/me/profile', {
+                // Si hay colaboradorId, cargar perfil de otro colaborador
+                const endpoint = colaboradorId 
+                    ? `/api/colaboradores/${colaboradorId}`
+                    : '/api/colaboradores/me/profile'
+
+                const response = await fetch(endpoint, {
                     headers,
                 })
                 if (response.ok) {
                     const result = await response.json()
                     if (result.success && result.data) {
-                        const { persona: personaData, colaborador: colaboradorData } = result.data
+                        // Normalizar estructura: puede venir como data.data o data directamente
+                        const data = result.data.data || result.data
+                        const personaData = colaboradorId 
+                            ? (data.attributes?.persona || data.persona)
+                            : result.data.persona
+                        const colaboradorData = colaboradorId
+                            ? (data.attributes || data)
+                            : result.data.colaborador
                         
                         console.log('[Account] Datos completos recibidos:', JSON.stringify(result.data, null, 2))
                         console.log('[Account] Estructura de personaData:', JSON.stringify(personaData, null, 2))
@@ -184,37 +200,38 @@ const Account = () => {
         }
 
         loadProfile()
-    }, [authLoading])
+    }, [authLoading, colaboradorId])
     
     // Cargar timeline (logs de actividades del usuario)
     useEffect(() => {
         const loadTimeline = async () => {
-            if (authLoading || !colaborador) {
-                console.log('[Línea de Tiempo] ⏳ Esperando autenticación o colaborador:', { authLoading, colaboradorId: colaborador?.id })
+            // Si estamos viendo otro perfil, usar el colaboradorId proporcionado
+            const targetColaboradorId = colaboradorId || colaborador?.id || colaborador?.documentId
+            
+            if (authLoading || !targetColaboradorId) {
+                console.log('[Línea de Tiempo] ⏳ Esperando autenticación o colaborador:', { authLoading, colaboradorId: targetColaboradorId })
                 return
             }
             
             setLoadingTimeline(true)
             try {
                 
-                // Obtener ID del colaborador (priorizar documentId, luego id)
-                const colaboradorId = (colaborador as any).documentId || colaborador.id
-                
-                if (!colaboradorId) {
+                if (!targetColaboradorId) {
                     console.error('[Línea de Tiempo] ❌ No se pudo obtener ID del colaborador')
                     setTimelinePosts([])
                     setLoadingTimeline(false)
                     return
                 }
                 
-                console.log('[Línea de Tiempo] 🔍 Cargando logs para colaborador:', colaboradorId, {
-                    tieneId: !!colaborador.id,
-                    tieneDocumentId: !!(colaborador as any).documentId,
+                console.log('[Línea de Tiempo] 🔍 Cargando logs para colaborador:', targetColaboradorId, {
+                    esOtroPerfil: !!colaboradorId,
+                    tieneId: !!colaborador?.id,
+                    tieneDocumentId: !!(colaborador as any)?.documentId,
                 })
                 
                 // Usar el endpoint específico del usuario (igual que la página de logs)
                 // Este endpoint ya filtra por usuario, así que no necesitamos filtrar manualmente
-                const response = await fetch(`/api/logs/usuario/${colaboradorId}?page=1&pageSize=50&sort=fecha:desc`, {
+                const response = await fetch(`/api/logs/usuario/${targetColaboradorId}?page=1&pageSize=50&sort=fecha:desc`, {
                     cache: 'no-store',
                 })
                 
@@ -251,13 +268,9 @@ const Account = () => {
                             const fallbackResult = await fallbackResponse.json()
                             if (fallbackResult.success && fallbackResult.data) {
                                 // Filtrar manualmente por usuario
-                                const colaboradorIdNum = colaborador.id
-                                const colaboradorDocumentId = (colaborador as any).documentId
                                 const colaboradorIds = [
-                                    colaboradorIdNum,
-                                    colaboradorDocumentId,
-                                    String(colaboradorIdNum),
-                                    String(colaboradorDocumentId),
+                                    targetColaboradorId,
+                                    String(targetColaboradorId),
                                 ].filter(Boolean)
                                 
                                 const userLogs = fallbackResult.data.filter((log: any) => {
@@ -306,7 +319,7 @@ const Account = () => {
         }
         
         loadTimeline()
-    }, [authLoading, colaborador?.id, (colaborador as any)?.documentId])
+    }, [authLoading, colaborador?.id, (colaborador as any)?.documentId, colaboradorId])
 
     // Manejar cambio de foto
     const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -590,16 +603,16 @@ const Account = () => {
                                     onClick={async () => {
                                         setLoadingTimeline(true)
                                         try {
-                                            const colaboradorId = (colaborador as any)?.documentId || colaborador?.id
+                                            const targetColaboradorId = colaboradorId || (colaborador as any)?.documentId || colaborador?.id
                                             
-                                            if (!colaboradorId) {
+                                            if (!targetColaboradorId) {
                                                 console.error('[Línea de Tiempo] ❌ No se pudo obtener ID del colaborador')
                                                 setLoadingTimeline(false)
                                                 return
                                             }
                                             
                                             // Usar el endpoint específico del usuario (igual que loadTimeline)
-                                            const response = await fetch(`/api/logs/usuario/${colaboradorId}?page=1&pageSize=50&sort=fecha:desc`, {
+                                            const response = await fetch(`/api/logs/usuario/${targetColaboradorId}?page=1&pageSize=50&sort=fecha:desc`, {
                                                 cache: 'no-store',
                                             })
                                             
@@ -629,101 +642,103 @@ const Account = () => {
                                     )}
                                 </Button>
                             </div>
-                            <form onSubmit={async (e) => {
-                                e.preventDefault()
-                                if (!newPostText.trim() || posting) return
-                                
-                                setPosting(true)
-                                try {
-                                    const token = getAuthToken()
-                                    const headers: HeadersInit = {
-                                        'Content-Type': 'application/json',
-                                    }
-                                    if (token) {
-                                        headers['Authorization'] = `Bearer ${token}`
-                                    }
+                            {!colaboradorId && (
+                                <form onSubmit={async (e) => {
+                                    e.preventDefault()
+                                    if (!newPostText.trim() || posting) return
                                     
-                                    // Crear un log de actividad como post
-                                    const response = await fetch('/api/logs', {
-                                        method: 'POST',
-                                        headers,
-                                        body: JSON.stringify({
-                                            accion: 'crear',
-                                            entidad: 'timeline',
-                                            descripcion: newPostText.trim(),
-                                            metadata: { tipo: 'post_timeline' },
-                                        }),
-                                    })
-                                    
-                                    if (response.ok) {
-                                        const postResult = await response.json()
-                                        console.log('[Timeline] ✅ Post creado:', postResult)
-                                        setNewPostText('')
-                                        setSuccess(true)
+                                    setPosting(true)
+                                    try {
+                                        const token = getAuthToken()
+                                        const headers: HeadersInit = {
+                                            'Content-Type': 'application/json',
+                                        }
+                                        if (token) {
+                                            headers['Authorization'] = `Bearer ${token}`
+                                        }
                                         
-                                        // Esperar un momento para que Strapi procese el log
-                                        await new Promise(resolve => setTimeout(resolve, 500))
+                                        // Crear un log de actividad como post
+                                        const response = await fetch('/api/logs', {
+                                            method: 'POST',
+                                            headers,
+                                            body: JSON.stringify({
+                                                accion: 'crear',
+                                                entidad: 'timeline',
+                                                descripcion: newPostText.trim(),
+                                                metadata: { tipo: 'post_timeline' },
+                                            }),
+                                        })
                                         
-                                        // Recargar timeline usando el mismo método que loadTimeline
-                                        const colaboradorId = (colaborador as any)?.documentId || colaborador?.id
-                                        
-                                        if (colaboradorId) {
-                                            const timelineResponse = await fetch(`/api/logs/usuario/${colaboradorId}?page=1&pageSize=50&sort=fecha:desc`, {
-                                                cache: 'no-store',
-                                            })
+                                        if (response.ok) {
+                                            const postResult = await response.json()
+                                            console.log('[Timeline] ✅ Post creado:', postResult)
+                                            setNewPostText('')
+                                            setSuccess(true)
                                             
-                                            if (timelineResponse.ok) {
-                                                const result = await timelineResponse.json()
-                                                if (result.success && result.data) {
-                                                    const logsArray = Array.isArray(result.data) ? result.data : [result.data]
-                                                    console.log('[Línea de Tiempo] 🔄 Recargado después de post:', logsArray.length, 'logs')
-                                                    setTimelinePosts(logsArray)
+                                            // Esperar un momento para que Strapi procese el log
+                                            await new Promise(resolve => setTimeout(resolve, 500))
+                                            
+                                            // Recargar timeline usando el mismo método que loadTimeline
+                                            const targetColaboradorId = (colaborador as any)?.documentId || colaborador?.id
+                                            
+                                            if (targetColaboradorId) {
+                                                const timelineResponse = await fetch(`/api/logs/usuario/${targetColaboradorId}?page=1&pageSize=50&sort=fecha:desc`, {
+                                                    cache: 'no-store',
+                                                })
+                                                
+                                                if (timelineResponse.ok) {
+                                                    const result = await timelineResponse.json()
+                                                    if (result.success && result.data) {
+                                                        const logsArray = Array.isArray(result.data) ? result.data : [result.data]
+                                                        console.log('[Línea de Tiempo] 🔄 Recargado después de post:', logsArray.length, 'logs')
+                                                        setTimelinePosts(logsArray)
+                                                    }
                                                 }
                                             }
+                                        } else {
+                                            const errorData = await response.json()
+                                            console.error('[Timeline] ❌ Error al crear post:', errorData)
+                                            setError(errorData.error || 'Error al publicar el post')
                                         }
-                                    } else {
-                                        const errorData = await response.json()
-                                        console.error('[Timeline] ❌ Error al crear post:', errorData)
-                                        setError(errorData.error || 'Error al publicar el post')
+                                    } catch (err: any) {
+                                        console.error('[Account] Error al publicar post:', err)
+                                        setError('Error al publicar el post')
+                                    } finally {
+                                        setPosting(false)
                                     }
-                                } catch (err: any) {
-                                    console.error('[Account] Error al publicar post:', err)
-                                    setError('Error al publicar el post')
-                                } finally {
-                                    setPosting(false)
-                                }
-                            }} className="mb-3">
-                                <textarea 
-                                    rows={3} 
-                                    className="form-control" 
-                                    placeholder="Escribe algo..." 
-                                    value={newPostText}
-                                    onChange={(e) => setNewPostText(e.target.value)}
-                                    disabled={posting}
-                                />
-                                <div className="d-flex py-2 justify-content-between">
-                                    <div>
-                                        <button type="button" className="btn btn-sm btn-icon btn-light" disabled><TbUser className="fs-md" /></button>&nbsp;
-                                        <button type="button" className="btn btn-sm btn-icon btn-light" disabled><TbMapPin className="fs-md" /></button>&nbsp;
-                                        <button type="button" className="btn btn-sm btn-icon btn-light" disabled><TbCamera className="fs-md" /></button>&nbsp;
-                                        <button type="button" className="btn btn-sm btn-icon btn-light" disabled><TbMoodSmile className="fs-md" /></button>
+                                }} className="mb-3">
+                                    <textarea 
+                                        rows={3} 
+                                        className="form-control" 
+                                        placeholder="Escribe algo..." 
+                                        value={newPostText}
+                                        onChange={(e) => setNewPostText(e.target.value)}
+                                        disabled={posting}
+                                    />
+                                    <div className="d-flex py-2 justify-content-between">
+                                        <div>
+                                            <button type="button" className="btn btn-sm btn-icon btn-light" disabled><TbUser className="fs-md" /></button>&nbsp;
+                                            <button type="button" className="btn btn-sm btn-icon btn-light" disabled><TbMapPin className="fs-md" /></button>&nbsp;
+                                            <button type="button" className="btn btn-sm btn-icon btn-light" disabled><TbCamera className="fs-md" /></button>&nbsp;
+                                            <button type="button" className="btn btn-sm btn-icon btn-light" disabled><TbMoodSmile className="fs-md" /></button>
+                                        </div>
+                                        <button 
+                                            type="submit" 
+                                            className="btn btn-sm btn-dark"
+                                            disabled={!newPostText.trim() || posting}
+                                        >
+                                            {posting ? (
+                                                <>
+                                                    <Spinner animation="border" size="sm" className="me-2" />
+                                                    Publicando...
+                                                </>
+                                            ) : (
+                                                'Publicar'
+                                            )}
+                                        </button>
                                     </div>
-                                    <button 
-                                        type="submit" 
-                                        className="btn btn-sm btn-dark"
-                                        disabled={!newPostText.trim() || posting}
-                                    >
-                                        {posting ? (
-                                            <>
-                                                <Spinner animation="border" size="sm" className="me-2" />
-                                                Publicando...
-                                            </>
-                                        ) : (
-                                            'Publicar'
-                                        )}
-                                    </button>
-                                </div>
-                            </form>
+                                </form>
+                            )}
                             
                             {loadingTimeline ? (
                                 <div className="d-flex align-items-center justify-content-center gap-2 p-3">
@@ -864,7 +879,12 @@ const Account = () => {
                             )}
                         </TabPane>
                         <TabPane eventKey="settings">
-                            <form onSubmit={handleSubmit}>
+                            {colaboradorId ? (
+                                <Alert variant="info">
+                                    <p className="mb-0">Estás viendo el perfil de otro colaborador. Solo puedes editar tu propio perfil.</p>
+                                </Alert>
+                            ) : (
+                                <form onSubmit={handleSubmit}>
                                 <h5 className="mb-3 text-uppercase bg-light-subtle p-1 border-dashed border rounded border-light text-center"><TbUserCircle className="me-1" /> Información Personal</h5>
                                 <Row>
                                     <Col md={6}>
@@ -1172,6 +1192,7 @@ const Account = () => {
                                     </Button>
                                 </div>
                             </form>
+                            )}
                         </TabPane>
                     </TabContent>
                 </CardBody>
