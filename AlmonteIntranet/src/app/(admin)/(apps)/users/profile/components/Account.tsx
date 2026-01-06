@@ -484,7 +484,7 @@ const Account = () => {
                         <NavItem>
                             <NavLink eventKey="timeline" data-bs-toggle="tab" aria-expanded="true">
                                 <TbUserCircle className="d-md-none d-block" />
-                                <span className="d-none d-md-block fw-bold">Timeline</span>
+                                <span className="d-none d-md-block fw-bold">Línea de Tiempo</span>
                             </NavLink>
                         </NavItem>
                         <NavItem>
@@ -595,7 +595,7 @@ const Account = () => {
                         </TabPane>
                         <TabPane eventKey="timeline">
                             <div className="d-flex justify-content-between align-items-center mb-3">
-                                <h6 className="mb-0">Timeline de Actividades</h6>
+                                <h6 className="mb-0">Línea de Tiempo de Actividades</h6>
                                 <Button 
                                     variant="outline-primary" 
                                     size="sm"
@@ -813,7 +813,7 @@ const Account = () => {
                             ) : timelinePosts.length === 0 ? (
                                 <Alert variant="info">
                                     <p className="mb-0">
-                                        <strong>No hay actividades en tu timeline.</strong>
+                                        <strong>No hay actividades en tu línea de tiempo.</strong>
                                         <br />
                                         <small>
                                             Esto puede deberse a que:
@@ -868,12 +868,28 @@ const Account = () => {
                                         const accion = attrs.accion || 'Acción'
                                         const entidad = attrs.entidad || 'Sistema'
                                         
+                                        // Parsear metadata si es string
+                                        let metadataParsed: any = {}
+                                        if (log.metadata) {
+                                            if (typeof log.metadata === 'string') {
+                                                try {
+                                                    metadataParsed = JSON.parse(log.metadata)
+                                                } catch {
+                                                    metadataParsed = {}
+                                                }
+                                            } else {
+                                                metadataParsed = log.metadata
+                                            }
+                                        }
+                                        
                                         // Determinar icono según acción
                                         let icono = TbUserCircle
                                         let variant = 'primary'
                                         
                                         // Verificar primero si es un post del timeline (debe tener prioridad)
-                                        if (accion.includes('crear') && (log.metadata?.tipo === 'post_timeline' || log.entidad === 'timeline')) {
+                                        const esPostTimeline = metadataParsed.tipo === 'post_timeline' || entidad === 'timeline'
+                                        
+                                        if (accion.includes('crear') && esPostTimeline) {
                                             // Post del timeline - mostrar como publicación
                                             icono = TbShare3
                                             variant = 'info'
@@ -886,6 +902,12 @@ const Account = () => {
                                         } else if (accion.includes('eliminar') || accion.includes('borrar')) {
                                             icono = TbArrowBackUp
                                             variant = 'danger'
+                                        } else if (accion.includes('login')) {
+                                            icono = TbUserCircle
+                                            variant = 'primary'
+                                        } else if (accion.includes('logout')) {
+                                            icono = TbArrowBackUp
+                                            variant = 'secondary'
                                         } else if (accion.includes('publicar')) {
                                             // Mantener compatibilidad por si acaso
                                             icono = TbShare3
@@ -901,11 +923,19 @@ const Account = () => {
                                                     <Icono className={`text-${variant}`} />
                                                 </div>
                                                 <div className={`timeline-content ps-3 ${idx !== timelinePosts.length - 1 ? 'pb-4' : ''}`}>
-                                                    <h5 className="mb-1">{nombreCompleto}</h5>
-                                                    <p className="mb-1">{descripcion}</p>
-                                                    <small className="text-muted">
-                                                        {accion} • {entidad}
-                                                    </small>
+                                                    {esPostTimeline ? (
+                                                        <>
+                                                            <p className="mb-0">{descripcion}</p>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <h5 className="mb-1">{nombreCompleto}</h5>
+                                                            <p className="mb-1">{descripcion}</p>
+                                                            <small className="text-muted">
+                                                                {accion} • {entidad}
+                                                            </small>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
                                         )
