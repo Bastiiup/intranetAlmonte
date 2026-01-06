@@ -93,31 +93,53 @@ export async function createActivity(activityData: {
     }
     
     // creado_por es opcional - solo agregar si es válido
-    // Formato correcto: solo el ID numérico (no {connect: [...]} ni {set: [...]})
+    // IMPORTANTE: Si el colaborador no existe en Strapi, esto causará un error 400
+    // Por seguridad, solo agregar si el ID es válido, pero si falla, el error será capturado
+    // y no interrumpirá el flujo principal (la creación del lead/oportunidad)
     if (activityData.creado_por) {
       const creadoPorId = typeof activityData.creado_por === 'string' 
         ? parseInt(activityData.creado_por) 
         : activityData.creado_por
       if (!isNaN(creadoPorId) && creadoPorId > 0) {
         // Formato correcto: solo el ID numérico
+        // Strapi puede transformarlo internamente a {"set":[{"id":X}]}, pero eso es normal
         actividadPayload.data.creado_por = creadoPorId
       } else {
         console.warn('[Activity Helper] ⚠️ ID de creado_por inválido, omitiendo:', activityData.creado_por)
       }
     }
     // Nota: creado_por es opcional según los cambios en Strapi
+    // Si no se proporciona o es inválido, la actividad se creará sin creado_por
 
     // Asegurarse de que NO se envíe publishedAt (draftAndPublish está deshabilitado)
-    // Limpiar cualquier campo que no deba enviarse
-    delete actividadPayload.data.publishedAt
-    delete actividadPayload.publishedAt
+    // Limpiar cualquier campo que no deba enviarse - hacerlo antes de enviar
+    if (actividadPayload.data.publishedAt !== undefined) {
+      delete actividadPayload.data.publishedAt
+    }
+    if (actividadPayload.publishedAt !== undefined) {
+      delete actividadPayload.publishedAt
+    }
+    // También limpiar cualquier campo relacionado con publicación
+    if (actividadPayload.data.published !== undefined) {
+      delete actividadPayload.data.published
+    }
+
+    // Log del payload final (sin campos sensibles)
+    const payloadParaLog = JSON.parse(JSON.stringify(actividadPayload))
+    // Asegurarse de que no tenga publishedAt en el log
+    if (payloadParaLog.data) {
+      delete payloadParaLog.data.publishedAt
+      delete payloadParaLog.data.published
+    }
 
     console.log('[Activity Helper] 📝 Intentando crear actividad:', {
       titulo: activityData.titulo,
       tipo: tipo,
       fecha: fecha,
       estado: estado,
-      payload: JSON.stringify(actividadPayload, null, 2),
+      tieneCreadoPor: !!actividadPayload.data.creado_por,
+      creadoPorId: actividadPayload.data.creado_por || 'NO SE ENVÍA',
+      payload: JSON.stringify(payloadParaLog, null, 2),
     })
 
     // Usar el endpoint correcto: /api/actividades
@@ -158,6 +180,14 @@ export async function createActivity(activityData: {
       console.error('[Activity Helper] ❌ Error de validación (400 Bad Request)')
       if (error.details?.errors) {
         console.error('[Activity Helper] Errores de validación:', JSON.stringify(error.details.errors, null, 2))
+        
+        // Detectar si el error es por colaborador que no existe
+        const errorMessage = error.message || ''
+        if (errorMessage.includes('colaborador') && errorMessage.includes('do not exist')) {
+          console.warn('[Activity Helper] ⚠️ El colaborador especificado no existe en Strapi')
+          console.warn('[Activity Helper] ⚠️ La actividad se creará sin creado_por en el próximo intento')
+          console.warn('[Activity Helper] ⚠️ Para evitar este error, verifica que el colaborador con ID existe antes de crear la actividad')
+        }
       }
     }
   }
