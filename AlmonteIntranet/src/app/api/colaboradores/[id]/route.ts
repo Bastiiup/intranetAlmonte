@@ -37,7 +37,7 @@ export async function GET(
     // Intentar primero con el endpoint directo (funciona con documentId o id)
     try {
       const response = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
-        `/api/colaboradores/${id}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[persona][populate][imagen][populate]=*&populate[usuario]=*`
+        `/api/colaboradores/${id}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,bio,job_title,telefono_principal&populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[usuario]=*`
       )
       
       if (response.data) {
@@ -50,7 +50,7 @@ export async function GET(
       // Si falla, intentar buscar por filtro (útil cuando el ID es numérico pero necesitamos documentId)
       try {
         const filterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
-          `/api/colaboradores?filters[id][$eq]=${id}&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[persona][populate][imagen][populate]=*&populate[usuario]=*`
+          `/api/colaboradores?filters[id][$eq]=${id}&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,bio,job_title,telefono_principal&populate[persona][populate][imagen][populate]=*&populate[persona][populate][telefonos]=*&populate[usuario]=*`
         )
         
         if (filterResponse.data) {

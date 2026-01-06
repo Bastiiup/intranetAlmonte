@@ -262,6 +262,53 @@ const Page = () => {
             return null // Filtrar colaboradores sin RUT
           }
 
+          // Normalizar estructura de imagen
+          let imagenUrl: string | undefined = undefined
+          if (personaData?.imagen) {
+            const imagen = personaData.imagen
+            
+            // Caso 1: URL directa
+            if (imagen.url) {
+              imagenUrl = imagen.url.startsWith('http') ? imagen.url : `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${imagen.url}`
+            }
+            // Caso 2: Estructura de componente contacto.imagen
+            else if (imagen.imagen) {
+              const imagenComponent = imagen.imagen
+              
+              // Si es array
+              if (Array.isArray(imagenComponent) && imagenComponent.length > 0) {
+                const url = imagenComponent[0]?.url || imagenComponent[0]?.attributes?.url || null
+                if (url) {
+                  imagenUrl = url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${url}`
+                }
+              }
+              // Si tiene data
+              else if (imagenComponent.data) {
+                const dataArray = Array.isArray(imagenComponent.data) ? imagenComponent.data : [imagenComponent.data]
+                if (dataArray.length > 0) {
+                  const url = dataArray[0]?.attributes?.url || dataArray[0]?.url || null
+                  if (url) {
+                    imagenUrl = url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${url}`
+                  }
+                }
+              }
+              // Si es objeto directo
+              else if (imagenComponent.url) {
+                imagenUrl = imagenComponent.url.startsWith('http') ? imagenComponent.url : `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${imagenComponent.url}`
+              }
+            }
+            // Caso 3: Data directamente
+            else if (imagen.data) {
+              const dataArray = Array.isArray(imagen.data) ? imagen.data : [imagen.data]
+              if (dataArray.length > 0) {
+                const url = dataArray[0]?.attributes?.url || dataArray[0]?.url || null
+                if (url) {
+                  imagenUrl = url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${url}`
+                }
+              }
+            }
+          }
+
           // Normalizar estructura
           return {
             id: colaboradorId, // Mantener ID para referencia, pero usar RUT para channelId
@@ -275,8 +322,8 @@ const Page = () => {
               primer_apellido: personaData.primer_apellido,
               segundo_apellido: personaData.segundo_apellido,
               nombre_completo: personaData.nombre_completo,
-              imagen: personaData.imagen ? {
-                url: personaData.imagen.url || (personaData.imagen.data?.attributes?.url),
+              imagen: imagenUrl ? {
+                url: imagenUrl,
               } : undefined,
             } : undefined,
           }
@@ -488,9 +535,42 @@ const Page = () => {
   // Obtener avatar del colaborador
   const getColaboradorAvatar = (col: Colaborador) => {
     const persona = col.attributes?.persona || col.persona
-    if (persona?.imagen?.url) {
-      return `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${persona.imagen.url}`
+    if (!persona) return undefined
+    
+    // Intentar diferentes estructuras de imagen
+    const imagen = persona.imagen || persona.attributes?.imagen
+    
+    if (imagen?.url) {
+      const imgUrl = imagen.url
+      return imgUrl.startsWith('http') ? imgUrl : `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${imgUrl}`
     }
+    
+    // Si imagen viene en estructura de componente contacto.imagen
+    if (imagen?.imagen) {
+      const imagenComponent = imagen.imagen
+      let imgUrl: string | null = null
+      
+      // Si es array
+      if (Array.isArray(imagenComponent) && imagenComponent.length > 0) {
+        imgUrl = imagenComponent[0]?.url || imagenComponent[0]?.attributes?.url || null
+      }
+      // Si tiene data
+      else if (imagenComponent.data) {
+        const dataArray = Array.isArray(imagenComponent.data) ? imagenComponent.data : [imagenComponent.data]
+        if (dataArray.length > 0) {
+          imgUrl = dataArray[0]?.attributes?.url || dataArray[0]?.url || null
+        }
+      }
+      // Si es objeto directo
+      else if (imagenComponent.url) {
+        imgUrl = imagenComponent.url
+      }
+      
+      if (imgUrl) {
+        return imgUrl.startsWith('http') ? imgUrl : `${process.env.NEXT_PUBLIC_STRAPI_URL || ''}${imgUrl}`
+      }
+    }
+    
     return undefined
   }
 
@@ -590,13 +670,37 @@ const Page = () => {
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', width: '100%' }}>
+                        {(() => {
+                          const avatarUrl = getColaboradorAvatar(col)
+                          return avatarUrl ? (
+                            <img
+                              src={avatarUrl}
+                              alt={getColaboradorName(col)}
+                              style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '50%',
+                                objectFit: 'cover',
+                                flexShrink: 0,
+                                border: isSelected ? '2px solid rgba(255,255,255,0.5)' : '2px solid #dee2e6',
+                              }}
+                              onError={(e) => {
+                                // Si la imagen falla, mostrar inicial
+                                const target = e.target as HTMLImageElement
+                                target.style.display = 'none'
+                                const fallback = target.nextElementSibling as HTMLElement
+                                if (fallback) fallback.style.display = 'flex'
+                              }}
+                            />
+                          ) : null
+                        })()}
                         <div
                           style={{
                             width: '40px',
                             height: '40px',
                             borderRadius: '50%',
                             backgroundColor: isSelected ? 'rgba(255,255,255,0.2)' : '#e9ecef',
-                            display: 'flex',
+                            display: getColaboradorAvatar(col) ? 'none' : 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             fontSize: '1.2rem',

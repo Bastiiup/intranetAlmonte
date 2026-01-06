@@ -81,12 +81,20 @@ const Account = ({ colaboradorId }: AccountProps) => {
                     if (result.success && result.data) {
                         // Normalizar estructura: puede venir como data.data o data directamente
                         const data = result.data.data || result.data
-                        const personaData = colaboradorId 
+                        let personaData = colaboradorId 
                             ? (data.attributes?.persona || data.persona)
                             : result.data.persona
                         const colaboradorData = colaboradorId
                             ? (data.attributes || data)
                             : result.data.colaborador
+                        
+                        // Normalizar estructura de persona (puede venir en diferentes formatos)
+                        if (personaData?.data) {
+                            personaData = personaData.data
+                        }
+                        if (personaData?.attributes) {
+                            personaData = { ...personaData, ...personaData.attributes }
+                        }
                         
                         // Guardar datos del perfil que se está viendo
                         setViewingProfileData({
@@ -538,7 +546,7 @@ const Account = ({ colaboradorId }: AccountProps) => {
                                         </div>
                                     ) : (
                                         <Alert variant="info" className="mb-4">
-                                            <p className="mb-0">No hay biografía disponible. Edita tu perfil en la pestaña "Configuración" para agregar información sobre ti.</p>
+                                            <p className="mb-0">{colaboradorId ? 'No hay biografía disponible para este colaborador.' : 'No hay biografía disponible. Edita tu perfil en la pestaña "Configuración" para agregar información sobre ti.'}</p>
                                         </Alert>
                                     )}
                                     
@@ -546,13 +554,27 @@ const Account = ({ colaboradorId }: AccountProps) => {
                                         <Col md={6}>
                                             <div className="mb-3">
                                                 <p className="text-muted mb-1"><TbBriefcase className="me-2" /> Cargo / Título</p>
-                                                <p className="mb-0">{colaboradorId ? (viewingPersona?.job_title || <span className="text-muted">No especificado</span>) : (formData.job_title || <span className="text-muted">No especificado</span>)}</p>
+                                                <p className="mb-0">
+                                                    {colaboradorId 
+                                                        ? (viewingPersona?.job_title || <span className="text-muted">No especificado</span>)
+                                                        : (formData.job_title || <span className="text-muted">No especificado</span>)
+                                                    }
+                                                </p>
                                             </div>
                                         </Col>
                                         <Col md={6}>
                                             <div className="mb-3">
                                                 <p className="text-muted mb-1"><TbWorld className="me-2" /> Teléfono</p>
-                                                <p className="mb-0">{colaboradorId ? (viewingPersona?.telefono_principal || (viewingPersona?.telefonos && Array.isArray(viewingPersona.telefonos) && viewingPersona.telefonos.length > 0 ? viewingPersona.telefonos[0].numero : '') || <span className="text-muted">No especificado</span>) : (formData.telefono || <span className="text-muted">No especificado</span>)}</p>
+                                                <p className="mb-0">
+                                                    {colaboradorId 
+                                                        ? (viewingPersona?.telefono_principal || 
+                                                           (viewingPersona?.telefonos && Array.isArray(viewingPersona.telefonos) && viewingPersona.telefonos.length > 0 
+                                                            ? viewingPersona.telefonos[0].numero 
+                                                            : '') || 
+                                                           <span className="text-muted">No especificado</span>)
+                                                        : (formData.telefono || <span className="text-muted">No especificado</span>)
+                                                    }
+                                                </p>
                                             </div>
                                         </Col>
                                     </Row>
