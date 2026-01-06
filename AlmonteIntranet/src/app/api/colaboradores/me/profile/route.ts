@@ -1088,6 +1088,12 @@ export async function GET(request: NextRequest) {
       }
     }
     
+    // Asegurar que el cliente siempre reciba algún valor utilizable para imagen/portada:
+    // - Preferir versión normalizada { url, ... } (simple)
+    // - Si no, enviar el componente raw (contacto.imagen) para que el frontend pueda extraer la URL
+    const imagenParaCliente = imagenNormalizada || imagenRaw || personaAttrs.imagen || persona?.imagen || null
+    const portadaParaCliente = portadaNormalizada || portadaRaw || personaAttrs.portada || persona?.portada || null
+
     const profileData = {
       colaborador: {
         id: colaboradorRawAny.id || colaboradorRawAny.documentId,
@@ -1107,8 +1113,8 @@ export async function GET(request: NextRequest) {
         bio: personaAttrs.bio || persona.bio,
         job_title: personaAttrs.job_title || persona.job_title,
         telefono_principal: personaAttrs.telefono_principal || persona.telefono_principal,
-        imagen: imagenNormalizada,
-        portada: portadaNormalizada,
+        imagen: imagenParaCliente,
+        portada: portadaParaCliente,
         telefonos: personaAttrs.telefonos || persona.telefonos,
         emails: personaAttrs.emails || persona.emails,
         direccion: direccionNormalizada,
