@@ -33,29 +33,34 @@ export async function createActivity(activityData: {
   creado_por?: string | number // Opcional - ya no es requerido según cambios en Strapi
 }): Promise<void> {
   try {
-    // Nota: Strapi ahora establece automáticamente valores por defecto:
-    // - fecha: fecha/hora actual si no se envía
-    // - tipo: "nota" si no se envía
-    // - estado: "pendiente" si no se envía
-    // Solo necesitamos enviar los campos que queremos establecer explícitamente
+    // IMPORTANTE: fecha es requerida por Strapi - siempre enviarla
+    // Si no se proporciona, usar fecha/hora actual
+    const fecha = activityData.fecha || new Date().toISOString()
+    
+    // Valores por defecto si no se proporcionan
+    const tipo = activityData.tipo || 'nota'
+    const estado = activityData.estado || 'pendiente'
+    
     const actividadPayload: any = {
       data: {
-        titulo: activityData.titulo, // Único campo realmente requerido
-        // Enviar solo si queremos sobrescribir los valores por defecto
-        ...(activityData.tipo && { tipo: activityData.tipo }),
+        titulo: activityData.titulo, // Campo requerido
+        fecha: fecha, // SIEMPRE enviar fecha (requerida por Strapi)
+        tipo: tipo, // Valor por defecto si no se proporciona
+        estado: estado, // Valor por defecto si no se proporciona
+        // Campos opcionales
         ...(activityData.descripcion && { descripcion: activityData.descripcion }),
-        ...(activityData.fecha && { fecha: activityData.fecha }),
-        ...(activityData.estado && { estado: activityData.estado }),
         ...(activityData.notas && { notas: activityData.notas }),
       },
     }
 
-    // Agregar relaciones (convertir a números si es necesario)
+    // Agregar relaciones - formato correcto: solo el ID numérico (no {connect: [...]} ni {set: [...]})
+    // Strapi v5 acepta directamente el ID numérico para relaciones Many-to-One
     if (activityData.relacionado_con_contacto) {
       const contactoId = typeof activityData.relacionado_con_contacto === 'string' 
         ? parseInt(activityData.relacionado_con_contacto) 
         : activityData.relacionado_con_contacto
       if (!isNaN(contactoId) && contactoId > 0) {
+        // Formato correcto: solo el ID numérico
         actividadPayload.data.relacionado_con_contacto = contactoId
       }
     }
@@ -64,6 +69,7 @@ export async function createActivity(activityData: {
         ? parseInt(activityData.relacionado_con_lead) 
         : activityData.relacionado_con_lead
       if (!isNaN(leadId) && leadId > 0) {
+        // Formato correcto: solo el ID numérico
         actividadPayload.data.relacionado_con_lead = leadId
       }
     }
@@ -72,6 +78,7 @@ export async function createActivity(activityData: {
         ? parseInt(activityData.relacionado_con_oportunidad) 
         : activityData.relacionado_con_oportunidad
       if (!isNaN(oportunidadId) && oportunidadId > 0) {
+        // Formato correcto: solo el ID numérico
         actividadPayload.data.relacionado_con_oportunidad = oportunidadId
       }
     }
@@ -80,32 +87,42 @@ export async function createActivity(activityData: {
         ? parseInt(activityData.relacionado_con_colegio) 
         : activityData.relacionado_con_colegio
       if (!isNaN(colegioId) && colegioId > 0) {
+        // Formato correcto: solo el ID numérico
         actividadPayload.data.relacionado_con_colegio = colegioId
       }
     }
     
     // creado_por es opcional - solo agregar si es válido
+    // Formato correcto: solo el ID numérico (no {connect: [...]} ni {set: [...]})
     if (activityData.creado_por) {
       const creadoPorId = typeof activityData.creado_por === 'string' 
         ? parseInt(activityData.creado_por) 
         : activityData.creado_por
       if (!isNaN(creadoPorId) && creadoPorId > 0) {
+        // Formato correcto: solo el ID numérico
         actividadPayload.data.creado_por = creadoPorId
       } else {
         console.warn('[Activity Helper] ⚠️ ID de creado_por inválido, omitiendo:', activityData.creado_por)
       }
     }
-    // Nota: creado_por ya NO es requerido según los cambios en Strapi
+    // Nota: creado_por es opcional según los cambios en Strapi
+
+    // Asegurarse de que NO se envíe publishedAt (draftAndPublish está deshabilitado)
+    // Limpiar cualquier campo que no deba enviarse
+    delete actividadPayload.data.publishedAt
+    delete actividadPayload.publishedAt
 
     console.log('[Activity Helper] 📝 Intentando crear actividad:', {
       titulo: activityData.titulo,
-      tipo: activityData.tipo,
+      tipo: tipo,
+      fecha: fecha,
+      estado: estado,
       payload: JSON.stringify(actividadPayload, null, 2),
     })
 
-    // Usar el endpoint correcto: /api/actividades (confirmado por el usuario)
+    // Usar el endpoint correcto: /api/actividades
     // Nota: draftAndPublish está deshabilitado, así que las actividades se guardan directamente
-    // No necesitamos publicar manualmente
+    // No necesitamos publicar manualmente y NO debemos enviar publishedAt
     const response = await strapiClient.post<StrapiResponse<StrapiEntity<ActividadAttributes>>>(
       '/api/actividades',
       actividadPayload
