@@ -234,16 +234,29 @@ export async function POST(request: NextRequest) {
     if (leadId) {
       const colaboradorId = await getColaboradorIdFromRequest(request) || body.asignado_a || null
       
+      // Convertir IDs a números si es necesario
+      const leadIdNum = typeof leadId === 'string' ? parseInt(leadId) : leadId
+      const colaboradorIdNum = colaboradorId ? (typeof colaboradorId === 'string' ? parseInt(colaboradorId) : colaboradorId) : null
+      
+      console.log('[API /crm/leads POST] Creando actividad automática:', {
+        leadId: leadIdNum,
+        colaboradorId: colaboradorIdNum,
+        nombre: body.nombre,
+      })
+      
       createActivity({
         tipo: 'nota',
         titulo: `Lead creado: ${body.nombre}`,
         descripcion: `Se creó un nuevo lead${body.empresa ? ` para ${body.empresa}` : ''}${body.monto_estimado ? ` con monto estimado de $${body.monto_estimado.toLocaleString()}` : ''}`,
-        relacionado_con_lead: leadId,
-        creado_por: colaboradorId,
+        relacionado_con_lead: leadIdNum,
+        creado_por: colaboradorIdNum,
         estado: 'completada',
-      }).catch(() => {
-        // Ignorar errores de creación de actividad
+      }).catch((err) => {
+        // Log pero no interrumpir el flujo
+        console.error('[API /crm/leads POST] Error al crear actividad (no crítico):', err)
       })
+    } else {
+      console.warn('[API /crm/leads POST] No se pudo obtener leadId para crear actividad automática')
     }
 
     // Revalidar cache

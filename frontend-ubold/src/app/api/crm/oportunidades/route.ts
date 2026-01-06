@@ -209,16 +209,29 @@ export async function POST(request: NextRequest) {
     if (oportunidadId) {
       const colaboradorId = await getColaboradorIdFromRequest(request) || body.propietario || null
       
+      // Convertir IDs a números si es necesario
+      const oportunidadIdNum = typeof oportunidadId === 'string' ? parseInt(oportunidadId) : oportunidadId
+      const colaboradorIdNum = colaboradorId ? (typeof colaboradorId === 'string' ? parseInt(colaboradorId) : colaboradorId) : null
+      
+      console.log('[API /crm/oportunidades POST] Creando actividad automática:', {
+        oportunidadId: oportunidadIdNum,
+        colaboradorId: colaboradorIdNum,
+        nombre: body.nombre,
+      })
+      
       createActivity({
         tipo: 'nota',
         titulo: `Oportunidad creada: ${body.nombre}`,
         descripcion: `Se creó una nueva oportunidad${body.monto ? ` con monto de ${body.moneda || 'CLP'} $${body.monto.toLocaleString()}` : ''}${body.etapa ? ` en etapa ${body.etapa}` : ''}`,
-        relacionado_con_oportunidad: oportunidadId,
-        creado_por: colaboradorId,
+        relacionado_con_oportunidad: oportunidadIdNum,
+        creado_por: colaboradorIdNum,
         estado: 'completada',
-      }).catch(() => {
-        // Ignorar errores de creación de actividad
+      }).catch((err) => {
+        // Log pero no interrumpir el flujo
+        console.error('[API /crm/oportunidades POST] Error al crear actividad (no crítico):', err)
       })
+    } else {
+      console.warn('[API /crm/oportunidades POST] No se pudo obtener oportunidadId para crear actividad automática')
     }
 
     // Revalidar para sincronización bidireccional

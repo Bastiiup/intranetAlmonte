@@ -32,6 +32,7 @@ interface CampaignTableProps {
 
 const CampaignTable = ({ onCampaignCreated }: CampaignTableProps) => {
     const [showModal, setShowModal] = useState(false);
+    const [editingCampaign, setEditingCampaign] = useState<CampaignType | null>(null)
     const [campaignsData, setCampaignsData] = useState<CampaignType[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -122,7 +123,39 @@ const CampaignTable = ({ onCampaignCreated }: CampaignTableProps) => {
                     <Button variant="default" size="sm" className="btn btn-default btn-icon btn-sm rounded">
                         <TbEye className="fs-lg" />
                     </Button>
-                    <Button variant="default" size="sm" className="btn btn-default btn-icon btn-sm rounded">
+                    <Button 
+                        variant="default" 
+                        size="sm" 
+                        className="btn btn-default btn-icon btn-sm rounded"
+                        onClick={async () => {
+                            // Cargar datos completos de la campaña
+                            if (row.original.realId) {
+                                const cleanId = row.original.realId.replace(/^#CAMP/, '').replace(/^#/, '')
+                                try {
+                                    const response = await fetch(`/api/crm/campaigns/${cleanId}`)
+                                    const result = await response.json()
+                                    if (result.success && result.data) {
+                                        // Los datos ya vienen transformados desde la API
+                                        // Solo necesitamos usar los datos que tenemos
+                                        setEditingCampaign(row.original)
+                                        setShowModal(true)
+                                    } else {
+                                        // Si falla, usar los datos que ya tenemos
+                                        setEditingCampaign(row.original)
+                                        setShowModal(true)
+                                    }
+                                } catch (err) {
+                                    console.error('Error loading campaign:', err)
+                                    // Si falla, usar los datos que ya tenemos
+                                    setEditingCampaign(row.original)
+                                    setShowModal(true)
+                                }
+                            } else {
+                                setEditingCampaign(row.original)
+                                setShowModal(true)
+                            }
+                        }}
+                    >
                         <TbEdit className="fs-lg" />
                     </Button>
                     <Button
@@ -265,14 +298,22 @@ const CampaignTable = ({ onCampaignCreated }: CampaignTableProps) => {
                         </Button>
                     )}
 
-                    <Button className="btn btn-primary" onClick={() => setShowModal(true)}>
+                    <Button className="btn btn-primary" onClick={() => {
+                        setEditingCampaign(null)
+                        setShowModal(true)
+                    }}>
                         <TbPlus className="fs-lg" /> Crear Campaña
                     </Button>
                     <CampaignModal 
                         show={showModal} 
-                        onHide={() => setShowModal(false)}
+                        campaign={editingCampaign}
+                        onHide={() => {
+                            setShowModal(false)
+                            setEditingCampaign(null)
+                        }}
                         onSuccess={() => {
                             setShowModal(false)
+                            setEditingCampaign(null)
                             loadCampaigns()
                             if (onCampaignCreated) {
                                 onCampaignCreated()

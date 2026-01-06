@@ -60,18 +60,38 @@ export async function createActivity(activityData: {
       actividadPayload.data.creado_por = activityData.creado_por
     }
 
-    await strapiClient.post<StrapiResponse<StrapiEntity<ActividadAttributes>>>(
+    console.log('[Activity Helper] 📝 Intentando crear actividad:', {
+      titulo: activityData.titulo,
+      tipo: activityData.tipo,
+      payload: JSON.stringify(actividadPayload, null, 2),
+    })
+
+    const response = await strapiClient.post<StrapiResponse<StrapiEntity<ActividadAttributes>>>(
       '/api/actividades',
       actividadPayload
     )
 
-    console.log('[Activity Helper] ✅ Actividad creada automáticamente:', activityData.titulo)
+    console.log('[Activity Helper] ✅ Actividad creada automáticamente:', {
+      titulo: activityData.titulo,
+      response: response.data ? 'OK' : 'Sin datos',
+      responseData: response.data,
+    })
   } catch (error: any) {
-    // No lanzar error para no interrumpir el flujo principal
+    // No lanzar error para no interrumpir el flujo principal, pero loguear bien
     console.error('[Activity Helper] ⚠️ Error al crear actividad automática:', {
       message: error.message,
+      status: error.status,
+      statusText: error.statusText,
       titulo: activityData.titulo,
+      tipo: activityData.tipo,
+      errorDetails: error.details || error,
+      stack: error.stack,
     })
+    
+    // Si el error es 404, puede ser que el content-type no existe
+    if (error.status === 404 || error.message?.includes('Not Found')) {
+      console.error('[Activity Helper] ❌ El content-type "Actividad" no existe en Strapi. Verifica que esté creado.')
+    }
   }
 }
 

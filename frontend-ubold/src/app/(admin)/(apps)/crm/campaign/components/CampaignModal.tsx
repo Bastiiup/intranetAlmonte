@@ -18,11 +18,13 @@ import {
     Alert,
 } from "react-bootstrap"
 import FlatPicker from 'react-flatpickr'
+import type { CampaignType } from '../data'
 
 type CampaignModalProps = {
     show: boolean
     onHide: () => void
     onSuccess?: () => void
+    campaign?: CampaignType | null
 }
 
 interface ColaboradorOption {
@@ -42,7 +44,7 @@ const ESTADOS = [
     { value: 'en_curso', label: 'En Curso' },
 ]
 
-const CampaignModal = ({ show, onHide, onSuccess }: CampaignModalProps) => {
+const CampaignModal = ({ show, onHide, onSuccess, campaign }: CampaignModalProps) => {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [colaboradores, setColaboradores] = useState<ColaboradorOption[]>([])
@@ -60,24 +62,129 @@ const CampaignModal = ({ show, onHide, onSuccess }: CampaignModalProps) => {
         creado_por: '',
     })
 
+    const isEditMode = !!campaign
+
     useEffect(() => {
         if (show) {
             loadColaboradores()
-            // Resetear formulario
-            setFormData({
-                nombre: '',
-                descripcion: '',
-                presupuesto: '',
-                objetivo: '',
-                estado: 'programada',
-                tags: '',
-                fecha_inicio: '',
-                fecha_fin: '',
-                creado_por: '',
-            })
+            
+            if (campaign) {
+                // Cargar datos completos de la campaña para editar
+                const cleanId = campaign.realId?.replace(/^#CAMP/, '').replace(/^#/, '')
+                if (cleanId) {
+                    // Cargar datos completos desde la API
+                    try {
+                        const response = await fetch(`/api/crm/campaigns/${cleanId}`)
+                        const result = await response.json()
+                        if (result.success && result.data) {
+                            const attrs = result.data.attributes || result.data
+                            const estadoMap: Record<string, string> = {
+                                'In Progress': 'en_progreso',
+                                'Success': 'exitosa',
+                                'Scheduled': 'programada',
+                                'Failed': 'fallida',
+                                'Ongoing': 'en_curso',
+                            }
+                            
+                            // Obtener ID del creador
+                            let creadoPorId = ''
+                            if (attrs.creado_por) {
+                                const creador = attrs.creado_por.data || attrs.creado_por
+                                creadoPorId = creador?.documentId || creador?.id || ''
+                            }
+                            
+                            setFormData({
+                                nombre: attrs.nombre || campaign.name || '',
+                                descripcion: attrs.descripcion || '',
+                                presupuesto: attrs.presupuesto?.toString() || campaign.budget.replace(/[^0-9.]/g, '') || '',
+                                objetivo: attrs.objetivo?.toString() || campaign.goals.replace(/[^0-9.]/g, '') || '',
+                                estado: estadoMap[campaign.status] || attrs.estado || 'programada',
+                                tags: Array.isArray(attrs.tags) ? attrs.tags.join(', ') : campaign.tags.join(', ') || '',
+                                fecha_inicio: attrs.fecha_inicio || campaign.fechaInicio || '',
+                                fecha_fin: attrs.fecha_fin || campaign.fechaFin || '',
+                                creado_por: creadoPorId,
+                            })
+                        } else {
+                            // Si falla, usar los datos básicos que tenemos
+                            const estadoMap: Record<string, string> = {
+                                'In Progress': 'en_progreso',
+                                'Success': 'exitosa',
+                                'Scheduled': 'programada',
+                                'Failed': 'fallida',
+                                'Ongoing': 'en_curso',
+                            }
+                            setFormData({
+                                nombre: campaign.name || '',
+                                descripcion: '',
+                                presupuesto: campaign.budget.replace(/[^0-9.]/g, '') || '',
+                                objetivo: campaign.goals.replace(/[^0-9.]/g, '') || '',
+                                estado: estadoMap[campaign.status] || 'programada',
+                                tags: campaign.tags.join(', ') || '',
+                                fecha_inicio: campaign.fechaInicio || '',
+                                fecha_fin: campaign.fechaFin || '',
+                                creado_por: '',
+                            })
+                        }
+                    } catch (err) {
+                        console.error('Error loading campaign details:', err)
+                        // Si falla, usar los datos básicos que tenemos
+                        const estadoMap: Record<string, string> = {
+                            'In Progress': 'en_progreso',
+                            'Success': 'exitosa',
+                            'Scheduled': 'programada',
+                            'Failed': 'fallida',
+                            'Ongoing': 'en_curso',
+                        }
+                        setFormData({
+                            nombre: campaign.name || '',
+                            descripcion: '',
+                            presupuesto: campaign.budget.replace(/[^0-9.]/g, '') || '',
+                            objetivo: campaign.goals.replace(/[^0-9.]/g, '') || '',
+                            estado: estadoMap[campaign.status] || 'programada',
+                            tags: campaign.tags.join(', ') || '',
+                            fecha_inicio: campaign.fechaInicio || '',
+                            fecha_fin: campaign.fechaFin || '',
+                            creado_por: '',
+                        })
+                    }
+                } else {
+                    // Si no hay ID, usar los datos básicos
+                    const estadoMap: Record<string, string> = {
+                        'In Progress': 'en_progreso',
+                        'Success': 'exitosa',
+                        'Scheduled': 'programada',
+                        'Failed': 'fallida',
+                        'Ongoing': 'en_curso',
+                    }
+                    setFormData({
+                        nombre: campaign.name || '',
+                        descripcion: '',
+                        presupuesto: campaign.budget.replace(/[^0-9.]/g, '') || '',
+                        objetivo: campaign.goals.replace(/[^0-9.]/g, '') || '',
+                        estado: estadoMap[campaign.status] || 'programada',
+                        tags: campaign.tags.join(', ') || '',
+                        fecha_inicio: campaign.fechaInicio || '',
+                        fecha_fin: campaign.fechaFin || '',
+                        creado_por: '',
+                    })
+                }
+            } else {
+                // Resetear formulario para crear
+                setFormData({
+                    nombre: '',
+                    descripcion: '',
+                    presupuesto: '',
+                    objetivo: '',
+                    estado: 'programada',
+                    tags: '',
+                    fecha_inicio: '',
+                    fecha_fin: '',
+                    creado_por: '',
+                })
+            }
             setError(null)
         }
-    }, [show])
+    }, [show, campaign])
 
     const loadColaboradores = async () => {
         setLoadingData(true)
@@ -126,18 +233,32 @@ const CampaignModal = ({ show, onHide, onSuccess }: CampaignModalProps) => {
                 creado_por: formData.creado_por || undefined,
             }
 
-            const response = await fetch('/api/crm/campaigns', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(campaignData),
-            })
+            let response: Response
+            if (isEditMode && campaign?.realId) {
+                // Editar campaña
+                const cleanId = campaign.realId.replace(/^#CAMP/, '').replace(/^#/, '')
+                response = await fetch(`/api/crm/campaigns/${cleanId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(campaignData),
+                })
+            } else {
+                // Crear campaña
+                response = await fetch('/api/crm/campaigns', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(campaignData),
+                })
+            }
 
             const result = await response.json()
 
             if (!response.ok || !result.success) {
-                throw new Error(result.error || 'Error al crear campaña')
+                throw new Error(result.error || `Error al ${isEditMode ? 'actualizar' : 'crear'} campaña`)
             }
 
             // Éxito
@@ -155,7 +276,7 @@ const CampaignModal = ({ show, onHide, onSuccess }: CampaignModalProps) => {
     return (
         <Modal show={show} onHide={onHide} size="lg">
             <ModalHeader closeButton>
-                <ModalTitle as="h5">Crear Nueva Campaña</ModalTitle>
+                <ModalTitle as="h5">{isEditMode ? 'Editar Campaña' : 'Crear Nueva Campaña'}</ModalTitle>
             </ModalHeader>
 
             <Form id="createCampaignForm" onSubmit={handleSubmit}>
@@ -314,7 +435,7 @@ const CampaignModal = ({ show, onHide, onSuccess }: CampaignModalProps) => {
                         Cancelar
                     </Button>
                     <Button type="submit" variant="primary" disabled={loading}>
-                        {loading ? 'Guardando...' : 'Guardar Campaña'}
+                        {loading ? 'Guardando...' : isEditMode ? 'Actualizar Campaña' : 'Guardar Campaña'}
                     </Button>
                 </ModalFooter>
             </Form>
