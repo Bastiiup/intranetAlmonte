@@ -88,27 +88,44 @@ export async function PUT(
     console.log('[API /crm/leads/[id] PUT] Body recibido:', JSON.stringify(body, null, 2))
 
     // Buscar el lead primero para obtener el documentId correcto
+    // IMPORTANTE: Priorizar endpoint directo para documentId (string) para evitar error 500
+    // Strapi v5: /api/leads/${documentId} funciona con documentId (string)
+    // filters[id][$eq] solo funciona con ID numérico y causa error 500 con documentId
     let lead: any = null
     try {
-      console.log('[API /crm/leads/[id] PUT] 🔍 Buscando lead con ID:', id)
-      const searchResponse = await strapiClient.get<any>(`/api/leads?filters[id][$eq]=${id}&populate=*`)
+      console.log('[API /crm/leads/[id] PUT] 🔍 Buscando lead con ID:', id, 'tipo:', typeof id)
       
-      if (searchResponse.data && Array.isArray(searchResponse.data) && searchResponse.data.length > 0) {
-        lead = searchResponse.data[0]
-      } else if (searchResponse.data && !Array.isArray(searchResponse.data)) {
-        lead = searchResponse.data
-      } else if (Array.isArray(searchResponse) && searchResponse.length > 0) {
-        lead = searchResponse[0]
-      }
-      
-      // Si no se encuentra con id, intentar con documentId
-      if (!lead) {
-        console.log('[API /crm/leads/[id] PUT] 🔍 No encontrado con id, buscando con documentId:', id)
-        const docIdResponse = await strapiClient.get<any>(`/api/leads/${id}?populate=*`)
-        if (docIdResponse.data) {
-          lead = docIdResponse.data
-        } else if (docIdResponse) {
-          lead = docIdResponse
+      // Primero intentar con endpoint directo (funciona con documentId string)
+      try {
+        console.log('[API /crm/leads/[id] PUT] 🔍 Intentando endpoint directo:', `/api/leads/${id}`)
+        const directResponse = await strapiClient.get<any>(`/api/leads/${id}?populate=*`)
+        if (directResponse.data) {
+          lead = directResponse.data
+          console.log('[API /crm/leads/[id] PUT] ✅ Lead encontrado con endpoint directo')
+        } else if (directResponse) {
+          lead = directResponse
+          console.log('[API /crm/leads/[id] PUT] ✅ Lead encontrado con endpoint directo (sin .data)')
+        }
+      } catch (directError: any) {
+        // Si falla con endpoint directo y el ID es numérico, intentar con filters
+        const isNumericId = /^\d+$/.test(String(id))
+        if (isNumericId && directError.status === 404) {
+          console.log('[API /crm/leads/[id] PUT] 🔍 Endpoint directo falló, intentando con filters (ID numérico):', id)
+          try {
+            const searchResponse = await strapiClient.get<any>(`/api/leads?filters[id][$eq]=${id}&populate=*`)
+            
+            if (searchResponse.data && Array.isArray(searchResponse.data) && searchResponse.data.length > 0) {
+              lead = searchResponse.data[0]
+              console.log('[API /crm/leads/[id] PUT] ✅ Lead encontrado con filters')
+            } else if (searchResponse.data && !Array.isArray(searchResponse.data)) {
+              lead = searchResponse.data
+              console.log('[API /crm/leads/[id] PUT] ✅ Lead encontrado con filters (sin array)')
+            }
+          } catch (filterError: any) {
+            console.warn('[API /crm/leads/[id] PUT] ⚠️ Error con filters también:', filterError.message)
+          }
+        } else {
+          console.warn('[API /crm/leads/[id] PUT] ⚠️ Error con endpoint directo:', directError.message)
         }
       }
     } catch (searchError: any) {
@@ -315,24 +332,32 @@ export async function DELETE(
     const { id } = await params
 
     // Buscar el lead primero para obtener el documentId correcto
+    // IMPORTANTE: Priorizar endpoint directo para documentId (string) para evitar error 500
     let lead: any = null
     try {
-      const searchResponse = await strapiClient.get<any>(`/api/leads?filters[id][$eq]=${id}&populate=*`)
-      
-      if (searchResponse.data && Array.isArray(searchResponse.data) && searchResponse.data.length > 0) {
-        lead = searchResponse.data[0]
-      } else if (searchResponse.data && !Array.isArray(searchResponse.data)) {
-        lead = searchResponse.data
-      } else if (Array.isArray(searchResponse) && searchResponse.length > 0) {
-        lead = searchResponse[0]
-      }
-      
-      if (!lead) {
-        const docIdResponse = await strapiClient.get<any>(`/api/leads/${id}?populate=*`)
-        if (docIdResponse.data) {
-          lead = docIdResponse.data
-        } else if (docIdResponse) {
-          lead = docIdResponse
+      // Primero intentar con endpoint directo (funciona con documentId string)
+      try {
+        const directResponse = await strapiClient.get<any>(`/api/leads/${id}?populate=*`)
+        if (directResponse.data) {
+          lead = directResponse.data
+        } else if (directResponse) {
+          lead = directResponse
+        }
+      } catch (directError: any) {
+        // Si falla con endpoint directo y el ID es numérico, intentar con filters
+        const isNumericId = /^\d+$/.test(String(id))
+        if (isNumericId && directError.status === 404) {
+          try {
+            const searchResponse = await strapiClient.get<any>(`/api/leads?filters[id][$eq]=${id}&populate=*`)
+            
+            if (searchResponse.data && Array.isArray(searchResponse.data) && searchResponse.data.length > 0) {
+              lead = searchResponse.data[0]
+            } else if (searchResponse.data && !Array.isArray(searchResponse.data)) {
+              lead = searchResponse.data
+            }
+          } catch (filterError: any) {
+            // Ignorar error de filters
+          }
         }
       }
     } catch (searchError: any) {
