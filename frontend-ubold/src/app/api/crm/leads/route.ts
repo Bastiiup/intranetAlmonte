@@ -226,7 +226,8 @@ export async function POST(request: Request) {
 
     // Obtener el ID del lead creado
     const leadDataResponse = Array.isArray(response.data) ? response.data[0] : response.data
-    const leadId = leadDataResponse?.id || leadDataResponse?.documentId || null
+    const leadDataAny = leadDataResponse as any
+    const leadId = leadDataAny?.id || leadDataAny?.documentId || null
 
     // Crear actividad automáticamente
     if (leadId) {
