@@ -105,8 +105,9 @@ export async function GET(request: Request) {
  * Crea un nuevo colegio
  */
 export async function POST(request: Request) {
+  let body: any = null
   try {
-    const body = await request.json()
+    body = await request.json()
 
     // Validaciones básicas
     if (!body.colegio_nombre || !body.colegio_nombre.trim()) {
@@ -206,7 +207,7 @@ export async function POST(request: Request) {
       message: error.message,
       status: error.status,
       details: error.details,
-      rbd: body.rbd,
+      rbd: body?.rbd || 'no disponible',
     })
     
     // Extraer mensaje de error más descriptivo
@@ -218,7 +219,7 @@ export async function POST(request: Request) {
       
       // Si el error es de RBD duplicado
       if (firstError?.path?.includes('rbd') && firstError?.message?.includes('unique')) {
-        const rbdValue = firstError.value || body.rbd
+        const rbdValue = firstError.value || body?.rbd || 'desconocido'
         errorMessage = `El RBD ${rbdValue} ya existe en el sistema. Por favor, use un RBD diferente.`
       } else if (firstError?.message) {
         // Para otros errores, mostrar el campo y mensaje
