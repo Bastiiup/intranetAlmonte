@@ -201,7 +201,8 @@ export async function POST(request: NextRequest) {
     )
 
     // Obtener el ID de la oportunidad creada
-    const oportunidadId = response.data?.id || response.data?.documentId || null
+    const oportunidadDataResponse = Array.isArray(response.data) ? response.data[0] : response.data
+    const oportunidadId = oportunidadDataResponse?.id || oportunidadDataResponse?.documentId || null
 
     // Crear actividad automáticamente
     if (oportunidadId) {
