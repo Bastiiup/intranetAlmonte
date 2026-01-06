@@ -43,7 +43,11 @@ export default async function Page() {
 
   return (
     <Container fluid>
-      <PageBreadcrumb title="Colegios" subtitle="CRM" />
+      <PageBreadcrumb 
+        title="Colegios" 
+        subtitle="CRM" 
+        infoText="Los Colegios son instituciones educativas con las que trabajas. Aquí puedes gestionar información completa de cada colegio: datos de contacto, ubicación, representantes comerciales, y ver todos los contactos asociados. Los colegios pueden estar relacionados con oportunidades de venta y leads."
+      />
       <ColegiosListing colegios={colegios} error={error} />
     </Container>
   )

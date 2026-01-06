@@ -43,7 +43,11 @@ export default async function Page() {
 
   return (
     <Container fluid>
-      <PageBreadcrumb title="Personas" subtitle="CRM" />
+      <PageBreadcrumb 
+        title="Personas" 
+        subtitle="CRM" 
+        infoText="Las Personas son contactos individuales que pueden estar asociados a colegios o ser independientes. Aquí puedes gestionar información personal, datos de contacto, y relaciones con colegios. Las personas pueden ser contactos clave, representantes comerciales, o cualquier individuo relevante para tu negocio."
+      />
       <PersonasListing personas={personas} error={error} />
     </Container>
   )

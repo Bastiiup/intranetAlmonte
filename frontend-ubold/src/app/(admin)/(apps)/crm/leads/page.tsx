@@ -285,7 +285,11 @@ const Leads = () => {
   if (loading && leadsData.length === 0) {
     return (
       <Container fluid>
-        <PageBreadcrumb title={'Leads'} subtitle={'CRM'} />
+        <PageBreadcrumb 
+          title={'Leads'} 
+          subtitle={'CRM'} 
+          infoText="Los Leads son posibles clientes o contactos interesados en tus productos o servicios. Aquí puedes gestionar leads potenciales, clasificarlos por etiqueta (Cold Lead, Prospect, Hot Lead), asignarlos a colaboradores, y convertirlos en Oportunidades cuando estén listos para avanzar en el proceso de venta."
+        />
         <div className="text-center py-5">
           <Spinner animation="border" variant="primary" />
           <p className="mt-2 text-muted">Cargando leads...</p>

@@ -242,7 +242,11 @@ const Opportunities = () => {
   if (loading && opportunitiesData.length === 0) {
     return (
       <div className="container-fluid">
-        <PageBreadcrumb title={'Oportunidades'} subtitle={'CRM'} />
+        <PageBreadcrumb 
+          title={'Oportunidades'} 
+          subtitle={'CRM'} 
+          infoText="Las Oportunidades son posibles ventas o negocios en proceso. Aquí puedes gestionar cada oportunidad desde la calificación inicial hasta el cierre (ganada o perdida). Incluye información del contacto, producto, monto estimado, etapa del proceso, prioridad y propietario asignado."
+        />
         <div className="text-center py-5">
           <Spinner animation="border" variant="primary" />
           <p className="mt-2 text-muted">Cargando oportunidades...</p>

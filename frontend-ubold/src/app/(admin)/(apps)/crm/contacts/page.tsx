@@ -418,7 +418,11 @@ const Contacts = () => {
   if (loading && contactsData.length === 0) {
     return (
       <Container fluid>
-        <PageBreadcrumb title={'Contactos'} subtitle={'CRM'} />
+        <PageBreadcrumb 
+        title={'Contactos'} 
+        subtitle={'CRM'} 
+        infoText="Los Contactos son personas o instituciones con las que tu empresa tiene relación. Aquí puedes gestionar toda la información de contacto, incluyendo emails, teléfonos, direcciones y datos adicionales. Los contactos pueden estar relacionados con colegios, personas o ser independientes."
+      />
         <div className="text-center py-5">
           <Spinner animation="border" variant="primary" />
           <p className="mt-2 text-muted">Cargando contactos...</p>
@@ -429,7 +433,11 @@ const Contacts = () => {
 
   return (
     <Container fluid>
-      <PageBreadcrumb title={'Contactos'} subtitle={'CRM'} />
+      <PageBreadcrumb 
+        title={'Contactos'} 
+        subtitle={'CRM'} 
+        infoText="Los Contactos son personas o instituciones con las que tu empresa tiene relación. Aquí puedes gestionar toda la información de contacto, incluyendo emails, teléfonos, direcciones y datos adicionales. Los contactos pueden estar relacionados con colegios, personas o ser independientes."
+      />
 
       {successMessage && (
         <Alert variant="success" dismissible onClose={() => setSuccessMessage(null)} className="mb-3">
