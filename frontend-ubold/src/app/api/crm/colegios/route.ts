@@ -206,13 +206,27 @@ export async function POST(request: Request) {
       message: error.message,
       status: error.status,
       details: error.details,
+      rbd: body.rbd,
     })
+    
     // Extraer mensaje de error más descriptivo
     let errorMessage = error.message || 'Error al crear colegio'
+    
+    // Detectar error de RBD duplicado específicamente
     if (error.details?.errors && Array.isArray(error.details.errors)) {
       const firstError = error.details.errors[0]
-      if (firstError?.message) {
-        errorMessage = `${firstError.path?.[0] || 'Campo'}: ${firstError.message}`
+      
+      // Si el error es de RBD duplicado
+      if (firstError?.path?.includes('rbd') && firstError?.message?.includes('unique')) {
+        const rbdValue = firstError.value || body.rbd
+        errorMessage = `El RBD ${rbdValue} ya existe en el sistema. Por favor, use un RBD diferente.`
+      } else if (firstError?.message) {
+        // Para otros errores, mostrar el campo y mensaje
+        const fieldName = firstError.path?.[0] || 'Campo'
+        const fieldLabel = fieldName === 'rbd' ? 'RBD' : 
+                          fieldName === 'colegio_nombre' ? 'Nombre del colegio' : 
+                          fieldName
+        errorMessage = `${fieldLabel}: ${firstError.message}`
       }
     }
 
