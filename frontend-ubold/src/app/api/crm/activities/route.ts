@@ -70,29 +70,10 @@ export async function GET(request: NextRequest) {
       params.append('filters[$or][1][descripcion][$containsi]', search)
     }
 
-    // Intentar primero con "actividades" (plural español)
-    // Si falla, intentar con "actividads" (plural que Strapi puede generar)
-    let response: any
-    try {
-      response = await strapiClient.get<StrapiResponse<StrapiEntity<ActividadAttributes>[]>>(
-        `/api/actividades?${params.toString()}`
-      )
-    } catch (firstError: any) {
-      // Si falla con 404, intentar con "actividads" (sin la 'e')
-      if (firstError.status === 404) {
-        console.log('[API /crm/activities] Intentando con endpoint alternativo: /api/actividads')
-        try {
-          response = await strapiClient.get<StrapiResponse<StrapiEntity<ActividadAttributes>[]>>(
-            `/api/actividads?${params.toString()}`
-          )
-        } catch (secondError: any) {
-          // Si ambos fallan, lanzar el error original
-          throw firstError
-        }
-      } else {
-        throw firstError
-      }
-    }
+    // Endpoint correcto: /api/actividades (plural con "es")
+    const response = await strapiClient.get<StrapiResponse<StrapiEntity<ActividadAttributes>[]>>(
+      `/api/actividades?${params.toString()}`
+    )
 
     const activitiesData = response.data || []
     const pagination = response.meta?.pagination || {
@@ -231,21 +212,47 @@ export async function POST(request: NextRequest) {
       },
     }
 
-    // Relaciones
+    // Relaciones - convertir a números si es necesario y validar
     if (body.relacionado_con_contacto) {
-      actividadData.data.relacionado_con_contacto = body.relacionado_con_contacto
+      const contactoId = typeof body.relacionado_con_contacto === 'string' 
+        ? parseInt(body.relacionado_con_contacto) 
+        : body.relacionado_con_contacto
+      if (!isNaN(contactoId) && contactoId > 0) {
+        actividadData.data.relacionado_con_contacto = contactoId
+      }
     }
     if (body.relacionado_con_lead) {
-      actividadData.data.relacionado_con_lead = body.relacionado_con_lead
+      const leadId = typeof body.relacionado_con_lead === 'string' 
+        ? parseInt(body.relacionado_con_lead) 
+        : body.relacionado_con_lead
+      if (!isNaN(leadId) && leadId > 0) {
+        actividadData.data.relacionado_con_lead = leadId
+      }
     }
     if (body.relacionado_con_oportunidad) {
-      actividadData.data.relacionado_con_oportunidad = body.relacionado_con_oportunidad
+      const oportunidadId = typeof body.relacionado_con_oportunidad === 'string' 
+        ? parseInt(body.relacionado_con_oportunidad) 
+        : body.relacionado_con_oportunidad
+      if (!isNaN(oportunidadId) && oportunidadId > 0) {
+        actividadData.data.relacionado_con_oportunidad = oportunidadId
+      }
     }
     if (body.relacionado_con_colegio) {
-      actividadData.data.relacionado_con_colegio = body.relacionado_con_colegio
+      const colegioId = typeof body.relacionado_con_colegio === 'string' 
+        ? parseInt(body.relacionado_con_colegio) 
+        : body.relacionado_con_colegio
+      if (!isNaN(colegioId) && colegioId > 0) {
+        actividadData.data.relacionado_con_colegio = colegioId
+      }
     }
+    // creado_por es opcional - solo agregar si es válido
     if (body.creado_por) {
-      actividadData.data.creado_por = body.creado_por
+      const creadoPorId = typeof body.creado_por === 'string' 
+        ? parseInt(body.creado_por) 
+        : body.creado_por
+      if (!isNaN(creadoPorId) && creadoPorId > 0) {
+        actividadData.data.creado_por = creadoPorId
+      }
     }
 
     const response = await strapiClient.post<StrapiResponse<StrapiEntity<ActividadAttributes>>>(
@@ -268,6 +275,59 @@ export async function POST(request: NextRequest) {
       status: error.status,
       details: error.details,
     })
+
+    // Detectar tipos específicos de errores
+    if (error.status === 404 || error.message?.includes('Not Found')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Content-type "Actividad" no encontrado en Strapi. Verifica que esté creado correctamente.',
+          details: error.details || {},
+        },
+        { status: 404 }
+      )
+    }
+
+    if (error.status === 403 || error.message?.includes('Forbidden')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Permisos insuficientes. Verificar configuración en Strapi Admin → Settings → Users & Permissions',
+          details: error.details || {},
+        },
+        { status: 403 }
+      )
+    }
+
+    if (error.status === 400 || error.message?.includes('ValidationError')) {
+      // Extraer mensaje de validación más descriptivo
+      let errorMessage = 'Error de validación al crear actividad'
+      if (error.details?.errors && Array.isArray(error.details.errors)) {
+        const firstError = error.details.errors[0]
+        if (firstError.message) {
+          errorMessage = firstError.message
+        }
+      }
+      return NextResponse.json(
+        {
+          success: false,
+          error: errorMessage,
+          details: error.details || {},
+        },
+        { status: 400 }
+      )
+    }
+
+    if (error.status === 502 || error.message?.includes('Bad Gateway')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Strapi no está disponible. Por favor, verifica que Strapi esté funcionando.',
+          details: error.details || {},
+        },
+        { status: 502 }
+      )
+    }
 
     return NextResponse.json(
       {
