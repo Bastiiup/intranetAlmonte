@@ -73,9 +73,10 @@ const CampaignModal = ({ show, onHide, onSuccess, campaign }: CampaignModalProps
                 const cleanId = campaign.realId?.replace(/^#CAMP/, '').replace(/^#/, '')
                 if (cleanId) {
                     // Cargar datos completos desde la API
-                    try {
-                        const response = await fetch(`/api/crm/campaigns/${cleanId}`)
-                        const result = await response.json()
+                    const loadCampaignData = async () => {
+                        try {
+                            const response = await fetch(`/api/crm/campaigns/${cleanId}`)
+                            const result = await response.json()
                         if (result.success && result.data) {
                             const attrs = result.data.attributes || result.data
                             const estadoMap: Record<string, string> = {
@@ -147,6 +148,9 @@ const CampaignModal = ({ show, onHide, onSuccess, campaign }: CampaignModalProps
                             creado_por: '',
                         })
                     }
+                    }
+                    
+                    loadCampaignData()
                 } else {
                     // Si no hay ID, usar los datos básicos
                     const estadoMap: Record<string, string> = {
