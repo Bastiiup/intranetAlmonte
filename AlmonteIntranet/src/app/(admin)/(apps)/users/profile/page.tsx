@@ -9,7 +9,7 @@ import ProfileBanner from './components/ProfileBanner'
 const page = () => {
     return (
         <Container fluid>
-            <PageBreadcrumb title="Profile" subtitle="Users" />
+            <PageBreadcrumb title="Perfil" subtitle="Usuarios" />
             <div className="row">
                 <div className="col-12">
                     <article className="card overflow-hidden mb-0">

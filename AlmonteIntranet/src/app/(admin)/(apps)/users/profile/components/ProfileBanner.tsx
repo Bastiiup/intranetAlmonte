@@ -251,11 +251,8 @@ const ProfileBanner = ({ colaboradorId }: ProfileBannerProps) => {
             onMouseEnter={() => isOwnProfile && setShowUploadButton(true)}
             onMouseLeave={() => !bannerFile && setShowUploadButton(false)}
         >
-            {/* Overlay con texto */}
-            <div className="p-4 card-img-overlay rounded-start-0 auth-overlay d-flex align-items-center flex-column justify-content-center">
-                <h3 className="text-white mb-1 fst-italic">"Crafting innovation through clean design"</h3>
-                <p className="text-white mb-4">– MyStatus</p>
-            </div>
+            {/* Overlay (sin texto) */}
+            <div className="p-4 card-img-overlay rounded-start-0 auth-overlay" />
 
             {/* Botón para cambiar portada (solo en perfil propio) */}
             {isOwnProfile && (
