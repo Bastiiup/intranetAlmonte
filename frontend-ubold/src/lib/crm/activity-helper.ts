@@ -132,15 +132,26 @@ export async function createActivity(activityData: {
       delete payloadParaLog.data.published
     }
 
-    console.log('[Activity Helper] 📝 Intentando crear actividad:', {
-      titulo: activityData.titulo,
-      tipo: tipo,
-      fecha: fecha,
-      estado: estado,
-      tieneCreadoPor: !!actividadPayload.data.creado_por,
-      creadoPorId: actividadPayload.data.creado_por || 'NO SE ENVÍA',
-      payload: JSON.stringify(payloadParaLog, null, 2),
-    })
+    // ========== LOGS DETALLADOS PARA DEBUGGING ==========
+    console.log('═══════════════════════════════════════════════════════')
+    console.log('[Activity Helper] 📝 CREANDO ACTIVIDAD AUTOMÁTICA')
+    console.log('═══════════════════════════════════════════════════════')
+    console.log('[Activity Helper] 📋 Datos de entrada:')
+    console.log('  - Título:', activityData.titulo)
+    console.log('  - Tipo:', tipo, '(por defecto: nota)')
+    console.log('  - Estado:', estado, '(por defecto: pendiente)')
+    console.log('  - Fecha:', fecha, '(por defecto: fecha actual)')
+    console.log('  - Descripción:', activityData.descripcion || 'NO HAY')
+    console.log('  - Notas:', activityData.notas || 'NO HAY')
+    console.log('[Activity Helper] 🔗 Relaciones:')
+    console.log('  - Relacionado con contacto:', activityData.relacionado_con_contacto || 'NO')
+    console.log('  - Relacionado con lead:', activityData.relacionado_con_lead || 'NO')
+    console.log('  - Relacionado con oportunidad:', activityData.relacionado_con_oportunidad || 'NO')
+    console.log('  - Relacionado con colegio:', activityData.relacionado_con_colegio || 'NO')
+    console.log('  - Creado por:', actividadPayload.data.creado_por || 'NO SE ENVÍA (opcional)')
+    console.log('[Activity Helper] 📤 Payload que se enviará a Strapi:')
+    console.log(JSON.stringify(payloadParaLog, null, 2))
+    console.log('═══════════════════════════════════════════════════════')
 
     // Usar el endpoint correcto: /api/actividades
     // Nota: draftAndPublish está deshabilitado, así que las actividades se guardan directamente
@@ -150,46 +161,97 @@ export async function createActivity(activityData: {
       actividadPayload
     )
 
-    console.log('[Activity Helper] ✅ Actividad creada automáticamente:', {
-      titulo: activityData.titulo,
-      response: response.data ? 'OK' : 'Sin datos',
-      responseData: response.data,
-    })
+    // ========== LOGS DE RESPUESTA ==========
+    const actividadId = (response.data as any)?.id || (response.data as any)?.documentId || 'unknown'
+    console.log('═══════════════════════════════════════════════════════')
+    console.log('[Activity Helper] ✅ ACTIVIDAD CREADA EXITOSAMENTE')
+    console.log('═══════════════════════════════════════════════════════')
+    console.log('[Activity Helper] 📋 Detalles de la actividad creada:')
+    console.log('  - ID:', actividadId)
+    console.log('  - Título:', activityData.titulo)
+    console.log('  - Tipo:', tipo)
+    console.log('  - Estado:', estado)
+    console.log('  - Fecha:', fecha)
+    console.log('[Activity Helper] 🔗 Relaciones establecidas:')
+    console.log('  - Relacionado con contacto:', actividadPayload.data.relacionado_con_contacto || 'NO')
+    console.log('  - Relacionado con lead:', actividadPayload.data.relacionado_con_lead || 'NO')
+    console.log('  - Relacionado con oportunidad:', actividadPayload.data.relacionado_con_oportunidad || 'NO')
+    console.log('  - Relacionado con colegio:', actividadPayload.data.relacionado_con_colegio || 'NO')
+    console.log('  - Creado por:', actividadPayload.data.creado_por || 'NO')
+    console.log('[Activity Helper] 📥 Respuesta completa de Strapi:')
+    console.log(JSON.stringify(response, null, 2).substring(0, 500), '...')
+    console.log('═══════════════════════════════════════════════════════')
   } catch (error: any) {
-    // No lanzar error para no interrumpir el flujo principal, pero loguear bien
-    console.error('[Activity Helper] ⚠️ Error al crear actividad automática:', {
-      message: error.message,
-      status: error.status,
-      statusText: error.statusText,
-      titulo: activityData.titulo,
-      tipo: activityData.tipo,
-      errorDetails: error.details || error,
-      stack: error.stack,
-    })
+    // ========== LOGS DETALLADOS DE ERROR ==========
+    console.log('═══════════════════════════════════════════════════════')
+    console.log('[Activity Helper] ❌ ERROR AL CREAR ACTIVIDAD')
+    console.log('═══════════════════════════════════════════════════════')
+    console.error('[Activity Helper] ⚠️ Error al crear actividad automática:')
+    console.error('  - Mensaje:', error.message)
+    console.error('  - Status:', error.status)
+    console.error('  - Status Text:', error.statusText)
+    console.error('  - Título intentado:', activityData.titulo)
+    console.error('  - Tipo:', activityData.tipo || 'nota (por defecto)')
+    console.error('[Activity Helper] 📋 Payload que causó el error:')
+    console.error(JSON.stringify(actividadPayload, null, 2))
     
     // Detectar tipos específicos de errores
     if (error.status === 404 || error.message?.includes('Not Found')) {
-      console.error('[Activity Helper] ❌ El content-type "Actividad" no existe en Strapi o el endpoint es incorrecto.')
-      console.error('[Activity Helper] Verifica que el content-type esté creado y el endpoint sea /api/actividades')
+      console.error('[Activity Helper] ❌ PROBLEMA: Content-type "Actividad" no existe')
+      console.error('[Activity Helper] 🔧 SOLUCIÓN:')
+      console.error('  1. Verifica que el content-type esté creado en Strapi')
+      console.error('  2. Verifica que el endpoint sea /api/actividades')
+      console.error('  3. Reinicia Strapi después de crear el content-type')
     } else if (error.status === 403 || error.message?.includes('Forbidden')) {
-      console.error('[Activity Helper] ❌ Error de permisos (403 Forbidden)')
-      console.error('[Activity Helper] Verifica que los permisos estén configurados en Strapi:')
-      console.error('[Activity Helper] Settings → Users & Permissions → Roles → [Tu Rol] → Actividad')
-      console.error('[Activity Helper] Debe tener habilitado: find, findOne, create, update, delete')
+      console.error('[Activity Helper] ❌ PROBLEMA: Error de permisos (403 Forbidden)')
+      console.error('[Activity Helper] 🔧 SOLUCIÓN:')
+      console.error('  1. Ve a Strapi Admin → Settings → Users & Permissions → Roles')
+      console.error('  2. Selecciona el rol apropiado (Public, Authenticated, etc.)')
+      console.error('  3. Busca "Actividad" en la lista de permisos')
+      console.error('  4. Habilita: find, findOne, create, update, delete')
     } else if (error.status === 400) {
-      console.error('[Activity Helper] ❌ Error de validación (400 Bad Request)')
+      console.error('[Activity Helper] ❌ PROBLEMA: Error de validación (400 Bad Request)')
       if (error.details?.errors) {
-        console.error('[Activity Helper] Errores de validación:', JSON.stringify(error.details.errors, null, 2))
+        console.error('[Activity Helper] 📋 Errores de validación detallados:')
+        console.error(JSON.stringify(error.details.errors, null, 2))
         
         // Detectar si el error es por colaborador que no existe
         const errorMessage = error.message || ''
         if (errorMessage.includes('colaborador') && errorMessage.includes('do not exist')) {
-          console.warn('[Activity Helper] ⚠️ El colaborador especificado no existe en Strapi')
-          console.warn('[Activity Helper] ⚠️ La actividad se creará sin creado_por en el próximo intento')
-          console.warn('[Activity Helper] ⚠️ Para evitar este error, verifica que el colaborador con ID existe antes de crear la actividad')
+          console.warn('[Activity Helper] ⚠️ CAUSA ESPECÍFICA: El colaborador no existe en Strapi')
+          console.warn('[Activity Helper] 🔍 Detalles:')
+          console.warn('  - ID de colaborador intentado:', actividadPayload.data.creado_por)
+          console.warn('  - Este ID no existe en la tabla de colaboradores de Strapi')
+          console.warn('[Activity Helper] 🔧 SOLUCIÓN:')
+          console.warn('  1. Verifica que el colaborador con ID', actividadPayload.data.creado_por, 'exista en Strapi')
+          console.warn('  2. O omite creado_por (es opcional) para crear la actividad sin colaborador')
+          console.warn('  3. La actividad se puede crear manualmente después desde /crm/activities')
+        }
+        
+        // Detectar si falta fecha
+        const errorsArray = error.details?.errors || []
+        const fechaError = errorsArray.find((e: any) => e.path?.includes('fecha'))
+        if (fechaError) {
+          console.error('[Activity Helper] ⚠️ CAUSA ESPECÍFICA: Fecha no definida')
+          console.error('[Activity Helper] 🔧 SOLUCIÓN: El código debería enviar fecha automáticamente')
         }
       }
+    } else {
+      console.error('[Activity Helper] ❌ PROBLEMA: Error desconocido')
+      console.error('[Activity Helper] 📋 Detalles completos del error:')
+      console.error(JSON.stringify({
+        message: error.message,
+        status: error.status,
+        details: error.details,
+        stack: error.stack?.substring(0, 500),
+      }, null, 2))
     }
+    console.log('═══════════════════════════════════════════════════════')
+    console.log('[Activity Helper] ⚠️ NOTA: Este error NO interrumpe el flujo principal')
+    console.log('[Activity Helper] ⚠️ El lead/oportunidad se creó correctamente, solo falló la actividad')
+    console.log('═══════════════════════════════════════════════════════')
+    
+    // No lanzar error para no interrumpir el flujo principal
   }
 }
 

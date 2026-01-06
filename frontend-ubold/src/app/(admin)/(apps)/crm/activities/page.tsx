@@ -81,7 +81,22 @@ const Page = () => {
         activitiesData = [result.data]
       }
       
-      console.log('[Activities Page] ✅ Actividades obtenidas:', activitiesData.length)
+      console.log('═══════════════════════════════════════════════════════')
+      console.log('[Activities Page] ✅ ACTIVIDADES CARGADAS')
+      console.log('═══════════════════════════════════════════════════════')
+      console.log('[Activities Page] 📊 Estadísticas:')
+      console.log('  - Total de actividades:', activitiesData.length)
+      console.log('  - Actividades transformadas:', transformed.length)
+      console.log('[Activities Page] 📋 Tipos de actividades:')
+      const tiposCount: Record<string, number> = {}
+      transformed.forEach(a => {
+        tiposCount[a.tipo] = (tiposCount[a.tipo] || 0) + 1
+      })
+      Object.entries(tiposCount).forEach(([tipo, count]) => {
+        console.log(`  - ${tipo}: ${count}`)
+      })
+      console.log('[Activities Page] 📅 Actividades agrupadas por fecha:', Object.keys(activitiesByDate).length, 'fechas')
+      console.log('═══════════════════════════════════════════════════════')
       
       // Transformar usando la función de transformación
       const transformed = activitiesData.map((actividad: any) => {
