@@ -43,7 +43,23 @@ const Profile = ({ colaboradorId }: ProfileProps) => {
                     const result = await response.json()
                     if (result.success && result.data) {
                         // Normalizar estructura: puede venir como data.data o data directamente
-                        const data = result.data.data || result.data
+                        let data = result.data.data || result.data
+                        
+                        // Si viene de /api/colaboradores/[id], normalizar estructura
+                        if (colaboradorId && data.attributes) {
+                            // Extraer persona si está en attributes
+                            if (data.attributes.persona) {
+                                const personaData = data.attributes.persona.data || data.attributes.persona
+                                data = {
+                                    ...data,
+                                    attributes: {
+                                        ...data.attributes,
+                                        persona: personaData
+                                    }
+                                }
+                            }
+                        }
+                        
                         setProfileData(data)
                     }
                 }
@@ -59,7 +75,15 @@ const Profile = ({ colaboradorId }: ProfileProps) => {
     }, [loading, colaboradorId])
     
     // Si estamos viendo otro perfil, usar datos de profileData
-    const displayPersona = profileData?.persona || profileData?.attributes?.persona || persona
+    // Normalizar estructura de persona (puede venir en diferentes formatos)
+    let displayPersona = profileData?.persona || profileData?.attributes?.persona || persona
+    if (displayPersona?.data) {
+        displayPersona = displayPersona.data
+    }
+    if (displayPersona?.attributes) {
+        displayPersona = { ...displayPersona, ...displayPersona.attributes }
+    }
+    
     const displayColaborador = profileData?.attributes || profileData || colaborador
     
     const nombreCompleto = displayPersona ? getPersonaNombre(displayPersona) : (displayColaborador?.email_login || 'Usuario')

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { Button, CardBody, CardHeader, CardTitle, Col, FormControl, FormLabel, Nav, NavItem, NavLink, Row, TabContainer, TabContent, Table, TabPane, Alert, Spinner } from 'react-bootstrap'
 import { TbArrowBackUp, TbBrandFacebook, TbBrandGithub, TbBrandInstagram, TbBrandLinkedin, TbBrandSkype, TbBrandX, TbBriefcase, TbCamera, TbChecklist, TbDeviceFloppy, TbHome, TbMapPin, TbMoodSmile, TbPencil, TbSettings, TbShare3, TbUser, TbUserCircle, TbWorld } from 'react-icons/tb'
 import Link from 'next/link'
-import { useAuth } from '@/hooks/useAuth'
+import { useAuth, getPersonaNombre } from '@/hooks/useAuth'
 import { getAuthToken } from '@/lib/auth'
 
 interface AccountProps {
@@ -26,6 +26,9 @@ const Account = ({ colaboradorId }: AccountProps) => {
     const [loadingTimeline, setLoadingTimeline] = useState(true)
     const [newPostText, setNewPostText] = useState('')
     const [posting, setPosting] = useState(false)
+    
+    // Estado para datos del perfil que se está viendo (para "Sobre Mí" y línea de tiempo)
+    const [viewingProfileData, setViewingProfileData] = useState<any>(null)
 
     // Estado del formulario
     const [formData, setFormData] = useState({
@@ -84,6 +87,12 @@ const Account = ({ colaboradorId }: AccountProps) => {
                         const colaboradorData = colaboradorId
                             ? (data.attributes || data)
                             : result.data.colaborador
+                        
+                        // Guardar datos del perfil que se está viendo
+                        setViewingProfileData({
+                            persona: personaData,
+                            colaborador: colaboradorData
+                        })
                         
                         console.log('[Account] Datos completos recibidos:', JSON.stringify(result.data, null, 2))
                         console.log('[Account] Estructura de personaData:', JSON.stringify(personaData, null, 2))
@@ -246,6 +255,15 @@ const Account = ({ colaboradorId }: AccountProps) => {
                     if (result.success && result.data) {
                         // El endpoint ya filtra por usuario, así que usar directamente los datos
                         const logsArray = Array.isArray(result.data) ? result.data : [result.data]
+                        
+                        // Guardar información del usuario del perfil que se está viendo
+                        if (result.usuarioInfo && colaboradorId) {
+                            setViewingProfileData((prev: any) => ({
+                                ...prev,
+                                persona: result.usuarioInfo.persona || prev?.persona,
+                                colaborador: result.usuarioInfo || prev?.colaborador
+                            }))
+                        }
                         
                         console.log('[Línea de Tiempo] ✅ Logs obtenidos:', logsArray.length)
                         setTimelinePosts(logsArray)
@@ -450,12 +468,13 @@ const Account = ({ colaboradorId }: AccountProps) => {
         }
     }
 
-    // Obtener nombre completo para About Me
-    const nombreCompleto = persona 
-        ? `${persona.nombres || ''} ${persona.primer_apellido || ''} ${persona.segundo_apellido || ''}`.trim() 
-        : colaborador?.email_login || 'Usuario'
+    // Obtener nombre completo y bio del perfil que se está viendo
+    const viewingPersona = colaboradorId ? (viewingProfileData?.persona) : persona
+    const nombreCompleto = viewingPersona 
+        ? getPersonaNombre(viewingPersona)
+        : (colaboradorId ? (viewingProfileData?.colaborador?.email_login) : (colaborador?.email_login || 'Usuario'))
 
-    const bio = persona?.bio || ''
+    const bio = viewingPersona?.bio || formData.bio || ''
 
     if (profileLoading || authLoading) {
         return (
@@ -527,64 +546,75 @@ const Account = ({ colaboradorId }: AccountProps) => {
                                         <Col md={6}>
                                             <div className="mb-3">
                                                 <p className="text-muted mb-1"><TbBriefcase className="me-2" /> Cargo / Título</p>
-                                                <p className="mb-0">{formData.job_title || <span className="text-muted">No especificado</span>}</p>
+                                                <p className="mb-0">{colaboradorId ? (viewingPersona?.job_title || <span className="text-muted">No especificado</span>) : (formData.job_title || <span className="text-muted">No especificado</span>)}</p>
                                             </div>
                                         </Col>
                                         <Col md={6}>
                                             <div className="mb-3">
                                                 <p className="text-muted mb-1"><TbWorld className="me-2" /> Teléfono</p>
-                                                <p className="mb-0">{formData.telefono || <span className="text-muted">No especificado</span>}</p>
+                                                <p className="mb-0">{colaboradorId ? (viewingPersona?.telefono_principal || (viewingPersona?.telefonos && Array.isArray(viewingPersona.telefonos) && viewingPersona.telefonos.length > 0 ? viewingPersona.telefonos[0].numero : '') || <span className="text-muted">No especificado</span>) : (formData.telefono || <span className="text-muted">No especificado</span>)}</p>
                                             </div>
                                         </Col>
                                     </Row>
                                     
-                                    {(formData.address_line1 || formData.city || formData.country) && (
+                                    {((colaboradorId ? (viewingPersona?.direccion?.line1 || viewingPersona?.direccion?.city || viewingPersona?.direccion?.country) : (formData.address_line1 || formData.city || formData.country))) && (
                                         <div className="mb-4">
                                             <h6 className="mb-2"><TbMapPin className="me-2" /> Dirección</h6>
                                             <p className="mb-0">
-                                                {[
-                                                    formData.address_line1,
-                                                    formData.address_line2,
-                                                    formData.city,
-                                                    formData.state,
-                                                    formData.zipcode,
-                                                    formData.country
-                                                ].filter(Boolean).join(', ') || <span className="text-muted">No especificada</span>}
+                                                {colaboradorId ? (
+                                                    [
+                                                        viewingPersona?.direccion?.line1,
+                                                        viewingPersona?.direccion?.line2,
+                                                        viewingPersona?.direccion?.city,
+                                                        viewingPersona?.direccion?.state,
+                                                        viewingPersona?.direccion?.zipcode,
+                                                        viewingPersona?.direccion?.country
+                                                    ].filter(Boolean).join(', ') || <span className="text-muted">No especificada</span>
+                                                ) : (
+                                                    [
+                                                        formData.address_line1,
+                                                        formData.address_line2,
+                                                        formData.city,
+                                                        formData.state,
+                                                        formData.zipcode,
+                                                        formData.country
+                                                    ].filter(Boolean).join(', ') || <span className="text-muted">No especificada</span>
+                                                )}
                                             </p>
                                         </div>
                                     )}
                                     
-                                    {(formData.social_facebook || formData.social_twitter || formData.social_instagram || formData.social_linkedin || formData.social_github || formData.social_skype) && (
+                                    {((colaboradorId ? (viewingPersona?.redes_sociales?.facebook || viewingPersona?.redes_sociales?.twitter || viewingPersona?.redes_sociales?.instagram || viewingPersona?.redes_sociales?.linkedin || viewingPersona?.redes_sociales?.github || viewingPersona?.redes_sociales?.skype) : (formData.social_facebook || formData.social_twitter || formData.social_instagram || formData.social_linkedin || formData.social_github || formData.social_skype))) && (
                                         <div className="mb-4">
                                             <h6 className="mb-2"><TbWorld className="me-2" /> Redes Sociales</h6>
                                             <div className="d-flex flex-wrap gap-2">
-                                                {formData.social_facebook && (
-                                                    <Link href={formData.social_facebook} target="_blank" className="btn btn-sm btn-outline-primary">
+                                                {(colaboradorId ? viewingPersona?.redes_sociales?.facebook : formData.social_facebook) && (
+                                                    <Link href={colaboradorId ? viewingPersona.redes_sociales.facebook : formData.social_facebook} target="_blank" className="btn btn-sm btn-outline-primary">
                                                         <TbBrandFacebook className="me-1" /> Facebook
                                                     </Link>
                                                 )}
-                                                {formData.social_twitter && (
-                                                    <Link href={formData.social_twitter} target="_blank" className="btn btn-sm btn-outline-dark">
+                                                {(colaboradorId ? viewingPersona?.redes_sociales?.twitter : formData.social_twitter) && (
+                                                    <Link href={colaboradorId ? viewingPersona.redes_sociales.twitter : formData.social_twitter} target="_blank" className="btn btn-sm btn-outline-dark">
                                                         <TbBrandX className="me-1" /> Twitter
                                                     </Link>
                                                 )}
-                                                {formData.social_instagram && (
-                                                    <Link href={formData.social_instagram} target="_blank" className="btn btn-sm btn-outline-danger">
+                                                {(colaboradorId ? viewingPersona?.redes_sociales?.instagram : formData.social_instagram) && (
+                                                    <Link href={colaboradorId ? viewingPersona.redes_sociales.instagram : formData.social_instagram} target="_blank" className="btn btn-sm btn-outline-danger">
                                                         <TbBrandInstagram className="me-1" /> Instagram
                                                     </Link>
                                                 )}
-                                                {formData.social_linkedin && (
-                                                    <Link href={formData.social_linkedin} target="_blank" className="btn btn-sm btn-outline-primary">
+                                                {(colaboradorId ? viewingPersona?.redes_sociales?.linkedin : formData.social_linkedin) && (
+                                                    <Link href={colaboradorId ? viewingPersona.redes_sociales.linkedin : formData.social_linkedin} target="_blank" className="btn btn-sm btn-outline-primary">
                                                         <TbBrandLinkedin className="me-1" /> LinkedIn
                                                     </Link>
                                                 )}
-                                                {formData.social_github && (
-                                                    <Link href={formData.social_github} target="_blank" className="btn btn-sm btn-outline-dark">
+                                                {(colaboradorId ? viewingPersona?.redes_sociales?.github : formData.social_github) && (
+                                                    <Link href={colaboradorId ? viewingPersona.redes_sociales.github : formData.social_github} target="_blank" className="btn btn-sm btn-outline-dark">
                                                         <TbBrandGithub className="me-1" /> GitHub
                                                     </Link>
                                                 )}
-                                                {formData.social_skype && (
-                                                    <Link href={formData.social_skype} target="_blank" className="btn btn-sm btn-outline-info">
+                                                {(colaboradorId ? viewingPersona?.redes_sociales?.skype : formData.social_skype) && (
+                                                    <Link href={colaboradorId ? viewingPersona.redes_sociales.skype : formData.social_skype} target="_blank" className="btn btn-sm btn-outline-info">
                                                         <TbBrandSkype className="me-1" /> Skype
                                                     </Link>
                                                 )}
@@ -851,6 +881,11 @@ const Account = ({ colaboradorId }: AccountProps) => {
                                         
                                         const Icono = icono
                                         
+                                        // Obtener nombre del colaborador del perfil que se está viendo
+                                        const logNombreCompleto = colaboradorId 
+                                            ? (viewingProfileData?.persona ? getPersonaNombre(viewingProfileData.persona) : nombreCompleto)
+                                            : nombreCompleto
+                                        
                                         return (
                                             <div key={log.id || idx} className="timeline-item d-flex align-items-start">
                                                 <div className="timeline-time pe-3 text-muted">{tiempoRelativo}</div>
@@ -864,7 +899,7 @@ const Account = ({ colaboradorId }: AccountProps) => {
                                                         </>
                                                     ) : (
                                                         <>
-                                                            <h5 className="mb-1">{nombreCompleto}</h5>
+                                                            <h5 className="mb-1">{logNombreCompleto}</h5>
                                                             <p className="mb-1">{descripcion}</p>
                                                             <small className="text-muted">
                                                                 {accion} • {entidad}
