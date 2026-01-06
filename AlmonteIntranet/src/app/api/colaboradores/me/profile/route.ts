@@ -257,6 +257,13 @@ export async function PUT(request: NextRequest) {
       // Se actualizará por separado si es necesario
     }
 
+    // Actualizar portada si se proporcionó un ID
+    // Similar a imagen, la portada puede ser un componente o relación Media
+    let portadaIdParaActualizar: number | null = null
+    if (body.portada_id) {
+      portadaIdParaActualizar = body.portada_id
+    }
+
     // Actualizar dirección (si existe el campo en Strapi)
     // Intentar actualizar solo si el objeto tiene al menos un campo
     if (body.direccion && typeof body.direccion === 'object') {
@@ -419,6 +426,76 @@ export async function PUT(request: NextRequest) {
           if (!imagenActualizada) {
             console.warn('[API /colaboradores/me/profile] ⚠️ No se pudo actualizar imagen con ninguna estructura. Puede requerir configuración manual en Strapi Admin.')
             // No fallar el proceso completo si la imagen no se puede actualizar
+          }
+        }
+
+        // Si hay portada para actualizar, intentar actualizarla por separado
+        // Similar a imagen, puede ser un componente o relación Media
+        if (portadaIdParaActualizar && idParaActualizar) {
+          console.log('[API /colaboradores/me/profile] Intentando actualizar componente portada con ID:', portadaIdParaActualizar)
+          
+          // Obtener la estructura actual del componente portada para preservar otros campos
+          let estructuraActualPortada: any = null
+          try {
+            const personaActual = await strapiClient.get<any>(
+              `/api/personas/${idParaActualizar}?populate[portada][populate]=*`
+            )
+            const personaData = personaActual.data?.attributes || personaActual.data
+            estructuraActualPortada = personaData?.portada || null
+          } catch (error) {
+            console.warn('[API /colaboradores/me/profile] No se pudo obtener estructura actual de portada')
+          }
+          
+          // Intentar diferentes estructuras para el componente portada
+          const estructurasPortada = [
+            // Estructura 1: Array de IDs (Multiple Media)
+            {
+              imagen: [portadaIdParaActualizar],
+              ...(estructuraActualPortada && {
+                tipo: estructuraActualPortada.tipo,
+                formato: estructuraActualPortada.formato,
+                estado: estructuraActualPortada.estado,
+                vigente_hasta: estructuraActualPortada.vigente_hasta,
+                status: estructuraActualPortada.status !== undefined ? estructuraActualPortada.status : true,
+              }),
+            },
+            // Estructura 2: Solo el array de imagen (sin otros campos)
+            {
+              imagen: [portadaIdParaActualizar],
+            },
+            // Estructura 3: Array directo (si Strapi lo acepta)
+            [portadaIdParaActualizar],
+            // Estructura 4: Objeto con imagen como objeto
+            {
+              imagen: { id: portadaIdParaActualizar },
+            },
+          ]
+          
+          let portadaActualizada = false
+          for (const estructura of estructurasPortada) {
+            try {
+              console.log('[API /colaboradores/me/profile] Intentando estructura portada:', JSON.stringify(estructura))
+              await strapiClient.put(`/api/personas/${idParaActualizar}`, {
+                data: {
+                  portada: estructura
+                }
+              })
+              console.log('[API /colaboradores/me/profile] ✅ Portada actualizada exitosamente con estructura:', JSON.stringify(estructura))
+              portadaActualizada = true
+              break
+            } catch (portadaError: any) {
+              console.warn('[API /colaboradores/me/profile] Estructura portada falló:', {
+                estructura: JSON.stringify(estructura),
+                error: portadaError.message,
+                status: portadaError.status,
+              })
+              // Continuar con la siguiente estructura
+            }
+          }
+          
+          if (!portadaActualizada) {
+            console.warn('[API /colaboradores/me/profile] ⚠️ No se pudo actualizar portada con ninguna estructura. Puede requerir configuración manual en Strapi Admin.')
+            // No fallar el proceso completo si la portada no se puede actualizar
           }
         }
       } catch (personaError: any) {
@@ -610,7 +687,7 @@ export async function GET(request: NextRequest) {
           
           // Buscar colaborador por usuario
           const colaboradorResponse = await strapiClient.get<any>(
-            `/api/colaboradores?filters[usuario][id][$eq]=${user.id}&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
+            `/api/colaboradores?filters[usuario][id][$eq]=${user.id}&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*&populate[persona][populate][imagen][populate]=*&populate[persona][populate][portada][populate]=*`
           )
 
           if (colaboradorResponse.data && Array.isArray(colaboradorResponse.data) && colaboradorResponse.data.length > 0) {
@@ -649,14 +726,14 @@ export async function GET(request: NextRequest) {
       if (colaboradorFromCookie?.documentId) {
         console.log('[API /colaboradores/me/profile GET] Obteniendo por documentId:', colaboradorFromCookie.documentId)
         response = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
-          `/api/colaboradores/${colaboradorFromCookie.documentId}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
+          `/api/colaboradores/${colaboradorFromCookie.documentId}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*&populate[persona][populate][imagen][populate]=*&populate[persona][populate][portada][populate]=*`
         )
       }
       // Prioridad 2: Si no hay documentId pero hay email_login, buscar por email (más confiable)
       else if (colaboradorFromCookie?.email_login) {
         console.log('[API /colaboradores/me/profile GET] Obteniendo por email_login:', colaboradorFromCookie.email_login)
         response = await strapiClient.get<any>(
-          `/api/colaboradores?filters[email_login][$eq]=${encodeURIComponent(colaboradorFromCookie.email_login)}&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
+          `/api/colaboradores?filters[email_login][$eq]=${encodeURIComponent(colaboradorFromCookie.email_login)}&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*&populate[persona][populate][imagen][populate]=*&populate[persona][populate][portada][populate]=*`
         )
         if (response.data && Array.isArray(response.data) && response.data.length > 0) {
           response.data = response.data[0]
@@ -666,7 +743,7 @@ export async function GET(request: NextRequest) {
       else if (colaboradorId) {
         console.log('[API /colaboradores/me/profile GET] Obteniendo por ID numérico (puede fallar):', colaboradorId)
         response = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
-          `/api/colaboradores/${colaboradorId}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*`
+          `/api/colaboradores/${colaboradorId}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*&populate[persona][populate][imagen][populate]=*&populate[persona][populate][portada][populate]=*`
         )
       } else {
         // Si no hay ninguna opción, usar datos de cookie directamente
@@ -707,9 +784,9 @@ export async function GET(request: NextRequest) {
               try {
                 let personaQuery = ''
                 if (personaId) {
-                  personaQuery = `/api/personas/${personaId}?populate[imagen][populate][imagen][populate]=*`
+                  personaQuery = `/api/personas/${personaId}?populate[imagen][populate][imagen][populate]=*&populate[portada][populate][imagen][populate]=*`
                 } else if (personaRut) {
-                  personaQuery = `/api/personas?filters[rut][$eq]=${encodeURIComponent(String(personaRut))}&populate[imagen][populate][imagen][populate]=*&pagination[pageSize]=1`
+                  personaQuery = `/api/personas?filters[rut][$eq]=${encodeURIComponent(String(personaRut))}&populate[imagen][populate][imagen][populate]=*&populate[portada][populate][imagen][populate]=*&pagination[pageSize]=1`
                 }
                 
                 if (personaQuery) {
@@ -808,10 +885,10 @@ export async function GET(request: NextRequest) {
           let personaQuery = ''
           if (personaId) {
             // Populate el componente imagen y dentro de él, el campo imagen (Multiple Media)
-            personaQuery = `/api/personas/${personaId}?populate[imagen][populate][imagen][populate]=*`
+            personaQuery = `/api/personas/${personaId}?populate[imagen][populate][imagen][populate]=*&populate[portada][populate][imagen][populate]=*`
           } else if (personaRut) {
             // Populate el componente imagen y dentro de él, el campo imagen (Multiple Media)
-            personaQuery = `/api/personas?filters[rut][$eq]=${encodeURIComponent(String(personaRut))}&populate[imagen][populate][imagen][populate]=*&pagination[pageSize]=1`
+            personaQuery = `/api/personas?filters[rut][$eq]=${encodeURIComponent(String(personaRut))}&populate[imagen][populate][imagen][populate]=*&populate[portada][populate][imagen][populate]=*&pagination[pageSize]=1`
           }
           
           if (personaQuery) {
@@ -904,6 +981,91 @@ export async function GET(request: NextRequest) {
     
     console.log('[API /colaboradores/me/profile GET] Imagen normalizada:', JSON.stringify(imagenNormalizada, null, 2))
     
+    // Normalizar portada (similar a imagen)
+    let portadaRaw = personaAttrs.portada || persona?.portada
+    if (!portadaRaw || (portadaRaw && !portadaRaw.imagen && !portadaRaw.url && !portadaRaw.data)) {
+      // Intentar obtener la persona directamente con populate de portada
+      const personaId = personaAttrs.id || persona?.id || personaAttrs.documentId || persona?.documentId
+      const personaRut = personaAttrs.rut || persona?.rut
+      
+      if (personaId || personaRut) {
+        try {
+          let personaQuery = ''
+          if (personaId) {
+            personaQuery = `/api/personas/${personaId}?populate[portada][populate][imagen][populate]=*`
+          } else if (personaRut) {
+            personaQuery = `/api/personas?filters[rut][$eq]=${encodeURIComponent(String(personaRut))}&populate[portada][populate][imagen][populate]=*&pagination[pageSize]=1`
+          }
+          
+          if (personaQuery) {
+            console.log('[API /colaboradores/me/profile GET] Consultando persona directamente para obtener portada:', personaQuery)
+            const personaResponse = await strapiClient.get<any>(personaQuery)
+            const personaData = Array.isArray(personaResponse.data) ? personaResponse.data[0] : personaResponse.data
+            const personaDataAttrs = personaData?.attributes || personaData || {}
+            portadaRaw = personaDataAttrs.portada || null
+            console.log('[API /colaboradores/me/profile GET] Portada obtenida de consulta directa:', JSON.stringify(portadaRaw, null, 2))
+          }
+        } catch (error: any) {
+          console.warn('[API /colaboradores/me/profile GET] Error al obtener portada directamente:', error.message)
+        }
+      }
+    }
+    
+    let portadaNormalizada: any = null
+    if (portadaRaw) {
+      // Similar a imagen, puede venir en diferentes estructuras
+      if (portadaRaw.imagen) {
+        const portadaData = portadaRaw.imagen
+        if (Array.isArray(portadaData) && portadaData.length > 0) {
+          const primeraPortada = portadaData[0]
+          portadaNormalizada = {
+            url: primeraPortada.url || null,
+            alternativeText: primeraPortada.alternativeText || null,
+            width: primeraPortada.width || null,
+            height: primeraPortada.height || null,
+          }
+        } else if (portadaData.data) {
+          const dataArray = Array.isArray(portadaData.data) ? portadaData.data : [portadaData.data]
+          if (dataArray.length > 0) {
+            const primeraPortada = dataArray[0]
+            portadaNormalizada = {
+              url: primeraPortada.attributes?.url || primeraPortada.url || null,
+              alternativeText: primeraPortada.attributes?.alternativeText || primeraPortada.alternativeText || null,
+              width: primeraPortada.attributes?.width || primeraPortada.width || null,
+              height: primeraPortada.attributes?.height || primeraPortada.height || null,
+            }
+          }
+        } else if (portadaData.url) {
+          portadaNormalizada = {
+            url: portadaData.url,
+            alternativeText: portadaData.alternativeText || null,
+            width: portadaData.width || null,
+            height: portadaData.height || null,
+          }
+        }
+      } else if (portadaRaw.url) {
+        portadaNormalizada = {
+          url: portadaRaw.url,
+          alternativeText: portadaRaw.alternativeText || null,
+          width: portadaRaw.width || null,
+          height: portadaRaw.height || null,
+        }
+      } else if (portadaRaw.data) {
+        const dataArray = Array.isArray(portadaRaw.data) ? portadaRaw.data : [portadaRaw.data]
+        if (dataArray.length > 0) {
+          const primeraPortada = dataArray[0]
+          portadaNormalizada = {
+            url: primeraPortada.attributes?.url || primeraPortada.url || null,
+            alternativeText: primeraPortada.attributes?.alternativeText || primeraPortada.alternativeText || null,
+            width: primeraPortada.attributes?.width || primeraPortada.width || null,
+            height: primeraPortada.attributes?.height || primeraPortada.height || null,
+          }
+        }
+      }
+    }
+    
+    console.log('[API /colaboradores/me/profile GET] Portada normalizada:', JSON.stringify(portadaNormalizada, null, 2))
+    
     // Normalizar dirección (puede venir como JSON string o objeto)
     let direccionNormalizada: any = null
     const direccionRaw = personaAttrs.direccion || persona?.direccion
@@ -940,6 +1102,7 @@ export async function GET(request: NextRequest) {
         job_title: personaAttrs.job_title || persona.job_title,
         telefono_principal: personaAttrs.telefono_principal || persona.telefono_principal,
         imagen: imagenNormalizada,
+        portada: portadaNormalizada,
         telefonos: personaAttrs.telefonos || persona.telefonos,
         emails: personaAttrs.emails || persona.emails,
         direccion: direccionNormalizada,
