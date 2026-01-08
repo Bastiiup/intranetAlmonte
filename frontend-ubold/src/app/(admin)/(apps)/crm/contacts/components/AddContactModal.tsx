@@ -147,6 +147,11 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
       console.log('[AddContactModal] ✅ Persona creada con ID:', personaId)
 
       // PASO 3: Crear trayectoria si se seleccionó un colegio válido
+      console.log('[AddContactModal] Verificando colegioId para trayectoria:', {
+        colegioId: formData.colegioId,
+        tipo: typeof formData.colegioId,
+        esValido: formData.colegioId && formData.colegioId !== '' && formData.colegioId !== '0',
+      })
       if (formData.colegioId && formData.colegioId !== '' && formData.colegioId !== '0') {
         try {
           // Obtener el ID numérico de la persona si es documentId
@@ -328,17 +333,30 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
                 <FormLabel>Institución (Colegio)</FormLabel>
                 <FormControl
                   as="select"
-                  value={formData.colegioId}
-                  onChange={(e) => handleFieldChange('colegioId', e.target.value)}
+                  value={formData.colegioId || ''}
+                  onChange={(e) => {
+                    const selectedValue = e.target.value
+                    console.log('[AddContactModal] Colegio seleccionado:', selectedValue)
+                    handleFieldChange('colegioId', selectedValue)
+                  }}
                   disabled={loading || loadingColegios}
                 >
                   <option value="">Seleccionar colegio...</option>
-                  {colegios.map((colegio) => (
-                    <option key={colegio.id} value={colegio.id}>
-                      {colegio.nombre} {colegio.rbd ? `(RBD: ${colegio.rbd})` : ''}
-                    </option>
-                  ))}
+                  {colegios.map((colegio) => {
+                    const colegioValue = String(colegio.id || colegio.documentId || '')
+                    return (
+                      <option key={colegioValue} value={colegioValue}>
+                        {colegio.nombre} {colegio.rbd ? `(RBD: ${colegio.rbd})` : ''}
+                      </option>
+                    )
+                  })}
                 </FormControl>
+                {loadingColegios && (
+                  <small className="text-muted">Cargando colegios...</small>
+                )}
+                {!loadingColegios && colegios.length === 0 && (
+                  <small className="text-muted">No hay colegios disponibles</small>
+                )}
               </FormGroup>
             </Col>
             <Col md={6}>
