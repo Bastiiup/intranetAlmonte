@@ -16,11 +16,23 @@ interface TrayectoriaItem {
   documentId?: string
   colegioId?: number | string
   colegioNombre?: string
+  colegioRBD?: string | number
+  colegioDependencia?: string
+  colegioRegion?: string
+  colegioZona?: string
+  comunaId?: number | string
+  comunaNombre?: string
   cargo?: string
-  curso?: string
-  nivel?: string
-  grado?: string
+  anio?: number | string
+  cursoId?: number | string
+  cursoNombre?: string
+  asignaturaId?: number | string
+  asignaturaNombre?: string
   is_current?: boolean
+  activo?: boolean
+  fecha_inicio?: string | null
+  fecha_fin?: string | null
+  notas?: string
   isNew?: boolean
   isEditing?: boolean
   toDelete?: boolean
@@ -229,12 +241,12 @@ const TrayectoriaManager = ({ trayectorias: initialTrayectorias, onChange, disab
                         </Col>
                         <Col md={6}>
                           <FormGroup className="mb-3">
-                            <FormLabel>Curso</FormLabel>
+                            <FormLabel>Año Académico</FormLabel>
                             <FormControl
-                              type="text"
-                              placeholder="Ej: Matemáticas, 1° Básico"
-                              value={trayectoria.curso || ''}
-                              onChange={(e) => handleTrayectoriaChange(originalIndex, 'curso', e.target.value)}
+                              type="number"
+                              placeholder="Ej: 2024"
+                              value={trayectoria.anio || ''}
+                              onChange={(e) => handleTrayectoriaChange(originalIndex, 'anio', e.target.value ? parseInt(e.target.value) : null)}
                               disabled={disabled}
                             />
                           </FormGroup>
@@ -244,25 +256,33 @@ const TrayectoriaManager = ({ trayectorias: initialTrayectorias, onChange, disab
                       <Row>
                         <Col md={6}>
                           <FormGroup className="mb-3">
-                            <FormLabel>Nivel</FormLabel>
+                            <FormLabel>Curso (Relación)</FormLabel>
                             <FormControl
                               type="text"
-                              placeholder="Ej: Básico, Medio"
-                              value={trayectoria.nivel || ''}
-                              onChange={(e) => handleTrayectoriaChange(originalIndex, 'nivel', e.target.value)}
+                              placeholder="Nombre del curso (se buscará por ID)"
+                              value={trayectoria.cursoNombre || ''}
+                              onChange={(e) => handleTrayectoriaChange(originalIndex, 'cursoNombre', e.target.value)}
                               disabled={disabled}
+                            />
+                            <FormControl
+                              type="hidden"
+                              value={trayectoria.cursoId || ''}
                             />
                           </FormGroup>
                         </Col>
                         <Col md={6}>
                           <FormGroup className="mb-3">
-                            <FormLabel>Grado</FormLabel>
+                            <FormLabel>Asignatura (Relación)</FormLabel>
                             <FormControl
                               type="text"
-                              placeholder="Ej: 1°, 2°, 3°"
-                              value={trayectoria.grado || ''}
-                              onChange={(e) => handleTrayectoriaChange(originalIndex, 'grado', e.target.value)}
+                              placeholder="Nombre de la asignatura (se buscará por ID)"
+                              value={trayectoria.asignaturaNombre || ''}
+                              onChange={(e) => handleTrayectoriaChange(originalIndex, 'asignaturaNombre', e.target.value)}
                               disabled={disabled}
+                            />
+                            <FormControl
+                              type="hidden"
+                              value={trayectoria.asignaturaId || ''}
                             />
                           </FormGroup>
                         </Col>
@@ -325,18 +345,59 @@ const TrayectoriaManager = ({ trayectorias: initialTrayectorias, onChange, disab
                   <CardBody>
                     <div className="d-flex justify-content-between align-items-start">
                       <div className="flex-grow-1">
-                        <h6 className="mb-1">
+                        <h6 className="mb-2">
                           {trayectoria.colegioNombre || 'Sin colegio'}
+                          {trayectoria.colegioRBD && ` (RBD: ${trayectoria.colegioRBD})`}
                           {trayectoria.is_current && (
                             <Badge bg="success" className="ms-2">Actual</Badge>
                           )}
                         </h6>
-                        <div className="small text-muted">
-                          {trayectoria.cargo && <span className="me-2">Cargo: {trayectoria.cargo}</span>}
-                          {trayectoria.curso && <span className="me-2">Curso: {trayectoria.curso}</span>}
-                          {trayectoria.nivel && <span className="me-2">Nivel: {trayectoria.nivel}</span>}
-                          {trayectoria.grado && <span>Grado: {trayectoria.grado}</span>}
-                        </div>
+                        
+                        <Row className="mb-2">
+                          <Col md={6}>
+                            <strong>Institución:</strong>{' '}
+                            {trayectoria.colegioNombre || 'N/A'}
+                            {trayectoria.colegioRBD && ` (RBD: ${trayectoria.colegioRBD})`}
+                          </Col>
+                          <Col md={6}>
+                            <strong>Dependencia:</strong>{' '}
+                            {trayectoria.colegioDependencia || 'N/A'}
+                          </Col>
+                        </Row>
+                        
+                        <Row className="mb-2">
+                          <Col md={6}>
+                            <strong>Región:</strong>{' '}
+                            {trayectoria.colegioRegion || 'N/A'}
+                          </Col>
+                          <Col md={6}>
+                            <strong>Comuna:</strong>{' '}
+                            {trayectoria.comunaNombre || 'N/A'}
+                          </Col>
+                        </Row>
+                        
+                        <Row className="mb-2">
+                          <Col md={4}>
+                            <strong>Cargo:</strong>{' '}
+                            {trayectoria.cargo || 'N/A'}
+                          </Col>
+                          <Col md={4}>
+                            <strong>Curso:</strong>{' '}
+                            {trayectoria.cursoNombre || 'N/A'}
+                          </Col>
+                          <Col md={4}>
+                            <strong>Asignatura:</strong>{' '}
+                            {trayectoria.asignaturaNombre || 'N/A'}
+                          </Col>
+                        </Row>
+                        
+                        {trayectoria.anio && (
+                          <Row className="mb-2">
+                            <Col>
+                              <strong>Año:</strong> {trayectoria.anio}
+                            </Col>
+                          </Row>
+                        )}
                       </div>
                       <div className="d-flex gap-2">
                         <Button

@@ -34,6 +34,13 @@ const EditarColegioPage = () => {
         const colegio = result.data
         const attrs = colegio.attributes || colegio
 
+        console.log('🔍 [EditarColegioPage] Fetching colegio:', colegioId)
+        console.log('📥 [EditarColegioPage] Colegio data recibida:', JSON.stringify(attrs, null, 2))
+
+        // Extraer comuna correctamente
+        const comunaData = attrs.comuna?.data || attrs.comuna
+        const comunaAttrs = comunaData?.attributes || comunaData
+
         // Transformar datos para el formulario
         // Manejar cartera_asignaciones
         const carteraAsignaciones = attrs.cartera_asignaciones || []
@@ -54,13 +61,25 @@ const EditarColegioPage = () => {
           : []
 
         const formData = {
-          rbd: attrs.rbd?.toString() || '',
+          // ✅ NOMBRE DEL COLEGIO
           colegio_nombre: attrs.colegio_nombre || '',
-          estado: attrs.estado || 'Por Verificar',
+          
+          // ✅ RBD
+          rbd: attrs.rbd?.toString() || '',
+          
+          // ✅ DEPENDENCIA
           dependencia: attrs.dependencia || '',
-          region: attrs.region || attrs.comuna?.region_nombre || attrs.comuna?.data?.attributes?.region_nombre || '',
-          zona: attrs.zona || attrs.comuna?.zona || attrs.comuna?.data?.attributes?.zona || '',
-          comunaId: attrs.comuna?.id || attrs.comuna?.data?.id,
+          
+          // Estado
+          estado: attrs.estado || 'Por Verificar',
+          
+          // Ubicación
+          region: attrs.region || '',
+          zona: attrs.zona || '',
+          
+          // ✅ COMUNA (relación)
+          comunaId: comunaData?.id || comunaData?.documentId || '',
+          comunaNombre: comunaAttrs?.nombre || comunaAttrs?.comuna_nombre || '',
           telefonos: (attrs.telefonos || []).map((t: any) => ({
             telefono_raw: t.telefono_raw || t.telefono_norm || t.numero || '',
             tipo: t.tipo || '',

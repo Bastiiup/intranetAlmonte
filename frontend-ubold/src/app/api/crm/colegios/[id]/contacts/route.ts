@@ -37,9 +37,9 @@ interface PersonaAttributes {
     id?: number
     documentId?: string
     cargo?: string
-    curso?: string
-    nivel?: string
-    grado?: string
+    anio?: number
+    curso?: any // Relación
+    asignatura?: any // Relación
     is_current?: boolean
     colegio?: {
       id?: number
@@ -58,62 +58,147 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params
+    const { id: colegioId } = await params
     const { searchParams } = new URL(request.url)
     const page = searchParams.get('page') || '1'
     const pageSize = searchParams.get('pageSize') || '50'
 
-    console.log('[API /crm/colegios/[id]/contacts GET] Buscando contactos para colegio:', id)
+    console.log('🔍 [API /crm/colegios/[id]/contacts GET] Buscando contactos para colegio:', colegioId)
 
-    // Convertir el ID del colegio a número si es necesario
-    const colegioId = typeof id === 'string' ? parseInt(id) : id
+    // PASO 1: Obtener el ID numérico del colegio si es documentId
+    const isDocumentId = typeof colegioId === 'string' && !/^\d+$/.test(colegioId)
+    let colegioIdNum: number | string = colegioId
 
-    if (isNaN(colegioId)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'ID de colegio inválido',
-        },
-        { status: 400 }
-      )
+    if (isDocumentId) {
+      try {
+        const colegioResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+          `/api/colegios/${colegioId}?fields[0]=id`
+        )
+        const colegioData = Array.isArray(colegioResponse.data) ? colegioResponse.data[0] : colegioResponse.data
+        if (colegioData && typeof colegioData === 'object' && 'id' in colegioData) {
+          colegioIdNum = colegioData.id as number
+          console.log('✅ [API /crm/colegios/[id]/contacts GET] ID numérico del colegio:', colegioIdNum)
+        }
+      } catch (error: any) {
+        console.error('❌ [API /crm/colegios/[id]/contacts GET] Error obteniendo ID del colegio:', error)
+        return NextResponse.json(
+          { success: false, error: 'Colegio no encontrado' },
+          { status: 404 }
+        )
+      }
     }
 
-    // Construir parámetros de query
+    // PASO 2: Construir query para personas con trayectorias en este colegio
     const paramsObj = new URLSearchParams({
       'pagination[page]': page,
       'pagination[pageSize]': pageSize,
       'sort[0]': 'updatedAt:desc',
     })
 
-    // Populate para relaciones
+    // Populate completo de trayectorias con sus relaciones
+    paramsObj.append('populate[trayectorias][populate][colegio][populate][comuna]', 'true')
+    paramsObj.append('populate[trayectorias][populate][curso]', 'true') // ⚠️ curso es relación
+    paramsObj.append('populate[trayectorias][populate][asignatura]', 'true') // ⚠️ asignatura es relación
+    paramsObj.append('populate[trayectorias][populate][curso_asignatura]', 'true')
+
+    // Populate de persona
     paramsObj.append('populate[emails]', 'true')
     paramsObj.append('populate[telefonos]', 'true')
     paramsObj.append('populate[imagen]', 'true')
     paramsObj.append('populate[tags]', 'true')
-    paramsObj.append('populate[trayectorias]', 'true')
-    paramsObj.append('populate[trayectorias.colegio]', 'true')
 
-    // Filtrar por contactos que tengan este colegio en sus trayectorias
-    // En Strapi, para filtrar por relaciones anidadas usamos la sintaxis de filtros
+    // Filtrar por contactos activos
     paramsObj.append('filters[activo][$eq]', 'true')
-    paramsObj.append('filters[trayectorias][colegio][id][$eq]', colegioId.toString())
+
+    // ⚠️ IMPORTANTE: Usar filtro $or para coincidir con id O documentId
+    // Nota: Strapi puede requerir que el filtro se haga de otra manera si $or no funciona
+    // Intentamos primero con id numérico
+    paramsObj.append('filters[trayectorias][colegio][id][$eq]', String(colegioIdNum))
 
     const url = `/api/personas?${paramsObj.toString()}`
+    console.log('📤 [API /crm/colegios/[id]/contacts GET] Query:', url)
+
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(url)
 
-    // Filtrar solo las trayectorias que corresponden a este colegio
+    console.log('📥 [API /crm/colegios/[id]/contacts GET] Respuesta Strapi:', Array.isArray(response.data) ? response.data.length : 1, 'personas encontradas')
+
+    if (!response.data) {
+      return NextResponse.json({ success: true, data: [] })
+    }
+
     const contactos = Array.isArray(response.data) ? response.data : [response.data]
-    
+
+    // PASO 3: Filtrar y transformar trayectorias
     const contactosFiltrados = contactos.map((contacto: any) => {
       const attrs = contacto.attributes || contacto
-      const trayectorias = attrs.trayectorias || []
-      
-      // Filtrar solo las trayectorias de este colegio
-      const trayectoriasDelColegio = trayectorias.filter((t: any) => {
-        const colegio = t.colegio?.data || t.colegio
-        const colegioIdTrayectoria = colegio?.id || colegio?.documentId
-        return colegioIdTrayectoria === colegioId || colegioIdTrayectoria === id
-      })
+      const trayectorias = attrs.trayectorias?.data || attrs.trayectorias || []
+
+      // Filtrar solo trayectorias de este colegio
+      const trayectoriasDelColegio = trayectorias
+        .map((t: any) => {
+          const tAttrs = t.attributes || t
+          const colegioData = tAttrs.colegio?.data || tAttrs.colegio
+          const colegioAttrs = colegioData?.attributes || colegioData
+          const tColegioId = colegioData?.id
+          const tColegioDocId = colegioData?.documentId
+
+          // Verificar si esta trayectoria pertenece al colegio
+          const perteneceAlColegio =
+            (tColegioId && String(tColegioId) === String(colegioIdNum)) ||
+            (tColegioDocId && String(tColegioDocId) === String(colegioId))
+
+          if (!perteneceAlColegio) return null
+
+          // Extraer datos del curso (es una relación)
+          const cursoData = tAttrs.curso?.data || tAttrs.curso
+          const cursoAttrs = cursoData?.attributes || cursoData
+
+          // Extraer datos de la asignatura (es una relación)
+          const asignaturaData = tAttrs.asignatura?.data || tAttrs.asignatura
+          const asignaturaAttrs = asignaturaData?.attributes || asignaturaData
+
+          // Extraer datos de la comuna del colegio
+          const comunaData = colegioAttrs?.comuna?.data || colegioAttrs?.comuna
+          const comunaAttrs = comunaData?.attributes || comunaData
+
+          return {
+            id: t.id || t.documentId,
+            documentId: t.documentId || String(t.id || ''),
+
+            // Datos del colegio
+            colegioId: tColegioId || tColegioDocId,
+            colegioNombre: colegioAttrs?.colegio_nombre || 'Sin nombre',
+            colegioRBD: colegioAttrs?.rbd || '',
+            colegioDependencia: colegioAttrs?.dependencia || '',
+            colegioRegion: colegioAttrs?.region || '',
+            colegioZona: colegioAttrs?.zona || '',
+
+            // Datos de la comuna
+            comunaId: comunaData?.id || comunaData?.documentId,
+            comunaNombre: comunaAttrs?.nombre || comunaAttrs?.comuna_nombre || '',
+
+            // Datos de la trayectoria
+            cargo: tAttrs.cargo || '',
+            anio: tAttrs.anio || null,
+
+            // Datos del curso (relación)
+            cursoId: cursoData?.id || cursoData?.documentId,
+            cursoNombre: cursoAttrs?.nombre || '',
+
+            // Datos de la asignatura (relación)
+            asignaturaId: asignaturaData?.id || asignaturaData?.documentId,
+            asignaturaNombre: asignaturaAttrs?.nombre || '',
+
+            // Estados
+            is_current: tAttrs.is_current || false,
+            activo: tAttrs.activo !== undefined ? tAttrs.activo : true,
+
+            // Fechas
+            fecha_inicio: tAttrs.fecha_inicio || null,
+            fecha_fin: tAttrs.fecha_fin || null,
+          }
+        })
+        .filter(Boolean) // Eliminar nulls
 
       return {
         ...contacto,
@@ -124,13 +209,25 @@ export async function GET(
       }
     })
 
+    // PASO 4: Filtrar solo contactos con trayectorias en este colegio
+    const contactosConTrayectorias = contactosFiltrados.filter(
+      (c) => (c.attributes.trayectorias?.length || 0) > 0
+    )
+
+    console.log('✅ [API /crm/colegios/[id]/contacts GET] Contactos filtrados con trayectorias:', contactosConTrayectorias.length)
+
     return NextResponse.json({
       success: true,
-      data: contactosFiltrados,
-      meta: response.meta,
+      data: contactosConTrayectorias,
+      meta: {
+        ...response.meta,
+        total: contactosConTrayectorias.length,
+        colegioId,
+        colegioIdNum,
+      },
     }, { status: 200 })
   } catch (error: any) {
-    console.error('[API /crm/colegios/[id]/contacts GET] Error:', {
+    console.error('❌ [API /crm/colegios/[id]/contacts GET] Error obteniendo contactos del colegio:', {
       message: error.message,
       status: error.status,
       details: error.details,
@@ -138,8 +235,8 @@ export async function GET(
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Error al obtener contactos del colegio',
-        details: error.details || {},
+        error: 'Error obteniendo contactos',
+        details: error instanceof Error ? error.message : 'Unknown error',
         status: error.status || 500,
       },
       { status: error.status || 500 }

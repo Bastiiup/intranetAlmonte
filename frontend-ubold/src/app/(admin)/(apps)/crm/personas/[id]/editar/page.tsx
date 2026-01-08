@@ -34,21 +34,72 @@ const EditarPersonaPage = () => {
         const persona = result.data
         const attrs = persona.attributes || persona
 
-        // Transformar trayectorias
-        const trayectorias = (attrs.trayectorias || []).map((t: any) => {
+        console.log('🔍 [EditarPersonaPage] Fetching persona:', personaId)
+        console.log('📥 [EditarPersonaPage] Persona data recibida:', JSON.stringify(attrs, null, 2))
+
+        // Transformar trayectorias con TODOS los datos
+        const trayectorias = (attrs.trayectorias?.data || attrs.trayectorias || []).map((t: any) => {
           const tAttrs = t.attributes || t
-          const colegio = tAttrs.colegio?.data?.attributes || tAttrs.colegio?.attributes || tAttrs.colegio
-          return {
+
+          // Extraer colegio completo
+          const colegioData = tAttrs.colegio?.data || tAttrs.colegio
+          const colegioAttrs = colegioData?.attributes || colegioData
+
+          // Extraer comuna del colegio
+          const comunaData = colegioAttrs?.comuna?.data || colegioAttrs?.comuna
+          const comunaAttrs = comunaData?.attributes || comunaData
+
+          // ⚠️ Extraer curso (ES UNA RELACIÓN)
+          const cursoData = tAttrs.curso?.data || tAttrs.curso
+          const cursoAttrs = cursoData?.attributes || cursoData
+
+          // ⚠️ Extraer asignatura (ES UNA RELACIÓN)
+          const asignaturaData = tAttrs.asignatura?.data || tAttrs.asignatura
+          const asignaturaAttrs = asignaturaData?.attributes || asignaturaData
+
+          const trayectoriaTransformada = {
             id: t.id || t.documentId,
             documentId: t.documentId || String(t.id || ''),
-            colegioId: colegio?.id || colegio?.documentId,
-            colegioNombre: colegio?.colegio_nombre || 'Sin nombre',
-            cargo: tAttrs.cargo || '',
-            curso: tAttrs.curso || '',
-            nivel: tAttrs.nivel || '',
-            grado: tAttrs.grado || '',
+
+            // Datos del colegio (para mostrar)
+            colegioId: colegioData?.id || colegioData?.documentId,
+            colegioNombre: colegioAttrs?.colegio_nombre || 'Sin nombre',
+            colegioRBD: colegioAttrs?.rbd || '',
+            colegioDependencia: colegioAttrs?.dependencia || '', // ✅ DEPENDENCIA
+            colegioRegion: colegioAttrs?.region || '', // ✅ REGIÓN
+            colegioZona: colegioAttrs?.zona || '',
+
+            // Datos de la comuna (para mostrar)
+            comunaId: comunaData?.id || comunaData?.documentId,
+            comunaNombre: comunaAttrs?.nombre || comunaAttrs?.comuna_nombre || '', // ✅ COMUNA
+
+            // Datos de la trayectoria
+            cargo: tAttrs.cargo || '', // ✅ CARGO
+            anio: tAttrs.anio || null, // ⚠️ Usar anio, NO nivel ni grado
+
+            // ⚠️ Datos del curso (RELACIÓN)
+            cursoId: cursoData?.id || cursoData?.documentId,
+            cursoNombre: cursoAttrs?.nombre || '', // ✅ CURSO
+
+            // ⚠️ Datos de la asignatura (RELACIÓN)
+            asignaturaId: asignaturaData?.id || asignaturaData?.documentId,
+            asignaturaNombre: asignaturaAttrs?.nombre || '', // ✅ ASIGNATURA
+
+            // Estados
             is_current: tAttrs.is_current !== undefined ? tAttrs.is_current : false,
+            activo: tAttrs.activo !== undefined ? tAttrs.activo : true,
+
+            // Fechas
+            fecha_inicio: tAttrs.fecha_inicio || null,
+            fecha_fin: tAttrs.fecha_fin || null,
+
+            // Notas
+            notas: tAttrs.notas || '',
           }
+
+          console.log('📍 [EditarPersonaPage] Trayectoria transformada:', trayectoriaTransformada)
+
+          return trayectoriaTransformada
         })
 
         // Transformar datos para el formulario
@@ -140,10 +191,11 @@ const EditarPersonaPage = () => {
                   persona: { connect: [parseInt(personaId)] },
                   colegio: { connect: [parseInt(String(trayectoria.colegioId))] },
                   cargo: trayectoria.cargo || null,
-                  curso: trayectoria.curso || null,
-                  nivel: trayectoria.nivel || null,
-                  grado: trayectoria.grado || null,
+                  anio: trayectoria.anio ? parseInt(String(trayectoria.anio)) : null,
+                  curso: trayectoria.cursoId ? { connect: [parseInt(String(trayectoria.cursoId))] } : null,
+                  asignatura: trayectoria.asignaturaId ? { connect: [parseInt(String(trayectoria.asignaturaId))] } : null,
                   is_current: trayectoria.is_current || false,
+                  activo: true,
                 },
               }),
             })
@@ -164,9 +216,9 @@ const EditarPersonaPage = () => {
                   data: {
                     colegio: { connect: [parseInt(String(trayectoria.colegioId))] },
                     cargo: trayectoria.cargo || null,
-                    curso: trayectoria.curso || null,
-                    nivel: trayectoria.nivel || null,
-                    grado: trayectoria.grado || null,
+                    anio: trayectoria.anio ? parseInt(String(trayectoria.anio)) : null,
+                    curso: trayectoria.cursoId ? { connect: [parseInt(String(trayectoria.cursoId))] } : null,
+                    asignatura: trayectoria.asignaturaId ? { connect: [parseInt(String(trayectoria.asignaturaId))] } : null,
                     is_current: trayectoria.is_current || false,
                   },
                 }),
@@ -199,13 +251,19 @@ const EditarPersonaPage = () => {
         variant: 'success',
       })
 
-      // Revalidar datos para sincronización bidireccional
+      // ✅ CRÍTICO: Forzar refresco
       router.refresh()
-      
-      // Redirigir a la ficha del contacto después de un breve delay
-      setTimeout(() => {
+
+      // Esperar un momento para que Strapi procese
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      // Redirigir al colegio si se asignó uno, o a la ficha del contacto
+      const trayectoriaActual = data.trayectorias?.find((t: any) => t.is_current && !t.toDelete)
+      if (trayectoriaActual?.colegioId) {
+        router.push(`/crm/colegios/${trayectoriaActual.colegioId}`)
+      } else {
         router.push(`/crm/personas/${personaId}`)
-      }, 1000)
+      }
     } catch (err: any) {
       console.error('Error al actualizar contacto:', err)
       setError(err.message || 'Error al actualizar el contacto')
