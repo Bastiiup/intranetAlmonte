@@ -46,6 +46,9 @@ interface ContactoData {
   telefonos?: Array<{ telefono_norm?: string; telefono_raw?: string; principal?: boolean }>
   trayectorias?: Array<{
     cargo?: string
+    curso?: string
+    nivel?: string
+    grado?: string
     is_current?: boolean
   }>
 }
@@ -231,7 +234,7 @@ export default function ColegioDetailPage() {
         setLoadingPedidos(false)
       }
     }
-    if (colegioId && activeTab === 'pedidos') fetchPedidos()
+    if (colegioId && (activeTab === 'pedidos' || activeTab === 'materiales')) fetchPedidos()
   }, [colegioId, activeTab])
 
   useEffect(() => {
@@ -334,12 +337,13 @@ export default function ColegioDetailPage() {
     
     contactos.forEach((contacto) => {
       const trayectoriaActual = contacto.trayectorias?.find((t) => t.is_current) || contacto.trayectorias?.[0]
-      const cargo = trayectoriaActual?.cargo || 'Sin cargo'
+      // Priorizar curso, luego nivel, luego cargo
+      const grupo = trayectoriaActual?.curso || trayectoriaActual?.nivel || trayectoriaActual?.cargo || 'Sin cargo/curso'
       
-      if (!grupos.has(cargo)) {
-        grupos.set(cargo, [])
+      if (!grupos.has(grupo)) {
+        grupos.set(grupo, [])
       }
-      grupos.get(cargo)!.push(contacto)
+      grupos.get(grupo)!.push(contacto)
     })
     
     return Array.from(grupos.entries()).sort((a, b) => a[0].localeCompare(b[0]))
@@ -549,8 +553,9 @@ export default function ColegioDetailPage() {
                 </h5>
                 <div className="row g-3">
                   {contactosGrupo.map((contacto) => {
-                    const emailPrincipal = contacto.emails?.find((e) => e.principal) || contacto.emails?.[0]
+                    const trayectoriaActual = contacto.trayectorias?.find((t) => t.is_current) || contacto.trayectorias?.[0]
                     const telefonoPrincipal = contacto.telefonos?.find((t) => t.principal) || contacto.telefonos?.[0]
+                    const todosLosEmails = contacto.emails || []
                     
                     return (
                       <Col md={6} lg={4} key={contacto.id}>
@@ -562,14 +567,32 @@ export default function ColegioDetailPage() {
                             >
                               {contacto.nombre_completo || 'Sin nombre'}
                             </Link>
-                            {emailPrincipal?.email && (
-                              <p className="mb-1 small">
-                                <LuMail size={12} className="me-1" />
-                                <a href={`mailto:${emailPrincipal.email}`} className="text-decoration-none">
-                                  {emailPrincipal.email}
-                                </a>
+                            
+                            {/* Mostrar cargo si no es el mismo que el grupo */}
+                            {trayectoriaActual?.cargo && trayectoriaActual.cargo !== cargo && (
+                              <p className="mb-1 small text-muted">
+                                <Badge bg="info" className="me-1">{trayectoriaActual.cargo}</Badge>
                               </p>
                             )}
+                            
+                            {/* Mostrar todos los correos */}
+                            {todosLosEmails.length > 0 && (
+                              <div className="mb-2">
+                                <label className="text-muted small d-block mb-1">
+                                  <LuMail size={12} className="me-1" />
+                                  Correos:
+                                </label>
+                                {todosLosEmails.map((email, idx) => (
+                                  <p key={idx} className="mb-1 small">
+                                    <a href={`mailto:${email.email}`} className="text-decoration-none">
+                                      {email.email}
+                                    </a>
+                                    {email.principal && <Badge bg="primary" className="ms-1" style={{ fontSize: '0.65rem' }}>Principal</Badge>}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                            
                             {telefonoPrincipal && (
                               <p className="mb-0 small text-muted">
                                 <LuPhone size={12} className="me-1" />
@@ -614,7 +637,8 @@ export default function ColegioDetailPage() {
                 <tr>
                   <th>N° Pedido</th>
                   <th>Fecha</th>
-                  <th>Cliente</th>
+                  <th>Alumno/Cliente</th>
+                  <th>Materiales</th>
                   <th>Estado</th>
                   <th>Total</th>
                   <th>Acciones</th>
@@ -626,7 +650,31 @@ export default function ColegioDetailPage() {
                     <td>{pedido.numero_pedido || pedido.id}</td>
                     <td>{pedido.fecha_pedido ? new Date(pedido.fecha_pedido).toLocaleDateString() : '-'}</td>
                     <td>
-                      {pedido.cliente?.nombre || pedido.cliente?.correo_electronico || 'Sin cliente'}
+                      <div>
+                        <div className="fw-semibold">{pedido.cliente?.nombre || 'Sin nombre'}</div>
+                        {pedido.cliente?.correo_electronico && (
+                          <small className="text-muted">{pedido.cliente.correo_electronico}</small>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      {pedido.items && pedido.items.length > 0 ? (
+                        <div>
+                          {pedido.items.slice(0, 3).map((item, idx) => (
+                            <div key={idx} className="small mb-1">
+                              <Badge bg="light" text="dark" className="me-1">
+                                {item.quantity || 0}x
+                              </Badge>
+                              {item.name || 'Sin nombre'}
+                            </div>
+                          ))}
+                          {pedido.items.length > 3 && (
+                            <small className="text-muted">+{pedido.items.length - 3} más</small>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted">Sin materiales</span>
+                      )}
                     </td>
                     <td>
                       <Badge bg={

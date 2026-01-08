@@ -37,6 +37,9 @@ interface PersonaAttributes {
     id?: number
     documentId?: string
     cargo?: string
+    curso?: string
+    nivel?: string
+    grado?: string
     is_current?: boolean
     colegio?: {
       id?: number
