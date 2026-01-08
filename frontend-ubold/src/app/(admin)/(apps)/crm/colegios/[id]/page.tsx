@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Container, Card, CardHeader, CardBody, Alert, Spinner, Row, Col, Button, Badge } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { LuMapPin, LuPhone, LuMail, LuGlobe, LuUsers, LuEdit, LuArrowLeft } from 'react-icons/lu'
+import { LuMapPin, LuPhone, LuMail, LuGlobe, LuUsers, LuPencil, LuArrowLeft } from 'react-icons/lu'
 import Link from 'next/link'
 
 interface ColegioData {
@@ -211,7 +211,7 @@ export default function ColegioDetailPage() {
         </Link>
         <Link href={`/crm/colegios/${colegioId}/editar`}>
           <Button variant="primary" size="sm">
-            <LuEdit className="me-1" /> Editar Colegio
+            <LuPencil className="me-1" /> Editar Colegio
           </Button>
         </Link>
       </div>
