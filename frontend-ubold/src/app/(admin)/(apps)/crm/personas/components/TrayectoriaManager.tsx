@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Card, CardHeader, CardBody, Form, FormGroup, FormLabel, FormControl, Button, Alert, Row, Col, Badge } from 'react-bootstrap'
-import { LuPlus, LuX, LuPencil, LuSave, LuXCircle } from 'react-icons/lu'
+import { LuPlus, LuX, LuPencil, LuSave } from 'react-icons/lu'
 
 interface ColegioOption {
   id: number
@@ -303,7 +303,7 @@ const TrayectoriaManager = ({ trayectorias: initialTrayectorias, onChange, disab
                           onClick={() => cancelEdit(originalIndex)}
                           disabled={disabled}
                         >
-                          <LuXCircle className="me-1" /> Cancelar
+                          <LuX className="me-1" /> Cancelar
                         </Button>
                         <Button
                           variant="primary"
