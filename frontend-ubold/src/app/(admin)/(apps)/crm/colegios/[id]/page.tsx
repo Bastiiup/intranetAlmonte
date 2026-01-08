@@ -195,11 +195,6 @@ export default function ColegioDetailPage() {
       <PageBreadcrumb 
         title={colegio.colegio_nombre} 
         subtitle="CRM - Colegios"
-        breadcrumbItems={[
-          { label: 'CRM', path: '/crm' },
-          { label: 'Colegios', path: '/crm/colegios' },
-          { label: colegio.colegio_nombre, path: `/crm/colegios/${colegioId}` },
-        ]}
       />
 
       {/* Botones de acción */}
