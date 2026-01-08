@@ -176,6 +176,34 @@ const EditarPersonaPage = () => {
 
       // Gestionar trayectorias
       if (data.trayectorias && Array.isArray(data.trayectorias)) {
+        // Obtener el ID numérico de la persona si es documentId
+        let personaIdNum: number | null = null
+        const isDocumentId = typeof personaId === 'string' && !/^\d+$/.test(personaId)
+        
+        if (isDocumentId) {
+          try {
+            // Obtener el ID numérico de la persona desde la respuesta del PUT
+            const personaResponse = await fetch(`/api/crm/contacts/${personaId}?fields=id`)
+            const personaResult = await personaResponse.json()
+            if (personaResult.success && personaResult.data) {
+              const personaData = Array.isArray(personaResult.data) ? personaResult.data[0] : personaResult.data
+              if (personaData && typeof personaData === 'object' && 'id' in personaData) {
+                personaIdNum = personaData.id as number
+                console.log('✅ [EditarPersonaPage] ID numérico de persona obtenido:', personaIdNum)
+              }
+            }
+          } catch (err) {
+            console.error('❌ [EditarPersonaPage] Error obteniendo ID numérico de persona:', err)
+          }
+        } else {
+          personaIdNum = parseInt(personaId)
+        }
+
+        if (!personaIdNum || isNaN(personaIdNum)) {
+          console.error('❌ [EditarPersonaPage] No se pudo obtener ID numérico de persona:', personaId)
+          throw new Error('No se pudo obtener el ID de la persona para crear trayectorias')
+        }
+
         const trayectoriasToCreate = data.trayectorias.filter((t: any) => t.isNew && !t.toDelete)
         const trayectoriasToUpdate = data.trayectorias.filter((t: any) => !t.isNew && !t.toDelete && t.isEditing)
         const trayectoriasToDelete = data.trayectorias.filter((t: any) => t.toDelete && !t.isNew)
@@ -183,13 +211,30 @@ const EditarPersonaPage = () => {
         // Crear nuevas trayectorias
         for (const trayectoria of trayectoriasToCreate) {
           try {
+            // Validar colegioId
+            const colegioIdNum = trayectoria.colegioId ? parseInt(String(trayectoria.colegioId)) : null
+            if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
+              console.warn('⚠️ [EditarPersonaPage] ID de colegio inválido, omitiendo trayectoria:', {
+                colegioId: trayectoria.colegioId,
+                colegioIdNum,
+                cargo: trayectoria.cargo,
+              })
+              continue
+            }
+
+            console.log('📤 [EditarPersonaPage] Creando trayectoria:', {
+              personaId: personaIdNum,
+              colegioId: colegioIdNum,
+              cargo: trayectoria.cargo,
+            })
+
             await fetch('/api/persona-trayectorias', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 data: {
-                  persona: { connect: [parseInt(personaId)] },
-                  colegio: { connect: [parseInt(String(trayectoria.colegioId))] },
+                  persona: { connect: [personaIdNum] },
+                  colegio: { connect: [colegioIdNum] },
                   cargo: trayectoria.cargo || null,
                   anio: trayectoria.anio ? parseInt(String(trayectoria.anio)) : null,
                   curso: trayectoria.cursoId ? { connect: [parseInt(String(trayectoria.cursoId))] } : null,
@@ -199,8 +244,13 @@ const EditarPersonaPage = () => {
                 },
               }),
             })
-          } catch (err) {
-            console.error('Error al crear trayectoria:', err)
+            console.log('✅ [EditarPersonaPage] Trayectoria creada exitosamente')
+          } catch (err: any) {
+            console.error('❌ [EditarPersonaPage] Error al crear trayectoria:', {
+              message: err.message,
+              trayectoria,
+            })
+            // Continuar con las demás trayectorias
           }
         }
 
@@ -208,24 +258,48 @@ const EditarPersonaPage = () => {
         for (const trayectoria of trayectoriasToUpdate) {
           try {
             const trayectoriaId = trayectoria.documentId || trayectoria.id
-            if (trayectoriaId) {
-              await fetch(`/api/persona-trayectorias/${trayectoriaId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  data: {
-                    colegio: { connect: [parseInt(String(trayectoria.colegioId))] },
-                    cargo: trayectoria.cargo || null,
-                    anio: trayectoria.anio ? parseInt(String(trayectoria.anio)) : null,
-                    curso: trayectoria.cursoId ? { connect: [parseInt(String(trayectoria.cursoId))] } : null,
-                    asignatura: trayectoria.asignaturaId ? { connect: [parseInt(String(trayectoria.asignaturaId))] } : null,
-                    is_current: trayectoria.is_current || false,
-                  },
-                }),
-              })
+            if (!trayectoriaId) {
+              console.warn('⚠️ [EditarPersonaPage] Trayectoria sin ID, omitiendo actualización:', trayectoria)
+              continue
             }
-          } catch (err) {
-            console.error('Error al actualizar trayectoria:', err)
+
+            // Validar colegioId
+            const colegioIdNum = trayectoria.colegioId ? parseInt(String(trayectoria.colegioId)) : null
+            if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
+              console.warn('⚠️ [EditarPersonaPage] ID de colegio inválido, omitiendo actualización:', {
+                trayectoriaId,
+                colegioId: trayectoria.colegioId,
+                colegioIdNum,
+              })
+              continue
+            }
+
+            console.log('📤 [EditarPersonaPage] Actualizando trayectoria:', {
+              trayectoriaId,
+              colegioId: colegioIdNum,
+              cargo: trayectoria.cargo,
+            })
+
+            await fetch(`/api/persona-trayectorias/${trayectoriaId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                data: {
+                  colegio: { connect: [colegioIdNum] },
+                  cargo: trayectoria.cargo || null,
+                  anio: trayectoria.anio ? parseInt(String(trayectoria.anio)) : null,
+                  curso: trayectoria.cursoId ? { connect: [parseInt(String(trayectoria.cursoId))] } : null,
+                  asignatura: trayectoria.asignaturaId ? { connect: [parseInt(String(trayectoria.asignaturaId))] } : null,
+                  is_current: trayectoria.is_current || false,
+                },
+              }),
+            })
+            console.log('✅ [EditarPersonaPage] Trayectoria actualizada exitosamente')
+          } catch (err: any) {
+            console.error('❌ [EditarPersonaPage] Error al actualizar trayectoria:', {
+              message: err.message,
+              trayectoria,
+            })
           }
         }
 

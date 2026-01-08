@@ -56,28 +56,77 @@ const NuevaPersonaPage = () => {
 
       // Crear trayectorias si existen
       if (data.trayectorias && Array.isArray(data.trayectorias) && data.trayectorias.length > 0) {
-        const trayectoriasToCreate = data.trayectorias.filter((t: any) => !t.toDelete && t.colegioId)
+        // Obtener el ID numérico de la persona si es documentId
+        let personaIdNum: number | null = null
+        const isDocumentId = typeof personaId === 'string' && !/^\d+$/.test(personaId)
         
-        for (const trayectoria of trayectoriasToCreate) {
+        if (isDocumentId) {
           try {
-            await fetch('/api/persona-trayectorias', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                data: {
-                  persona: { connect: [parseInt(String(personaId))] },
-                  colegio: { connect: [parseInt(String(trayectoria.colegioId))] },
-                  cargo: trayectoria.cargo || null,
-                  curso: trayectoria.curso || null,
-                  nivel: trayectoria.nivel || null,
-                  grado: trayectoria.grado || null,
-                  is_current: trayectoria.is_current || false,
-                },
-              }),
-            })
+            const personaResponse = await fetch(`/api/crm/contacts/${personaId}?fields=id`)
+            const personaResult = await personaResponse.json()
+            if (personaResult.success && personaResult.data) {
+              const personaData = Array.isArray(personaResult.data) ? personaResult.data[0] : personaResult.data
+              if (personaData && typeof personaData === 'object' && 'id' in personaData) {
+                personaIdNum = personaData.id as number
+                console.log('✅ [NuevaPersonaPage] ID numérico de persona obtenido:', personaIdNum)
+              }
+            }
           } catch (err) {
-            console.error('Error al crear trayectoria:', err)
-            // No lanzar error, solo loguear
+            console.error('❌ [NuevaPersonaPage] Error obteniendo ID numérico de persona:', err)
+          }
+        } else {
+          personaIdNum = parseInt(String(personaId))
+        }
+
+        if (!personaIdNum || isNaN(personaIdNum)) {
+          console.error('❌ [NuevaPersonaPage] No se pudo obtener ID numérico de persona:', personaId)
+          // No lanzar error, solo loguear y continuar
+        } else {
+          const trayectoriasToCreate = data.trayectorias.filter((t: any) => !t.toDelete && t.colegioId)
+          
+          for (const trayectoria of trayectoriasToCreate) {
+            try {
+              // Validar colegioId
+              const colegioIdNum = trayectoria.colegioId ? parseInt(String(trayectoria.colegioId)) : null
+              if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
+                console.warn('⚠️ [NuevaPersonaPage] ID de colegio inválido, omitiendo trayectoria:', {
+                  colegioId: trayectoria.colegioId,
+                  colegioIdNum,
+                  cargo: trayectoria.cargo,
+                })
+                continue
+              }
+
+              console.log('📤 [NuevaPersonaPage] Creando trayectoria:', {
+                personaId: personaIdNum,
+                colegioId: colegioIdNum,
+                cargo: trayectoria.cargo,
+              })
+
+              await fetch('/api/persona-trayectorias', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  data: {
+                    persona: { connect: [personaIdNum] },
+                    colegio: { connect: [colegioIdNum] },
+                    cargo: trayectoria.cargo || null,
+                    anio: trayectoria.anio ? parseInt(String(trayectoria.anio)) : null,
+                    curso: trayectoria.cursoId ? { connect: [parseInt(String(trayectoria.cursoId))] } : null,
+                    asignatura: trayectoria.asignaturaId ? { connect: [parseInt(String(trayectoria.asignaturaId))] } : null,
+                    is_current: trayectoria.is_current || false,
+                    activo: true,
+                  },
+                }),
+              })
+              console.log('✅ [NuevaPersonaPage] Trayectoria creada exitosamente')
+            } catch (err: any) {
+              console.error('❌ [NuevaPersonaPage] Error al crear trayectoria:', {
+                message: err.message,
+                trayectoria,
+              })
+              // No lanzar error, solo loguear
+            }
           }
         }
       }
