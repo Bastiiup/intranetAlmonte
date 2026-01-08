@@ -46,9 +46,11 @@ interface ContactoData {
   telefonos?: Array<{ telefono_norm?: string; telefono_raw?: string; principal?: boolean }>
   trayectorias?: Array<{
     cargo?: string
-    curso?: string
-    nivel?: string
-    grado?: string
+    cursoNombre?: string
+    cursoId?: number | string
+    asignaturaNombre?: string
+    asignaturaId?: number | string
+    anio?: number | string | null
     is_current?: boolean
   }>
 }
