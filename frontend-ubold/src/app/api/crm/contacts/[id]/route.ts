@@ -36,6 +36,8 @@ export async function GET(
       'populate[telefonos]': 'true',
       'populate[imagen]': 'true',
       'populate[tags]': 'true',
+      'populate[trayectorias]': 'true',
+      'populate[trayectorias][populate][colegio]': 'true',
     })
 
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(

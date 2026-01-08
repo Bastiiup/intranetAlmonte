@@ -4,12 +4,14 @@ import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { Container, Card, CardHeader, CardBody, Alert, Spinner } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import { useNotificationContext } from '@/context/useNotificationContext'
 import PersonaForm from '../../components/PersonaForm'
 
 const EditarPersonaPage = () => {
   const router = useRouter()
   const params = useParams()
   const personaId = params?.id as string
+  const { showNotification } = useNotificationContext()
 
   const [loading, setLoading] = useState(false)
   const [loadingData, setLoadingData] = useState(true)
@@ -31,6 +33,23 @@ const EditarPersonaPage = () => {
 
         const persona = result.data
         const attrs = persona.attributes || persona
+
+        // Transformar trayectorias
+        const trayectorias = (attrs.trayectorias || []).map((t: any) => {
+          const tAttrs = t.attributes || t
+          const colegio = tAttrs.colegio?.data?.attributes || tAttrs.colegio?.attributes || tAttrs.colegio
+          return {
+            id: t.id || t.documentId,
+            documentId: t.documentId || String(t.id || ''),
+            colegioId: colegio?.id || colegio?.documentId,
+            colegioNombre: colegio?.colegio_nombre || 'Sin nombre',
+            cargo: tAttrs.cargo || '',
+            curso: tAttrs.curso || '',
+            nivel: tAttrs.nivel || '',
+            grado: tAttrs.grado || '',
+            is_current: tAttrs.is_current !== undefined ? tAttrs.is_current : false,
+          }
+        })
 
         // Transformar datos para el formulario
         const formData = {
@@ -54,6 +73,7 @@ const EditarPersonaPage = () => {
           activo: attrs.activo !== undefined ? attrs.activo : true,
           origen: attrs.origen || 'manual',
           nivel_confianza: attrs.nivel_confianza || 'media',
+          trayectorias: trayectorias,
         }
 
         setPersonaData(formData)
@@ -103,11 +123,89 @@ const EditarPersonaPage = () => {
         throw new Error(result.error || 'Error al actualizar el contacto')
       }
 
+      // Gestionar trayectorias
+      if (data.trayectorias && Array.isArray(data.trayectorias)) {
+        const trayectoriasToCreate = data.trayectorias.filter((t: any) => t.isNew && !t.toDelete)
+        const trayectoriasToUpdate = data.trayectorias.filter((t: any) => !t.isNew && !t.toDelete && t.isEditing)
+        const trayectoriasToDelete = data.trayectorias.filter((t: any) => t.toDelete && !t.isNew)
+
+        // Crear nuevas trayectorias
+        for (const trayectoria of trayectoriasToCreate) {
+          try {
+            await fetch('/api/persona-trayectorias', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                data: {
+                  persona: { connect: [parseInt(personaId)] },
+                  colegio: { connect: [parseInt(String(trayectoria.colegioId))] },
+                  cargo: trayectoria.cargo || null,
+                  curso: trayectoria.curso || null,
+                  nivel: trayectoria.nivel || null,
+                  grado: trayectoria.grado || null,
+                  is_current: trayectoria.is_current || false,
+                },
+              }),
+            })
+          } catch (err) {
+            console.error('Error al crear trayectoria:', err)
+          }
+        }
+
+        // Actualizar trayectorias existentes
+        for (const trayectoria of trayectoriasToUpdate) {
+          try {
+            const trayectoriaId = trayectoria.documentId || trayectoria.id
+            if (trayectoriaId) {
+              await fetch(`/api/persona-trayectorias/${trayectoriaId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  data: {
+                    colegio: { connect: [parseInt(String(trayectoria.colegioId))] },
+                    cargo: trayectoria.cargo || null,
+                    curso: trayectoria.curso || null,
+                    nivel: trayectoria.nivel || null,
+                    grado: trayectoria.grado || null,
+                    is_current: trayectoria.is_current || false,
+                  },
+                }),
+              })
+            }
+          } catch (err) {
+            console.error('Error al actualizar trayectoria:', err)
+          }
+        }
+
+        // Eliminar trayectorias
+        for (const trayectoria of trayectoriasToDelete) {
+          try {
+            const trayectoriaId = trayectoria.documentId || trayectoria.id
+            if (trayectoriaId) {
+              await fetch(`/api/persona-trayectorias/${trayectoriaId}`, {
+                method: 'DELETE',
+              })
+            }
+          } catch (err) {
+            console.error('Error al eliminar trayectoria:', err)
+          }
+        }
+      }
+
+      // Mostrar notificación de éxito
+      showNotification({
+        title: 'Éxito',
+        message: 'Colaborador actualizado correctamente',
+        variant: 'success',
+      })
+
       // Revalidar datos para sincronización bidireccional
       router.refresh()
       
-      // Redirigir a la ficha del contacto
-      router.push(`/crm/personas/${personaId}`)
+      // Redirigir a la ficha del contacto después de un breve delay
+      setTimeout(() => {
+        router.push(`/crm/personas/${personaId}`)
+      }, 1000)
     } catch (err: any) {
       console.error('Error al actualizar contacto:', err)
       setError(err.message || 'Error al actualizar el contacto')

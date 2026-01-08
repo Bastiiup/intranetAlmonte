@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Form, FormGroup, FormLabel, FormControl, Button, Alert, Row, Col } from 'react-bootstrap'
 import { LuSave, LuPlus, LuX } from 'react-icons/lu'
+import TrayectoriaManager from './TrayectoriaManager'
 
 const GENEROS = ['Hombre', 'Mujer']
 
@@ -33,6 +34,21 @@ interface EmailItem {
   principal?: boolean
 }
 
+interface TrayectoriaItem {
+  id?: string | number
+  documentId?: string
+  colegioId?: number | string
+  colegioNombre?: string
+  cargo?: string
+  curso?: string
+  nivel?: string
+  grado?: string
+  is_current?: boolean
+  isNew?: boolean
+  isEditing?: boolean
+  toDelete?: boolean
+}
+
 interface PersonaFormData {
   rut: string
   nombres: string
@@ -46,6 +62,7 @@ interface PersonaFormData {
   nivel_confianza: string
   telefonos: TelefonoItem[]
   emails: EmailItem[]
+  trayectorias?: TrayectoriaItem[]
 }
 
 interface PersonaFormProps {
@@ -70,6 +87,7 @@ const PersonaForm = ({ initialData, onSubmit, onCancel, loading = false, error }
     nivel_confianza: 'media',
     telefonos: [],
     emails: [],
+    trayectorias: [],
   })
 
   useEffect(() => {
@@ -87,6 +105,7 @@ const PersonaForm = ({ initialData, onSubmit, onCancel, loading = false, error }
         nivel_confianza: initialData.nivel_confianza || 'media',
         telefonos: initialData.telefonos || [],
         emails: initialData.emails || [],
+        trayectorias: initialData.trayectorias || [],
       })
     }
   }, [initialData])
@@ -400,6 +419,15 @@ const PersonaForm = ({ initialData, onSubmit, onCancel, loading = false, error }
         />
         <FormLabel className="ms-2">Activo</FormLabel>
       </FormGroup>
+
+      {/* Gestión de Trayectorias */}
+      <div className="mb-4">
+        <TrayectoriaManager
+          trayectorias={formData.trayectorias || []}
+          onChange={(trayectorias) => handleFieldChange('trayectorias', trayectorias)}
+          disabled={loading}
+        />
+      </div>
 
       <div className="d-flex gap-2 justify-content-end">
         {onCancel && (

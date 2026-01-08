@@ -4,10 +4,12 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Container, Card, CardHeader, CardBody, Alert } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import { useNotificationContext } from '@/context/useNotificationContext'
 import PersonaForm from '../components/PersonaForm'
 
 const NuevaPersonaPage = () => {
   const router = useRouter()
+  const { showNotification } = useNotificationContext()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -46,16 +48,54 @@ const NuevaPersonaPage = () => {
         throw new Error(result.error || 'Error al crear el contacto')
       }
 
+      // Obtener ID de la persona creada
+      const personaId = result.data?.documentId || result.data?.id
+      if (!personaId) {
+        throw new Error('No se pudo obtener el ID de la persona creada')
+      }
+
+      // Crear trayectorias si existen
+      if (data.trayectorias && Array.isArray(data.trayectorias) && data.trayectorias.length > 0) {
+        const trayectoriasToCreate = data.trayectorias.filter((t: any) => !t.toDelete && t.colegioId)
+        
+        for (const trayectoria of trayectoriasToCreate) {
+          try {
+            await fetch('/api/persona-trayectorias', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                data: {
+                  persona: { connect: [parseInt(String(personaId))] },
+                  colegio: { connect: [parseInt(String(trayectoria.colegioId))] },
+                  cargo: trayectoria.cargo || null,
+                  curso: trayectoria.curso || null,
+                  nivel: trayectoria.nivel || null,
+                  grado: trayectoria.grado || null,
+                  is_current: trayectoria.is_current || false,
+                },
+              }),
+            })
+          } catch (err) {
+            console.error('Error al crear trayectoria:', err)
+            // No lanzar error, solo loguear
+          }
+        }
+      }
+
+      // Mostrar notificación de éxito
+      showNotification({
+        title: 'Éxito',
+        message: 'Colaborador creado correctamente',
+        variant: 'success',
+      })
+
       // Revalidar datos para sincronización bidireccional
       router.refresh()
       
-      // Redirigir a la ficha del contacto creado
-      const personaId = result.data?.documentId || result.data?.id
-      if (personaId) {
+      // Redirigir a la ficha del contacto creado después de un breve delay
+      setTimeout(() => {
         router.push(`/crm/personas/${personaId}`)
-      } else {
-        router.push('/crm/personas')
-      }
+      }, 1000)
     } catch (err: any) {
       console.error('Error al crear contacto:', err)
       setError(err.message || 'Error al crear el contacto')
