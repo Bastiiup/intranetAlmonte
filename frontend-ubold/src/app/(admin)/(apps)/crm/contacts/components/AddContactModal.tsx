@@ -100,7 +100,7 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
         throw new Error('El email es obligatorio')
       }
 
-      // Preparar datos para Strapi
+      // Preparar datos para Strapi (sin trayectoria, la crearemos después)
       const contactData: any = {
         nombres: formData.nombres.trim(),
         emails: [{
@@ -116,19 +116,11 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
         origen: formData.origen || 'manual',
         nivel_confianza: formData.etiqueta || 'media',
         activo: true,
-        // Agregar trayectoria solo si se seleccionó un colegio válido (no vacío, no '0')
-        ...(formData.colegioId && 
-            formData.colegioId !== '' && 
-            formData.colegioId !== '0' && {
-          trayectoria: {
-            colegio: parseInt(String(formData.colegioId)),
-            cargo: formData.cargo || null,
-            is_current: true,
-          },
-        }),
       }
 
-      // Crear el contacto
+      console.log('[AddContactModal] 📤 Enviando datos de contacto:', contactData)
+
+      // PASO 1: Crear el contacto primero
       const response = await fetch('/api/crm/contacts', {
         method: 'POST',
         headers: {
@@ -139,9 +131,93 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
 
       const result = await response.json()
 
+      console.log('[AddContactModal] 📥 Respuesta del servidor:', result)
+
       if (!response.ok || !result.success) {
         const errorMessage = result.details?.errors?.[0]?.message || result.error || 'Error al crear contacto'
         throw new Error(errorMessage)
+      }
+
+      // PASO 2: Obtener ID de la persona creada
+      const personaId = result.data?.documentId || result.data?.id
+      if (!personaId) {
+        throw new Error('No se pudo obtener el ID de la persona creada')
+      }
+
+      console.log('[AddContactModal] ✅ Persona creada con ID:', personaId)
+
+      // PASO 3: Crear trayectoria si se seleccionó un colegio válido
+      if (formData.colegioId && formData.colegioId !== '' && formData.colegioId !== '0') {
+        try {
+          // Obtener el ID numérico de la persona si es documentId
+          let personaIdNum: number | null = null
+          const isDocumentId = typeof personaId === 'string' && !/^\d+$/.test(personaId)
+          
+          if (isDocumentId) {
+            try {
+              const personaResponse = await fetch(`/api/crm/contacts/${personaId}?fields=id`)
+              const personaResult = await personaResponse.json()
+              if (personaResult.success && personaResult.data) {
+                const personaData = Array.isArray(personaResult.data) ? personaResult.data[0] : personaResult.data
+                if (personaData && typeof personaData === 'object' && 'id' in personaData) {
+                  personaIdNum = personaData.id as number
+                  console.log('[AddContactModal] ✅ ID numérico de persona obtenido:', personaIdNum)
+                }
+              }
+            } catch (err) {
+              console.error('[AddContactModal] ❌ Error obteniendo ID numérico de persona:', err)
+            }
+          } else {
+            personaIdNum = parseInt(String(personaId))
+          }
+
+          if (!personaIdNum || isNaN(personaIdNum)) {
+            console.error('[AddContactModal] ❌ No se pudo obtener ID numérico de persona:', personaId)
+            throw new Error('No se pudo obtener el ID numérico de la persona para crear la trayectoria')
+          }
+
+          // Validar colegioId
+          const colegioIdNum = parseInt(String(formData.colegioId))
+          if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
+            console.warn('[AddContactModal] ⚠️ ID de colegio inválido, omitiendo creación de trayectoria:', {
+              colegioId: formData.colegioId,
+              colegioIdNum,
+              cargo: formData.cargo,
+            })
+          } else {
+            console.log('[AddContactModal] 📤 Creando trayectoria:', {
+              personaId: personaIdNum,
+              colegioId: colegioIdNum,
+              cargo: formData.cargo,
+            })
+
+            const trayectoriaResponse = await fetch('/api/persona-trayectorias', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                data: {
+                  persona: { connect: [personaIdNum] },
+                  colegio: { connect: [colegioIdNum] },
+                  cargo: formData.cargo || null,
+                  is_current: true,
+                  activo: true,
+                },
+              }),
+            })
+
+            const trayectoriaResult = await trayectoriaResponse.json()
+
+            if (!trayectoriaResponse.ok || !trayectoriaResult.success) {
+              console.error('[AddContactModal] ❌ Error al crear trayectoria:', trayectoriaResult)
+              // No lanzar error, solo loguear - el contacto ya fue creado
+            } else {
+              console.log('[AddContactModal] ✅ Trayectoria creada exitosamente:', trayectoriaResult)
+            }
+          }
+        } catch (trayectoriaError: any) {
+          console.error('[AddContactModal] ❌ Error al crear trayectoria:', trayectoriaError)
+          // No lanzar error, solo loguear - el contacto ya fue creado
+        }
       }
 
       // Limpiar formulario
