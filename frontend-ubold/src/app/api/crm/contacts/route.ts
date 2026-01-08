@@ -171,12 +171,20 @@ export async function POST(request: Request) {
       )
     }
 
+    // Generar nombre_completo si no se proporciona
+    const nombres = body.nombres.trim()
+    const primerApellido = body.primer_apellido?.trim() || ''
+    const segundoApellido = body.segundo_apellido?.trim() || ''
+    const nombreCompleto = body.nombre_completo?.trim() || 
+      [nombres, primerApellido, segundoApellido].filter(Boolean).join(' ').trim()
+
     // Preparar datos para Strapi
     const personaData: any = {
       data: {
-        nombres: body.nombres.trim(),
-        ...(body.primer_apellido && { primer_apellido: body.primer_apellido.trim() }),
-        ...(body.segundo_apellido && { segundo_apellido: body.segundo_apellido.trim() }),
+        nombres: nombres,
+        ...(primerApellido && { primer_apellido: primerApellido }),
+        ...(segundoApellido && { segundo_apellido: segundoApellido }),
+        ...(nombreCompleto && { nombre_completo: nombreCompleto }),
         ...(body.rut && { rut: body.rut.trim() }),
         ...(body.genero && { genero: body.genero }),
         ...(body.cumpleagno && { cumpleagno: body.cumpleagno }),
@@ -218,41 +226,75 @@ export async function POST(request: Request) {
     )
 
     // Obtener el ID de la persona creada
-    const personaId = (response.data as any).documentId || (response.data as any).id
+    const personaResponseData = response.data as any
+    const personaDocumentId = personaResponseData?.documentId
+    const personaIdNum = personaResponseData?.id
+
+    console.log('[API /crm/contacts POST] Persona creada:', {
+      documentId: personaDocumentId,
+      id: personaIdNum,
+      data: personaResponseData,
+    })
 
     // Si se proporcionó una trayectoria, crearla
-    if (body.trayectoria && personaId && body.trayectoria.colegio) {
+    if (body.trayectoria && body.trayectoria.colegio) {
       try {
-        // El colegio puede venir como documentId (string) o id (number)
-        // Validar que el ID sea válido (no 0, no null, no undefined, no string vacío)
-        let colegioId = body.trayectoria.colegio
+        // PASO 1: Obtener el ID numérico de la persona (necesario para connect)
+        let personaIdParaTrayectoria: number | null = null
         
-        // Convertir a número si es string
+        if (personaIdNum && typeof personaIdNum === 'number') {
+          personaIdParaTrayectoria = personaIdNum
+        } else if (personaDocumentId) {
+          // Si solo tenemos documentId, necesitamos obtener el id numérico
+          try {
+            const personaGetResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+              `/api/personas/${personaDocumentId}?fields[0]=id`
+            )
+            const personaData = Array.isArray(personaGetResponse.data) 
+              ? personaGetResponse.data[0] 
+              : personaGetResponse.data
+            if (personaData && typeof personaData === 'object' && 'id' in personaData) {
+              personaIdParaTrayectoria = personaData.id as number
+              console.log('[API /crm/contacts POST] ✅ ID numérico obtenido desde documentId:', personaIdParaTrayectoria)
+            }
+          } catch (err: any) {
+            console.error('[API /crm/contacts POST] ❌ Error obteniendo ID numérico de persona:', err)
+          }
+        }
+
+        // PASO 2: Validar y convertir ID del colegio
+        let colegioId = body.trayectoria.colegio
         const colegioIdNum = typeof colegioId === 'string' 
           ? (colegioId.trim() === '' ? null : parseInt(colegioId.trim()))
           : colegioId
         
-        // Validar que el ID sea válido
-        if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
+        // Validar que ambos IDs sean válidos
+        if (!personaIdParaTrayectoria || personaIdParaTrayectoria === 0) {
+          console.warn('[API /crm/contacts POST] ⚠️ ID de persona inválido, omitiendo creación de trayectoria:', {
+            personaDocumentId,
+            personaIdNum,
+            personaIdParaTrayectoria,
+          })
+        } else if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
           console.warn('[API /crm/contacts POST] ⚠️ ID de colegio inválido, omitiendo creación de trayectoria:', {
             colegioIdOriginal: body.trayectoria.colegio,
             colegioIdNum,
             cargo: body.trayectoria.cargo,
           })
-          // No crear la trayectoria si el colegio no es válido
         } else {
           console.log('[API /crm/contacts POST] Creando trayectoria:', {
-            personaId,
+            personaId: personaIdParaTrayectoria,
             colegioId: colegioIdNum,
             cargo: body.trayectoria.cargo,
           })
           
           const trayectoriaData = {
             data: {
-              persona: { connect: [typeof personaId === 'number' ? personaId : parseInt(String(personaId))] },
+              persona: { connect: [personaIdParaTrayectoria] },
               colegio: { connect: [colegioIdNum] },
               cargo: body.trayectoria.cargo || null,
               is_current: body.trayectoria.is_current !== undefined ? body.trayectoria.is_current : true,
+              activo: true,
             },
           }
           
