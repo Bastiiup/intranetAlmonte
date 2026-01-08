@@ -93,6 +93,7 @@ export async function GET(
     console.log('📤 [API /crm/colegios/[id]/contacts GET] Estrategia: Obtener trayectorias del colegio primero')
     
     let contactos: any[] = []
+    let responseMeta: any = null
     
     try {
       // ESTRATEGIA 1: Obtener trayectorias del colegio directamente
@@ -150,6 +151,8 @@ export async function GET(
         
         contactos = Array.from(personasMap.values())
         console.log('✅ [API /crm/colegios/[id]/contacts GET] Personas únicas encontradas:', contactos.length)
+        // Guardar meta de la respuesta de trayectorias
+        responseMeta = trayectoriasResponse.meta || null
       } else {
         console.log('⚠️ [API /crm/colegios/[id]/contacts GET] No se encontraron trayectorias, intentando método alternativo...')
         
@@ -188,6 +191,8 @@ export async function GET(
         if (response.data) {
           contactos = Array.isArray(response.data) ? response.data : [response.data]
         }
+        // Guardar meta de la respuesta alternativa
+        responseMeta = response.meta || null
       }
     } catch (error: any) {
       console.error('❌ [API /crm/colegios/[id]/contacts GET] Error en estrategia principal:', error)
@@ -291,7 +296,7 @@ export async function GET(
       success: true,
       data: contactosConTrayectorias,
       meta: {
-        ...response.meta,
+        ...(responseMeta || {}),
         total: contactosConTrayectorias.length,
         colegioId,
         colegioIdNum,
