@@ -44,8 +44,7 @@ export async function GET(
         'populate[telefonos]': 'true',
         'populate[emails]': 'true',
         'populate[direcciones]': 'true',
-        'populate[cartera_asignaciones]': 'true',
-        'populate[cartera_asignaciones.ejecutivo]': 'true',
+        'populate[cartera_asignaciones][populate][ejecutivo]': 'true',
       })
       
       const response = await strapiClient.get<StrapiResponse<StrapiEntity<ColegioAttributes>>>(
@@ -74,8 +73,7 @@ export async function GET(
             'populate[telefonos]': 'true',
             'populate[emails]': 'true',
             'populate[direcciones]': 'true',
-            'populate[cartera_asignaciones]': 'true',
-            'populate[cartera_asignaciones.ejecutivo]': 'true',
+            'populate[cartera_asignaciones][populate][ejecutivo]': 'true',
           })
           console.log('[API /crm/colegios/[id] GET] Buscando por documentId:', id)
         } else {
@@ -86,8 +84,7 @@ export async function GET(
             'populate[telefonos]': 'true',
             'populate[emails]': 'true',
             'populate[direcciones]': 'true',
-            'populate[cartera_asignaciones]': 'true',
-            'populate[cartera_asignaciones.ejecutivo]': 'true',
+            'populate[cartera_asignaciones][populate][ejecutivo]': 'true',
           })
           console.log('[API /crm/colegios/[id] GET] Buscando por id numérico:', id)
         }
@@ -115,8 +112,7 @@ export async function GET(
             'populate[telefonos]': 'true',
             'populate[emails]': 'true',
             'populate[direcciones]': 'true',
-            'populate[cartera_asignaciones]': 'true',
-            'populate[cartera_asignaciones.ejecutivo]': 'true',
+            'populate[cartera_asignaciones][populate][ejecutivo]': 'true',
           })
           
           try {
