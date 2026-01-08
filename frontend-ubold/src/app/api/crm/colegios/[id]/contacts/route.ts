@@ -88,52 +88,123 @@ export async function GET(
       }
     }
 
-    // PASO 2: Construir query para personas con trayectorias en este colegio
-    const paramsObj = new URLSearchParams({
-      'pagination[page]': page,
-      'pagination[pageSize]': pageSize,
-      'sort[0]': 'updatedAt:desc',
-    })
+    // PASO 2: Estrategia alternativa - Obtener trayectorias directamente del colegio
+    // Esto es más confiable que filtrar personas por trayectorias
+    console.log('📤 [API /crm/colegios/[id]/contacts GET] Estrategia: Obtener trayectorias del colegio primero')
+    
+    let contactos: any[] = []
+    
+    try {
+      // ESTRATEGIA 1: Obtener trayectorias del colegio directamente
+      const trayectoriasParams = new URLSearchParams({
+        'filters[colegio][id][$eq]': String(colegioIdNum),
+        'filters[activo][$eq]': 'true',
+        'populate[persona][populate][emails]': 'true',
+        'populate[persona][populate][telefonos]': 'true',
+        'populate[persona][populate][imagen]': 'true',
+        'populate[persona][populate][tags]': 'true',
+        'populate[colegio][populate][comuna]': 'true',
+        'populate[curso]': 'true',
+        'populate[asignatura]': 'true',
+        'populate[curso_asignatura]': 'true',
+        'pagination[pageSize]': '1000', // Obtener todas las trayectorias
+      })
+      
+      const trayectoriasResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+        `/api/profesores?${trayectoriasParams.toString()}`
+      )
+      
+      console.log('📥 [API /crm/colegios/[id]/contacts GET] Trayectorias encontradas:', Array.isArray(trayectoriasResponse.data) ? trayectoriasResponse.data.length : 1)
+      
+      if (trayectoriasResponse.data && Array.isArray(trayectoriasResponse.data) && trayectoriasResponse.data.length > 0) {
+        // Agrupar trayectorias por persona
+        const personasMap = new Map<string, any>()
+        
+        trayectoriasResponse.data.forEach((trayectoria: any) => {
+          const tAttrs = trayectoria.attributes || trayectoria
+          const personaData = tAttrs.persona?.data || tAttrs.persona
+          
+          if (!personaData) return
+          
+          const personaId = String(personaData.documentId || personaData.id)
+          const personaAttrs = personaData.attributes || personaData
+          
+          // Solo incluir personas activas
+          if (personaAttrs.activo === false) return
+          
+          // Si la persona ya está en el mapa, agregar esta trayectoria
+          if (personasMap.has(personaId)) {
+            const personaExistente = personasMap.get(personaId)!
+            personaExistente.trayectorias.push(trayectoria)
+          } else {
+            // Crear nueva entrada para esta persona
+            personasMap.set(personaId, {
+              ...personaData,
+              attributes: {
+                ...personaAttrs,
+                trayectorias: [trayectoria],
+              },
+            })
+          }
+        })
+        
+        contactos = Array.from(personasMap.values())
+        console.log('✅ [API /crm/colegios/[id]/contacts GET] Personas únicas encontradas:', contactos.length)
+      } else {
+        console.log('⚠️ [API /crm/colegios/[id]/contacts GET] No se encontraron trayectorias, intentando método alternativo...')
+        
+        // ESTRATEGIA 2: Método alternativo - Filtrar personas directamente
+        const paramsObj = new URLSearchParams({
+          'pagination[page]': page,
+          'pagination[pageSize]': pageSize,
+          'sort[0]': 'updatedAt:desc',
+        })
 
-    // Populate completo de trayectorias con sus relaciones
-    paramsObj.append('populate[trayectorias][populate][colegio][populate][comuna]', 'true')
-    paramsObj.append('populate[trayectorias][populate][curso]', 'true') // ⚠️ curso es relación
-    paramsObj.append('populate[trayectorias][populate][asignatura]', 'true') // ⚠️ asignatura es relación
-    paramsObj.append('populate[trayectorias][populate][curso_asignatura]', 'true')
+        // Populate completo de trayectorias con sus relaciones
+        paramsObj.append('populate[trayectorias][populate][colegio][populate][comuna]', 'true')
+        paramsObj.append('populate[trayectorias][populate][curso]', 'true')
+        paramsObj.append('populate[trayectorias][populate][asignatura]', 'true')
+        paramsObj.append('populate[trayectorias][populate][curso_asignatura]', 'true')
 
-    // Populate de persona
-    paramsObj.append('populate[emails]', 'true')
-    paramsObj.append('populate[telefonos]', 'true')
-    paramsObj.append('populate[imagen]', 'true')
-    paramsObj.append('populate[tags]', 'true')
+        // Populate de persona
+        paramsObj.append('populate[emails]', 'true')
+        paramsObj.append('populate[telefonos]', 'true')
+        paramsObj.append('populate[imagen]', 'true')
+        paramsObj.append('populate[tags]', 'true')
 
-    // Filtrar por contactos activos
-    paramsObj.append('filters[activo][$eq]', 'true')
+        // Filtrar por contactos activos
+        paramsObj.append('filters[activo][$eq]', 'true')
 
-    // ⚠️ IMPORTANTE: Usar filtro $or para coincidir con id O documentId
-    // Nota: Strapi puede requerir que el filtro se haga de otra manera si $or no funciona
-    // Intentamos primero con id numérico
-    paramsObj.append('filters[trayectorias][colegio][id][$eq]', String(colegioIdNum))
+        // Intentar con id numérico
+        paramsObj.append('filters[trayectorias][colegio][id][$eq]', String(colegioIdNum))
 
-    const url = `/api/personas?${paramsObj.toString()}`
-    console.log('📤 [API /crm/colegios/[id]/contacts GET] Query:', url)
+        const url = `/api/personas?${paramsObj.toString()}`
+        console.log('📤 [API /crm/colegios/[id]/contacts GET] Query alternativa:', url)
 
-    const response = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(url)
+        const response = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(url)
 
-    console.log('📥 [API /crm/colegios/[id]/contacts GET] Respuesta Strapi:', Array.isArray(response.data) ? response.data.length : 1, 'personas encontradas')
+        console.log('📥 [API /crm/colegios/[id]/contacts GET] Respuesta Strapi (alternativa):', Array.isArray(response.data) ? response.data.length : 1, 'personas encontradas')
 
-    if (!response.data) {
+        if (response.data) {
+          contactos = Array.isArray(response.data) ? response.data : [response.data]
+        }
+      }
+    } catch (error: any) {
+      console.error('❌ [API /crm/colegios/[id]/contacts GET] Error en estrategia principal:', error)
+      // Continuar con el procesamiento aunque haya error
+    }
+
+    if (!contactos || contactos.length === 0) {
+      console.log('⚠️ [API /crm/colegios/[id]/contacts GET] No se encontraron contactos')
       return NextResponse.json({ success: true, data: [] })
     }
 
-    const contactos = Array.isArray(response.data) ? response.data : [response.data]
-
-    // PASO 3: Filtrar y transformar trayectorias
+    // PASO 3: Transformar y normalizar trayectorias
     const contactosFiltrados = contactos.map((contacto: any) => {
       const attrs = contacto.attributes || contacto
       const trayectorias = attrs.trayectorias?.data || attrs.trayectorias || []
 
-      // Filtrar solo trayectorias de este colegio
+      // Transformar trayectorias
       const trayectoriasDelColegio = trayectorias
         .map((t: any) => {
           const tAttrs = t.attributes || t
@@ -142,7 +213,7 @@ export async function GET(
           const tColegioId = colegioData?.id
           const tColegioDocId = colegioData?.documentId
 
-          // Verificar si esta trayectoria pertenece al colegio
+          // Verificar si esta trayectoria pertenece al colegio (ya debería estar filtrada, pero verificamos por seguridad)
           const perteneceAlColegio =
             (tColegioId && String(tColegioId) === String(colegioIdNum)) ||
             (tColegioDocId && String(tColegioDocId) === String(colegioId))

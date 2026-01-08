@@ -181,14 +181,50 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
             throw new Error('No se pudo obtener el ID numérico de la persona para crear la trayectoria')
           }
 
-          // Validar colegioId
-          const colegioIdNum = parseInt(String(formData.colegioId))
+          // Validar y obtener colegioId numérico
+          let colegioIdNum: number | null = null
+          
+          if (formData.colegioId && formData.colegioId !== '' && formData.colegioId !== '0') {
+            // Intentar parsear directamente
+            colegioIdNum = parseInt(String(formData.colegioId))
+            
+            // Si no es un número válido, intentar obtenerlo del colegio seleccionado
+            if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
+              const colegioSeleccionado = colegios.find(
+                (c) => String(c.id || c.documentId) === String(formData.colegioId)
+              )
+              
+              if (colegioSeleccionado) {
+                // Intentar obtener ID numérico del colegio
+                if (typeof colegioSeleccionado.id === 'number') {
+                  colegioIdNum = colegioSeleccionado.id
+                } else if (colegioSeleccionado.documentId) {
+                  // Si solo tenemos documentId, necesitamos obtener el ID numérico
+                  try {
+                    const colegioResponse = await fetch(`/api/crm/colegios/${colegioSeleccionado.documentId}`)
+                    const colegioResult = await colegioResponse.json()
+                    if (colegioResult.success && colegioResult.data) {
+                      const colegioData = colegioResult.data
+                      colegioIdNum = colegioData.id || null
+                    }
+                  } catch (err) {
+                    console.error('[AddContactModal] Error obteniendo ID numérico del colegio:', err)
+                  }
+                }
+              }
+            }
+          }
+          
           if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
             console.warn('[AddContactModal] ⚠️ ID de colegio inválido, omitiendo creación de trayectoria:', {
               colegioId: formData.colegioId,
               colegioIdNum,
               cargo: formData.cargo,
             })
+            // Mostrar advertencia al usuario pero no fallar
+            if (formData.cargo) {
+              setError('El contacto se creó correctamente, pero no se pudo asociar al colegio. Puedes editarlo después.')
+            }
           } else {
             console.log('[AddContactModal] 📤 Creando trayectoria:', {
               personaId: personaIdNum,
@@ -196,27 +232,36 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
               cargo: formData.cargo,
             })
 
-            const trayectoriaResponse = await fetch('/api/persona-trayectorias', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                data: {
-                  persona: { connect: [personaIdNum] },
-                  colegio: { connect: [colegioIdNum] },
-                  cargo: formData.cargo || null,
-                  is_current: true,
-                  activo: true,
-                },
-              }),
-            })
+            try {
+              const trayectoriaResponse = await fetch('/api/persona-trayectorias', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  data: {
+                    persona: { connect: [personaIdNum] },
+                    colegio: { connect: [colegioIdNum] },
+                    cargo: formData.cargo || null,
+                    is_current: true,
+                    activo: true,
+                  },
+                }),
+              })
 
-            const trayectoriaResult = await trayectoriaResponse.json()
+              const trayectoriaResult = await trayectoriaResponse.json()
 
-            if (!trayectoriaResponse.ok || !trayectoriaResult.success) {
-              console.error('[AddContactModal] ❌ Error al crear trayectoria:', trayectoriaResult)
-              // No lanzar error, solo loguear - el contacto ya fue creado
-            } else {
-              console.log('[AddContactModal] ✅ Trayectoria creada exitosamente:', trayectoriaResult)
+              if (!trayectoriaResponse.ok || !trayectoriaResult.success) {
+                console.error('[AddContactModal] ❌ Error al crear trayectoria:', trayectoriaResult)
+                setError(
+                  `El contacto se creó correctamente, pero hubo un error al asociarlo al colegio: ${trayectoriaResult.error || 'Error desconocido'}. Puedes editarlo después.`
+                )
+              } else {
+                console.log('[AddContactModal] ✅ Trayectoria creada exitosamente:', trayectoriaResult)
+              }
+            } catch (trayectoriaFetchError: any) {
+              console.error('[AddContactModal] ❌ Error en fetch de trayectoria:', trayectoriaFetchError)
+              setError(
+                `El contacto se creó correctamente, pero hubo un error al asociarlo al colegio: ${trayectoriaFetchError.message || 'Error de conexión'}. Puedes editarlo después.`
+              )
             }
           }
         } catch (trayectoriaError: any) {
