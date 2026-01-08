@@ -176,12 +176,31 @@ export default function ColegioDetailPage() {
       if (!colegioId) return
       setLoadingContacts(true)
       try {
+        console.log('🔍 [ColegioDetailPage] Buscando contactos para colegio:', colegioId)
         const response = await fetch(`/api/crm/colegios/${colegioId}/contacts`)
         const result = await response.json()
+        
+        console.log('📥 [ColegioDetailPage] Respuesta de contactos:', {
+          ok: response.ok,
+          success: result.success,
+          total: result.data?.length || 0,
+          meta: result.meta,
+        })
+        
         if (response.ok && result.success) {
           const contactosData = Array.isArray(result.data) ? result.data : [result.data]
+          console.log('📊 [ColegioDetailPage] Transformando', contactosData.length, 'contactos')
+          
           const contactosTransformed: ContactoData[] = contactosData.map((contacto: any) => {
             const attrs = contacto.attributes || contacto
+            const trayectorias = attrs.trayectorias || []
+            
+            console.log('👤 [ColegioDetailPage] Contacto:', {
+              id: contacto.documentId || contacto.id,
+              nombre: attrs.nombre_completo,
+              trayectorias: trayectorias.length,
+            })
+            
             return {
               id: contacto.documentId || contacto.id,
               documentId: contacto.documentId,
@@ -189,13 +208,17 @@ export default function ColegioDetailPage() {
               rut: attrs.rut,
               emails: attrs.emails || [],
               telefonos: attrs.telefonos || [],
-              trayectorias: attrs.trayectorias || [],
+              trayectorias: trayectorias,
             }
           })
+          
+          console.log('✅ [ColegioDetailPage] Contactos transformados:', contactosTransformed.length)
           setContactos(contactosTransformed)
+        } else {
+          console.error('❌ [ColegioDetailPage] Error en respuesta:', result)
         }
       } catch (err: any) {
-        console.error('Error al cargar contactos:', err)
+        console.error('❌ [ColegioDetailPage] Error al cargar contactos:', err)
       } finally {
         setLoadingContacts(false)
       }
@@ -337,8 +360,8 @@ export default function ColegioDetailPage() {
     
     contactos.forEach((contacto) => {
       const trayectoriaActual = contacto.trayectorias?.find((t) => t.is_current) || contacto.trayectorias?.[0]
-      // Priorizar curso, luego nivel, luego cargo
-      const grupo = trayectoriaActual?.curso || trayectoriaActual?.nivel || trayectoriaActual?.cargo || 'Sin cargo/curso'
+      // Priorizar cursoNombre, luego cargo
+      const grupo = trayectoriaActual?.cursoNombre || trayectoriaActual?.cargo || 'Sin cargo/curso'
       
       if (!grupos.has(grupo)) {
         grupos.set(grupo, [])
@@ -545,7 +568,7 @@ export default function ColegioDetailPage() {
       <CardHeader>
         <h4 className="mb-0 d-flex align-items-center">
           <LuUsers className="me-2" />
-          Contactos del Colegio
+          Colaboradores del Colegio
           <Badge bg="primary" className="ms-2">{contactos.length}</Badge>
         </h4>
       </CardHeader>
@@ -556,7 +579,7 @@ export default function ColegioDetailPage() {
             <p className="mt-2 text-muted">Cargando contactos...</p>
           </div>
         ) : contactos.length === 0 ? (
-          <p className="text-muted text-center py-5">No hay contactos asociados a este colegio</p>
+          <p className="text-muted text-center py-5">No hay colaboradores asociados a este colegio</p>
         ) : (
           <div>
             {contactosPorCargo.map(([cargo, contactosGrupo]) => (
@@ -937,7 +960,7 @@ export default function ColegioDetailPage() {
             style={{ cursor: 'pointer' }}
           >
             <LuUsers className="me-1" size={16} />
-            Contactos ({contactos.length})
+            Colaboradores ({contactos.length})
           </NavLink>
         </NavItem>
         <NavItem>

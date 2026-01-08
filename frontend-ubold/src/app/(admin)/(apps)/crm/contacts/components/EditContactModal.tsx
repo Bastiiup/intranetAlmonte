@@ -204,10 +204,13 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
             principal: true,
           }],
         }),
-        // Agregar/actualizar trayectoria si se seleccionó un colegio
+        // Agregar/actualizar trayectoria solo si se seleccionó un colegio válido (no vacío, no '0', no 0)
         // NOTA: Los campos region, comuna, dependencia son del colegio, no de la trayectoria
         // Estos se actualizan en el colegio, no en la trayectoria
-        ...(formData.colegioId && {
+        ...(formData.colegioId && 
+            formData.colegioId !== '' && 
+            formData.colegioId !== '0' && 
+            formData.colegioId !== 0 && {
           trayectoria: {
             colegio: parseInt(String(formData.colegioId)),
             cargo: formData.cargo || null,
