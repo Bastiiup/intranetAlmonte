@@ -37,7 +37,7 @@ export async function GET(
     // Intentar primero con el endpoint directo (funciona con documentId o id)
     try {
       const response = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
-        `/api/colaboradores/${id}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[usuario]=*`
+        `/api/colaboradores/${id}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[persona][populate][imagen][populate]=*&populate[persona][populate][portada][populate]=*&populate[usuario]=*`
       )
       
       if (response.data) {
@@ -50,7 +50,7 @@ export async function GET(
       // Si falla, intentar buscar por filtro (útil cuando el ID es numérico pero necesitamos documentId)
       try {
         const filterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
-          `/api/colaboradores?filters[id][$eq]=${id}&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[usuario]=*`
+          `/api/colaboradores?filters[id][$eq]=${id}&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[persona][populate][imagen][populate]=*&populate[persona][populate][portada][populate]=*&populate[usuario]=*`
         )
         
         if (filterResponse.data) {
@@ -77,6 +77,74 @@ export async function GET(
         },
         { status: 404 }
       )
+    }
+
+    // Normalizar estructura de persona (puede venir con o sin attributes)
+    const colaboradorRaw = colaborador as any
+    const colaboradorAttrs = colaboradorRaw.attributes || colaboradorRaw
+    const personaRaw = colaboradorAttrs.persona?.data || colaboradorAttrs.persona || colaboradorRaw.persona?.data || colaboradorRaw.persona
+    
+    if (personaRaw) {
+      const personaAttrs = personaRaw.attributes || personaRaw
+      
+      // Normalizar imagen
+      let imagenNormalizada: any = null
+      const imagenRaw = personaAttrs.imagen
+      if (imagenRaw?.imagen) {
+        const imagenData = imagenRaw.imagen
+        if (Array.isArray(imagenData) && imagenData.length > 0) {
+          const primeraImagen = imagenData[0]
+          imagenNormalizada = {
+            url: primeraImagen.url || primeraImagen.attributes?.url || null,
+            alternativeText: primeraImagen.alternativeText || null,
+            width: primeraImagen.width || null,
+            height: primeraImagen.height || null,
+          }
+        }
+      } else if (imagenRaw?.url) {
+        imagenNormalizada = {
+          url: imagenRaw.url,
+          alternativeText: imagenRaw.alternativeText || null,
+          width: imagenRaw.width || null,
+          height: imagenRaw.height || null,
+        }
+      }
+      
+      // Normalizar portada (similar a imagen)
+      let portadaNormalizada: any = null
+      const portadaRaw = personaAttrs.portada
+      if (portadaRaw?.imagen) {
+        const portadaData = portadaRaw.imagen
+        if (Array.isArray(portadaData) && portadaData.length > 0) {
+          const primeraPortada = portadaData[0]
+          portadaNormalizada = {
+            url: primeraPortada.url || primeraPortada.attributes?.url || null,
+            alternativeText: primeraPortada.alternativeText || null,
+            width: primeraPortada.width || null,
+            height: primeraPortada.height || null,
+          }
+        }
+      } else if (portadaRaw?.url) {
+        portadaNormalizada = {
+          url: portadaRaw.url,
+          alternativeText: portadaRaw.alternativeText || null,
+          width: portadaRaw.width || null,
+          height: portadaRaw.height || null,
+        }
+      }
+      
+      // Reemplazar estructura normalizada
+      if (personaRaw && (imagenNormalizada || portadaNormalizada)) {
+        const personaNormalizada = {
+          ...personaAttrs,
+          ...(imagenNormalizada && { imagen: imagenNormalizada }),
+          ...(portadaNormalizada && { portada: portadaNormalizada }),
+        }
+        colaboradorAttrs.persona = {
+          ...personaRaw,
+          attributes: personaNormalizada,
+        }
+      }
     }
 
     return NextResponse.json({
