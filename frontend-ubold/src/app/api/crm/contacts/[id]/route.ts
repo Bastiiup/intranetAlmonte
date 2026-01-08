@@ -193,30 +193,44 @@ export async function PUT(
           ? (trayectoriasResponse.data as any).data
           : []
 
-        if (trayectoriasExistentes.length > 0) {
-          // Actualizar la trayectoria actual
-          const trayectoriaActual = trayectoriasExistentes[0]
-          const trayectoriaId = trayectoriaActual.documentId || trayectoriaActual.id
-          
-          const trayectoriaUpdateData = {
-            data: {
-              colegio: { connect: [body.trayectoria.colegio] },
-              cargo: body.trayectoria.cargo || null,
-              is_current: body.trayectoria.is_current !== undefined ? body.trayectoria.is_current : true,
-            },
-          }
-          await strapiClient.put(`/api/persona-trayectorias/${trayectoriaId}`, trayectoriaUpdateData)
+        // Validar colegioId
+        const colegioIdNum = typeof body.trayectoria.colegio === 'number' 
+          ? body.trayectoria.colegio 
+          : parseInt(String(body.trayectoria.colegio))
+        
+        if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
+          console.warn('⚠️ [API /crm/contacts/[id] PUT] ID de colegio inválido, omitiendo trayectoria:', {
+            colegioId: body.trayectoria.colegio,
+            colegioIdNum,
+          })
         } else {
-          // Crear nueva trayectoria
-          const trayectoriaData = {
-            data: {
-              persona: { connect: [typeof personaIdNum === 'number' ? personaIdNum : parseInt(String(personaIdNum))] },
-              colegio: { connect: [body.trayectoria.colegio] },
-              cargo: body.trayectoria.cargo || null,
-              is_current: body.trayectoria.is_current !== undefined ? body.trayectoria.is_current : true,
-            },
+          if (trayectoriasExistentes.length > 0) {
+            // Actualizar la trayectoria actual
+            const trayectoriaActual = trayectoriasExistentes[0]
+            const trayectoriaId = trayectoriaActual.documentId || trayectoriaActual.id
+            
+            const trayectoriaUpdateData = {
+              data: {
+                colegio: { connect: [colegioIdNum] },
+                cargo: body.trayectoria.cargo || null,
+                is_current: body.trayectoria.is_current !== undefined ? body.trayectoria.is_current : true,
+              },
+            }
+            await strapiClient.put(`/api/persona-trayectorias/${trayectoriaId}`, trayectoriaUpdateData)
+            console.log('✅ [API /crm/contacts/[id] PUT] Trayectoria actualizada')
+          } else {
+            // Crear nueva trayectoria
+            const trayectoriaData = {
+              data: {
+                persona: { connect: [typeof personaIdNum === 'number' ? personaIdNum : parseInt(String(personaIdNum))] },
+                colegio: { connect: [colegioIdNum] },
+                cargo: body.trayectoria.cargo || null,
+                is_current: body.trayectoria.is_current !== undefined ? body.trayectoria.is_current : true,
+              },
+            }
+            await strapiClient.post('/api/persona-trayectorias', trayectoriaData)
+            console.log('✅ [API /crm/contacts/[id] PUT] Trayectoria creada')
           }
-          await strapiClient.post('/api/persona-trayectorias', trayectoriaData)
         }
       } catch (trayectoriaError: any) {
         console.error('[API /crm/contacts/[id] PUT] Error al actualizar/crear trayectoria:', trayectoriaError)
