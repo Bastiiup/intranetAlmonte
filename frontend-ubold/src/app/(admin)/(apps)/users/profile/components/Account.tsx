@@ -371,7 +371,7 @@ const Account = ({ colaboradorId }: AccountProps) => {
                                 <div className="spinner-border spinner-border-sm text-danger" role="status" aria-hidden="true" />
                             </div>
                         </TabPane>
-                        {!colaboradorId && (
+                        {!colaboradorId ? (
                             <TabPane eventKey="settings">
                                 <form>
                                 <h5 className="mb-3 text-uppercase bg-light-subtle p-1 border-dashed border rounded border-light text-center"><TbUserCircle className="me-1" /> Personal Info</h5>
