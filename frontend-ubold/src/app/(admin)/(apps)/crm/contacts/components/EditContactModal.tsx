@@ -69,25 +69,43 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
   }
 
   // Cargar datos del contacto cuando se abre el modal
+  // IMPORTANTE: Esperar a que los colegios se carguen primero
   useEffect(() => {
-    if (contact && show) {
+    if (contact && show && colegios.length > 0) {
       console.log('[EditContactModal] Cargando datos del contacto:', contact)
+      console.log('[EditContactModal] Colegios disponibles:', colegios.length)
       
       // Cargar datos completos del contacto incluyendo trayectorias
       const loadContactData = async () => {
         try {
           const contactId = (contact as any).documentId || contact.id
-          if (!contactId) return
+          if (!contactId) {
+            console.warn('[EditContactModal] ⚠️ No hay contactId disponible')
+            return
+          }
 
+          console.log('[EditContactModal] 📤 Fetching contact data for ID:', contactId)
           const response = await fetch(`/api/crm/contacts/${contactId}`)
           const result = await response.json()
           
+          if (!response.ok || !result.success) {
+            throw new Error(result.error || 'Error al cargar contacto')
+          }
+
           if (result.success && result.data) {
             const persona = result.data
             const attrs = persona.attributes || persona
             
+            console.log('[EditContactModal] 📥 Persona recibida:', {
+              id: persona.id,
+              documentId: persona.documentId,
+              nombres: attrs.nombres,
+            })
+            
             // Obtener la trayectoria actual
             const trayectorias = attrs.trayectorias?.data || attrs.trayectorias || []
+            console.log('[EditContactModal] Trayectorias encontradas:', trayectorias.length)
+            
             const trayectoriaActual = trayectorias.find((t: any) => {
               const tAttrs = t.attributes || t
               return tAttrs.is_current === true
@@ -103,10 +121,55 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
               const tAttrs = trayectoriaActual.attributes || trayectoriaActual
               cargo = tAttrs.cargo || ''
               
+              console.log('[EditContactModal] Trayectoria actual encontrada:', {
+                cargo,
+                colegio: tAttrs.colegio,
+              })
+              
               // Extraer datos del colegio
               const colegioData = tAttrs.colegio?.data || tAttrs.colegio
               const colegioAttrs = colegioData?.attributes || colegioData
-              colegioId = colegioData?.id || colegioData?.documentId || ''
+              
+              // IMPORTANTE: Obtener el ID numérico del colegio
+              const colegioIdRaw = colegioData?.id
+              const colegioDocumentId = colegioData?.documentId
+              
+              console.log('[EditContactModal] Datos del colegio en trayectoria:', {
+                colegioIdRaw,
+                colegioDocumentId,
+                colegioNombre: colegioAttrs?.colegio_nombre,
+              })
+              
+              // Si tenemos documentId pero no id numérico, buscar en la lista de colegios
+              if (colegioDocumentId && !colegioIdRaw) {
+                const colegioEncontrado = colegios.find(
+                  (c) => c.documentId === colegioDocumentId || String(c.id) === String(colegioDocumentId)
+                )
+                if (colegioEncontrado) {
+                  colegioId = String(colegioEncontrado.id)
+                  console.log('[EditContactModal] ✅ Colegio encontrado por documentId, usando id numérico:', colegioId)
+                } else {
+                  // Intentar obtener el ID numérico desde Strapi
+                  try {
+                    const colegioResponse = await fetch(`/api/crm/colegios/${colegioDocumentId}?fields=id`)
+                    const colegioResult = await colegioResponse.json()
+                    if (colegioResult.success && colegioResult.data) {
+                      const colegioIdNum = colegioResult.data.id || colegioResult.data.documentId
+                      colegioId = String(colegioIdNum)
+                      console.log('[EditContactModal] ✅ ID numérico obtenido desde API:', colegioId)
+                    }
+                  } catch (err) {
+                    console.error('[EditContactModal] ❌ Error obteniendo ID numérico del colegio:', err)
+                  }
+                }
+              } else if (colegioIdRaw) {
+                colegioId = String(colegioIdRaw)
+                console.log('[EditContactModal] ✅ Usando ID numérico directo:', colegioId)
+              } else {
+                colegioId = String(colegioDocumentId || '')
+                console.warn('[EditContactModal] ⚠️ Solo documentId disponible, intentando usar:', colegioId)
+              }
+              
               region = colegioAttrs?.region || ''
               dependencia = colegioAttrs?.dependencia || ''
               
@@ -114,6 +177,8 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
               const comunaData = colegioAttrs?.comuna?.data || colegioAttrs?.comuna
               const comunaAttrs = comunaData?.attributes || comunaData
               comuna = comunaAttrs?.nombre || comunaAttrs?.comuna_nombre || ''
+            } else {
+              console.log('[EditContactModal] ⚠️ No hay trayectoria actual')
             }
 
             // Obtener email principal
@@ -124,30 +189,29 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
             const telefonos = attrs.telefonos || []
             const telefonoPrincipal = telefonos.find((t: any) => t.principal) || telefonos[0]
 
-            setFormData({
+            const formDataToSet = {
               nombres: attrs.nombres || contact.name || '',
               email: emailPrincipal?.email || contact.email || '',
               cargo: cargo,
               telefono: telefonoPrincipal?.telefono_norm || telefonoPrincipal?.telefono_raw || contact.phone || '',
-              colegioId: String(colegioId) || '',
+              colegioId: colegioId || '',
               empresa: contact.empresa || '',
               region: region,
               comuna: comuna,
               dependencia: dependencia,
-            })
+            }
+
+            console.log('✅ [EditContactModal] Datos del contacto cargados:', formDataToSet)
             
-            console.log('✅ [EditContactModal] Datos del contacto cargados:', {
-              nombres: attrs.nombres,
-              email: emailPrincipal?.email,
-              cargo,
-              colegioId,
-              region,
-              comuna,
-              dependencia,
-            })
+            setFormData(formDataToSet)
+          } else {
+            console.warn('[EditContactModal] ⚠️ No se encontraron datos del contacto')
           }
-        } catch (err) {
-          console.error('❌ [EditContactModal] Error cargando datos completos del contacto:', err)
+        } catch (err: any) {
+          console.error('❌ [EditContactModal] Error cargando datos completos del contacto:', {
+            message: err.message,
+            stack: err.stack,
+          })
           // Fallback a datos básicos
           setFormData({
             nombres: contact.name || '',
@@ -166,7 +230,7 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
       loadContactData()
       setError(null) // Limpiar errores previos
     }
-  }, [contact, show])
+  }, [contact, show, colegios]) // ⚠️ Agregar colegios como dependencia
 
   const handleFieldChange = (field: string, value: any) => {
     setFormData((prev) => ({

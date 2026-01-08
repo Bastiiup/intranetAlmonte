@@ -37,12 +37,8 @@ export async function GET(
       'populate[imagen]': 'true',
       'populate[tags]': 'true',
       // Populate completo de trayectorias con TODAS sus relaciones
+      // ⚠️ IMPORTANTE: No usar fields para colegio, necesitamos todos los campos incluyendo id
       'populate[trayectorias][populate][colegio][populate][comuna]': 'true',
-      'populate[trayectorias][populate][colegio][fields][0]': 'colegio_nombre',
-      'populate[trayectorias][populate][colegio][fields][1]': 'rbd',
-      'populate[trayectorias][populate][colegio][fields][2]': 'dependencia',
-      'populate[trayectorias][populate][colegio][fields][3]': 'region',
-      'populate[trayectorias][populate][colegio][fields][4]': 'zona',
       // ⚠️ Populate de curso y asignatura (SON RELACIONES)
       'populate[trayectorias][populate][curso]': 'true',
       'populate[trayectorias][populate][asignatura]': 'true',
