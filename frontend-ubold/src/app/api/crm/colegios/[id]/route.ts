@@ -59,17 +59,38 @@ export async function GET(
     } catch (directError: any) {
       console.log('[API /crm/colegios/[id] GET] Endpoint directo falló, intentando búsqueda por filtro...')
       
-      // Si falla, intentar buscar por filtro
+      // Si falla, intentar buscar por filtro (tanto por id como por documentId)
       try {
-        const filterParamsObj = new URLSearchParams({
-          'filters[id][$eq]': id.toString(),
-          'populate[comuna]': 'true',
-          'populate[telefonos]': 'true',
-          'populate[emails]': 'true',
-          'populate[direcciones]': 'true',
-          'populate[cartera_asignaciones]': 'true',
-          'populate[cartera_asignaciones.ejecutivo]': 'true',
-        })
+        // Intentar primero por documentId si parece ser un documentId (string alfanumérico)
+        const isDocumentId = /^[a-zA-Z0-9_-]+$/.test(id) && !/^\d+$/.test(id)
+        
+        let filterParamsObj: URLSearchParams
+        
+        if (isDocumentId) {
+          // Buscar por documentId
+          filterParamsObj = new URLSearchParams({
+            'filters[documentId][$eq]': id,
+            'populate[comuna]': 'true',
+            'populate[telefonos]': 'true',
+            'populate[emails]': 'true',
+            'populate[direcciones]': 'true',
+            'populate[cartera_asignaciones]': 'true',
+            'populate[cartera_asignaciones.ejecutivo]': 'true',
+          })
+          console.log('[API /crm/colegios/[id] GET] Buscando por documentId:', id)
+        } else {
+          // Buscar por id numérico
+          filterParamsObj = new URLSearchParams({
+            'filters[id][$eq]': id.toString(),
+            'populate[comuna]': 'true',
+            'populate[telefonos]': 'true',
+            'populate[emails]': 'true',
+            'populate[direcciones]': 'true',
+            'populate[cartera_asignaciones]': 'true',
+            'populate[cartera_asignaciones.ejecutivo]': 'true',
+          })
+          console.log('[API /crm/colegios/[id] GET] Buscando por id numérico:', id)
+        }
         
         const filterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<ColegioAttributes>>>(
           `/api/colegios?${filterParamsObj.toString()}`
@@ -82,6 +103,38 @@ export async function GET(
           } else if (!Array.isArray(filterResponse.data)) {
             colegio = filterResponse.data
             console.log('[API /crm/colegios/[id] GET] Colegio encontrado por filtro (objeto)')
+          }
+        }
+        
+        // Si no se encontró, intentar el método alternativo
+        if (!colegio) {
+          console.log('[API /crm/colegios/[id] GET] No encontrado con primer método, intentando método alternativo')
+          const alternateFilterParams = new URLSearchParams({
+            'filters[id][$eq]': isDocumentId ? id : id.toString(),
+            'populate[comuna]': 'true',
+            'populate[telefonos]': 'true',
+            'populate[emails]': 'true',
+            'populate[direcciones]': 'true',
+            'populate[cartera_asignaciones]': 'true',
+            'populate[cartera_asignaciones.ejecutivo]': 'true',
+          })
+          
+          try {
+            const alternateResponse = await strapiClient.get<StrapiResponse<StrapiEntity<ColegioAttributes>>>(
+              `/api/colegios?${alternateFilterParams.toString()}`
+            )
+            
+            if (alternateResponse.data) {
+              if (Array.isArray(alternateResponse.data) && alternateResponse.data.length > 0) {
+                colegio = alternateResponse.data[0]
+                console.log('[API /crm/colegios/[id] GET] Colegio encontrado por método alternativo (array)')
+              } else if (!Array.isArray(alternateResponse.data)) {
+                colegio = alternateResponse.data
+                console.log('[API /crm/colegios/[id] GET] Colegio encontrado por método alternativo (objeto)')
+              }
+            }
+          } catch (altError: any) {
+            console.error('[API /crm/colegios/[id] GET] Error en método alternativo:', altError.message)
           }
         }
       } catch (filterError: any) {

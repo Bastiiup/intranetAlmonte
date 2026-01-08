@@ -69,10 +69,19 @@ export default function ColegioDetailPage() {
       setError(null)
 
       try {
+        console.log('[ColegioDetailPage] Buscando colegio con ID:', colegioId)
         const response = await fetch(`/api/crm/colegios/${colegioId}`)
         const result = await response.json()
 
+        console.log('[ColegioDetailPage] Respuesta de la API:', {
+          ok: response.ok,
+          success: result.success,
+          hasData: !!result.data,
+          error: result.error
+        })
+
         if (!response.ok || !result.success) {
+          console.error('[ColegioDetailPage] Error al obtener colegio:', result)
           throw new Error(result.error || 'Error al cargar el colegio')
         }
 
