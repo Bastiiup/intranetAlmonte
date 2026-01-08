@@ -76,6 +76,36 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
+    
+    // Obtener el ID numérico de la persona si tenemos documentId
+    let personaIdNum: number | string = id
+    const isDocumentId = typeof id === 'string' && !/^\d+$/.test(id)
+    
+    if (isDocumentId) {
+      try {
+        // Intentar obtener la persona para obtener su ID numérico
+        const personaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+          `/api/personas/${id}?fields=id`
+        )
+        if (personaResponse.data?.id) {
+          personaIdNum = personaResponse.data.id
+        }
+      } catch (err) {
+        // Si falla, intentar buscar por documentId
+        try {
+          const personaFilterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
+            `/api/personas?filters[documentId][$eq]=${id}&fields=id`
+          )
+          if (personaFilterResponse.data && Array.isArray(personaFilterResponse.data) && personaFilterResponse.data.length > 0) {
+            personaIdNum = personaFilterResponse.data[0].id
+          }
+        } catch (filterErr) {
+          console.error('[API /crm/contacts/[id] PUT] Error al obtener ID numérico de persona:', filterErr)
+          // Continuar con el id original si no se puede obtener el numérico
+        }
+      }
+    }
+    
     const body = await request.json()
 
     // Validaciones básicas
@@ -138,9 +168,9 @@ export async function PUT(
     // Si se proporcionó una trayectoria, actualizarla o crearla
     if (body.trayectoria) {
       try {
-        // Primero, buscar trayectorias existentes de esta persona
+        // Buscar trayectorias existentes de esta persona usando ID numérico
         const trayectoriasResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-          `/api/persona-trayectorias?filters[persona][id][$eq]=${id}&filters[is_current][$eq]=true`
+          `/api/persona-trayectorias?filters[persona][id][$eq]=${personaIdNum}&filters[is_current][$eq]=true`
         )
         
         const trayectoriasExistentes = Array.isArray(trayectoriasResponse.data) 
@@ -166,7 +196,7 @@ export async function PUT(
           // Crear nueva trayectoria
           const trayectoriaData = {
             data: {
-              persona: { connect: [id] },
+              persona: { connect: [typeof personaIdNum === 'number' ? personaIdNum : parseInt(String(personaIdNum))] },
               colegio: { connect: [body.trayectoria.colegio] },
               cargo: body.trayectoria.cargo || null,
               is_current: body.trayectoria.is_current !== undefined ? body.trayectoria.is_current : true,
