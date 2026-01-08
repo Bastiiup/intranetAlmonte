@@ -349,6 +349,21 @@ export default function ColegioDetailPage() {
     return Array.from(grupos.entries()).sort((a, b) => a[0].localeCompare(b[0]))
   }, [contactos])
 
+  // Calcular estadísticas
+  const estadisticas = useMemo(() => {
+    const colaboradoresActivos = contactos.length
+    const clientesUnicos = new Set(pedidos.map(p => p.cliente?.nombre || p.cliente?.correo_electronico || '').filter(Boolean)).size
+    const totalPedidos = pedidos.length
+    const valorTotalVendido = pedidos.reduce((sum, p) => sum + (p.total || 0), 0)
+
+    return {
+      colaboradoresActivos,
+      clientesUnicos,
+      totalPedidos,
+      valorTotalVendido,
+    }
+  }, [contactos, pedidos])
+
   if (loading) {
     return (
       <Container fluid>
@@ -868,6 +883,42 @@ export default function ColegioDetailPage() {
           </Button>
         </Link>
       </div>
+
+      {/* Estadísticas Rápidas */}
+      <Row className="mb-4">
+        <Col md={3}>
+          <Card className="text-center">
+            <CardBody>
+              <h3 className="mb-1 text-primary">{estadisticas.colaboradoresActivos}</h3>
+              <p className="text-muted mb-0 small">Colaboradores Activos</p>
+            </CardBody>
+          </Card>
+        </Col>
+        <Col md={3}>
+          <Card className="text-center">
+            <CardBody>
+              <h3 className="mb-1 text-success">{estadisticas.clientesUnicos}</h3>
+              <p className="text-muted mb-0 small">Alumnos Comprando</p>
+            </CardBody>
+          </Card>
+        </Col>
+        <Col md={3}>
+          <Card className="text-center">
+            <CardBody>
+              <h3 className="mb-1 text-info">{estadisticas.totalPedidos}</h3>
+              <p className="text-muted mb-0 small">Total de Pedidos</p>
+            </CardBody>
+          </Card>
+        </Col>
+        <Col md={3}>
+          <Card className="text-center">
+            <CardBody>
+              <h3 className="mb-1 text-warning">${estadisticas.valorTotalVendido.toLocaleString('es-CL')}</h3>
+              <p className="text-muted mb-0 small">Valor Total Vendido</p>
+            </CardBody>
+          </Card>
+        </Col>
+      </Row>
 
       <Nav variant="tabs" className="mb-4 border-bottom">
         <NavItem>

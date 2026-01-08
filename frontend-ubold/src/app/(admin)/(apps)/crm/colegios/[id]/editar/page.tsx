@@ -4,12 +4,14 @@ import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { Container, Card, CardHeader, CardBody, Alert, Spinner } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import { useNotificationContext } from '@/context/useNotificationContext'
 import ColegioForm from '../../components/ColegioForm'
 
 const EditarColegioPage = () => {
   const router = useRouter()
   const params = useParams()
   const colegioId = params?.id as string
+  const { showNotification } = useNotificationContext()
 
   const [loading, setLoading] = useState(false)
   const [loadingData, setLoadingData] = useState(true)
@@ -33,13 +35,31 @@ const EditarColegioPage = () => {
         const attrs = colegio.attributes || colegio
 
         // Transformar datos para el formulario
+        // Manejar cartera_asignaciones
+        const carteraAsignaciones = attrs.cartera_asignaciones || []
+        const carteraAsignacionesFormatted = Array.isArray(carteraAsignaciones) 
+          ? carteraAsignaciones.map((ca: any) => {
+              const caAttrs = ca.attributes || ca
+              const ejecutivo = caAttrs.ejecutivo?.data?.attributes || caAttrs.ejecutivo?.attributes || caAttrs.ejecutivo
+              return {
+                id: ca.id || ca.documentId,
+                ejecutivoId: ejecutivo?.id || ejecutivo?.documentId,
+                ejecutivoNombre: ejecutivo?.nombre_completo || '',
+                rol: caAttrs.rol || 'comercial',
+                estado: caAttrs.estado || 'activa',
+                prioridad: caAttrs.prioridad || 'media',
+                is_current: caAttrs.is_current !== undefined ? caAttrs.is_current : true,
+              }
+            })
+          : []
+
         const formData = {
           rbd: attrs.rbd?.toString() || '',
           colegio_nombre: attrs.colegio_nombre || '',
           estado: attrs.estado || 'Por Verificar',
           dependencia: attrs.dependencia || '',
-          region: attrs.region || attrs.comuna?.region_nombre || '',
-          zona: attrs.zona || attrs.comuna?.zona || '',
+          region: attrs.region || attrs.comuna?.region_nombre || attrs.comuna?.data?.attributes?.region_nombre || '',
+          zona: attrs.zona || attrs.comuna?.zona || attrs.comuna?.data?.attributes?.zona || '',
           comunaId: attrs.comuna?.id || attrs.comuna?.data?.id,
           telefonos: (attrs.telefonos || []).map((t: any) => ({
             telefono_raw: t.telefono_raw || t.telefono_norm || t.numero || '',
@@ -61,6 +81,7 @@ const EditarColegioPage = () => {
             comuna: d.comuna || '',
             region: d.region || '',
           })),
+          cartera_asignaciones: carteraAsignacionesFormatted,
         }
 
         setColegioData(formData)
@@ -108,11 +129,20 @@ const EditarColegioPage = () => {
         throw new Error(result.error || 'Error al actualizar el colegio')
       }
 
+      // Mostrar notificación de éxito
+      showNotification({
+        title: 'Éxito',
+        message: 'Colegio actualizado correctamente',
+        variant: 'success',
+      })
+
       // Revalidar datos para sincronización bidireccional
       router.refresh()
       
-      // Redirigir a la ficha del colegio
-      router.push(`/crm/colegios/${colegioId}`)
+      // Redirigir a la ficha del colegio después de un breve delay para que se vea la notificación
+      setTimeout(() => {
+        router.push(`/crm/colegios/${colegioId}`)
+      }, 1000)
     } catch (err: any) {
       console.error('Error al actualizar colegio:', err)
       setError(err.message || 'Error al actualizar el colegio')
