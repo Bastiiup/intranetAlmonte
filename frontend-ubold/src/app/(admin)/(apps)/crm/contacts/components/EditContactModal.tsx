@@ -210,7 +210,7 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
         ...(formData.colegioId && 
             formData.colegioId !== '' && 
             formData.colegioId !== '0' && 
-            formData.colegioId !== 0 && {
+            formData.colegioId !== '0' && {
           trayectoria: {
             colegio: parseInt(String(formData.colegioId)),
             cargo: formData.cargo || null,
