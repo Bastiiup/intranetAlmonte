@@ -87,8 +87,10 @@ export async function PUT(
         const personaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
           `/api/personas/${id}?fields=id`
         )
-        if (personaResponse.data?.id) {
-          personaIdNum = personaResponse.data.id
+        // Verificar si data es un objeto único (no array) y tiene id
+        const personaData = Array.isArray(personaResponse.data) ? personaResponse.data[0] : personaResponse.data
+        if (personaData && typeof personaData === 'object' && 'id' in personaData) {
+          personaIdNum = personaData.id as number
         }
       } catch (err) {
         // Si falla, intentar buscar por documentId
@@ -97,7 +99,10 @@ export async function PUT(
             `/api/personas?filters[documentId][$eq]=${id}&fields=id`
           )
           if (personaFilterResponse.data && Array.isArray(personaFilterResponse.data) && personaFilterResponse.data.length > 0) {
-            personaIdNum = personaFilterResponse.data[0].id
+            const firstPersona = personaFilterResponse.data[0]
+            if (firstPersona && typeof firstPersona === 'object' && 'id' in firstPersona) {
+              personaIdNum = firstPersona.id as number
+            }
           }
         } catch (filterErr) {
           console.error('[API /crm/contacts/[id] PUT] Error al obtener ID numérico de persona:', filterErr)
