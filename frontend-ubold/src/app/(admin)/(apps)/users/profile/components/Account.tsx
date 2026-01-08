@@ -1,5 +1,7 @@
-import React from 'react'
-import { Button, CardBody, CardHeader, CardTitle, Col, FormControl, FormLabel, Nav, NavItem, NavLink, Row, TabContainer, TabContent, Table, TabPane } from 'react-bootstrap'
+'use client'
+
+import React, { useState, useEffect } from 'react'
+import { Button, CardBody, CardHeader, CardTitle, Col, FormControl, FormLabel, Nav, NavItem, NavLink, Row, TabContainer, TabContent, Table, TabPane, Alert, Spinner } from 'react-bootstrap'
 import { TbArrowBackUp, TbBrandFacebook, TbBrandGithub, TbBrandInstagram, TbBrandLinkedin, TbBrandSkype, TbBrandX, TbBriefcase, TbBuildingSkyscraper, TbCamera, TbChecklist, TbDeviceFloppy, TbHeart, TbHome, TbMapPin, TbMoodSmile, TbPencil, TbQuote, TbSettings, TbShare3, TbUser, TbUserCircle, TbWorld } from 'react-icons/tb'
 import { taskData } from '../data'
 import Image from 'next/image'
@@ -11,20 +13,88 @@ import small1 from '@/assets/images/stock/small-1.jpg'
 import small2 from '@/assets/images/stock/small-2.jpg'
 import small3 from '@/assets/images/stock/small-3.jpg'
 import user1 from '@/assets/images/users/user-1.jpg'
+import { useAuth, getPersonaNombre } from '@/hooks/useAuth'
 
-const Account = () => {
+interface AccountProps {
+    colaboradorId?: string
+}
+
+const Account = ({ colaboradorId }: AccountProps) => {
+    const { colaborador: currentColaborador, persona: currentPersona } = useAuth()
+    const [viewingProfileData, setViewingProfileData] = useState<any>(null)
+    const [loading, setLoading] = useState(false)
+    const [timelineData, setTimelineData] = useState<any[]>([])
+
+    useEffect(() => {
+        if (colaboradorId) {
+            loadProfileData()
+            loadTimeline()
+        } else {
+            loadTimeline()
+        }
+    }, [colaboradorId])
+
+    const loadProfileData = async () => {
+        if (!colaboradorId) return
+        
+        try {
+            setLoading(true)
+            const response = await fetch(`/api/colaboradores/${colaboradorId}`, {
+                credentials: 'include',
+            })
+
+            if (!response.ok) {
+                throw new Error('Error al cargar perfil')
+            }
+
+            const data = await response.json()
+            setViewingProfileData(data.data || data)
+        } catch (error) {
+            console.error('Error al cargar perfil:', error)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const loadTimeline = async () => {
+        try {
+            const targetColaboradorId = colaboradorId || (currentColaborador as any)?.documentId || currentColaborador?.id
+            if (!targetColaboradorId) return
+
+            const response = await fetch(`/api/logs/usuario/${targetColaboradorId}`, {
+                credentials: 'include',
+            })
+
+            if (response.ok) {
+                const data = await response.json()
+                setTimelineData(data.data || data || [])
+            }
+        } catch (error) {
+            console.error('Error al cargar timeline:', error)
+        }
+    }
+
+    // Determinar datos a mostrar
+    const displayColaborador = colaboradorId ? viewingProfileData : currentColaborador
+    const displayPersona = colaboradorId 
+        ? (viewingProfileData?.persona || viewingProfileData?.attributes?.persona)
+        : currentPersona
+
+    const nombreCompleto = colaboradorId 
+        ? (displayPersona ? getPersonaNombre(displayPersona) : '')
+        : (displayPersona ? getPersonaNombre(displayPersona) : (displayColaborador?.email_login || 'Usuario'))
     return (
         <div className="card">
             <TabContainer defaultActiveKey='timeline'>
                 <CardHeader className="card-tabs d-flex align-items-center">
                     <div className="flex-grow-1">
-                        <CardTitle as={'h4'}>My Account</CardTitle>
+                        <CardTitle as={'h4'}>Mi Cuenta</CardTitle>
                     </div>
                     <Nav className="nav-tabs card-header-tabs nav-bordered">
                         <NavItem>
                             <NavLink eventKey="about-me" data-bs-toggle="tab" aria-expanded="false">
                                 <TbHome className="d-md-none d-block" />
-                                <span className="d-none d-md-block fw-bold">About Me</span>
+                                <span className="d-none d-md-block fw-bold">Sobre Mí</span>
                             </NavLink>
                         </NavItem>
                         <NavItem>
@@ -33,20 +103,38 @@ const Account = () => {
                                 <span className="d-none d-md-block fw-bold">Timeline</span>
                             </NavLink>
                         </NavItem>
-                        <NavItem>
-                            <NavLink eventKey="settings" data-bs-toggle="tab" aria-expanded="false">
-                                <TbSettings className="d-md-none d-block" />
-                                <span className="d-none d-md-block fw-bold">Settings</span>
-                            </NavLink>
-                        </NavItem>
+                        {!colaboradorId && (
+                            <NavItem>
+                                <NavLink eventKey="settings" data-bs-toggle="tab" aria-expanded="false">
+                                    <TbSettings className="d-md-none d-block" />
+                                    <span className="d-none d-md-block fw-bold">Settings</span>
+                                </NavLink>
+                            </NavItem>
+                        )}
                     </Nav>
                 </CardHeader>
                 <CardBody>
                     <TabContent>
                         <TabPane eventKey="about-me">
-                            <p>I'm an Admin Template Author dedicated to building clean, efficient, and highly customizable dashboards for developers and businesses. My goal is to create UI solutions that are modern, scalable, and easy to integrate.</p>
-                            <p>I specialize in crafting developer-friendly admin panels and UI kits using frameworks like Bootstrap, Tailwind CSS, React, Vue, Angular, Laravel, and Next.js. My templates are designed to accelerate development and provide a strong foundation for web apps, SaaS platforms, and enterprise tools.</p>
-                            <p className="mb-0">I focus on delivering well-structured, pixel-perfect layouts with a user-centric approach—ensuring responsive design, clean code, and seamless user experiences. Whether you're building a CRM, analytics dashboard, or backend system, my templates are made to help you build faster and smarter.</p>
+                            {loading ? (
+                                <div className="text-center py-5">
+                                    <Spinner animation="border" variant="primary" />
+                                    <p className="mt-2 text-muted">Cargando información...</p>
+                                </div>
+                            ) : (
+                                <>
+                                    {displayPersona?.sobre_mi ? (
+                                        <p>{displayPersona.sobre_mi}</p>
+                                    ) : (
+                                        <>
+                                            <p>Información profesional de {nombreCompleto}.</p>
+                                            {displayPersona?.rut && (
+                                                <p className="mb-0">RUT: {displayPersona.rut}</p>
+                                            )}
+                                        </>
+                                    )}
+                                </>
+                            )}
                             <h4 className="card-title my-3 text-uppercase fs-sm"><TbBriefcase /> Professional Experience:</h4>
                             <div className="timeline">
                                 <div className="timeline-item d-flex align-items-stretch">
@@ -143,18 +231,45 @@ const Account = () => {
                             </div>
                         </TabPane>
                         <TabPane eventKey="timeline">
-                            <form action="#" className="mb-3">
-                                <textarea rows={3} className="form-control" placeholder="Write something..." defaultValue={""} />
-                                <div className="d-flex py-2 justify-content-between">
-                                    <div>
-                                        <Link href="" className="btn btn-sm btn-icon btn-light"><TbUser className="fs-md" /></Link>&nbsp;
-                                        <Link href="" className="btn btn-sm btn-icon btn-light"><TbMapPin className="fs-md" /></Link>&nbsp;
-                                        <Link href="" className="btn btn-sm btn-icon btn-light"><TbCamera className="fs-md" /></Link>&nbsp;
-                                        <Link href="" className="btn btn-sm btn-icon btn-light"><TbMoodSmile className="fs-md" /></Link>
+                            {!colaboradorId && (
+                                <form action="#" className="mb-3">
+                                    <textarea rows={3} className="form-control" placeholder="Escribe algo..." defaultValue={""} />
+                                    <div className="d-flex py-2 justify-content-between">
+                                        <div>
+                                            <Link href="" className="btn btn-sm btn-icon btn-light"><TbUser className="fs-md" /></Link>&nbsp;
+                                            <Link href="" className="btn btn-sm btn-icon btn-light"><TbMapPin className="fs-md" /></Link>&nbsp;
+                                            <Link href="" className="btn btn-sm btn-icon btn-light"><TbCamera className="fs-md" /></Link>&nbsp;
+                                            <Link href="" className="btn btn-sm btn-icon btn-light"><TbMoodSmile className="fs-md" /></Link>
+                                        </div>
+                                        <button type="submit" className="btn btn-sm btn-dark">Publicar</button>
                                     </div>
-                                    <button type="submit" className="btn btn-sm btn-dark">Post</button>
+                                </form>
+                            )}
+                            {loading ? (
+                                <div className="text-center py-5">
+                                    <Spinner animation="border" variant="primary" />
+                                    <p className="mt-2 text-muted">Cargando timeline...</p>
                                 </div>
-                            </form>
+                            ) : timelineData.length > 0 ? (
+                                <div>
+                                    {timelineData.map((item: any, idx: number) => (
+                                        <div key={idx} className="border border-light border-dashed rounded p-2 mb-3">
+                                            <div className="d-flex align-items-center mb-2">
+                                                <Image className="me-2 avatar-sm rounded-circle" src={user3} alt="avatar" />
+                                                <div className="w-100">
+                                                    <h5 className="m-0">{nombreCompleto}</h5>
+                                                    <p className="text-muted mb-0">
+                                                        <small>{item.fecha ? new Date(item.fecha).toLocaleString() : 'Sin fecha'}</small>
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <p>{item.descripcion || item.accion || 'Actividad'}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-muted text-center py-4">No hay actividades registradas</p>
+                            )}
                             <div className="border border-light border-dashed rounded p-2 mb-3">
                                 <div className="d-flex align-items-center mb-2">
                                     <Image className="me-2 avatar-md rounded-circle" src={user3} alt="Generic placeholder image" />
@@ -256,8 +371,9 @@ const Account = () => {
                                 <div className="spinner-border spinner-border-sm text-danger" role="status" aria-hidden="true" />
                             </div>
                         </TabPane>
-                        <TabPane eventKey="settings">
-                            <form>
+                        {!colaboradorId && (
+                            <TabPane eventKey="settings">
+                                <form>
                                 <h5 className="mb-3 text-uppercase bg-light-subtle p-1 border-dashed border rounded border-light text-center"><TbUserCircle className="me-1" /> Personal Info</h5>
                                 <Row>
                                     <Col md={6}>
@@ -417,10 +533,17 @@ const Account = () => {
                                     </Col>
                                 </div>
                                 <div className="text-end mt-4">
-                                    <Button variant='success' type="submit"><TbDeviceFloppy className=" me-1" /> Save Changes</Button>
+                                    <Button variant='success' type="submit"><TbDeviceFloppy className=" me-1" /> Guardar Cambios</Button>
                                 </div>
                             </form>
-                        </TabPane>
+                            </TabPane>
+                        ) : (
+                            <TabPane eventKey="settings">
+                                <Alert variant="info">
+                                    No puedes editar la configuración de otros usuarios.
+                                </Alert>
+                            </TabPane>
+                        )}
                     </TabContent>
                 </CardBody>
             </TabContainer>
