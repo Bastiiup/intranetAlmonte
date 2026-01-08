@@ -276,7 +276,8 @@ const TrayectoriaManager = ({ trayectorias: initialTrayectorias, onChange, disab
                             onChange={(e) => {
                               // Si se marca como actual, desmarcar las demás
                               const newTrayectorias = [...trayectorias]
-                              if (e.target.checked) {
+                              const isChecked = (e.target as HTMLInputElement).checked
+                              if (isChecked) {
                                 newTrayectorias.forEach((t, i) => {
                                   if (i !== originalIndex) {
                                     t.is_current = false
@@ -285,7 +286,7 @@ const TrayectoriaManager = ({ trayectorias: initialTrayectorias, onChange, disab
                               }
                               newTrayectorias[originalIndex] = {
                                 ...newTrayectorias[originalIndex],
-                                is_current: e.target.checked,
+                                is_current: isChecked,
                               }
                               setTrayectorias(newTrayectorias)
                             }}
