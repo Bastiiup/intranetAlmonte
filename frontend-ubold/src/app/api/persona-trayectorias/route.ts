@@ -38,8 +38,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // ⚠️ IMPORTANTE: En Strapi, el content type se llama "Profesores", no "persona-trayectorias"
+    // El endpoint real es /api/profesores
     const response = await strapiClient.post<StrapiResponse<StrapiEntity<any>>>(
-      '/api/persona-trayectorias',
+      '/api/profesores',
       body
     )
 

@@ -31,8 +31,10 @@ export async function PUT(
       )
     }
 
+    // ⚠️ IMPORTANTE: En Strapi, el content type se llama "Profesores", no "persona-trayectorias"
+    // El endpoint real es /api/profesores
     const response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
-      `/api/persona-trayectorias/${id}`,
+      `/api/profesores/${id}`,
       body
     )
 
@@ -69,7 +71,9 @@ export async function DELETE(
   try {
     const { id } = await params
 
-    await strapiClient.delete(`/api/persona-trayectorias/${id}`)
+    // ⚠️ IMPORTANTE: En Strapi, el content type se llama "Profesores", no "persona-trayectorias"
+    // El endpoint real es /api/profesores
+    await strapiClient.delete(`/api/profesores/${id}`)
 
     return NextResponse.json({
       success: true,
