@@ -21,13 +21,13 @@ export async function GET(request: Request) {
     // Construir parámetros de query
     const params = new URLSearchParams({
       'pagination[page]': '1',
-      'pagination[pageSize]': '100', // Límite razonable para selector
+      'pagination[pageSize]': search ? '100' : '500', // Más resultados si no hay búsqueda
       'sort[0]': 'colegio_nombre:asc',
     })
 
     // Búsqueda por nombre si existe
-    if (search) {
-      params.append('filters[colegio_nombre][$containsi]', search)
+    if (search && search.trim()) {
+      params.append('filters[colegio_nombre][$containsi]', search.trim())
     }
 
     const url = `/api/colegios?${params.toString()}`

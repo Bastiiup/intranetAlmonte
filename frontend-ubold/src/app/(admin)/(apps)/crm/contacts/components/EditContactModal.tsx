@@ -42,23 +42,27 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
     dependencia: '',
   })
 
-  // Cargar lista de colegios cuando se abre el modal
+  // Cargar lista de colegios cuando se abre el modal (sin búsqueda inicial para mostrar todos)
   useEffect(() => {
     if (show) {
-      loadColegios()
+      loadColegios('') // Cargar todos los colegios inicialmente
     }
   }, [show])
 
-  const loadColegios = async () => {
+  const loadColegios = async (search: string = '') => {
     setLoadingColegios(true)
     try {
-      const response = await fetch('/api/crm/colegios/list')
+      const url = search 
+        ? `/api/crm/colegios/list?search=${encodeURIComponent(search)}`
+        : '/api/crm/colegios/list' // Sin búsqueda para cargar todos
+      const response = await fetch(url)
       const result = await response.json()
       if (result.success && Array.isArray(result.data)) {
         setColegios(result.data)
+        console.log(`✅ [EditContactModal] ${result.data.length} colegios cargados`)
       }
     } catch (err) {
-      console.error('Error al cargar colegios:', err)
+      console.error('❌ [EditContactModal] Error al cargar colegios:', err)
     } finally {
       setLoadingColegios(false)
     }
@@ -68,21 +72,98 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
   useEffect(() => {
     if (contact && show) {
       console.log('[EditContactModal] Cargando datos del contacto:', contact)
-      // Obtener colegioId desde el contacto (necesitamos obtenerlo de trayectorias)
-      // Por ahora, usamos empresa para buscar el colegio
-      const colegioId = (contact as any).colegioId || ''
       
-      setFormData({
-        nombres: contact.name || '',
-        email: contact.email || '',
-        cargo: contact.cargo || '',
-        telefono: contact.phone || '',
-        colegioId: colegioId,
-        empresa: contact.empresa || '',
-        region: contact.region || '',
-        comuna: contact.comuna || '',
-        dependencia: contact.dependencia || '',
-      })
+      // Cargar datos completos del contacto incluyendo trayectorias
+      const loadContactData = async () => {
+        try {
+          const contactId = (contact as any).documentId || contact.id
+          if (!contactId) return
+
+          const response = await fetch(`/api/crm/contacts/${contactId}`)
+          const result = await response.json()
+          
+          if (result.success && result.data) {
+            const persona = result.data
+            const attrs = persona.attributes || persona
+            
+            // Obtener la trayectoria actual
+            const trayectorias = attrs.trayectorias?.data || attrs.trayectorias || []
+            const trayectoriaActual = trayectorias.find((t: any) => {
+              const tAttrs = t.attributes || t
+              return tAttrs.is_current === true
+            }) || trayectorias[0] // Si no hay actual, tomar la primera
+
+            let colegioId = ''
+            let cargo = ''
+            let region = ''
+            let comuna = ''
+            let dependencia = ''
+
+            if (trayectoriaActual) {
+              const tAttrs = trayectoriaActual.attributes || trayectoriaActual
+              cargo = tAttrs.cargo || ''
+              
+              // Extraer datos del colegio
+              const colegioData = tAttrs.colegio?.data || tAttrs.colegio
+              const colegioAttrs = colegioData?.attributes || colegioData
+              colegioId = colegioData?.id || colegioData?.documentId || ''
+              region = colegioAttrs?.region || ''
+              dependencia = colegioAttrs?.dependencia || ''
+              
+              // Extraer comuna
+              const comunaData = colegioAttrs?.comuna?.data || colegioAttrs?.comuna
+              const comunaAttrs = comunaData?.attributes || comunaData
+              comuna = comunaAttrs?.nombre || comunaAttrs?.comuna_nombre || ''
+            }
+
+            // Obtener email principal
+            const emails = attrs.emails || []
+            const emailPrincipal = emails.find((e: any) => e.principal) || emails[0]
+            
+            // Obtener teléfono principal
+            const telefonos = attrs.telefonos || []
+            const telefonoPrincipal = telefonos.find((t: any) => t.principal) || telefonos[0]
+
+            setFormData({
+              nombres: attrs.nombres || contact.name || '',
+              email: emailPrincipal?.email || contact.email || '',
+              cargo: cargo,
+              telefono: telefonoPrincipal?.telefono_norm || telefonoPrincipal?.telefono_raw || contact.phone || '',
+              colegioId: String(colegioId) || '',
+              empresa: contact.empresa || '',
+              region: region,
+              comuna: comuna,
+              dependencia: dependencia,
+            })
+            
+            console.log('✅ [EditContactModal] Datos del contacto cargados:', {
+              nombres: attrs.nombres,
+              email: emailPrincipal?.email,
+              cargo,
+              colegioId,
+              region,
+              comuna,
+              dependencia,
+            })
+          }
+        } catch (err) {
+          console.error('❌ [EditContactModal] Error cargando datos completos del contacto:', err)
+          // Fallback a datos básicos
+          setFormData({
+            nombres: contact.name || '',
+            email: contact.email || '',
+            cargo: contact.cargo || '',
+            telefono: contact.phone || '',
+            colegioId: (contact as any).colegioId || '',
+            empresa: contact.empresa || '',
+            region: contact.region || '',
+            comuna: contact.comuna || '',
+            dependencia: contact.dependencia || '',
+          })
+        }
+      }
+
+      loadContactData()
       setError(null) // Limpiar errores previos
     }
   }, [contact, show])
@@ -124,9 +205,11 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
           }],
         }),
         // Agregar/actualizar trayectoria si se seleccionó un colegio
+        // NOTA: Los campos region, comuna, dependencia son del colegio, no de la trayectoria
+        // Estos se actualizan en el colegio, no en la trayectoria
         ...(formData.colegioId && {
           trayectoria: {
-            colegio: formData.colegioId,
+            colegio: parseInt(String(formData.colegioId)),
             cargo: formData.cargo || null,
             is_current: true,
           },

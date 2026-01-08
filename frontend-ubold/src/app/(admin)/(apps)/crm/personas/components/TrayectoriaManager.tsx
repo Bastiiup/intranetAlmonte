@@ -56,23 +56,33 @@ const TrayectoriaManager = ({ trayectorias: initialTrayectorias, onChange, disab
     const fetchColegios = async () => {
       setLoadingColegios(true)
       try {
-        const response = await fetch(`/api/crm/colegios/list?search=${encodeURIComponent(searchColegio)}`)
+        // Si hay búsqueda, usar búsqueda. Si no, cargar todos los colegios
+        const url = searchColegio.trim()
+          ? `/api/crm/colegios/list?search=${encodeURIComponent(searchColegio)}`
+          : '/api/crm/colegios/list' // Sin búsqueda para cargar todos inicialmente
+        
+        const response = await fetch(url)
         const result = await response.json()
         if (result.success) {
           setColegios(result.data || [])
+          console.log(`✅ [TrayectoriaManager] ${result.data?.length || 0} colegios cargados`)
         }
       } catch (err: any) {
-        console.error('Error al cargar colegios:', err)
+        console.error('❌ [TrayectoriaManager] Error al cargar colegios:', err)
       } finally {
         setLoadingColegios(false)
       }
     }
 
-    const timeoutId = setTimeout(() => {
+    // Si no hay búsqueda, cargar inmediatamente. Si hay búsqueda, usar debounce
+    if (!searchColegio.trim()) {
       fetchColegios()
-    }, 300) // Debounce
-
-    return () => clearTimeout(timeoutId)
+    } else {
+      const timeoutId = setTimeout(() => {
+        fetchColegios()
+      }, 300) // Debounce solo para búsqueda
+      return () => clearTimeout(timeoutId)
+    }
   }, [searchColegio])
 
   // Sincronizar con cambios externos
