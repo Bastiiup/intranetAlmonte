@@ -106,8 +106,8 @@ const Profile = ({ colaboradorId }: ProfileProps) => {
                     <div>
                         <h5 className="mb-0 d-flex align-items-center">
                             <Link href="" className="link-reset">{loading ? 'Cargando...' : nombreCompleto}</Link>
-                            {persona?.rut && (
-                                <span className="ms-2 text-muted fs-sm">({persona.rut})</span>
+                            {personaAttrs?.rut && (
+                                <span className="ms-2 text-muted fs-sm">({personaAttrs.rut})</span>
                             )}
                         </h5>
                         <p className="text-muted mb-2">{loading ? '...' : rolLabel}</p>
@@ -128,12 +128,12 @@ const Profile = ({ colaboradorId }: ProfileProps) => {
                     </div>
                 </div>
                 <div>
-                    {persona?.rut && (
+                    {personaAttrs?.rut && (
                         <div className="d-flex align-items-center gap-2 mb-2">
                             <div className="avatar-sm text-bg-light bg-opacity-75 d-flex align-items-center justify-content-center rounded-circle">
                                 <TbBriefcase className="fs-xl" />
                             </div>
-                            <p className="mb-0 fs-sm">RUT: <span className="text-dark fw-semibold">{persona.rut}</span></p>
+                            <p className="mb-0 fs-sm">RUT: <span className="text-dark fw-semibold">{personaAttrs.rut}</span></p>
                         </div>
                     )}
                     {email && (
