@@ -335,10 +335,15 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
         throw new Error(errorMessage)
       }
 
+      // Cerrar modal primero
+      onHide()
+      
+      // Luego ejecutar callback si existe
       if (onSuccess) {
-        onSuccess()
-      } else {
-        onHide()
+        // Usar setTimeout para evitar problemas con el refresh del router
+        setTimeout(() => {
+          onSuccess()
+        }, 100)
       }
     } catch (err: any) {
       console.error('Error al actualizar contacto:', err)

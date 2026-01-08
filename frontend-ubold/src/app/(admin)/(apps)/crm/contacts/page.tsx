@@ -604,8 +604,7 @@ const Contacts = () => {
         onHide={() => setEditModal({ open: false, contact: null })}
         contact={editModal.contact}
         onSuccess={() => {
-          setEditModal({ open: false, contact: null })
-          router.refresh()
+          // Recargar contactos sin refresh completo del router para evitar 404s
           loadContacts()
         }}
       />
