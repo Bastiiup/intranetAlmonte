@@ -157,12 +157,27 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('[API /persona-trayectorias POST] 📤 Enviando a Strapi (payload limpio):', JSON.stringify(payloadLimpio, null, 2))
+    console.log('[API /persona-trayectorias POST] 📋 Campos en payload.data:', Object.keys(payloadLimpio.data))
+    console.log('[API /persona-trayectorias POST] 📋 Valores de payload.data:', {
+      persona: payloadLimpio.data.persona,
+      colegio: payloadLimpio.data.colegio,
+      cargo: payloadLimpio.data.cargo,
+      is_current: payloadLimpio.data.is_current,
+      activo: payloadLimpio.data.activo,
+      otrosCampos: Object.keys(payloadLimpio.data).filter(k => !['persona', 'colegio', 'cargo', 'is_current', 'activo'].includes(k)),
+    })
 
     // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
     const response = await strapiClient.post<StrapiResponse<StrapiEntity<any>>>(
       '/api/persona-trayectorias',
       payloadLimpio
     )
+    
+    console.log('[API /persona-trayectorias POST] ✅ Respuesta exitosa de Strapi:', {
+      tieneData: !!response.data,
+      esArray: Array.isArray(response.data),
+      primerElemento: Array.isArray(response.data) ? response.data[0] : response.data,
+    })
 
     // Extraer ID de la respuesta (puede ser array o objeto)
     const trayectoriaData = Array.isArray(response.data) ? response.data[0] : response.data
