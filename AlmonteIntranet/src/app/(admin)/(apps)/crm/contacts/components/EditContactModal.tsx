@@ -398,23 +398,31 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
         // Agregar/actualizar trayectoria solo si se seleccionó un colegio válido
         // NOTA: Los campos region, comuna, dependencia son del colegio, no de la trayectoria
         // Estos se actualizan en el colegio, no en la trayectoria
+        // Agregar/actualizar trayectoria solo si se seleccionó un colegio válido
         ...(formData.colegioId && 
             formData.colegioId !== '' && 
             formData.colegioId !== '0' && {
-          trayectoria: {
-            colegio: (() => {
-              // Asegurar que sea un número válido
-              const colegioIdNum = parseInt(String(formData.colegioId))
-              if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
-                console.error('[EditContactModal] ⚠️ ID de colegio inválido:', formData.colegioId)
-                return null
-              }
-              // Usar formato { connect: [id] } para relaciones manyToOne (igual que en AddContactModal)
-              return { connect: [colegioIdNum] }
-            })(),
-            cargo: formData.cargo || null,
-            is_current: true,
-          },
+          trayectoria: (() => {
+            // Asegurar que sea un número válido
+            const colegioIdNum = parseInt(String(formData.colegioId))
+            if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
+              console.error('[EditContactModal] ⚠️ ID de colegio inválido:', formData.colegioId)
+              return null
+            }
+            
+            console.log('[EditContactModal] 📤 Preparando trayectoria:', {
+              colegioId: formData.colegioId,
+              colegioIdNum,
+              cargo: formData.cargo,
+            })
+            
+            // Usar formato { connect: [id] } para relaciones manyToOne (igual que en AddContactModal)
+            return {
+              colegio: { connect: [colegioIdNum] },
+              cargo: formData.cargo || null,
+              is_current: true,
+            }
+          })(),
         }),
       }
 

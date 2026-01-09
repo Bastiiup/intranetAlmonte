@@ -177,12 +177,23 @@ export async function PUT(
 
     // Si se proporcionó una trayectoria, actualizarla o crearla
     if (body.trayectoria) {
+      console.log('[API /crm/contacts/[id] PUT] 📥 Trayectoria recibida:', JSON.stringify(body.trayectoria, null, 2))
+      console.log('[API /crm/contacts/[id] PUT] 🔍 personaIdNum para buscar trayectorias:', personaIdNum)
+      
       try {
         // Buscar trayectorias existentes de esta persona usando ID numérico
+        const trayectoriasQuery = `/api/persona-trayectorias?filters[persona][id][$eq]=${personaIdNum}&filters[is_current][$eq]=true`
+        console.log('[API /crm/contacts/[id] PUT] 📤 Buscando trayectorias con query:', trayectoriasQuery)
+        
         const trayectoriasResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-          // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
-          `/api/persona-trayectorias?filters[persona][id][$eq]=${personaIdNum}&filters[is_current][$eq]=true`
+          trayectoriasQuery
         )
+        
+        console.log('[API /crm/contacts/[id] PUT] 📥 Respuesta de trayectorias:', {
+          tieneData: !!trayectoriasResponse.data,
+          esArray: Array.isArray(trayectoriasResponse.data),
+          cantidad: Array.isArray(trayectoriasResponse.data) ? trayectoriasResponse.data.length : 1,
+        })
         
         const trayectoriasExistentes = Array.isArray(trayectoriasResponse.data) 
           ? trayectoriasResponse.data 
@@ -221,10 +232,19 @@ export async function PUT(
         }
         
         if (colegioIdNum && colegioIdNum > 0 && !isNaN(colegioIdNum)) {
+          console.log('[API /crm/contacts/[id] PUT] ✅ colegioIdNum válido:', colegioIdNum)
+          console.log('[API /crm/contacts/[id] PUT] 📊 Trayectorias existentes encontradas:', trayectoriasExistentes.length)
+          
           if (trayectoriasExistentes.length > 0) {
             // Actualizar la trayectoria actual
             const trayectoriaActual = trayectoriasExistentes[0]
             const trayectoriaId = trayectoriaActual.documentId || trayectoriaActual.id
+            
+            console.log('[API /crm/contacts/[id] PUT] 🔄 Actualizando trayectoria existente:', {
+              trayectoriaId,
+              tieneDocumentId: !!trayectoriaActual.documentId,
+              tieneId: !!trayectoriaActual.id,
+            })
             
             const trayectoriaUpdateData = {
               data: {
@@ -233,23 +253,40 @@ export async function PUT(
                 is_current: body.trayectoria.is_current !== undefined ? body.trayectoria.is_current : true,
               },
             }
+            
+            console.log('[API /crm/contacts/[id] PUT] 📤 Payload para actualizar trayectoria:', JSON.stringify(trayectoriaUpdateData, null, 2))
+            
             // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
-            await strapiClient.put(`/api/persona-trayectorias/${trayectoriaId}`, trayectoriaUpdateData)
-            console.log('✅ [API /crm/contacts/[id] PUT] Trayectoria actualizada')
+            const updateResponse = await strapiClient.put(`/api/persona-trayectorias/${trayectoriaId}`, trayectoriaUpdateData)
+            console.log('[API /crm/contacts/[id] PUT] ✅ Trayectoria actualizada exitosamente:', {
+              tieneData: !!updateResponse.data,
+            })
           } else {
             // Crear nueva trayectoria
+            console.log('[API /crm/contacts/[id] PUT] ➕ No hay trayectoria existente, creando nueva')
+            
+            const personaIdFinal = typeof personaIdNum === 'number' ? personaIdNum : parseInt(String(personaIdNum))
+            console.log('[API /crm/contacts/[id] PUT] 🔍 personaIdFinal para crear trayectoria:', personaIdFinal)
+            
             const trayectoriaData = {
               data: {
-                persona: { connect: [typeof personaIdNum === 'number' ? personaIdNum : parseInt(String(personaIdNum))] },
+                persona: { connect: [personaIdFinal] },
                 colegio: { connect: [colegioIdNum] },
                 cargo: body.trayectoria.cargo || null,
                 is_current: body.trayectoria.is_current !== undefined ? body.trayectoria.is_current : true,
               },
             }
+            
+            console.log('[API /crm/contacts/[id] PUT] 📤 Payload para crear trayectoria:', JSON.stringify(trayectoriaData, null, 2))
+            
             // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
-            await strapiClient.post('/api/persona-trayectorias', trayectoriaData)
-            console.log('✅ [API /crm/contacts/[id] PUT] Trayectoria creada')
+            const createResponse = await strapiClient.post('/api/persona-trayectorias', trayectoriaData)
+            console.log('[API /crm/contacts/[id] PUT] ✅ Trayectoria creada exitosamente:', {
+              tieneData: !!createResponse.data,
+            })
           }
+        } else {
+          console.warn('[API /crm/contacts/[id] PUT] ⚠️ colegioIdNum inválido, no se puede crear/actualizar trayectoria')
         }
       } catch (trayectoriaError: any) {
         console.error('[API /crm/contacts/[id] PUT] Error al actualizar/crear trayectoria:', trayectoriaError)
