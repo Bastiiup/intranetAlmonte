@@ -237,12 +237,45 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
       }
 
       // PASO 2: Obtener ID de la persona creada
-      const personaId = result.data?.documentId || result.data?.id
+      console.log('[AddContactModal] 📥 Respuesta completa del servidor:', JSON.stringify(result, null, 2))
+      
+      // Extraer ID de diferentes formatos posibles de respuesta de Strapi
+      let personaId: string | number | undefined = undefined
+      let personaIdNum: number | null = null
+      
+      if (result.data) {
+        const personaData = Array.isArray(result.data) ? result.data[0] : result.data
+        const attrs = personaData.attributes || personaData
+        
+        // Intentar obtener documentId primero (identificador principal)
+        personaId = personaData.documentId || attrs.documentId
+        
+        // Intentar obtener ID numérico directamente
+        personaIdNum = personaData.id || attrs.id || null
+        
+        // Si no hay ID numérico pero hay documentId, intentar obtenerlo
+        if (!personaIdNum && personaId) {
+          const isDocumentId = typeof personaId === 'string' && !/^\d+$/.test(personaId)
+          if (!isDocumentId) {
+            // Si personaId es numérico, usarlo directamente
+            personaIdNum = parseInt(String(personaId))
+          }
+        }
+      }
+      
       if (!personaId) {
+        console.error('[AddContactModal] ❌ No se pudo obtener ID de la persona creada:', {
+          result,
+          data: result.data,
+        })
         throw new Error('No se pudo obtener el ID de la persona creada')
       }
 
-      console.log('[AddContactModal] ✅ Persona creada con ID:', personaId)
+      console.log('[AddContactModal] ✅ Persona creada:', {
+        personaId,
+        personaIdNum,
+        esDocumentId: typeof personaId === 'string' && !/^\d+$/.test(personaId),
+      })
 
       // PASO 3: Crear trayectoria si se seleccionó un colegio válido
       console.log('[AddContactModal] Verificando colegioId para trayectoria:', {
@@ -252,30 +285,37 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
       })
       if (formData.colegioId && formData.colegioId !== '' && formData.colegioId !== '0') {
         try {
-          // Obtener el ID numérico de la persona si es documentId
-          let personaIdNum: number | null = null
-          const isDocumentId = typeof personaId === 'string' && !/^\d+$/.test(personaId)
-          
-          if (isDocumentId) {
-            try {
-              const personaResponse = await fetch(`/api/crm/contacts/${personaId}?fields=id`)
-              const personaResult = await personaResponse.json()
-              if (personaResult.success && personaResult.data) {
-                const personaData = Array.isArray(personaResult.data) ? personaResult.data[0] : personaResult.data
-                if (personaData && typeof personaData === 'object' && 'id' in personaData) {
-                  personaIdNum = personaData.id as number
-                  console.log('[AddContactModal] ✅ ID numérico de persona obtenido:', personaIdNum)
+          // Si no tenemos ID numérico aún, intentar obtenerlo
+          if (!personaIdNum) {
+            const isDocumentId = typeof personaId === 'string' && !/^\d+$/.test(personaId)
+            
+            if (isDocumentId) {
+              try {
+                const personaResponse = await fetch(`/api/crm/contacts/${personaId}`)
+                const personaResult = await personaResponse.json()
+                if (personaResult.success && personaResult.data) {
+                  const personaData = Array.isArray(personaResult.data) ? personaResult.data[0] : personaResult.data
+                  const attrs = personaData.attributes || personaData
+                  if (attrs && typeof attrs === 'object' && 'id' in attrs) {
+                    personaIdNum = attrs.id as number
+                    console.log('[AddContactModal] ✅ ID numérico de persona obtenido desde API:', personaIdNum)
+                  }
                 }
+              } catch (err) {
+                console.error('[AddContactModal] ❌ Error obteniendo ID numérico de persona:', err)
               }
-            } catch (err) {
-              console.error('[AddContactModal] ❌ Error obteniendo ID numérico de persona:', err)
+            } else {
+              personaIdNum = parseInt(String(personaId))
+              console.log('[AddContactModal] ✅ ID numérico parseado desde personaId:', personaIdNum)
             }
-          } else {
-            personaIdNum = parseInt(String(personaId))
           }
 
           if (!personaIdNum || isNaN(personaIdNum)) {
-            console.error('[AddContactModal] ❌ No se pudo obtener ID numérico de persona:', personaId)
+            console.error('[AddContactModal] ❌ No se pudo obtener ID numérico de persona:', {
+              personaId,
+              personaIdNum,
+              resultData: result.data,
+            })
             throw new Error('No se pudo obtener el ID numérico de la persona para crear la trayectoria')
           }
 
