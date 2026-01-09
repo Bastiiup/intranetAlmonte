@@ -120,12 +120,24 @@ export async function POST(request: NextRequest) {
     ])
     
     // Construir payload limpio: solo campos permitidos
+    // ⚠️ IMPORTANTE: Para relaciones manyToOne en Strapi v4, podemos usar:
+    // Opción 1: { connect: [id] } - para relaciones manyToOne
+    // Opción 2: id directamente - si Strapi lo acepta
+    // Probaremos con connect primero, si falla intentaremos con ID directo
     const payloadLimpio: any = { 
       data: {
+        // Para manyToOne, usar connect con array
         persona: { connect: [personaIdNum] },
         colegio: { connect: [colegioIdNum] },
       }
     }
+    
+    console.log('[API /persona-trayectorias POST] 🔍 IDs para connect:', {
+      personaIdNum,
+      colegioIdNum,
+      tipoPersona: typeof personaIdNum,
+      tipoColegio: typeof colegioIdNum,
+    })
     
     // Agregar solo campos permitidos que vengan en body.data
     // ⚠️ IMPORTANTE: Iterar solo sobre campos permitidos, NO sobre todo body.data
