@@ -180,8 +180,8 @@ export async function PUT(
       try {
         // Buscar trayectorias existentes de esta persona usando ID numérico
         const trayectoriasResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-          // ⚠️ IMPORTANTE: En Strapi, el content type se llama "Profesores"
-          `/api/profesores?filters[persona][id][$eq]=${personaIdNum}&filters[is_current][$eq]=true`
+          // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
+          `/api/persona-trayectorias?filters[persona][id][$eq]=${personaIdNum}&filters[is_current][$eq]=true`
         )
         
         const trayectoriasExistentes = Array.isArray(trayectoriasResponse.data) 
@@ -222,8 +222,8 @@ export async function PUT(
                 is_current: body.trayectoria.is_current !== undefined ? body.trayectoria.is_current : true,
               },
             }
-            // ⚠️ IMPORTANTE: En Strapi, el content type se llama "Profesores"
-            await strapiClient.put(`/api/profesores/${trayectoriaId}`, trayectoriaUpdateData)
+            // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
+            await strapiClient.put(`/api/persona-trayectorias/${trayectoriaId}`, trayectoriaUpdateData)
             console.log('✅ [API /crm/contacts/[id] PUT] Trayectoria actualizada')
           } else {
             // Crear nueva trayectoria
@@ -235,8 +235,8 @@ export async function PUT(
                 is_current: body.trayectoria.is_current !== undefined ? body.trayectoria.is_current : true,
               },
             }
-            // ⚠️ IMPORTANTE: En Strapi, el content type se llama "Profesores"
-            await strapiClient.post('/api/profesores', trayectoriaData)
+            // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
+            await strapiClient.post('/api/persona-trayectorias', trayectoriaData)
             console.log('✅ [API /crm/contacts/[id] PUT] Trayectoria creada')
           }
         }

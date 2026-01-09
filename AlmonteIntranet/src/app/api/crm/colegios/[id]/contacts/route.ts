@@ -112,7 +112,7 @@ export async function GET(
       })
       
       const trayectoriasResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-        `/api/profesores?${trayectoriasParams.toString()}`
+        `/api/persona-trayectorias?${trayectoriasParams.toString()}`
       )
       
       console.log('📥 [API /crm/colegios/[id]/contacts GET] Trayectorias encontradas:', Array.isArray(trayectoriasResponse.data) ? trayectoriasResponse.data.length : 1)

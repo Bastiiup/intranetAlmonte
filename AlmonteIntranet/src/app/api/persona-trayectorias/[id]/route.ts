@@ -71,9 +71,8 @@ export async function DELETE(
   try {
     const { id } = await params
 
-    // ⚠️ IMPORTANTE: En Strapi, el content type se llama "Profesores", no "persona-trayectorias"
-    // El endpoint real es /api/profesores
-    await strapiClient.delete(`/api/profesores/${id}`)
+    // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
+    await strapiClient.delete(`/api/persona-trayectorias/${id}`)
 
     return NextResponse.json({
       success: true,

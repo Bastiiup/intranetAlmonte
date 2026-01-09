@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
     // Listar trayectorias - Intentar diferentes nombres de content type
     if (tipo === 'trayectorias') {
       const posiblesNombres = [
-        'profesores',
+        'persona-trayectorias',
         'persona-trayectorias',
         'trayectorias',
         'persona_trayectorias',

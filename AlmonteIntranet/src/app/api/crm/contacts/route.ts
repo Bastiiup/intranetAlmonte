@@ -299,8 +299,8 @@ export async function POST(request: Request) {
             },
           }
           
-          // ⚠️ IMPORTANTE: En Strapi, el content type se llama "Profesores"
-          const trayectoriaResponse = await strapiClient.post('/api/profesores', trayectoriaData)
+          // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
+          const trayectoriaResponse = await strapiClient.post('/api/persona-trayectorias', trayectoriaData)
           console.log('[API /crm/contacts POST] ✅ Trayectoria creada exitosamente:', trayectoriaResponse)
         }
       } catch (trayectoriaError: any) {

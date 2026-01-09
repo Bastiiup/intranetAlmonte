@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     // PASO 4: Intentar crear la trayectoria
     try {
       console.log('[DEBUG] Creando trayectoria con payload:', JSON.stringify(trayectoriaPayload, null, 2))
-      const trayectoriaResponse = await strapiClient.post<any>('/api/profesores', trayectoriaPayload)
+      const trayectoriaResponse = await strapiClient.post<any>('/api/persona-trayectorias', trayectoriaPayload)
       
       diagnostic.steps.push({
         step: 'Crear trayectoria',
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
       if (trayectoriaId) {
         try {
           const verifyResponse = await strapiClient.get<any>(
-            `/api/profesores/${trayectoriaId}?populate[persona]=*&populate[colegio]=*&populate[colegio][populate][comuna]=*`
+            `/api/persona-trayectorias/${trayectoriaId}?populate[persona][fields][0]=id&populate[persona][fields][1]=nombre_completo&populate[colegio][fields][0]=id&populate[colegio][fields][1]=colegio_nombre`
           )
           
           diagnostic.steps.push({

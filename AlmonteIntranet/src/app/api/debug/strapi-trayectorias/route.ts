@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
         console.log('[DEBUG] Consultando trayectoria específica:', trayectoriaId)
         
         const trayectoriaResponse = await strapiClient.get<any>(
-          `/api/profesores/${trayectoriaId}?populate[persona]=*&populate[colegio]=*&populate[colegio][populate][comuna]=*&populate[colegio][populate][telefonos]=*&populate[colegio][populate][emails]=*&populate[curso]=*&populate[asignatura]=*`
+          `/api/persona-trayectorias/${trayectoriaId}?populate[persona][fields][0]=id&populate[persona][fields][1]=nombre_completo&populate[colegio][fields][0]=id&populate[colegio][fields][1]=colegio_nombre&populate[colegio][fields][2]=rbd`
         )
         diagnostic.queries.push(`GET /api/profesores/${trayectoriaId}?populate=*`)
         
@@ -205,7 +205,7 @@ export async function GET(request: NextRequest) {
       const posiblesNombresRelacion = [
         'persona_trayectorias',
         'trayectorias',
-        'profesores',
+        'persona-trayectorias',
         'persona-trayectorias',
       ]
 

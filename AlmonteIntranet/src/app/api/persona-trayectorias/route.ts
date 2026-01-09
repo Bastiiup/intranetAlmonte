@@ -108,10 +108,9 @@ export async function POST(request: NextRequest) {
 
     console.log('[API /persona-trayectorias POST] 📤 Enviando a Strapi:', JSON.stringify(strapiPayload, null, 2))
 
-    // ⚠️ IMPORTANTE: En Strapi, el content type se llama "Profesores", no "persona-trayectorias"
-    // El endpoint real es /api/profesores
+    // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
     const response = await strapiClient.post<StrapiResponse<StrapiEntity<any>>>(
-      '/api/profesores',
+      '/api/persona-trayectorias',
       strapiPayload
     )
 
