@@ -68,10 +68,11 @@ export async function GET(
     }
 
     // Buscar cursos del colegio
+    // ⚠️ No usar sort hasta verificar qué campos son ordenables en Strapi
     const paramsObj = new URLSearchParams({
       'filters[colegio][id][$eq]': String(colegioIdNum),
       'populate[materiales]': 'true',
-      'sort[0]': 'nombre:asc', // Ordenar por nombre del curso
+      // Removido sort hasta verificar el schema en Strapi
     })
 
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
