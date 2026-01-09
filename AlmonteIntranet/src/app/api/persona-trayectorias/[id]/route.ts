@@ -31,10 +31,9 @@ export async function PUT(
       )
     }
 
-    // ⚠️ IMPORTANTE: En Strapi, el content type se llama "Profesores", no "persona-trayectorias"
-    // El endpoint real es /api/profesores
+    // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
     const response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
-      `/api/profesores/${id}`,
+      `/api/persona-trayectorias/${id}`,
       body
     )
 
