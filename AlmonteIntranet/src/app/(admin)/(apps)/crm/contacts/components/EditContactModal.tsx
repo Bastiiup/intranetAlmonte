@@ -394,7 +394,8 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
                 console.error('[EditContactModal] ⚠️ ID de colegio inválido:', formData.colegioId)
                 return null
               }
-              return colegioIdNum
+              // Usar formato { connect: [id] } para relaciones manyToOne (igual que en AddContactModal)
+              return { connect: [colegioIdNum] }
             })(),
             cargo: formData.cargo || null,
             is_current: true,
