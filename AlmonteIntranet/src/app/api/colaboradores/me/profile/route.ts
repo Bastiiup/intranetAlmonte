@@ -680,6 +680,9 @@ export async function GET(request: NextRequest) {
       console.log('[API /colaboradores/me/profile GET] Colaborador desde cookie:', {
         id: colaboradorId,
         email: colaboradorFromCookie.email_login,
+        tienePersona: !!colaboradorFromCookie.persona,
+        personaRut: colaboradorFromCookie.persona?.rut || 'NO RUT',
+        personaKeys: colaboradorFromCookie.persona ? Object.keys(colaboradorFromCookie.persona) : 'no persona',
       })
     }
 
@@ -756,20 +759,38 @@ export async function GET(request: NextRequest) {
           `/api/colaboradores/${colaboradorId}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*&populate[persona][populate][imagen][populate]=*&populate[persona][populate][portada][populate]=*`
         )
       } else {
-        // Si no hay ninguna opción, usar datos de cookie directamente
-        console.log('[API /colaboradores/me/profile GET] Usando datos de cookie directamente (sin consultar Strapi)')
-        return NextResponse.json({
-          success: true,
-          data: {
-            colaborador: {
-              id: colaboradorFromCookie.id || colaboradorFromCookie.documentId,
-              email_login: colaboradorFromCookie.email_login,
-              rol: colaboradorFromCookie.rol,
-              activo: colaboradorFromCookie.activo !== false,
+        // Si no hay ninguna opción, intentar obtener desde Strapi usando email_login
+        if (colaboradorFromCookie?.email_login) {
+          console.log('[API /colaboradores/me/profile GET] Intentando obtener desde Strapi por email_login como último recurso:', colaboradorFromCookie.email_login)
+          try {
+            const emailResponse = await strapiClient.get<any>(
+              `/api/colaboradores?filters[email_login][$eq]=${encodeURIComponent(colaboradorFromCookie.email_login)}&populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*&populate[persona][populate][imagen][populate]=*&populate[persona][populate][portada][populate]=*`
+            )
+            if (emailResponse.data && Array.isArray(emailResponse.data) && emailResponse.data.length > 0) {
+              response = { data: emailResponse.data[0] }
+              console.log('[API /colaboradores/me/profile GET] ✅ Colaborador obtenido desde Strapi por email_login')
+            }
+          } catch (emailError: any) {
+            console.warn('[API /colaboradores/me/profile GET] Error al obtener por email_login:', emailError.message)
+          }
+        }
+        
+        // Si aún no tenemos respuesta, usar datos de cookie directamente
+        if (!response) {
+          console.log('[API /colaboradores/me/profile GET] Usando datos de cookie directamente (sin consultar Strapi)')
+          return NextResponse.json({
+            success: true,
+            data: {
+              colaborador: {
+                id: colaboradorFromCookie.id || colaboradorFromCookie.documentId,
+                email_login: colaboradorFromCookie.email_login,
+                rol: colaboradorFromCookie.rol,
+                activo: colaboradorFromCookie.activo !== false,
+              },
+              persona: colaboradorFromCookie.persona || null,
             },
-            persona: colaboradorFromCookie.persona || null,
-          },
-        }, { status: 200 })
+          }, { status: 200 })
+        }
       }
       } catch (strapiError: any) {
         console.error('[API /colaboradores/me/profile GET] Error al obtener desde Strapi:', {
