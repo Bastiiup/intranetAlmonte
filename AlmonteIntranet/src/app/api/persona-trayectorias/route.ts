@@ -141,10 +141,18 @@ export async function POST(request: NextRequest) {
     
     // Agregar solo campos permitidos que vengan en body.data
     // ⚠️ IMPORTANTE: Iterar solo sobre campos permitidos, NO sobre todo body.data
+    // ⚠️ CRÍTICO: NO copiar ningún campo que no esté explícitamente en camposPermitidos
     for (const campo of camposPermitidos) {
       if (campo === 'persona' || campo === 'colegio') continue // Ya los agregamos arriba
       
-      if (body.data[campo] !== undefined) {
+      // Solo procesar si el campo existe en body.data Y está en la lista de permitidos
+      if (body.data[campo] !== undefined && camposPermitidos.has(campo)) {
+        // Verificar que NO sea un campo prohibido (doble verificación)
+        if (camposProhibidos.has(campo)) {
+          console.warn(`[API /persona-trayectorias POST] ⚠️ Campo ${campo} está en permitidos pero también en prohibidos, omitiendo`)
+          continue
+        }
+        
         if (campo === 'anio' && body.data[campo] !== null) {
           payloadLimpio.data[campo] = parseInt(String(body.data[campo]))
         } else if (campo === 'curso' && body.data[campo]?.connect && Array.isArray(body.data[campo].connect) && body.data[campo].connect.length > 0) {
@@ -159,6 +167,17 @@ export async function POST(request: NextRequest) {
       }
     }
     
+    // ⚠️ VERIFICACIÓN ADICIONAL: Eliminar cualquier campo que no esté en camposPermitidos
+    const camposEnPayloadLimpio = Object.keys(payloadLimpio.data)
+    const camposNoPermitidosEnPayload = camposEnPayloadLimpio.filter(c => !camposPermitidos.has(c) || camposProhibidos.has(c))
+    if (camposNoPermitidosEnPayload.length > 0) {
+      console.error('[API /persona-trayectorias POST] ❌ ERROR: Campos no permitidos en payloadLimpio:', camposNoPermitidosEnPayload)
+      camposNoPermitidosEnPayload.forEach(campo => {
+        delete payloadLimpio.data[campo]
+        console.log(`[API /persona-trayectorias POST] 🗑️ Eliminado campo no permitido: ${campo}`)
+      })
+    }
+    
     // ⚠️ VERIFICACIÓN FINAL: Asegurar que NO hay campos prohibidos
     const camposEnPayload = Object.keys(payloadLimpio.data)
     const camposProhibidosEncontrados = camposEnPayload.filter(c => camposProhibidos.has(c))
@@ -169,6 +188,7 @@ export async function POST(request: NextRequest) {
     }
     
     // ⚠️ VERIFICACIÓN EXTRA: Crear un objeto completamente nuevo solo con campos permitidos
+    // ⚠️ CRÍTICO: Construir desde cero, NO copiar de payloadLimpio
     const payloadFinal: any = {
       data: {
         persona: payloadLimpio.data.persona,
@@ -176,12 +196,31 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Agregar solo campos que están en la lista de permitidos
+    // Agregar solo campos que están en la lista de permitidos Y que existen en payloadLimpio
+    // ⚠️ IMPORTANTE: Verificar explícitamente que el campo NO esté en prohibidos
     for (const campo of camposPermitidos) {
       if (campo === 'persona' || campo === 'colegio') continue
-      if (payloadLimpio.data[campo] !== undefined) {
+      
+      // Solo agregar si:
+      // 1. Existe en payloadLimpio
+      // 2. Está en camposPermitidos
+      // 3. NO está en camposProhibidos
+      if (payloadLimpio.data[campo] !== undefined && 
+          camposPermitidos.has(campo) && 
+          !camposProhibidos.has(campo)) {
         payloadFinal.data[campo] = payloadLimpio.data[campo]
       }
+    }
+    
+    // ⚠️ VERIFICACIÓN FINAL ABSOLUTA: Eliminar cualquier campo que no debería estar
+    const camposFinalesAntes = Object.keys(payloadFinal.data)
+    const camposProhibidosEnFinal = camposFinalesAntes.filter(c => camposProhibidos.has(c))
+    if (camposProhibidosEnFinal.length > 0) {
+      console.error('[API /persona-trayectorias POST] ❌ ERROR CRÍTICO: Campos prohibidos en payloadFinal:', camposProhibidosEnFinal)
+      camposProhibidosEnFinal.forEach(campo => {
+        delete payloadFinal.data[campo]
+        console.log(`[API /persona-trayectorias POST] 🗑️ Eliminado campo prohibido de payloadFinal: ${campo}`)
+      })
     }
     
     // Verificar una vez más que no hay campos prohibidos
