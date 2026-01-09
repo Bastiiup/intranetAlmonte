@@ -31,10 +31,35 @@ export async function PUT(
       )
     }
 
+    // ⚠️ IMPORTANTE: Filtrar campos no permitidos (igual que en POST)
+    const camposPermitidos = new Set([
+      'persona', 'colegio', 'cargo', 'anio', 'curso', 'asignatura', 
+      'is_current', 'activo', 'fecha_inicio', 'fecha_fin', 'notas',
+      'curso_asignatura', 'org_display_name', 'role_key', 'department',
+      'colegio_region', 'correo', 'fecha_registro', 'ultimo_acceso'
+    ])
+    const camposProhibidos = new Set([
+      'region', 'comuna', 'dependencia', 'zona', 'colegio_nombre', 'rbd',
+      'telefonos', 'emails', 'direcciones', 'website', 'estado'
+    ])
+    
+    const payloadLimpio: any = { data: {} }
+    for (const key of Object.keys(body.data)) {
+      if (camposProhibidos.has(key)) {
+        console.warn(`[API /persona-trayectorias/[id] PUT] ⚠️ Omitiendo campo prohibido: ${key}`)
+        continue
+      }
+      if (camposPermitidos.has(key)) {
+        payloadLimpio.data[key] = body.data[key]
+      }
+    }
+
+    console.log('[API /persona-trayectorias/[id] PUT] 📤 Payload limpio:', JSON.stringify(payloadLimpio, null, 2))
+
     // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
     const response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
       `/api/persona-trayectorias/${id}`,
-      body
+      payloadLimpio
     )
 
     return NextResponse.json({

@@ -103,15 +103,21 @@ export async function POST(request: NextRequest) {
 
     // Construir payload para Strapi
     // ⚠️ IMPORTANTE: Solo incluir campos que existen en el content type persona-trayectorias
-    // NO incluir: region, comuna, dependencia (esos son campos del colegio, no de la trayectoria)
+    // NO incluir: region, comuna, dependencia, zona (esos son campos del colegio, no de la trayectoria)
     
     // Lista estricta de campos permitidos según la estructura real de persona-trayectorias
-    const camposPermitidos = [
+    const camposPermitidos = new Set([
       'persona', 'colegio', 'cargo', 'anio', 'curso', 'asignatura', 
       'is_current', 'activo', 'fecha_inicio', 'fecha_fin', 'notas',
       'curso_asignatura', 'org_display_name', 'role_key', 'department',
       'colegio_region', 'correo', 'fecha_registro', 'ultimo_acceso'
-    ]
+    ])
+    
+    // Lista de campos EXPLÍCITAMENTE PROHIBIDOS (campos del colegio, no de la trayectoria)
+    const camposProhibidos = new Set([
+      'region', 'comuna', 'dependencia', 'zona', 'colegio_nombre', 'rbd',
+      'telefonos', 'emails', 'direcciones', 'website', 'estado'
+    ])
     
     // Construir payload limpio: solo campos permitidos
     const payloadLimpio: any = { 
@@ -122,32 +128,33 @@ export async function POST(request: NextRequest) {
     }
     
     // Agregar solo campos permitidos que vengan en body.data
-    if (body.data.cargo !== undefined) payloadLimpio.data.cargo = body.data.cargo || null
-    if (body.data.anio !== undefined) payloadLimpio.data.anio = body.data.anio ? parseInt(String(body.data.anio)) : null
-    if (body.data.curso?.connect && Array.isArray(body.data.curso.connect) && body.data.curso.connect.length > 0) {
-      payloadLimpio.data.curso = { connect: [parseInt(String(body.data.curso.connect[0]))] }
+    // ⚠️ IMPORTANTE: Iterar solo sobre campos permitidos, NO sobre todo body.data
+    for (const campo of camposPermitidos) {
+      if (campo === 'persona' || campo === 'colegio') continue // Ya los agregamos arriba
+      
+      if (body.data[campo] !== undefined) {
+        if (campo === 'anio' && body.data[campo] !== null) {
+          payloadLimpio.data[campo] = parseInt(String(body.data[campo]))
+        } else if (campo === 'curso' && body.data[campo]?.connect && Array.isArray(body.data[campo].connect) && body.data[campo].connect.length > 0) {
+          payloadLimpio.data[campo] = { connect: [parseInt(String(body.data[campo].connect[0]))] }
+        } else if (campo === 'asignatura' && body.data[campo]?.connect && Array.isArray(body.data[campo].connect) && body.data[campo].connect.length > 0) {
+          payloadLimpio.data[campo] = { connect: [parseInt(String(body.data[campo].connect[0]))] }
+        } else if (campo === 'is_current' || campo === 'activo') {
+          payloadLimpio.data[campo] = Boolean(body.data[campo])
+        } else {
+          payloadLimpio.data[campo] = body.data[campo] || null
+        }
+      }
     }
-    if (body.data.asignatura?.connect && Array.isArray(body.data.asignatura.connect) && body.data.asignatura.connect.length > 0) {
-      payloadLimpio.data.asignatura = { connect: [parseInt(String(body.data.asignatura.connect[0]))] }
+    
+    // ⚠️ VERIFICACIÓN FINAL: Asegurar que NO hay campos prohibidos
+    const camposEnPayload = Object.keys(payloadLimpio.data)
+    const camposProhibidosEncontrados = camposEnPayload.filter(c => camposProhibidos.has(c))
+    if (camposProhibidosEncontrados.length > 0) {
+      console.error('[API /persona-trayectorias POST] ❌ ERROR CRÍTICO: Campos prohibidos en payload:', camposProhibidosEncontrados)
+      // Eliminar campos prohibidos
+      camposProhibidosEncontrados.forEach(campo => delete payloadLimpio.data[campo])
     }
-    if (body.data.is_current !== undefined) payloadLimpio.data.is_current = Boolean(body.data.is_current)
-    if (body.data.activo !== undefined) payloadLimpio.data.activo = Boolean(body.data.activo)
-    if (body.data.fecha_inicio !== undefined) payloadLimpio.data.fecha_inicio = body.data.fecha_inicio || null
-    if (body.data.fecha_fin !== undefined) payloadLimpio.data.fecha_fin = body.data.fecha_fin || null
-    if (body.data.notas !== undefined) payloadLimpio.data.notas = body.data.notas || null
-    
-    // Campos opcionales adicionales (solo si vienen en body.data)
-    if (body.data.curso_asignatura !== undefined) payloadLimpio.data.curso_asignatura = body.data.curso_asignatura
-    if (body.data.org_display_name !== undefined) payloadLimpio.data.org_display_name = body.data.org_display_name
-    if (body.data.role_key !== undefined) payloadLimpio.data.role_key = body.data.role_key
-    if (body.data.department !== undefined) payloadLimpio.data.department = body.data.department
-    if (body.data.colegio_region !== undefined) payloadLimpio.data.colegio_region = body.data.colegio_region
-    if (body.data.correo !== undefined) payloadLimpio.data.correo = body.data.correo
-    if (body.data.fecha_registro !== undefined) payloadLimpio.data.fecha_registro = body.data.fecha_registro
-    if (body.data.ultimo_acceso !== undefined) payloadLimpio.data.ultimo_acceso = body.data.ultimo_acceso
-    
-    // ⚠️ EXPLÍCITAMENTE NO incluir: region, comuna, dependencia, zona, etc.
-    // Estos campos pertenecen al colegio, no a la trayectoria
 
     console.log('[API /persona-trayectorias POST] 📤 Enviando a Strapi (payload limpio):', JSON.stringify(payloadLimpio, null, 2))
 
