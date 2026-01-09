@@ -399,6 +399,9 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
       setSelectedColegio(null)
       setColegioSearchTerm('')
 
+      // Esperar un momento para que Strapi procese la trayectoria antes de refrescar
+      await new Promise(resolve => setTimeout(resolve, 500))
+
       if (onSuccess) {
         onSuccess()
       } else {
