@@ -7,6 +7,14 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { LuMapPin, LuPhone, LuMail, LuGlobe, LuUsers, LuPencil, LuArrowLeft, LuShoppingCart, LuTrendingUp, LuActivity, LuPackage, LuGraduationCap } from 'react-icons/lu'
 import Link from 'next/link'
 
+// Helper para logs condicionales de debugging (cliente)
+const DEBUG = process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && (window as any).DEBUG_CRM === 'true')
+const debugLog = (...args: any[]) => {
+  if (DEBUG) {
+    console.log(...args)
+  }
+}
+
 interface ColegioData {
   id: string
   documentId?: string
@@ -126,11 +134,11 @@ export default function ColegioDetailPage() {
       setError(null)
 
       try {
-        console.log('[ColegioDetailPage] Buscando colegio con ID:', colegioId)
+        debugLog('[ColegioDetailPage] Buscando colegio con ID:', colegioId)
         const response = await fetch(`/api/crm/colegios/${colegioId}`)
         const result = await response.json()
 
-        console.log('[ColegioDetailPage] Respuesta de la API:', {
+        debugLog('[ColegioDetailPage] Respuesta de la API:', {
           ok: response.ok,
           success: result.success,
           hasData: !!result.data,
@@ -178,11 +186,11 @@ export default function ColegioDetailPage() {
       if (!colegioId) return
       setLoadingContacts(true)
       try {
-        console.log('🔍 [ColegioDetailPage] Buscando contactos para colegio:', colegioId)
+        debugLog('🔍 [ColegioDetailPage] Buscando contactos para colegio:', colegioId)
         const response = await fetch(`/api/crm/colegios/${colegioId}/contacts`)
         const result = await response.json()
         
-        console.log('📥 [ColegioDetailPage] Respuesta de contactos:', {
+        debugLog('📥 [ColegioDetailPage] Respuesta de contactos:', {
           ok: response.ok,
           success: result.success,
           total: result.data?.length || 0,
@@ -191,13 +199,13 @@ export default function ColegioDetailPage() {
         
         if (response.ok && result.success) {
           const contactosData = Array.isArray(result.data) ? result.data : [result.data]
-          console.log('📊 [ColegioDetailPage] Transformando', contactosData.length, 'contactos')
+          debugLog('📊 [ColegioDetailPage] Transformando', contactosData.length, 'contactos')
           
           const contactosTransformed: ContactoData[] = contactosData.map((contacto: any) => {
             const attrs = contacto.attributes || contacto
             const trayectorias = attrs.trayectorias || []
             
-            console.log('👤 [ColegioDetailPage] Contacto:', {
+            debugLog('👤 [ColegioDetailPage] Contacto:', {
               id: contacto.documentId || contacto.id,
               nombre: attrs.nombre_completo,
               trayectorias: trayectorias.length,
@@ -214,7 +222,7 @@ export default function ColegioDetailPage() {
             }
           })
           
-          console.log('✅ [ColegioDetailPage] Contactos transformados:', contactosTransformed.length)
+          debugLog('✅ [ColegioDetailPage] Contactos transformados:', contactosTransformed.length)
           setContactos(contactosTransformed)
         } else {
           console.error('❌ [ColegioDetailPage] Error en respuesta:', result)

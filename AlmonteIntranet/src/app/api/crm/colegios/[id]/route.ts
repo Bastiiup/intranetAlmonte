@@ -10,6 +10,14 @@ import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 
 export const dynamic = 'force-dynamic'
 
+// Helper para logs condicionales de debugging
+const DEBUG = process.env.NODE_ENV === 'development' || process.env.DEBUG_CRM === 'true'
+const debugLog = (...args: any[]) => {
+  if (DEBUG) {
+    console.log(...args)
+  }
+}
+
 interface ColegioAttributes {
   colegio_nombre?: string
   rbd?: number
@@ -33,30 +41,30 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    console.log('[API /crm/colegios/[id] GET] Buscando colegio con ID:', id)
+    debugLog('[API /crm/colegios/[id] GET] Buscando colegio con ID:', id)
 
     let colegio: any = null
 
-    // Intentar primero con el endpoint directo
+    // Intentar primero con el endpoint directo usando populate=deep
     try {
-      const paramsObj = new URLSearchParams({
-        'populate[comuna]': 'true',
-        'populate[telefonos]': 'true',
-        'populate[emails]': 'true',
-        'populate[direcciones]': 'true',
-        'populate[cartera_asignaciones][populate][ejecutivo]': 'true',
-      })
+      // Usar populate=deep para obtener todas las relaciones anidadas
+      const queryString = '?populate=deep'
       
       const response = await strapiClient.get<StrapiResponse<StrapiEntity<ColegioAttributes>>>(
-        `/api/colegios/${id}?${paramsObj.toString()}`
+        `/api/colegios/${id}${queryString}`
       )
       
       if (response.data) {
         colegio = response.data
-        console.log('[API /crm/colegios/[id] GET] Colegio encontrado directamente')
+        debugLog('[API /crm/colegios/[id] GET] Colegio encontrado directamente')
+        debugLog('[API /crm/colegios/[id] GET] Estructura de datos recibida:', {
+          tieneAttributes: !!colegio.attributes,
+          keys: Object.keys(colegio),
+          tienePersonaTrayectorias: !!(colegio.attributes?.persona_trayectorias || colegio.persona_trayectorias),
+        })
       }
     } catch (directError: any) {
-      console.log('[API /crm/colegios/[id] GET] Endpoint directo falló, intentando búsqueda por filtro...')
+      debugLog('[API /crm/colegios/[id] GET] Endpoint directo falló, intentando búsqueda por filtro...')
       
       // Si falla, intentar buscar por filtro (tanto por id como por documentId)
       try {
@@ -66,27 +74,19 @@ export async function GET(
         let filterParamsObj: URLSearchParams
         
         if (isDocumentId) {
-          // Buscar por documentId
+          // Buscar por documentId con populate=deep
           filterParamsObj = new URLSearchParams({
             'filters[documentId][$eq]': id,
-            'populate[comuna]': 'true',
-            'populate[telefonos]': 'true',
-            'populate[emails]': 'true',
-            'populate[direcciones]': 'true',
-            'populate[cartera_asignaciones][populate][ejecutivo]': 'true',
+            'populate': 'deep',
           })
-          console.log('[API /crm/colegios/[id] GET] Buscando por documentId:', id)
+          debugLog('[API /crm/colegios/[id] GET] Buscando por documentId:', id)
         } else {
-          // Buscar por id numérico
+          // Buscar por id numérico con populate=deep
           filterParamsObj = new URLSearchParams({
             'filters[id][$eq]': id.toString(),
-            'populate[comuna]': 'true',
-            'populate[telefonos]': 'true',
-            'populate[emails]': 'true',
-            'populate[direcciones]': 'true',
-            'populate[cartera_asignaciones][populate][ejecutivo]': 'true',
+            'populate': 'deep',
           })
-          console.log('[API /crm/colegios/[id] GET] Buscando por id numérico:', id)
+          debugLog('[API /crm/colegios/[id] GET] Buscando por id numérico:', id)
         }
         
         const filterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<ColegioAttributes>>>(
@@ -96,23 +96,19 @@ export async function GET(
         if (filterResponse.data) {
           if (Array.isArray(filterResponse.data) && filterResponse.data.length > 0) {
             colegio = filterResponse.data[0]
-            console.log('[API /crm/colegios/[id] GET] Colegio encontrado por filtro (array)')
+            debugLog('[API /crm/colegios/[id] GET] Colegio encontrado por filtro (array)')
           } else if (!Array.isArray(filterResponse.data)) {
             colegio = filterResponse.data
-            console.log('[API /crm/colegios/[id] GET] Colegio encontrado por filtro (objeto)')
+            debugLog('[API /crm/colegios/[id] GET] Colegio encontrado por filtro (objeto)')
           }
         }
         
         // Si no se encontró, intentar el método alternativo
         if (!colegio) {
-          console.log('[API /crm/colegios/[id] GET] No encontrado con primer método, intentando método alternativo')
+          debugLog('[API /crm/colegios/[id] GET] No encontrado con primer método, intentando método alternativo')
           const alternateFilterParams = new URLSearchParams({
             'filters[id][$eq]': isDocumentId ? id : id.toString(),
-            'populate[comuna]': 'true',
-            'populate[telefonos]': 'true',
-            'populate[emails]': 'true',
-            'populate[direcciones]': 'true',
-            'populate[cartera_asignaciones][populate][ejecutivo]': 'true',
+            'populate': 'deep',
           })
           
           try {
@@ -123,10 +119,10 @@ export async function GET(
             if (alternateResponse.data) {
               if (Array.isArray(alternateResponse.data) && alternateResponse.data.length > 0) {
                 colegio = alternateResponse.data[0]
-                console.log('[API /crm/colegios/[id] GET] Colegio encontrado por método alternativo (array)')
+                debugLog('[API /crm/colegios/[id] GET] Colegio encontrado por método alternativo (array)')
               } else if (!Array.isArray(alternateResponse.data)) {
                 colegio = alternateResponse.data
-                console.log('[API /crm/colegios/[id] GET] Colegio encontrado por método alternativo (objeto)')
+                debugLog('[API /crm/colegios/[id] GET] Colegio encontrado por método alternativo (objeto)')
               }
             }
           } catch (altError: any) {
@@ -287,7 +283,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    console.log('[API /crm/colegios/[id] DELETE] Eliminando colegio:', id)
+    debugLog('[API /crm/colegios/[id] DELETE] Eliminando colegio:', id)
 
     try {
       await strapiClient.delete(`/api/colegios/${id}`)

@@ -9,6 +9,14 @@ import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 
 export const dynamic = 'force-dynamic'
 
+// Helper para logs condicionales de debugging
+const DEBUG = process.env.NODE_ENV === 'development' || process.env.DEBUG_CRM === 'true'
+const debugLog = (...args: any[]) => {
+  if (DEBUG) {
+    console.log(...args)
+  }
+}
+
 interface PersonaAttributes {
   nombre_completo?: string
   nombres?: string
@@ -63,7 +71,7 @@ export async function GET(
     const page = searchParams.get('page') || '1'
     const pageSize = searchParams.get('pageSize') || '50'
 
-    console.log('🔍 [API /crm/colegios/[id]/contacts GET] Buscando contactos para colegio:', colegioId)
+    debugLog('🔍 [API /crm/colegios/[id]/contacts GET] Buscando contactos para colegio:', colegioId)
 
     // PASO 1: Obtener el ID numérico del colegio si es documentId
     const isDocumentId = typeof colegioId === 'string' && !/^\d+$/.test(colegioId)
@@ -77,7 +85,7 @@ export async function GET(
         const colegioData = Array.isArray(colegioResponse.data) ? colegioResponse.data[0] : colegioResponse.data
         if (colegioData && typeof colegioData === 'object' && 'id' in colegioData) {
           colegioIdNum = colegioData.id as number
-          console.log('✅ [API /crm/colegios/[id]/contacts GET] ID numérico del colegio:', colegioIdNum)
+          debugLog('✅ [API /crm/colegios/[id]/contacts GET] ID numérico del colegio:', colegioIdNum)
         }
       } catch (error: any) {
         console.error('❌ [API /crm/colegios/[id]/contacts GET] Error obteniendo ID del colegio:', error)
@@ -90,7 +98,7 @@ export async function GET(
 
     // PASO 2: Estrategia alternativa - Obtener trayectorias directamente del colegio
     // Esto es más confiable que filtrar personas por trayectorias
-    console.log('📤 [API /crm/colegios/[id]/contacts GET] Estrategia: Obtener trayectorias del colegio primero')
+    debugLog('📤 [API /crm/colegios/[id]/contacts GET] Estrategia: Obtener trayectorias del colegio primero')
     
     let contactos: any[] = []
     let responseMeta: any = null
@@ -115,7 +123,7 @@ export async function GET(
         `/api/persona-trayectorias?${trayectoriasParams.toString()}`
       )
       
-      console.log('📥 [API /crm/colegios/[id]/contacts GET] Trayectorias encontradas:', Array.isArray(trayectoriasResponse.data) ? trayectoriasResponse.data.length : 1)
+      debugLog('📥 [API /crm/colegios/[id]/contacts GET] Trayectorias encontradas:', Array.isArray(trayectoriasResponse.data) ? trayectoriasResponse.data.length : 1)
       
       if (trayectoriasResponse.data && Array.isArray(trayectoriasResponse.data) && trayectoriasResponse.data.length > 0) {
         // Agrupar trayectorias por persona
@@ -150,11 +158,11 @@ export async function GET(
         })
         
         contactos = Array.from(personasMap.values())
-        console.log('✅ [API /crm/colegios/[id]/contacts GET] Personas únicas encontradas:', contactos.length)
+        debugLog('✅ [API /crm/colegios/[id]/contacts GET] Personas únicas encontradas:', contactos.length)
         // Guardar meta de la respuesta de trayectorias
         responseMeta = trayectoriasResponse.meta || null
       } else {
-        console.log('⚠️ [API /crm/colegios/[id]/contacts GET] No se encontraron trayectorias, intentando método alternativo...')
+        debugLog('⚠️ [API /crm/colegios/[id]/contacts GET] No se encontraron trayectorias, intentando método alternativo...')
         
         // ESTRATEGIA 2: Método alternativo - Filtrar personas directamente
         const paramsObj = new URLSearchParams({
@@ -182,11 +190,11 @@ export async function GET(
         paramsObj.append('filters[trayectorias][colegio][id][$eq]', String(colegioIdNum))
 
         const url = `/api/personas?${paramsObj.toString()}`
-        console.log('📤 [API /crm/colegios/[id]/contacts GET] Query alternativa:', url)
+        debugLog('📤 [API /crm/colegios/[id]/contacts GET] Query alternativa:', url)
 
         const response = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(url)
 
-        console.log('📥 [API /crm/colegios/[id]/contacts GET] Respuesta Strapi (alternativa):', Array.isArray(response.data) ? response.data.length : 1, 'personas encontradas')
+        debugLog('📥 [API /crm/colegios/[id]/contacts GET] Respuesta Strapi (alternativa):', Array.isArray(response.data) ? response.data.length : 1, 'personas encontradas')
 
         if (response.data) {
           contactos = Array.isArray(response.data) ? response.data : [response.data]
@@ -200,7 +208,7 @@ export async function GET(
     }
 
     if (!contactos || contactos.length === 0) {
-      console.log('⚠️ [API /crm/colegios/[id]/contacts GET] No se encontraron contactos')
+      debugLog('⚠️ [API /crm/colegios/[id]/contacts GET] No se encontraron contactos')
       return NextResponse.json({ success: true, data: [] })
     }
 
@@ -290,7 +298,7 @@ export async function GET(
       (c) => (c.attributes.trayectorias?.length || 0) > 0
     )
 
-    console.log('✅ [API /crm/colegios/[id]/contacts GET] Contactos filtrados con trayectorias:', contactosConTrayectorias.length)
+    debugLog('✅ [API /crm/colegios/[id]/contacts GET] Contactos filtrados con trayectorias:', contactosConTrayectorias.length)
 
     return NextResponse.json({
       success: true,
