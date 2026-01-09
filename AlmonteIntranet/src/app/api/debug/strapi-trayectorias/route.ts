@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     // 1. Verificar estructura del content type "profesores" (trayectorias)
     try {
       console.log('[DEBUG] Consultando estructura de profesores...')
-      const profesoresResponse = await strapiClient.get('/api/profesores?pagination[pageSize]=1&populate=*')
+      const profesoresResponse = await strapiClient.get<any>('/api/profesores?pagination[pageSize]=1&populate=*')
       diagnostic.queries.push('GET /api/profesores?pagination[pageSize]=1&populate=*')
       
       if (profesoresResponse.data && Array.isArray(profesoresResponse.data) && profesoresResponse.data.length > 0) {
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
         console.log('[DEBUG] Consultando trayectorias de persona:', personaId)
         
         // Intentar con populate completo
-        const personaTrayectoriasResponse = await strapiClient.get(
+        const personaTrayectoriasResponse = await strapiClient.get<any>(
           `/api/profesores?filters[persona][id][$eq]=${personaId}&populate[persona]=*&populate[colegio]=*&populate[colegio][populate][comuna]=*&populate[curso]=*&populate[asignatura]=*`
         )
         diagnostic.queries.push(`GET /api/profesores?filters[persona][id][$eq]=${personaId}&populate=*`)
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
         console.log('[DEBUG] Consultando trayectorias de colegio:', colegioId)
         
         // Intentar con id numérico
-        const colegioTrayectoriasResponse = await strapiClient.get(
+        const colegioTrayectoriasResponse = await strapiClient.get<any>(
           `/api/profesores?filters[colegio][id][$eq]=${colegioId}&populate[persona]=*&populate[colegio]=*&populate[colegio][populate][comuna]=*`
         )
         diagnostic.queries.push(`GET /api/profesores?filters[colegio][id][$eq]=${colegioId}&populate=*`)
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
       try {
         console.log('[DEBUG] Consultando trayectoria específica:', trayectoriaId)
         
-        const trayectoriaResponse = await strapiClient.get(
+        const trayectoriaResponse = await strapiClient.get<any>(
           `/api/profesores/${trayectoriaId}?populate[persona]=*&populate[colegio]=*&populate[colegio][populate][comuna]=*&populate[colegio][populate][telefonos]=*&populate[colegio][populate][emails]=*&populate[curso]=*&populate[asignatura]=*`
         )
         diagnostic.queries.push(`GET /api/profesores/${trayectoriaId}?populate=*`)
@@ -134,7 +134,7 @@ export async function GET(request: NextRequest) {
       try {
         console.log('[DEBUG] Consultando persona con trayectorias:', personaId)
         
-        const personaResponse = await strapiClient.get(
+        const personaResponse = await strapiClient.get<any>(
           `/api/personas/${personaId}?populate[trayectorias]=*&populate[trayectorias][populate][colegio]=*&populate[trayectorias][populate][colegio][populate][comuna]=*&populate[trayectorias][populate][colegio][populate][telefonos]=*&populate[trayectorias][populate][colegio][populate][emails]=*`
         )
         diagnostic.queries.push(`GET /api/personas/${personaId}?populate[trayectorias]=*`)
@@ -159,7 +159,7 @@ export async function GET(request: NextRequest) {
       try {
         console.log('[DEBUG] Consultando colegio con trayectorias:', colegioId)
         
-        const colegioResponse = await strapiClient.get(
+        const colegioResponse = await strapiClient.get<any>(
           `/api/colegios/${colegioId}?populate[persona_trayectorias]=*&populate[comuna]=*&populate[telefonos]=*&populate[emails]=*`
         )
         diagnostic.queries.push(`GET /api/colegios/${colegioId}?populate[persona_trayectorias]=*`)

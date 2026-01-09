@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     // PASO 1: Verificar que la persona existe
     try {
       console.log('[DEBUG] Verificando persona:', personaId)
-      const personaResponse = await strapiClient.get(`/api/personas/${personaId}?fields[0]=id&fields[1]=documentId&fields[2]=nombre_completo`)
+      const personaResponse = await strapiClient.get<any>(`/api/personas/${personaId}?fields[0]=id&fields[1]=documentId&fields[2]=nombre_completo`)
       const personaData = Array.isArray(personaResponse.data) ? personaResponse.data[0] : personaResponse.data
       
       diagnostic.steps.push({
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     // PASO 2: Verificar que el colegio existe
     try {
       console.log('[DEBUG] Verificando colegio:', colegioId)
-      const colegioResponse = await strapiClient.get(`/api/colegios/${colegioId}?fields[0]=id&fields[1]=documentId&fields[2]=colegio_nombre`)
+      const colegioResponse = await strapiClient.get<any>(`/api/colegios/${colegioId}?fields[0]=id&fields[1]=documentId&fields[2]=colegio_nombre`)
       const colegioData = Array.isArray(colegioResponse.data) ? colegioResponse.data[0] : colegioResponse.data
       
       diagnostic.steps.push({
@@ -117,11 +117,11 @@ export async function POST(request: NextRequest) {
 
       // PASO 5: Verificar que se creó correctamente consultándola
       const trayectoriaData = Array.isArray(trayectoriaResponse.data) ? trayectoriaResponse.data[0] : trayectoriaResponse.data
-      const trayectoriaId = trayectoriaData?.id || trayectoriaData?.documentId
+      const trayectoriaId = trayectoriaData?.id || (trayectoriaData as any)?.documentId
 
       if (trayectoriaId) {
         try {
-          const verifyResponse = await strapiClient.get(
+          const verifyResponse = await strapiClient.get<any>(
             `/api/profesores/${trayectoriaId}?populate[persona]=*&populate[colegio]=*&populate[colegio][populate][comuna]=*`
           )
           
