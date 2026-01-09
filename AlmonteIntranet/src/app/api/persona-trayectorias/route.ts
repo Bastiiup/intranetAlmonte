@@ -86,6 +86,8 @@ export async function POST(request: NextRequest) {
     })
 
     // Construir payload para Strapi
+    // ⚠️ IMPORTANTE: Solo incluir campos que existen en el content type persona-trayectorias
+    // NO incluir: region, colegio_region, comuna, etc. (esos son campos del colegio, no de la trayectoria)
     const strapiPayload = {
       data: {
         persona: { connect: [personaIdNum] },
@@ -103,15 +105,39 @@ export async function POST(request: NextRequest) {
         fecha_inicio: body.data.fecha_inicio || null,
         fecha_fin: body.data.fecha_fin || null,
         notas: body.data.notas || null,
+        // ⚠️ NO incluir campos que no existen en persona-trayectorias:
+        // - region (es del colegio)
+        // - colegio_region (puede existir pero no lo enviamos si no viene en body.data)
+        // - comuna (es del colegio)
       },
     }
 
-    console.log('[API /persona-trayectorias POST] 📤 Enviando a Strapi:', JSON.stringify(strapiPayload, null, 2))
+    // Filtrar campos undefined/null innecesarios y campos no permitidos
+    const camposPermitidos = [
+      'persona', 'colegio', 'cargo', 'anio', 'curso', 'asignatura', 
+      'is_current', 'activo', 'fecha_inicio', 'fecha_fin', 'notas',
+      'curso_asignatura', 'org_display_name', 'role_key', 'department',
+      'colegio_region', 'correo', 'fecha_registro', 'ultimo_acceso'
+    ]
+    
+    // Limpiar el payload: solo incluir campos permitidos y que tengan valor
+    const payloadLimpio: any = { data: {} }
+    for (const key of Object.keys(strapiPayload.data)) {
+      if (camposPermitidos.includes(key) && strapiPayload.data[key as keyof typeof strapiPayload.data] !== undefined) {
+        payloadLimpio.data[key] = strapiPayload.data[key as keyof typeof strapiPayload.data]
+      }
+    }
+    
+    // Asegurar que persona y colegio siempre estén presentes
+    payloadLimpio.data.persona = strapiPayload.data.persona
+    payloadLimpio.data.colegio = strapiPayload.data.colegio
+
+    console.log('[API /persona-trayectorias POST] 📤 Enviando a Strapi (payload limpio):', JSON.stringify(payloadLimpio, null, 2))
 
     // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
     const response = await strapiClient.post<StrapiResponse<StrapiEntity<any>>>(
       '/api/persona-trayectorias',
-      strapiPayload
+      payloadLimpio
     )
 
     // Extraer ID de la respuesta (puede ser array o objeto)
