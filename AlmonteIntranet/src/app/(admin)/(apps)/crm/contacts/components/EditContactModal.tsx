@@ -293,6 +293,24 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
             console.log('✅ [EditContactModal] Datos del contacto cargados:', formDataToSet)
             
             setFormData(formDataToSet)
+            
+            // Establecer el colegio seleccionado en el Select si hay un colegioId válido
+            if (colegioId && colegioId !== '' && colegioId !== '0') {
+              // Buscar el colegio en la lista cargada
+              const colegioEncontrado = colegios.find((c) => String(c.id) === String(colegioId))
+              if (colegioEncontrado) {
+                setSelectedColegio({
+                  value: colegioEncontrado.id,
+                  label: `${colegioEncontrado.nombre}${colegioEncontrado.rbd ? ` (RBD: ${colegioEncontrado.rbd})` : ''}`,
+                })
+                console.log('[EditContactModal] ✅ Colegio seleccionado establecido:', colegioEncontrado.nombre)
+              } else {
+                // Si no está en la lista, intentar obtenerlo
+                console.log('[EditContactModal] ⚠️ Colegio no encontrado en lista, intentando obtener...')
+              }
+            } else {
+              setSelectedColegio(null)
+            }
           } else {
             console.warn('[EditContactModal] ⚠️ No se encontraron datos del contacto')
           }
