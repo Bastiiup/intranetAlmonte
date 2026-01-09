@@ -45,9 +45,9 @@ export async function GET(request: NextRequest) {
           console.log(`[DEBUG] ✅ Content type encontrado: /api/${nombre}`)
           contentTypeEncontrado = nombre
           
-          // Ahora obtener con populate simplificado (sin relaciones circulares)
+          // Ahora obtener con populate completo para ver la estructura real
           const fullResponse = await strapiClient.get<any>(
-            `/api/${nombre}?pagination[pageSize]=1&populate[persona][fields][0]=id&populate[persona][fields][1]=nombre_completo&populate[colegio][fields][0]=id&populate[colegio][fields][1]=colegio_nombre`
+            `/api/${nombre}?pagination[pageSize]=1&populate[persona]=*&populate[colegio]=*`
           )
           
           if (fullResponse.data && Array.isArray(fullResponse.data) && fullResponse.data.length > 0) {
