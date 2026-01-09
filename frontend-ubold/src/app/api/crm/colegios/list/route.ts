@@ -35,16 +35,31 @@ export async function GET(request: Request) {
 
     // Transformar a formato simple para selector
     const data = Array.isArray(response.data) ? response.data : [response.data]
-    const colegios = data.map((colegio: any) => {
-      const attrs = colegio.attributes || colegio
-      const id = colegio.documentId || colegio.id
-      return {
-        id: typeof id === 'number' ? id : parseInt(id) || 0,
-        documentId: colegio.documentId || String(colegio.id || ''),
-        nombre: attrs.colegio_nombre || 'Sin nombre',
-        rbd: attrs.rbd || null,
-      }
-    })
+    const colegios = data
+      .map((colegio: any) => {
+        const attrs = colegio.attributes || colegio
+        // ⚠️ IMPORTANTE: Priorizar id numérico sobre documentId para connect en Strapi
+        const idNum = colegio.id && typeof colegio.id === 'number' ? colegio.id : null
+        const documentId = colegio.documentId || String(colegio.id || '')
+        
+        // Si no tenemos id numérico, intentar obtenerlo
+        let idFinal: number | null = idNum
+        if (!idFinal && documentId) {
+          // Intentar parsear documentId si es numérico
+          const parsed = parseInt(documentId)
+          if (!isNaN(parsed) && parsed > 0) {
+            idFinal = parsed
+          }
+        }
+        
+        return {
+          id: idFinal || 0, // ⚠️ Si es 0, será filtrado después
+          documentId: documentId,
+          nombre: attrs.colegio_nombre || 'Sin nombre',
+          rbd: attrs.rbd || null,
+        }
+      })
+      .filter((c: any) => c.id > 0) // ⚠️ Filtrar colegios sin ID numérico válido
 
     return NextResponse.json({
       success: true,

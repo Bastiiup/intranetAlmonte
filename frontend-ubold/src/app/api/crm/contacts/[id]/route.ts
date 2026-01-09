@@ -191,16 +191,25 @@ export async function PUT(
           : []
 
         // Validar colegioId
-        const colegioIdNum = typeof body.trayectoria.colegio === 'number' 
-          ? body.trayectoria.colegio 
-          : parseInt(String(body.trayectoria.colegio))
+        let colegioIdNum: number | null = null
         
-        if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
-          console.warn('⚠️ [API /crm/contacts/[id] PUT] ID de colegio inválido, omitiendo trayectoria:', {
-            colegioId: body.trayectoria.colegio,
-            colegioIdNum,
-          })
+        if (body.trayectoria.colegio === null || body.trayectoria.colegio === undefined) {
+          console.warn('⚠️ [API /crm/contacts/[id] PUT] colegio es null/undefined, omitiendo trayectoria')
         } else {
+          colegioIdNum = typeof body.trayectoria.colegio === 'number' 
+            ? body.trayectoria.colegio 
+            : parseInt(String(body.trayectoria.colegio))
+          
+          if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
+            console.warn('⚠️ [API /crm/contacts/[id] PUT] ID de colegio inválido, omitiendo trayectoria:', {
+              colegioId: body.trayectoria.colegio,
+              colegioIdNum,
+              tipo: typeof body.trayectoria.colegio,
+            })
+          }
+        }
+        
+        if (colegioIdNum && colegioIdNum > 0 && !isNaN(colegioIdNum)) {
           if (trayectoriasExistentes.length > 0) {
             // Actualizar la trayectoria actual
             const trayectoriaActual = trayectoriasExistentes[0]

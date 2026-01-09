@@ -268,15 +268,22 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
             principal: true,
           }],
         }),
-        // Agregar/actualizar trayectoria solo si se seleccionó un colegio válido (no vacío, no '0', no 0)
+        // Agregar/actualizar trayectoria solo si se seleccionó un colegio válido
         // NOTA: Los campos region, comuna, dependencia son del colegio, no de la trayectoria
         // Estos se actualizan en el colegio, no en la trayectoria
         ...(formData.colegioId && 
             formData.colegioId !== '' && 
-            formData.colegioId !== '0' && 
             formData.colegioId !== '0' && {
           trayectoria: {
-            colegio: parseInt(String(formData.colegioId)),
+            colegio: (() => {
+              // Asegurar que sea un número válido
+              const colegioIdNum = parseInt(String(formData.colegioId))
+              if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
+                console.error('[EditContactModal] ⚠️ ID de colegio inválido:', formData.colegioId)
+                return null
+              }
+              return colegioIdNum
+            })(),
             cargo: formData.cargo || null,
             is_current: true,
           },
@@ -332,8 +339,15 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
 
       if (!response.ok || !result.success) {
         const errorMessage = result.details?.errors?.[0]?.message || result.error || 'Error al actualizar contacto'
+        console.error('[EditContactModal] ❌ Error en respuesta:', {
+          status: response.status,
+          error: errorMessage,
+          details: result.details,
+        })
         throw new Error(errorMessage)
       }
+
+      console.log('[EditContactModal] ✅ Contacto actualizado exitosamente:', result)
 
       // Cerrar modal primero
       onHide()
@@ -432,17 +446,32 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
                 <FormLabel>Institución (Colegio)</FormLabel>
                 <FormControl
                   as="select"
-                  value={formData.colegioId}
-                  onChange={(e) => handleFieldChange('colegioId', e.target.value)}
+                  value={formData.colegioId || ''}
+                  onChange={(e) => {
+                    const selectedValue = e.target.value
+                    console.log('[EditContactModal] Colegio seleccionado:', selectedValue)
+                    handleFieldChange('colegioId', selectedValue)
+                  }}
                   disabled={loading || loadingColegios}
                 >
                   <option value="">Seleccionar colegio...</option>
-                  {colegios.map((colegio) => (
-                    <option key={colegio.id} value={colegio.id}>
-                      {colegio.nombre} {colegio.rbd ? `(RBD: ${colegio.rbd})` : ''}
-                    </option>
-                  ))}
+                  {colegios
+                    .filter((c) => c.id && c.id > 0) // ⚠️ Solo mostrar colegios con ID numérico válido
+                    .map((colegio) => {
+                      const colegioValue = String(colegio.id) // ⚠️ Siempre usar ID numérico como string
+                      return (
+                        <option key={colegioValue} value={colegioValue}>
+                          {colegio.nombre} {colegio.rbd ? `(RBD: ${colegio.rbd})` : ''}
+                        </option>
+                      )
+                    })}
                 </FormControl>
+                {loadingColegios && (
+                  <small className="text-muted">Cargando colegios...</small>
+                )}
+                {!loadingColegios && colegios.filter((c) => c.id && c.id > 0).length === 0 && (
+                  <small className="text-muted">No hay colegios disponibles</small>
+                )}
               </FormGroup>
             </Col>
             <Col md={6}>

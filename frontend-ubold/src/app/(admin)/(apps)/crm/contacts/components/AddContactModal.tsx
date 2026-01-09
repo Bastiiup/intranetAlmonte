@@ -185,33 +185,40 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
           let colegioIdNum: number | null = null
           
           if (formData.colegioId && formData.colegioId !== '' && formData.colegioId !== '0') {
-            // Intentar parsear directamente
+            // Intentar parsear directamente (debería ser un número válido del select)
             colegioIdNum = parseInt(String(formData.colegioId))
             
             // Si no es un número válido, intentar obtenerlo del colegio seleccionado
             if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
+              console.warn('[AddContactModal] ⚠️ ID parseado inválido, buscando en lista de colegios:', {
+                colegioId: formData.colegioId,
+                colegioIdNum,
+              })
+              
               const colegioSeleccionado = colegios.find(
-                (c) => String(c.id || c.documentId) === String(formData.colegioId)
+                (c) => String(c.id) === String(formData.colegioId) || String(c.documentId) === String(formData.colegioId)
               )
               
-              if (colegioSeleccionado) {
-                // Intentar obtener ID numérico del colegio
-                if (typeof colegioSeleccionado.id === 'number') {
-                  colegioIdNum = colegioSeleccionado.id
-                } else if (colegioSeleccionado.documentId) {
-                  // Si solo tenemos documentId, necesitamos obtener el ID numérico
-                  try {
-                    const colegioResponse = await fetch(`/api/crm/colegios/${colegioSeleccionado.documentId}`)
-                    const colegioResult = await colegioResponse.json()
-                    if (colegioResult.success && colegioResult.data) {
-                      const colegioData = colegioResult.data
-                      colegioIdNum = colegioData.id || null
-                    }
-                  } catch (err) {
-                    console.error('[AddContactModal] Error obteniendo ID numérico del colegio:', err)
+              if (colegioSeleccionado && colegioSeleccionado.id && colegioSeleccionado.id > 0) {
+                colegioIdNum = colegioSeleccionado.id
+                console.log('[AddContactModal] ✅ ID numérico obtenido de lista de colegios:', colegioIdNum)
+              } else if (colegioSeleccionado?.documentId) {
+                // Si solo tenemos documentId, necesitamos obtener el ID numérico desde Strapi
+                try {
+                  console.log('[AddContactModal] 📤 Obteniendo ID numérico desde Strapi para documentId:', colegioSeleccionado.documentId)
+                  const colegioResponse = await fetch(`/api/crm/colegios/${colegioSeleccionado.documentId}`)
+                  const colegioResult = await colegioResponse.json()
+                  if (colegioResult.success && colegioResult.data) {
+                    const colegioData = colegioResult.data
+                    colegioIdNum = colegioData.id || null
+                    console.log('[AddContactModal] ✅ ID numérico obtenido desde Strapi:', colegioIdNum)
                   }
+                } catch (err) {
+                  console.error('[AddContactModal] ❌ Error obteniendo ID numérico del colegio:', err)
                 }
               }
+            } else {
+              console.log('[AddContactModal] ✅ ID numérico válido desde parse:', colegioIdNum)
             }
           }
           
@@ -250,12 +257,20 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
               const trayectoriaResult = await trayectoriaResponse.json()
 
               if (!trayectoriaResponse.ok || !trayectoriaResult.success) {
-                console.error('[AddContactModal] ❌ Error al crear trayectoria:', trayectoriaResult)
+                console.error('[AddContactModal] ❌ Error al crear trayectoria:', {
+                  status: trayectoriaResponse.status,
+                  error: trayectoriaResult.error,
+                  details: trayectoriaResult.details,
+                })
                 setError(
                   `El contacto se creó correctamente, pero hubo un error al asociarlo al colegio: ${trayectoriaResult.error || 'Error desconocido'}. Puedes editarlo después.`
                 )
               } else {
-                console.log('[AddContactModal] ✅ Trayectoria creada exitosamente:', trayectoriaResult)
+                console.log('[AddContactModal] ✅ Trayectoria creada exitosamente:', {
+                  id: trayectoriaResult.data?.id || trayectoriaResult.data?.documentId,
+                  personaId: personaIdNum,
+                  colegioId: colegioIdNum,
+                })
               }
             } catch (trayectoriaFetchError: any) {
               console.error('[AddContactModal] ❌ Error en fetch de trayectoria:', trayectoriaFetchError)
@@ -387,14 +402,16 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
                   disabled={loading || loadingColegios}
                 >
                   <option value="">Seleccionar colegio...</option>
-                  {colegios.map((colegio) => {
-                    const colegioValue = String(colegio.id || colegio.documentId || '')
-                    return (
-                      <option key={colegioValue} value={colegioValue}>
-                        {colegio.nombre} {colegio.rbd ? `(RBD: ${colegio.rbd})` : ''}
-                      </option>
-                    )
-                  })}
+                  {colegios
+                    .filter((c) => c.id && c.id > 0) // ⚠️ Solo mostrar colegios con ID numérico válido
+                    .map((colegio) => {
+                      const colegioValue = String(colegio.id) // ⚠️ Siempre usar ID numérico como string
+                      return (
+                        <option key={colegioValue} value={colegioValue}>
+                          {colegio.nombre} {colegio.rbd ? `(RBD: ${colegio.rbd})` : ''}
+                        </option>
+                      )
+                    })}
                 </FormControl>
                 {loadingColegios && (
                   <small className="text-muted">Cargando colegios...</small>
