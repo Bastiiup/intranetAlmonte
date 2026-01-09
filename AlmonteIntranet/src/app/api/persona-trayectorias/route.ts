@@ -146,10 +146,18 @@ export async function POST(request: NextRequest) {
     const payloadLimpio: any = { 
       data: {
         // Para manyToOne, usar connect con array
-        persona: { connect: [personaIdNum] },
-        colegio: { connect: [colegioIdNum] },
+        // ⚠️ CRÍTICO: Asegurar que solo enviamos el ID, no el objeto completo
+        persona: personaIdNum, // Probar con ID directo en lugar de connect
+        colegio: colegioIdNum, // Probar con ID directo en lugar de connect
       }
     }
+    
+    console.log('[API /persona-trayectorias POST] 🔍 Formato de relaciones:', {
+      persona: payloadLimpio.data.persona,
+      colegio: payloadLimpio.data.colegio,
+      tipoPersona: typeof payloadLimpio.data.persona,
+      tipoColegio: typeof payloadLimpio.data.colegio,
+    })
     
     console.log('[API /persona-trayectorias POST] 🔍 IDs para connect:', {
       personaIdNum,
