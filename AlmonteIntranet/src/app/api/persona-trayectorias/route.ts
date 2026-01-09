@@ -192,18 +192,32 @@ export async function POST(request: NextRequest) {
       data: response.data,
     }, { status: 200 })
   } catch (error: any) {
-    console.error('[API /persona-trayectorias POST] ❌ Error:', {
+    console.error('[API /persona-trayectorias POST] ❌ Error completo:', {
       message: error.message,
       status: error.status,
       details: error.details,
       response: error.response?.data,
+      errorCompleto: JSON.stringify(error.response?.data || error, null, 2),
     })
+    
+    // Si el error es de validación de Strapi, mostrar detalles específicos
+    if (error.response?.data?.error) {
+      const strapiError = error.response.data.error
+      console.error('[API /persona-trayectorias POST] ❌ Error de Strapi:', {
+        status: strapiError.status,
+        name: strapiError.name,
+        message: strapiError.message,
+        details: strapiError.details,
+      })
+    }
+    
     return NextResponse.json(
       {
         success: false,
         error: error.message || 'Error al crear trayectoria',
         details: error.details || error.response?.data || {},
         status: error.status || 500,
+        strapiError: error.response?.data?.error || null,
       },
       { status: error.status || 500 }
     )
