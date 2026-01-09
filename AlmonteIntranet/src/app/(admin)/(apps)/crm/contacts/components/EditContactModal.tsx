@@ -37,6 +37,7 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
   // Tipo para las opciones de react-select
   type ColegioSelectOption = { value: number; label: string }
   const [selectedColegio, setSelectedColegio] = useState<ColegioSelectOption | null>(null)
+  const [isInitialLoad, setIsInitialLoad] = useState(true) // Bandera para evitar resetear selección del usuario
   const [formData, setFormData] = useState({
     nombres: '',
     email: '',
@@ -110,16 +111,44 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
 
   // Manejar selección de colegio
   const handleColegioChange = async (option: ColegioSelectOption | null) => {
+    console.log('[EditContactModal] 🔄 handleColegioChange llamado con:', option)
+    
+    // Marcar que ya no es carga inicial (el usuario está interactuando)
+    setIsInitialLoad(false)
+    
+    // Establecer la selección inmediatamente
     setSelectedColegio(option)
+    
     if (option) {
-      handleFieldChange('colegioId', String(option.value))
+      // Actualizar formData con el colegioId
+      const colegioIdStr = String(option.value)
+      handleFieldChange('colegioId', colegioIdStr)
+      
+      console.log('[EditContactModal] ✅ Colegio seleccionado:', {
+        value: option.value,
+        label: option.label,
+        colegioId: colegioIdStr,
+      })
       
       // Buscar el colegio completo en la lista para obtener documentId si es necesario
       const colegioCompleto = colegios.find((c) => c.id === option.value)
       
+      if (!colegioCompleto) {
+        console.warn('[EditContactModal] ⚠️ Colegio no encontrado en lista, recargando...')
+        // Recargar colegios si no está en la lista
+        await loadColegios('')
+        const colegioRecargado = colegios.find((c) => c.id === option.value)
+        if (!colegioRecargado) {
+          console.error('[EditContactModal] ❌ Colegio no encontrado después de recargar')
+          return
+        }
+      }
+      
       // Auto-completar datos del colegio obteniendo información completa
       try {
         const colegioId = colegioCompleto?.documentId || String(option.value)
+        console.log('[EditContactModal] 📤 Obteniendo datos completos del colegio:', colegioId)
+        
         const response = await fetch(`/api/crm/colegios/${colegioId}?populate[comuna]=true`)
         const result = await response.json()
         
@@ -134,25 +163,29 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
           // Auto-completar campos del formulario
           setFormData((prev) => ({
             ...prev,
-            colegioId: String(option.value),
+            colegioId: colegioIdStr, // Asegurar que se mantiene el ID numérico
             region: attrs.region || comunaAttrs?.region_nombre || prev.region,
             comuna: comunaAttrs?.nombre || comunaAttrs?.comuna_nombre || prev.comuna,
             dependencia: attrs.dependencia || prev.dependencia,
           }))
           
           console.log('[EditContactModal] ✅ Datos del colegio auto-completados:', {
+            colegioId: colegioIdStr,
             region: attrs.region || comunaAttrs?.region_nombre,
             comuna: comunaAttrs?.nombre || comunaAttrs?.comuna_nombre,
             dependencia: attrs.dependencia,
           })
+        } else {
+          console.warn('[EditContactModal] ⚠️ No se pudieron obtener datos completos del colegio')
         }
       } catch (err) {
         console.error('[EditContactModal] ❌ Error obteniendo datos del colegio:', err)
         // No fallar, solo loguear - el usuario puede completar manualmente
       }
     } else {
+      // Si se deselecciona, limpiar campos
+      console.log('[EditContactModal] 🗑️ Colegio deseleccionado, limpiando campos')
       handleFieldChange('colegioId', '')
-      // Limpiar campos relacionados si se deselecciona el colegio
       setFormData((prev) => ({
         ...prev,
         region: '',
@@ -164,9 +197,10 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
 
   // Cargar datos del contacto cuando se abre el modal
   // IMPORTANTE: Esperar a que los colegios se carguen primero
+  // IMPORTANTE: Solo ejecutar en carga inicial, no cuando el usuario está interactuando
   useEffect(() => {
-    if (contact && show && colegios.length > 0) {
-      console.log('[EditContactModal] Cargando datos del contacto:', contact)
+    if (contact && show && colegios.length > 0 && isInitialLoad) {
+      console.log('[EditContactModal] Cargando datos del contacto (carga inicial):', contact)
       console.log('[EditContactModal] Colegios disponibles:', colegios.length)
       
       // Cargar datos completos del contacto incluyendo trayectorias
@@ -331,8 +365,12 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
             } else {
               setSelectedColegio(null)
             }
+            
+            // Marcar que la carga inicial terminó
+            setIsInitialLoad(false)
           } else {
             console.warn('[EditContactModal] ⚠️ No se encontraron datos del contacto')
+            setIsInitialLoad(false)
           }
         } catch (err: any) {
           console.error('❌ [EditContactModal] Error cargando datos completos del contacto:', {
