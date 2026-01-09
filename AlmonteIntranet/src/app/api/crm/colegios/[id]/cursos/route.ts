@@ -144,14 +144,6 @@ export async function POST(
     }
 
     // Validaciones
-    if (!body.curso_nombre || !body.curso_nombre.trim()) {
-      return NextResponse.json(
-        { success: false, error: 'El nombre del curso es obligatorio' },
-        { status: 400 }
-      )
-    }
-
-    // Preparar datos para Strapi
     // ✅ Campo correcto en Strapi: nombre_curso (NO nombre, NO curso_nombre, NO titulo)
     const nombreCurso = body.curso_nombre?.trim() || body.nombre_curso?.trim()
     if (!nombreCurso) {
