@@ -190,11 +190,6 @@ export async function POST(
         delete cursoData.data[key]
       }
     })
-    
-    // Si hay ambos nombre y curso_nombre, mantener solo uno (preferir curso_nombre)
-    if (cursoData.data.nombre && cursoData.data.curso_nombre) {
-      delete cursoData.data.nombre
-    }
 
     const response = await strapiClient.post<StrapiResponse<StrapiEntity<CursoAttributes>>>(
       '/api/cursos',
