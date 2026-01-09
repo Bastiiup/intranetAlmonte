@@ -185,21 +185,41 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
     
     // Si después de todo esto solo tenemos un ID sin datos, el colegio no está populado
     if (colegio && !colegio.colegio_nombre && !colegio.rbd) {
-      console.warn('[transformPersonaToContact] Colegio no populado correctamente:', colegio)
+      console.warn('[transformPersonaToContact] ⚠️ Colegio no populado correctamente:', {
+        colegioRaw,
+        colegio,
+        tieneNombre: !!colegio.colegio_nombre,
+        tieneRbd: !!colegio.rbd,
+        tieneId: !!colegio.id,
+        tieneDocumentId: !!colegio.documentId,
+      })
       colegio = null
     }
     
-    // Log del resultado final
-    if (process.env.NODE_ENV === 'development' && colegio) {
-      console.log('[transformPersonaToContact] Colegio extraído exitosamente:', {
+    // Log del resultado final (siempre, no solo en desarrollo)
+    if (colegio) {
+      console.log('[transformPersonaToContact] ✅ Colegio extraído exitosamente:', {
         nombre: colegio.colegio_nombre,
         rbd: colegio.rbd,
         dependencia: colegio.dependencia,
+        region: colegio.region,
         hasEmails: !!colegio.emails,
         hasTelefonos: !!colegio.telefonos,
         hasComuna: !!colegio.comuna,
+        hasWebsite: !!colegio.website,
+      })
+    } else {
+      console.warn('[transformPersonaToContact] ❌ No se pudo extraer colegio de trayectoria:', {
+        trayectoriaActual,
+        tieneTrayectoria: !!trayectoriaActual,
+        tieneColegio: !!trayectoriaActual?.colegio,
       })
     }
+  } else {
+    console.warn('[transformPersonaToContact] ⚠️ No hay trayectoria actual o no tiene colegio:', {
+      tieneTrayectoriaActual: !!trayectoriaActual,
+      trayectoriasArray: trayectoriasArray.length,
+    })
   }
   
   // Extraer comuna de diferentes formatos posibles

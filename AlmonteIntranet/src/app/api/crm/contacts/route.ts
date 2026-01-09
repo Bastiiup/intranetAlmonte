@@ -91,13 +91,15 @@ export async function GET(request: Request) {
     params.append('populate[imagen]', 'true')
     params.append('populate[tags]', 'true')
     
-    // Nivel 2: Trayectorias con populate del colegio (simplificado para evitar errores 500)
-    // ⚠️ IMPORTANTE: Populate simplificado para evitar errores internos de Strapi
+    // Nivel 2: Trayectorias con populate completo del colegio
+    // ⚠️ IMPORTANTE: Necesitamos traer todos los datos del colegio para mostrar en la tabla
     params.append('populate[trayectorias]', 'true')
     params.append('populate[trayectorias][populate][colegio]', 'true')
     params.append('populate[trayectorias][populate][colegio][populate][comuna]', 'true')
-    // Nota: telefonos, emails, direcciones, website y cartera_asignaciones se pueden obtener en una segunda query si es necesario
-    // Simplificamos para evitar errores 500 en Strapi
+    params.append('populate[trayectorias][populate][colegio][populate][telefonos]', 'true')
+    params.append('populate[trayectorias][populate][colegio][populate][emails]', 'true')
+    params.append('populate[trayectorias][populate][colegio][populate][direcciones]', 'true')
+    // Nota: website es un campo directo, se trae automáticamente con populate[colegio]
 
     // Filtros
     params.append('filters[activo][$eq]', 'true')
