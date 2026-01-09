@@ -231,8 +231,25 @@ export async function POST(request: NextRequest) {
       camposProhibidosFinales.forEach(campo => delete payloadFinal.data[campo])
     }
 
+    // ⚠️ VERIFICACIÓN FINAL ABSOLUTA: Eliminar explícitamente campos prohibidos
+    if ('region' in payloadFinal.data) {
+      console.error('[API /persona-trayectorias POST] ❌ ERROR: region encontrado en payloadFinal, eliminando')
+      delete payloadFinal.data.region
+    }
+    if ('comuna' in payloadFinal.data) {
+      console.error('[API /persona-trayectorias POST] ❌ ERROR: comuna encontrado en payloadFinal, eliminando')
+      delete payloadFinal.data.comuna
+    }
+    if ('dependencia' in payloadFinal.data) {
+      console.error('[API /persona-trayectorias POST] ❌ ERROR: dependencia encontrado en payloadFinal, eliminando')
+      delete payloadFinal.data.dependencia
+    }
+    
     console.log('[API /persona-trayectorias POST] 📤 Enviando a Strapi (payload final):', JSON.stringify(payloadFinal, null, 2))
     console.log('[API /persona-trayectorias POST] 📋 Campos finales en payload.data:', Object.keys(payloadFinal.data))
+    console.log('[API /persona-trayectorias POST] ✅ Verificación - region en payload:', 'region' in payloadFinal.data)
+    console.log('[API /persona-trayectorias POST] ✅ Verificación - comuna en payload:', 'comuna' in payloadFinal.data)
+    console.log('[API /persona-trayectorias POST] ✅ Verificación - dependencia en payload:', 'dependencia' in payloadFinal.data)
     console.log('[API /persona-trayectorias POST] 📋 Campos en payload.data:', Object.keys(payloadLimpio.data))
     console.log('[API /persona-trayectorias POST] 📋 Valores de payload.data:', {
       persona: payloadLimpio.data.persona,
