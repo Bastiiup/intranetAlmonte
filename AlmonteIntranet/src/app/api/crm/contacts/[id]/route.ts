@@ -196,9 +196,20 @@ export async function PUT(
         if (body.trayectoria.colegio === null || body.trayectoria.colegio === undefined) {
           console.warn('⚠️ [API /crm/contacts/[id] PUT] colegio es null/undefined, omitiendo trayectoria')
         } else {
-          colegioIdNum = typeof body.trayectoria.colegio === 'number' 
-            ? body.trayectoria.colegio 
-            : parseInt(String(body.trayectoria.colegio))
+          // Manejar formato { connect: [id] } o ID directo
+          if (body.trayectoria.colegio && typeof body.trayectoria.colegio === 'object' && 'connect' in body.trayectoria.colegio) {
+            // Formato { connect: [id] }
+            const connectArray = body.trayectoria.colegio.connect
+            if (Array.isArray(connectArray) && connectArray.length > 0) {
+              colegioIdNum = parseInt(String(connectArray[0]))
+            }
+          } else if (typeof body.trayectoria.colegio === 'number') {
+            // ID directo como número
+            colegioIdNum = body.trayectoria.colegio
+          } else {
+            // Intentar parsear como string
+            colegioIdNum = parseInt(String(body.trayectoria.colegio))
+          }
           
           if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
             console.warn('⚠️ [API /crm/contacts/[id] PUT] ID de colegio inválido, omitiendo trayectoria:', {

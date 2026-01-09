@@ -283,6 +283,21 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
             const telefonos = attrs.telefonos || []
             const telefonoPrincipal = telefonos.find((t: any) => t.principal) || telefonos[0]
 
+            // Establecer selectedColegio para el Select
+            let selectedColegioValue: ColegioSelectOption | null = null
+            if (colegioId) {
+              const colegioEncontrado = colegios.find((c) => String(c.id) === String(colegioId))
+              if (colegioEncontrado) {
+                selectedColegioValue = {
+                  value: colegioEncontrado.id,
+                  label: `${colegioEncontrado.nombre}${colegioEncontrado.rbd ? ` (RBD: ${colegioEncontrado.rbd})` : ''}`,
+                }
+                console.log('[EditContactModal] ✅ Colegio seleccionado encontrado:', selectedColegioValue)
+              } else {
+                console.warn('[EditContactModal] ⚠️ Colegio con ID', colegioId, 'no encontrado en la lista de colegios')
+              }
+            }
+
             const formDataToSet = {
               nombres: attrs.nombres || contact.name || '',
               email: emailPrincipal?.email || contact.email || '',
