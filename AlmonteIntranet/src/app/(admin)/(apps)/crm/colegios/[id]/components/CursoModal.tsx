@@ -57,8 +57,9 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
     if (show) {
       if (curso) {
         const attrs = curso.attributes || curso
+        // El campo en Strapi se llama "nombre", pero mantenemos curso_nombre en el frontend
         setFormData({
-          curso_nombre: attrs.curso_nombre || '',
+          curso_nombre: attrs.nombre || attrs.curso_nombre || '',
           nivel: attrs.nivel || '',
           grado: attrs.grado || '',
           activo: attrs.activo !== false,
@@ -154,7 +155,8 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          curso_nombre: formData.curso_nombre.trim(),
+          curso_nombre: formData.curso_nombre.trim(), // Frontend usa curso_nombre
+          nombre: formData.curso_nombre.trim(), // Strapi usa nombre
           nivel: formData.nivel || undefined,
           grado: formData.grado || undefined,
           activo: formData.activo,
