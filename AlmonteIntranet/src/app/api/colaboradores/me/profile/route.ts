@@ -33,6 +33,19 @@ async function getAuthColaborador() {
     // Buscar en orden de prioridad: auth_colaborador, colaboradorData, colaborador
     const cookieNames = ['auth_colaborador', 'colaboradorData', 'colaborador']
     
+    // Log de debugging: verificar qué cookies están disponibles
+    const availableCookies: string[] = []
+    cookieStore.getAll().forEach(cookie => {
+      if (cookieNames.includes(cookie.name)) {
+        availableCookies.push(cookie.name)
+      }
+    })
+    console.log('[API /colaboradores/me/profile] 🔍 Cookies disponibles:', {
+      todasLasCookies: cookieStore.getAll().map(c => c.name).join(', '),
+      cookiesRelevantes: availableCookies,
+      buscandoEn: cookieNames,
+    })
+    
     for (const cookieName of cookieNames) {
       const colaboradorStr = cookieStore.get(cookieName)?.value
       if (colaboradorStr) {
@@ -42,17 +55,26 @@ async function getAuthColaborador() {
           if (colaborador && !colaborador.documentId && colaborador.id) {
             colaborador.documentId = colaborador.id
           }
+          console.log(`[API /colaboradores/me/profile] ✅ Colaborador obtenido de cookie ${cookieName}:`, {
+            id: colaborador.id,
+            documentId: colaborador.documentId,
+            email: colaborador.email_login,
+            tienePersona: !!colaborador.persona,
+            personaRut: colaborador.persona?.rut || 'NO RUT',
+          })
           return colaborador
         } catch (parseError) {
-          console.warn(`[API /colaboradores/me/profile] Error al parsear cookie ${cookieName}:`, parseError)
+          console.warn(`[API /colaboradores/me/profile] ⚠️ Error al parsear cookie ${cookieName}:`, parseError)
+          console.warn(`[API /colaboradores/me/profile] Valor de cookie (primeros 200 chars):`, colaboradorStr.substring(0, 200))
           continue
         }
       }
     }
 
+    console.warn('[API /colaboradores/me/profile] ⚠️ No se encontró colaborador en ninguna cookie')
     return null
   } catch (error) {
-    console.error('[API /colaboradores/me/profile] Error al obtener colaborador de cookies:', error)
+    console.error('[API /colaboradores/me/profile] ❌ Error al obtener colaborador de cookies:', error)
     return null
   }
 }

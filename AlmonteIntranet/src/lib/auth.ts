@@ -42,13 +42,15 @@ export interface AuthResponse {
 
 /**
  * Establece una cookie de forma segura
+ * IMPORTANTE: Usar sameSite='lax' para compatibilidad con el servidor
  */
 function setCookie(name: string, value: string, maxAge: number = COOKIE_MAX_AGE): void {
   if (typeof document === 'undefined') return
-  // Usar SameSite=Strict y Secure en producción para mejor seguridad
+  // Usar SameSite=Lax para compatibilidad con cookies del servidor
+  // El servidor establece cookies con sameSite: 'lax', así que debemos hacer lo mismo
   const isProduction = process.env.NODE_ENV === 'production'
   const secure = isProduction ? '; Secure' : ''
-  const sameSite = '; SameSite=Strict'
+  const sameSite = '; SameSite=Lax' // Cambiar de Strict a Lax para compatibilidad
   document.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}${secure}${sameSite}`
 }
 
@@ -79,6 +81,8 @@ function getCookie(name: string): string | null {
 
 /**
  * Guarda los datos de autenticación en cookies Y localStorage (compatibilidad)
+ * NOTA: El servidor ya establece las cookies en la respuesta del login,
+ * pero guardamos también en localStorage y cookies del cliente como fallback
  */
 export function setAuth(authData: AuthResponse): void {
   if (typeof window === 'undefined') return
@@ -90,11 +94,25 @@ export function setAuth(authData: AuthResponse): void {
     localStorage.setItem(AUTH_COLABORADOR_KEY, JSON.stringify(authData.colaborador))
   }
 
-  // Guardar en cookies (para middleware)
+  // Guardar en cookies del cliente (como fallback si el servidor no las estableció)
+  // El servidor ya establece las cookies, pero esto asegura que estén disponibles
   setCookie(AUTH_TOKEN_COOKIE, authData.jwt)
   setCookie(AUTH_USER_COOKIE, JSON.stringify(authData.usuario))
   if (authData.colaborador) {
-    setCookie(AUTH_COLABORADOR_COOKIE, JSON.stringify(authData.colaborador))
+    // IMPORTANTE: Usar la misma estructura que el servidor (colaboradorParaCookie)
+    // El servidor guarda una estructura limpia, así que debemos hacer lo mismo
+    const colaboradorParaCookie = {
+      id: authData.colaborador.id || authData.colaborador.documentId,
+      documentId: authData.colaborador.documentId || authData.colaborador.id,
+      email_login: authData.colaborador.email_login,
+      rol: authData.colaborador.rol || 'soporte',
+      activo: authData.colaborador.activo !== undefined ? authData.colaborador.activo : true,
+      persona: authData.colaborador.persona || null,
+    }
+    // Guardar en múltiples nombres de cookie para compatibilidad
+    setCookie(AUTH_COLABORADOR_COOKIE, JSON.stringify(colaboradorParaCookie))
+    setCookie('colaboradorData', JSON.stringify(colaboradorParaCookie))
+    setCookie('colaborador', JSON.stringify(colaboradorParaCookie))
   }
 }
 

@@ -292,7 +292,18 @@ export async function POST(request: Request) {
         maxAge: 60 * 60 * 24 * 7,
       })
       
-      console.log('[API /auth/login] ✅ Cookies guardadas exitosamente (colaboradorData, colaborador, auth_colaborador) con ID:', colaboradorParaCookie.id)
+      console.log('[API /auth/login] ✅ Cookies guardadas exitosamente:', {
+        nombres: ['colaboradorData', 'colaborador', 'auth_colaborador'],
+        id: colaboradorParaCookie.id,
+        documentId: colaboradorParaCookie.documentId,
+        email: colaboradorParaCookie.email_login,
+        tienePersona: !!colaboradorParaCookie.persona,
+        personaRut: colaboradorParaCookie.persona?.rut || 'NO RUT',
+        cookieSize: cookieValue.length,
+        maxAge: '7 días',
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+      })
     }
 
     if (data.usuario) {
