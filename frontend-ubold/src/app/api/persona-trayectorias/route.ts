@@ -115,8 +115,12 @@ export async function POST(request: NextRequest) {
       strapiPayload
     )
 
+    // Extraer ID de la respuesta (puede ser array o objeto)
+    const trayectoriaData = Array.isArray(response.data) ? response.data[0] : response.data
+    const trayectoriaId = trayectoriaData?.id || trayectoriaData?.documentId
+    
     console.log('[API /persona-trayectorias POST] ✅ Trayectoria creada exitosamente:', {
-      id: response.data?.id || response.data?.documentId,
+      id: trayectoriaId,
     })
 
     return NextResponse.json({
