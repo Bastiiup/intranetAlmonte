@@ -485,6 +485,136 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
 
       console.log('[EditContactModal] ✅ Contacto actualizado exitosamente:', result)
 
+      // Actualizar/crear trayectoria si se seleccionó un colegio (igual que en AddContactModal)
+      if (contactData.trayectoria && contactData.trayectoria.colegio) {
+        try {
+          // Obtener el ID numérico de la persona
+          let personaIdNum: number | null = null
+          const isDocumentId = typeof contactId === 'string' && !/^\d+$/.test(contactId)
+          
+          if (isDocumentId) {
+            try {
+              const personaResponse = await fetch(`/api/crm/contacts/${contactId}?fields=id`)
+              const personaResult = await personaResponse.json()
+              if (personaResult.success && personaResult.data) {
+                const personaData = Array.isArray(personaResult.data) ? personaResult.data[0] : personaResult.data
+                const attrs = personaData.attributes || personaData
+                if (attrs && typeof attrs === 'object' && 'id' in attrs) {
+                  personaIdNum = attrs.id as number
+                  console.log('[EditContactModal] ✅ ID numérico de persona obtenido:', personaIdNum)
+                }
+              }
+            } catch (err) {
+              console.error('[EditContactModal] ❌ Error obteniendo ID numérico de persona:', err)
+            }
+          } else {
+            personaIdNum = parseInt(String(contactId))
+          }
+
+          if (!personaIdNum || isNaN(personaIdNum)) {
+            console.error('[EditContactModal] ❌ No se pudo obtener ID numérico de persona:', contactId)
+            throw new Error('No se pudo obtener el ID numérico de la persona para actualizar la trayectoria')
+          }
+
+          // Extraer colegioId del formato { connect: [id] }
+          const colegioConnect = contactData.trayectoria.colegio.connect
+          const colegioIdNum = Array.isArray(colegioConnect) && colegioConnect.length > 0 
+            ? parseInt(String(colegioConnect[0])) 
+            : null
+
+          if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
+            console.error('[EditContactModal] ❌ ID de colegio inválido:', contactData.trayectoria.colegio)
+            throw new Error('ID de colegio inválido')
+          }
+
+          // Buscar trayectoria existente
+          const trayectoriasResponse = await fetch(
+            `/api/persona-trayectorias?filters[persona][id][$eq]=${personaIdNum}&filters[is_current][$eq]=true`
+          )
+          const trayectoriasResult = await trayectoriasResponse.json()
+          
+          const trayectoriasExistentes = Array.isArray(trayectoriasResult.data) 
+            ? trayectoriasResult.data 
+            : (trayectoriasResult.data?.data && Array.isArray(trayectoriasResult.data.data))
+            ? trayectoriasResult.data.data
+            : []
+
+          console.log('[EditContactModal] 📊 Trayectorias existentes encontradas:', trayectoriasExistentes.length)
+
+          if (trayectoriasExistentes.length > 0) {
+            // Actualizar trayectoria existente
+            const trayectoriaActual = trayectoriasExistentes[0]
+            const trayectoriaId = trayectoriaActual.documentId || trayectoriaActual.id
+            
+            console.log('[EditContactModal] 🔄 Actualizando trayectoria existente:', trayectoriaId)
+
+            const updateResponse = await fetch(`/api/persona-trayectorias/${trayectoriaId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                data: {
+                  colegio: { connect: [colegioIdNum] },
+                  cargo: contactData.trayectoria.cargo || null,
+                  is_current: true,
+                },
+              }),
+            })
+
+            const updateResult = await updateResponse.json()
+
+            if (!updateResponse.ok || !updateResult.success) {
+              console.error('[EditContactModal] ❌ Error al actualizar trayectoria:', {
+                status: updateResponse.status,
+                error: updateResult.error,
+                details: updateResult.details,
+              })
+              setError(
+                `El contacto se actualizó correctamente, pero hubo un error al actualizar el colegio: ${updateResult.error || 'Error desconocido'}. Puedes intentar editarlo nuevamente.`
+              )
+            } else {
+              console.log('[EditContactModal] ✅ Trayectoria actualizada exitosamente')
+            }
+          } else {
+            // Crear nueva trayectoria
+            console.log('[EditContactModal] ➕ No hay trayectoria existente, creando nueva')
+
+            const createResponse = await fetch('/api/persona-trayectorias', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                data: {
+                  persona: { connect: [personaIdNum] },
+                  colegio: { connect: [colegioIdNum] },
+                  cargo: contactData.trayectoria.cargo || null,
+                  is_current: true,
+                  activo: true,
+                },
+              }),
+            })
+
+            const createResult = await createResponse.json()
+
+            if (!createResponse.ok || !createResult.success) {
+              console.error('[EditContactModal] ❌ Error al crear trayectoria:', {
+                status: createResponse.status,
+                error: createResult.error,
+                details: createResult.details,
+              })
+              setError(
+                `El contacto se actualizó correctamente, pero hubo un error al asociarlo al colegio: ${createResult.error || 'Error desconocido'}. Puedes intentar editarlo nuevamente.`
+              )
+            } else {
+              console.log('[EditContactModal] ✅ Trayectoria creada exitosamente')
+            }
+          }
+        } catch (trayectoriaError: any) {
+          console.error('[EditContactModal] ❌ Error al actualizar/crear trayectoria:', trayectoriaError)
+          setError(
+            `El contacto se actualizó correctamente, pero hubo un error al actualizar el colegio: ${trayectoriaError.message || 'Error de conexión'}. Puedes intentar editarlo nuevamente.`
+          )
+        }
+      }
+
       // Cerrar modal primero
       onHide()
       
