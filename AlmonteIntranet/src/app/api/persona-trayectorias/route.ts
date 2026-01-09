@@ -167,8 +167,33 @@ export async function POST(request: NextRequest) {
       // Eliminar campos prohibidos
       camposProhibidosEncontrados.forEach(campo => delete payloadLimpio.data[campo])
     }
+    
+    // ⚠️ VERIFICACIÓN EXTRA: Crear un objeto completamente nuevo solo con campos permitidos
+    const payloadFinal: any = {
+      data: {
+        persona: payloadLimpio.data.persona,
+        colegio: payloadLimpio.data.colegio,
+      }
+    }
+    
+    // Agregar solo campos que están en la lista de permitidos
+    for (const campo of camposPermitidos) {
+      if (campo === 'persona' || campo === 'colegio') continue
+      if (payloadLimpio.data[campo] !== undefined) {
+        payloadFinal.data[campo] = payloadLimpio.data[campo]
+      }
+    }
+    
+    // Verificar una vez más que no hay campos prohibidos
+    const camposFinales = Object.keys(payloadFinal.data)
+    const camposProhibidosFinales = camposFinales.filter(c => camposProhibidos.has(c))
+    if (camposProhibidosFinales.length > 0) {
+      console.error('[API /persona-trayectorias POST] ❌ ERROR: Aún hay campos prohibidos después de limpiar:', camposProhibidosFinales)
+      camposProhibidosFinales.forEach(campo => delete payloadFinal.data[campo])
+    }
 
-    console.log('[API /persona-trayectorias POST] 📤 Enviando a Strapi (payload limpio):', JSON.stringify(payloadLimpio, null, 2))
+    console.log('[API /persona-trayectorias POST] 📤 Enviando a Strapi (payload final):', JSON.stringify(payloadFinal, null, 2))
+    console.log('[API /persona-trayectorias POST] 📋 Campos finales en payload.data:', Object.keys(payloadFinal.data))
     console.log('[API /persona-trayectorias POST] 📋 Campos en payload.data:', Object.keys(payloadLimpio.data))
     console.log('[API /persona-trayectorias POST] 📋 Valores de payload.data:', {
       persona: payloadLimpio.data.persona,
@@ -180,9 +205,10 @@ export async function POST(request: NextRequest) {
     })
 
     // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
+    // Usar payloadFinal que está completamente limpio
     const response = await strapiClient.post<StrapiResponse<StrapiEntity<any>>>(
       '/api/persona-trayectorias',
-      payloadLimpio
+      payloadFinal
     )
     
     console.log('[API /persona-trayectorias POST] ✅ Respuesta exitosa de Strapi:', {
