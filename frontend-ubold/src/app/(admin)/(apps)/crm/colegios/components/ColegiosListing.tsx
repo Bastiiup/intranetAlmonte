@@ -260,7 +260,14 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
                 </span>
               </div>
               <div>
-                <h5 className="mb-0 fw-semibold">{colegio.nombre}</h5>
+                <Link 
+                  href={`/crm/colegios/${colegio.id}`}
+                  className="text-decoration-none"
+                >
+                  <h5 className="mb-0 fw-semibold text-primary" style={{ cursor: 'pointer' }}>
+                    {colegio.nombre}
+                  </h5>
+                </Link>
                 {colegio.tipo && (
                   <span className="badge badge-soft-info">{colegio.tipo}</span>
                 )}
