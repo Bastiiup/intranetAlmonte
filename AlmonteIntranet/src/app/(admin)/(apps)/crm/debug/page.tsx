@@ -339,13 +339,18 @@ export default function DebugPage() {
                         <>
                           <th>Nombre</th>
                           <th>RBD</th>
+                          <th>Dependencia</th>
+                          <th>Estado</th>
                         </>
                       )}
                       {listType === 'trayectorias' && (
                         <>
                           <th>Cargo</th>
+                          <th>Año</th>
                           <th>Persona</th>
                           <th>Colegio</th>
+                          <th>Curso</th>
+                          <th>Asignatura</th>
                           <th>Actual</th>
                         </>
                       )}
@@ -367,13 +372,18 @@ export default function DebugPage() {
                           <>
                             <td>{item.nombre || '-'}</td>
                             <td>{item.rbd || '-'}</td>
+                            <td>{item.dependencia || '-'}</td>
+                            <td>{item.estado || '-'}</td>
                           </>
                         )}
                         {listType === 'trayectorias' && (
                           <>
                             <td>{item.cargo || '-'}</td>
+                            <td>{item.anio || '-'}</td>
                             <td><small>{item.persona?.nombre || '-'} (ID: {item.persona?.id || item.persona?.documentId || '-'})</small></td>
                             <td><small>{item.colegio?.nombre || '-'} (ID: {item.colegio?.id || item.colegio?.documentId || '-'})</small></td>
+                            <td><small>{item.curso?.nombre || '-'}</small></td>
+                            <td><small>{item.asignatura?.nombre || '-'}</small></td>
                             <td>{item.is_current ? '✅' : '❌'}</td>
                           </>
                         )}

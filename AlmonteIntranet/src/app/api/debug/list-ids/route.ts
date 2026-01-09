@@ -50,25 +50,51 @@ export async function GET(request: NextRequest) {
     // Listar colegios
     if (tipo === 'colegios') {
       try {
+        // Intentar sin fields primero para ver la estructura completa
         const response = await strapiClient.get<any>(
-          '/api/colegios?pagination[pageSize]=50&fields[0]=id&fields[1]=documentId&fields[2]=colegio_nombre&fields[3]=rbd&sort[0]=updatedAt:desc'
+          '/api/colegios?pagination[pageSize]=100&sort[0]=updatedAt:desc'
         )
+        
+        console.log('[DEBUG] Respuesta de colegios:', {
+          tieneData: !!response.data,
+          esArray: Array.isArray(response.data),
+          cantidad: Array.isArray(response.data) ? response.data.length : 1,
+          meta: response.meta,
+        })
         
         const colegios = Array.isArray(response.data) ? response.data : [response.data]
         
-        result.data = colegios.map((c: any) => ({
-          id: c.id,
-          documentId: c.documentId,
-          nombre: c.attributes?.colegio_nombre || c.colegio_nombre || 'Sin nombre',
-          rbd: c.attributes?.rbd || c.rbd,
-        }))
+        result.data = colegios
+          .filter((c: any) => {
+            // Filtrar solo colegios válidos (con id o documentId)
+            return c && (c.id || c.documentId)
+          })
+          .map((c: any) => {
+            const attrs = c.attributes || c
+            return {
+              id: c.id,
+              documentId: c.documentId,
+              nombre: attrs.colegio_nombre || c.colegio_nombre || 'Sin nombre',
+              rbd: attrs.rbd || c.rbd || null,
+              dependencia: attrs.dependencia || c.dependencia || null,
+              estado: attrs.estado || c.estado || null,
+              region: attrs.region || c.region || null,
+              estructuraCompleta: JSON.stringify(c, null, 2), // Para debug
+            }
+          })
         
         result.total = response.meta?.pagination?.total || colegios.length
+        result.meta = response.meta
+        result.estructuraEjemplo = colegios.length > 0 ? {
+          primerColegio: colegios[0],
+        } : null
       } catch (error: any) {
+        console.error('[DEBUG] Error listando colegios:', error)
         result.errors.push({
           tipo: 'colegios',
           error: error.message,
           status: error.status,
+          details: error.response?.data,
         })
       }
     }
@@ -80,6 +106,7 @@ export async function GET(request: NextRequest) {
         'persona-trayectorias',
         'trayectorias',
         'persona_trayectorias',
+        'persona-trayectoria',
       ]
 
       let encontrado = false
@@ -87,42 +114,97 @@ export async function GET(request: NextRequest) {
       for (const nombre of posiblesNombres) {
         try {
           console.log(`[DEBUG] Intentando listar trayectorias desde: /api/${nombre}`)
-          const response = await strapiClient.get<any>(
-            `/api/${nombre}?pagination[pageSize]=50&populate[persona][fields][0]=id&populate[persona][fields][1]=nombre_completo&populate[colegio][fields][0]=id&populate[colegio][fields][1]=colegio_nombre&sort[0]=updatedAt:desc`
+          
+          // Primero intentar sin populate para ver si existe
+          const testResponse = await strapiClient.get<any>(
+            `/api/${nombre}?pagination[pageSize]=1`
           )
+          
+          console.log(`[DEBUG] ✅ /api/${nombre} existe!`)
+          
+          // Si existe, obtener con populate completo
+          const response = await strapiClient.get<any>(
+            `/api/${nombre}?pagination[pageSize]=100&populate[persona]=*&populate[colegio]=*&populate[curso]=*&populate[asignatura]=*&sort[0]=updatedAt:desc`
+          )
+          
+          console.log(`[DEBUG] Trayectorias obtenidas:`, {
+            cantidad: Array.isArray(response.data) ? response.data.length : 1,
+            estructura: response.data && Array.isArray(response.data) && response.data.length > 0 
+              ? Object.keys(response.data[0])
+              : 'No hay datos',
+          })
           
           const trayectorias = Array.isArray(response.data) ? response.data : [response.data]
           
           result.data = trayectorias.map((t: any) => {
             const attrs = t.attributes || t
-            const persona = attrs.persona?.data || attrs.persona
-            const colegio = attrs.colegio?.data || attrs.colegio
+            
+            // Extraer persona de diferentes formatos
+            let persona: any = null
+            if (attrs.persona) {
+              if (attrs.persona.data) {
+                persona = Array.isArray(attrs.persona.data) ? attrs.persona.data[0] : attrs.persona.data
+              } else {
+                persona = attrs.persona
+              }
+            }
+            
+            // Extraer colegio de diferentes formatos
+            let colegio: any = null
+            if (attrs.colegio) {
+              if (attrs.colegio.data) {
+                colegio = Array.isArray(attrs.colegio.data) ? attrs.colegio.data[0] : attrs.colegio.data
+              } else {
+                colegio = attrs.colegio
+              }
+            }
+            
+            const personaAttrs = persona?.attributes || persona
+            const colegioAttrs = colegio?.attributes || colegio
             
             return {
               id: t.id,
               documentId: t.documentId,
               cargo: attrs.cargo,
+              anio: attrs.anio,
               is_current: attrs.is_current,
               activo: attrs.activo,
+              fecha_inicio: attrs.fecha_inicio,
+              fecha_fin: attrs.fecha_fin,
               persona: {
-                id: persona?.id || persona?.attributes?.id,
+                id: persona?.id || personaAttrs?.id,
                 documentId: persona?.documentId,
-                nombre: persona?.attributes?.nombre_completo || persona?.nombre_completo,
+                nombre: personaAttrs?.nombre_completo || persona?.nombre_completo,
+                rut: personaAttrs?.rut || persona?.rut,
               },
               colegio: {
-                id: colegio?.id || colegio?.attributes?.id,
+                id: colegio?.id || colegioAttrs?.id,
                 documentId: colegio?.documentId,
-                nombre: colegio?.attributes?.colegio_nombre || colegio?.colegio_nombre,
+                nombre: colegioAttrs?.colegio_nombre || colegio?.colegio_nombre,
+                rbd: colegioAttrs?.rbd || colegio?.rbd,
               },
+              curso: attrs.curso ? {
+                id: attrs.curso?.data?.id || attrs.curso?.id,
+                nombre: attrs.curso?.data?.attributes?.nombre || attrs.curso?.attributes?.nombre || attrs.curso?.nombre,
+              } : null,
+              asignatura: attrs.asignatura ? {
+                id: attrs.asignatura?.data?.id || attrs.asignatura?.id,
+                nombre: attrs.asignatura?.data?.attributes?.nombre || attrs.asignatura?.attributes?.nombre || attrs.asignatura?.nombre,
+              } : null,
+              estructuraCompleta: JSON.stringify(t, null, 2), // Para debug completo
             }
           })
           
           result.total = response.meta?.pagination?.total || trayectorias.length
           result.contentTypeName = nombre
+          result.meta = response.meta
+          result.estructuraEjemplo = trayectorias.length > 0 ? {
+            primeraTrayectoria: trayectorias[0],
+          } : null
           encontrado = true
           break
         } catch (error: any) {
-          console.log(`[DEBUG] /api/${nombre} no existe (${error.status})`)
+          console.log(`[DEBUG] /api/${nombre} no existe o error (${error.status}):`, error.message)
           // Continuar con el siguiente nombre
         }
       }
@@ -131,6 +213,7 @@ export async function GET(request: NextRequest) {
         result.errors.push({
           tipo: 'trayectorias',
           error: 'No se encontró el content type de trayectorias. Intentados: ' + posiblesNombres.join(', '),
+          sugerencia: 'Verifica en Strapi Admin el nombre exacto del content type',
         })
       }
     }
