@@ -395,36 +395,36 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
             principal: true,
           }],
         }),
-        // Agregar/actualizar trayectoria solo si se seleccionó un colegio válido
-        // NOTA: Los campos region, comuna, dependencia son del colegio, no de la trayectoria
-        // Estos se actualizan en el colegio, no en la trayectoria
-        // Agregar/actualizar trayectoria solo si se seleccionó un colegio válido
-        ...(formData.colegioId && 
-            formData.colegioId !== '' && 
-            formData.colegioId !== '0' && {
-          trayectoria: (() => {
-            // Asegurar que sea un número válido
-            const colegioIdNum = parseInt(String(formData.colegioId))
-            if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
-              console.error('[EditContactModal] ⚠️ ID de colegio inválido:', formData.colegioId)
-              return null
-            }
-            
-            console.log('[EditContactModal] 📤 Preparando trayectoria:', {
-              colegioId: formData.colegioId,
-              colegioIdNum,
-              cargo: formData.cargo,
-            })
-            
-            // Usar formato { connect: [id] } para relaciones manyToOne (igual que en AddContactModal)
-            return {
-              colegio: { connect: [colegioIdNum] },
-              cargo: formData.cargo || null,
-              is_current: true,
-            }
-          })(),
-        }),
       }
+
+      // Agregar/actualizar trayectoria solo si se seleccionó un colegio válido
+      // NOTA: Los campos region, comuna, dependencia son del colegio, no de la trayectoria
+      if (formData.colegioId && formData.colegioId !== '' && formData.colegioId !== '0') {
+        // Asegurar que sea un número válido
+        const colegioIdNum = parseInt(String(formData.colegioId))
+        if (colegioIdNum && colegioIdNum > 0 && !isNaN(colegioIdNum)) {
+          console.log('[EditContactModal] 📤 Preparando trayectoria:', {
+            colegioId: formData.colegioId,
+            colegioIdNum,
+            cargo: formData.cargo,
+          })
+          
+          // Usar formato { connect: [id] } para relaciones manyToOne (igual que en AddContactModal)
+          contactData.trayectoria = {
+            colegio: { connect: [colegioIdNum] },
+            cargo: formData.cargo || null,
+            is_current: true,
+          }
+          
+          console.log('[EditContactModal] ✅ Trayectoria agregada al payload:', contactData.trayectoria)
+        } else {
+          console.error('[EditContactModal] ⚠️ ID de colegio inválido:', formData.colegioId)
+        }
+      } else {
+        console.log('[EditContactModal] ℹ️ No se seleccionó colegio, omitiendo trayectoria')
+      }
+      
+      console.log('[EditContactModal] 📤 Payload completo a enviar:', JSON.stringify(contactData, null, 2))
 
       // Obtener el ID correcto (usar la misma lógica que en data.ts)
       console.log('[EditContactModal] Contacto recibido:', contact)
