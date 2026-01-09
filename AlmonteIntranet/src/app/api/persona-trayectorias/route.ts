@@ -18,6 +18,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
 
     console.log('[API /persona-trayectorias POST] 📥 Request recibido:', JSON.stringify(body, null, 2))
+    
+    // ⚠️ DEBUG: Verificar si hay campos no permitidos en body.data
+    if (body.data) {
+      const camposNoPermitidos = Object.keys(body.data).filter(key => 
+        !['persona', 'colegio', 'cargo', 'anio', 'curso', 'asignatura', 'is_current', 'activo', 
+          'fecha_inicio', 'fecha_fin', 'notas', 'curso_asignatura', 'org_display_name', 
+          'role_key', 'department', 'colegio_region', 'correo', 'fecha_registro', 'ultimo_acceso'].includes(key)
+      )
+      if (camposNoPermitidos.length > 0) {
+        console.warn('[API /persona-trayectorias POST] ⚠️ Campos no permitidos detectados:', camposNoPermitidos)
+      }
+    }
 
     // Validaciones
     if (!body.data) {
