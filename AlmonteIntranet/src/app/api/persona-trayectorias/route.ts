@@ -26,12 +26,31 @@ export async function POST(request: NextRequest) {
         'fecha_inicio', 'fecha_fin', 'notas', 'curso_asignatura', 'org_display_name', 
         'role_key', 'department', 'colegio_region', 'correo', 'fecha_registro', 'ultimo_acceso'
       ]
+      const camposProhibidosList = [
+        'region', 'comuna', 'dependencia', 'zona', 'colegio_nombre', 'rbd',
+        'telefonos', 'emails', 'direcciones', 'website', 'estado'
+      ]
+      
       const camposNoPermitidos = Object.keys(body.data).filter(key => !camposPermitidosList.includes(key))
+      const camposProhibidosEnBody = Object.keys(body.data).filter(key => camposProhibidosList.includes(key))
+      
       if (camposNoPermitidos.length > 0) {
         console.warn('[API /persona-trayectorias POST] ⚠️ Campos no permitidos detectados en body.data:', camposNoPermitidos)
         console.warn('[API /persona-trayectorias POST] ⚠️ Valores de campos no permitidos:', 
           camposNoPermitidos.reduce((acc, key) => ({ ...acc, [key]: body.data[key] }), {})
         )
+      }
+      
+      if (camposProhibidosEnBody.length > 0) {
+        console.error('[API /persona-trayectorias POST] ❌ ERROR CRÍTICO: Campos PROHIBIDOS detectados en body.data:', camposProhibidosEnBody)
+        console.error('[API /persona-trayectorias POST] ❌ Valores de campos prohibidos:', 
+          camposProhibidosEnBody.reduce((acc, key) => ({ ...acc, [key]: body.data[key] }), {})
+        )
+        // Eliminar campos prohibidos inmediatamente
+        camposProhibidosEnBody.forEach(campo => {
+          delete body.data[campo]
+          console.log(`[API /persona-trayectorias POST] 🗑️ Eliminado campo prohibido de body.data: ${campo}`)
+        })
       }
     }
 
