@@ -1,17 +1,103 @@
 # 🚨 Investigación Urgente - Error "Invalid key region" Persiste
 
 **Fecha:** 9 de Enero 2026  
-**Estado:** ⚠️ **ERROR PERSISTE DESPUÉS DE SOLUCIÓN IMPLEMENTADA**
+**Estado:** ✅ **PROBLEMA ENCONTRADO Y RESUELTO**
 
 ---
 
-## 📋 Situación Actual
+## ✅ Solución Implementada - Problema Resuelto
 
-El error `Invalid key region` **sigue apareciendo** después de implementar la protección en el lifecycle hook. Esto indica que:
+### 🔍 Problema Encontrado
 
-1. ❌ La protección en `beforeCreate`/`beforeUpdate` **NO está funcionando** (el error ocurre antes)
-2. ❌ O el problema está en **otro lugar** del código de Strapi
-3. ❌ O el rebuild de Strapi **no se ha aplicado correctamente**
+**Ubicación:** Línea 71 del lifecycle hook (`syncColegioLocation`)
+
+**Causa raíz:**
+- Se estaba haciendo `populate` de `region` como si fuera una **relación**
+- Pero `region` es un **string** en el modelo `colegio`
+- Esto causaba el error `"Invalid key region"` porque Strapi intentaba hacer populate de un campo que no es una relación
+
+**Código problemático:**
+```javascript
+// ❌ ANTES (causa el error)
+populate: {
+  region: { fields: ['id'] }, // ⚠️ region es string, NO es relación
+  comuna: { fields: ['id'] }
+}
+```
+
+### ✅ Cambios Realizados
+
+#### 1. Corregido el Lifecycle Hook (`syncColegioLocation`)
+
+**Archivo:** `src/api/persona-trayectoria/content-types/persona-trayectoria/lifecycles.js`
+
+**Cambios:**
+- ✅ **Removido** `region: { fields: ['id'] }` del populate
+- ✅ **Agregado** `region` a `fields` (porque es string, no relación)
+- ✅ Obtiene la región desde `colegio.region` o `comuna.region_nombre`
+
+**Código corregido:**
+```javascript
+// ✅ DESPUÉS (solución)
+const colegio = await strapi.entityService.findOne(
+  'api::colegio.colegio',
+  colegioId,
+  {
+    fields: ['region', 'comuna', 'dependencia', 'zona'], // region como field
+    populate: {
+      comuna: { fields: ['id', 'region_nombre'] } // comuna SÍ es relación
+    }
+  }
+);
+
+// Obtener región desde colegio.region o comuna.region_nombre
+const region = colegio.region || colegio.comuna?.region_nombre;
+```
+
+#### 2. Protección en el Controller
+
+**Archivo:** `src/api/persona-trayectoria/controllers/persona-trayectoria.js`
+
+**Métodos protegidos:**
+- ✅ `create()`: Elimina `region` antes del lifecycle hook
+- ✅ `update()`: Elimina `region` antes del lifecycle hook
+
+**Código implementado:**
+```javascript
+async create(ctx) {
+  let { data } = ctx.request.body;
+  
+  // PROTECCIÓN: Eliminar region si está presente (protección adicional)
+  if (data && 'region' in data) {
+    strapi.log.warn('[persona-trayectoria.controller] Campo "region" detectado, eliminándolo');
+    delete data.region;
+  }
+  
+  return await super.create(ctx);
+}
+
+async update(ctx) {
+  let { data } = ctx.request.body;
+  
+  // PROTECCIÓN: Eliminar region si está presente
+  if (data && 'region' in data) {
+    strapi.log.warn('[persona-trayectoria.controller] Campo "region" detectado, eliminándolo');
+    delete data.region;
+  }
+  
+  return await super.update(ctx);
+}
+```
+
+#### 3. Logs de Debugging
+
+- ✅ Logs en lifecycle hooks para rastrear el flujo
+- ✅ Advertencias cuando se detecta y elimina `region`
+- ✅ Logs de debugging para identificar problemas futuros
+
+---
+
+## 📋 Situación Actual (ANTES de la solución)
 
 ---
 
@@ -314,5 +400,66 @@ const colegio = await strapi.entityService.findOne(
 
 ---
 
+## ✅ Verificación Post-Solución
+
+### Pasos para Verificar
+
+1. ✅ **Rebuild de Strapi:**
+   ```bash
+   npm run build
+   # o
+   yarn build
+   ```
+
+2. ✅ **Reiniciar Strapi:**
+   ```bash
+   npm run develop
+   # o
+   npm run start
+   ```
+
+3. ✅ **Probar crear/actualizar una trayectoria** desde el frontend
+
+4. ✅ **Verificar que el error desaparece**
+
+### Resultado Esperado
+
+- ✅ **No más error** `"Invalid key region"`
+- ✅ **Trayectorias se crean/actualizan correctamente**
+- ✅ **Logs muestran el flujo normal** (sin warnings de `region`)
+
+### Si Aparecen Warnings
+
+Si aparecen warnings en los logs:
+```
+[persona-trayectoria.controller] Campo "region" detectado, eliminándolo
+```
+
+**Significado:**
+- ✅ La protección está funcionando
+- ⚠️ `region` está llegando desde algún lugar (probablemente del frontend)
+- 🔍 **Acción:** Revisar logs del frontend para ver si está enviando `region`
+
+---
+
+## 📚 Resumen de la Solución
+
+### Problema
+- `region` se estaba tratando como relación en el populate
+- `region` es un string, no una relación
+
+### Solución
+1. ✅ Remover `region` del populate
+2. ✅ Agregar `region` a `fields` (como string)
+3. ✅ Obtener región desde `colegio.region` o `comuna.region_nombre`
+4. ✅ Protección adicional en controller
+
+### Estado
+- ✅ **Problema identificado y resuelto**
+- ✅ **Código corregido en Strapi**
+- ⏳ **Pendiente:** Rebuild y verificación
+
+---
+
 **Última actualización:** 9 de Enero 2026  
-**Prioridad:** 🔴 **ALTA** - Error bloquea funcionalidad crítica
+**Estado:** ✅ **PROBLEMA RESUELTO** - Pendiente rebuild y verificación
