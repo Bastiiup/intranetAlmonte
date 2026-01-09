@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
 
     // Extraer ID de la respuesta (puede ser array o objeto)
     const trayectoriaData = Array.isArray(response.data) ? response.data[0] : response.data
-    const trayectoriaId = trayectoriaData?.id || trayectoriaData?.documentId
+    const trayectoriaId = trayectoriaData?.id || (trayectoriaData as any)?.documentId
     
     console.log('[API /persona-trayectorias POST] ✅ Trayectoria creada exitosamente:', {
       id: trayectoriaId,
