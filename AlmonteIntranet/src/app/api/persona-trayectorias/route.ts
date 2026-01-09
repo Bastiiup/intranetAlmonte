@@ -21,13 +21,17 @@ export async function POST(request: NextRequest) {
     
     // ⚠️ DEBUG: Verificar si hay campos no permitidos en body.data
     if (body.data) {
-      const camposNoPermitidos = Object.keys(body.data).filter(key => 
-        !['persona', 'colegio', 'cargo', 'anio', 'curso', 'asignatura', 'is_current', 'activo', 
-          'fecha_inicio', 'fecha_fin', 'notas', 'curso_asignatura', 'org_display_name', 
-          'role_key', 'department', 'colegio_region', 'correo', 'fecha_registro', 'ultimo_acceso'].includes(key)
-      )
+      const camposPermitidosList = [
+        'persona', 'colegio', 'cargo', 'anio', 'curso', 'asignatura', 'is_current', 'activo', 
+        'fecha_inicio', 'fecha_fin', 'notas', 'curso_asignatura', 'org_display_name', 
+        'role_key', 'department', 'colegio_region', 'correo', 'fecha_registro', 'ultimo_acceso'
+      ]
+      const camposNoPermitidos = Object.keys(body.data).filter(key => !camposPermitidosList.includes(key))
       if (camposNoPermitidos.length > 0) {
-        console.warn('[API /persona-trayectorias POST] ⚠️ Campos no permitidos detectados:', camposNoPermitidos)
+        console.warn('[API /persona-trayectorias POST] ⚠️ Campos no permitidos detectados en body.data:', camposNoPermitidos)
+        console.warn('[API /persona-trayectorias POST] ⚠️ Valores de campos no permitidos:', 
+          camposNoPermitidos.reduce((acc, key) => ({ ...acc, [key]: body.data[key] }), {})
+        )
       }
     }
 
