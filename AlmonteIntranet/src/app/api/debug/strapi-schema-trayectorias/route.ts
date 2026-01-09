@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import strapiClient from '@/lib/strapi'
+import strapiClient from '@/lib/strapi/client'
 
 /**
  * Endpoint de diagnóstico para obtener el schema del content type persona-trayectorias

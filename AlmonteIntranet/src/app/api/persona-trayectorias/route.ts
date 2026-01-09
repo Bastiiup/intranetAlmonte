@@ -304,10 +304,10 @@ export async function POST(request: NextRequest) {
     
     // ⚠️ VERIFICACIÓN ABSOLUTA: Verificar que NO hay campos prohibidos
     const camposEnPayloadFinal = Object.keys(payloadParaEnviar.data)
-    const camposProhibidosEncontrados = camposEnPayloadFinal.filter(c => camposProhibidos.has(c))
-    if (camposProhibidosEncontrados.length > 0) {
-      console.error('[API /persona-trayectorias POST] ❌ ERROR CRÍTICO: Campos prohibidos en payloadParaEnviar:', camposProhibidosEncontrados)
-      camposProhibidosEncontrados.forEach(campo => delete payloadParaEnviar.data[campo])
+    const camposProhibidosEnPayloadFinal = camposEnPayloadFinal.filter(c => camposProhibidos.has(c))
+    if (camposProhibidosEnPayloadFinal.length > 0) {
+      console.error('[API /persona-trayectorias POST] ❌ ERROR CRÍTICO: Campos prohibidos en payloadParaEnviar:', camposProhibidosEnPayloadFinal)
+      camposProhibidosEnPayloadFinal.forEach(campo => delete payloadParaEnviar.data[campo])
     }
     
     // Verificar explícitamente que NO existe 'region'
