@@ -6,6 +6,7 @@ import { Container, Card, CardHeader, CardBody, Alert, Spinner, Row, Col, Button
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { LuMapPin, LuPhone, LuMail, LuGlobe, LuUsers, LuPencil, LuArrowLeft, LuShoppingCart, LuTrendingUp, LuActivity, LuPackage, LuGraduationCap } from 'react-icons/lu'
 import Link from 'next/link'
+import CursoModal from './components/CursoModal'
 
 // Helper para logs condicionales de debugging (cliente)
 const DEBUG = process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && (window as any).DEBUG_CRM === 'true')
@@ -127,6 +128,8 @@ export default function ColegioDetailPage() {
   const [leads, setLeads] = useState<LeadData[]>([])
   const [activities, setActivities] = useState<ActivityData[]>([])
   const [cursos, setCursos] = useState<any[]>([])
+  const [showCursoModal, setShowCursoModal] = useState(false)
+  const [cursoSeleccionado, setCursoSeleccionado] = useState<any>(null)
 
   useEffect(() => {
     const fetchColegio = async () => {
@@ -883,7 +886,14 @@ export default function ColegioDetailPage() {
             Cursos del Colegio
             <Badge bg="primary" className="ms-2">{cursos.length}</Badge>
           </h4>
-          <Button variant="primary" size="sm">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => {
+              setCursoSeleccionado(null)
+              setShowCursoModal(true)
+            }}
+          >
             <LuGraduationCap className="me-1" />
             Agregar Curso
           </Button>
@@ -952,11 +962,16 @@ export default function ColegioDetailPage() {
                         )}
                       </div>
                       <div className="d-flex gap-2">
-                        <Button variant="outline-primary" size="sm" className="flex-fill">
+                        <Button
+                          variant="outline-primary"
+                          size="sm"
+                          className="flex-fill"
+                          onClick={() => {
+                            setCursoSeleccionado(curso)
+                            setShowCursoModal(true)
+                          }}
+                        >
                           Editar
-                        </Button>
-                        <Button variant="outline-danger" size="sm">
-                          Eliminar
                         </Button>
                       </div>
                     </CardBody>
@@ -1152,6 +1167,30 @@ export default function ColegioDetailPage() {
         {activeTab === 'materiales' && renderMaterialesTab()}
         {activeTab === 'cursos' && renderCursosTab()}
       </div>
+
+      <CursoModal
+        show={showCursoModal}
+        onHide={() => {
+          setShowCursoModal(false)
+          setCursoSeleccionado(null)
+        }}
+        colegioId={colegioId}
+        curso={cursoSeleccionado}
+        onSuccess={() => {
+          // Recargar cursos
+          if (colegioId && activeTab === 'cursos') {
+            fetch(`/api/crm/colegios/${colegioId}/cursos`)
+              .then((res) => res.json())
+              .then((result) => {
+                if (result.success) {
+                  const cursosData = Array.isArray(result.data) ? result.data : [result.data]
+                  setCursos(cursosData)
+                }
+              })
+              .catch((err) => console.error('Error al recargar cursos:', err))
+          }
+        }}
+      />
     </Container>
   )
 }
