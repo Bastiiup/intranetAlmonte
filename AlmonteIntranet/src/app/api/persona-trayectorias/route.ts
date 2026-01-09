@@ -261,29 +261,80 @@ export async function POST(request: NextRequest) {
     })
 
     // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
-    // Usar payloadFinal que está completamente limpio
-    // ⚠️ VERIFICACIÓN FINAL: Crear una copia completamente nueva para asegurar que no hay campos prohibidos
-    const payloadParaEnviar = JSON.parse(JSON.stringify(payloadFinal))
+    // ⚠️ VERIFICACIÓN FINAL: Crear un objeto completamente nuevo desde cero
+    // NO usar JSON.parse(JSON.stringify()) porque puede preservar propiedades no enumerables
+    const payloadParaEnviar: any = {
+      data: {}
+    }
     
-    // Eliminar explícitamente cualquier campo prohibido que pueda haber quedado
-    delete payloadParaEnviar.data.region
-    delete payloadParaEnviar.data.comuna
-    delete payloadParaEnviar.data.dependencia
-    delete payloadParaEnviar.data.zona
-    delete payloadParaEnviar.data.colegio_nombre
-    delete payloadParaEnviar.data.rbd
-    delete payloadParaEnviar.data.telefonos
-    delete payloadParaEnviar.data.emails
-    delete payloadParaEnviar.data.direcciones
-    delete payloadParaEnviar.data.website
-    delete payloadParaEnviar.data.estado
+    // Agregar SOLO los campos que están explícitamente permitidos
+    if (payloadFinal.data.persona) {
+      payloadParaEnviar.data.persona = payloadFinal.data.persona
+    }
+    if (payloadFinal.data.colegio) {
+      payloadParaEnviar.data.colegio = payloadFinal.data.colegio
+    }
+    if (payloadFinal.data.cargo !== undefined) {
+      payloadParaEnviar.data.cargo = payloadFinal.data.cargo
+    }
+    if (payloadFinal.data.is_current !== undefined) {
+      payloadParaEnviar.data.is_current = payloadFinal.data.is_current
+    }
+    if (payloadFinal.data.activo !== undefined) {
+      payloadParaEnviar.data.activo = payloadFinal.data.activo
+    }
+    if (payloadFinal.data.anio !== undefined) {
+      payloadParaEnviar.data.anio = payloadFinal.data.anio
+    }
+    if (payloadFinal.data.curso) {
+      payloadParaEnviar.data.curso = payloadFinal.data.curso
+    }
+    if (payloadFinal.data.asignatura) {
+      payloadParaEnviar.data.asignatura = payloadFinal.data.asignatura
+    }
+    if (payloadFinal.data.fecha_inicio) {
+      payloadParaEnviar.data.fecha_inicio = payloadFinal.data.fecha_inicio
+    }
+    if (payloadFinal.data.fecha_fin) {
+      payloadParaEnviar.data.fecha_fin = payloadFinal.data.fecha_fin
+    }
+    if (payloadFinal.data.notas) {
+      payloadParaEnviar.data.notas = payloadFinal.data.notas
+    }
     
-    console.log('[API /persona-trayectorias POST] 📤 Payload para enviar (después de eliminar campos prohibidos):', JSON.stringify(payloadParaEnviar, null, 2))
-    console.log('[API /persona-trayectorias POST] 📋 Campos en payloadParaEnviar.data:', Object.keys(payloadParaEnviar.data))
+    // ⚠️ VERIFICACIÓN ABSOLUTA: Verificar que NO hay campos prohibidos
+    const camposEnPayloadFinal = Object.keys(payloadParaEnviar.data)
+    const camposProhibidosEncontrados = camposEnPayloadFinal.filter(c => camposProhibidos.has(c))
+    if (camposProhibidosEncontrados.length > 0) {
+      console.error('[API /persona-trayectorias POST] ❌ ERROR CRÍTICO: Campos prohibidos en payloadParaEnviar:', camposProhibidosEncontrados)
+      camposProhibidosEncontrados.forEach(campo => delete payloadParaEnviar.data[campo])
+    }
+    
+    // Verificar explícitamente que NO existe 'region'
+    if ('region' in payloadParaEnviar.data) {
+      console.error('[API /persona-trayectorias POST] ❌ ERROR CRÍTICO: region encontrado en payloadParaEnviar.data')
+      delete payloadParaEnviar.data.region
+    }
+    
+    // Verificar que el objeto no tiene propiedades ocultas
+    const stringPayload = JSON.stringify(payloadParaEnviar)
+    const parsedPayload = JSON.parse(stringPayload)
+    
+    // Verificar una vez más después de parsear
+    if ('region' in parsedPayload.data) {
+      console.error('[API /persona-trayectorias POST] ❌ ERROR CRÍTICO: region encontrado después de JSON.parse')
+      delete parsedPayload.data.region
+    }
+    
+    console.log('[API /persona-trayectorias POST] 📤 Payload FINAL para enviar a Strapi:', JSON.stringify(parsedPayload, null, 2))
+    console.log('[API /persona-trayectorias POST] 📋 Campos en payloadParaEnviar.data:', Object.keys(parsedPayload.data))
+    console.log('[API /persona-trayectorias POST] ✅ Verificación final - tiene region:', 'region' in parsedPayload.data)
+    console.log('[API /persona-trayectorias POST] ✅ Verificación final - tiene comuna:', 'comuna' in parsedPayload.data)
+    console.log('[API /persona-trayectorias POST] ✅ Verificación final - tiene dependencia:', 'dependencia' in parsedPayload.data)
     
     const response = await strapiClient.post<StrapiResponse<StrapiEntity<any>>>(
       '/api/persona-trayectorias',
-      payloadParaEnviar
+      parsedPayload
     )
     
     console.log('[API /persona-trayectorias POST] ✅ Respuesta exitosa de Strapi:', {
