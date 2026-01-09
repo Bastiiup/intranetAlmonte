@@ -52,13 +52,61 @@ export async function POST(request: NextRequest) {
       // Si no hay body, usar el RUT del colaborador autenticado
     }
 
+    // Intentar obtener RUT de diferentes estructuras posibles
     if (!rut) {
-      rut = colaborador.persona?.rut || colaborador.attributes?.persona?.rut
+      // Estructura 1: colaborador.persona.rut
+      rut = colaborador.persona?.rut || null
+      
+      // Estructura 2: colaborador.attributes.persona.rut
+      if (!rut) {
+        rut = colaborador.attributes?.persona?.rut || null
+      }
+      
+      // Estructura 3: colaborador.persona.attributes.rut
+      if (!rut) {
+        rut = colaborador.persona?.attributes?.rut || null
+      }
+      
+      // Estructura 4: colaborador.persona.data.attributes.rut (si viene de Strapi)
+      if (!rut && colaborador.persona?.data) {
+        rut = colaborador.persona.data.attributes?.rut || colaborador.persona.data.rut || null
+      }
+      
+      console.log('[API /chat/stream-token] 🔍 RUT obtenido del colaborador:', rut || 'NO ENCONTRADO')
+    }
+
+    // Si aún no tenemos RUT, intentar obtenerlo desde Strapi
+    if (!rut && colaborador.id) {
+      try {
+        console.log('[API /chat/stream-token] 🔍 RUT no encontrado en cookies, obteniendo desde Strapi...')
+        const colaboradorId = colaborador.documentId || colaborador.id
+        const colaboradorResponse = await strapiClient.get<any>(
+          `/api/colaboradores/${colaboradorId}?populate[persona][fields][0]=rut`
+        )
+        
+        const colaboradorData = colaboradorResponse.data?.attributes || colaboradorResponse.data
+        const personaData = colaboradorData?.persona?.data?.attributes || colaboradorData?.persona?.attributes || colaboradorData?.persona
+        
+        if (personaData?.rut) {
+          rut = personaData.rut
+          console.log('[API /chat/stream-token] ✅ RUT obtenido desde Strapi:', rut)
+        }
+      } catch (strapiError: any) {
+        console.warn('[API /chat/stream-token] ⚠️ Error al obtener RUT desde Strapi:', strapiError.message)
+      }
     }
 
     if (!rut) {
+      console.error('[API /chat/stream-token] ❌ No se pudo obtener RUT. Estructura del colaborador:', {
+        keys: Object.keys(colaborador),
+        personaKeys: colaborador.persona ? Object.keys(colaborador.persona) : 'no persona',
+        attributesKeys: colaborador.attributes ? Object.keys(colaborador.attributes) : 'no attributes',
+      })
       return NextResponse.json(
-        { error: 'No se pudo obtener el RUT de la persona. Tu perfil debe tener un RUT configurado.' },
+        { 
+          error: 'No se pudo obtener el RUT de la persona. Tu perfil debe tener un RUT configurado.',
+          hint: 'Verifica en Strapi que el colaborador tenga una persona asociada con RUT.',
+        },
         { status: 400 }
       )
     }

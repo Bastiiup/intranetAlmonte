@@ -101,8 +101,9 @@ export async function POST(request: Request) {
     
     if (colaboradorId) {
       try {
+        // CRÍTICO: Incluir RUT en los campos solicitados (necesario para chat)
         const colaboradorConPersona = await strapiClient.get<any>(
-          `/api/colaboradores/${colaboradorId}?populate[persona][fields][0]=nombres&populate[persona][fields][1]=primer_apellido&populate[persona][fields][2]=segundo_apellido&populate[persona][fields][3]=nombre_completo`
+          `/api/colaboradores/${colaboradorId}?populate[persona][fields][0]=rut&populate[persona][fields][1]=nombres&populate[persona][fields][2]=primer_apellido&populate[persona][fields][3]=segundo_apellido&populate[persona][fields][4]=nombre_completo`
         )
         
         // Extraer datos del colaborador con persona
@@ -159,6 +160,8 @@ export async function POST(request: Request) {
             email_login: colaboradorCompleto.email_login,
             nombreCompleto: personaData.nombre_completo,
             nombres: personaData.nombres,
+            rut: personaData.rut || 'NO ENCONTRADO',
+            tieneRut: !!personaData.rut,
           })
         } else {
           // Asegurar que tenga ID y documentId aunque no tenga persona
