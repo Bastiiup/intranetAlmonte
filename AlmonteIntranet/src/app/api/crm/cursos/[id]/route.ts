@@ -73,7 +73,8 @@ export async function PUT(
     debugLog('[API /crm/cursos/[id] PUT] Actualizando curso:', id)
 
     // Validaciones
-    const nombreCurso = body.curso_nombre?.trim() || body.nombre?.trim()
+    // ✅ Campo correcto en Strapi: nombre_curso (NO nombre, NO curso_nombre)
+    const nombreCurso = body.curso_nombre?.trim() || body.nombre_curso?.trim()
     if (!nombreCurso) {
       return NextResponse.json(
         { success: false, error: 'El nombre del curso es obligatorio' },
@@ -82,14 +83,9 @@ export async function PUT(
     }
 
     // Preparar datos para Strapi
-    // ⚠️ IMPORTANTE: Necesitamos verificar el schema en Strapi para saber el nombre exacto del campo
-    // Por ahora, intentamos con el campo más común que podría ser "titulo", "nombre_curso", etc.
     const cursoData: any = {
       data: {
-        // Intentar con diferentes nombres posibles hasta que se verifique el schema
-        titulo: nombreCurso, // Posible nombre del campo
-        nombre: nombreCurso, // Posible nombre del campo
-        nombre_curso: nombreCurso, // Posible nombre del campo
+        nombre_curso: nombreCurso, // ✅ Campo correcto en Strapi
         ...(body.nivel && { nivel: body.nivel }),
         ...(body.grado && { grado: body.grado }),
         ...(body.activo !== undefined && { activo: body.activo }),
@@ -112,10 +108,6 @@ export async function PUT(
         delete cursoData.data[key]
       }
     })
-    
-    // ⚠️ NOTA: Esto enviará múltiples campos con el mismo valor
-    // Una vez que se verifique el schema en Strapi, se debe usar solo el campo correcto
-    console.warn('[API /crm/cursos/[id] PUT] ⚠️ Enviando múltiples campos para el nombre del curso. Verificar schema en Strapi para usar solo el campo correcto.')
 
     const response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
       `/api/cursos/${id}`,

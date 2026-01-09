@@ -18,7 +18,9 @@ const debugLog = (...args: any[]) => {
 }
 
 interface CursoAttributes {
-  curso_nombre?: string
+  nombre_curso?: string // ✅ Campo correcto en Strapi
+  curso_nombre?: string // Mantener por compatibilidad
+  titulo?: string // Campo existente en Strapi
   nivel?: string
   grado?: string
   activo?: boolean
@@ -150,15 +152,21 @@ export async function POST(
     }
 
     // Preparar datos para Strapi
-    // ⚠️ IMPORTANTE: Verificar el nombre exacto del campo en Strapi
-    // Puede ser "nombre" en lugar de "curso_nombre"
+    // ✅ Campo correcto en Strapi: nombre_curso (NO nombre, NO curso_nombre, NO titulo)
+    const nombreCurso = body.curso_nombre?.trim() || body.nombre_curso?.trim()
+    if (!nombreCurso) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'El nombre del curso es obligatorio',
+        },
+        { status: 400 }
+      )
+    }
+
     const cursoData: any = {
       data: {
-        // ⚠️ Intentar con múltiples nombres posibles hasta verificar el schema en Strapi
-        // El prompt PROMPT-STRAPI-VERIFICAR-CAMPOS-CURSOS.md ayudará a identificar el nombre correcto
-        titulo: body.curso_nombre?.trim() || body.nombre?.trim(),
-        nombre: body.curso_nombre?.trim() || body.nombre?.trim(),
-        nombre_curso: body.curso_nombre?.trim() || body.nombre?.trim(),
+        nombre_curso: nombreCurso, // ✅ Campo correcto en Strapi
         colegio: { connect: [typeof colegioIdNum === 'number' ? colegioIdNum : parseInt(String(colegioIdNum))] },
         ...(body.nivel && { nivel: body.nivel }),
         ...(body.grado && { grado: body.grado }),
@@ -182,10 +190,6 @@ export async function POST(
         delete cursoData.data[key]
       }
     })
-    
-    // ⚠️ NOTA: Esto enviará múltiples campos con el mismo valor
-    // Una vez que se verifique el schema en Strapi, se debe usar solo el campo correcto
-    console.warn('[API /crm/colegios/[id]/cursos POST] ⚠️ Enviando múltiples campos para el nombre del curso. Verificar schema en Strapi para usar solo el campo correcto.')
     
     // Si hay ambos nombre y curso_nombre, mantener solo uno (preferir curso_nombre)
     if (cursoData.data.nombre && cursoData.data.curso_nombre) {
