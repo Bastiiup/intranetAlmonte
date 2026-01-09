@@ -16,28 +16,31 @@ Cambios realizados en el frontend (intranet) para mejorar el manejo de datos del
 ### 1. **API Route: `/api/crm/colegios/[id]/route.ts`**
 
 **Cambios:**
-- ✅ Simplificado el `populate` usando `populate=deep` en lugar de construir manualmente los parámetros
+- ✅ Mejorado el `populate` manual para incluir todas las relaciones necesarias (incluyendo `persona_trayectorias`)
 - ✅ Agregados logs de debugging condicionales para inspeccionar la estructura de datos recibida
 - ✅ Mejorado el manejo de diferentes formatos de respuesta de Strapi
 
-**Antes:**
+**Nota sobre `populate=deep`:**
+- ⚠️ **IMPORTANTE:** La sintaxis `populate=deep` no está soportada en esta versión de Strapi
+- Se usa populate manual con la sintaxis `populate[field]=true` para relaciones anidadas
+- Se agregaron relaciones para `persona_trayectorias` y sus relaciones anidadas
+
+**Código actualizado:**
 ```typescript
-const populateFields = [
-  'comuna',
-  'cartera_asignaciones.ejecutivo',
-  // ... más campos
-]
-const populateParams = buildPopulateQuery(populateFields)
-const queryString = populateParams ? `?${populateParams}` : ''
+const paramsObj = new URLSearchParams({
+  'populate[comuna]': 'true',
+  'populate[telefonos]': 'true',
+  'populate[emails]': 'true',
+  'populate[direcciones]': 'true',
+  'populate[cartera_asignaciones][populate][ejecutivo]': 'true',
+  'populate[persona_trayectorias][populate][persona]': 'true',
+  'populate[persona_trayectorias][populate][colegio]': 'true',
+  'populate[persona_trayectorias][populate][curso]': 'true',
+  'populate[persona_trayectorias][populate][asignatura]': 'true',
+})
 ```
 
-**Después:**
-```typescript
-// Usar populate=deep para obtener todas las relaciones anidadas
-const queryString = '?populate=deep'
-```
-
-**Razón:** Simplifica el código y garantiza que todas las relaciones se populen correctamente. Strapi v4 soporta `populate=deep` para obtener todas las relaciones anidadas automáticamente.
+**Razón:** Esta versión de Strapi no soporta `populate=deep`, por lo que se usa populate manual explícito para todas las relaciones necesarias.
 
 ---
 
@@ -139,7 +142,7 @@ DEBUG_CRM=true  # Opcional: activa logs de debugging en producción
 ## 🐛 Problemas Conocidos / Pendientes
 
 1. **Logs de debugging:** ✅ **RESUELTO** - Ahora son condicionales
-2. **populate=deep:** ⚠️ **MONITOREAR** - Puede ser costoso con grandes volúmenes de datos. Se recomienda monitorear el performance en producción.
+2. **populate manual:** ⚠️ **ACTUALIZADO** - Se usa populate manual porque `populate=deep` no está soportado en esta versión de Strapi. Se incluyen todas las relaciones necesarias explícitamente.
 3. **Manejo de errores:** Podría mejorarse para dar mensajes más específicos al usuario
 
 ---
@@ -189,13 +192,14 @@ AlmonteIntranet/src/app/(admin)/(apps)/crm/
 
 ## 📊 Impacto en Performance
 
-**`populate=deep`:**
-- ✅ **Ventaja:** Simplifica el código y garantiza que todas las relaciones se populen
+**Populate manual:**
+- ✅ **Ventaja:** Control explícito sobre qué relaciones se populan
 - ⚠️ **Consideración:** Puede ser más costoso en términos de tiempo de respuesta y ancho de banda con grandes volúmenes de datos
 - 📈 **Recomendación:** Monitorear los tiempos de respuesta en producción. Si se detectan problemas, considerar:
-  - Usar populate manual más específico
+  - Reducir el número de relaciones populadas según necesidad
   - Implementar paginación
   - Cachear respuestas cuando sea apropiado
+- ⚠️ **Nota:** `populate=deep` no está disponible en esta versión de Strapi, por lo que se usa populate manual
 
 ---
 

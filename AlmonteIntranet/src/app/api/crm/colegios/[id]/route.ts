@@ -45,13 +45,23 @@ export async function GET(
 
     let colegio: any = null
 
-    // Intentar primero con el endpoint directo usando populate=deep
+    // Intentar primero con el endpoint directo
     try {
-      // Usar populate=deep para obtener todas las relaciones anidadas
-      const queryString = '?populate=deep'
+      // Construir populate manual para todas las relaciones necesarias
+      const paramsObj = new URLSearchParams({
+        'populate[comuna]': 'true',
+        'populate[telefonos]': 'true',
+        'populate[emails]': 'true',
+        'populate[direcciones]': 'true',
+        'populate[cartera_asignaciones][populate][ejecutivo]': 'true',
+        'populate[persona_trayectorias][populate][persona]': 'true',
+        'populate[persona_trayectorias][populate][colegio]': 'true',
+        'populate[persona_trayectorias][populate][curso]': 'true',
+        'populate[persona_trayectorias][populate][asignatura]': 'true',
+      })
       
       const response = await strapiClient.get<StrapiResponse<StrapiEntity<ColegioAttributes>>>(
-        `/api/colegios/${id}${queryString}`
+        `/api/colegios/${id}?${paramsObj.toString()}`
       )
       
       if (response.data) {
@@ -74,17 +84,33 @@ export async function GET(
         let filterParamsObj: URLSearchParams
         
         if (isDocumentId) {
-          // Buscar por documentId con populate=deep
+          // Buscar por documentId con populate manual
           filterParamsObj = new URLSearchParams({
             'filters[documentId][$eq]': id,
-            'populate': 'deep',
+            'populate[comuna]': 'true',
+            'populate[telefonos]': 'true',
+            'populate[emails]': 'true',
+            'populate[direcciones]': 'true',
+            'populate[cartera_asignaciones][populate][ejecutivo]': 'true',
+            'populate[persona_trayectorias][populate][persona]': 'true',
+            'populate[persona_trayectorias][populate][colegio]': 'true',
+            'populate[persona_trayectorias][populate][curso]': 'true',
+            'populate[persona_trayectorias][populate][asignatura]': 'true',
           })
           debugLog('[API /crm/colegios/[id] GET] Buscando por documentId:', id)
         } else {
-          // Buscar por id numérico con populate=deep
+          // Buscar por id numérico con populate manual
           filterParamsObj = new URLSearchParams({
             'filters[id][$eq]': id.toString(),
-            'populate': 'deep',
+            'populate[comuna]': 'true',
+            'populate[telefonos]': 'true',
+            'populate[emails]': 'true',
+            'populate[direcciones]': 'true',
+            'populate[cartera_asignaciones][populate][ejecutivo]': 'true',
+            'populate[persona_trayectorias][populate][persona]': 'true',
+            'populate[persona_trayectorias][populate][colegio]': 'true',
+            'populate[persona_trayectorias][populate][curso]': 'true',
+            'populate[persona_trayectorias][populate][asignatura]': 'true',
           })
           debugLog('[API /crm/colegios/[id] GET] Buscando por id numérico:', id)
         }
@@ -108,7 +134,15 @@ export async function GET(
           debugLog('[API /crm/colegios/[id] GET] No encontrado con primer método, intentando método alternativo')
           const alternateFilterParams = new URLSearchParams({
             'filters[id][$eq]': isDocumentId ? id : id.toString(),
-            'populate': 'deep',
+            'populate[comuna]': 'true',
+            'populate[telefonos]': 'true',
+            'populate[emails]': 'true',
+            'populate[direcciones]': 'true',
+            'populate[cartera_asignaciones][populate][ejecutivo]': 'true',
+            'populate[persona_trayectorias][populate][persona]': 'true',
+            'populate[persona_trayectorias][populate][colegio]': 'true',
+            'populate[persona_trayectorias][populate][curso]': 'true',
+            'populate[persona_trayectorias][populate][asignatura]': 'true',
           })
           
           try {
