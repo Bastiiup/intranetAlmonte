@@ -488,31 +488,49 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
       // Actualizar/crear trayectoria si se seleccionó un colegio (igual que en AddContactModal)
       if (contactData.trayectoria && contactData.trayectoria.colegio) {
         try {
-          // Obtener el ID numérico de la persona
+          // Obtener el ID numérico de la persona desde la respuesta del PUT
           let personaIdNum: number | null = null
-          const isDocumentId = typeof contactId === 'string' && !/^\d+$/.test(contactId)
           
-          if (isDocumentId) {
-            try {
-              const personaResponse = await fetch(`/api/crm/contacts/${contactId}?fields=id`)
-              const personaResult = await personaResponse.json()
-              if (personaResult.success && personaResult.data) {
-                const personaData = Array.isArray(personaResult.data) ? personaResult.data[0] : personaResult.data
-                const attrs = personaData.attributes || personaData
-                if (attrs && typeof attrs === 'object' && 'id' in attrs) {
-                  personaIdNum = attrs.id as number
-                  console.log('[EditContactModal] ✅ ID numérico de persona obtenido:', personaIdNum)
-                }
-              }
-            } catch (err) {
-              console.error('[EditContactModal] ❌ Error obteniendo ID numérico de persona:', err)
+          // Intentar obtener desde la respuesta
+          if (result.data) {
+            const personaData = Array.isArray(result.data) ? result.data[0] : result.data
+            const attrs = personaData.attributes || personaData
+            if (attrs && typeof attrs === 'object' && 'id' in attrs) {
+              personaIdNum = attrs.id as number
+              console.log('[EditContactModal] ✅ ID numérico obtenido de respuesta:', personaIdNum)
             }
-          } else {
-            personaIdNum = parseInt(String(contactId))
+          }
+          
+          // Si no se obtuvo de la respuesta, intentar desde contactId
+          if (!personaIdNum) {
+            const isDocumentId = typeof contactId === 'string' && !/^\d+$/.test(contactId)
+            if (!isDocumentId) {
+              personaIdNum = parseInt(String(contactId))
+              console.log('[EditContactModal] ✅ ID numérico obtenido de contactId:', personaIdNum)
+            } else {
+              // Si es documentId, hacer una llamada para obtener el ID numérico
+              try {
+                const personaResponse = await fetch(`/api/crm/contacts/${contactId}`)
+                const personaResult = await personaResponse.json()
+                if (personaResult.success && personaResult.data) {
+                  const personaData = Array.isArray(personaResult.data) ? personaResult.data[0] : personaResult.data
+                  const attrs = personaData.attributes || personaData
+                  if (attrs && typeof attrs === 'object' && 'id' in attrs) {
+                    personaIdNum = attrs.id as number
+                    console.log('[EditContactModal] ✅ ID numérico obtenido de API:', personaIdNum)
+                  }
+                }
+              } catch (err) {
+                console.error('[EditContactModal] ❌ Error obteniendo ID numérico de persona:', err)
+              }
+            }
           }
 
           if (!personaIdNum || isNaN(personaIdNum)) {
-            console.error('[EditContactModal] ❌ No se pudo obtener ID numérico de persona:', contactId)
+            console.error('[EditContactModal] ❌ No se pudo obtener ID numérico de persona:', {
+              contactId,
+              resultData: result.data,
+            })
             throw new Error('No se pudo obtener el ID numérico de la persona para actualizar la trayectoria')
           }
 
@@ -527,26 +545,70 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
             throw new Error('ID de colegio inválido')
           }
 
-          // Buscar trayectoria existente
-          const trayectoriasResponse = await fetch(
-            `/api/persona-trayectorias?filters[persona][id][$eq]=${personaIdNum}&filters[is_current][$eq]=true`
-          )
-          const trayectoriasResult = await trayectoriasResponse.json()
+          console.log('[EditContactModal] 🔍 Buscando trayectorias para persona:', personaIdNum)
+
+          // Buscar trayectoria existente - intentar múltiples estrategias
+          let trayectoriasExistentes: any[] = []
           
-          const trayectoriasExistentes = Array.isArray(trayectoriasResult.data) 
-            ? trayectoriasResult.data 
-            : (trayectoriasResult.data?.data && Array.isArray(trayectoriasResult.data.data))
-            ? trayectoriasResult.data.data
-            : []
+          try {
+            // Estrategia 1: Buscar por persona.id e is_current
+            const trayectoriasResponse = await fetch(
+              `/api/persona-trayectorias?filters[persona][id][$eq]=${personaIdNum}&filters[is_current][$eq]=true`
+            )
+            const trayectoriasResult = await trayectoriasResponse.json()
+            
+            if (trayectoriasResult.success && trayectoriasResult.data) {
+              trayectoriasExistentes = Array.isArray(trayectoriasResult.data) 
+                ? trayectoriasResult.data 
+                : (trayectoriasResult.data?.data && Array.isArray(trayectoriasResult.data.data))
+                ? trayectoriasResult.data.data
+                : []
+            }
+          } catch (err) {
+            console.warn('[EditContactModal] ⚠️ Error en primera búsqueda de trayectorias:', err)
+          }
+
+          // Si no se encontraron, intentar sin filtro de is_current
+          if (trayectoriasExistentes.length === 0) {
+            try {
+              const trayectoriasResponse2 = await fetch(
+                `/api/persona-trayectorias?filters[persona][id][$eq]=${personaIdNum}`
+              )
+              const trayectoriasResult2 = await trayectoriasResponse2.json()
+              
+              if (trayectoriasResult2.success && trayectoriasResult2.data) {
+                trayectoriasExistentes = Array.isArray(trayectoriasResult2.data) 
+                  ? trayectoriasResult2.data 
+                  : (trayectoriasResult2.data?.data && Array.isArray(trayectoriasResult2.data.data))
+                  ? trayectoriasResult2.data.data
+                  : []
+              }
+            } catch (err) {
+              console.warn('[EditContactModal] ⚠️ Error en segunda búsqueda de trayectorias:', err)
+            }
+          }
 
           console.log('[EditContactModal] 📊 Trayectorias existentes encontradas:', trayectoriasExistentes.length)
 
           if (trayectoriasExistentes.length > 0) {
-            // Actualizar trayectoria existente
-            const trayectoriaActual = trayectoriasExistentes[0]
-            const trayectoriaId = trayectoriaActual.documentId || trayectoriaActual.id
+            // Actualizar trayectoria existente (preferir la que tiene is_current=true, o la primera)
+            const trayectoriaActual = trayectoriasExistentes.find((t: any) => {
+              const attrs = t.attributes || t
+              return attrs.is_current === true
+            }) || trayectoriasExistentes[0]
             
-            console.log('[EditContactModal] 🔄 Actualizando trayectoria existente:', trayectoriaId)
+            const tAttrs = trayectoriaActual.attributes || trayectoriaActual
+            const trayectoriaId = trayectoriaActual.documentId || trayectoriaActual.id || tAttrs.documentId || tAttrs.id
+            
+            console.log('[EditContactModal] 🔄 Actualizando trayectoria existente:', {
+              trayectoriaId,
+              tieneDocumentId: !!trayectoriaActual.documentId,
+              tieneId: !!trayectoriaActual.id,
+            })
+
+            if (!trayectoriaId) {
+              throw new Error('No se pudo obtener el ID de la trayectoria para actualizar')
+            }
 
             const updateResponse = await fetch(`/api/persona-trayectorias/${trayectoriaId}`, {
               method: 'PUT',
