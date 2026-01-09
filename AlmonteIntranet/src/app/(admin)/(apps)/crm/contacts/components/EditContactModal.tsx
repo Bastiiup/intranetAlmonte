@@ -395,7 +395,15 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
       loadContactData()
       setError(null) // Limpiar errores previos
     }
-  }, [contact, show, colegios]) // ⚠️ Agregar colegios como dependencia
+  }, [contact, show, colegios, isInitialLoad]) // ⚠️ Incluir isInitialLoad para evitar resetear selección del usuario
+  
+  // Resetear isInitialLoad cuando se cierra el modal
+  useEffect(() => {
+    if (!show) {
+      setIsInitialLoad(true)
+      setSelectedColegio(null)
+    }
+  }, [show])
 
   const handleFieldChange = (field: string, value: any) => {
     setFormData((prev) => ({
