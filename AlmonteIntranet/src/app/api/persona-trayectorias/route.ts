@@ -345,15 +345,29 @@ export async function POST(request: NextRequest) {
       delete parsedPayload.data.region
     }
     
-    console.log('[API /persona-trayectorias POST] 📤 Payload FINAL para enviar a Strapi:', JSON.stringify(parsedPayload, null, 2))
-    console.log('[API /persona-trayectorias POST] 📋 Campos en payloadParaEnviar.data:', Object.keys(parsedPayload.data))
-    console.log('[API /persona-trayectorias POST] ✅ Verificación final - tiene region:', 'region' in parsedPayload.data)
-    console.log('[API /persona-trayectorias POST] ✅ Verificación final - tiene comuna:', 'comuna' in parsedPayload.data)
-    console.log('[API /persona-trayectorias POST] ✅ Verificación final - tiene dependencia:', 'dependencia' in parsedPayload.data)
+    // ⚠️ VERIFICACIÓN FINAL ABSOLUTA: Convertir a string y parsear de nuevo para asegurar limpieza
+    const payloadString = JSON.stringify(parsedPayload)
+    const payloadFinalLimpio = JSON.parse(payloadString)
+    
+    // Eliminar explícitamente cualquier campo prohibido que pueda haber quedado
+    const camposProhibidosFinal = ['region', 'comuna', 'dependencia', 'zona', 'colegio_nombre', 'rbd', 'telefonos', 'emails', 'direcciones', 'website', 'estado']
+    camposProhibidosFinal.forEach(campo => {
+      if (campo in payloadFinalLimpio.data) {
+        console.error(`[API /persona-trayectorias POST] ❌ ERROR: ${campo} encontrado en payloadFinalLimpio, eliminando`)
+        delete payloadFinalLimpio.data[campo]
+      }
+    })
+    
+    console.log('[API /persona-trayectorias POST] 📤 Payload FINAL para enviar a Strapi:', JSON.stringify(payloadFinalLimpio, null, 2))
+    console.log('[API /persona-trayectorias POST] 📋 Campos en payloadFinalLimpio.data:', Object.keys(payloadFinalLimpio.data))
+    console.log('[API /persona-trayectorias POST] ✅ Verificación final - tiene region:', 'region' in payloadFinalLimpio.data)
+    console.log('[API /persona-trayectorias POST] ✅ Verificación final - tiene comuna:', 'comuna' in payloadFinalLimpio.data)
+    console.log('[API /persona-trayectorias POST] ✅ Verificación final - tiene dependencia:', 'dependencia' in payloadFinalLimpio.data)
+    console.log('[API /persona-trayectorias POST] ✅ Payload como string (para verificar):', payloadString)
     
     const response = await strapiClient.post<StrapiResponse<StrapiEntity<any>>>(
       '/api/persona-trayectorias',
-      parsedPayload
+      payloadFinalLimpio
     )
     
     console.log('[API /persona-trayectorias POST] ✅ Respuesta exitosa de Strapi:', {
