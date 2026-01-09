@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Container, Card, CardHeader, CardBody, Button, Form, FormGroup, FormLabel, FormControl, Alert, Spinner, Row, Col } from 'react-bootstrap'
+import { Container, Card, CardHeader, CardBody, Button, Form, FormGroup, FormLabel, FormControl, Alert, Spinner, Row, Col, Table } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 
 export default function DebugPage() {
@@ -16,6 +16,10 @@ export default function DebugPage() {
   const [createPersonaId, setCreatePersonaId] = useState('')
   const [createColegioId, setCreateColegioId] = useState('')
   const [createCargo, setCreateCargo] = useState('')
+
+  const [listLoading, setListLoading] = useState(false)
+  const [listResult, setListResult] = useState<any>(null)
+  const [listType, setListType] = useState<'personas' | 'colegios' | 'trayectorias'>('personas')
 
   const consultarTrayectorias = async () => {
     setLoading(true)
@@ -81,6 +85,27 @@ export default function DebugPage() {
       console.error('Error:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const listarIds = async () => {
+    setListLoading(true)
+    setListResult(null)
+    
+    try {
+      const response = await fetch(`/api/debug/list-ids?tipo=${listType}`)
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al listar')
+      }
+      
+      setListResult(data)
+    } catch (err: any) {
+      setError(err.message || 'Error al listar')
+      console.error('Error:', err)
+    } finally {
+      setListLoading(false)
     }
   }
 
@@ -254,6 +279,144 @@ export default function DebugPage() {
           </CardBody>
         </Card>
       )}
+
+      <Card className="mt-3">
+        <CardHeader>
+          <h5>📋 Listar IDs Disponibles</h5>
+        </CardHeader>
+        <CardBody>
+          <Row>
+            <Col md={4}>
+              <FormGroup className="mb-3">
+                <FormLabel>Tipo</FormLabel>
+                <Form.Select value={listType} onChange={(e) => setListType(e.target.value as any)}>
+                  <option value="personas">Personas</option>
+                  <option value="colegios">Colegios</option>
+                  <option value="trayectorias">Trayectorias</option>
+                </Form.Select>
+              </FormGroup>
+            </Col>
+            <Col md={8} className="d-flex align-items-end">
+              <Button
+                variant="info"
+                onClick={listarIds}
+                disabled={listLoading}
+              >
+                {listLoading ? (
+                  <>
+                    <Spinner size="sm" className="me-2" />
+                    Listando...
+                  </>
+                ) : (
+                  'Listar IDs'
+                )}
+              </Button>
+            </Col>
+          </Row>
+
+          {listResult && (
+            <div className="mt-3">
+              <Alert variant="info">
+                <strong>Total encontrados:</strong> {listResult.total || listResult.data?.length || 0}
+                {listResult.contentTypeName && (
+                  <><br /><strong>Content Type:</strong> {listResult.contentTypeName}</>
+                )}
+              </Alert>
+              
+              <div style={{ maxHeight: '400px', overflow: 'auto' }}>
+                <Table striped bordered hover size="sm">
+                  <thead>
+                    <tr>
+                      <th>ID Numérico</th>
+                      <th>Document ID</th>
+                      {listType === 'personas' && (
+                        <>
+                          <th>Nombre</th>
+                          <th>RUT</th>
+                        </>
+                      )}
+                      {listType === 'colegios' && (
+                        <>
+                          <th>Nombre</th>
+                          <th>RBD</th>
+                        </>
+                      )}
+                      {listType === 'trayectorias' && (
+                        <>
+                          <th>Cargo</th>
+                          <th>Persona</th>
+                          <th>Colegio</th>
+                          <th>Actual</th>
+                        </>
+                      )}
+                      <th>Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {listResult.data?.map((item: any) => (
+                      <tr key={item.id || item.documentId}>
+                        <td>{item.id || '-'}</td>
+                        <td><small>{item.documentId || '-'}</small></td>
+                        {listType === 'personas' && (
+                          <>
+                            <td>{item.nombre || '-'}</td>
+                            <td>{item.rut || '-'}</td>
+                          </>
+                        )}
+                        {listType === 'colegios' && (
+                          <>
+                            <td>{item.nombre || '-'}</td>
+                            <td>{item.rbd || '-'}</td>
+                          </>
+                        )}
+                        {listType === 'trayectorias' && (
+                          <>
+                            <td>{item.cargo || '-'}</td>
+                            <td><small>{item.persona?.nombre || '-'} (ID: {item.persona?.id || item.persona?.documentId || '-'})</small></td>
+                            <td><small>{item.colegio?.nombre || '-'} (ID: {item.colegio?.id || item.colegio?.documentId || '-'})</small></td>
+                            <td>{item.is_current ? '✅' : '❌'}</td>
+                          </>
+                        )}
+                        <td>
+                          <Button
+                            variant="outline-primary"
+                            size="sm"
+                            onClick={() => {
+                              const idToUse = item.id || item.documentId
+                              if (listType === 'personas') {
+                                setPersonaId(String(idToUse))
+                                setCreatePersonaId(String(item.id || ''))
+                              } else if (listType === 'colegios') {
+                                setColegioId(String(idToUse))
+                                setCreateColegioId(String(item.id || ''))
+                              } else if (listType === 'trayectorias') {
+                                setTrayectoriaId(String(idToUse))
+                              }
+                            }}
+                          >
+                            Usar
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
+            </div>
+          )}
+
+          {listResult?.errors && listResult.errors.length > 0 && (
+            <Alert variant="warning" className="mt-3">
+              <strong>Errores:</strong>
+              <ul>
+                {listResult.errors.map((err: any, idx: number) => (
+                  <li key={idx}>{err.error || err.message}</li>
+                ))}
+              </ul>
+            </Alert>
+          )}
+        </CardBody>
+      </Card>
 
       <Card className="mt-3">
         <CardHeader>
