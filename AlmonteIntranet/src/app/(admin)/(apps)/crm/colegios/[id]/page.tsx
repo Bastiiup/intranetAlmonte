@@ -921,7 +921,7 @@ export default function ColegioDetailPage() {
                     <CardHeader>
                       <div className="d-flex justify-content-between align-items-start">
                         <div>
-                          <h5 className="mb-1">{attrs.curso_nombre || 'Sin nombre'}</h5>
+                          <h5 className="mb-1">{attrs.nombre || attrs.curso_nombre || 'Sin nombre'}</h5>
                           {attrs.nivel && (
                             <small className="text-muted">Nivel: {attrs.nivel}</small>
                           )}

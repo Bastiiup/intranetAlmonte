@@ -73,7 +73,8 @@ export async function PUT(
     debugLog('[API /crm/cursos/[id] PUT] Actualizando curso:', id)
 
     // Validaciones
-    if (!body.curso_nombre || !body.curso_nombre.trim()) {
+    const nombreCurso = body.curso_nombre?.trim() || body.nombre?.trim()
+    if (!nombreCurso) {
       return NextResponse.json(
         { success: false, error: 'El nombre del curso es obligatorio' },
         { status: 400 }
@@ -81,34 +82,24 @@ export async function PUT(
     }
 
     // Preparar datos para Strapi
-    // ⚠️ IMPORTANTE: Verificar el nombre exacto del campo en Strapi
+    // ⚠️ IMPORTANTE: El campo en Strapi se llama "nombre", no "curso_nombre"
     const cursoData: any = {
-      data: {},
-    }
-    
-    // Agregar nombre del curso (intentar ambos nombres posibles)
-    if (body.curso_nombre?.trim()) {
-      cursoData.data.curso_nombre = body.curso_nombre.trim()
-      cursoData.data.nombre = body.curso_nombre.trim() // Por si acaso
-    } else if (body.nombre?.trim()) {
-      cursoData.data.nombre = body.nombre.trim()
-      cursoData.data.curso_nombre = body.nombre.trim()
-    }
-    
-    // Agregar otros campos
-    if (body.nivel) cursoData.data.nivel = body.nivel
-    if (body.grado) cursoData.data.grado = body.grado
-    if (body.activo !== undefined) cursoData.data.activo = body.activo
-    
-    // Materiales como componentes repeatable
-    if (body.materiales && Array.isArray(body.materiales) && body.materiales.length > 0) {
-      cursoData.data.materiales = body.materiales.map((material: any) => ({
-        material_nombre: material.material_nombre || '',
-        tipo: material.tipo || 'util',
-        cantidad: material.cantidad ? parseInt(String(material.cantidad)) : 1,
-        obligatorio: material.obligatorio !== undefined ? material.obligatorio : true,
-        ...(material.descripcion && { descripcion: material.descripcion }),
-      }))
+      data: {
+        nombre: nombreCurso, // Campo correcto en Strapi
+        ...(body.nivel && { nivel: body.nivel }),
+        ...(body.grado && { grado: body.grado }),
+        ...(body.activo !== undefined && { activo: body.activo }),
+        // Materiales como componentes repeatable
+        ...(body.materiales && Array.isArray(body.materiales) && body.materiales.length > 0 && {
+          materiales: body.materiales.map((material: any) => ({
+            material_nombre: material.material_nombre || '',
+            tipo: material.tipo || 'util',
+            cantidad: material.cantidad ? parseInt(String(material.cantidad)) : 1,
+            obligatorio: material.obligatorio !== undefined ? material.obligatorio : true,
+            ...(material.descripcion && { descripcion: material.descripcion }),
+          })),
+        }),
+      },
     }
     
     // Limpiar campos undefined o null
@@ -117,11 +108,6 @@ export async function PUT(
         delete cursoData.data[key]
       }
     })
-    
-    // Si hay ambos nombre y curso_nombre, mantener solo uno (preferir curso_nombre)
-    if (cursoData.data.nombre && cursoData.data.curso_nombre) {
-      delete cursoData.data.nombre
-    }
 
     const response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
       `/api/cursos/${id}`,

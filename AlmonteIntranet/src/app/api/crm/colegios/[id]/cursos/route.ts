@@ -71,7 +71,7 @@ export async function GET(
     const paramsObj = new URLSearchParams({
       'filters[colegio][id][$eq]': String(colegioIdNum),
       'populate[materiales]': 'true',
-      'sort[0]': 'curso_nombre:asc', // Ordenar por nombre del curso en lugar de nivel
+      'sort[0]': 'nombre:asc', // Ordenar por nombre del curso
     })
 
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
