@@ -329,7 +329,27 @@ export async function POST(request: Request) {
     )
 
     // Verificar que la relación se haya establecido correctamente
-    const colaboradorCreado = response.data?.data || response.data
+    // response puede ser StrapiResponse o directamente StrapiEntity
+    let colaboradorCreado: any = null
+    if (response && typeof response === 'object') {
+      // Si response tiene .data, puede ser StrapiResponse
+      if ('data' in response) {
+        const responseData = (response as any).data
+        // responseData puede ser StrapiEntity o array
+        if (Array.isArray(responseData)) {
+          colaboradorCreado = responseData[0]
+        } else if (responseData && typeof responseData === 'object') {
+          // Si responseData tiene .data, es StrapiResponse anidado
+          colaboradorCreado = (responseData as any).data || responseData
+        } else {
+          colaboradorCreado = responseData
+        }
+      } else {
+        // response es directamente StrapiEntity
+        colaboradorCreado = response
+      }
+    }
+    
     const colaboradorAttrs = colaboradorCreado?.attributes || colaboradorCreado
     
     console.log('[API /colaboradores POST] ✅ Colaborador creado:', {
