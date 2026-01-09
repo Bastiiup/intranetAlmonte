@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     // PASO 4: Intentar crear la trayectoria
     try {
       console.log('[DEBUG] Creando trayectoria con payload:', JSON.stringify(trayectoriaPayload, null, 2))
-      const trayectoriaResponse = await strapiClient.post('/api/profesores', trayectoriaPayload)
+      const trayectoriaResponse = await strapiClient.post<any>('/api/profesores', trayectoriaPayload)
       
       diagnostic.steps.push({
         step: 'Crear trayectoria',
