@@ -1,8 +1,8 @@
-# 🚨 Resumen Ejecutivo: Error "Invalid key region" en persona-trayectorias
+# ✅ Resumen: Error "Invalid key region" - RESUELTO
 
 **Fecha:** Enero 2026  
 **Prioridad:** 🔴 ALTA  
-**Estado:** Bloqueando creación de trayectorias
+**Estado:** ✅ RESUELTO - Enero 2026
 
 ---
 
@@ -46,21 +46,23 @@ Al crear una `persona-trayectorias` vía POST, Strapi rechaza la petición con:
 
 ---
 
-## 🎯 Acción Requerida
+## ✅ Solución Aplicada
 
-**Revisar en Strapi:**
+**Corrección en Strapi (Enero 2026):**
 
-1. ✅ **Lifecycle hook `syncColegioLocation`** en `persona-trayectorias`
-   - ¿Está intentando procesar o validar el campo `region`?
-   - El hook consulta el colegio con `fields: ['id', 'region']` - ¿esto causa el error?
+1. ✅ **Lifecycle hook corregido**
+   - Eliminado `region` de `fields` en la consulta del colegio
+   - Ahora obtiene la región solo desde `comuna.region_nombre`
+   - Mantiene la funcionalidad de asignar `colegio_region` correctamente
 
-2. ✅ **Schema de `persona-trayectorias`**
-   - ¿Existe un campo `region` (no `colegio_region`)?
-   - ¿Hay validaciones que rechacen campos específicos?
+2. ✅ **Cambios en el código:**
+   ```javascript
+   // ANTES: fields: ['id', 'region'] ← Causaba el error
+   // DESPUÉS: fields: ['id'] ← Sin region
+   // Región obtenida desde: comuna.region_nombre
+   ```
 
-3. ✅ **Logs del servidor Strapi**
-   - ¿Qué payload recibe exactamente Strapi?
-   - ¿En qué punto falla la validación?
+3. ✅ **Estado:** El error "Invalid key region" está resuelto
 
 ---
 

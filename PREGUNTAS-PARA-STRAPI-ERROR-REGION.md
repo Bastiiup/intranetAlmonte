@@ -194,21 +194,35 @@ Campos que NO existen:
 
 ---
 
-## 🔴 Estado Actual del Problema
+## ✅ Problema Resuelto
 
-**Última prueba:** Enero 2026  
-**Resultado:** ❌ El error persiste incluso después de:
-- ✅ Cambiar formato de relaciones a `{ connect: [id] }`
-- ✅ Múltiples capas de filtrado y eliminación de campos prohibidos
-- ✅ Verificación exhaustiva de que `region` NO se envía en el payload
+**Fecha de resolución:** Enero 2026  
+**Solución aplicada:** ✅ Corregido el lifecycle hook en Strapi
 
-**Evidencia:**
-- Los logs del frontend confirman que NO enviamos `region`
-- El error persiste: `"Invalid key region"` con `"path": "region"`
-- El problema está definitivamente en el backend de Strapi
+**Cambios realizados en Strapi:**
+- ✅ Eliminado `region` de `fields` en la consulta del colegio
+- ✅ El lifecycle ahora obtiene la región solo desde `comuna.region_nombre`
+- ✅ Mantiene la funcionalidad de asignar `colegio_region` correctamente
 
-**Conclusión:**
-El lifecycle hook `syncColegioLocation` en Strapi está probablemente causando que Strapi valide o procese el campo `region` aunque no lo estemos enviando. Esto requiere una solución en el backend de Strapi.
+**Código corregido:**
+```javascript
+// ANTES (problemático):
+const colegio = await strapi.entityService.findOne('api::colegio.colegio', colegioId, {
+  fields: ['id', 'region'], // ← Causaba el error
+  populate: { comuna: { fields: ['id', 'region_nombre'] } }
+})
+
+// DESPUÉS (corregido):
+const colegio = await strapi.entityService.findOne('api::colegio.colegio', colegioId, {
+  fields: ['id'], // ← Sin region
+  populate: { comuna: { fields: ['id', 'region_nombre'] } }
+})
+
+// Obtener región desde comuna.region_nombre (más confiable)
+data.colegio_region = colegio?.comuna?.region_nombre ?? null
+```
+
+**Estado:** ✅ El error "Invalid key region" debería estar resuelto.
 
 ---
 
