@@ -129,10 +129,15 @@ export async function POST(request: Request) {
           )
 
           if (personaSearchResponse.data && Array.isArray(personaSearchResponse.data) && personaSearchResponse.data.length > 0) {
-            // Persona existe, usar su ID
-            personaId = personaSearchResponse.data[0].id || personaSearchResponse.data[0].documentId
+            // Persona existe, usar su documentId (preferido) o id
+            const personaEncontrada = personaSearchResponse.data[0]
+            personaId = personaEncontrada.documentId || personaEncontrada.id
             personaExiste = true
-            console.log('[API /colaboradores POST] ✅ Persona encontrada por RUT:', personaId)
+            console.log('[API /colaboradores POST] ✅ Persona encontrada por RUT:', {
+              id: personaEncontrada.id,
+              documentId: personaEncontrada.documentId,
+              personaIdUsado: personaId,
+            })
 
             // Actualizar datos de persona si se proporcionaron
             if (personaData.nombres || personaData.primer_apellido || personaData.genero || personaData.cumpleagno) {
@@ -208,13 +213,19 @@ export async function POST(request: Request) {
               personaCreateData
             )
 
-            personaId = personaResponse.data?.id || personaResponse.data?.documentId || personaResponse.id || personaResponse.documentId
+            // CRÍTICO: Obtener documentId (preferido) o id de la persona creada
+            const personaCreada = personaResponse.data || personaResponse
+            personaId = personaCreada.documentId || personaCreada.id
             
             if (!personaId) {
               throw new Error('No se pudo obtener el ID de la persona creada. Respuesta: ' + JSON.stringify(personaResponse))
             }
             
-            console.log('[API /colaboradores POST] ✅ Persona creada exitosamente:', personaId)
+            console.log('[API /colaboradores POST] ✅ Persona creada exitosamente:', {
+              id: personaCreada.id,
+              documentId: personaCreada.documentId,
+              personaIdUsado: personaId,
+            })
           } catch (createError: any) {
             console.error('[API /colaboradores POST] ❌ Error al crear persona:', createError)
             
@@ -229,8 +240,13 @@ export async function POST(request: Request) {
                 )
 
                 if (personaSearchResponse.data && Array.isArray(personaSearchResponse.data) && personaSearchResponse.data.length > 0) {
-                  personaId = personaSearchResponse.data[0].id || personaSearchResponse.data[0].documentId
-                  console.log('[API /colaboradores POST] ✅ Persona encontrada después del error de RUT único:', personaId)
+                  const personaEncontrada = personaSearchResponse.data[0]
+                  personaId = personaEncontrada.documentId || personaEncontrada.id
+                  console.log('[API /colaboradores POST] ✅ Persona encontrada después del error de RUT único:', {
+                    id: personaEncontrada.id,
+                    documentId: personaEncontrada.documentId,
+                    personaIdUsado: personaId,
+                  })
                   
                   // Intentar actualizar solo si tenemos datos nuevos
                   if (personaData.nombres || personaData.primer_apellido || personaData.genero || personaData.cumpleagno) {
@@ -289,6 +305,9 @@ export async function POST(request: Request) {
         activo: false, // Siempre false - requiere activación por super_admin desde solicitudes
         ...(body.password && { password: body.password }),
         ...(body.rol && body.rol.trim() && { rol: body.rol.trim() }),
+        // CRÍTICO: Vincular persona usando el ID (Strapi acepta id numérico o documentId)
+        // Si personaId es documentId (string), Strapi lo manejará correctamente
+        // Si personaId es id numérico, también funcionará
         ...(personaId && { persona: personaId }),
         ...(body.usuario && { usuario: body.usuario }),
         // NO enviar auth_provider - dejarlo vacío en Strapi
@@ -297,9 +316,9 @@ export async function POST(request: Request) {
 
     console.log('[API /colaboradores POST] 📤 Datos del colaborador a crear:', {
       email_login: colaboradorData.data.email_login,
-      auth_provider: colaboradorData.data.auth_provider,
       tienePersona: !!colaboradorData.data.persona,
       personaId: colaboradorData.data.persona || 'NO HAY',
+      personaIdTipo: colaboradorData.data.persona ? typeof colaboradorData.data.persona : 'N/A',
       tieneRol: !!colaboradorData.data.rol,
       rol: colaboradorData.data.rol || 'NO HAY',
     })
@@ -308,6 +327,37 @@ export async function POST(request: Request) {
       '/api/colaboradores',
       colaboradorData
     )
+
+    // Verificar que la relación se haya establecido correctamente
+    const colaboradorCreado = response.data?.data || response.data
+    const colaboradorAttrs = colaboradorCreado?.attributes || colaboradorCreado
+    
+    console.log('[API /colaboradores POST] ✅ Colaborador creado:', {
+      id: colaboradorCreado?.id,
+      documentId: colaboradorCreado?.documentId,
+      email: colaboradorAttrs?.email_login,
+      tienePersona: !!colaboradorAttrs?.persona,
+      personaId: colaboradorAttrs?.persona?.data?.id || colaboradorAttrs?.persona?.id || colaboradorAttrs?.persona || 'NO HAY',
+    })
+    
+    // Si no se vinculó la persona, intentar actualizar el colaborador
+    if (personaId && !colaboradorAttrs?.persona) {
+      console.warn('[API /colaboradores POST] ⚠️ La persona no se vinculó automáticamente, intentando actualizar...')
+      try {
+        const colaboradorIdParaActualizar = colaboradorCreado?.documentId || colaboradorCreado?.id
+        if (colaboradorIdParaActualizar) {
+          const updateResponse = await strapiClient.put(`/api/colaboradores/${colaboradorIdParaActualizar}`, {
+            data: {
+              persona: personaId,
+            },
+          })
+          console.log('[API /colaboradores POST] ✅ Persona vinculada manualmente después de crear colaborador')
+        }
+      } catch (updateError: any) {
+        console.error('[API /colaboradores POST] ❌ Error al vincular persona después de crear colaborador:', updateError.message)
+        // No fallar la creación, solo loggear el error
+      }
+    }
 
     return NextResponse.json({
       success: true,
