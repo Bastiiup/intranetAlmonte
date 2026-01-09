@@ -33,7 +33,10 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
   const [colegios, setColegios] = useState<ColegioOption[]>([])
   const [loadingColegios, setLoadingColegios] = useState(false)
   const [colegioSearchTerm, setColegioSearchTerm] = useState('')
-  const [selectedColegio, setSelectedColegio] = useState<{ value: number; label: string } | null>(null)
+  
+  // Tipo para las opciones de react-select
+  type ColegioSelectOption = { value: number; label: string }
+  const [selectedColegio, setSelectedColegio] = useState<ColegioSelectOption | null>(null)
   const [formData, setFormData] = useState({
     nombres: '',
     email: '',
@@ -89,14 +92,13 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
     }
   }, [debouncedSearch])
 
-  // Opciones para react-select
-  const colegioOptions = useMemo(() => {
+  // Opciones para react-select (solo value y label, sin colegio)
+  const colegioOptions = useMemo<ColegioSelectOption[]>(() => {
     return colegios
       .filter((c) => c.id && c.id > 0)
       .map((colegio) => ({
         value: colegio.id,
         label: `${colegio.nombre}${colegio.rbd ? ` (RBD: ${colegio.rbd})` : ''}`,
-        colegio: colegio, // Guardar referencia completa
       }))
   }, [colegios])
 
@@ -107,14 +109,17 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
   }
 
   // Manejar selección de colegio
-  const handleColegioChange = async (option: { value: number; label: string; colegio: ColegioOption } | null) => {
+  const handleColegioChange = async (option: ColegioSelectOption | null) => {
     setSelectedColegio(option)
     if (option) {
       handleFieldChange('colegioId', String(option.value))
       
+      // Buscar el colegio completo en la lista para obtener documentId si es necesario
+      const colegioCompleto = colegios.find((c) => c.id === option.value)
+      
       // Auto-completar datos del colegio obteniendo información completa
       try {
-        const colegioId = option.colegio.documentId || String(option.value)
+        const colegioId = colegioCompleto?.documentId || String(option.value)
         const response = await fetch(`/api/crm/colegios/${colegioId}?populate[comuna]=true`)
         const result = await response.json()
         
