@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Button, Form, FormGroup, FormLabel, FormControl, Alert, Row, Col } from 'react-bootstrap'
 import { LuCheck } from 'react-icons/lu'
+import Select from 'react-select'
+import { debounce } from 'lodash'
 import type { ContactType } from '@/app/(admin)/(apps)/crm/types'
 
 interface ColegioOption {
@@ -30,6 +32,8 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
   const [error, setError] = useState<string | null>(null)
   const [colegios, setColegios] = useState<ColegioOption[]>([])
   const [loadingColegios, setLoadingColegios] = useState(false)
+  const [colegioSearchTerm, setColegioSearchTerm] = useState('')
+  const [selectedColegio, setSelectedColegio] = useState<{ value: number; label: string } | null>(null)
   const [formData, setFormData] = useState({
     nombres: '',
     email: '',
@@ -65,6 +69,91 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
       console.error('❌ [EditContactModal] Error al cargar colegios:', err)
     } finally {
       setLoadingColegios(false)
+    }
+  }
+
+  // Debounce para búsqueda de colegios mientras el usuario escribe
+  const debouncedSearch = useMemo(
+    () => debounce((searchTerm: string) => {
+      if (searchTerm.trim().length >= 2 || searchTerm.trim().length === 0) {
+        loadColegios(searchTerm.trim())
+      }
+    }, 300),
+    []
+  )
+
+  // Limpiar debounce al desmontar
+  useEffect(() => {
+    return () => {
+      debouncedSearch.cancel()
+    }
+  }, [debouncedSearch])
+
+  // Opciones para react-select
+  const colegioOptions = useMemo(() => {
+    return colegios
+      .filter((c) => c.id && c.id > 0)
+      .map((colegio) => ({
+        value: colegio.id,
+        label: `${colegio.nombre}${colegio.rbd ? ` (RBD: ${colegio.rbd})` : ''}`,
+        colegio: colegio, // Guardar referencia completa
+      }))
+  }, [colegios])
+
+  // Manejar cambio en el input de búsqueda
+  const handleColegioInputChange = (inputValue: string) => {
+    setColegioSearchTerm(inputValue)
+    debouncedSearch(inputValue)
+  }
+
+  // Manejar selección de colegio
+  const handleColegioChange = async (option: { value: number; label: string; colegio: ColegioOption } | null) => {
+    setSelectedColegio(option)
+    if (option) {
+      handleFieldChange('colegioId', String(option.value))
+      
+      // Auto-completar datos del colegio obteniendo información completa
+      try {
+        const colegioId = option.colegio.documentId || String(option.value)
+        const response = await fetch(`/api/crm/colegios/${colegioId}?populate[comuna]=true`)
+        const result = await response.json()
+        
+        if (result.success && result.data) {
+          const colegioData = result.data
+          const attrs = colegioData.attributes || colegioData
+          
+          // Extraer comuna
+          const comunaData = attrs.comuna?.data || attrs.comuna
+          const comunaAttrs = comunaData?.attributes || comunaData
+          
+          // Auto-completar campos del formulario
+          setFormData((prev) => ({
+            ...prev,
+            colegioId: String(option.value),
+            region: attrs.region || comunaAttrs?.region_nombre || prev.region,
+            comuna: comunaAttrs?.nombre || comunaAttrs?.comuna_nombre || prev.comuna,
+            dependencia: attrs.dependencia || prev.dependencia,
+          }))
+          
+          console.log('[EditContactModal] ✅ Datos del colegio auto-completados:', {
+            region: attrs.region || comunaAttrs?.region_nombre,
+            comuna: comunaAttrs?.nombre || comunaAttrs?.comuna_nombre,
+            dependencia: attrs.dependencia,
+          })
+        }
+      } catch (err) {
+        console.error('[EditContactModal] ❌ Error obteniendo datos del colegio:', err)
+        // No fallar, solo loguear - el usuario puede completar manualmente
+      }
+    } else {
+      handleFieldChange('colegioId', '')
+      // Limpiar campos relacionados si se deselecciona el colegio
+      setFormData((prev) => ({
+        ...prev,
+        region: '',
+        comuna: '',
+        dependencia: '',
+      }))
     }
   }
 
@@ -444,33 +533,39 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
             <Col md={6}>
               <FormGroup className="mb-3">
                 <FormLabel>Institución (Colegio)</FormLabel>
-                <FormControl
-                  as="select"
-                  value={formData.colegioId || ''}
-                  onChange={(e) => {
-                    const selectedValue = e.target.value
-                    console.log('[EditContactModal] Colegio seleccionado:', selectedValue)
-                    handleFieldChange('colegioId', selectedValue)
+                <Select
+                  value={selectedColegio}
+                  onChange={handleColegioChange}
+                  onInputChange={handleColegioInputChange}
+                  options={colegioOptions}
+                  isSearchable
+                  isClearable
+                  placeholder="Escribe para buscar colegio..."
+                  isLoading={loadingColegios}
+                  noOptionsMessage={({ inputValue }) => 
+                    inputValue.length < 2 
+                      ? 'Escribe al menos 2 caracteres para buscar...'
+                      : 'No se encontraron colegios'
+                  }
+                  loadingMessage={() => 'Buscando colegios...'}
+                  styles={{
+                    control: (base) => ({
+                      ...base,
+                      minHeight: '38px',
+                      borderColor: '#ced4da',
+                    }),
+                    menu: (base) => ({
+                      ...base,
+                      zIndex: 9999,
+                    }),
                   }}
-                  disabled={loading || loadingColegios}
-                >
-                  <option value="">Seleccionar colegio...</option>
-                  {colegios
-                    .filter((c) => c.id && c.id > 0) // ⚠️ Solo mostrar colegios con ID numérico válido
-                    .map((colegio) => {
-                      const colegioValue = String(colegio.id) // ⚠️ Siempre usar ID numérico como string
-                      return (
-                        <option key={colegioValue} value={colegioValue}>
-                          {colegio.nombre} {colegio.rbd ? `(RBD: ${colegio.rbd})` : ''}
-                        </option>
-                      )
-                    })}
-                </FormControl>
-                {loadingColegios && (
-                  <small className="text-muted">Cargando colegios...</small>
-                )}
-                {!loadingColegios && colegios.filter((c) => c.id && c.id > 0).length === 0 && (
-                  <small className="text-muted">No hay colegios disponibles</small>
+                  className="react-select-container"
+                  classNamePrefix="react-select"
+                />
+                {selectedColegio && (
+                  <small className="text-muted mt-1 d-block">
+                    Colegio seleccionado: {selectedColegio.label}
+                  </small>
                 )}
               </FormGroup>
             </Col>

@@ -92,13 +92,16 @@ export async function GET(request: Request) {
     params.append('populate[tags]', 'true')
     
     // Nivel 2: Trayectorias con populate completo del colegio
+    // ⚠️ IMPORTANTE: Populate completo para que todos los datos del colegio estén disponibles
+    params.append('populate[trayectorias]', 'true')
+    params.append('populate[trayectorias][populate][colegio]', 'true')
     params.append('populate[trayectorias][populate][colegio][populate][telefonos]', 'true')
     params.append('populate[trayectorias][populate][colegio][populate][emails]', 'true')
-    // Populate comuna (region_nombre es campo directo, no relación - solo true, sin populate anidado)
     params.append('populate[trayectorias][populate][colegio][populate][comuna]', 'true')
+    params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones]', 'true')
     params.append('populate[trayectorias][populate][colegio][populate][cartera_asignaciones][populate][ejecutivo]', 'true')
     // Nota: website y direccion son campos directos/componentes, Strapi los trae automáticamente con populate
-    // No necesitamos especificar fields porque Strapi trae todos los campos por defecto
+    // No especificar fields para traer todos los campos del colegio (colegio_nombre, rbd, dependencia, region, zona, etc.)
 
     // Filtros
     params.append('filters[activo][$eq]', 'true')

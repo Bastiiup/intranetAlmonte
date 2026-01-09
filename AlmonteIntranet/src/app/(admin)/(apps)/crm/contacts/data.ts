@@ -119,13 +119,41 @@ function transformPersonaToContact(persona: PersonaEntity): ContactType {
   const phone = telefonoPrincipal?.telefono_norm || telefonoPrincipal?.telefono_raw || ''
   
   // 4. Trayectoria actual (priorizar is_current)
-  const trayectoriaActual = attrs.trayectorias?.find((t: { is_current?: boolean }) => t.is_current) || attrs.trayectorias?.[0]
+  // ⚠️ IMPORTANTE: Manejar diferentes formatos de trayectorias (puede venir como array, data, etc.)
+  let trayectoriasArray: any[] = []
+  if (attrs.trayectorias) {
+    // Caso 1: Viene como array directo
+    if (Array.isArray(attrs.trayectorias)) {
+      trayectoriasArray = attrs.trayectorias
+    }
+    // Caso 2: Viene como { data: [...] }
+    else if (attrs.trayectorias.data && Array.isArray(attrs.trayectorias.data)) {
+      trayectoriasArray = attrs.trayectorias.data
+    }
+    // Caso 3: Viene como objeto único
+    else if (attrs.trayectorias.id || attrs.trayectorias.documentId) {
+      trayectoriasArray = [attrs.trayectorias]
+    }
+  }
+  
+  // Extraer atributos de cada trayectoria si es necesario
+  trayectoriasArray = trayectoriasArray.map((t: any) => {
+    // Si tiene attributes, extraerlos
+    if (t.attributes) {
+      return { ...t, ...t.attributes }
+    }
+    return t
+  })
+  
+  // Buscar trayectoria actual (priorizar is_current)
+  const trayectoriaActual = trayectoriasArray.find((t: { is_current?: boolean }) => t.is_current) || trayectoriasArray[0]
   
   // Debug logging para desarrollo
   if (process.env.NODE_ENV === 'development') {
     console.group('[transformPersonaToContact] Debug Trayectoria')
     console.log('Persona:', attrs.nombre_completo)
-    console.log('Trayectorias completas:', JSON.stringify(attrs.trayectorias, null, 2))
+    console.log('Trayectorias raw:', attrs.trayectorias)
+    console.log('Trayectorias procesadas:', trayectoriasArray)
     console.log('Trayectoria actual:', trayectoriaActual)
     if (trayectoriaActual?.colegio) {
       console.log('Estructura del colegio:', JSON.stringify(trayectoriaActual.colegio, null, 2))
