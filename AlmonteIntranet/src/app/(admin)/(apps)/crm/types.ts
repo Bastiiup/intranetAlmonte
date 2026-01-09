@@ -5,10 +5,20 @@ import { VariantType } from '@/types'
 export type ContactType = {
   id: number
   name: string
+  cargo?: string
   description: string
   email: string
   phone: string
-  avatar?: StaticImageData
+  empresa?: string
+  region?: string
+  comuna?: string
+  zona?: string
+  dependencia?: string
+  representanteComercial?: string
+  telefonosColegio?: string[]
+  emailsColegio?: string[]
+  websiteColegio?: string
+  avatar?: StaticImageData | string
   label: {
     text: string
     variant: string
@@ -17,7 +27,10 @@ export type ContactType = {
     name: string
     variant: string
   }[]
-  stats: {
+  origen?: string
+  createdAt?: Date
+  updatedAt?: Date
+  stats?: {
     title: string
     count: number
     prefix?: string
@@ -27,6 +40,7 @@ export type ContactType = {
 
 export type OpportunitiesType = {
   id: string
+  realId?: string // ID real para actualizaciones (documentId o id numérico)
   productName: string
   productBy: string
   productLogo: string
@@ -64,6 +78,7 @@ export type DealType = {
 
 export type LeadType = {
   id: string;
+  realId?: string; // ID real para actualizaciones (documentId o id numérico)
   customer: string;
   company: string;
   logo: StaticImageData;

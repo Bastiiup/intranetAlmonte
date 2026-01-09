@@ -17,3 +17,10 @@
         }
     }
 }
+
+// Info button hover effect
+.info-button-hover {
+    &:hover {
+        color: var(--#{$prefix}primary) !important;
+    }
+}
