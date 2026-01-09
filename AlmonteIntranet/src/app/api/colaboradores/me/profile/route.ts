@@ -1086,6 +1086,10 @@ export async function GET(request: NextRequest) {
     const imagenParaCliente = imagenNormalizada || imagenRaw || personaAttrs.imagen || persona?.imagen || null
     const portadaParaCliente = portadaNormalizada || portadaRaw || personaAttrs.portada || persona?.portada || null
 
+    // CRÍTICO: Siempre usar email_login del colaborador autenticado desde cookies (más confiable)
+    // El email_login de Strapi puede estar desactualizado o incorrecto
+    const emailLoginCorrecto = colaboradorFromCookie?.email_login || colaboradorAttrs?.email_login || ''
+
     const profileData = {
       colaborador: {
         id: getStrapiId(colaboradorRaw) || getStrapiId(colaboradorAttrs),
