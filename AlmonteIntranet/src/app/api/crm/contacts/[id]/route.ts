@@ -257,7 +257,7 @@ export async function PUT(
             console.log('[API /crm/contacts/[id] PUT] 📤 Payload para actualizar trayectoria:', JSON.stringify(trayectoriaUpdateData, null, 2))
             
             // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
-            const updateResponse = await strapiClient.put(`/api/persona-trayectorias/${trayectoriaId}`, trayectoriaUpdateData)
+            const updateResponse = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(`/api/persona-trayectorias/${trayectoriaId}`, trayectoriaUpdateData)
             console.log('[API /crm/contacts/[id] PUT] ✅ Trayectoria actualizada exitosamente:', {
               tieneData: !!updateResponse.data,
             })
@@ -280,7 +280,7 @@ export async function PUT(
             console.log('[API /crm/contacts/[id] PUT] 📤 Payload para crear trayectoria:', JSON.stringify(trayectoriaData, null, 2))
             
             // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
-            const createResponse = await strapiClient.post('/api/persona-trayectorias', trayectoriaData)
+            const createResponse = await strapiClient.post<StrapiResponse<StrapiEntity<any>>>('/api/persona-trayectorias', trayectoriaData)
             console.log('[API /crm/contacts/[id] PUT] ✅ Trayectoria creada exitosamente:', {
               tieneData: !!createResponse.data,
             })
