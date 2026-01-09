@@ -262,9 +262,28 @@ export async function POST(request: NextRequest) {
 
     // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
     // Usar payloadFinal que está completamente limpio
+    // ⚠️ VERIFICACIÓN FINAL: Crear una copia completamente nueva para asegurar que no hay campos prohibidos
+    const payloadParaEnviar = JSON.parse(JSON.stringify(payloadFinal))
+    
+    // Eliminar explícitamente cualquier campo prohibido que pueda haber quedado
+    delete payloadParaEnviar.data.region
+    delete payloadParaEnviar.data.comuna
+    delete payloadParaEnviar.data.dependencia
+    delete payloadParaEnviar.data.zona
+    delete payloadParaEnviar.data.colegio_nombre
+    delete payloadParaEnviar.data.rbd
+    delete payloadParaEnviar.data.telefonos
+    delete payloadParaEnviar.data.emails
+    delete payloadParaEnviar.data.direcciones
+    delete payloadParaEnviar.data.website
+    delete payloadParaEnviar.data.estado
+    
+    console.log('[API /persona-trayectorias POST] 📤 Payload para enviar (después de eliminar campos prohibidos):', JSON.stringify(payloadParaEnviar, null, 2))
+    console.log('[API /persona-trayectorias POST] 📋 Campos en payloadParaEnviar.data:', Object.keys(payloadParaEnviar.data))
+    
     const response = await strapiClient.post<StrapiResponse<StrapiEntity<any>>>(
       '/api/persona-trayectorias',
-      payloadFinal
+      payloadParaEnviar
     )
     
     console.log('[API /persona-trayectorias POST] ✅ Respuesta exitosa de Strapi:', {
