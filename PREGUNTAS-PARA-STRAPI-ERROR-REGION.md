@@ -192,5 +192,25 @@ Campos que NO existen:
 
 ---
 
+---
+
+## 🔴 Estado Actual del Problema
+
+**Última prueba:** Enero 2026  
+**Resultado:** ❌ El error persiste incluso después de:
+- ✅ Cambiar formato de relaciones a `{ connect: [id] }`
+- ✅ Múltiples capas de filtrado y eliminación de campos prohibidos
+- ✅ Verificación exhaustiva de que `region` NO se envía en el payload
+
+**Evidencia:**
+- Los logs del frontend confirman que NO enviamos `region`
+- El error persiste: `"Invalid key region"` con `"path": "region"`
+- El problema está definitivamente en el backend de Strapi
+
+**Conclusión:**
+El lifecycle hook `syncColegioLocation` en Strapi está probablemente causando que Strapi valide o procese el campo `region` aunque no lo estemos enviando. Esto requiere una solución en el backend de Strapi.
+
+---
+
 **Última actualización:** Enero 2026  
 **Contacto:** Mati (desarrollador frontend)
