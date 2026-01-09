@@ -71,8 +71,7 @@ export async function GET(
     const paramsObj = new URLSearchParams({
       'filters[colegio][id][$eq]': String(colegioIdNum),
       'populate[materiales]': 'true',
-      'sort[0]': 'nivel:asc',
-      'sort[1]': 'grado:asc',
+      'sort[0]': 'curso_nombre:asc', // Ordenar por nombre del curso en lugar de nivel
     })
 
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
@@ -150,9 +149,13 @@ export async function POST(
     }
 
     // Preparar datos para Strapi
+    // ⚠️ IMPORTANTE: Verificar el nombre exacto del campo en Strapi
+    // Puede ser "nombre" en lugar de "curso_nombre"
     const cursoData: any = {
       data: {
-        curso_nombre: body.curso_nombre.trim(),
+        // Intentar con ambos nombres posibles
+        nombre: body.curso_nombre?.trim() || body.nombre?.trim(),
+        curso_nombre: body.curso_nombre?.trim() || body.nombre?.trim(),
         colegio: { connect: [typeof colegioIdNum === 'number' ? colegioIdNum : parseInt(String(colegioIdNum))] },
         ...(body.nivel && { nivel: body.nivel }),
         ...(body.grado && { grado: body.grado }),
@@ -168,6 +171,18 @@ export async function POST(
           })),
         }),
       },
+    }
+    
+    // Limpiar campos undefined o null
+    Object.keys(cursoData.data).forEach(key => {
+      if (cursoData.data[key] === undefined || cursoData.data[key] === null) {
+        delete cursoData.data[key]
+      }
+    })
+    
+    // Si hay ambos nombre y curso_nombre, mantener solo uno (preferir curso_nombre)
+    if (cursoData.data.nombre && cursoData.data.curso_nombre) {
+      delete cursoData.data.nombre
     }
 
     const response = await strapiClient.post<StrapiResponse<StrapiEntity<CursoAttributes>>>(
