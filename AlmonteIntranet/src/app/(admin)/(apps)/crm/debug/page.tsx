@@ -20,6 +20,32 @@ export default function DebugPage() {
   const [listLoading, setListLoading] = useState(false)
   const [listResult, setListResult] = useState<any>(null)
   const [listType, setListType] = useState<'personas' | 'colegios' | 'trayectorias'>('personas')
+  
+  const [schemaLoading, setSchemaLoading] = useState(false)
+  const [schemaResult, setSchemaResult] = useState<any>(null)
+  const [schemaError, setSchemaError] = useState<string | null>(null)
+
+  const consultarSchema = async () => {
+    setSchemaLoading(true)
+    setSchemaError(null)
+    setSchemaResult(null)
+    
+    try {
+      const response = await fetch('/api/debug/strapi-schema-trayectorias')
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al consultar schema')
+      }
+      
+      setSchemaResult(data)
+    } catch (err: any) {
+      setSchemaError(err.message || 'Error al consultar schema')
+      console.error('Error:', err)
+    } finally {
+      setSchemaLoading(false)
+    }
+  }
 
   const consultarTrayectorias = async () => {
     setLoading(true)
@@ -424,6 +450,70 @@ export default function DebugPage() {
                 ))}
               </ul>
             </Alert>
+          )}
+        </CardBody>
+      </Card>
+
+      <Card className="mt-3">
+        <CardHeader>
+          <h5>🔍 Consultar Schema de Trayectorias</h5>
+        </CardHeader>
+        <CardBody>
+          <p className="text-muted">
+            Consulta directamente a Strapi para ver qué campos están definidos en el content type <code>persona-trayectorias</code>.
+            Esto nos ayudará a identificar si hay un campo <code>region</code> definido que esté causando el error.
+          </p>
+          
+          <Button
+            variant="info"
+            onClick={consultarSchema}
+            disabled={schemaLoading}
+            className="mb-3"
+          >
+            {schemaLoading ? (
+              <>
+                <Spinner size="sm" className="me-2" />
+                Consultando...
+              </>
+            ) : (
+              '🔍 Consultar Schema'
+            )}
+          </Button>
+          
+          {schemaError && (
+            <Alert variant="danger" className="mt-3">
+              <strong>Error:</strong> {schemaError}
+            </Alert>
+          )}
+          
+          {schemaResult && (
+            <div className="mt-3">
+              <h6>📊 Resultado del Schema</h6>
+              <pre style={{ 
+                backgroundColor: '#f5f5f5', 
+                padding: '15px', 
+                borderRadius: '5px',
+                overflow: 'auto',
+                maxHeight: '600px',
+                fontSize: '12px'
+              }}>
+                {JSON.stringify(schemaResult, null, 2)}
+              </pre>
+              
+              {schemaResult.diagnostic?.sampleTrayectoria && (
+                <div className="mt-3">
+                  <h6>🔑 Campos encontrados en una trayectoria de ejemplo:</h6>
+                  <ul>
+                    {schemaResult.diagnostic.sampleTrayectoria.allKeys.map((key: string) => (
+                      <li key={key}>
+                        <code>{key}</code>
+                        {key === 'region' && <span className="text-danger ms-2">⚠️ ESTE CAMPO ESTÁ CAUSANDO EL ERROR</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
           )}
         </CardBody>
       </Card>
