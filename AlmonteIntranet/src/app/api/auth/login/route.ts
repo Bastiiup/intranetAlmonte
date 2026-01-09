@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getStrapiUrl } from '@/lib/strapi/config'
 import strapiClient from '@/lib/strapi/client'
 import { logActivity, createLogDescription } from '@/lib/logging'
+import { extractStrapiData, getStrapiId, normalizeColaborador, normalizePersona } from '@/lib/strapi/helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -106,39 +107,13 @@ export async function POST(request: Request) {
           `/api/colaboradores/${colaboradorId}?populate[persona][fields][0]=rut&populate[persona][fields][1]=nombres&populate[persona][fields][2]=primer_apellido&populate[persona][fields][3]=segundo_apellido&populate[persona][fields][4]=nombre_completo`
         )
         
-        // Extraer datos del colaborador con persona
-        // Manejar diferentes estructuras de respuesta de Strapi
-        let personaData = null
-        let colaboradorDocumentId: string | number | null = null
+        // Extraer datos del colaborador con persona usando helpers
+        const colaboradorData = extractStrapiData(colaboradorConPersona)
+        const colaboradorAttrs = normalizeColaborador(colaboradorData)
+        const colaboradorDocumentId = getStrapiId(colaboradorData) || colaboradorId
         
-        if (colaboradorConPersona.data) {
-          const colaboradorData = colaboradorConPersona.data
-          // CRÍTICO: Extraer documentId de la respuesta de Strapi
-          colaboradorDocumentId = colaboradorData.documentId || colaboradorData.id || colaboradorId
-          const colaboradorAttrs = colaboradorData.attributes || colaboradorData
-          personaData = colaboradorAttrs.persona
-          
-          // Si persona viene como objeto con data
-          if (personaData?.data) {
-            personaData = personaData.data.attributes || personaData.data
-          } else if (personaData?.attributes) {
-            personaData = personaData.attributes
-          }
-        } else if (colaboradorConPersona.attributes) {
-          // Si no tiene .data, el documentId puede estar en el nivel superior
-          colaboradorDocumentId = colaboradorConPersona.documentId || colaboradorConPersona.id || colaboradorId
-          personaData = colaboradorConPersona.attributes.persona
-          
-          // Si persona viene como objeto con data
-          if (personaData?.data) {
-            personaData = personaData.data.attributes || personaData.data
-          } else if (personaData?.attributes) {
-            personaData = personaData.attributes
-          }
-        } else {
-          // Si no tiene estructura conocida, intentar extraer directamente
-          colaboradorDocumentId = colaboradorConPersona.documentId || colaboradorConPersona.id || colaboradorId
-        }
+        // Normalizar persona si existe
+        const personaData = colaboradorAttrs?.persona ? normalizePersona(colaboradorAttrs.persona) : null
         
         console.log('[API /auth/login] 🔑 documentId extraído del colaborador:', {
           documentId: colaboradorDocumentId,

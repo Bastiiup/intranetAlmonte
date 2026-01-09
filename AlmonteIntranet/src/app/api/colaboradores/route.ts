@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import { PersonaService } from '@/lib/services/personaService'
+import { extractStrapiData, getStrapiId, normalizeColaborador, normalizePersona } from '@/lib/strapi/helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -109,9 +111,9 @@ export async function POST(request: Request) {
       )
     }
 
-    let personaId: string | null = null
+    // Manejar creación/relación de persona usando PersonaService
+    let personaId: string | number | null = null
 
-    // Manejar creación/relación de persona
     if (body.persona) {
       const personaData = body.persona
 
@@ -120,176 +122,20 @@ export async function POST(request: Request) {
         personaId = personaData.personaId
         console.log('[API /colaboradores POST] ✅ Usando persona existente:', personaId)
       } else if (personaData.rut) {
-        // Buscar persona por RUT - si no existe, crearla PRIMERO antes del colaborador
-        let personaExiste = false
-        
+        // Usar PersonaService para crear o actualizar persona
         try {
-          const personaSearchResponse = await strapiClient.get<any>(
-            `/api/personas?filters[rut][$eq]=${encodeURIComponent(personaData.rut.trim())}&pagination[pageSize]=1`
-          )
-
-          if (personaSearchResponse.data && Array.isArray(personaSearchResponse.data) && personaSearchResponse.data.length > 0) {
-            // Persona existe, usar su documentId (preferido) o id
-            const personaEncontrada = personaSearchResponse.data[0]
-            personaId = personaEncontrada.documentId || personaEncontrada.id
-            personaExiste = true
-            console.log('[API /colaboradores POST] ✅ Persona encontrada por RUT:', {
-              id: personaEncontrada.id,
-              documentId: personaEncontrada.documentId,
-              personaIdUsado: personaId,
-            })
-
-            // Actualizar datos de persona si se proporcionaron
-            if (personaData.nombres || personaData.primer_apellido || personaData.genero || personaData.cumpleagno) {
-              const updateData: any = {
-                data: {},
-              }
-              
-              if (personaData.nombres?.trim()) updateData.data.nombres = personaData.nombres.trim()
-              if (personaData.primer_apellido?.trim()) updateData.data.primer_apellido = personaData.primer_apellido.trim()
-              if (personaData.segundo_apellido?.trim()) updateData.data.segundo_apellido = personaData.segundo_apellido.trim()
-              if (personaData.genero) updateData.data.genero = personaData.genero
-              if (personaData.cumpleagno) updateData.data.cumpleagno = personaData.cumpleagno
-
-              // Construir nombre_completo si hay nombres
-              if (personaData.nombres || personaData.primer_apellido) {
-                const nombres = personaData.nombres?.trim() || ''
-                const primerApellido = personaData.primer_apellido?.trim() || ''
-                const segundoApellido = personaData.segundo_apellido?.trim() || ''
-                updateData.data.nombre_completo = `${nombres} ${primerApellido} ${segundoApellido}`.trim()
-              }
-
-              try {
-                await strapiClient.put(`/api/personas/${personaId}`, updateData)
-                console.log('[API /colaboradores POST] ✅ Persona actualizada')
-              } catch (updateError: any) {
-                // Si falla la actualización (404 u otro error), continuar con el personaId encontrado
-                if (updateError.status === 404) {
-                  console.log('[API /colaboradores POST] ⚠️ Persona no encontrada para actualizar (404), pero continuamos con el ID encontrado')
-                } else {
-                  console.warn('[API /colaboradores POST] ⚠️ Error al actualizar persona (no crítico):', updateError.message)
-                }
-              }
-            }
-          }
-        } catch (searchError: any) {
-          // Si la búsqueda falla con 404, asumir que no existe y crear
-          if (searchError.status === 404) {
-            console.log('[API /colaboradores POST] ⚠️ Persona no encontrada (404), se creará nueva')
-            personaExiste = false
-          } else {
-            // Otro error en la búsqueda, lanzar error
-            console.error('[API /colaboradores POST] ❌ Error al buscar persona:', searchError)
-            throw new Error(`Error al buscar persona: ${searchError.message || 'Error desconocido'}`)
-          }
-        }
-
-        // Si la persona no existe, crearla PRIMERO antes del colaborador
-        if (!personaExiste) {
-          console.log('[API /colaboradores POST] 📚 Creando nueva persona primero (antes del colaborador)...')
-          
-          const nombres = personaData.nombres?.trim() || ''
-          const primerApellido = personaData.primer_apellido?.trim() || ''
-          const segundoApellido = personaData.segundo_apellido?.trim() || ''
-          const nombreCompleto = `${nombres} ${primerApellido} ${segundoApellido}`.trim()
-
-          const personaCreateData: any = {
-            data: {
-              rut: personaData.rut.trim(),
-              nombres: nombres || null,
-              primer_apellido: primerApellido || null,
-              segundo_apellido: segundoApellido || null,
-              nombre_completo: nombreCompleto || null,
-              genero: personaData.genero || null,
-              cumpleagno: personaData.cumpleagno || null,
-              origen: 'manual',
-              activo: true,
-            },
-          }
-
-          try {
-            const personaResponse = await strapiClient.post<any>(
-              '/api/personas',
-              personaCreateData
-            )
-
-            // CRÍTICO: Obtener documentId (preferido) o id de la persona creada
-            const personaCreada = personaResponse.data || personaResponse
-            personaId = personaCreada.documentId || personaCreada.id
-            
-            if (!personaId) {
-              throw new Error('No se pudo obtener el ID de la persona creada. Respuesta: ' + JSON.stringify(personaResponse))
-            }
-            
-            console.log('[API /colaboradores POST] ✅ Persona creada exitosamente:', {
-              id: personaCreada.id,
-              documentId: personaCreada.documentId,
-              personaIdUsado: personaId,
-            })
-          } catch (createError: any) {
-            console.error('[API /colaboradores POST] ❌ Error al crear persona:', createError)
-            
-            // Si el error es que el RUT ya existe (debe ser único), buscar la persona existente
-            if (createError.status === 400 && createError.message?.includes('unique') && createError.details?.errors?.some((e: any) => e.path?.[0] === 'rut')) {
-              console.log('[API /colaboradores POST] ⚠️ RUT ya existe, buscando persona existente...')
-              
-              try {
-                // Buscar nuevamente la persona por RUT (puede que exista pero no se encontró antes)
-                const personaSearchResponse = await strapiClient.get<any>(
-                  `/api/personas?filters[rut][$eq]=${encodeURIComponent(personaData.rut.trim())}&pagination[pageSize]=1`
-                )
-
-                if (personaSearchResponse.data && Array.isArray(personaSearchResponse.data) && personaSearchResponse.data.length > 0) {
-                  const personaEncontrada = personaSearchResponse.data[0]
-                  personaId = personaEncontrada.documentId || personaEncontrada.id
-                  console.log('[API /colaboradores POST] ✅ Persona encontrada después del error de RUT único:', {
-                    id: personaEncontrada.id,
-                    documentId: personaEncontrada.documentId,
-                    personaIdUsado: personaId,
-                  })
-                  
-                  // Intentar actualizar solo si tenemos datos nuevos
-                  if (personaData.nombres || personaData.primer_apellido || personaData.genero || personaData.cumpleagno) {
-                    try {
-                      const updateData: any = {
-                        data: {},
-                      }
-                      
-                      if (personaData.nombres?.trim()) updateData.data.nombres = personaData.nombres.trim()
-                      if (personaData.primer_apellido?.trim()) updateData.data.primer_apellido = personaData.primer_apellido.trim()
-                      if (personaData.segundo_apellido?.trim()) updateData.data.segundo_apellido = personaData.segundo_apellido.trim()
-                      if (personaData.genero) updateData.data.genero = personaData.genero
-                      if (personaData.cumpleagno) updateData.data.cumpleagno = personaData.cumpleagno
-
-                      if (personaData.nombres || personaData.primer_apellido) {
-                        const nombres = personaData.nombres?.trim() || ''
-                        const primerApellido = personaData.primer_apellido?.trim() || ''
-                        const segundoApellido = personaData.segundo_apellido?.trim() || ''
-                        updateData.data.nombre_completo = `${nombres} ${primerApellido} ${segundoApellido}`.trim()
-                      }
-
-                      await strapiClient.put(`/api/personas/${personaId}`, updateData)
-                      console.log('[API /colaboradores POST] ✅ Persona actualizada')
-                    } catch (updateError: any) {
-                      // Si falla la actualización (404 u otro error), continuar con el personaId encontrado
-                      if (updateError.status === 404) {
-                        console.log('[API /colaboradores POST] ⚠️ Persona no encontrada para actualizar (404), pero continuamos con el ID encontrado')
-                      } else {
-                        console.warn('[API /colaboradores POST] ⚠️ Error al actualizar persona (no crítico):', updateError.message)
-                      }
-                    }
-                  }
-                } else {
-                  throw new Error('RUT duplicado pero no se pudo encontrar la persona existente')
-                }
-              } catch (searchError: any) {
-                throw new Error(`Error al buscar persona después de error de RUT único: ${searchError.message}`)
-              }
-            } else {
-              // Otro tipo de error al crear persona
-              throw new Error(`Error al crear persona: ${createError.message || 'Error desconocido'}. La persona debe crearse antes del colaborador.`)
-            }
-          }
+          personaId = await PersonaService.createOrUpdate({
+            rut: personaData.rut,
+            nombres: personaData.nombres,
+            primer_apellido: personaData.primer_apellido,
+            segundo_apellido: personaData.segundo_apellido,
+            genero: personaData.genero,
+            cumpleagno: personaData.cumpleagno,
+          })
+          console.log('[API /colaboradores POST] ✅ Persona procesada exitosamente:', personaId)
+        } catch (error: any) {
+          console.error('[API /colaboradores POST] ❌ Error al procesar persona:', error)
+          throw new Error(`Error al procesar persona: ${error.message || 'Error desconocido'}`)
         }
       }
     }
@@ -328,45 +174,24 @@ export async function POST(request: Request) {
       colaboradorData
     )
 
-    // Verificar que la relación se haya establecido correctamente
-    // response puede ser StrapiResponse o directamente StrapiEntity
-    let colaboradorCreado: any = null
-    if (response && typeof response === 'object') {
-      // Si response tiene .data, puede ser StrapiResponse
-      if ('data' in response) {
-        const responseData = (response as any).data
-        // responseData puede ser StrapiEntity o array
-        if (Array.isArray(responseData)) {
-          colaboradorCreado = responseData[0]
-        } else if (responseData && typeof responseData === 'object') {
-          // Si responseData tiene .data, es StrapiResponse anidado
-          colaboradorCreado = (responseData as any).data || responseData
-        } else {
-          colaboradorCreado = responseData
-        }
-      } else {
-        // response es directamente StrapiEntity
-        colaboradorCreado = response
-      }
-    }
-    
-    const colaboradorAttrs = colaboradorCreado?.attributes || colaboradorCreado
+    // Verificar que la relación se haya establecido correctamente usando helpers
+    const colaboradorCreado = extractStrapiData(response)
+    const colaboradorAttrs = normalizeColaborador(colaboradorCreado)
     
     console.log('[API /colaboradores POST] ✅ Colaborador creado:', {
-      id: colaboradorCreado?.id,
-      documentId: colaboradorCreado?.documentId,
+      id: getStrapiId(colaboradorCreado),
       email: colaboradorAttrs?.email_login,
       tienePersona: !!colaboradorAttrs?.persona,
-      personaId: colaboradorAttrs?.persona?.data?.id || colaboradorAttrs?.persona?.id || colaboradorAttrs?.persona || 'NO HAY',
+      personaId: colaboradorAttrs?.persona ? getStrapiId(normalizePersona(colaboradorAttrs.persona)) : 'NO HAY',
     })
     
     // Si no se vinculó la persona, intentar actualizar el colaborador
     if (personaId && !colaboradorAttrs?.persona) {
       console.warn('[API /colaboradores POST] ⚠️ La persona no se vinculó automáticamente, intentando actualizar...')
       try {
-        const colaboradorIdParaActualizar = colaboradorCreado?.documentId || colaboradorCreado?.id
+        const colaboradorIdParaActualizar = getStrapiId(colaboradorCreado)
         if (colaboradorIdParaActualizar) {
-          const updateResponse = await strapiClient.put(`/api/colaboradores/${colaboradorIdParaActualizar}`, {
+          await strapiClient.put(`/api/colaboradores/${colaboradorIdParaActualizar}`, {
             data: {
               persona: personaId,
             },

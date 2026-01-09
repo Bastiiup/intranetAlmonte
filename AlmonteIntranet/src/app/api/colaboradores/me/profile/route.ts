@@ -6,7 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import { getStreamClient } from '@/lib/stream/client'
-import { cookies } from 'next/headers'
+import { getColaboradorFromCookies } from '@/lib/auth/cookies'
+import { extractStrapiData, getStrapiId, normalizeColaborador, normalizePersona } from '@/lib/strapi/helpers'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 
 export const dynamic = 'force-dynamic'
@@ -21,62 +22,10 @@ interface ColaboradorAttributes {
 
 /**
  * Obtiene el colaborador autenticado desde las cookies
- * Busca en múltiples nombres de cookie para compatibilidad:
- * 1. auth_colaborador (nombre estándar)
- * 2. colaboradorData (usado por login y logging)
- * 3. colaborador (compatibilidad)
+ * Usa la función centralizada de lib/auth/cookies
  */
 async function getAuthColaborador() {
-  try {
-    const cookieStore = await cookies()
-    
-    // Buscar en orden de prioridad: auth_colaborador, colaboradorData, colaborador
-    const cookieNames = ['auth_colaborador', 'colaboradorData', 'colaborador']
-    
-    // Log de debugging: verificar qué cookies están disponibles
-    const availableCookies: string[] = []
-    cookieStore.getAll().forEach(cookie => {
-      if (cookieNames.includes(cookie.name)) {
-        availableCookies.push(cookie.name)
-      }
-    })
-    console.log('[API /colaboradores/me/profile] 🔍 Cookies disponibles:', {
-      todasLasCookies: cookieStore.getAll().map(c => c.name).join(', '),
-      cookiesRelevantes: availableCookies,
-      buscandoEn: cookieNames,
-    })
-    
-    for (const cookieName of cookieNames) {
-      const colaboradorStr = cookieStore.get(cookieName)?.value
-      if (colaboradorStr) {
-        try {
-          const colaborador = JSON.parse(colaboradorStr)
-          // Asegurar que tenga id y documentId si están disponibles
-          if (colaborador && !colaborador.documentId && colaborador.id) {
-            colaborador.documentId = colaborador.id
-          }
-          console.log(`[API /colaboradores/me/profile] ✅ Colaborador obtenido de cookie ${cookieName}:`, {
-            id: colaborador.id,
-            documentId: colaborador.documentId,
-            email: colaborador.email_login,
-            tienePersona: !!colaborador.persona,
-            personaRut: colaborador.persona?.rut || 'NO RUT',
-          })
-          return colaborador
-        } catch (parseError) {
-          console.warn(`[API /colaboradores/me/profile] ⚠️ Error al parsear cookie ${cookieName}:`, parseError)
-          console.warn(`[API /colaboradores/me/profile] Valor de cookie (primeros 200 chars):`, colaboradorStr.substring(0, 200))
-          continue
-        }
-      }
-    }
-
-    console.warn('[API /colaboradores/me/profile] ⚠️ No se encontró colaborador en ninguna cookie')
-    return null
-  } catch (error) {
-    console.error('[API /colaboradores/me/profile] ❌ Error al obtener colaborador de cookies:', error)
-    return null
-  }
+  return await getColaboradorFromCookies()
 }
 
 /**
@@ -623,7 +572,7 @@ export async function PUT(request: NextRequest) {
         const personaResponse = await strapiClient.get<any>(
           `/api/personas/${idParaObtener}?populate[imagen][populate]=*`
         )
-        const personaData = personaResponse.data?.attributes || personaResponse.data
+        const personaData = normalizePersona(extractStrapiData(personaResponse))
 
         const nombre = personaData?.nombre_completo ||
                       `${personaData?.nombres || ''} ${personaData?.primer_apellido || ''}`.trim() ||
@@ -845,8 +794,8 @@ export async function GET(request: NextRequest) {
                 if (personaQuery) {
                   console.log('[API /colaboradores/me/profile GET] Consultando persona directamente desde fallback:', personaQuery)
                   const personaResponse = await strapiClient.get<any>(personaQuery)
-                  const personaResponseData = Array.isArray(personaResponse.data) ? personaResponse.data[0] : personaResponse.data
-                  const personaResponseAttrs = personaResponseData?.attributes || personaResponseData || {}
+                  const personaResponseData = extractStrapiData(personaResponse)
+                  const personaResponseAttrs = normalizePersona(personaResponseData) || {}
                   
                   // Actualizar personaData con datos frescos de Strapi
                   personaData = { ...personaData, ...personaResponseAttrs }
@@ -903,20 +852,12 @@ export async function GET(request: NextRequest) {
         throw strapiError
       }
 
-    // Manejar diferentes estructuras de respuesta de Strapi
-    let colaboradorRaw = response.data
-    if (Array.isArray(colaboradorRaw) && colaboradorRaw.length > 0) {
-      colaboradorRaw = colaboradorRaw[0]
-    }
+    // Manejar diferentes estructuras de respuesta de Strapi usando helpers
+    const colaboradorRaw = extractStrapiData(response)
+    const colaboradorAttrs = normalizeColaborador(colaboradorRaw)
     
-    const colaboradorRawAny = colaboradorRaw as any
-    const colaboradorAttrs = colaboradorRawAny.attributes || colaboradorRawAny
-    
-    // Extraer persona (puede venir en diferentes formatos)
-    let persona = colaboradorAttrs.persona?.data || colaboradorAttrs.persona
-    if (persona?.attributes) {
-      persona = { ...persona, ...persona.attributes }
-    }
+    // Extraer y normalizar persona
+    const persona = colaboradorAttrs?.persona ? normalizePersona(colaboradorAttrs.persona) : null
 
     console.log('[API /colaboradores/me/profile GET] Estructura completa de persona:', JSON.stringify(persona, null, 2))
 
@@ -945,10 +886,9 @@ export async function GET(request: NextRequest) {
           }
           
           if (personaQuery) {
-            console.log('[API /colaboradores/me/profile GET] Consultando persona directamente para obtener imagen:', personaQuery)
             const personaResponse = await strapiClient.get<any>(personaQuery)
-            const personaData = Array.isArray(personaResponse.data) ? personaResponse.data[0] : personaResponse.data
-            const personaDataAttrs = personaData?.attributes || personaData || {}
+            const personaData = extractStrapiData(personaResponse)
+            const personaDataAttrs = normalizePersona(personaData) || {}
             imagenRaw = personaDataAttrs.imagen || null
             console.log('[API /colaboradores/me/profile GET] Imagen obtenida de consulta directa:', JSON.stringify(imagenRaw, null, 2))
           }
@@ -1059,10 +999,9 @@ export async function GET(request: NextRequest) {
           if (personaQuery) {
             console.log('[API /colaboradores/me/profile GET] Consultando persona directamente para obtener portada:', personaQuery)
             const personaResponse = await strapiClient.get<any>(personaQuery)
-            const personaData = Array.isArray(personaResponse.data) ? personaResponse.data[0] : personaResponse.data
-            const personaDataAttrs = personaData?.attributes || personaData || {}
+            const personaData = extractStrapiData(personaResponse)
+            const personaDataAttrs = normalizePersona(personaData) || {}
             portadaRaw = personaDataAttrs.portada || null
-            console.log('[API /colaboradores/me/profile GET] Portada obtenida de consulta directa:', JSON.stringify(portadaRaw, null, 2))
           }
         } catch (error: any) {
           console.warn('[API /colaboradores/me/profile GET] Error al obtener portada directamente:', error.message)
@@ -1149,13 +1088,13 @@ export async function GET(request: NextRequest) {
 
     const profileData = {
       colaborador: {
-        id: colaboradorRawAny.id || colaboradorRawAny.documentId,
-        email_login: colaboradorAttrs.email_login || colaboradorRawAny.email_login,
-        rol: colaboradorAttrs.rol || colaboradorRawAny.rol,
-        activo: colaboradorAttrs.activo !== undefined ? colaboradorAttrs.activo : colaboradorRawAny.activo,
+        id: getStrapiId(colaboradorRaw) || getStrapiId(colaboradorAttrs),
+        email_login: emailLoginCorrecto, // SIEMPRE usar el de las cookies primero
+        rol: colaboradorAttrs?.rol,
+        activo: colaboradorAttrs?.activo !== undefined ? colaboradorAttrs.activo : true,
       },
       persona: persona ? {
-        id: persona.id || persona.documentId,
+        id: getStrapiId(persona),
         rut: personaAttrs.rut || persona.rut,
         nombres: personaAttrs.nombres || persona.nombres,
         primer_apellido: personaAttrs.primer_apellido || persona.primer_apellido,
