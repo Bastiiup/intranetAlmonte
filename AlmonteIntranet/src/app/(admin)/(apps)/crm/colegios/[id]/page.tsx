@@ -106,7 +106,7 @@ interface ActivityData {
   }
 }
 
-type TabType = 'informacion' | 'contactos' | 'pedidos' | 'leads' | 'actividades' | 'materiales'
+type TabType = 'informacion' | 'contactos' | 'pedidos' | 'leads' | 'actividades' | 'materiales' | 'cursos'
 
 export default function ColegioDetailPage() {
   const params = useParams()
@@ -119,12 +119,14 @@ export default function ColegioDetailPage() {
   const [loadingPedidos, setLoadingPedidos] = useState(true)
   const [loadingLeads, setLoadingLeads] = useState(true)
   const [loadingActivities, setLoadingActivities] = useState(true)
+  const [loadingCursos, setLoadingCursos] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [colegio, setColegio] = useState<ColegioData | null>(null)
   const [contactos, setContactos] = useState<ContactoData[]>([])
   const [pedidos, setPedidos] = useState<PedidoData[]>([])
   const [leads, setLeads] = useState<LeadData[]>([])
   const [activities, setActivities] = useState<ActivityData[]>([])
+  const [cursos, setCursos] = useState<any[]>([])
 
   useEffect(() => {
     const fetchColegio = async () => {
@@ -333,6 +335,26 @@ export default function ColegioDetailPage() {
       }
     }
     if (colegioId && activeTab === 'actividades') fetchActivities()
+  }, [colegioId, activeTab])
+
+  useEffect(() => {
+    const fetchCursos = async () => {
+      if (!colegioId) return
+      setLoadingCursos(true)
+      try {
+        const response = await fetch(`/api/crm/colegios/${colegioId}/cursos`)
+        const result = await response.json()
+        if (response.ok && result.success) {
+          const cursosData = Array.isArray(result.data) ? result.data : [result.data]
+          setCursos(cursosData)
+        }
+      } catch (err: any) {
+        console.error('Error al cargar cursos:', err)
+      } finally {
+        setLoadingCursos(false)
+      }
+    }
+    if (colegioId && activeTab === 'cursos') fetchCursos()
   }, [colegioId, activeTab])
 
   // Calcular materiales más pedidos
@@ -852,6 +874,102 @@ export default function ColegioDetailPage() {
     </Card>
   )
 
+  const renderCursosTab = () => (
+    <Card>
+      <CardHeader>
+        <div className="d-flex justify-content-between align-items-center">
+          <h4 className="mb-0 d-flex align-items-center">
+            <LuGraduationCap className="me-2" />
+            Cursos del Colegio
+            <Badge bg="primary" className="ms-2">{cursos.length}</Badge>
+          </h4>
+          <Button variant="primary" size="sm">
+            <LuGraduationCap className="me-1" />
+            Agregar Curso
+          </Button>
+        </div>
+      </CardHeader>
+      <CardBody>
+        {loadingCursos ? (
+          <div className="text-center py-5">
+            <Spinner animation="border" variant="primary" />
+            <p className="mt-2 text-muted">Cargando cursos...</p>
+          </div>
+        ) : cursos.length === 0 ? (
+          <p className="text-muted text-center py-5">
+            No hay cursos registrados para este colegio. Haz clic en "Agregar Curso" para comenzar.
+          </p>
+        ) : (
+          <div className="row g-3">
+            {cursos.map((curso: any) => {
+              const attrs = curso.attributes || curso
+              const materiales = attrs.materiales || []
+              
+              return (
+                <Col md={6} lg={4} key={curso.id || curso.documentId}>
+                  <Card className="h-100">
+                    <CardHeader>
+                      <div className="d-flex justify-content-between align-items-start">
+                        <div>
+                          <h5 className="mb-1">{attrs.curso_nombre || 'Sin nombre'}</h5>
+                          {attrs.nivel && (
+                            <small className="text-muted">Nivel: {attrs.nivel}</small>
+                          )}
+                          {attrs.grado && (
+                            <small className="text-muted ms-2">Grado: {attrs.grado}</small>
+                          )}
+                        </div>
+                        {attrs.activo !== false && (
+                          <Badge bg="success">Activo</Badge>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardBody>
+                      <div className="mb-3">
+                        <h6 className="small text-muted mb-2">
+                          <LuPackage className="me-1" size={14} />
+                          Materiales ({materiales.length})
+                        </h6>
+                        {materiales.length > 0 ? (
+                          <div className="small">
+                            {materiales.slice(0, 5).map((material: any, idx: number) => (
+                              <div key={idx} className="mb-1">
+                                <Badge bg={material.obligatorio !== false ? 'primary' : 'secondary'} className="me-1">
+                                  {material.cantidad || 1}x
+                                </Badge>
+                                {material.material_nombre || 'Sin nombre'}
+                                {material.obligatorio === false && (
+                                  <small className="text-muted ms-1">(Opcional)</small>
+                                )}
+                              </div>
+                            ))}
+                            {materiales.length > 5 && (
+                              <small className="text-muted">+{materiales.length - 5} más</small>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-muted small mb-0">No hay materiales asignados</p>
+                        )}
+                      </div>
+                      <div className="d-flex gap-2">
+                        <Button variant="outline-primary" size="sm" className="flex-fill">
+                          Editar
+                        </Button>
+                        <Button variant="outline-danger" size="sm">
+                          Eliminar
+                        </Button>
+                      </div>
+                    </CardBody>
+                  </Card>
+                </Col>
+              )
+            })}
+          </div>
+        )}
+      </CardBody>
+    </Card>
+  )
+
   const renderMaterialesTab = () => (
     <Card>
       <CardHeader>
@@ -1013,6 +1131,16 @@ export default function ColegioDetailPage() {
             Materiales
           </NavLink>
         </NavItem>
+        <NavItem>
+          <NavLink
+            active={activeTab === 'cursos'}
+            onClick={() => setActiveTab('cursos')}
+            style={{ cursor: 'pointer' }}
+          >
+            <LuGraduationCap className="me-1" size={16} />
+            Cursos ({cursos.length})
+          </NavLink>
+        </NavItem>
       </Nav>
 
       <div>
@@ -1022,6 +1150,7 @@ export default function ColegioDetailPage() {
         {activeTab === 'leads' && renderLeadsTab()}
         {activeTab === 'actividades' && renderActividadesTab()}
         {activeTab === 'materiales' && renderMaterialesTab()}
+        {activeTab === 'cursos' && renderCursosTab()}
       </div>
     </Container>
   )
