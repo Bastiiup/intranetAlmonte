@@ -4,9 +4,10 @@ import { useState, useEffect, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Container, Card, CardHeader, CardBody, Alert, Spinner, Row, Col, Button, Badge, Nav, NavItem, NavLink, Table } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { LuMapPin, LuPhone, LuMail, LuGlobe, LuUsers, LuPencil, LuArrowLeft, LuShoppingCart, LuTrendingUp, LuActivity, LuPackage, LuGraduationCap } from 'react-icons/lu'
+import { LuMapPin, LuPhone, LuMail, LuGlobe, LuUsers, LuPencil, LuArrowLeft, LuShoppingCart, LuTrendingUp, LuActivity, LuPackage, LuGraduationCap, LuDownload } from 'react-icons/lu'
 import Link from 'next/link'
 import CursoModal from './components/CursoModal'
+import { exportarMaterialesAExcel } from '@/helpers/excel'
 
 // Helper para logs condicionales de debugging (cliente)
 const DEBUG = process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && (window as any).DEBUG_CRM === 'true')
@@ -913,7 +914,14 @@ export default function ColegioDetailPage() {
           <div className="row g-3">
             {cursos.map((curso: any) => {
               const attrs = curso.attributes || curso
-              const materiales = attrs.materiales || []
+              // Materiales directos del curso (adicionales)
+              const materialesDirectos = attrs.materiales || []
+              // Materiales de la lista predefinida (si existe)
+              const materialesLista = attrs.lista_utiles?.data?.attributes?.materiales || 
+                                     attrs.lista_utiles?.attributes?.materiales || 
+                                     attrs.lista_utiles?.materiales || []
+              // Combinar todos los materiales para mostrar/exportar
+              const materiales = [...materialesDirectos, ...(Array.isArray(materialesLista) ? materialesLista : [])]
               
               return (
                 <Col md={6} lg={4} key={curso.id || curso.documentId}>
@@ -939,6 +947,11 @@ export default function ColegioDetailPage() {
                         <h6 className="small text-muted mb-2">
                           <LuPackage className="me-1" size={14} />
                           Materiales ({materiales.length})
+                          {attrs.lista_utiles && (
+                            <Badge bg="secondary" className="ms-2">
+                              Lista predefinida
+                            </Badge>
+                          )}
                         </h6>
                         {materiales.length > 0 ? (
                           <div className="small">
@@ -962,10 +975,40 @@ export default function ColegioDetailPage() {
                         )}
                       </div>
                       <div className="d-flex gap-2">
+                        {materiales.length > 0 && (
+                          <Button
+                            variant="outline-info"
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                // Formatear materiales para exportación
+                                const materialesFormateados = materiales.map((m: any) => ({
+                                  material_nombre: m.material_nombre || 'Sin nombre',
+                                  tipo: (m.tipo || 'util') as 'util' | 'libro' | 'cuaderno' | 'otro',
+                                  cantidad: parseInt(String(m.cantidad)) || 1,
+                                  obligatorio: m.obligatorio !== false,
+                                  descripcion: m.descripcion || undefined,
+                                }))
+                                
+                                // Nombre del archivo basado en el curso
+                                const nombreCurso = attrs.nombre_curso || attrs.curso_nombre || 'materiales_curso'
+                                const nombreArchivo = nombreCurso.replace(/\s+/g, '_')
+                                
+                                await exportarMaterialesAExcel(materialesFormateados, nombreArchivo)
+                              } catch (error: any) {
+                                console.error('Error al exportar materiales:', error)
+                                alert('Error al exportar materiales: ' + (error.message || 'Error desconocido'))
+                              }
+                            }}
+                            title="Exportar materiales a Excel"
+                          >
+                            <LuDownload size={14} />
+                          </Button>
+                        )}
                         <Button
                           variant="outline-primary"
                           size="sm"
-                          className="flex-fill"
+                          className={materiales.length > 0 ? 'flex-fill' : ''}
                           onClick={() => {
                             setCursoSeleccionado(curso)
                             setShowCursoModal(true)

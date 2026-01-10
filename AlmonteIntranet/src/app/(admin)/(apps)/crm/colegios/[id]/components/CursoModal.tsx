@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Button, Form, FormGroup, FormLabel, FormControl, Alert, Row, Col, Collapse, Badge } from 'react-bootstrap'
-import { LuPlus, LuTrash2, LuChevronDown, LuChevronUp, LuFileSpreadsheet } from 'react-icons/lu'
+import { LuPlus, LuTrash2, LuChevronDown, LuChevronUp, LuFileSpreadsheet, LuDownload } from 'react-icons/lu'
 import Select from 'react-select'
 import ImportarMaterialesExcelModal from './ImportarMaterialesExcelModal'
+import { exportarMaterialesAExcel } from '@/helpers/excel'
 
 interface Material {
   material_nombre: string
@@ -258,6 +259,36 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
       materiales_adicionales: [...prev.materiales_adicionales, ...materiales],
     }))
     setShowMaterialesAdicionales(true)
+  }
+
+  const handleExportarMateriales = async () => {
+    // Si hay lista de útiles seleccionada, exportar también esos materiales
+    const listaSeleccionada = listasUtiles.find(l => l.value === formData.lista_utiles)
+    const materialesAExportar = [...formData.materiales_adicionales]
+    
+    // Nota: Los materiales de la lista predefinida no están cargados en el componente
+    // Solo se exportan los materiales adicionales
+    // Para exportar la lista completa, el usuario debería ir al módulo de listas de útiles
+    
+    if (materialesAExportar.length === 0) {
+      alert('No hay materiales adicionales para exportar. Si deseas exportar una lista predefinida, ve al módulo de Listas de Útiles.')
+      return
+    }
+
+    try {
+      setLoading(true)
+      const nombreArchivo = nombreCursoGenerado || 'materiales_curso'
+      const nombreExport = listaSeleccionada 
+        ? `${nombreArchivo}_adicionales`
+        : nombreArchivo.replace(/\s+/g, '_')
+      
+      await exportarMaterialesAExcel(materialesAExportar, nombreExport)
+    } catch (error: any) {
+      console.error('Error al exportar:', error)
+      setError('Error al exportar materiales: ' + (error.message || 'Error desconocido'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleRemoveMaterial = (index: number) => {
@@ -566,6 +597,18 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
                 <LuFileSpreadsheet className="me-1" size={16} />
                 Importar Excel
               </Button>
+              {formData.materiales_adicionales.length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline-info"
+                  size="sm"
+                  className="me-2"
+                  onClick={handleExportarMateriales}
+                >
+                  <LuDownload className="me-1" size={16} />
+                  Exportar Excel
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline-primary"
