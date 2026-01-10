@@ -73,11 +73,13 @@ export async function GET(
 
     // Buscar cursos del colegio
     // ⚠️ No usar sort hasta verificar qué campos son ordenables en Strapi
+    // ⚠️ populate[lista_utiles] es opcional - solo si existe el content type en Strapi
     const paramsObj = new URLSearchParams({
       'filters[colegio][id][$eq]': String(colegioIdNum),
       'populate[materiales]': 'true',
-      'populate[lista_utiles]': 'true',
-      'populate[lista_utiles][populate][materiales]': 'true',
+      // lista_utiles es opcional - agregar solo si el content type existe
+      // 'populate[lista_utiles]': 'true',
+      // 'populate[lista_utiles][populate][materiales]': 'true',
       // Removido sort hasta verificar el schema en Strapi
     })
 
