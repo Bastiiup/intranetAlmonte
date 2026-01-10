@@ -23,8 +23,10 @@ interface CursoAttributes {
   titulo?: string // Campo existente en Strapi
   nivel?: string
   grado?: string
+  paralelo?: string
   activo?: boolean
   colegio?: any
+  lista_utiles?: any // Relación manyToOne
   materiales?: Array<{
     material_nombre?: string
     tipo?: string
@@ -74,6 +76,8 @@ export async function GET(
     const paramsObj = new URLSearchParams({
       'filters[colegio][id][$eq]': String(colegioIdNum),
       'populate[materiales]': 'true',
+      'populate[lista_utiles]': 'true',
+      'populate[lista_utiles][populate][materiales]': 'true',
       // Removido sort hasta verificar el schema en Strapi
     })
 
@@ -144,8 +148,18 @@ export async function POST(
     }
 
     // Validaciones
-    // ✅ Campo correcto en Strapi: nombre_curso (NO nombre, NO curso_nombre, NO titulo)
-    const nombreCurso = body.curso_nombre?.trim() || body.nombre_curso?.trim()
+    if (!body.nivel || !body.grado) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'El nivel y grado son obligatorios',
+        },
+        { status: 400 }
+      )
+    }
+
+    // ✅ Campo correcto en Strapi: nombre_curso (generado automáticamente o proporcionado)
+    const nombreCurso = body.nombre_curso?.trim() || body.curso_nombre?.trim()
     if (!nombreCurso) {
       return NextResponse.json(
         {
@@ -160,20 +174,35 @@ export async function POST(
       data: {
         nombre_curso: nombreCurso, // ✅ Campo correcto en Strapi
         colegio: { connect: [typeof colegioIdNum === 'number' ? colegioIdNum : parseInt(String(colegioIdNum))] },
-        ...(body.nivel && { nivel: body.nivel }),
-        ...(body.grado && { grado: body.grado }),
+        nivel: body.nivel,
+        grado: body.grado,
+        ...(body.paralelo && { paralelo: body.paralelo }),
         ...(body.activo !== undefined && { activo: body.activo !== false }),
-        // Materiales como componentes repeatable
-        ...(body.materiales && Array.isArray(body.materiales) && body.materiales.length > 0 && {
-          materiales: body.materiales.map((material: any) => ({
-            material_nombre: material.material_nombre || '',
-            tipo: material.tipo || 'util',
-            cantidad: material.cantidad ? parseInt(String(material.cantidad)) : 1,
-            obligatorio: material.obligatorio !== undefined ? material.obligatorio : true,
-            ...(material.descripcion && { descripcion: material.descripcion }),
-          })),
-        }),
       },
+    }
+
+    // Agregar relación lista_utiles si está presente
+    if (body.lista_utiles) {
+      const listaUtilesId = typeof body.lista_utiles === 'number' 
+        ? body.lista_utiles 
+        : parseInt(String(body.lista_utiles))
+      if (!isNaN(listaUtilesId)) {
+        cursoData.data.lista_utiles = { connect: [listaUtilesId] }
+      }
+    }
+
+    // Materiales adicionales (solo si no hay lista_utiles o si se proporcionan explícitamente)
+    if (body.materiales && Array.isArray(body.materiales) && body.materiales.length > 0) {
+      cursoData.data.materiales = body.materiales.map((material: any) => ({
+        material_nombre: material.material_nombre || '',
+        tipo: material.tipo || 'util',
+        cantidad: material.cantidad ? parseInt(String(material.cantidad)) : 1,
+        obligatorio: material.obligatorio !== undefined ? material.obligatorio : true,
+        ...(material.descripcion && { descripcion: material.descripcion }),
+      }))
+    } else if (!body.lista_utiles) {
+      // Si no hay lista_utiles ni materiales, enviar array vacío para mantener compatibilidad
+      cursoData.data.materiales = []
     }
     
     // Limpiar campos undefined o null

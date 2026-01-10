@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Button, Form, FormGroup, FormLabel, FormControl, Alert, Row, Col } from 'react-bootstrap'
-import { LuPlus, LuTrash2 } from 'react-icons/lu'
+import { useState, useEffect, useMemo } from 'react'
+import { Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Button, Form, FormGroup, FormLabel, FormControl, Alert, Row, Col, Collapse } from 'react-bootstrap'
+import { LuPlus, LuTrash2, LuChevronDown, LuChevronUp } from 'react-icons/lu'
+import Select from 'react-select'
 
 interface Material {
   material_nombre: string
@@ -13,11 +14,13 @@ interface Material {
 }
 
 interface CursoData {
-  curso_nombre: string
-  nivel?: string
-  grado?: string
+  nombre_curso: string // Campo readonly, auto-generado
+  nivel: string // 'Basica' | 'Media'
+  grado: string // '1' a '8' para Básica, '1' a '4' para Media
+  paralelo?: string // 'A', 'B', 'C', etc. (opcional)
   activo: boolean
-  materiales: Material[]
+  lista_utiles?: number | null // ID de la lista de útiles predefinida (opcional)
+  materiales_adicionales: Material[] // Materiales adicionales fuera de la lista
 }
 
 interface CursoModalProps {
@@ -36,34 +39,135 @@ const TIPOS_MATERIAL = [
 ]
 
 const NIVELES = [
-  'Básico',
-  'Medio',
-  'Superior',
+  { value: 'Basica', label: 'Básica' },
+  { value: 'Media', label: 'Media' },
 ]
+
+const GRADOS_BASICA = Array.from({ length: 8 }, (_, i) => ({
+  value: String(i + 1),
+  label: `${i + 1}° Básica`,
+}))
+
+const GRADOS_MEDIA = Array.from({ length: 4 }, (_, i) => ({
+  value: String(i + 1),
+  label: `${i + 1}° Media`,
+}))
+
+const PARALELOS = [
+  { value: 'A', label: 'A' },
+  { value: 'B', label: 'B' },
+  { value: 'C', label: 'C' },
+  { value: 'D', label: 'D' },
+  { value: 'E', label: 'E' },
+  { value: 'F', label: 'F' },
+]
+
+interface ListaUtilesOption {
+  value: number
+  label: string
+  cantidadMateriales?: number
+}
 
 export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }: CursoModalProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [listasUtiles, setListasUtiles] = useState<ListaUtilesOption[]>([])
+  const [loadingListas, setLoadingListas] = useState(false)
+  const [showMaterialesAdicionales, setShowMaterialesAdicionales] = useState(false)
+  
   const [formData, setFormData] = useState<CursoData>({
-    curso_nombre: '',
+    nombre_curso: '',
     nivel: '',
     grado: '',
+    paralelo: '',
     activo: true,
-    materiales: [],
+    lista_utiles: null,
+    materiales_adicionales: [],
   })
+
+  // Grados disponibles según el nivel seleccionado
+  const gradosDisponibles = useMemo(() => {
+    if (formData.nivel === 'Basica') {
+      return GRADOS_BASICA
+    } else if (formData.nivel === 'Media') {
+      return GRADOS_MEDIA
+    }
+    return []
+  }, [formData.nivel])
+
+  // Generar nombre_curso automáticamente
+  const nombreCursoGenerado = useMemo(() => {
+    if (!formData.nivel || !formData.grado) {
+      return ''
+    }
+    const nivelLabel = NIVELES.find(n => n.value === formData.nivel)?.label || formData.nivel
+    const gradoText = `${formData.grado}°`
+    const paraleloText = formData.paralelo ? ` ${formData.paralelo}` : ''
+    return `${gradoText} ${nivelLabel}${paraleloText}`
+  }, [formData.nivel, formData.grado, formData.paralelo])
+
+  // Cargar listas de útiles disponibles
+  useEffect(() => {
+    if (show) {
+      loadListasUtiles()
+    }
+  }, [show])
+
+  const loadListasUtiles = async () => {
+    setLoadingListas(true)
+    try {
+      const response = await fetch('/api/crm/listas-utiles')
+      const result = await response.json()
+      if (result.success && Array.isArray(result.data)) {
+        const opciones = result.data.map((lista: any) => {
+          const attrs = lista.attributes || lista
+          const materiales = attrs.materiales || []
+          return {
+            value: lista.id || lista.documentId,
+            label: `${attrs.nombre} (${materiales.length} materiales)`,
+            cantidadMateriales: materiales.length,
+          }
+        })
+        setListasUtiles(opciones)
+      }
+    } catch (err) {
+      console.error('Error al cargar listas de útiles:', err)
+    } finally {
+      setLoadingListas(false)
+    }
+  }
 
   // Cargar datos del curso si se está editando
   useEffect(() => {
     if (show) {
       if (curso) {
         const attrs = curso.attributes || curso
-        // ✅ Campo correcto en Strapi: nombre_curso
+        // Parsear nombre_curso para extraer nivel, grado y paralelo si es posible
+        const nombreCompleto = attrs.nombre_curso || attrs.curso_nombre || attrs.titulo || attrs.nombre || ''
+        
+        // Intentar parsear nombre_curso para obtener nivel, grado, paralelo
+        let nivel = attrs.nivel || ''
+        let grado = attrs.grado || ''
+        let paralelo = attrs.paralelo || ''
+        
+        // Si no hay nivel/grado en attrs, intentar parsear del nombre
+        if (!nivel || !grado) {
+          const match = nombreCompleto.match(/(\d+)°\s*(Básica|Media|Basica)\s*([A-F])?/i)
+          if (match) {
+            grado = grado || match[1] || ''
+            nivel = nivel || (match[2] === 'Básica' || match[2] === 'Basica' ? 'Basica' : match[2] === 'Media' ? 'Media' : '')
+            paralelo = paralelo || match[3] || ''
+          }
+        }
+        
         setFormData({
-          curso_nombre: attrs.nombre_curso || attrs.curso_nombre || attrs.titulo || attrs.nombre || '',
-          nivel: attrs.nivel || '',
-          grado: attrs.grado || '',
+          nombre_curso: nombreCompleto,
+          nivel: nivel || '',
+          grado: grado || '',
+          paralelo: paralelo || '',
           activo: attrs.activo !== false,
-          materiales: (attrs.materiales || []).map((m: any) => ({
+          lista_utiles: attrs.lista_utiles?.data?.id || attrs.lista_utiles?.id || attrs.lista_utiles || null,
+          materiales_adicionales: (attrs.materiales || []).map((m: any) => ({
             material_nombre: m.material_nombre || '',
             tipo: m.tipo || 'util',
             cantidad: m.cantidad || 1,
@@ -71,15 +175,23 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
             descripcion: m.descripcion || '',
           })),
         })
+        
+        // Si hay lista_utiles, mostrar materiales adicionales como colapsable
+        if (attrs.lista_utiles) {
+          setShowMaterialesAdicionales(attrs.materiales && attrs.materiales.length > 0)
+        }
       } else {
         // Resetear formulario para nuevo curso
         setFormData({
-          curso_nombre: '',
+          nombre_curso: '',
           nivel: '',
           grado: '',
+          paralelo: '',
           activo: true,
-          materiales: [],
+          lista_utiles: null,
+          materiales_adicionales: [],
         })
+        setShowMaterialesAdicionales(false)
       }
       setError(null)
     }
@@ -95,7 +207,7 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
   const handleMaterialChange = (index: number, field: keyof Material, value: any) => {
     setFormData((prev) => ({
       ...prev,
-      materiales: prev.materiales.map((m, i) =>
+      materiales_adicionales: prev.materiales_adicionales.map((m, i) =>
         i === index ? { ...m, [field]: value } : m
       ),
     }))
@@ -104,8 +216,8 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
   const handleAddMaterial = () => {
     setFormData((prev) => ({
       ...prev,
-      materiales: [
-        ...prev.materiales,
+      materiales_adicionales: [
+        ...prev.materiales_adicionales,
         {
           material_nombre: '',
           tipo: 'util',
@@ -115,13 +227,33 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
         },
       ],
     }))
+    setShowMaterialesAdicionales(true)
   }
 
   const handleRemoveMaterial = (index: number) => {
     setFormData((prev) => ({
       ...prev,
-      materiales: prev.materiales.filter((_, i) => i !== index),
+      materiales_adicionales: prev.materiales_adicionales.filter((_, i) => i !== index),
     }))
+  }
+
+  const handleNivelChange = (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      nivel: value,
+      grado: '', // Resetear grado al cambiar nivel
+    }))
+  }
+
+  const handleListaUtilesChange = (option: ListaUtilesOption | null) => {
+    setFormData((prev) => ({
+      ...prev,
+      lista_utiles: option?.value || null,
+    }))
+    // Si se selecciona una lista, mantener materiales adicionales pero ocultarlos inicialmente
+    if (option && formData.materiales_adicionales.length === 0) {
+      setShowMaterialesAdicionales(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -131,16 +263,36 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
 
     try {
       // Validaciones
-      if (!formData.curso_nombre.trim()) {
-        throw new Error('El nombre del curso es obligatorio')
+      if (!formData.nivel || !formData.grado) {
+        throw new Error('El nivel y grado son obligatorios')
       }
 
-      // Validar materiales
-      const materialesInvalidos = formData.materiales.filter(
+      // Validar que no exista otro curso con mismo nivel+grado+paralelo en el mismo colegio
+      if (!curso) {
+        // Solo validar duplicados al crear (no al editar)
+        const checkResponse = await fetch(`/api/crm/colegios/${colegioId}/cursos`)
+        const checkResult = await checkResponse.json()
+        if (checkResult.success && Array.isArray(checkResult.data)) {
+          const existe = checkResult.data.some((c: any) => {
+            const attrs = c.attributes || c
+            return (
+              attrs.nivel === formData.nivel &&
+              attrs.grado === formData.grado &&
+              (attrs.paralelo || '') === (formData.paralelo || '')
+            )
+          })
+          if (existe) {
+            throw new Error(`Ya existe un curso con ${nombreCursoGenerado} en este colegio`)
+          }
+        }
+      }
+
+      // Validar materiales adicionales
+      const materialesInvalidos = formData.materiales_adicionales.filter(
         (m) => !m.material_nombre.trim()
       )
       if (materialesInvalidos.length > 0) {
-        throw new Error('Todos los materiales deben tener un nombre')
+        throw new Error('Todos los materiales adicionales deben tener un nombre')
       }
 
       const url = curso
@@ -149,19 +301,37 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
 
       const method = curso ? 'PUT' : 'POST'
 
+      const payload: any = {
+        nombre_curso: nombreCursoGenerado, // Campo generado automáticamente
+        nivel: formData.nivel,
+        grado: formData.grado,
+        activo: formData.activo,
+      }
+
+      // Agregar paralelo si está seleccionado
+      if (formData.paralelo) {
+        payload.paralelo = formData.paralelo
+      }
+
+      // Agregar relación lista_utiles si está seleccionada
+      if (formData.lista_utiles) {
+        payload.lista_utiles = formData.lista_utiles
+      }
+
+      // Agregar materiales adicionales si existen
+      if (formData.materiales_adicionales.length > 0) {
+        payload.materiales = formData.materiales_adicionales.filter((m) => m.material_nombre.trim())
+      } else if (!formData.lista_utiles) {
+        // Si no hay lista_utiles ni materiales adicionales, enviar array vacío para mantener compatibilidad
+        payload.materiales = []
+      }
+
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          curso_nombre: formData.curso_nombre.trim(), // Frontend usa curso_nombre
-          nombre: formData.curso_nombre.trim(), // Strapi usa nombre
-          nivel: formData.nivel || undefined,
-          grado: formData.grado || undefined,
-          activo: formData.activo,
-          materiales: formData.materiales.filter((m) => m.material_nombre.trim()),
-        }),
+        body: JSON.stringify(payload),
       })
 
       const result = await response.json()
@@ -235,44 +405,55 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
           )}
 
           <Row>
+            <Col md={6}>
+              <FormGroup className="mb-3">
+                <FormLabel>Nivel *</FormLabel>
+                <Select
+                  options={NIVELES}
+                  value={NIVELES.find(n => n.value === formData.nivel) || null}
+                  onChange={(option) => handleNivelChange(option?.value || '')}
+                  placeholder="Seleccionar nivel"
+                  isSearchable={false}
+                />
+              </FormGroup>
+            </Col>
+            <Col md={3}>
+              <FormGroup className="mb-3">
+                <FormLabel>Grado *</FormLabel>
+                <Select
+                  options={gradosDisponibles}
+                  value={gradosDisponibles.find(g => g.value === formData.grado) || null}
+                  onChange={(option) => handleFieldChange('grado', option?.value || '')}
+                  placeholder="Seleccionar grado"
+                  isDisabled={!formData.nivel}
+                  isSearchable={false}
+                />
+              </FormGroup>
+            </Col>
+            <Col md={3}>
+              <FormGroup className="mb-3">
+                <FormLabel>Paralelo (opcional)</FormLabel>
+                <Select
+                  options={PARALELOS}
+                  value={PARALELOS.find(p => p.value === formData.paralelo) || null}
+                  onChange={(option) => handleFieldChange('paralelo', option?.value || '')}
+                  placeholder="Ej: A, B, C"
+                  isClearable
+                  isSearchable={false}
+                />
+              </FormGroup>
+            </Col>
             <Col md={12}>
               <FormGroup className="mb-3">
-                <FormLabel>Nombre del Curso *</FormLabel>
+                <FormLabel>Nombre del Curso (generado automáticamente)</FormLabel>
                 <FormControl
                   type="text"
-                  value={formData.curso_nombre}
-                  onChange={(e) => handleFieldChange('curso_nombre', e.target.value)}
-                  placeholder="Ej: 1° Básico, Matemáticas 3° Medio"
-                  required
+                  value={nombreCursoGenerado || 'Seleccione nivel y grado'}
+                  readOnly
+                  className="bg-light"
+                  style={{ cursor: 'not-allowed' }}
                 />
-              </FormGroup>
-            </Col>
-            <Col md={6}>
-              <FormGroup className="mb-3">
-                <FormLabel>Nivel</FormLabel>
-                <FormControl
-                  as="select"
-                  value={formData.nivel}
-                  onChange={(e) => handleFieldChange('nivel', e.target.value)}
-                >
-                  <option value="">Seleccionar nivel</option>
-                  {NIVELES.map((nivel) => (
-                    <option key={nivel} value={nivel}>
-                      {nivel}
-                    </option>
-                  ))}
-                </FormControl>
-              </FormGroup>
-            </Col>
-            <Col md={6}>
-              <FormGroup className="mb-3">
-                <FormLabel>Grado</FormLabel>
-                <FormControl
-                  type="text"
-                  value={formData.grado}
-                  onChange={(e) => handleFieldChange('grado', e.target.value)}
-                  placeholder="Ej: 1° Básico, 2° Medio"
-                />
+                <small className="text-muted">Este nombre se genera automáticamente según el nivel, grado y paralelo seleccionados.</small>
               </FormGroup>
             </Col>
             <Col md={12}>
@@ -295,26 +476,55 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
 
           <hr className="my-4" />
 
+          <Row>
+            <Col md={12}>
+              <FormGroup className="mb-3">
+                <FormLabel>Lista de Útiles Predefinida (opcional)</FormLabel>
+                <Select
+                  options={listasUtiles}
+                  value={listasUtiles.find(l => l.value === formData.lista_utiles) || null}
+                  onChange={handleListaUtilesChange}
+                  placeholder={loadingListas ? 'Cargando listas...' : 'Seleccionar lista de útiles'}
+                  isClearable
+                  isLoading={loadingListas}
+                />
+                {formData.lista_utiles && (
+                  <small className="text-muted d-block mt-1">
+                    {listasUtiles.find(l => l.value === formData.lista_utiles)?.cantidadMateriales || 0} materiales incluidos en esta lista
+                  </small>
+                )}
+              </FormGroup>
+            </Col>
+          </Row>
+
           <div className="d-flex justify-content-between align-items-center mb-3">
-            <h5 className="mb-0">Lista de Útiles / Materiales</h5>
+            <div>
+              <h5 className="mb-0">Materiales Adicionales</h5>
+              <small className="text-muted">Agregar materiales fuera de la lista predefinida (opcional)</small>
+            </div>
             <Button
               type="button"
               variant="outline-primary"
               size="sm"
-              onClick={handleAddMaterial}
+              onClick={() => {
+                handleAddMaterial()
+                setShowMaterialesAdicionales(true)
+              }}
             >
               <LuPlus className="me-1" size={16} />
               Agregar Material
             </Button>
           </div>
 
-          {formData.materiales.length === 0 ? (
-            <Alert variant="info">
-              No hay materiales agregados. Haz clic en "Agregar Material" para comenzar.
-            </Alert>
-          ) : (
-            <div className="list-group">
-              {formData.materiales.map((material, index) => (
+          <Collapse in={showMaterialesAdicionales || formData.materiales_adicionales.length > 0}>
+            <div>
+              {formData.materiales_adicionales.length === 0 ? (
+                <Alert variant="info">
+                  No hay materiales adicionales. Haz clic en "Agregar Material" para comenzar.
+                </Alert>
+              ) : (
+                <div className="list-group">
+                  {formData.materiales_adicionales.map((material, index) => (
                 <div key={index} className="list-group-item mb-3 border rounded p-3">
                   <div className="d-flex justify-content-between align-items-start mb-2">
                     <h6 className="mb-0">Material #{index + 1}</h6>
@@ -408,9 +618,33 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
                       </FormGroup>
                     </Col>
                   </Row>
+                  </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
+          </Collapse>
+
+          {formData.materiales_adicionales.length > 0 && (
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="mt-2 p-0"
+              onClick={() => setShowMaterialesAdicionales(!showMaterialesAdicionales)}
+            >
+              {showMaterialesAdicionales ? (
+                <>
+                  <LuChevronUp size={16} className="me-1" />
+                  Ocultar materiales adicionales
+                </>
+              ) : (
+                <>
+                  <LuChevronDown size={16} className="me-1" />
+                  Mostrar materiales adicionales ({formData.materiales_adicionales.length})
+                </>
+              )}
+            </Button>
           )}
         </ModalBody>
         <ModalFooter>
