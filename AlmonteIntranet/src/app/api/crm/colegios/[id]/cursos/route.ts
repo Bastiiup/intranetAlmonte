@@ -73,17 +73,29 @@ export async function GET(
 
     // Buscar cursos del colegio
     // ⚠️ No usar sort hasta verificar qué campos son ordenables en Strapi
-    const paramsObj = new URLSearchParams({
-      'filters[colegio][id][$eq]': String(colegioIdNum),
-      'populate[materiales]': 'true',
-      'populate[lista_utiles]': 'true',
-      'populate[lista_utiles][populate][materiales]': 'true',
-      // Removido sort hasta verificar el schema en Strapi
-    })
-
-    const response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
-      `/api/cursos?${paramsObj.toString()}`
-    )
+    // Intentar con populate de lista_utiles, si falla intentar sin él
+    let response: any
+    try {
+      const paramsObj = new URLSearchParams({
+        'filters[colegio][id][$eq]': String(colegioIdNum),
+        'populate[materiales]': 'true',
+        'populate[lista_utiles]': 'true',
+        'populate[lista_utiles][populate][materiales]': 'true',
+      })
+      response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
+        `/api/cursos?${paramsObj.toString()}`
+      )
+    } catch (error: any) {
+      // Si falla con lista_utiles, intentar sin él (puede que el content type no esté listo)
+      debugLog('[API /crm/colegios/[id]/cursos GET] ⚠️ Error con populate lista_utiles, intentando sin él:', error.message)
+      const paramsObj = new URLSearchParams({
+        'filters[colegio][id][$eq]': String(colegioIdNum),
+        'populate[materiales]': 'true',
+      })
+      response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
+        `/api/cursos?${paramsObj.toString()}`
+      )
+    }
 
     const cursos = Array.isArray(response.data) ? response.data : []
 

@@ -29,16 +29,29 @@ export async function GET(
     const { id } = await params
     debugLog('[API /crm/cursos/[id] GET] Buscando curso:', id)
 
-    const paramsObj = new URLSearchParams({
-      'populate[materiales]': 'true',
-      'populate[colegio]': 'true',
-      'populate[lista_utiles]': 'true',
-      'populate[lista_utiles][populate][materiales]': 'true',
-    })
-
-    const response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-      `/api/cursos/${id}?${paramsObj.toString()}`
-    )
+    // Intentar con populate de lista_utiles, si falla intentar sin él
+    let response: any
+    try {
+      const paramsObj = new URLSearchParams({
+        'populate[materiales]': 'true',
+        'populate[colegio]': 'true',
+        'populate[lista_utiles]': 'true',
+        'populate[lista_utiles][populate][materiales]': 'true',
+      })
+      response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+        `/api/cursos/${id}?${paramsObj.toString()}`
+      )
+    } catch (error: any) {
+      // Si falla con lista_utiles, intentar sin él
+      debugLog('[API /crm/cursos/[id] GET] ⚠️ Error con populate lista_utiles, intentando sin él:', error.message)
+      const paramsObj = new URLSearchParams({
+        'populate[materiales]': 'true',
+        'populate[colegio]': 'true',
+      })
+      response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+        `/api/cursos/${id}?${paramsObj.toString()}`
+      )
+    }
 
     return NextResponse.json({
       success: true,
