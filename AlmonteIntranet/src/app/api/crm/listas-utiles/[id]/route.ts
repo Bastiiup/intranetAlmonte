@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
+import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 
 const DEBUG = process.env.NODE_ENV === 'development' || process.env.DEBUG_CRM === 'true'
 const debugLog = (...args: any[]) => {
@@ -21,21 +22,9 @@ export async function GET(
 
     debugLog('[API /crm/listas-utiles/[id] GET] ID:', id)
 
-    const response = await strapiClient.get(
+    const response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
       `/api/listas-utiles/${id}?populate[materiales]=true`
     )
-
-    if (response.error) {
-      debugLog('[API /crm/listas-utiles/[id] GET] ❌ Error:', response.error)
-      return NextResponse.json(
-        {
-          success: false,
-          error: response.error.message || 'Error al obtener lista de útiles',
-          details: response.error,
-        },
-        { status: response.error.status || 500 }
-      )
-    }
 
     debugLog('[API /crm/listas-utiles/[id] GET] ✅ Exitoso')
 
@@ -129,19 +118,10 @@ export async function PUT(
 
     debugLog('[API /crm/listas-utiles/[id] PUT] Payload:', JSON.stringify(payload, null, 2))
 
-    const response = await strapiClient.put(`/api/listas-utiles/${id}`, payload)
-
-    if (response.error) {
-      debugLog('[API /crm/listas-utiles/[id] PUT] ❌ Error:', response.error)
-      return NextResponse.json(
-        {
-          success: false,
-          error: response.error.message || 'Error al actualizar lista de útiles',
-          details: response.error,
-        },
-        { status: response.error.status || 500 }
-      )
-    }
+    const response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
+      `/api/listas-utiles/${id}`,
+      payload
+    )
 
     debugLog('[API /crm/listas-utiles/[id] PUT] ✅ Actualizado exitosamente')
 
@@ -175,14 +155,14 @@ export async function DELETE(
     debugLog('[API /crm/listas-utiles/[id] DELETE] ID:', id)
 
     // Verificar si la lista está siendo usada por algún curso
-    const cursosResponse = await strapiClient.get(
-      `/api/cursos?filters[lista_utiles][id][$eq]=${id}&pagination[limit]=1`
-    )
+    try {
+      const cursosResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
+        `/api/cursos?filters[lista_utiles][id][$eq]=${id}&pagination[limit]=1`
+      )
 
-    if (!cursosResponse.error && cursosResponse.data) {
       const cursos = Array.isArray(cursosResponse.data)
         ? cursosResponse.data
-        : cursosResponse.data?.data || []
+        : [cursosResponse.data]
       if (cursos.length > 0) {
         return NextResponse.json(
           {
@@ -193,28 +173,19 @@ export async function DELETE(
           { status: 400 }
         )
       }
+    } catch (error: any) {
+      // Si no se puede verificar, continuar con la eliminación (no es crítico)
+      debugLog('[API /crm/listas-utiles/[id] DELETE] ⚠️ No se pudo verificar uso, continuando...')
     }
 
-    const response = await strapiClient.delete(`/api/listas-utiles/${id}`)
-
-    if (response.error) {
-      debugLog('[API /crm/listas-utiles/[id] DELETE] ❌ Error:', response.error)
-      return NextResponse.json(
-        {
-          success: false,
-          error: response.error.message || 'Error al eliminar lista de útiles',
-          details: response.error,
-        },
-        { status: response.error.status || 500 }
-      )
-    }
+    await strapiClient.delete<StrapiResponse<StrapiEntity<any>>>(`/api/listas-utiles/${id}`)
 
     debugLog('[API /crm/listas-utiles/[id] DELETE] ✅ Eliminado exitosamente')
 
     return NextResponse.json({
       success: true,
       message: 'Lista de útiles eliminada exitosamente',
-    })
+    }, { status: 200 })
   } catch (error: any) {
     debugLog('[API /crm/listas-utiles/[id] DELETE] ❌ Error:', error)
     return NextResponse.json(

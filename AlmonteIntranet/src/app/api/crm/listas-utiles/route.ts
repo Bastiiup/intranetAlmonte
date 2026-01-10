@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
+import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 
 const DEBUG = process.env.NODE_ENV === 'development' || process.env.DEBUG_CRM === 'true'
 const debugLog = (...args: any[]) => {
@@ -47,21 +48,11 @@ export async function GET(request: NextRequest) {
 
     debugLog('[API /crm/listas-utiles GET] Query:', queryString)
 
-    const response = await strapiClient.get(`/api/listas-utiles${queryString}`)
+    const response = await strapiClient.get<StrapiResponse<StrapiEntity<ListaUtilesAttributes>[]>>(
+      `/api/listas-utiles${queryString}`
+    )
 
-    if (response.error) {
-      debugLog('[API /crm/listas-utiles GET] Error:', response.error)
-      return NextResponse.json(
-        {
-          success: false,
-          error: response.error.message || 'Error al obtener listas de útiles',
-          details: response.error,
-        },
-        { status: response.error.status || 500 }
-      )
-    }
-
-    const data = Array.isArray(response.data) ? response.data : response.data?.data || []
+    const data = Array.isArray(response.data) ? response.data : [response.data]
 
     debugLog('[API /crm/listas-utiles GET] ✅ Exitoso, cantidad:', data.length)
 
@@ -69,7 +60,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data,
       count: data.length,
-    })
+    }, { status: 200 })
   } catch (error: any) {
     debugLog('[API /crm/listas-utiles GET] ❌ Error:', error)
     return NextResponse.json(
@@ -150,26 +141,17 @@ export async function POST(request: NextRequest) {
 
     debugLog('[API /crm/listas-utiles POST] Payload para Strapi:', JSON.stringify(payload, null, 2))
 
-    const response = await strapiClient.post('/api/listas-utiles', payload)
-
-    if (response.error) {
-      debugLog('[API /crm/listas-utiles POST] ❌ Error:', response.error)
-      return NextResponse.json(
-        {
-          success: false,
-          error: response.error.message || 'Error al crear lista de útiles',
-          details: response.error,
-        },
-        { status: response.error.status || 500 }
-      )
-    }
+    const response = await strapiClient.post<StrapiResponse<StrapiEntity<ListaUtilesAttributes>>>(
+      '/api/listas-utiles',
+      payload
+    )
 
     debugLog('[API /crm/listas-utiles POST] ✅ Lista creada exitosamente')
 
     return NextResponse.json({
       success: true,
       data: response.data,
-    })
+    }, { status: 200 })
   } catch (error: any) {
     debugLog('[API /crm/listas-utiles POST] ❌ Error:', error)
     return NextResponse.json(
