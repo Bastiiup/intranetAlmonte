@@ -119,19 +119,19 @@ export async function POST(request: NextRequest) {
     const headerMap: Record<string, string> = {}
     const headerLower = headers.map((h: string) => h.toLowerCase())
 
-    const materialIndex = headerLower.findIndex((h) =>
+    const materialIndex = headerLower.findIndex((h: string) =>
       ['material', 'material_nombre', 'nombre', 'item', 'producto'].includes(h)
     )
-    const tipoIndex = headerLower.findIndex((h) =>
+    const tipoIndex = headerLower.findIndex((h: string) =>
       ['tipo', 'categoria', 'category', 'clase'].includes(h)
     )
-    const cantidadIndex = headerLower.findIndex((h) =>
+    const cantidadIndex = headerLower.findIndex((h: string) =>
       ['cantidad', 'qty', 'quantity', 'cant', 'numero'].includes(h)
     )
-    const obligatorioIndex = headerLower.findIndex((h) =>
+    const obligatorioIndex = headerLower.findIndex((h: string) =>
       ['obligatorio', 'requerido', 'required', 'necesario'].includes(h)
     )
-    const descripcionIndex = headerLower.findIndex((h) =>
+    const descripcionIndex = headerLower.findIndex((h: string) =>
       ['descripcion', 'descripción', 'description', 'notas', 'comentario'].includes(h)
     )
 
