@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Button, Form, FormGroup, FormLabel, FormControl, Alert, Row, Col, Collapse, Badge } from 'react-bootstrap'
-import { LuPlus, LuTrash2, LuChevronDown, LuChevronUp } from 'react-icons/lu'
+import { LuPlus, LuTrash2, LuChevronDown, LuChevronUp, LuFileSpreadsheet } from 'react-icons/lu'
 import Select from 'react-select'
+import ImportarMaterialesExcelModal from './ImportarMaterialesExcelModal'
 
 interface Material {
   material_nombre: string
@@ -74,6 +75,7 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
   const [listasUtiles, setListasUtiles] = useState<ListaUtilesOption[]>([])
   const [loadingListas, setLoadingListas] = useState(false)
   const [showMaterialesAdicionales, setShowMaterialesAdicionales] = useState(false)
+  const [showImportarExcel, setShowImportarExcel] = useState(false)
   
   const [formData, setFormData] = useState<CursoData>({
     nombre_curso: '',
@@ -246,6 +248,14 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
           descripcion: '',
         },
       ],
+    }))
+    setShowMaterialesAdicionales(true)
+  }
+
+  const handleImportarMateriales = (materiales: Material[]) => {
+    setFormData((prev) => ({
+      ...prev,
+      materiales_adicionales: [...prev.materiales_adicionales, ...materiales],
     }))
     setShowMaterialesAdicionales(true)
   }
@@ -545,18 +555,30 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
               <h5 className="mb-0">Materiales Adicionales</h5>
               <small className="text-muted">Agregar materiales fuera de la lista predefinida (opcional)</small>
             </div>
-            <Button
-              type="button"
-              variant="outline-primary"
-              size="sm"
-              onClick={() => {
-                handleAddMaterial()
-                setShowMaterialesAdicionales(true)
-              }}
-            >
-              <LuPlus className="me-1" size={16} />
-              Agregar Material
-            </Button>
+            <div>
+              <Button
+                type="button"
+                variant="outline-success"
+                size="sm"
+                className="me-2"
+                onClick={() => setShowImportarExcel(true)}
+              >
+                <LuFileSpreadsheet className="me-1" size={16} />
+                Importar Excel
+              </Button>
+              <Button
+                type="button"
+                variant="outline-primary"
+                size="sm"
+                onClick={() => {
+                  handleAddMaterial()
+                  setShowMaterialesAdicionales(true)
+                }}
+              >
+                <LuPlus className="me-1" size={16} />
+                Agregar Material
+              </Button>
+            </div>
           </div>
 
           <Collapse in={showMaterialesAdicionales || formData.materiales_adicionales.length > 0}>
@@ -710,6 +732,13 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
           </Button>
         </ModalFooter>
       </Form>
+
+      {/* Modal de Importación Excel */}
+      <ImportarMaterialesExcelModal
+        show={showImportarExcel}
+        onHide={() => setShowImportarExcel(false)}
+        onImport={handleImportarMateriales}
+      />
     </Modal>
   )
 }
