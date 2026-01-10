@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Button, Form, FormGroup, FormLabel, FormControl, Alert, Row, Col, Collapse } from 'react-bootstrap'
+import { Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Button, Form, FormGroup, FormLabel, FormControl, Alert, Row, Col, Collapse, Badge } from 'react-bootstrap'
 import { LuPlus, LuTrash2, LuChevronDown, LuChevronUp } from 'react-icons/lu'
 import Select from 'react-select'
 
@@ -106,17 +106,27 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
     return `${gradoText} ${nivelLabel}${paraleloText}`
   }, [formData.nivel, formData.grado, formData.paralelo])
 
-  // Cargar listas de útiles disponibles
-  useEffect(() => {
-    if (show) {
-      loadListasUtiles()
-    }
-  }, [show])
 
-  const loadListasUtiles = async () => {
+  const loadListasUtiles = async (nivelFilter?: string, gradoFilter?: string) => {
     setLoadingListas(true)
     try {
-      const response = await fetch('/api/crm/listas-utiles')
+      // Filtrar por nivel y grado si están seleccionados
+      const params = new URLSearchParams()
+      const nivelParam = nivelFilter || formData.nivel
+      const gradoParam = gradoFilter || formData.grado
+      
+      if (nivelParam) {
+        params.append('nivel', nivelParam)
+      }
+      if (gradoParam) {
+        params.append('grado', gradoParam)
+      }
+      params.append('activo', 'true') // Solo listas activas
+
+      const queryString = params.toString()
+      const url = `/api/crm/listas-utiles${queryString ? `?${queryString}` : ''}`
+      
+      const response = await fetch(url)
       const result = await response.json()
       if (result.success && Array.isArray(result.data)) {
         const opciones = result.data.map((lista: any) => {
@@ -129,13 +139,23 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
           }
         })
         setListasUtiles(opciones)
+      } else {
+        setListasUtiles([])
       }
     } catch (err) {
       console.error('Error al cargar listas de útiles:', err)
+      setListasUtiles([])
     } finally {
       setLoadingListas(false)
     }
   }
+
+  // Cargar listas cuando se abre el modal o cuando cambian nivel/grado
+  useEffect(() => {
+    if (show) {
+      loadListasUtiles(formData.nivel, formData.grado)
+    }
+  }, [show, formData.nivel, formData.grado])
 
   // Cargar datos del curso si se está editando
   useEffect(() => {
@@ -242,6 +262,7 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
       ...prev,
       nivel: value,
       grado: '', // Resetear grado al cambiar nivel
+      lista_utiles: null, // Resetear lista al cambiar nivel
     }))
   }
 
@@ -479,19 +500,41 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
           <Row>
             <Col md={12}>
               <FormGroup className="mb-3">
-                <FormLabel>Lista de Útiles Predefinida (opcional)</FormLabel>
+                <FormLabel>
+                  Lista de Útiles Predefinida (opcional)
+                  {formData.nivel && formData.grado && (
+                    <small className="text-muted ms-2">- Filtrado por {formData.grado}° {formData.nivel === 'Basica' ? 'Básica' : 'Media'}</small>
+                  )}
+                </FormLabel>
                 <Select
                   options={listasUtiles}
                   value={listasUtiles.find(l => l.value === formData.lista_utiles) || null}
                   onChange={handleListaUtilesChange}
-                  placeholder={loadingListas ? 'Cargando listas...' : 'Seleccionar lista de útiles'}
+                  placeholder={
+                    loadingListas 
+                      ? 'Cargando listas...' 
+                      : !formData.nivel || !formData.grado
+                      ? 'Seleccione nivel y grado primero'
+                      : listasUtiles.length === 0
+                      ? 'No hay listas disponibles para este nivel/grado'
+                      : 'Seleccionar lista de útiles'
+                  }
                   isClearable
                   isLoading={loadingListas}
+                  isDisabled={!formData.nivel || !formData.grado}
                 />
                 {formData.lista_utiles && (
-                  <small className="text-muted d-block mt-1">
-                    {listasUtiles.find(l => l.value === formData.lista_utiles)?.cantidadMateriales || 0} materiales incluidos en esta lista
-                  </small>
+                  <div className="mt-2">
+                    <Badge bg="info" className="me-2">
+                      {listasUtiles.find(l => l.value === formData.lista_utiles)?.cantidadMateriales || 0} materiales
+                    </Badge>
+                    <small className="text-muted">incluidos en esta lista</small>
+                  </div>
+                )}
+                {!loadingListas && formData.nivel && formData.grado && listasUtiles.length === 0 && (
+                  <Alert variant="info" className="mt-2 mb-0 py-2">
+                    <small>No hay listas de útiles disponibles para {formData.grado}° {formData.nivel === 'Basica' ? 'Básica' : 'Media'}. Puede agregar materiales adicionales manualmente.</small>
+                  </Alert>
                 )}
               </FormGroup>
             </Col>

@@ -32,9 +32,8 @@ export async function GET(
     const paramsObj = new URLSearchParams({
       'populate[materiales]': 'true',
       'populate[colegio]': 'true',
-      // lista_utiles es opcional - agregar solo si el content type existe
-      // 'populate[lista_utiles]': 'true',
-      // 'populate[lista_utiles][populate][materiales]': 'true',
+      'populate[lista_utiles]': 'true',
+      'populate[lista_utiles][populate][materiales]': 'true',
     })
 
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
