@@ -14,10 +14,10 @@ const debugLog = (...args: any[]) => {
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
 
     debugLog('[API /crm/listas-utiles/[id] GET] ID:', id)
 
@@ -61,10 +61,10 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
 
     debugLog('[API /crm/listas-utiles/[id] PUT] ID:', id)
@@ -167,10 +167,10 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
 
     debugLog('[API /crm/listas-utiles/[id] DELETE] ID:', id)
 
