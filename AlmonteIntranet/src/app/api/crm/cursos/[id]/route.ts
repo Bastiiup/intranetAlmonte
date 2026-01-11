@@ -30,6 +30,8 @@ export async function GET(
     debugLog('[API /crm/cursos/[id] GET] Buscando curso:', id)
 
     // Intentar con populate de lista_utiles, si falla intentar sin él
+    // NOTA: El populate anidado de lista_utiles.materiales puede causar error 500 en Strapi
+    // si el content type no está configurado correctamente
     let response: any
     try {
       const paramsObj = new URLSearchParams({
@@ -42,15 +44,34 @@ export async function GET(
         `/api/cursos/${id}?${paramsObj.toString()}`
       )
     } catch (error: any) {
-      // Si falla con lista_utiles, intentar sin él
-      debugLog('[API /crm/cursos/[id] GET] ⚠️ Error con populate lista_utiles, intentando sin él:', error.message)
-      const paramsObj = new URLSearchParams({
-        'populate[materiales]': 'true',
-        'populate[colegio]': 'true',
-      })
-      response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-        `/api/cursos/${id}?${paramsObj.toString()}`
-      )
+      // Si falla con populate anidado de lista_utiles.materiales (error 500 común),
+      // intentar solo con lista_utiles sin populate anidado
+      if (error.status === 500 || error.status === 400) {
+        debugLog('[API /crm/cursos/[id] GET] ⚠️ Error 500/400 con populate anidado lista_utiles.materiales, intentando sin populate anidado')
+        try {
+          const paramsObj = new URLSearchParams({
+            'populate[materiales]': 'true',
+            'populate[colegio]': 'true',
+            'populate[lista_utiles]': 'true',
+          })
+          response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+            `/api/cursos/${id}?${paramsObj.toString()}`
+          )
+        } catch (secondError: any) {
+          // Si también falla, intentar sin lista_utiles completamente
+          debugLog('[API /crm/cursos/[id] GET] ⚠️ Error también sin populate anidado, intentando sin lista_utiles')
+          const paramsObj = new URLSearchParams({
+            'populate[materiales]': 'true',
+            'populate[colegio]': 'true',
+          })
+          response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+            `/api/cursos/${id}?${paramsObj.toString()}`
+          )
+        }
+      } else {
+        // Si es otro tipo de error, propagarlo
+        throw error
+      }
     }
 
     return NextResponse.json({
