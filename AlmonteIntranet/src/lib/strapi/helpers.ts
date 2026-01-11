@@ -143,3 +143,85 @@ export function extractStrapiDataArray<T>(response: any): T[] {
   return [response as T]
 }
 
+/**
+ * Normaliza la estructura de una imagen de Strapi (componente o media)
+ * Intenta extraer la URL y otros metadatos de la forma más simple posible
+ * @param imageRaw - Imagen en cualquier formato de Strapi
+ * @returns Imagen normalizada con url, alternativeText, width, height o null
+ */
+export function normalizeImage(imageRaw: any): { url: string; alternativeText?: string; width?: number; height?: number; name?: string; formats?: any } | null {
+  if (!imageRaw) return null
+
+  // Si es un componente con campo 'imagen' (Multiple Media)
+  if (imageRaw.imagen) {
+    const imageData = imageRaw.imagen
+    // Si es array directo (ESTRUCTURA REAL DE STRAPI)
+    if (Array.isArray(imageData) && imageData.length > 0) {
+      const firstImage = imageData[0]
+      return {
+        url: firstImage.url || null,
+        alternativeText: firstImage.alternativeText || null,
+        width: firstImage.width || null,
+        height: firstImage.height || null,
+        name: firstImage.name || null,
+        formats: firstImage.formats || null,
+      }
+    }
+    // Si tiene data (estructura Strapi estándar alternativa)
+    else if (imageData.data) {
+      const dataArray = Array.isArray(imageData.data) ? imageData.data : [imageData.data]
+      if (dataArray.length > 0) {
+        const firstImage = dataArray[0]
+        return {
+          url: firstImage.attributes?.url || firstImage.url || null,
+          alternativeText: firstImage.attributes?.alternativeText || firstImage.alternativeText || null,
+          width: firstImage.attributes?.width || firstImage.width || null,
+          height: firstImage.attributes?.height || firstImage.height || null,
+        }
+      }
+    }
+    // Si es objeto directo con url
+    else if (imageData.url) {
+      return {
+        url: imageData.url,
+        alternativeText: imageData.alternativeText || null,
+        width: imageData.width || null,
+        height: imageData.height || null,
+      }
+    }
+  }
+  // Si es un objeto directo con url (ej. Single Media)
+  else if (imageRaw.url) {
+    return {
+      url: imageRaw.url,
+      alternativeText: imageRaw.alternativeText || null,
+      width: imageRaw.width || null,
+      height: imageRaw.height || null,
+    }
+  }
+  // Si tiene data (estructura Strapi estándar sin componente)
+  else if (imageRaw.data) {
+    const dataArray = Array.isArray(imageRaw.data) ? imageRaw.data : [imageRaw.data]
+    if (dataArray.length > 0) {
+      const firstImage = dataArray[0]
+      return {
+        url: firstImage.attributes?.url || firstImage.url || null,
+        alternativeText: firstImage.attributes?.alternativeText || firstImage.alternativeText || null,
+        width: firstImage.attributes?.width || firstImage.width || null,
+        height: firstImage.attributes?.height || firstImage.height || null,
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Normaliza la estructura de una portada de Strapi (componente o media)
+ * Es idéntica a normalizeImage, pero se mantiene separada por claridad
+ * @param portadaRaw - Portada en cualquier formato de Strapi
+ * @returns Portada normalizada con url, alternativeText, width, height o null
+ */
+export function normalizePortada(portadaRaw: any): { url: string; alternativeText?: string; width?: number; height?: number; name?: string; formats?: any } | null {
+  return normalizeImage(portadaRaw)
+}
+

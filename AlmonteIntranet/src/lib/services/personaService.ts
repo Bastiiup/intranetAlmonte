@@ -183,3 +183,158 @@ export class PersonaService {
   }
 }
 
+/**
+ * Funciones exportadas directamente para compatibilidad con código existente
+ * Wrappers alrededor de los métodos estáticos de PersonaService
+ */
+
+/**
+ * Busca una persona por ID (documentId o numérico) o RUT
+ * @param id - ID de la persona (documentId o numérico)
+ * @param rut - RUT de la persona
+ * @returns Persona encontrada o null
+ */
+export async function getPersonaByIdOrRut(
+  id: string | number | null | undefined,
+  rut: string | null | undefined
+): Promise<any | null> {
+  // Si tenemos ID, buscar por ID primero
+  if (id) {
+    try {
+      const response = await strapiClient.get<any>(`/api/personas/${id}?populate[imagen][populate]=*&populate[portada][populate]=*&populate[emails]=*&populate[telefonos]=*`)
+      const persona = normalizePersona(extractStrapiData(response))
+      if (persona) return persona
+    } catch (error: any) {
+      if (error.status !== 404) {
+        console.warn(`[PersonaService] Error al buscar persona por ID ${id}:`, error.message)
+      }
+    }
+  }
+
+  // Si tenemos RUT, buscar por RUT
+  if (rut) {
+    const persona = await PersonaService.findByRut(rut)
+    if (persona) return persona
+  }
+
+  return null
+}
+
+/**
+ * Crea una nueva persona
+ * @param personaData - Datos de la persona a crear
+ * @returns Persona creada
+ */
+export async function createPersona(personaData: any): Promise<any> {
+  const personaId = await PersonaService.create({
+    rut: personaData.rut,
+    nombres: personaData.nombres,
+    primer_apellido: personaData.primer_apellido,
+    segundo_apellido: personaData.segundo_apellido,
+    genero: personaData.genero,
+    cumpleagno: personaData.cumpleagno,
+  })
+
+  // Obtener la persona creada para retornarla
+  const persona = await getPersonaByIdOrRut(personaId, personaData.rut)
+  if (!persona) {
+    throw new Error('Persona creada pero no se pudo obtener')
+  }
+  return persona
+}
+
+/**
+ * Actualiza una persona existente
+ * @param id - ID de la persona (documentId o numérico)
+ * @param rut - RUT de la persona (opcional, para búsqueda)
+ * @param updateData - Datos a actualizar
+ * @param imagenId - ID de imagen a actualizar (opcional)
+ * @param portadaId - ID de portada a actualizar (opcional)
+ * @returns Persona actualizada
+ */
+export async function updatePersona(
+  id: string | number | null | undefined,
+  rut: string | null | undefined,
+  updateData: any,
+  imagenId?: string | number | null,
+  portadaId?: string | number | null
+): Promise<any> {
+  // Obtener persona existente
+  let persona = await getPersonaByIdOrRut(id, rut)
+  if (!persona) {
+    throw new Error(`Persona no encontrada para actualizar con ID: ${id} o RUT: ${rut}`)
+  }
+
+  const { getStrapiId } = await import('@/lib/strapi/helpers')
+  const personaId = getStrapiId(persona)
+  if (!personaId) {
+    throw new Error('No se pudo obtener un ID válido para la persona a actualizar')
+  }
+
+  // Preparar datos de actualización
+  const dataToUpdate: any = { ...updateData }
+
+  // Construir nombre_completo si hay cambios en nombres/apellidos
+  if (updateData.nombres !== undefined || updateData.primer_apellido !== undefined || updateData.segundo_apellido !== undefined) {
+    const nombres = updateData.nombres?.trim() || persona.nombres || ''
+    const primerApellido = updateData.primer_apellido?.trim() || persona.primer_apellido || ''
+    const segundoApellido = updateData.segundo_apellido?.trim() || persona.segundo_apellido || ''
+    dataToUpdate.nombre_completo = `${nombres} ${primerApellido} ${segundoApellido}`.trim() || null
+  }
+
+  // Manejar actualización de imagen (componente contacto.imagen)
+  if (imagenId !== undefined) {
+    if (imagenId === null) {
+      dataToUpdate.imagen = null // Eliminar imagen
+    } else {
+      // Obtener la estructura actual del componente imagen para preservar otros campos
+      let currentImagenComponent: any = persona.imagen || null
+      dataToUpdate.imagen = {
+        imagen: [imagenId], // Array de IDs de archivos
+        ...(currentImagenComponent && {
+          tipo: currentImagenComponent.tipo,
+          formato: currentImagenComponent.formato,
+          estado: currentImagenComponent.estado,
+          vigente_hasta: currentImagenComponent.vigente_hasta,
+          status: currentImagenComponent.status !== undefined ? currentImagenComponent.status : true,
+        }),
+      }
+    }
+  }
+
+  // Manejar actualización de portada (componente contacto.portada)
+  if (portadaId !== undefined) {
+    if (portadaId === null) {
+      dataToUpdate.portada = null // Eliminar portada
+    } else {
+      let currentPortadaComponent: any = persona.portada || null
+      dataToUpdate.portada = {
+        imagen: [portadaId], // Array de IDs de archivos
+        ...(currentPortadaComponent && {
+          tipo: currentPortadaComponent.tipo,
+          formato: currentPortadaComponent.formato,
+          estado: currentPortadaComponent.estado,
+          vigente_hasta: currentPortadaComponent.vigente_hasta,
+          status: currentPortadaComponent.status !== undefined ? currentPortadaComponent.status : true,
+        }),
+      }
+    }
+  }
+
+  // Actualizar usando PersonaService si solo son campos básicos, sino usar strapiClient directamente
+  if (imagenId === undefined && portadaId === undefined) {
+    // Solo campos básicos, usar PersonaService
+    await PersonaService.update(personaId, dataToUpdate)
+  } else {
+    // Tiene imagen/portada, usar strapiClient directamente
+    await strapiClient.put(`/api/personas/${personaId}`, { data: dataToUpdate })
+  }
+
+  // Obtener persona actualizada
+  persona = await getPersonaByIdOrRut(personaId, rut)
+  if (!persona) {
+    throw new Error('Persona actualizada pero no se pudo obtener')
+  }
+  return persona
+}
+
