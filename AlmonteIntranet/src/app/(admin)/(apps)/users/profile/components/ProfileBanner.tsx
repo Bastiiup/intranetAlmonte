@@ -291,4 +291,3 @@ const ProfileBanner = ({ colaboradorId }: ProfileBannerProps) => {
 }
 
 export default ProfileBanner
-

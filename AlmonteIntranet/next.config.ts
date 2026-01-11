@@ -80,8 +80,17 @@ const nextConfig: NextConfig = {
   },
   // Optimizaciones experimentales
   experimental: {
-    optimizePackageImports: ['@tanstack/react-table', 'react-bootstrap', 'date-fns'],
+    optimizePackageImports: [
+      '@tanstack/react-table', 
+      'react-bootstrap', 
+      'date-fns',
+      'react-icons',
+      'lodash',
+      'bootstrap',
+    ],
   },
+  // Typed routes (movido fuera de experimental en Next.js 16)
+  typedRoutes: false,
   // Headers CSP únicos para Stream Chat (necesita unsafe-eval)
   // IMPORTANTE: Solo debe haber un CSP, configurado aquí en next.config.ts
   async headers() {

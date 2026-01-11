@@ -5,7 +5,7 @@ import user3 from '@/assets/images/users/user-3.jpg'
 import { KanbanDialogType, KanbanProviderProps, KanbanSectionType, KanbanTaskType, KanbanType } from '@/types/kanban'
 import type { DropResult } from '@hello-pangea/dnd'
 import { yupResolver } from '@hookform/resolvers/yup'
-import { createContext, startTransition, use, useCallback, useMemo, useState } from 'react'
+import { createContext, startTransition, use, useCallback, useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import * as yup from 'yup'
 import { VariantType } from '@/types'
@@ -49,6 +49,15 @@ const KanbanProvider = ({ children, tasksData, sectionsData }: KanbanProviderPro
     showNewTaskModal: false,
     showSectionModal: false,
   })
+
+  // Sincronizar estado cuando cambian las props
+  useEffect(() => {
+    setTasks(tasksData)
+  }, [tasksData])
+
+  useEffect(() => {
+    setSections(sectionsData)
+  }, [sectionsData])
 
   const {
     control: newTaskControl,
@@ -214,17 +223,47 @@ const KanbanProvider = ({ children, tasksData, sectionsData }: KanbanProviderPro
   }
 
   const onDragEnd = (result: DropResult) => {
+    console.log('========================================')
+    console.log('[KanbanContext] 🎯 onDragEnd INICIADO')
+    console.log('[KanbanContext] Result:', JSON.stringify(result, null, 2))
+    
     const { destination, draggableId } = result
-    if (!destination) return
+    if (!destination) {
+      console.log('[KanbanContext] ❌ No hay destino, cancelando')
+      console.log('========================================')
+      return
+    }
 
-    const taskIndex = tasks.findIndex((task) => String(task.id) === String(draggableId))
-    if (taskIndex === -1) return
+    console.log('[KanbanContext] 📦 Total de tareas en estado:', tasks.length)
+    console.log('[KanbanContext] 🔍 Buscando tarea con ID:', draggableId)
+    
+    const taskIndex = tasks.findIndex((task) => {
+      const taskIdStr = String(task.id)
+      const draggableIdStr = String(draggableId)
+      const match = taskIdStr === draggableIdStr
+      if (match) {
+        console.log('[KanbanContext] ✅ Tarea encontrada en índice:', taskIndex)
+      }
+      return match
+    })
+    
+    if (taskIndex === -1) {
+      console.error('[KanbanContext] ❌ ERROR: Tarea no encontrada')
+      console.error('[KanbanContext] draggableId buscado:', draggableId)
+      console.error('[KanbanContext] Tareas disponibles:', tasks.map(t => ({ id: t.id, idType: typeof t.id, title: t.title })))
+      console.log('========================================')
+      return
+    }
 
     const task = tasks[taskIndex]
+    console.log('[KanbanContext] 📋 Tarea encontrada:', { id: task.id, title: task.title, currentSection: task.sectionId })
+    console.log('[KanbanContext] 📍 Nueva sección:', destination.droppableId)
 
     let newTasks = tasks.filter((t) => String(t.id) !== String(draggableId))
+    console.log('[KanbanContext] 📦 Tareas después de filtrar:', newTasks.length)
 
     const updatedTask = { ...task, sectionId: destination.droppableId }
+    console.log('[KanbanContext] ✏️ Tarea actualizada:', updatedTask)
 
     let destIdx = 0
     let count = 0
@@ -241,9 +280,25 @@ const KanbanProvider = ({ children, tasksData, sectionsData }: KanbanProviderPro
       }
     }
 
-    newTasks = [...newTasks.slice(0, destIdx), updatedTask, ...newTasks.slice(destIdx)]
+    console.log('[KanbanContext] 📍 Índice destino calculado:', destIdx)
 
+    newTasks = [...newTasks.slice(0, destIdx), updatedTask, ...newTasks.slice(destIdx)]
+    console.log('[KanbanContext] 📦 Nuevas tareas ordenadas:', newTasks.length)
+    console.log('[KanbanContext] 📋 Tareas por sección después del cambio:')
+    const sectionsMap = new Map<string, number>()
+    newTasks.forEach(t => {
+      const count = sectionsMap.get(t.sectionId) || 0
+      sectionsMap.set(t.sectionId, count + 1)
+    })
+    sectionsMap.forEach((count, sectionId) => {
+      console.log(`  - ${sectionId}: ${count} tareas`)
+    })
+
+    console.log('[KanbanContext] 🔄 Llamando setTasks...')
     setTasks(newTasks)
+    console.log('[KanbanContext] ✅ setTasks ejecutado')
+    console.log('[KanbanContext] ✅ onDragEnd COMPLETADO')
+    console.log('========================================')
   }
 
   const handleNewSection = sectionHandleSubmit((values: SectionFormFields) => {

@@ -1,0 +1,99 @@
+{
+  "kind": "collectionType",
+  "collectionName": "oportunidades",
+  "info": {
+    "singularName": "oportunidad",
+    "pluralName": "oportunidades",
+    "displayName": "Oportunidad",
+    "description": "Oportunidades de venta en el CRM"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "nombre": {
+      "type": "string",
+      "required": true
+    },
+    "descripcion": {
+      "type": "text"
+    },
+    "monto": {
+      "type": "decimal",
+      "min": 0
+    },
+    "moneda": {
+      "type": "enumeration",
+      "enum": [
+        "USD",
+        "CLP",
+        "EUR"
+      ],
+      "default": "USD"
+    },
+    "etapa": {
+      "type": "enumeration",
+      "enum": [
+        "Qualification",
+        "Proposal Sent",
+        "Negotiation",
+        "Won",
+        "Lost"
+      ],
+      "required": true,
+      "default": "Qualification"
+    },
+    "estado": {
+      "type": "enumeration",
+      "enum": [
+        "open",
+        "in-progress",
+        "closed"
+      ],
+      "required": true,
+      "default": "open"
+    },
+    "prioridad": {
+      "type": "enumeration",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "required": true,
+      "default": "medium"
+    },
+    "fecha_cierre": {
+      "type": "date"
+    },
+    "fuente": {
+      "type": "string",
+      "default": "Manual"
+    },
+    "activo": {
+      "type": "boolean",
+      "required": true,
+      "default": true
+    },
+    "contacto": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::persona.persona",
+      "inversedBy": null
+    },
+    "propietario": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::intranet-colaboradores.intranet-colaboradores",
+      "inversedBy": null,
+      "comment": "Relación con colaboradores (usuarios internos de la empresa que pueden loguearse en la intranet)"
+    },
+    "producto": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::producto.producto",
+      "inversedBy": null
+    }
+  }
+}

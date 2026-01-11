@@ -236,6 +236,20 @@ const strapiClient = {
         })
       }
       
+      // Log detallado para persona-trayectorias (para debugging del error de region)
+      if (path.includes('persona-trayectorias') && bodyString) {
+        const bodyObj = JSON.parse(bodyString)
+        console.log('[Strapi Client POST] 📤 Enviando a persona-trayectorias:', {
+          url,
+          tieneData: !!bodyObj.data,
+          camposEnData: bodyObj.data ? Object.keys(bodyObj.data) : [],
+          tieneRegion: bodyObj.data ? 'region' in bodyObj.data : false,
+          tieneComuna: bodyObj.data ? 'comuna' in bodyObj.data : false,
+          tieneDependencia: bodyObj.data ? 'dependencia' in bodyObj.data : false,
+          bodyCompleto: JSON.stringify(bodyObj, null, 2),
+        })
+      }
+      
       const response = await fetch(url, {
         method: 'POST',
         headers: getHeaders(options?.headers),

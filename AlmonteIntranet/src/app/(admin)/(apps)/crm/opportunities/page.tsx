@@ -1,6 +1,6 @@
 'use client'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { CardBody, CardFooter, Col, Row } from 'react-bootstrap'
+import { CardBody, CardFooter, Col, Row, Spinner } from 'react-bootstrap'
 import {
   ColumnFiltersState,
   createColumnHelper,
@@ -15,26 +15,83 @@ import { OpportunitiesType } from '@/app/(admin)/(apps)/crm/types'
 import Image from 'next/image'
 import Link from 'next/link'
 import { toPascalCase } from '@/helpers/casing'
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import clsx from 'clsx'
-import { opportunities } from '@/app/(admin)/(apps)/crm/data'
-import { LuCircleAlert, LuSearch, LuShuffle } from 'react-icons/lu'
+import { getOpportunities, type OpportunitiesQuery } from './data'
+import { LuCircleAlert, LuSearch, LuShuffle, LuPlus } from 'react-icons/lu'
 import { LiaCheckCircle } from 'react-icons/lia'
+import { TbEdit, TbTrash } from 'react-icons/tb'
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
+import AddOpportunityModal from './components/AddOpportunityModal'
+import EditOpportunityModal from './components/EditOpportunityModal'
+import DeleteOpportunityModal from './components/DeleteOpportunityModal'
+import { Button } from 'react-bootstrap'
 
 const columnHelper = createColumnHelper<OpportunitiesType>()
 
 const Opportunities = () => {
+  // Estados de datos
+  const [opportunitiesData, setOpportunitiesData] = useState<OpportunitiesType[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [totalRows, setTotalRows] = useState(0)
+  
+  // Estados de tabla
+  const [globalFilter, setGlobalFilter] = useState('')
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
+  const [filtroStage, setFiltroStage] = useState<string>('')
+  const [filtroStatus, setFiltroStatus] = useState<string>('')
+  const [filtroPriority, setFiltroPriority] = useState<string>('')
+  const [addModal, setAddModal] = useState(false)
+  const [editModal, setEditModal] = useState<{ open: boolean; opportunity: OpportunitiesType | null }>({ open: false, opportunity: null })
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; opportunity: OpportunitiesType | null }>({ open: false, opportunity: null })
+
+  // Función para cargar oportunidades
+  const loadOpportunities = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const query: OpportunitiesQuery = {
+        page: pagination.pageIndex + 1, // Strapi usa página 1-indexed
+        pageSize: pagination.pageSize,
+        search: globalFilter || undefined,
+        stage: filtroStage || undefined,
+        status: filtroStatus || undefined,
+        priority: filtroPriority || undefined,
+      }
+      
+      const result = await getOpportunities(query)
+      setOpportunitiesData(result.opportunities)
+      setTotalRows(result.pagination.total)
+    } catch (err: any) {
+      console.error('Error loading opportunities:', err)
+      setError(err.message || 'Error al cargar oportunidades')
+    } finally {
+      setLoading(false)
+    }
+  }, [pagination.pageIndex, pagination.pageSize, globalFilter, filtroStage, filtroStatus, filtroPriority])
+
+  const handleOpportunityCreated = () => {
+    loadOpportunities()
+  }
+
+  // Cargar datos cuando cambian los filtros o paginación
+  useEffect(() => {
+    loadOpportunities()
+  }, [loadOpportunities])
+
   const columns = [
     columnHelper.accessor('id', { header: 'ID' }),
     columnHelper.accessor('productBy', {
-      header: 'Opportunity',
+      header: 'Oportunidad',
       enableSorting:false,
       cell: ({ row }) => (
         <div className="d-flex align-items-center">
           <div className="avatar-sm border flex-shrink-0 border-dashed rounded me-2 justify-content-center d-flex align-items-center">
-            <Image src={row.original.productLogo} alt="Product" height="20" />
+            <Image src={row.original.productLogo} alt="Producto" height="20" />
           </div>
           <div>
             <p className="mb-0 fw-medium">
@@ -42,18 +99,18 @@ const Opportunities = () => {
                 {row.original.productName}
               </Link>
             </p>
-            <p className="text-muted mb-0 small">By: {row.original.productBy}</p>
+            <p className="text-muted mb-0 small">Por: {row.original.productBy}</p>
           </div>
         </div>
       ),
     }),
     columnHelper.accessor('customerName', {
-      header: 'Contact Person',
+      header: 'Contacto',
       enableSorting:false,
       cell: ({ row }) => (
         <div className="d-flex align-items-center">
           <div className="avatar-sm me-2">
-            <Image src={row.original.customerAvatar} alt="Product" className="img-fluid rounded-circle" />
+            <Image src={row.original.customerAvatar} alt="Contacto" className="img-fluid rounded-circle" />
           </div>
           <div>
             <p className="mb-0 fw-medium">
@@ -66,56 +123,103 @@ const Opportunities = () => {
         </div>
       ),
     }),
-    columnHelper.accessor('stage', { header: 'Stage', enableColumnFilter: true }),
+    columnHelper.accessor('stage', { 
+      header: 'Etapa', 
+      enableColumnFilter: true,
+      cell: ({ row }) => {
+        const etapaLabels: Record<string, string> = {
+          'Qualification': 'Calificación',
+          'Proposal Sent': 'Propuesta Enviada',
+          'Negotiation': 'Negociación',
+          'Won': 'Ganada',
+          'Lost': 'Perdida'
+        }
+        const etapaTraducida = etapaLabels[row.original.stage] || row.original.stage
+        return <span>{etapaTraducida}</span>
+      }
+    }),
 
-    columnHelper.accessor('amount', { header: 'Value(usd)' }),
-    columnHelper.accessor('closeDate', { header: 'Close Date' }),
-    columnHelper.accessor('source', { header: 'Lead Source' }),
-    columnHelper.accessor('owner', { header: 'Owner ',enableSorting:false, }),
+    columnHelper.accessor('amount', { header: 'Valor (USD)' }),
+    columnHelper.accessor('closeDate', { header: 'Fecha de Cierre' }),
+    columnHelper.accessor('source', { header: 'Origen' }),
+    columnHelper.accessor('owner', { header: 'Propietario', enableSorting:false, }),
 
     columnHelper.accessor('status', {
-      header: 'Status',
+      header: 'Estado',
       filterFn: 'equalsString',
       enableColumnFilter: true,
-      cell: ({ row }) => (
-        <span
-          className={clsx(
-            'badge badge-label  fs-xs',
-            row.original.status == 'closed'
-              ? 'badge-soft-danger'
-              : row.original.status == 'in-progress'
-                ? 'badge-soft-warning'
-                : 'badge-soft-success',
-          )}>
-          {toPascalCase(row.original.status)}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const statusLabels: Record<string, string> = {
+          'open': 'Abierto',
+          'in-progress': 'En Progreso',
+          'closed': 'Cerrado'
+        }
+        return (
+          <span
+            className={clsx(
+              'badge badge-label  fs-xs',
+              row.original.status == 'closed'
+                ? 'badge-soft-danger'
+                : row.original.status == 'in-progress'
+                  ? 'badge-soft-warning'
+                  : 'badge-soft-success',
+            )}>
+            {statusLabels[row.original.status] || toPascalCase(row.original.status)}
+          </span>
+        )
+      },
     }),
     columnHelper.accessor('priority', {
-      header: 'Status',
+      header: 'Prioridad',
       filterFn: 'equalsString',
       enableColumnFilter: true,
-      cell: ({ row }) => (
-        <span
-          className={clsx(
-            'badge fs-xs',
-            row.original.priority == 'low' ? 'text-bg-danger' : row.original.priority == 'medium' ? 'text-bg-warning' : 'text-bg-success',
-          )}>
-          {toPascalCase(row.original.priority)}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const priorityLabels: Record<string, string> = {
+          'low': 'Baja',
+          'medium': 'Media',
+          'high': 'Alta'
+        }
+        return (
+          <span
+            className={clsx(
+              'badge fs-xs',
+              row.original.priority == 'low' ? 'text-bg-danger' : row.original.priority == 'medium' ? 'text-bg-warning' : 'text-bg-success',
+            )}>
+            {priorityLabels[row.original.priority] || toPascalCase(row.original.priority)}
+          </span>
+        )
+      },
     }),
+    {
+      id: 'actions',
+      header: 'Acciones',
+      cell: ({ row }: { row: { original: OpportunitiesType } }) => (
+        <div className="d-flex gap-1">
+          <Button 
+            variant="default" 
+            size="sm" 
+            className="btn-icon"
+            onClick={() => setEditModal({ open: true, opportunity: row.original })}
+          >
+            <TbEdit className="fs-lg" />
+          </Button>
+          <Button 
+            variant="default" 
+            size="sm" 
+            className="btn-icon text-danger"
+            onClick={() => setDeleteModal({ open: true, opportunity: row.original })}
+          >
+            <TbTrash className="fs-lg" />
+          </Button>
+        </div>
+      ),
+    },
   ]
 
-  const [data, setData] = useState<OpportunitiesType[]>(() => [...opportunities])
-  const [globalFilter, setGlobalFilter] = useState('')
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
-
   const table = useReactTable({
-    data,
+    data: opportunitiesData,
     columns,
+    pageCount: Math.ceil(totalRows / pagination.pageSize),
     state: { sorting, globalFilter, columnFilters, pagination },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
@@ -125,20 +229,63 @@ const Opportunities = () => {
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    manualPagination: true, // Paginación del servidor
     globalFilterFn: 'includesString',
     enableColumnFilters: true,
   })
 
   const pageIndex = table.getState().pagination.pageIndex
   const pageSize = table.getState().pagination.pageSize
-  const totalItems = table.getFilteredRowModel().rows.length
-
   const start = pageIndex * pageSize + 1
-  const end = Math.min(start + pageSize - 1, totalItems)
+  const end = Math.min(start + pageSize - 1, totalRows)
+
+  if (loading && opportunitiesData.length === 0) {
+    return (
+      <div className="container-fluid">
+        <PageBreadcrumb 
+          title={'Oportunidades'} 
+          subtitle={'CRM'} 
+          infoText="Las Oportunidades son posibles ventas o negocios en proceso. Aquí puedes gestionar cada oportunidad desde la calificación inicial hasta el cierre (ganada o perdida). Incluye información del contacto, producto, monto estimado, etapa del proceso, prioridad y propietario asignado."
+        />
+        <div className="text-center py-5">
+          <Spinner animation="border" variant="primary" />
+          <p className="mt-2 text-muted">Cargando oportunidades...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="container-fluid">
-      <PageBreadcrumb title={'Opportunities'} subtitle={'CRM'} />
+      <PageBreadcrumb 
+        title={'Oportunidades'} 
+        subtitle={'CRM'} 
+        infoText="Las Oportunidades son posibles ventas o negocios en proceso. Aquí puedes gestionar cada oportunidad desde la calificación inicial hasta el cierre (ganada o perdida). Incluye información del contacto, producto, monto estimado, etapa del proceso, prioridad y propietario asignado."
+      />
+
+      {error && (
+        <div className="alert alert-warning" role="alert">
+          <strong>Advertencia:</strong> {error}
+          <div className="mt-2">
+            <small>
+              Si el content-type "Oportunidad" no existe en Strapi, necesitas crearlo primero con los siguientes campos:
+              <ul className="mt-2 mb-0">
+                <li><code>nombre</code> (Text)</li>
+                <li><code>descripcion</code> (Text/Rich Text)</li>
+                <li><code>monto</code> (Number)</li>
+                <li><code>moneda</code> (Enum: USD, CLP, etc.)</li>
+                <li><code>etapa</code> (Enum: Qualification, Proposal Sent, Negotiation, Won, Lost)</li>
+                <li><code>estado</code> (Enum: open, in-progress, closed)</li>
+                <li><code>prioridad</code> (Enum: low, medium, high)</li>
+                <li><code>fecha_cierre</code> (Date)</li>
+                <li><code>fuente</code> (Text)</li>
+                <li><code>activo</code> (Boolean)</li>
+                <li>Relaciones: <code>producto</code>, <code>contacto</code> (Persona), <code>propietario</code> (Intranet-colaboradores)</li>
+              </ul>
+            </small>
+          </div>
+        </div>
+      )}
 
       <Row>
         <Col xs={12}>
@@ -150,54 +297,62 @@ const Opportunities = () => {
                     data-table-search
                     type="search"
                     className="form-control"
-                    placeholder="Search opportunity..."
+                    placeholder="Buscar oportunidad..."
                     value={globalFilter ?? ''}
                     onChange={(e) => setGlobalFilter(e.target.value)}
                   />
                   <LuSearch className="app-search-icon text-muted" />
                 </div>
+                <Button 
+                  variant="primary" 
+                  className="d-flex align-items-center gap-1"
+                  onClick={() => setAddModal(true)}
+                >
+                  <LuPlus size={18} />
+                  Agregar Oportunidad
+                </Button>
               </div>
 
               <div className="d-flex align-items-center gap-2">
-                <span className="me-2 fw-semibold">Filter By:</span>
+                <span className="me-2 fw-semibold">Filtrar por:</span>
 
                 <div className="app-search">
                   <select
-                    value={(table.getColumn('stage')?.getFilterValue() as string) ?? 'All'}
-                    onChange={(e) => table.getColumn('stage')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}
+                    value={filtroStage}
+                    onChange={(e) => setFiltroStage(e.target.value)}
                     className="form-select form-control my-1 my-md-0">
-                    <option value="All">Stage</option>
-                    <option value="Qualification">Qualification</option>
-                    <option value="Proposal Sent">Proposal Sent</option>
-                    <option value="Negotiation">Negotiation</option>
-                    <option value="Won">Won</option>
-                    <option value="Lost">Lost</option>
+                    <option value="">Todas las Etapas</option>
+                    <option value="Qualification">Calificación</option>
+                    <option value="Proposal Sent">Propuesta Enviada</option>
+                    <option value="Negotiation">Negociación</option>
+                    <option value="Won">Ganada</option>
+                    <option value="Lost">Perdida</option>
                   </select>
                   <LuShuffle className="app-search-icon text-muted" />
                 </div>
 
                 <div className="app-search">
                   <select
-                    value={(table.getColumn('status')?.getFilterValue() as string) ?? 'All'}
-                    onChange={(e) => table.getColumn('status')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}
+                    value={filtroStatus}
+                    onChange={(e) => setFiltroStatus(e.target.value)}
                     className="form-select form-control my-1 my-md-0">
-                    <option value="All">Status</option>
-                    <option value="open">Open</option>
-                    <option value="in-progress">In Progress</option>
-                    <option value="closed">Closed</option>
+                    <option value="">Todos los Estados</option>
+                    <option value="open">Abierto</option>
+                    <option value="in-progress">En Progreso</option>
+                    <option value="closed">Cerrado</option>
                   </select>
                   <LiaCheckCircle className="app-search-icon text-muted" />
                 </div>
 
                 <div className="app-search">
                   <select
-                    value={(table.getColumn('priority')?.getFilterValue() as string) ?? 'All'}
-                    onChange={(e) => table.getColumn('priority')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}
+                    value={filtroPriority}
+                    onChange={(e) => setFiltroPriority(e.target.value)}
                     className="form-select form-control my-1 my-md-0">
-                    <option value="All">Priority</option>
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
+                    <option value="">Todas las Prioridades</option>
+                    <option value="high">Alta</option>
+                    <option value="medium">Media</option>
+                    <option value="low">Baja</option>
                   </select>
                   <LuCircleAlert className="app-search-icon text-muted" />
                 </div>
@@ -218,16 +373,16 @@ const Opportunities = () => {
             </div>
 
             <CardBody className="p-0">
-              <DataTable<OpportunitiesType> table={table} emptyMessage="No records found" />
+              <DataTable<OpportunitiesType> table={table} emptyMessage="No se encontraron oportunidades" />
             </CardBody>
 
             {table.getRowModel().rows.length > 0 && (
               <CardFooter className="border-0">
                 <TablePagination
-                  totalItems={totalItems}
+                  totalItems={totalRows}
                   start={start}
                   end={end}
-                  itemsName="Opportunities"
+                  itemsName="Oportunidades"
                   showInfo
                   previousPage={table.previousPage}
                   canPreviousPage={table.getCanPreviousPage()}
@@ -242,6 +397,33 @@ const Opportunities = () => {
           </div>
         </Col>
       </Row>
+
+      {/* Modal de agregar oportunidad */}
+      <AddOpportunityModal
+        show={addModal}
+        onHide={() => setAddModal(false)}
+        onSuccess={handleOpportunityCreated}
+      />
+
+      <EditOpportunityModal
+        show={editModal.open}
+        onHide={() => setEditModal({ open: false, opportunity: null })}
+        opportunity={editModal.opportunity}
+        onSuccess={() => {
+          setEditModal({ open: false, opportunity: null })
+          loadOpportunities()
+        }}
+      />
+
+      <DeleteOpportunityModal
+        show={deleteModal.open}
+        onHide={() => setDeleteModal({ open: false, opportunity: null })}
+        opportunity={deleteModal.opportunity}
+        onSuccess={() => {
+          setDeleteModal({ open: false, opportunity: null })
+          loadOpportunities()
+        }}
+      />
     </div>
   )
 }

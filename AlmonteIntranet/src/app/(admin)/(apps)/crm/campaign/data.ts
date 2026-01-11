@@ -1,151 +1,233 @@
+import type { StrapiEntity } from '@/lib/strapi/types'
 import user1 from '@/assets/images/users/user-1.jpg'
-import user2 from '@/assets/images/users/user-2.jpg'
-import user3 from '@/assets/images/users/user-3.jpg'
-import user4 from '@/assets/images/users/user-4.jpg'
-import user5 from '@/assets/images/users/user-5.jpg'
-import user7 from '@/assets/images/users/user-7.jpg'
-import user8 from '@/assets/images/users/user-8.jpg'
-import user9 from '@/assets/images/users/user-9.jpg'
-import user10 from '@/assets/images/users/user-10.jpg'
 import { StaticImageData } from 'next/image'
 
-export type CampaignStatus = 'In Progress' | 'Success' | 'Scheduled' | 'Failed' | 'Ongoing'
-
-export type CampaignType = {
-    id: string
-    name: string
-    creator: {
-        name: string
-        avatar: StaticImageData
-    }
-    budget: string
-    goals: string
-    status: CampaignStatus
-    tags: string[]
-    dateCreated: string
-    dateCreatedTime: string
+// Tipos Strapi para Campaña
+type CampanaAttributes = {
+  nombre?: string
+  descripcion?: string
+  presupuesto?: number
+  objetivo?: number
+  estado?: 'en_progreso' | 'exitosa' | 'programada' | 'fallida' | 'en_curso'
+  tags?: string[]
+  fecha_inicio?: string
+  fecha_fin?: string
+  creado_por?: any
+  contactos?: any
+  leads?: any
+  colegios?: any
+  createdAt?: string
+  updatedAt?: string
 }
 
-export const campaigns: CampaignType[] = [
-    {
-        id: '1',
-        name: 'Q4 Lead Nurture Campaign',
-        creator: { name: 'Jason Miller', avatar: user5 },
-        budget: '$12,500',
-        goals: '$80,000',
-        status: 'In Progress',
-        tags: ['Email', 'Retargeting', 'Automation'],
-        dateCreated: '21 Aug, 2025',
-        dateCreatedTime: '2:45 PM',
-    },
-    {
-        id: '2',
-        name: 'Holiday Flash Sale',
-        creator: { name: 'Sandra Walton', avatar: user7 },
-        budget: '$6,000',
-        goals: '$30,000',
-        status: 'Success',
-        tags: ['Seasonal', 'SMS'],
-        dateCreated: '05 Dec, 2024',
-        dateCreatedTime: '11:00 AM',
-    },
-    {
-        id: '3',
-        name: 'Product Launch Webinar',
-        creator: { name: 'Derek Kim', avatar: user4 },
-        budget: '$10,000',
-        goals: '$65,000',
-        status: 'Scheduled',
-        tags: ['Webinar', 'Leads'],
-        dateCreated: '01 Sep, 2025',
-        dateCreatedTime: '9:15 AM',
-    },
-    {
-        id: '4',
-        name: 'Back-to-School Promo',
-        creator: { name: 'Ava Nguyen', avatar: user8 },
-        budget: '$4,800',
-        goals: '$25,000',
-        status: 'Failed',
-        tags: ['Email', 'Discount'],
-        dateCreated: '15 Jul, 2025',
-        dateCreatedTime: '4:30 PM',
-    },
-    {
-        id: '5',
-        name: 'Spring Email Blast',
-        creator: { name: 'Ryan Patel', avatar: user3 },
-        budget: '$7,200',
-        goals: '$40,000',
-        status: 'Success',
-        tags: ['Newsletter', 'Organic'],
-        dateCreated: '18 Mar, 2025',
-        dateCreatedTime: '1:00 PM',
-    },
-    {
-        id: '6',
-        name: 'Customer Loyalty Program',
-        creator: { name: 'Lily Chen', avatar: user2 },
-        budget: '$9,500',
-        goals: '$70,000',
-        status: 'Ongoing',
-        tags: ['Rewards', 'Customer Retention'],
-        dateCreated: '28 Aug, 2025',
-        dateCreatedTime: '10:00 AM',
-    },
-    {
-        id: '7',
-        name: 'Referral Boost Campaign',
-        creator: { name: 'Noah Brooks', avatar: user9 },
-        budget: '$5,000',
-        goals: '$20,000',
-        status: 'Success',
-        tags: ['Referral', 'Growth'],
-        dateCreated: '04 Jun, 2025',
-        dateCreatedTime: '9:00 AM',
-    },
-    {
-        id: '8',
-        name: 'App Download Drive',
-        creator: { name: 'Sophia Lee', avatar: user10 },
-        budget: '$3,200',
-        goals: '$15,000',
-        status: 'In Progress',
-        tags: ['Mobile', 'Ads'],
-        dateCreated: '12 Aug, 2025',
-        dateCreatedTime: '3:15 PM',
-    },
-    {
-        id: '9',
-        name: 'Abandoned Cart Recovery',
-        creator: { name: 'Lucas Green', avatar: user1 },
-        budget: '$2,000',
-        goals: '$12,000',
-        status: 'Failed',
-        tags: ['Email', 'Recovery'],
-        dateCreated: '29 Jul, 2025',
-        dateCreatedTime: '5:50 PM',
-    },
-    {
-        id: '10',
-        name: 'Local Awareness Campaign',
-        creator: { name: 'Isabella Ray', avatar: user2 },
-        budget: '$4,700',
-        goals: '$28,000',
-        status: 'Scheduled',
-        tags: ['Geo Targeting', 'Brand'],
-        dateCreated: '02 Sep, 2025',
-        dateCreatedTime: '8:10 AM',
-    },
-    {
-        id: '11',
-        name: 'Video Ad Campaign',
-        creator: { name: 'Leo White', avatar: user3 },
-        budget: '$9,900',
-        goals: '$55,000',
-        status: 'Ongoing',
-        tags: ['YouTube', 'Video'],
-        dateCreated: '14 Aug, 2025',
-        dateCreatedTime: '12:00 PM',
-    },
-]
+type CampanaEntity = StrapiEntity<CampanaAttributes>
+
+export type CampaignType = {
+  id: string
+  realId?: string
+  name: string
+  creator: {
+    name: string
+    avatar: StaticImageData | string
+  }
+  budget: string
+  goals: string
+  status: 'In Progress' | 'Success' | 'Scheduled' | 'Failed' | 'Ongoing'
+  tags: string[]
+  dateCreated: string
+  dateCreatedTime: string
+  fechaInicio?: string
+  fechaFin?: string
+}
+
+export type CampaignsQuery = {
+  page?: number
+  pageSize?: number
+  search?: string
+  estado?: string
+}
+
+export type CampaignsResult = {
+  campaigns: CampaignType[]
+  pagination: {
+    page: number
+    pageSize: number
+    total: number
+    pageCount: number
+  }
+}
+
+// Mapeo estado Strapi → UI
+const estadoToStatus: Record<string, 'In Progress' | 'Success' | 'Scheduled' | 'Failed' | 'Ongoing'> = {
+  'en_progreso': 'In Progress',
+  'exitosa': 'Success',
+  'programada': 'Scheduled',
+  'fallida': 'Failed',
+  'en_curso': 'Ongoing',
+}
+
+// Función de transformación
+function transformCampanaToCampaignType(campana: CampanaEntity | any): CampaignType {
+  const attrs = campana.attributes || campana
+  
+  // ID
+  const campanaId = campana.documentId || campana.id
+  const idReal = campanaId ? (typeof campanaId === 'string' ? campanaId : campanaId.toString()) : String(campana.id || '0')
+  const id = idReal.startsWith('#') ? idReal : `#CAMP${idReal.padStart(6, '0')}`
+  
+  // Nombre
+  const name = attrs.nombre || 'Sin nombre'
+  
+  // Creador
+  let creator = { name: 'Sin asignar', avatar: user1 }
+  if (attrs.creado_por) {
+    const colaborador = attrs.creado_por
+    const colaboradorAttrs = colaborador.attributes || colaborador
+    const nombre = colaboradorAttrs.persona?.nombre_completo || 
+                   colaboradorAttrs.nombre_completo || 
+                   colaboradorAttrs.email_login || 
+                   'Sin nombre'
+    
+    let avatar: any = user1
+    if (colaboradorAttrs.imagen) {
+      const imagenUrl = typeof colaboradorAttrs.imagen === 'string'
+        ? colaboradorAttrs.imagen
+        : colaboradorAttrs.imagen.url || colaboradorAttrs.imagen.data?.attributes?.url
+      if (imagenUrl) {
+        avatar = imagenUrl.startsWith('http') ? imagenUrl : `${process.env.NEXT_PUBLIC_STRAPI_API_URL || ''}${imagenUrl}`
+      }
+    }
+    
+    creator = { name: nombre, avatar }
+  }
+  
+  // Presupuesto y objetivo
+  const presupuesto = attrs.presupuesto || 0
+  const objetivo = attrs.objetivo || 0
+  const budget = `$${presupuesto.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+  const goals = `$${objetivo.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+  
+  // Estado
+  const estadoRaw = attrs.estado || 'programada'
+  const status = estadoToStatus[estadoRaw] || 'Scheduled'
+  
+  // Tags
+  const tags = Array.isArray(attrs.tags) ? attrs.tags : []
+  
+  // Fechas
+  const fechaCreacion = attrs.createdAt || attrs.fecha_inicio || new Date().toISOString()
+  const fechaObj = new Date(fechaCreacion)
+  const dateCreated = fechaObj.toLocaleDateString('en-US', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  })
+  const dateCreatedTime = fechaObj.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  })
+  
+  return {
+    id,
+    realId: idReal,
+    name,
+    creator,
+    budget,
+    goals,
+    status,
+    tags,
+    dateCreated,
+    dateCreatedTime,
+    fechaInicio: attrs.fecha_inicio || undefined,
+    fechaFin: attrs.fecha_fin || undefined,
+  }
+}
+
+/**
+ * Obtiene campañas desde la API
+ */
+export async function getCampaigns(query: CampaignsQuery = {}): Promise<CampaignsResult> {
+  try {
+    const params = new URLSearchParams()
+    
+    if (query.page) params.append('page', query.page.toString())
+    if (query.pageSize) params.append('pageSize', query.pageSize.toString())
+    if (query.search) params.append('search', query.search)
+    if (query.estado) params.append('estado', query.estado)
+    
+    const url = `/api/crm/campaigns?${params.toString()}`
+    console.log('[Campaigns data] Fetching:', url)
+    
+    const response = await fetch(url, {
+      cache: 'no-store',
+    })
+    
+    const result = await response.json()
+    
+    if (!response.ok || !result.success) {
+      if (result.message?.includes('no existe en Strapi')) {
+        console.warn('[Campaigns data] Content-type Campaña no existe en Strapi')
+        return {
+          campaigns: [],
+          pagination: {
+            page: query.page || 1,
+            pageSize: query.pageSize || 50,
+            total: 0,
+            pageCount: 0,
+          },
+        }
+      }
+      
+      throw new Error(result.error || 'Error al obtener campañas')
+    }
+    
+    const campaignsData = result.data || []
+    const pagination = result.meta?.pagination || {
+      page: query.page || 1,
+      pageSize: query.pageSize || 50,
+      total: 0,
+      pageCount: 0,
+    }
+    
+    // Transformar cada campaña
+    const campaigns = campaignsData.map(transformCampanaToCampaignType)
+    
+    return {
+      campaigns,
+      pagination: {
+        page: pagination.page || 1,
+        pageSize: pagination.pageSize || 50,
+        total: pagination.total || 0,
+        pageCount: pagination.pageCount || 0,
+      },
+    }
+  } catch (error: any) {
+    console.error('[Campaigns data] Error:', error)
+    throw error
+  }
+}
+
+/**
+ * Obtiene una campaña por ID
+ */
+export async function getCampaignById(id: string): Promise<CampaignType | null> {
+  try {
+    const cleanId = id.replace(/^#CAMP/, '').replace(/^#/, '')
+    
+    const response = await fetch(`/api/crm/campaigns/${cleanId}`, {
+      cache: 'no-store',
+    })
+    
+    const result = await response.json()
+    
+    if (!response.ok || !result.success) {
+      return null
+    }
+    
+    return transformCampanaToCampaignType(result.data)
+  } catch (error: any) {
+    console.error('[Campaigns data] Error al obtener campaña:', error)
+    return null
+  }
+}

@@ -12,20 +12,31 @@ import {
 } from '@tanstack/react-table'
 import Image from 'next/image'
 import { useState } from 'react'
-import { Button, Card, CardFooter, CardHeader } from 'react-bootstrap'
+import { Button, Card, CardBody, CardFooter, CardHeader } from 'react-bootstrap'
 import { LuDollarSign, LuSearch, LuShuffle } from 'react-icons/lu'
 import { TbEdit, TbEye, TbPlus, TbTrash } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
-import { campaigns, CampaignType } from '../data'
+import { getCampaigns, type CampaignType, type CampaignsQuery } from '../data'
 import CampaignModal from './CampaignModal'
+import { useEffect, useCallback } from 'react'
+import { Spinner, Alert } from 'react-bootstrap'
 
 const columnHelper = createColumnHelper<CampaignType>()
 
-const CampaignTable = () => {
+interface CampaignTableProps {
+    onCampaignCreated?: () => void
+}
+
+const CampaignTable = ({ onCampaignCreated }: CampaignTableProps) => {
     const [showModal, setShowModal] = useState(false);
+    const [editingCampaign, setEditingCampaign] = useState<CampaignType | null>(null)
+    const [campaignsData, setCampaignsData] = useState<CampaignType[]>([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+    const [totalRows, setTotalRows] = useState(0)
 
     const columns = [
         {
@@ -50,10 +61,10 @@ const CampaignTable = () => {
             enableColumnFilter: false,
         },
 
-        columnHelper.accessor('name', { header: 'Camaping name' }),
+        columnHelper.accessor('name', { header: 'Nombre de Campaña' }),
 
         columnHelper.accessor('creator', {
-            header: 'creator'
+            header: 'Creador'
             , cell: ({ row }) => (
                 <div className="d-flex gap-2 align-items-center">
                     <Image
@@ -66,28 +77,26 @@ const CampaignTable = () => {
                 </div>
             ),
         }),
-        columnHelper.accessor('budget', { header: 'budget' }),
-        columnHelper.accessor('goals', { header: 'goals' }),
+        columnHelper.accessor('budget', { header: 'Presupuesto' }),
+        columnHelper.accessor('goals', { header: 'Objetivo' }),
 
         columnHelper.accessor('status', {
-            header: 'Status',
+            header: 'Estado',
             cell: ({ row }) => {
-                const color =
-                    row.original.status === 'In Progress'
-                        ? 'bg-warning-subtle text-warning'
-                        : row.original.status === 'Success'
-                            ? 'bg-success-subtle text-success'
-                            : row.original.status === 'Scheduled'
-                                ? 'bg-info-subtle text-info'
-                                : row.original.status === 'Failed'
-                                    ? 'bg-danger-subtle text-danger'
-                                    : 'bg-primary-subtle text-primary'
-                return <span className={`badge ${color}`}>{row.original.status}</span>
+                const statusMap: Record<string, { label: string; color: string }> = {
+                    'In Progress': { label: 'En Progreso', color: 'bg-warning-subtle text-warning' },
+                    'Success': { label: 'Exitosa', color: 'bg-success-subtle text-success' },
+                    'Scheduled': { label: 'Programada', color: 'bg-info-subtle text-info' },
+                    'Failed': { label: 'Fallida', color: 'bg-danger-subtle text-danger' },
+                    'Ongoing': { label: 'En Curso', color: 'bg-primary-subtle text-primary' },
+                }
+                const statusInfo = statusMap[row.original.status] || { label: row.original.status, color: 'bg-secondary-subtle text-secondary' }
+                return <span className={`badge ${statusInfo.color}`}>{statusInfo.label}</span>
             },
         }),
 
         columnHelper.accessor('tags', {
-            header: 'Tags',
+            header: 'Etiquetas',
             cell: ({ row }) => (
                 <div className="d-flex gap-1 flex-wrap">
                     {row.original.tags.map((tag, index) => (
@@ -99,7 +108,7 @@ const CampaignTable = () => {
             ),
         }),
         columnHelper.accessor('dateCreated', {
-            header: 'Date Created',
+            header: 'Fecha de Creación',
             cell: ({ row }) => (
                 <>
                     {row.original.dateCreated} <small className="text-muted">{row.original.dateCreatedTime}</small>
@@ -108,13 +117,45 @@ const CampaignTable = () => {
         }),
 
         {
-            header: 'Actions',
+            header: 'Acciones',
             cell: ({ row }: { row: TableRow<CampaignType> }) => (
                 <div className="d-flex  gap-1">
                     <Button variant="default" size="sm" className="btn btn-default btn-icon btn-sm rounded">
                         <TbEye className="fs-lg" />
                     </Button>
-                    <Button variant="default" size="sm" className="btn btn-default btn-icon btn-sm rounded">
+                    <Button 
+                        variant="default" 
+                        size="sm" 
+                        className="btn btn-default btn-icon btn-sm rounded"
+                        onClick={async () => {
+                            // Cargar datos completos de la campaña
+                            if (row.original.realId) {
+                                const cleanId = row.original.realId.replace(/^#CAMP/, '').replace(/^#/, '')
+                                try {
+                                    const response = await fetch(`/api/crm/campaigns/${cleanId}`)
+                                    const result = await response.json()
+                                    if (result.success && result.data) {
+                                        // Los datos ya vienen transformados desde la API
+                                        // Solo necesitamos usar los datos que tenemos
+                                        setEditingCampaign(row.original)
+                                        setShowModal(true)
+                                    } else {
+                                        // Si falla, usar los datos que ya tenemos
+                                        setEditingCampaign(row.original)
+                                        setShowModal(true)
+                                    }
+                                } catch (err) {
+                                    console.error('Error loading campaign:', err)
+                                    // Si falla, usar los datos que ya tenemos
+                                    setEditingCampaign(row.original)
+                                    setShowModal(true)
+                                }
+                            } else {
+                                setEditingCampaign(row.original)
+                                setShowModal(true)
+                            }
+                        }}
+                    >
                         <TbEdit className="fs-lg" />
                     </Button>
                     <Button
@@ -133,15 +174,40 @@ const CampaignTable = () => {
     ]
 
 
-    const [data, setData] = useState<CampaignType[]>(() => [...campaigns])
     const [globalFilter, setGlobalFilter] = useState('')
     const [sorting, setSorting] = useState<SortingState>([])
     const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
+    const [filtroEstado, setFiltroEstado] = useState<string>('')
+
+    const loadCampaigns = useCallback(async () => {
+        setLoading(true)
+        setError(null)
+        try {
+            const query: CampaignsQuery = {
+                page: pagination.pageIndex + 1,
+                pageSize: pagination.pageSize,
+                search: globalFilter || undefined,
+                estado: filtroEstado || undefined,
+            }
+            
+            const result = await getCampaigns(query)
+            setCampaignsData(result.campaigns)
+            setTotalRows(result.pagination.total)
+        } catch (err: any) {
+            setError(err.message || 'Error al cargar campañas')
+        } finally {
+            setLoading(false)
+        }
+    }, [pagination.pageIndex, pagination.pageSize, globalFilter, filtroEstado])
+
+    useEffect(() => {
+        loadCampaigns()
+    }, [loadCampaigns])
 
     const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
 
     const table = useReactTable({
-        data,
+        data: campaignsData,
         columns,
         state: { sorting, globalFilter, pagination, rowSelection: selectedRowIds },
         onSortingChange: setSorting,
@@ -155,14 +221,15 @@ const CampaignTable = () => {
         globalFilterFn: 'includesString',
         enableColumnFilters: true,
         enableRowSelection: true,
+        manualPagination: true,
+        pageCount: Math.ceil(totalRows / pagination.pageSize),
     })
 
     const pageIndex = table.getState().pagination.pageIndex
     const pageSize = table.getState().pagination.pageSize
-    const totalItems = table.getFilteredRowModel().rows.length
 
     const start = pageIndex * pageSize + 1
-    const end = Math.min(start + pageSize - 1, totalItems)
+    const end = Math.min(start + pageSize - 1, totalRows)
 
     const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false)
 
@@ -170,24 +237,55 @@ const CampaignTable = () => {
         setShowDeleteModal(!showDeleteModal)
     }
 
-    const handleDelete = () => {
-        const selectedIds = new Set(Object.keys(selectedRowIds))
-        setData((old) => old.filter((_, idx) => !selectedIds.has(idx.toString())))
-        setSelectedRowIds({})
-        setPagination({ ...pagination, pageIndex: 0 })
-        setShowDeleteModal(false)
+    const handleDelete = async () => {
+        const selectedIds = Object.keys(selectedRowIds)
+        try {
+            for (const rowId of selectedIds) {
+                const campaign = campaignsData[parseInt(rowId)]
+                if (campaign?.realId) {
+                    const cleanId = campaign.realId.replace(/^#CAMP/, '').replace(/^#/, '')
+                    const response = await fetch(`/api/crm/campaigns/${cleanId}`, {
+                        method: 'DELETE',
+                    })
+                    const result = await response.json()
+                    if (!response.ok || !result.success) {
+                        throw new Error(result.error || 'Error al eliminar campaña')
+                    }
+                }
+            }
+            await loadCampaigns()
+            setSelectedRowIds({})
+            setShowDeleteModal(false)
+        } catch (err: any) {
+            setError(err.message || 'Error al eliminar campañas')
+        }
+    }
+
+    if (loading && campaignsData.length === 0) {
+        return (
+            <Card>
+                <CardBody className="text-center py-5">
+                    <Spinner animation="border" variant="primary" />
+                    <p className="mt-2 text-muted">Cargando campañas...</p>
+                </CardBody>
+            </Card>
+        )
     }
 
     return (
-
         <Card>
+            {error && (
+                <Alert variant="danger" className="m-3">
+                    <strong>Error:</strong> {error}
+                </Alert>
+            )}
             <CardHeader className="border-light justify-content-between">
                 <div className="d-flex gap-2">
                     <div className="app-search">
                         <input
                             type="text"
                             className="form-control"
-                            placeholder="Search Campaign..."
+                            placeholder="Buscar campaña..."
                             value={globalFilter ?? ''}
                             onChange={(e) => setGlobalFilter(e.target.value)}
                         />
@@ -196,25 +294,64 @@ const CampaignTable = () => {
 
                     {Object.keys(selectedRowIds).length > 0 && (
                         <Button variant="danger" size="sm" onClick={toggleDeleteModal}>
-                            Delete
+                            Eliminar
                         </Button>
                     )}
 
-                    <Button className="btn btn-primary" onClick={() => setShowModal(true)}>
-                        <TbPlus className="fs-lg" /> Create Campaign
+                    <Button className="btn btn-primary" onClick={() => {
+                        setEditingCampaign(null)
+                        setShowModal(true)
+                    }}>
+                        <TbPlus className="fs-lg" /> Crear Campaña
                     </Button>
-                    <CampaignModal show={showModal} onHide={() => setShowModal(false)} />
+                    <CampaignModal 
+                        show={showModal} 
+                        campaign={editingCampaign}
+                        onHide={() => {
+                            setShowModal(false)
+                            setEditingCampaign(null)
+                        }}
+                        onSuccess={() => {
+                            setShowModal(false)
+                            setEditingCampaign(null)
+                            loadCampaigns()
+                            if (onCampaignCreated) {
+                                onCampaignCreated()
+                            }
+                        }}
+                    />
                 </div>
 
                 <div className="d-flex align-items-center gap-2">
-                    <span className="me-2 fw-semibold">Filter By:</span>
+                    <span className="me-2 fw-semibold">Filtrar por:</span>
 
                     <div className="app-search">
                         <select
                             className="form-select form-control my-1 my-md-0"
-                            value={(table.getColumn('status')?.getFilterValue() as string) ?? 'All'}
-                            onChange={(e) => table.getColumn('status')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
-                            <option value="All">Status</option>
+                            value={(() => {
+                                // Mapear estado Strapi a estado UI para mostrar
+                                const estadoMap: Record<string, string> = {
+                                    'en_progreso': 'In Progress',
+                                    'exitosa': 'Success',
+                                    'programada': 'Scheduled',
+                                    'fallida': 'Failed',
+                                    'en_curso': 'Ongoing',
+                                }
+                                return estadoMap[filtroEstado] || 'All'
+                            })()}
+                            onChange={(e) => {
+                                const value = e.target.value
+                                // Mapear estado UI a estado Strapi
+                                const estadoMap: Record<string, string> = {
+                                    'In Progress': 'en_progreso',
+                                    'Success': 'exitosa',
+                                    'Scheduled': 'programada',
+                                    'Failed': 'fallida',
+                                    'Ongoing': 'en_curso',
+                                }
+                                setFiltroEstado(value === 'All' ? '' : (estadoMap[value] || value))
+                            }}>
+                            <option value="All">Estado</option>
                             <option value="Success">Success</option>
                             <option value="In Progress">In Progress</option>
                             <option value="Scheduled">Scheduled</option>
@@ -229,7 +366,7 @@ const CampaignTable = () => {
                             className="form-select form-control my-1 my-md-0"
                             value={(table.getColumn('budget')?.getFilterValue() as string) ?? 'All'}
                             onChange={(e) => table.getColumn('budget')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
-                            <option value="All">Budget Range</option>
+                            <option value="All">Rango de Presupuesto</option>
                             <option value="0-5000">$0 - $5,000</option>
                             <option value="5001-10000">$5,001 - $10,000</option>
                             <option value="10001-20000">$10,001 - $20,000</option>
@@ -253,15 +390,15 @@ const CampaignTable = () => {
                     </div>
                 </div>
             </CardHeader>
-            <DataTable<CampaignType> table={table} emptyMessage="No records found" />
+            <DataTable<CampaignType> table={table} emptyMessage="No se encontraron campañas" />
 
             {table.getRowModel().rows.length > 0 && (
                 <CardFooter className="border-0">
                     <TablePagination
-                        totalItems={totalItems}
+                        totalItems={totalRows}
                         start={start}
                         end={end}
-                        itemsName="customers"
+                        itemsName="campañas"
                         showInfo
                         previousPage={table.previousPage}
                         canPreviousPage={table.getCanPreviousPage()}
@@ -279,7 +416,7 @@ const CampaignTable = () => {
                 onHide={toggleDeleteModal}
                 onConfirm={handleDelete}
                 selectedCount={Object.keys(selectedRowIds).length}
-                itemName="customers"
+                itemName="campaña"
             />
         </Card>
 

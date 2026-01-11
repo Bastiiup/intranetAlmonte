@@ -39,4 +39,3 @@ const page = ({ params }: PageProps) => {
 }
 
 export default page
-
