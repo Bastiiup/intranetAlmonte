@@ -28,9 +28,11 @@ async function getAuthColaborador() {
   const colaborador = await getColaboradorFromCookies(true) // Verificar sesión única
   if (!colaborador) {
     // Si retorna null, puede ser porque el token de sesión no coincide
+    console.warn('[API /colaboradores/me/profile] ❌ Colaborador no encontrado o sesión inválida')
     // Retornar null para que el endpoint maneje el error 401
     return null
   }
+  console.log('[API /colaboradores/me/profile] ✅ Colaborador autenticado:', colaborador.email_login)
   return colaborador
 }
 

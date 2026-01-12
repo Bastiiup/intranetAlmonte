@@ -246,15 +246,31 @@ export function syncLocalStorageToCookies(): void {
 export function clearAuth(): void {
   if (typeof window === 'undefined') return
   
+  console.log('[clearAuth] 🧹 Limpiando datos de autenticación')
+  
   // Limpiar localStorage
   localStorage.removeItem(AUTH_TOKEN_KEY)
   localStorage.removeItem(AUTH_USER_KEY)
   localStorage.removeItem(AUTH_COLABORADOR_KEY)
   
-  // Limpiar cookies
-  deleteCookie(AUTH_TOKEN_COOKIE)
-  deleteCookie(AUTH_USER_COOKIE)
-  deleteCookie(AUTH_COLABORADOR_COOKIE)
+  // Limpiar todas las cookies de autenticación
+  const cookiesToClear = [
+    AUTH_TOKEN_COOKIE,
+    AUTH_USER_COOKIE,
+    AUTH_COLABORADOR_COOKIE,
+    'colaboradorData',
+    'colaborador',
+    'user',
+    'auth_token',
+    'auth_user',
+    'auth_colaborador',
+  ]
+  
+  cookiesToClear.forEach((cookieName) => {
+    deleteCookie(cookieName)
+  })
+  
+  console.log('[clearAuth] ✅ Datos de autenticación limpiados')
 }
 
 /**

@@ -154,14 +154,38 @@ export async function POST(request: Request) {
 
         // Guardar token de sesión único en Strapi para sesión única
         try {
-          await strapiClient.put(`/api/colaboradores/${colaboradorDocumentId || colaboradorId}`, {
+          const idParaGuardar = colaboradorDocumentId || colaboradorId
+          console.log('[API /auth/login] 💾 Guardando token de sesión en Strapi:', {
+            id: idParaGuardar,
+            tokenPreview: sessionToken.substring(0, 12) + '...',
+            email: colaboradorCompleto.email_login,
+          })
+          
+          await strapiClient.put(`/api/colaboradores/${idParaGuardar}`, {
             data: {
               session_token: sessionToken,
             },
           })
-          console.log('[API /auth/login] ✅ Token de sesión guardado en Strapi')
+          
+          // Verificar que se guardó correctamente
+          const verificacion = await strapiClient.get<any>(`/api/colaboradores/${idParaGuardar}`)
+          const verificacionData = verificacion.data?.attributes || verificacion.data || verificacion
+          const tokenGuardado = verificacionData?.session_token
+          
+          if (tokenGuardado === sessionToken) {
+            console.log('[API /auth/login] ✅ Token de sesión guardado y verificado en Strapi')
+          } else {
+            console.warn('[API /auth/login] ⚠️ Token guardado pero no coincide con el esperado:', {
+              esperado: sessionToken.substring(0, 12) + '...',
+              guardado: tokenGuardado?.substring(0, 12) + '...',
+            })
+          }
         } catch (sessionError: any) {
-          console.warn('[API /auth/login] ⚠️ No se pudo guardar token de sesión en Strapi:', sessionError.message)
+          console.error('[API /auth/login] ❌ Error al guardar token de sesión en Strapi:', {
+            error: sessionError.message,
+            status: sessionError.status,
+            id: colaboradorDocumentId || colaboradorId,
+          })
           // Continuar aunque falle, pero el sistema de sesión única no funcionará
         }
       } catch (error: any) {

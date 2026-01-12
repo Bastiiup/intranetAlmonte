@@ -65,6 +65,17 @@ export function useAuth(): AuthData {
             },
           })
 
+          // Si la respuesta es 401, la sesión es inválida (token de sesión no coincide)
+          if (response.status === 401) {
+            console.warn('[useAuth] ❌ Sesión inválida (401) - cerrando sesión automáticamente')
+            // Limpiar cookies y localStorage
+            const { clearAuth } = await import('@/lib/auth')
+            clearAuth()
+            // Redirigir al login
+            window.location.href = '/auth-1/sign-in?reason=session_invalid'
+            return
+          }
+
           if (response.ok) {
             const result = await response.json()
             if (result.success && result.data) {

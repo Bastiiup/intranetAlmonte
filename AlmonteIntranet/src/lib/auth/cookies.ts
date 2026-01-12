@@ -82,11 +82,18 @@ export async function getColaboradorFromCookies(verifySession: boolean = true): 
 
           // Verificar token de sesión si está habilitado (SIEMPRE verificar, no solo si hay token en cookies)
           if (verifySession) {
+            console.log(`[Cookies] 🔍 Verificando sesión para colaborador ${colaborador.email_login}`, {
+              tieneSessionToken: !!colaborador.session_token,
+              sessionTokenPreview: colaborador.session_token?.substring(0, 8) + '...',
+              id: colaborador.id,
+              documentId: colaborador.documentId,
+            })
             const isValidSession = await verifySessionToken(colaborador)
             if (!isValidSession) {
               console.warn(`[Cookies] ❌ Token de sesión inválido para colaborador ${colaborador.email_login} - cerrando sesión`)
               return null // Sesión inválida, retornar null para forzar logout
             }
+            console.log(`[Cookies] ✅ Sesión válida para colaborador ${colaborador.email_login}`)
           }
           
           return colaborador
@@ -278,15 +285,24 @@ export async function verifySessionToken(colaborador: ColaboradorCookie): Promis
       }
 
       // Verificar que los tokens coincidan - ESTO ES CRÍTICO
+      console.log('[Cookies] 🔍 Comparando tokens de sesión:', {
+        tokenCookie: colaborador.session_token?.substring(0, 12) + '...',
+        tokenStrapi: sessionTokenStrapi?.substring(0, 12) + '...',
+        coinciden: sessionTokenStrapi === colaborador.session_token,
+        email: colaborador.email_login,
+      })
+
       if (sessionTokenStrapi !== colaborador.session_token) {
         console.warn('[Cookies] ❌ Token de sesión no coincide - sesión inválida:', {
-          tokenCookie: colaborador.session_token?.substring(0, 8) + '...',
-          tokenStrapi: sessionTokenStrapi?.substring(0, 8) + '...',
+          tokenCookie: colaborador.session_token?.substring(0, 12) + '...',
+          tokenStrapi: sessionTokenStrapi?.substring(0, 12) + '...',
           email: colaborador.email_login,
+          colaboradorId: colaboradorId,
         })
         return false // Token no coincide, sesión inválida
       }
 
+      console.log('[Cookies] ✅ Tokens coinciden - sesión válida')
       return true // Token coincide, sesión válida
     } catch (error: any) {
       // Si el colaborador no se encuentra (404), puede ser un problema de ID, permitir acceso
