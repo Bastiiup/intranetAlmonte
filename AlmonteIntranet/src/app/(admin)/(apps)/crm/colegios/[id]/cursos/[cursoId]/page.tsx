@@ -671,6 +671,60 @@ export default function CursoDetailPage() {
         </Card>
       )}
 
+      {/* Modal para importar PDF */}
+      <Modal show={showImportPDF} onHide={() => { setShowImportPDF(false); setSelectedPDF(null); }} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>
+            <LuUpload className="me-2" />
+            Importar PDF de Lista de Útiles
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            <Form.Group className="mb-3">
+              <Form.Label>Seleccionar archivo PDF</Form.Label>
+              <Form.Control
+                type="file"
+                accept=".pdf,application/pdf"
+                onChange={(e) => {
+                  const file = (e.target as HTMLInputElement).files?.[0]
+                  if (file) {
+                    setSelectedPDF(file)
+                  }
+                }}
+                disabled={uploadingPDF}
+              />
+              <Form.Text className="text-muted">
+                Selecciona un archivo PDF con la lista de útiles. El archivo se subirá y se procesará.
+              </Form.Text>
+            </Form.Group>
+            {selectedPDF && (
+              <Alert variant="info">
+                <strong>Archivo seleccionado:</strong> {selectedPDF.name} ({(selectedPDF.size / 1024).toFixed(2)} KB)
+              </Alert>
+            )}
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => { setShowImportPDF(false); setSelectedPDF(null); }} disabled={uploadingPDF}>
+            Cancelar
+          </Button>
+          <Button variant="primary" onClick={handleImportarPDF} disabled={!selectedPDF || uploadingPDF}>
+            {uploadingPDF ? (
+              <>
+                <Spinner animation="border" size="sm" className="me-2" />
+                Subiendo...
+              </>
+            ) : (
+              <>
+                <LuUpload className="me-1" />
+                Subir PDF
+              </>
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
       <CursoModal
         show={showEditModal}
         onHide={() => setShowEditModal(false)}
