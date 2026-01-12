@@ -134,11 +134,11 @@ const Page = () => {
               </div>
               <div className="p-4 text-center">
                 <div className="error-text-alt fs-72 text-danger">500</div>
-                <h3 className="fw-bold text-uppercase">Internal Server Error</h3>
-                <p className="text-muted fs-5">Something went wrong on our end. Please try again later or contact support if the issue persists.</p>
+                <h3 className="fw-bold text-uppercase">Error del Servidor</h3>
+                <p className="text-muted fs-5">Algo salió mal en nuestro servidor. Por favor, intenta de nuevo más tarde o contacta con soporte si el problema persiste.</p>
                 <div className="mt-4 d-flex justify-content-center gap-1">
-                  <button className="btn btn-primary">Retry</button>
-                  <button className="btn btn-outline-info">Contact Support</button>
+                  <button className="btn btn-primary">Reintentar</button>
+                  <button className="btn btn-outline-info">Contactar Soporte</button>
                 </div>
               </div>
             </Card>

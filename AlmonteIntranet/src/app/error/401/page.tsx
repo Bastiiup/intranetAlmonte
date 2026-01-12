@@ -18,9 +18,9 @@ const Page = () => {
               </div>
               <div className="p-2 text-center">
                 <div className="error-text-alt fs-72">401</div>
-                <h3 className="fw-bold text-uppercase">Unauthorized</h3>
-                <p className="text-muted">You are not authorized to access this page.</p>
-                <Link className="btn btn-primary mt-3 rounded-pill" href='/'>Go Home</Link>
+                <h3 className="fw-bold text-uppercase">No Autorizado</h3>
+                <p className="text-muted">No estás autorizado para acceder a esta página.</p>
+                <Link className="btn btn-primary mt-3 rounded-pill" href='/'>Ir al Inicio</Link>
               </div>
             </Card>
             <p className="text-center text-muted mt-4 mb-0">

@@ -18,9 +18,9 @@ const Page = () => {
               </div>
               <div className="p-2 text-center">
                 <div className="error-text-alt fs-72">400</div>
-                <h3 className="fw-bold text-uppercase">Bad Request</h3>
-                <p className="text-muted">Something's not right in the request you made.</p>
-                <Link className="btn btn-primary mt-3 rounded-pill" href='/' >Go Home</Link>
+                <h3 className="fw-bold text-uppercase">Solicitud Incorrecta</h3>
+                <p className="text-muted">Algo no está bien en la solicitud que realizaste.</p>
+                <Link className="btn btn-primary mt-3 rounded-pill" href='/' >Ir al Inicio</Link>
               </div>
             </Card>
             <p className="text-center text-muted mt-4 mb-0">

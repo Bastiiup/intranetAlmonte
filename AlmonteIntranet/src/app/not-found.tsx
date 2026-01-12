@@ -138,13 +138,13 @@ const Page = () => {
               </div>
               <div className="p-4 text-center">
                 <div className="error-text-alt fs-72 text-warning">404</div>
-                <h3 className="fw-bold text-uppercase">Page Not Found</h3>
-                <p className="text-muted fs-5">The page you're looking for can't be found. It may be missing or the URL is incorrect.</p>
+                <h3 className="fw-bold text-uppercase">Página No Encontrada</h3>
+                <p className="text-muted fs-5">La página que buscas no se encuentra. Puede que no exista o la URL sea incorrecta.</p>
                 <div className="mt-4 d-flex justify-content-center gap-1">
                   <Link className="btn btn-primary" href="/">
-                    Go Home
+                    Ir al Inicio
                   </Link>
-                  <button className="btn btn-outline-info">Search Site</button>
+                  <button className="btn btn-outline-info">Buscar en el Sitio</button>
                 </div>
               </div>
             </Card>

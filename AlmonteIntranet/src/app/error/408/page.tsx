@@ -18,13 +18,13 @@ const Page = () => {
               </div>
               <div className="p-4 text-center">
                 <div className="error-text-alt fs-72 text-warning">408</div>
-                <h3 className="fw-bold text-uppercase">Request Timeout</h3>
+                <h3 className="fw-bold text-uppercase">Tiempo de Solicitud Agotado</h3>
                 <p className="text-muted fs-5">
-                  The server timed out waiting for your request. Please try again or check your connection.
+                  El servidor agotó el tiempo de espera para tu solicitud. Por favor, intenta de nuevo o verifica tu conexión.
                 </p>
                 <div className="mt-4 d-flex justify-content-center gap-1">
-                  <Link href='/' className="btn btn-primary">Retry</Link>
-                  <button className="btn btn-outline-info">Contact Support</button>
+                  <Link href='/' className="btn btn-primary">Reintentar</Link>
+                  <button className="btn btn-outline-info">Contactar Soporte</button>
                 </div>
               </div>
             </Card>

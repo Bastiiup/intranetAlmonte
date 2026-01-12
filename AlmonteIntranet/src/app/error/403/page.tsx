@@ -18,14 +18,14 @@ const Page = () => {
               </div>
               <div className="p-4 text-center">
                 <div className="error-text-alt fs-72 text-danger">403</div>
-                <h3 className="fw-bold text-uppercase">Access Denied</h3>
+                <h3 className="fw-bold text-uppercase">Acceso Denegado</h3>
                 <p className="text-muted fs-5">
-                  You don't have permission to access this page or perform the requested action.<br />
-                  This may be due to insufficient privileges or restricted access settings.
+                  No tienes permiso para acceder a esta página o realizar la acción solicitada.<br />
+                  Esto puede deberse a privilegios insuficientes o configuraciones de acceso restringido.
                 </p>
                 <div className="mt-4 d-flex justify-content-center gap-1">
-                  <Link className="btn btn-primary" href='/'>Go Home</Link>
-                  <Link href="/" className="btn btn-outline-secondary">Go Back</Link>
+                  <Link className="btn btn-primary" href='/'>Ir al Inicio</Link>
+                  <Link href="/" className="btn btn-outline-secondary">Volver</Link>
                 </div>
               </div>
             </Card>
