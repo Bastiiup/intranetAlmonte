@@ -351,19 +351,6 @@ export default function ColegioDetailPage() {
         const result = await response.json()
         if (response.ok && result.success) {
           const cursosData = Array.isArray(result.data) ? result.data : [result.data]
-          
-          // Si hay años temporales en la respuesta, guardarlos en localStorage
-          if (result.añosTemporales && typeof window !== 'undefined') {
-            try {
-              const añosGuardados = localStorage.getItem('cursos_años_temporales')
-              const añosMap = añosGuardados ? JSON.parse(añosGuardados) : {}
-              Object.assign(añosMap, result.añosTemporales)
-              localStorage.setItem('cursos_años_temporales', JSON.stringify(añosMap))
-            } catch (e) {
-              console.warn('Error al guardar años temporales:', e)
-            }
-          }
-          
           setCursos(cursosData)
         }
       } catch (err: any) {
@@ -380,51 +367,21 @@ export default function ColegioDetailPage() {
     }
   }, [colegioId, activeTab])
 
-  // Función helper para extraer el año de un curso (incluyendo localStorage temporal)
+  // Función helper para extraer el año de un curso desde Strapi
   const obtenerAñoDelCurso = (curso: any): number => {
     const attrs = curso.attributes || curso
-    const cursoId = curso.id || curso.documentId || null
     
-    // Primero intentar obtener el año directamente de Strapi
+    // Obtener el año directamente de Strapi (campo ya configurado)
     if (attrs.año !== undefined && attrs.año !== null) {
       return Number(attrs.año)
     }
+    // Mantener compatibilidad con 'ano' (sin tilde) por si acaso
     if (attrs.ano !== undefined && attrs.ano !== null) {
       return Number(attrs.ano)
     }
     
-    // Si no está en Strapi, intentar obtenerlo de localStorage (solución temporal)
-    if (cursoId && typeof window !== 'undefined') {
-      try {
-        const añosGuardados = localStorage.getItem('cursos_años_temporales')
-        if (añosGuardados) {
-          const añosMap = JSON.parse(añosGuardados)
-          const año = añosMap[String(cursoId)]
-          if (año) {
-            return Number(año)
-          }
-        }
-      } catch (e) {
-        console.warn('Error al leer años de localStorage:', e)
-      }
-    }
-    
-    // Fallback: año actual
+    // Fallback: año actual (solo si Strapi no devuelve el campo)
     return new Date().getFullYear()
-  }
-
-  // Función helper para guardar el año en localStorage (solución temporal)
-  const guardarAñoEnLocalStorage = (cursoId: string | number, año: number) => {
-    if (typeof window === 'undefined') return
-    
-    try {
-      const añosGuardados = localStorage.getItem('cursos_años_temporales')
-      const añosMap = añosGuardados ? JSON.parse(añosGuardados) : {}
-      añosMap[String(cursoId)] = año
-      localStorage.setItem('cursos_años_temporales', JSON.stringify(añosMap))
-    } catch (e) {
-      console.warn('Error al guardar año en localStorage:', e)
-    }
   }
 
   // Obtener años únicos de los cursos para el filtro

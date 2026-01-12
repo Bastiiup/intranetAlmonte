@@ -195,8 +195,16 @@ export async function POST(
       )
     }
 
-    // El año es opcional hasta que Strapi tenga el campo configurado
-    // Si no se proporciona, usar año actual como fallback
+    // Validar que el año esté presente (ahora que Strapi tiene el campo configurado)
+    if (body.año === undefined && body.ano === undefined) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'El año es obligatorio',
+        },
+        { status: 400 }
+      )
+    }
     const año = body.año || body.ano || new Date().getFullYear()
 
     // ✅ Campo correcto en Strapi: nombre_curso (generado automáticamente o proporcionado)
@@ -217,9 +225,7 @@ export async function POST(
         colegio: { connect: [typeof colegioIdNum === 'number' ? colegioIdNum : parseInt(String(colegioIdNum))] },
         nivel: body.nivel,
         grado: body.grado,
-        // Solo incluir año si Strapi lo tiene configurado (por ahora es opcional)
-        // Si Strapi devuelve error "Invalid key año", el campo aún no está configurado
-        ...(body.año !== undefined || body.ano !== undefined ? { año: año } : {}),
+        año: año, // Campo ya configurado en Strapi
         ...(body.paralelo && { paralelo: body.paralelo }),
         ...(body.activo !== undefined && { activo: body.activo !== false }),
       },
@@ -256,68 +262,18 @@ export async function POST(
       }
     })
 
-    try {
-      const response = await strapiClient.post<StrapiResponse<StrapiEntity<CursoAttributes>>>(
-        '/api/cursos',
-        cursoData
-      )
+    const response = await strapiClient.post<StrapiResponse<StrapiEntity<CursoAttributes>>>(
+      '/api/cursos',
+      cursoData
+    )
 
-      debugLog('[API /crm/colegios/[id]/cursos POST] Curso creado exitosamente')
+    debugLog('[API /crm/colegios/[id]/cursos POST] Curso creado exitosamente')
 
-      return NextResponse.json({
-        success: true,
-        data: response.data,
-        message: 'Curso creado exitosamente',
-      }, { status: 200 })
-    } catch (error: any) {
-      // Si el error es "Invalid key año", intentar sin el campo año
-      // El año se guardará en el frontend (localStorage) hasta que Strapi tenga el campo configurado
-      if (error.message?.includes('Invalid key año') || error.message?.includes('Invalid key ano')) {
-        debugLog('[API /crm/colegios/[id]/cursos POST] ⚠️ Error con campo año, guardando sin él (año se guardará en frontend)')
-        const añoTemporal = año
-        delete cursoData.data.año
-        delete cursoData.data.ano
-        
-        try {
-          const response = await strapiClient.post<StrapiResponse<StrapiEntity<CursoAttributes>>>(
-            '/api/cursos',
-            cursoData
-          )
-          
-          debugLog('[API /crm/colegios/[id]/cursos POST] Curso creado exitosamente (año debe guardarse en frontend)')
-          
-          // Agregar el año a la respuesta para que el frontend lo guarde en localStorage
-          let cursoId: string | number | null = null
-          if (response.data && typeof response.data === 'object') {
-            const data = Array.isArray(response.data) ? response.data[0] : response.data
-            if (data) {
-              cursoId = (data as any).id || (data as any).documentId || null
-              if (data && typeof data === 'object' && 'attributes' in data) {
-                (data.attributes as any).año = añoTemporal
-                ;(data.attributes as any).ano = añoTemporal
-              } else if (typeof data === 'object') {
-                (data as any).año = añoTemporal
-                ;(data as any).ano = añoTemporal
-              }
-            }
-          }
-          
-          return NextResponse.json({
-            success: true,
-            data: response.data,
-            añoTemporal: añoTemporal, // Incluir año en la respuesta para que el frontend lo guarde
-            cursoId: cursoId, // ID del curso para guardarlo en localStorage
-            message: 'Curso creado exitosamente. El año se guardará en el navegador hasta que Strapi tenga el campo configurado.',
-          }, { status: 200 })
-        } catch (secondError: any) {
-          // Si también falla sin año, devolver el error original
-          throw error
-        }
-      }
-      
-      // Si no es error de año, propagar el error
-      throw error
-    }
+    return NextResponse.json({
+      success: true,
+      data: response.data,
+      message: 'Curso creado exitosamente',
+    }, { status: 200 })
   } catch (error: any) {
     console.error('[API /crm/colegios/[id]/cursos POST] Error:', {
       message: error.message,
