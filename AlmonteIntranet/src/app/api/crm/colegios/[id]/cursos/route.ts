@@ -11,7 +11,7 @@ import { logger } from '@/lib/logging/logger'
 import type { CursoData } from '@/lib/crm/types'
 import { getCursosWithPopulate } from '@/lib/strapi/populate-helpers'
 import { CursoService } from '@/lib/services/cursoService'
-import { CreateCursoSchema, validateWithZod } from '@/lib/crm/validations'
+import { CreateCursoSchema, validateWithZod, type CreateCursoInput } from '@/lib/crm/validations'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
