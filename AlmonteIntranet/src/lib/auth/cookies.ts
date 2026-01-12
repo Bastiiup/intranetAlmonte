@@ -175,9 +175,11 @@ export async function verifySessionToken(colaborador: ColaboradorCookie): Promis
       const colaboradorId = colaborador.documentId || colaborador.id
 
       try {
+        // Obtener colaborador completo (no usar fields porque session_token puede ser privado)
         const colaboradorStrapi = await strapiClient.get<any>(
-          `/api/colaboradores/${colaboradorId}?fields[0]=session_token`
+          `/api/colaboradores/${colaboradorId}`
         )
+        // Extraer datos del colaborador (puede venir en data.attributes o directamente)
         const colaboradorData = colaboradorStrapi.data?.attributes || colaboradorStrapi.data || colaboradorStrapi
         const sessionTokenStrapi = colaboradorData?.session_token
 
@@ -212,10 +214,12 @@ export async function verifySessionToken(colaborador: ColaboradorCookie): Promis
     const colaboradorId = colaborador.documentId || colaborador.id
 
     try {
+      // Obtener colaborador completo (no usar fields porque session_token puede ser privado)
       const colaboradorStrapi = await strapiClient.get<any>(
-        `/api/colaboradores/${colaboradorId}?fields[0]=session_token`
+        `/api/colaboradores/${colaboradorId}`
       )
 
+      // Extraer datos del colaborador (puede venir en data.attributes o directamente)
       const colaboradorData = colaboradorStrapi.data?.attributes || colaboradorStrapi.data || colaboradorStrapi
       const sessionTokenStrapi = colaboradorData?.session_token
 
