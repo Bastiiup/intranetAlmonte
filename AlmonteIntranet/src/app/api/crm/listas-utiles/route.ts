@@ -13,6 +13,7 @@ interface ListaUtilesAttributes {
   nombre: string
   nivel: 'Basica' | 'Media'
   grado: number
+  año?: number // Año de la lista de útiles
   descripcion?: string
   activo?: boolean
   materiales?: any[]
@@ -27,6 +28,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const nivel = searchParams.get('nivel')
     const grado = searchParams.get('grado')
+    const año = searchParams.get('año') || searchParams.get('ano')
     const activo = searchParams.get('activo')
 
     // Construir query
@@ -36,6 +38,9 @@ export async function GET(request: NextRequest) {
     }
     if (grado) {
       filters.push(`filters[grado][$eq]=${grado}`)
+    }
+    if (año) {
+      filters.push(`filters[año][$eq]=${año}`)
     }
     if (activo !== null) {
       filters.push(`filters[activo][$eq]=${activo === 'true'}`)
@@ -123,6 +128,7 @@ export async function POST(request: NextRequest) {
         nombre: body.nombre.trim(),
         nivel: body.nivel,
         grado: gradoNum,
+        año: body.año || body.ano || new Date().getFullYear(), // Año de la lista
         descripcion: body.descripcion || null,
         activo: body.activo !== false,
       },

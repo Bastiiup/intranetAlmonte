@@ -911,37 +911,63 @@ export default function ColegioDetailPage() {
             No hay cursos registrados para este colegio. Haz clic en "Agregar Curso" para comenzar.
           </p>
         ) : (
-          <div className="row g-3">
-            {cursos.map((curso: any) => {
+          (() => {
+            // Agrupar cursos por año
+            const cursosPorAño = cursos.reduce((acc: Record<string, any[]>, curso: any) => {
               const attrs = curso.attributes || curso
-              // Materiales directos del curso (adicionales)
-              const materialesDirectos = attrs.materiales || []
-              // Materiales de la lista predefinida (si existe)
-              const materialesLista = attrs.lista_utiles?.data?.attributes?.materiales || 
-                                     attrs.lista_utiles?.attributes?.materiales || 
-                                     attrs.lista_utiles?.materiales || []
-              // Combinar todos los materiales para mostrar/exportar
-              const materiales = [...materialesDirectos, ...(Array.isArray(materialesLista) ? materialesLista : [])]
-              
-              return (
-                <Col md={6} lg={4} key={curso.id || curso.documentId}>
-                  <Card className="h-100">
-                    <CardHeader>
-                      <div className="d-flex justify-content-between align-items-start">
-                        <div>
-                          <h5 className="mb-1">{attrs.nombre_curso || attrs.curso_nombre || attrs.titulo || attrs.nombre || 'Sin nombre'}</h5>
-                          {attrs.nivel && (
-                            <small className="text-muted">Nivel: {attrs.nivel}</small>
-                          )}
-                          {attrs.grado && (
-                            <small className="text-muted ms-2">Grado: {attrs.grado}</small>
-                          )}
-                        </div>
-                        {attrs.activo !== false && (
-                          <Badge bg="success">Activo</Badge>
-                        )}
+              const año = attrs.año || attrs.ano || new Date().getFullYear()
+              const añoKey = String(año)
+              if (!acc[añoKey]) {
+                acc[añoKey] = []
+              }
+              acc[añoKey].push(curso)
+              return acc
+            }, {})
+
+            // Ordenar años de mayor a menor
+            const añosOrdenados = Object.keys(cursosPorAño).sort((a, b) => parseInt(b) - parseInt(a))
+
+            return (
+              <div>
+                {añosOrdenados.map((añoKey) => {
+                  const cursosDelAño = cursosPorAño[añoKey]
+                  return (
+                    <div key={añoKey} className="mb-4">
+                      <div className="d-flex align-items-center mb-3">
+                        <h5 className="mb-0 me-2">Año {añoKey}</h5>
+                        <Badge bg="secondary">{cursosDelAño.length} {cursosDelAño.length === 1 ? 'curso' : 'cursos'}</Badge>
                       </div>
-                    </CardHeader>
+                      <div className="row g-3">
+                        {cursosDelAño.map((curso: any) => {
+                          const attrs = curso.attributes || curso
+                          // Materiales directos del curso (adicionales)
+                          const materialesDirectos = attrs.materiales || []
+                          // Materiales de la lista predefinida (si existe)
+                          const materialesLista = attrs.lista_utiles?.data?.attributes?.materiales || 
+                                                 attrs.lista_utiles?.attributes?.materiales || 
+                                                 attrs.lista_utiles?.materiales || []
+                          // Combinar todos los materiales para mostrar/exportar
+                          const materiales = [...materialesDirectos, ...(Array.isArray(materialesLista) ? materialesLista : [])]
+                          
+                          return (
+                            <Col md={6} lg={4} key={curso.id || curso.documentId}>
+                              <Card className="h-100">
+                                <CardHeader>
+                                  <div className="d-flex justify-content-between align-items-start">
+                                    <div>
+                                      <h5 className="mb-1">{attrs.nombre_curso || attrs.curso_nombre || attrs.titulo || attrs.nombre || 'Sin nombre'}</h5>
+                                      {attrs.nivel && (
+                                        <small className="text-muted">Nivel: {attrs.nivel}</small>
+                                      )}
+                                      {attrs.grado && (
+                                        <small className="text-muted ms-2">Grado: {attrs.grado}</small>
+                                      )}
+                                    </div>
+                                    {attrs.activo !== false && (
+                                      <Badge bg="success">Activo</Badge>
+                                    )}
+                                  </div>
+                                </CardHeader>
                     <CardBody>
                       <div className="mb-3">
                         <h6 className="small text-muted mb-2">
@@ -1020,9 +1046,15 @@ export default function ColegioDetailPage() {
                     </CardBody>
                   </Card>
                 </Col>
-              )
-            })}
-          </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
         )}
       </CardBody>
     </Card>

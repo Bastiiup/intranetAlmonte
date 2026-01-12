@@ -20,6 +20,7 @@ interface CursoData {
   nivel: string // 'Basica' | 'Media'
   grado: string // '1' a '8' para Básica, '1' a '4' para Media
   paralelo?: string // 'A', 'B', 'C', etc. (opcional)
+  año: number | string // Año del curso (ej: 2024, 2025)
   activo: boolean
   lista_utiles?: number | null // ID de la lista de útiles predefinida (opcional)
   materiales_adicionales: Material[] // Materiales adicionales fuera de la lista
@@ -64,6 +65,21 @@ const PARALELOS = [
   { value: 'F', label: 'F' },
 ]
 
+// Generar años disponibles (año actual y 2 años anteriores/posteriores)
+const getAñosDisponibles = () => {
+  const añoActual = new Date().getFullYear()
+  const años = []
+  for (let i = -2; i <= 2; i++) {
+    años.push({
+      value: añoActual + i,
+      label: String(añoActual + i),
+    })
+  }
+  return años
+}
+
+const AÑOS_DISPONIBLES = getAñosDisponibles()
+
 interface ListaUtilesOption {
   value: number
   label: string
@@ -83,6 +99,7 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
     nivel: '',
     grado: '',
     paralelo: '',
+    año: new Date().getFullYear(), // Año actual por defecto
     activo: true,
     lista_utiles: null,
     materiales_adicionales: [],
@@ -110,19 +127,23 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
   }, [formData.nivel, formData.grado, formData.paralelo])
 
 
-  const loadListasUtiles = async (nivelFilter?: string, gradoFilter?: string) => {
+  const loadListasUtiles = async (nivelFilter?: string, gradoFilter?: string, añoFilter?: number | string) => {
     setLoadingListas(true)
     try {
-      // Filtrar por nivel y grado si están seleccionados
+      // Filtrar por nivel, grado y año si están seleccionados
       const params = new URLSearchParams()
       const nivelParam = nivelFilter || formData.nivel
       const gradoParam = gradoFilter || formData.grado
+      const añoParam = añoFilter || formData.año
       
       if (nivelParam) {
         params.append('nivel', nivelParam)
       }
       if (gradoParam) {
         params.append('grado', gradoParam)
+      }
+      if (añoParam) {
+        params.append('año', String(añoParam))
       }
       params.append('activo', 'true') // Solo listas activas
 
@@ -153,12 +174,12 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
     }
   }
 
-  // Cargar listas cuando se abre el modal o cuando cambian nivel/grado
+  // Cargar listas cuando se abre el modal o cuando cambian nivel/grado/año
   useEffect(() => {
     if (show) {
-      loadListasUtiles(formData.nivel, formData.grado)
+      loadListasUtiles(formData.nivel, formData.grado, formData.año)
     }
-  }, [show, formData.nivel, formData.grado])
+  }, [show, formData.nivel, formData.grado, formData.año])
 
   // Cargar datos del curso si se está editando
   useEffect(() => {
@@ -188,6 +209,7 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
           nivel: nivel || '',
           grado: grado || '',
           paralelo: paralelo || '',
+          año: attrs.año || attrs.ano || new Date().getFullYear(), // Año del curso
           activo: attrs.activo !== false,
           lista_utiles: attrs.lista_utiles?.data?.id || attrs.lista_utiles?.id || attrs.lista_utiles || null,
           materiales_adicionales: (attrs.materiales || []).map((m: any) => ({
@@ -210,6 +232,7 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
           nivel: '',
           grado: '',
           paralelo: '',
+          año: new Date().getFullYear(), // Año actual por defecto
           activo: true,
           lista_utiles: null,
           materiales_adicionales: [],
@@ -329,7 +352,7 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
         throw new Error('El nivel y grado son obligatorios')
       }
 
-      // Validar que no exista otro curso con mismo nivel+grado+paralelo en el mismo colegio
+      // Validar que no exista otro curso con mismo nivel+grado+paralelo+año en el mismo colegio
       if (!curso) {
         // Solo validar duplicados al crear (no al editar)
         const checkResponse = await fetch(`/api/crm/colegios/${colegioId}/cursos`)
@@ -337,14 +360,16 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
         if (checkResult.success && Array.isArray(checkResult.data)) {
           const existe = checkResult.data.some((c: any) => {
             const attrs = c.attributes || c
+            const añoCurso = attrs.año || attrs.ano || new Date().getFullYear()
             return (
               attrs.nivel === formData.nivel &&
               attrs.grado === formData.grado &&
-              (attrs.paralelo || '') === (formData.paralelo || '')
+              (attrs.paralelo || '') === (formData.paralelo || '') &&
+              String(añoCurso) === String(formData.año)
             )
           })
           if (existe) {
-            throw new Error(`Ya existe un curso con ${nombreCursoGenerado} en este colegio`)
+            throw new Error(`Ya existe un curso con ${nombreCursoGenerado} para el año ${formData.año} en este colegio`)
           }
         }
       }
@@ -367,6 +392,7 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
         nombre_curso: nombreCursoGenerado, // Campo generado automáticamente
         nivel: formData.nivel,
         grado: formData.grado,
+        año: formData.año, // Año del curso
         activo: formData.activo,
       }
 
@@ -505,6 +531,19 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
                 />
               </FormGroup>
             </Col>
+            <Col md={3}>
+              <FormGroup className="mb-3">
+                <FormLabel>Año *</FormLabel>
+                <Select
+                  options={AÑOS_DISPONIBLES}
+                  value={AÑOS_DISPONIBLES.find(a => a.value === formData.año) || null}
+                  onChange={(option) => handleFieldChange('año', option?.value || new Date().getFullYear())}
+                  placeholder="Seleccionar año"
+                  isSearchable={false}
+                />
+                <small className="text-muted">Año escolar del curso</small>
+              </FormGroup>
+            </Col>
             <Col md={12}>
               <FormGroup className="mb-3">
                 <FormLabel>Nombre del Curso (generado automáticamente)</FormLabel>
@@ -543,8 +582,8 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
               <FormGroup className="mb-3">
                 <FormLabel>
                   Lista de Útiles Predefinida (opcional)
-                  {formData.nivel && formData.grado && (
-                    <small className="text-muted ms-2">- Filtrado por {formData.grado}° {formData.nivel === 'Basica' ? 'Básica' : 'Media'}</small>
+                  {formData.nivel && formData.grado && formData.año && (
+                    <small className="text-muted ms-2">- Filtrado por {formData.grado}° {formData.nivel === 'Basica' ? 'Básica' : 'Media'} - Año {formData.año}</small>
                   )}
                 </FormLabel>
                 <Select
@@ -554,15 +593,15 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
                   placeholder={
                     loadingListas 
                       ? 'Cargando listas...' 
-                      : !formData.nivel || !formData.grado
-                      ? 'Seleccione nivel y grado primero'
+                      : !formData.nivel || !formData.grado || !formData.año
+                      ? 'Seleccione nivel, grado y año primero'
                       : listasUtiles.length === 0
-                      ? 'No hay listas disponibles para este nivel/grado'
+                      ? 'No hay listas disponibles para este nivel/grado/año'
                       : 'Seleccionar lista de útiles'
                   }
                   isClearable
                   isLoading={loadingListas}
-                  isDisabled={!formData.nivel || !formData.grado}
+                  isDisabled={!formData.nivel || !formData.grado || !formData.año}
                 />
                 {formData.lista_utiles && (
                   <div className="mt-2">

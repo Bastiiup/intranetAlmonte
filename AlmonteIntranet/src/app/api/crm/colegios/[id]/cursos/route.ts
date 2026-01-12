@@ -24,6 +24,7 @@ interface CursoAttributes {
   nivel?: string
   grado?: string
   paralelo?: string
+  año?: number // Año del curso
   activo?: boolean
   colegio?: any
   lista_utiles?: any // Relación manyToOne
@@ -191,6 +192,16 @@ export async function POST(
       )
     }
 
+    if (!body.año && body.año !== 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'El año es obligatorio',
+        },
+        { status: 400 }
+      )
+    }
+
     // ✅ Campo correcto en Strapi: nombre_curso (generado automáticamente o proporcionado)
     const nombreCurso = body.nombre_curso?.trim() || body.curso_nombre?.trim()
     if (!nombreCurso) {
@@ -209,6 +220,7 @@ export async function POST(
         colegio: { connect: [typeof colegioIdNum === 'number' ? colegioIdNum : parseInt(String(colegioIdNum))] },
         nivel: body.nivel,
         grado: body.grado,
+        año: body.año || body.ano || new Date().getFullYear(), // Año del curso
         ...(body.paralelo && { paralelo: body.paralelo }),
         ...(body.activo !== undefined && { activo: body.activo !== false }),
       },

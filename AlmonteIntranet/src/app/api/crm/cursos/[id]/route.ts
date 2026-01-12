@@ -134,6 +134,9 @@ export async function PUT(
     if (body.paralelo !== undefined) {
       cursoData.data.paralelo = body.paralelo || null
     }
+    if (body.año !== undefined || body.ano !== undefined) {
+      cursoData.data.año = body.año || body.ano || new Date().getFullYear()
+    }
     if (body.activo !== undefined) {
       cursoData.data.activo = body.activo
     }
