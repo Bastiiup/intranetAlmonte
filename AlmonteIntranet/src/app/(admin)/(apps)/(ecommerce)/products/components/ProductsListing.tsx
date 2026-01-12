@@ -19,6 +19,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert } from 'react-bootstrap'
 import { LuBox, LuDollarSign, LuSearch, LuTag } from 'react-icons/lu'
 import { TbEdit, TbEye, TbLayoutGrid, TbList, TbPlus, TbTrash } from 'react-icons/tb'
+import Products from '@/app/(admin)/(apps)/(ecommerce)/products-grid/components/Products'
 
 import Rating from '@/components/Rating'
 import DataTable from '@/components/table/DataTable'
@@ -184,6 +185,9 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
   const canDelete = colaborador?.rol === 'super_admin'
+
+  // Estado para controlar la vista (lista o grid)
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
 
   // Mapear productos de Strapi al formato ProductType si están disponibles
   const mappedProducts = useMemo(() => {
@@ -646,12 +650,20 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
             </div>
 
             <div className="d-flex gap-1">
-              <Link passHref href="/products-grid">
-                <Button variant="outline-primary" className="btn-icon btn-soft-primary">
-                  <TbLayoutGrid className="fs-lg" />
-                </Button>
-              </Link>
-              <Button variant="primary" className="btn-icon">
+              <Button 
+                variant={viewMode === 'grid' ? 'primary' : 'outline-primary'} 
+                className="btn-icon"
+                onClick={() => setViewMode('grid')}
+                title="Vista de cuadrícula"
+              >
+                <TbLayoutGrid className="fs-lg" />
+              </Button>
+              <Button 
+                variant={viewMode === 'list' ? 'primary' : 'outline-primary'} 
+                className="btn-icon"
+                onClick={() => setViewMode('list')}
+                title="Vista de lista"
+              >
                 <TbList className="fs-lg" />
               </Button>
               <Link href="/add-product" passHref>
@@ -662,12 +674,18 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
             </div>
           </CardHeader>
 
-          <DataTable<ProductTypeExtended>
-            table={table}
-            emptyMessage="No se encontraron registros"
-            enableColumnReordering={true}
-            onColumnOrderChange={handleColumnOrderChange}
-          />
+          {viewMode === 'list' ? (
+            <DataTable<ProductTypeExtended>
+              table={table}
+              emptyMessage="No se encontraron registros"
+              enableColumnReordering={true}
+              onColumnOrderChange={handleColumnOrderChange}
+            />
+          ) : (
+            <CardBody>
+              <Products productos={productos || []} error={error || null} />
+            </CardBody>
+          )}
 
           {table.getRowModel().rows.length > 0 && (
             <CardFooter className="border-0">

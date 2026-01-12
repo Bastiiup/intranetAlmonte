@@ -128,9 +128,9 @@ export const menuItems: MenuItemType[] = [
     label: 'Products',
     icon: LuShoppingBag,
     children: [
-      { key: 'product-list', label: 'Listing', url: '/products' },
-      { key: 'product-grid', label: 'Product Grid', url: '/products-grid' },
-      { key: 'product-details', label: 'Product Details', url: '/products/1' },
+      { key: 'product-list', label: 'Todos los Productos', url: '/products' },
+      // { key: 'product-grid', label: 'Product Grid', url: '/products-grid' }, // Ocultado - integrado en Todos los Productos
+      // { key: 'product-details', label: 'Product Details', url: '/products/1' }, // Ocultado - se accede desde la lista
       { key: 'add-product', label: 'Add Product', url: '/add-product' },
       { key: 'all-categories', label: 'Todas las Categorías', url: '/products/categorias' },
       { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' },
@@ -249,9 +249,9 @@ export const horizontalMenuItems: MenuItemType[] = [
         label: 'Productos',
         icon: TbBasket,
         children: [
-          { key: 'product-list', label: 'Listado', url: '/products' },
-          { key: 'product-grid', label: 'Cuadrícula de Productos', url: '/products-grid' },
-          { key: 'product-details', label: 'Detalles del Producto', url: '/products/1' },
+          { key: 'product-list', label: 'Todos los Productos', url: '/products' },
+          // { key: 'product-grid', label: 'Cuadrícula de Productos', url: '/products-grid' }, // Ocultado - integrado en Todos los Productos
+          // { key: 'product-details', label: 'Detalles del Producto', url: '/products/1' }, // Ocultado - se accede desde la lista
           { key: 'add-product', label: 'Agregar Producto', url: '/add-product' },
           { key: 'all-categories', label: 'Todas las Categorías', url: '/products/categorias' },
           { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' },
