@@ -15,9 +15,9 @@ import {
 } from '@tanstack/react-table'
 import Link from 'next/link'
 import { useState, useEffect, useMemo } from 'react'
-import { Button, Card, CardFooter, CardHeader, Col, Row, Alert } from 'react-bootstrap'
+import { Button, Card, CardBody, CardFooter, CardHeader, Col, Nav, NavItem, NavLink, Row, Alert, TabContainer, TabContent, TabPane } from 'react-bootstrap'
 import { LuBox, LuSearch } from 'react-icons/lu'
-import { TbEdit, TbEye, TbLayoutGrid, TbList, TbPlus, TbTrash } from 'react-icons/tb'
+import { TbEdit, TbEye, TbLayoutGrid, TbList, TbPlus, TbTrash, TbCheck } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
@@ -25,6 +25,14 @@ import TablePagination from '@/components/table/TablePagination'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import dynamic from 'next/dynamic'
+import EtiquetaRequestsListing from '../solicitudes/components/EtiquetaRequestsListing'
+
+// Cargar el formulario de agregar etiqueta dinámicamente
+const AddTagForm = dynamic(
+  () => import('../components/AddTagForm').then((mod) => ({ default: mod.default })),
+  { ssr: false }
+)
 
 // Tipo para la tabla
 type TagType = {
@@ -101,11 +109,17 @@ interface TagsListingProps {
 
 const columnHelper = createColumnHelper<TagType>()
 
+type TabType = 'etiquetas' | 'solicitudes' | 'agregar'
+
 const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
   const router = useRouter()
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
   const canDelete = colaborador?.rol === 'super_admin'
+  const canViewRequests = ['super_admin', 'encargado_adquisiciones', 'supervisor'].includes(colaborador?.rol || '')
+  
+  // Estado para controlar el tab activo
+  const [activeTab, setActiveTab] = useState<TabType>('etiquetas')
   
   // Mapear etiquetas de Strapi al formato TagType si están disponibles
   const mappedTags = useMemo(() => {
@@ -375,123 +389,154 @@ const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
     console.warn('[TagsListing] Error al cargar desde Strapi, usando datos disponibles:', error)
   }
 
+  // Renderizar el contenido del tab de etiquetas
+  const renderEtiquetasContent = () => (
+    <Card className="mb-4">
+      <CardHeader className="d-flex justify-content-between align-items-center">
+        <div className="d-flex gap-2">
+          <div className="app-search">
+            <input
+              type="search"
+              className="form-control"
+              placeholder="Buscar etiqueta..."
+              value={globalFilter ?? ''}
+              onChange={(e) => setGlobalFilter(e.target.value)}
+            />
+            <LuSearch className="app-search-icon text-muted" />
+          </div>
+
+          {Object.keys(selectedRowIds).length > 0 && canDelete && (
+            <Button variant="danger" size="sm" onClick={toggleDeleteModal}>
+              Eliminar
+            </Button>
+          )}
+        </div>
+
+        <div className="d-flex align-items-center gap-2">
+          <span className="me-2 fw-semibold">Filtrar por:</span>
+
+          <div className="app-search">
+            <select
+              className="form-select form-control my-1 my-md-0"
+              value={(table.getColumn('status')?.getFilterValue() as string) ?? 'All'}
+              onChange={(e) => table.getColumn('status')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
+              <option value="All">Estado</option>
+              <option value="active">Activo</option>
+              <option value="inactive">Inactivo</option>
+            </select>
+            <LuBox className="app-search-icon text-muted" />
+          </div>
+
+          <div className="app-search">
+            <select
+              className="form-select form-control my-1 my-md-0"
+              value={(table.getColumn('estadoPublicacion')?.getFilterValue() as string) ?? 'All'}
+              onChange={(e) => table.getColumn('estadoPublicacion')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
+              <option value="All">Estado Publicación</option>
+              <option value="Publicado">Publicado</option>
+              <option value="Pendiente">Pendiente</option>
+              <option value="Borrador">Borrador</option>
+            </select>
+            <LuBox className="app-search-icon text-muted" />
+          </div>
+
+          <div>
+            <select
+              className="form-select form-control my-1 my-md-0"
+              value={table.getState().pagination.pageSize}
+              onChange={(e) => table.setPageSize(Number(e.target.value))}>
+              {[5, 8, 10, 15, 20].map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </CardHeader>
+
+      <DataTable<TagType>
+        table={table}
+        emptyMessage="No se encontraron registros"
+        enableColumnReordering={true}
+        onColumnOrderChange={handleColumnOrderChange}
+      />
+
+      {table.getRowModel().rows.length > 0 && (
+        <CardFooter className="border-0">
+          <TablePagination
+            totalItems={totalItems}
+            start={start}
+            end={end}
+            itemsName="etiquetas"
+            showInfo
+            previousPage={table.previousPage}
+            canPreviousPage={table.getCanPreviousPage()}
+            pageCount={table.getPageCount()}
+            pageIndex={table.getState().pagination.pageIndex}
+            setPageIndex={table.setPageIndex}
+            nextPage={table.nextPage}
+            canNextPage={table.getCanNextPage()}
+          />
+        </CardFooter>
+      )}
+
+      <DeleteConfirmationModal
+        show={showDeleteModal}
+        onHide={toggleDeleteModal}
+        onConfirm={handleDelete}
+        selectedCount={Object.keys(selectedRowIds).length}
+        itemName="tag"
+      />
+    </Card>
+  )
+
   return (
     <Row>
       <Col xs={12}>
-        <Card className="mb-4">
-          <CardHeader className="d-flex justify-content-between align-items-center">
-            <div className="d-flex gap-2">
-              <div className="app-search">
-                <input
-                  type="search"
-                  className="form-control"
-                  placeholder="Buscar nombre de etiqueta..."
-                  value={globalFilter ?? ''}
-                  onChange={(e) => setGlobalFilter(e.target.value)}
-                />
-                <LuSearch className="app-search-icon text-muted" />
-              </div>
-
-              {Object.keys(selectedRowIds).length > 0 && canDelete && (
-                <Button variant="danger" size="sm" onClick={toggleDeleteModal}>
-                  Eliminar
-                </Button>
-              )}
-            </div>
-
-            <div className="d-flex align-items-center gap-2">
-              <span className="me-2 fw-semibold">Filtrar por:</span>
-
-              <div className="app-search">
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('status')?.getFilterValue() as string) ?? 'All'}
-                  onChange={(e) => table.getColumn('status')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
-                  <option value="All">Estado</option>
-                  <option value="active">Activo</option>
-                  <option value="inactive">Inactivo</option>
-                </select>
-                <LuBox className="app-search-icon text-muted" />
-              </div>
-
-              <div className="app-search">
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('estadoPublicacion')?.getFilterValue() as string) ?? 'All'}
-                  onChange={(e) => table.getColumn('estadoPublicacion')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
-                  <option value="All">Estado Publicación</option>
-                  <option value="Publicado">Publicado</option>
-                  <option value="Pendiente">Pendiente</option>
-                  <option value="Borrador">Borrador</option>
-                </select>
-                <LuBox className="app-search-icon text-muted" />
-              </div>
-
-              <div>
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={table.getState().pagination.pageSize}
-                  onChange={(e) => table.setPageSize(Number(e.target.value))}>
-                  {[5, 8, 10, 15, 20].map((size) => (
-                    <option key={size} value={size}>
-                      {size}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="d-flex gap-1">
-              <Link passHref href="/products/etiquetas">
-                <Button variant="outline-primary" className="btn-icon btn-soft-primary">
-                  <TbLayoutGrid className="fs-lg" />
-                </Button>
-              </Link>
-              <Button variant="primary" className="btn-icon">
-                <TbList className="fs-lg" />
-              </Button>
-              <Link href="/products/etiquetas/agregar" passHref>
-                <Button variant="danger" className="ms-1">
-                  <TbPlus className="fs-sm me-2" /> Agregar Etiqueta
-                </Button>
-              </Link>
-            </div>
-          </CardHeader>
-
-          <DataTable<TagType>
-            table={table}
-            emptyMessage="No se encontraron registros"
-            enableColumnReordering={true}
-            onColumnOrderChange={handleColumnOrderChange}
-          />
-
-          {table.getRowModel().rows.length > 0 && (
-            <CardFooter className="border-0">
-              <TablePagination
-                totalItems={totalItems}
-                start={start}
-                end={end}
-                itemsName="etiquetas"
-                showInfo
-                previousPage={table.previousPage}
-                canPreviousPage={table.getCanPreviousPage()}
-                pageCount={table.getPageCount()}
-                pageIndex={table.getState().pagination.pageIndex}
-                setPageIndex={table.setPageIndex}
-                nextPage={table.nextPage}
-                canNextPage={table.getCanNextPage()}
-              />
-            </CardFooter>
-          )}
-
-          <DeleteConfirmationModal
-            show={showDeleteModal}
-            onHide={toggleDeleteModal}
-            onConfirm={handleDelete}
-            selectedCount={Object.keys(selectedRowIds).length}
-            itemName="tag"
-          />
-        </Card>
+        <TabContainer defaultActiveKey="etiquetas" activeKey={activeTab} onSelect={(k) => setActiveTab(k as TabType)}>
+          <Card className="mb-4">
+            <CardHeader>
+              <Nav variant="tabs" className="card-header-tabs nav-bordered">
+                <NavItem>
+                  <NavLink eventKey="etiquetas" className="d-flex align-items-center gap-2">
+                    <TbList size={18} />
+                    <span>Todas las Etiquetas</span>
+                  </NavLink>
+                </NavItem>
+                {canViewRequests && (
+                  <NavItem>
+                    <NavLink eventKey="solicitudes" className="d-flex align-items-center gap-2">
+                      <TbCheck size={18} />
+                      <span>Solicitudes</span>
+                    </NavLink>
+                  </NavItem>
+                )}
+                <NavItem>
+                  <NavLink eventKey="agregar" className="d-flex align-items-center gap-2">
+                    <TbPlus size={18} />
+                    <span>Agregar Etiqueta</span>
+                  </NavLink>
+                </NavItem>
+              </Nav>
+            </CardHeader>
+            <CardBody>
+              <TabContent>
+                <TabPane eventKey="etiquetas">
+                  {renderEtiquetasContent()}
+                </TabPane>
+                {canViewRequests && (
+                  <TabPane eventKey="solicitudes">
+                    <EtiquetaRequestsListing etiquetas={etiquetas} error={error} />
+                  </TabPane>
+                )}
+                <TabPane eventKey="agregar">
+                  <AddTagForm />
+                </TabPane>
+              </TabContent>
+            </CardBody>
+          </Card>
+        </TabContainer>
       </Col>
     </Row>
   )

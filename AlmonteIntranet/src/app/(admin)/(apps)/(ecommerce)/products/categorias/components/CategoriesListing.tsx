@@ -17,9 +17,9 @@ import {
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState, useEffect, useMemo } from 'react'
-import { Button, Card, CardFooter, CardHeader, Col, Row, Alert } from 'react-bootstrap'
+import { Button, Card, CardBody, CardFooter, CardHeader, Col, Nav, NavItem, NavLink, Row, Alert, TabContainer, TabContent, TabPane } from 'react-bootstrap'
 import { LuBox, LuSearch, LuTag } from 'react-icons/lu'
-import { TbEdit, TbEye, TbLayoutGrid, TbList, TbPlus, TbTrash } from 'react-icons/tb'
+import { TbEdit, TbEye, TbLayoutGrid, TbList, TbPlus, TbTrash, TbCheck } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
@@ -29,6 +29,14 @@ import { STRAPI_API_URL } from '@/lib/strapi/config'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import dynamic from 'next/dynamic'
+import CategoriaRequestsListing from '../solicitudes/components/CategoriaRequestsListing'
+
+// Cargar el formulario de agregar categoría dinámicamente
+const AddCategoryForm = dynamic(
+  () => import('../components/AddCategoryForm').then((mod) => ({ default: mod.default })),
+  { ssr: false }
+)
 
 interface Categoria {
   id: number
@@ -160,11 +168,17 @@ interface CategoriesListingProps {
 
 const columnHelper = createColumnHelper<CategoryType>()
 
+type TabType = 'categorias' | 'solicitudes' | 'agregar'
+
 const CategoriesListing = ({ categorias, error }: CategoriesListingProps = {}) => {
   const router = useRouter()
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
   const canDelete = colaborador?.rol === 'super_admin'
+  const canViewRequests = ['super_admin', 'encargado_adquisiciones', 'supervisor'].includes(colaborador?.rol || '')
+  
+  // Estado para controlar el tab activo
+  const [activeTab, setActiveTab] = useState<TabType>('categorias')
   
   // Mapear categorías de Strapi al formato CategoryType si están disponibles
   const mappedCategories = useMemo(() => {
@@ -478,123 +492,154 @@ const CategoriesListing = ({ categorias, error }: CategoriesListingProps = {}) =
     return Array.from(categories).sort()
   }, [data])
 
+  // Renderizar el contenido del tab de categorías
+  const renderCategoriasContent = () => (
+    <Card className="mb-4">
+      <CardHeader className="d-flex justify-content-between align-items-center">
+        <div className="d-flex gap-2">
+          <div className="app-search">
+            <input
+              type="search"
+              className="form-control"
+              placeholder="Buscar categoría..."
+              value={globalFilter ?? ''}
+              onChange={(e) => setGlobalFilter(e.target.value)}
+            />
+            <LuSearch className="app-search-icon text-muted" />
+          </div>
+
+          {Object.keys(selectedRowIds).length > 0 && canDelete && (
+            <Button variant="danger" size="sm" onClick={toggleDeleteModal}>
+              Eliminar
+            </Button>
+          )}
+        </div>
+
+        <div className="d-flex align-items-center gap-2">
+          <span className="me-2 fw-semibold">Filtrar por:</span>
+
+          <div className="app-search">
+            <select
+              className="form-select form-control my-1 my-md-0"
+              value={(table.getColumn('status')?.getFilterValue() as string) ?? 'All'}
+              onChange={(e) => table.getColumn('status')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
+              <option value="All">Estado</option>
+              <option value="active">Activo</option>
+              <option value="inactive">Inactivo</option>
+            </select>
+            <LuBox className="app-search-icon text-muted" />
+          </div>
+
+          <div className="app-search">
+            <select
+              className="form-select form-control my-1 my-md-0"
+              value={(table.getColumn('estadoPublicacion')?.getFilterValue() as string) ?? 'All'}
+              onChange={(e) => table.getColumn('estadoPublicacion')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
+              <option value="All">Estado Publicación</option>
+              <option value="Publicado">Publicado</option>
+              <option value="Pendiente">Pendiente</option>
+              <option value="Borrador">Borrador</option>
+            </select>
+            <LuBox className="app-search-icon text-muted" />
+          </div>
+
+          <div>
+            <select
+              className="form-select form-control my-1 my-md-0"
+              value={table.getState().pagination.pageSize}
+              onChange={(e) => table.setPageSize(Number(e.target.value))}>
+              {[5, 8, 10, 15, 20].map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </CardHeader>
+
+      <DataTable<CategoryType>
+        table={table}
+        emptyMessage="No se encontraron registros"
+        enableColumnReordering={true}
+        onColumnOrderChange={handleColumnOrderChange}
+      />
+
+      {table.getRowModel().rows.length > 0 && (
+        <CardFooter className="border-0">
+          <TablePagination
+            totalItems={totalItems}
+            start={start}
+            end={end}
+            itemsName="categorías"
+            showInfo
+            previousPage={table.previousPage}
+            canPreviousPage={table.getCanPreviousPage()}
+            pageCount={table.getPageCount()}
+            pageIndex={table.getState().pagination.pageIndex}
+            setPageIndex={table.setPageIndex}
+            nextPage={table.nextPage}
+            canNextPage={table.getCanNextPage()}
+          />
+        </CardFooter>
+      )}
+
+      <DeleteConfirmationModal
+        show={showDeleteModal}
+        onHide={toggleDeleteModal}
+        onConfirm={handleDelete}
+        selectedCount={Object.keys(selectedRowIds).length}
+        itemName="category"
+      />
+    </Card>
+  )
+
   return (
     <Row>
       <Col xs={12}>
-        <Card className="mb-4">
-          <CardHeader className="d-flex justify-content-between align-items-center">
-            <div className="d-flex gap-2">
-              <div className="app-search">
-                <input
-                  type="search"
-                  className="form-control"
-                  placeholder="Buscar nombre de categoría..."
-                  value={globalFilter ?? ''}
-                  onChange={(e) => setGlobalFilter(e.target.value)}
-                />
-                <LuSearch className="app-search-icon text-muted" />
-              </div>
-
-              {Object.keys(selectedRowIds).length > 0 && canDelete && (
-                <Button variant="danger" size="sm" onClick={toggleDeleteModal}>
-                  Eliminar
-                </Button>
-              )}
-            </div>
-
-            <div className="d-flex align-items-center gap-2">
-              <span className="me-2 fw-semibold">Filtrar por:</span>
-
-              <div className="app-search">
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('status')?.getFilterValue() as string) ?? 'All'}
-                  onChange={(e) => table.getColumn('status')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
-                  <option value="All">Estado</option>
-                  <option value="active">Activo</option>
-                  <option value="inactive">Inactivo</option>
-                </select>
-                <LuBox className="app-search-icon text-muted" />
-              </div>
-
-              <div className="app-search">
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('estadoPublicacion')?.getFilterValue() as string) ?? 'All'}
-                  onChange={(e) => table.getColumn('estadoPublicacion')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)}>
-                  <option value="All">Estado Publicación</option>
-                  <option value="Publicado">Publicado</option>
-                  <option value="Pendiente">Pendiente</option>
-                  <option value="Borrador">Borrador</option>
-                </select>
-                <LuBox className="app-search-icon text-muted" />
-              </div>
-
-              <div>
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={table.getState().pagination.pageSize}
-                  onChange={(e) => table.setPageSize(Number(e.target.value))}>
-                  {[5, 8, 10, 15, 20].map((size) => (
-                    <option key={size} value={size}>
-                      {size}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="d-flex gap-1">
-              <Link passHref href="/products/categorias">
-                <Button variant="outline-primary" className="btn-icon btn-soft-primary">
-                  <TbLayoutGrid className="fs-lg" />
-                </Button>
-              </Link>
-              <Button variant="primary" className="btn-icon">
-                <TbList className="fs-lg" />
-              </Button>
-              <Link href="/products/categorias/agregar" passHref>
-                <Button variant="danger" className="ms-1">
-                  <TbPlus className="fs-sm me-2" /> Agregar Categoría
-                </Button>
-              </Link>
-            </div>
-          </CardHeader>
-
-          <DataTable<CategoryType>
-            table={table}
-            emptyMessage="No se encontraron registros"
-            enableColumnReordering={true}
-            onColumnOrderChange={handleColumnOrderChange}
-          />
-
-          {table.getRowModel().rows.length > 0 && (
-            <CardFooter className="border-0">
-              <TablePagination
-                totalItems={totalItems}
-                start={start}
-                end={end}
-                itemsName="categorías"
-                showInfo
-                previousPage={table.previousPage}
-                canPreviousPage={table.getCanPreviousPage()}
-                pageCount={table.getPageCount()}
-                pageIndex={table.getState().pagination.pageIndex}
-                setPageIndex={table.setPageIndex}
-                nextPage={table.nextPage}
-                canNextPage={table.getCanNextPage()}
-              />
-            </CardFooter>
-          )}
-
-          <DeleteConfirmationModal
-            show={showDeleteModal}
-            onHide={toggleDeleteModal}
-            onConfirm={handleDelete}
-            selectedCount={Object.keys(selectedRowIds).length}
-            itemName="category"
-          />
-        </Card>
+        <TabContainer defaultActiveKey="categorias" activeKey={activeTab} onSelect={(k) => setActiveTab(k as TabType)}>
+          <Card className="mb-4">
+            <CardHeader>
+              <Nav variant="tabs" className="card-header-tabs nav-bordered">
+                <NavItem>
+                  <NavLink eventKey="categorias" className="d-flex align-items-center gap-2">
+                    <TbList size={18} />
+                    <span>Todas las Categorías</span>
+                  </NavLink>
+                </NavItem>
+                {canViewRequests && (
+                  <NavItem>
+                    <NavLink eventKey="solicitudes" className="d-flex align-items-center gap-2">
+                      <TbCheck size={18} />
+                      <span>Solicitudes</span>
+                    </NavLink>
+                  </NavItem>
+                )}
+                <NavItem>
+                  <NavLink eventKey="agregar" className="d-flex align-items-center gap-2">
+                    <TbPlus size={18} />
+                    <span>Agregar Categoría</span>
+                  </NavLink>
+                </NavItem>
+              </Nav>
+            </CardHeader>
+            <CardBody>
+              <TabContent>
+                <TabPane eventKey="categorias">
+                  {renderCategoriasContent()}
+                </TabPane>
+                {canViewRequests && (
+                  <TabPane eventKey="solicitudes">
+                    <CategoriaRequestsListing categorias={categorias} error={error} />
+                  </TabPane>
+                )}
+                <TabPane eventKey="agregar">
+                  <AddCategoryForm />
+                </TabPane>
+              </TabContent>
+            </CardBody>
+          </Card>
+        </TabContainer>
       </Col>
     </Row>
   )

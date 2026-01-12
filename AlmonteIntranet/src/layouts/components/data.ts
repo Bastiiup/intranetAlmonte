@@ -133,24 +133,24 @@ export const menuItems: MenuItemType[] = [
       // { key: 'product-details', label: 'Product Details', url: '/products/1' }, // Ocultado - se accede desde la lista
       // { key: 'add-product', label: 'Add Product', url: '/add-product' }, // Ocultado - integrado en Todos los Productos
       { key: 'all-categories', label: 'Todas las Categorías', url: '/products/categorias' },
-      { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' },
-      { key: 'categoria-requests', label: 'Solicitudes de Categorías', url: '/products/categorias/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+      // { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' }, // Ocultado - integrado en Todos las Categorías
+      // { key: 'categoria-requests', label: 'Solicitudes de Categorías', url: '/products/categorias/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todos las Categorías
       { key: 'all-tags', label: 'Todas las Etiquetas', url: '/products/etiquetas' },
-      { key: 'add-tag', label: 'Agregar Etiqueta', url: '/products/etiquetas/agregar' },
-      { key: 'etiqueta-requests', label: 'Solicitudes de Etiquetas', url: '/products/etiquetas/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+      // { key: 'add-tag', label: 'Agregar Etiqueta', url: '/products/etiquetas/agregar' }, // Ocultado - integrado en Todas las Etiquetas
+      // { key: 'etiqueta-requests', label: 'Solicitudes de Etiquetas', url: '/products/etiquetas/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todas las Etiquetas
       {
         key: 'atributos',
         label: 'Atributos',
         children: [
           { key: 'all-autores', label: 'Todos los Autores', url: '/products/atributos/autores' },
-          { key: 'add-autor', label: 'Agregar Autor', url: '/products/atributos/autores/agregar' },
-          { key: 'autor-requests', label: 'Solicitudes de Autores', url: '/products/atributos/autores/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+          // { key: 'add-autor', label: 'Agregar Autor', url: '/products/atributos/autores/agregar' }, // Ocultado - integrado en Todos los Autores
+          // { key: 'autor-requests', label: 'Solicitudes de Autores', url: '/products/atributos/autores/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todos los Autores
           { key: 'all-colecciones', label: 'Todas las Colecciones', url: '/products/atributos/colecciones' },
-          { key: 'add-coleccion', label: 'Agregar Colección', url: '/products/atributos/colecciones/agregar' },
-          { key: 'coleccion-requests', label: 'Solicitudes de Colecciones', url: '/products/atributos/colecciones/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+          // { key: 'add-coleccion', label: 'Agregar Colección', url: '/products/atributos/colecciones/agregar' }, // Ocultado - integrado en Todas las Colecciones
+          // { key: 'coleccion-requests', label: 'Solicitudes de Colecciones', url: '/products/atributos/colecciones/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todas las Colecciones
           { key: 'all-obras', label: 'Todas las Obras', url: '/products/atributos/obras' },
-          { key: 'add-obra', label: 'Agregar Obra', url: '/products/atributos/obras/agregar' },
-          { key: 'obra-requests', label: 'Solicitudes de Obras', url: '/products/atributos/obras/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+          // { key: 'add-obra', label: 'Agregar Obra', url: '/products/atributos/obras/agregar' }, // Ocultado - integrado en Todas las Obras
+          // { key: 'obra-requests', label: 'Solicitudes de Obras', url: '/products/atributos/obras/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todas las Obras
           { key: 'all-sellos', label: 'Todos los Sellos', url: '/atributos/sello' },
           { key: 'add-sello', label: 'Agregar Sello', url: '/atributos/sello/agregar' },
           { key: 'sello-requests', label: 'Solicitudes de Sellos', url: '/atributos/sello/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
@@ -254,24 +254,24 @@ export const horizontalMenuItems: MenuItemType[] = [
           // { key: 'product-details', label: 'Detalles del Producto', url: '/products/1' }, // Ocultado - se accede desde la lista
           // { key: 'add-product', label: 'Agregar Producto', url: '/add-product' }, // Ocultado - integrado en Todos los Productos
           { key: 'all-categories', label: 'Todas las Categorías', url: '/products/categorias' },
-          { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' },
-          { key: 'categoria-requests', label: 'Solicitudes de Categorías', url: '/products/categorias/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+          // { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' }, // Ocultado - integrado en Todos las Categorías
+          // { key: 'categoria-requests', label: 'Solicitudes de Categorías', url: '/products/categorias/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todos las Categorías
           { key: 'all-tags', label: 'Todas las Etiquetas', url: '/products/etiquetas' },
-          { key: 'add-tag', label: 'Agregar Etiqueta', url: '/products/etiquetas/agregar' },
-          { key: 'etiqueta-requests', label: 'Solicitudes de Etiquetas', url: '/products/etiquetas/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+          // { key: 'add-tag', label: 'Agregar Etiqueta', url: '/products/etiquetas/agregar' }, // Ocultado - integrado en Todas las Etiquetas
+          // { key: 'etiqueta-requests', label: 'Solicitudes de Etiquetas', url: '/products/etiquetas/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todas las Etiquetas
           {
             key: 'atributos',
             label: 'Atributos',
             children: [
               { key: 'all-autores', label: 'Todos los Autores', url: '/products/atributos/autores' },
-              { key: 'add-autor', label: 'Agregar Autor', url: '/products/atributos/autores/agregar' },
-              { key: 'autor-requests', label: 'Solicitudes de Autores', url: '/products/atributos/autores/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+              // { key: 'add-autor', label: 'Agregar Autor', url: '/products/atributos/autores/agregar' }, // Ocultado - integrado en Todos los Autores
+              // { key: 'autor-requests', label: 'Solicitudes de Autores', url: '/products/atributos/autores/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todos los Autores
               { key: 'all-colecciones', label: 'Todas las Colecciones', url: '/products/atributos/colecciones' },
-              { key: 'add-coleccion', label: 'Agregar Colección', url: '/products/atributos/colecciones/agregar' },
-              { key: 'coleccion-requests', label: 'Solicitudes de Colecciones', url: '/products/atributos/colecciones/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
-              { key: 'all-obras', label: 'Todas las Obras', url: '/atributos/obras' },
-              { key: 'add-obra', label: 'Agregar Obra', url: '/atributos/obras/agregar' },
-              { key: 'obra-requests', label: 'Solicitudes de Obras', url: '/products/atributos/obras/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+              // { key: 'add-coleccion', label: 'Agregar Colección', url: '/products/atributos/colecciones/agregar' }, // Ocultado - integrado en Todas las Colecciones
+              // { key: 'coleccion-requests', label: 'Solicitudes de Colecciones', url: '/products/atributos/colecciones/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todas las Colecciones
+              { key: 'all-obras', label: 'Todas las Obras', url: '/products/atributos/obras' },
+              // { key: 'add-obra', label: 'Agregar Obra', url: '/products/atributos/obras/agregar' }, // Ocultado - integrado en Todas las Obras
+              // { key: 'obra-requests', label: 'Solicitudes de Obras', url: '/products/atributos/obras/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todas las Obras
               { key: 'all-sellos', label: 'Todos los Sellos', url: '/atributos/sello' },
               { key: 'add-sello', label: 'Agregar Sello', url: '/atributos/sello/agregar' },
               { key: 'sello-requests', label: 'Solicitudes de Sellos', url: '/atributos/sello/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
