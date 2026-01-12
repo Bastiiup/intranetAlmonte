@@ -98,8 +98,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const curso = cursoResponse.data
-    const attrs = curso.attributes || curso
+    // Asegurar que curso es un objeto, no un array
+    const curso = Array.isArray(cursoResponse.data) ? cursoResponse.data[0] : cursoResponse.data
+    
+    if (!curso || typeof curso !== 'object') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Curso no encontrado o formato inválido',
+        },
+        { status: 404 }
+      )
+    }
+
+    const attrs = (curso as any).attributes || curso
 
     // Obtener versiones existentes (si existen) o crear array vacío
     // Guardamos las versiones en un campo personalizado o en materiales como estructura de versiones
