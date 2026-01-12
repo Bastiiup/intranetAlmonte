@@ -139,11 +139,11 @@ export async function POST(request: NextRequest) {
     // Actualizar el curso con las nuevas versiones
     // Guardamos las versiones en un campo personalizado o en materiales
     // Por ahora usaremos un campo temporal en materiales o crearemos un campo nuevo
+    // Actualizar el curso con las nuevas versiones
+    // NOTA: No incluimos updatedAt porque es un campo automático de Strapi
     const updateData: any = {
       data: {
         versiones_materiales: versionesActualizadas,
-        // También actualizamos la fecha de actualización del curso
-        updatedAt: new Date().toISOString(),
       },
     }
 
