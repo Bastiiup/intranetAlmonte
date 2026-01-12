@@ -121,42 +121,14 @@ export async function GET(
 
     const cursos = Array.isArray(response.data) ? response.data : []
 
-    // Extraer año de metadata temporal si no está en el campo directo
-    const cursosConAño = cursos.map((curso: any) => {
-      const attrs = curso.attributes || curso
-      
-      // Si ya tiene año, no hacer nada
-      if (attrs.año !== undefined && attrs.año !== null) {
-        return curso
-      }
-      if (attrs.ano !== undefined && attrs.ano !== null) {
-        return curso
-      }
-      
-      // Intentar extraer de descripcion (metadata temporal)
-      if (attrs.descripcion) {
-        const match = attrs.descripcion.match(/__AÑO_TEMPORAL__:(\d+)__/)
-        if (match && match[1]) {
-          const año = Number(match[1])
-          // Agregar el año a los attributes para que el frontend lo tenga
-          if (curso.attributes) {
-            curso.attributes.año = año
-            curso.attributes.ano = año
-          } else {
-            curso.año = año
-            curso.ano = año
-          }
-        }
-      }
-      
-      return curso
-    })
+    // El año se manejará en el frontend mediante localStorage
+    // No necesitamos extraerlo aquí ya que el frontend lo leerá de localStorage
 
     return NextResponse.json({
       success: true,
-      data: cursosConAño,
+      data: cursos,
       meta: {
-        total: cursosConAño.length,
+        total: cursos.length,
       },
     }, { status: 200 })
   } catch (error: any) {
