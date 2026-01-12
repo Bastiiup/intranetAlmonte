@@ -19,11 +19,6 @@ declare module 'pdfmake/build/pdfmake' {
 }
 
 declare module 'pdfmake/build/vfs_fonts' {
-  const pdfMake: {
-    pdfMake?: {
-      vfs?: any
-    }
-    vfs?: any
-  }
-  export default pdfMake
+  const vfsFonts: any
+  export default vfsFonts
 }

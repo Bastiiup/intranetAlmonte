@@ -24,8 +24,19 @@ export async function exportarMaterialesAPDF(
     const pdfFonts = await import('pdfmake/build/vfs_fonts')
     
     // Configurar las fuentes
-    if (pdfFonts.pdfMake && pdfFonts.pdfMake.vfs) {
-      pdfMake.default.vfs = pdfFonts.pdfMake.vfs
+    // pdfFonts puede tener diferentes estructuras dependiendo de la versión
+    if (pdfFonts.default) {
+      if (pdfFonts.default.pdfMake?.vfs) {
+        pdfMake.default.vfs = pdfFonts.default.pdfMake.vfs
+      } else if (pdfFonts.default.vfs) {
+        pdfMake.default.vfs = pdfFonts.default.vfs
+      } else if ((pdfFonts.default as any).pdfMake) {
+        pdfMake.default.vfs = (pdfFonts.default as any).pdfMake.vfs
+      }
+    } else if ((pdfFonts as any).pdfMake?.vfs) {
+      pdfMake.default.vfs = (pdfFonts as any).pdfMake.vfs
+    } else if ((pdfFonts as any).vfs) {
+      pdfMake.default.vfs = (pdfFonts as any).vfs
     }
 
     // Preparar datos para la tabla
