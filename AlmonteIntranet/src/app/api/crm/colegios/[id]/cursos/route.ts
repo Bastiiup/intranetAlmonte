@@ -3,38 +3,17 @@
  * GET, POST /api/crm/colegios/[id]/cursos
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import { createSuccessResponse, createErrorResponse, handleApiError } from '@/lib/api/utils'
+import { logger } from '@/lib/logging/logger'
+import type { CursoData, CreateCursoRequest } from '@/lib/crm/types'
+import { getCursosWithPopulate } from '@/lib/strapi/populate-helpers'
+import { prepareManyToOneRelation, cleanUndefinedNullFields } from '@/lib/strapi/relations'
 
 export const dynamic = 'force-dynamic'
 
-// Helper para logs condicionales
-const DEBUG = process.env.NODE_ENV === 'development' || process.env.DEBUG_CRM === 'true'
-const debugLog = (...args: any[]) => {
-  if (DEBUG) {
-    console.log(...args)
-  }
-}
-
-interface CursoAttributes {
-  nombre_curso?: string // ✅ Campo correcto en Strapi
-  curso_nombre?: string // Mantener por compatibilidad
-  titulo?: string // Campo existente en Strapi
-  nivel?: string
-  grado?: string
-  paralelo?: string
-  activo?: boolean
-  colegio?: any
-  lista_utiles?: any // Relación manyToOne
-  materiales?: Array<{
-    material_nombre?: string
-    tipo?: string
-    cantidad?: number
-    obligatorio?: boolean
-    descripcion?: string
-  }>
-}
 
 /**
  * GET /api/crm/colegios/[id]/cursos
@@ -46,7 +25,7 @@ export async function GET(
 ) {
   try {
     const { id: colegioId } = await params
-    debugLog('[API /crm/colegios/[id]/cursos GET] Buscando cursos para colegio:', colegioId)
+    logger.api('/crm/colegios/[id]/cursos', 'GET - Buscando cursos para colegio', { colegioId })
 
     // Obtener el ID numérico del colegio si es documentId
     const isDocumentId = typeof colegioId === 'string' && !/^\d+$/.test(colegioId)
@@ -60,88 +39,30 @@ export async function GET(
         const colegioData = Array.isArray(colegioResponse.data) ? colegioResponse.data[0] : colegioResponse.data
         if (colegioData && typeof colegioData === 'object' && 'id' in colegioData) {
           colegioIdNum = colegioData.id as number
-          debugLog('[API /crm/colegios/[id]/cursos GET] ID numérico del colegio:', colegioIdNum)
+          logger.debug('[API /crm/colegios/[id]/cursos GET] ID numérico del colegio', { colegioIdNum })
         }
       } catch (error: any) {
-        console.error('[API /crm/colegios/[id]/cursos GET] Error obteniendo ID del colegio:', error)
-        return NextResponse.json(
-          { success: false, error: 'Colegio no encontrado' },
-          { status: 404 }
-        )
+        logger.apiError('/crm/colegios/[id]/cursos', 'GET - Error obteniendo ID del colegio', error)
+        return createErrorResponse('Colegio no encontrado', 404)
       }
     }
 
-    // Buscar cursos del colegio
-    // ⚠️ No usar sort hasta verificar qué campos son ordenables en Strapi
-    // Intentar con populate de lista_utiles, si falla intentar sin él
-    // NOTA: El populate anidado de lista_utiles.materiales puede causar error 500 en Strapi
-    // si el content type no está configurado correctamente
-    let response: any
-    try {
-      const paramsObj = new URLSearchParams({
-        'filters[colegio][id][$eq]': String(colegioIdNum),
-        'populate[materiales]': 'true',
-        'populate[lista_utiles]': 'true',
-        'populate[lista_utiles][populate][materiales]': 'true',
-      })
-      response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
-        `/api/cursos?${paramsObj.toString()}`
-      )
-    } catch (error: any) {
-      // Si falla con populate anidado de lista_utiles.materiales (error 500 común),
-      // intentar solo con lista_utiles sin populate anidado
-      if (error.status === 500 || error.status === 400) {
-        debugLog('[API /crm/colegios/[id]/cursos GET] ⚠️ Error 500/400 con populate anidado lista_utiles.materiales, intentando sin populate anidado')
-        try {
-          const paramsObj = new URLSearchParams({
-            'filters[colegio][id][$eq]': String(colegioIdNum),
-            'populate[materiales]': 'true',
-            'populate[lista_utiles]': 'true',
-          })
-          response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
-            `/api/cursos?${paramsObj.toString()}`
-          )
-        } catch (secondError: any) {
-          // Si también falla, intentar sin lista_utiles completamente
-          debugLog('[API /crm/colegios/[id]/cursos GET] ⚠️ Error también sin populate anidado, intentando sin lista_utiles')
-          const paramsObj = new URLSearchParams({
-            'filters[colegio][id][$eq]': String(colegioIdNum),
-            'populate[materiales]': 'true',
-          })
-          response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
-            `/api/cursos?${paramsObj.toString()}`
-          )
-        }
-      } else {
-        // Si es otro tipo de error, propagarlo
-        throw error
-      }
-    }
-
+    // Usar helper con fallbacks automáticos
+    const response = await getCursosWithPopulate<CursoData>(
+      { colegio: { id: { $eq: Number(colegioIdNum) } } }
+    )
     const cursos = Array.isArray(response.data) ? response.data : []
 
-    return NextResponse.json({
-      success: true,
-      data: cursos,
-      meta: {
-        total: cursos.length,
-      },
-    }, { status: 200 })
-  } catch (error: any) {
-    console.error('[API /crm/colegios/[id]/cursos GET] Error:', {
-      message: error.message,
-      status: error.status,
-      details: error.details,
+    logger.success('[API /crm/colegios/[id]/cursos GET] Cursos obtenidos exitosamente', { 
+      colegioId, 
+      total: cursos.length 
     })
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message || 'Error al obtener cursos',
-        details: error.details || {},
-        status: error.status || 500,
-      },
-      { status: error.status || 500 }
-    )
+    return createSuccessResponse(cursos, {
+      total: cursos.length,
+    })
+  } catch (error: any) {
+    logger.apiError('/crm/colegios/[id]/cursos', 'GET - Error al obtener cursos', error)
+    return handleApiError(error, 'Error al obtener cursos')
   }
 }
 
@@ -157,7 +78,7 @@ export async function POST(
     const { id: colegioId } = await params
     const body = await request.json()
 
-    debugLog('[API /crm/colegios/[id]/cursos POST] Creando curso para colegio:', colegioId)
+    logger.api('/crm/colegios/[id]/cursos', 'POST - Creando curso para colegio', { colegioId })
 
     // Obtener el ID numérico del colegio
     const isDocumentId = typeof colegioId === 'string' && !/^\d+$/.test(colegioId)
@@ -173,34 +94,19 @@ export async function POST(
           colegioIdNum = colegioData.id as number
         }
       } catch (error: any) {
-        return NextResponse.json(
-          { success: false, error: 'Colegio no encontrado' },
-          { status: 404 }
-        )
+        return createErrorResponse('Colegio no encontrado', 404)
       }
     }
 
     // Validaciones
     if (!body.nivel || !body.grado) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'El nivel y grado son obligatorios',
-        },
-        { status: 400 }
-      )
+      return createErrorResponse('El nivel y grado son obligatorios', 400)
     }
 
     // ✅ Campo correcto en Strapi: nombre_curso (generado automáticamente o proporcionado)
     const nombreCurso = body.nombre_curso?.trim() || body.curso_nombre?.trim()
     if (!nombreCurso) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'El nombre del curso es obligatorio',
-        },
-        { status: 400 }
-      )
+      return createErrorResponse('El nombre del curso es obligatorio', 400)
     }
 
     const cursoData: any = {
@@ -214,14 +120,10 @@ export async function POST(
       },
     }
 
-    // Agregar relación lista_utiles si está presente
-    if (body.lista_utiles) {
-      const listaUtilesId = typeof body.lista_utiles === 'number' 
-        ? body.lista_utiles 
-        : parseInt(String(body.lista_utiles))
-      if (!isNaN(listaUtilesId)) {
-        cursoData.data.lista_utiles = { connect: [listaUtilesId] }
-      }
+    // Agregar relación lista_utiles usando helper
+    const listaUtilesRelation = prepareManyToOneRelation(body.lista_utiles, 'lista_utiles')
+    if (listaUtilesRelation) {
+      Object.assign(cursoData.data, listaUtilesRelation)
     }
 
     // Materiales adicionales (solo si no hay lista_utiles o si se proporcionan explícitamente)
@@ -238,39 +140,22 @@ export async function POST(
       cursoData.data.materiales = []
     }
     
-    // Limpiar campos undefined o null
-    Object.keys(cursoData.data).forEach(key => {
-      if (cursoData.data[key] === undefined || cursoData.data[key] === null) {
-        delete cursoData.data[key]
-      }
-    })
+    // Limpiar campos undefined o null usando helper
+    cursoData.data = cleanUndefinedNullFields(cursoData.data) as typeof cursoData.data
 
-    const response = await strapiClient.post<StrapiResponse<StrapiEntity<CursoAttributes>>>(
+    const response = await strapiClient.post<StrapiResponse<StrapiEntity<CursoData>>>(
       '/api/cursos',
       cursoData
     )
 
-    debugLog('[API /crm/colegios/[id]/cursos POST] Curso creado exitosamente')
+    logger.success('[API /crm/colegios/[id]/cursos POST] Curso creado exitosamente', { colegioId })
 
-    return NextResponse.json({
-      success: true,
-      data: response.data,
-      message: 'Curso creado exitosamente',
-    }, { status: 200 })
-  } catch (error: any) {
-    console.error('[API /crm/colegios/[id]/cursos POST] Error:', {
-      message: error.message,
-      status: error.status,
-      details: error.details,
-    })
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message || 'Error al crear curso',
-        details: error.details || {},
-        status: error.status || 500,
-      },
-      { status: error.status || 500 }
+    return createSuccessResponse(
+      response.data,
+      { message: 'Curso creado exitosamente' }
     )
+  } catch (error: any) {
+    logger.apiError('/crm/colegios/[id]/cursos', 'POST - Error al crear curso', error)
+    return handleApiError(error, 'Error al crear curso')
   }
 }

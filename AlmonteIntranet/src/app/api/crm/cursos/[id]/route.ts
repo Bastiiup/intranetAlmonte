@@ -9,6 +9,8 @@ import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 import { createSuccessResponse, createErrorResponse, handleApiError } from '@/lib/api/utils'
 import { logger } from '@/lib/logging/logger'
 import type { CursoData, UpdateCursoRequest } from '@/lib/crm/types'
+import { getCursoWithPopulate } from '@/lib/strapi/populate-helpers'
+import { prepareManyToOneRelation, cleanUndefinedNullFields } from '@/lib/strapi/relations'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,51 +26,8 @@ export async function GET(
     const { id } = await params
     logger.api('/crm/cursos/[id]', 'GET - Buscando curso', { id })
 
-    // Intentar con populate de lista_utiles, si falla intentar sin él
-    // NOTA: El populate anidado de lista_utiles.materiales puede causar error 500 en Strapi
-    // si el content type no está configurado correctamente
-    let response: StrapiResponse<StrapiEntity<CursoData>>
-    try {
-      const paramsObj = new URLSearchParams({
-        'populate[materiales]': 'true',
-        'populate[colegio]': 'true',
-        'populate[lista_utiles]': 'true',
-        'populate[lista_utiles][populate][materiales]': 'true',
-      })
-      response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoData>>>(
-        `/api/cursos/${id}?${paramsObj.toString()}`
-      )
-    } catch (error: any) {
-      // Si falla con populate anidado de lista_utiles.materiales (error 500 común),
-      // intentar solo con lista_utiles sin populate anidado
-      if (error.status === 500 || error.status === 400) {
-        logger.warn('[API /crm/cursos/[id] GET] Error 500/400 con populate anidado lista_utiles.materiales, intentando sin populate anidado', { id })
-        try {
-          const paramsObj = new URLSearchParams({
-            'populate[materiales]': 'true',
-            'populate[colegio]': 'true',
-            'populate[lista_utiles]': 'true',
-          })
-          response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoData>>>(
-            `/api/cursos/${id}?${paramsObj.toString()}`
-          )
-        } catch (secondError: any) {
-          // Si también falla, intentar sin lista_utiles completamente
-          logger.warn('[API /crm/cursos/[id] GET] Error también sin populate anidado, intentando sin lista_utiles', { id })
-          const paramsObj = new URLSearchParams({
-            'populate[materiales]': 'true',
-            'populate[colegio]': 'true',
-          })
-          response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoData>>>(
-            `/api/cursos/${id}?${paramsObj.toString()}`
-          )
-        }
-      } else {
-        // Si es otro tipo de error, propagarlo
-        throw error
-      }
-    }
-
+    // Usar helper con fallbacks automáticos
+    const response = await getCursoWithPopulate<CursoData>(id)
     const curso = Array.isArray(response.data) ? response.data[0] : response.data
     
     if (!curso) {
@@ -124,19 +83,10 @@ export async function PUT(
       cursoData.data.activo = body.activo
     }
 
-    // Actualizar relación lista_utiles
-    if (body.lista_utiles !== undefined) {
-      if (body.lista_utiles === null || body.lista_utiles === '') {
-        // Desconectar lista_utiles
-        cursoData.data.lista_utiles = { disconnect: true }
-      } else {
-        const listaUtilesId = typeof body.lista_utiles === 'number' 
-          ? body.lista_utiles 
-          : parseInt(String(body.lista_utiles))
-        if (!isNaN(listaUtilesId)) {
-          cursoData.data.lista_utiles = { connect: [listaUtilesId] }
-        }
-      }
+    // Actualizar relación lista_utiles usando helper
+    const listaUtilesRelation = prepareManyToOneRelation(body.lista_utiles, 'lista_utiles')
+    if (listaUtilesRelation) {
+      Object.assign(cursoData.data, listaUtilesRelation)
     }
 
     // Actualizar materiales adicionales si se proporcionan
@@ -155,13 +105,8 @@ export async function PUT(
       }
     }
     
-    // Limpiar campos undefined o null
-    Object.keys(cursoData.data).forEach(key => {
-      if (cursoData.data[key as keyof typeof cursoData.data] === undefined || 
-          cursoData.data[key as keyof typeof cursoData.data] === null) {
-        delete cursoData.data[key as keyof typeof cursoData.data]
-      }
-    })
+    // Limpiar campos undefined o null usando helper
+    cursoData.data = cleanUndefinedNullFields(cursoData.data) as typeof cursoData.data
 
     const response = await strapiClient.put<StrapiResponse<StrapiEntity<CursoData>>>(
       `/api/cursos/${id}`,
