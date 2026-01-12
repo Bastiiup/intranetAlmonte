@@ -426,21 +426,55 @@ export default function CursoDetailPage() {
                                 >
                                   <LuPencil size={14} />
                                 </Button>
+                                {/* Botones para PDF original */}
+                                {version.pdf_url && (
+                                  <>
+                                    <Button
+                                      variant="outline-success"
+                                      size="sm"
+                                      onClick={() => {
+                                        // Descargar PDF original
+                                        const link = document.createElement('a')
+                                        link.href = version.pdf_url
+                                        link.download = version.nombre_archivo || 'documento.pdf'
+                                        link.target = '_blank'
+                                        document.body.appendChild(link)
+                                        link.click()
+                                        document.body.removeChild(link)
+                                      }}
+                                      title="Descargar PDF original"
+                                    >
+                                      <LuDownload size={14} />
+                                    </Button>
+                                    <Button
+                                      variant="outline-info"
+                                      size="sm"
+                                      onClick={() => {
+                                        setPdfViewerUrl(version.pdf_url)
+                                        setShowPDFViewer(true)
+                                      }}
+                                      title="Visualizar PDF"
+                                    >
+                                      <LuEye size={14} />
+                                    </Button>
+                                  </>
+                                )}
+                                {/* Botones para exportar materiales */}
                                 {materialesVersion.length > 0 && (
                                   <>
                                     <Button
                                       variant="outline-info"
                                       size="sm"
                                       onClick={() => handleExportarMateriales('excel', { materiales: materialesVersion, nombre: version.nombre_archivo })}
-                                      title="Exportar Excel"
+                                      title="Exportar Excel de materiales"
                                     >
-                                      <LuDownload size={14} />
+                                      <LuFileText size={14} />
                                     </Button>
                                     <Button
                                       variant="outline-danger"
                                       size="sm"
                                       onClick={() => handleExportarMateriales('pdf', { materiales: materialesVersion, nombre: version.nombre_archivo })}
-                                      title="Exportar PDF"
+                                      title="Exportar PDF de materiales"
                                     >
                                       <LuFileText size={14} />
                                     </Button>
