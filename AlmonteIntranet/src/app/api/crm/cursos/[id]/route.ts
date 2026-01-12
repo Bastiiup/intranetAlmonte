@@ -124,9 +124,23 @@ export async function GET(
       )
     }
 
+    // Verificar que realmente tenemos datos
+    if (!response || !response.data) {
+      debugLog('[API /crm/cursos/[id] GET] ⚠️ Respuesta sin datos para ID:', id)
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Curso con ID ${id} no encontrado`,
+          status: 404,
+        },
+        { status: 404 }
+      )
+    }
+
     debugLog('[API /crm/cursos/[id] GET] ✅ Curso encontrado:', {
       hasData: !!response.data,
       id: response.data?.id || response.data?.documentId,
+      nombre: (response.data as any)?.attributes?.nombre_curso || (response.data as any)?.nombre_curso,
     })
 
     return NextResponse.json({
