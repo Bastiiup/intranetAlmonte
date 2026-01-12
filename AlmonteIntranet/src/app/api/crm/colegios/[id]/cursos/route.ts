@@ -267,11 +267,20 @@ export async function POST(
         message: 'Curso creado exitosamente',
       }, { status: 200 })
     } catch (error: any) {
-      // Si el error es "Invalid key año", intentar sin el campo año
+      // Si el error es "Invalid key año", intentar sin el campo año pero guardarlo en descripcion temporalmente
       if (error.message?.includes('Invalid key año') || error.message?.includes('Invalid key ano')) {
-        debugLog('[API /crm/colegios/[id]/cursos POST] ⚠️ Error con campo año, intentando sin él')
+        debugLog('[API /crm/colegios/[id]/cursos POST] ⚠️ Error con campo año, guardando año en metadata temporal')
+        const añoTemporal = año
         delete cursoData.data.año
         delete cursoData.data.ano
+        
+        // Guardar el año en un campo temporal (metadata) si existe, o en descripcion
+        // Esto permitirá que el filtro funcione hasta que Strapi tenga el campo año configurado
+        if (!cursoData.data.descripcion) {
+          cursoData.data.descripcion = `__AÑO_TEMPORAL__:${añoTemporal}__`
+        } else {
+          cursoData.data.descripcion = `${cursoData.data.descripcion} __AÑO_TEMPORAL__:${añoTemporal}__`
+        }
         
         try {
           const response = await strapiClient.post<StrapiResponse<StrapiEntity<CursoAttributes>>>(
@@ -279,12 +288,21 @@ export async function POST(
             cursoData
           )
           
-          debugLog('[API /crm/colegios/[id]/cursos POST] Curso creado exitosamente (sin campo año)')
+          debugLog('[API /crm/colegios/[id]/cursos POST] Curso creado exitosamente (año guardado temporalmente en metadata)')
+          
+          // Agregar el año a la respuesta para que el frontend lo tenga
+          if (response.data && typeof response.data === 'object') {
+            const data = Array.isArray(response.data) ? response.data[0] : response.data
+            if (data && typeof data === 'object' && 'attributes' in data) {
+              (data.attributes as any).año = añoTemporal
+              ;(data.attributes as any).ano = añoTemporal
+            }
+          }
           
           return NextResponse.json({
             success: true,
             data: response.data,
-            message: 'Curso creado exitosamente (nota: el campo año aún no está configurado en Strapi)',
+            message: 'Curso creado exitosamente (año guardado temporalmente hasta que Strapi tenga el campo configurado)',
           }, { status: 200 })
         } catch (secondError: any) {
           // Si también falla sin año, devolver el error original

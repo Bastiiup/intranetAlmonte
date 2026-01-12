@@ -367,13 +367,36 @@ export default function ColegioDetailPage() {
     }
   }, [colegioId, activeTab])
 
+  // Función helper para extraer el año de un curso (incluyendo metadata temporal)
+  const obtenerAñoDelCurso = (curso: any): number => {
+    const attrs = curso.attributes || curso
+    
+    // Primero intentar obtener el año directamente
+    if (attrs.año !== undefined && attrs.año !== null) {
+      return Number(attrs.año)
+    }
+    if (attrs.ano !== undefined && attrs.ano !== null) {
+      return Number(attrs.ano)
+    }
+    
+    // Si no está, intentar extraerlo de la descripción (metadata temporal)
+    if (attrs.descripcion) {
+      const match = attrs.descripcion.match(/__AÑO_TEMPORAL__:(\d+)__/)
+      if (match && match[1]) {
+        return Number(match[1])
+      }
+    }
+    
+    // Fallback: año actual
+    return new Date().getFullYear()
+  }
+
   // Obtener años únicos de los cursos para el filtro
   const añosDisponibles = useMemo(() => {
     const años = new Set<number>()
     cursos.forEach((curso: any) => {
-      const attrs = curso.attributes || curso
-      const año = attrs.año || attrs.ano || new Date().getFullYear()
-      años.add(Number(año))
+      const año = obtenerAñoDelCurso(curso)
+      años.add(año)
     })
     return Array.from(años).sort((a, b) => b - a) // Ordenar de mayor a menor
   }, [cursos])
@@ -382,9 +405,8 @@ export default function ColegioDetailPage() {
   const cursosFiltrados = useMemo(() => {
     if (añoFiltro === null) return cursos
     return cursos.filter((curso: any) => {
-      const attrs = curso.attributes || curso
-      const año = attrs.año || attrs.ano || new Date().getFullYear()
-      return Number(año) === añoFiltro
+      const año = obtenerAñoDelCurso(curso)
+      return año === añoFiltro
     })
   }, [cursos, añoFiltro])
 
@@ -968,7 +990,7 @@ export default function ColegioDetailPage() {
             const cursosPorAño = añoFiltro === null 
               ? cursosFiltrados.reduce((acc: Record<string, any[]>, curso: any) => {
                   const attrs = curso.attributes || curso
-                  const año = attrs.año || attrs.ano || new Date().getFullYear()
+                  const año = obtenerAñoDelCurso(curso)
                   const añoKey = String(año)
                   if (!acc[añoKey]) {
                     acc[añoKey] = []
@@ -1019,7 +1041,7 @@ export default function ColegioDetailPage() {
                               const nombreLista = attrs.lista_utiles?.data?.attributes?.nombre || 
                                                  attrs.lista_utiles?.attributes?.nombre || 
                                                  attrs.lista_utiles?.nombre || null
-                              const año = attrs.año || attrs.ano || new Date().getFullYear()
+                              const año = obtenerAñoDelCurso(curso)
                               
                               return (
                                 <tr key={curso.id || curso.documentId}>
