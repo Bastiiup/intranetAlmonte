@@ -152,11 +152,11 @@ export const menuItems: MenuItemType[] = [
           // { key: 'add-obra', label: 'Agregar Obra', url: '/products/atributos/obras/agregar' }, // Ocultado - integrado en Todas las Obras
           // { key: 'obra-requests', label: 'Solicitudes de Obras', url: '/products/atributos/obras/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todas las Obras
           { key: 'all-sellos', label: 'Todos los Sellos', url: '/atributos/sello' },
-          { key: 'add-sello', label: 'Agregar Sello', url: '/atributos/sello/agregar' },
-          { key: 'sello-requests', label: 'Solicitudes de Sellos', url: '/atributos/sello/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+          // { key: 'add-sello', label: 'Agregar Sello', url: '/atributos/sello/agregar' }, // Ocultado - integrado en Todos los Sellos
+          // { key: 'sello-requests', label: 'Solicitudes de Sellos', url: '/atributos/sello/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todos los Sellos
           { key: 'all-marcas', label: 'Todas las Marcas', url: '/atributos/marca' },
-          { key: 'add-marca', label: 'Agregar Marca', url: '/atributos/marca/agregar' },
-          { key: 'marca-requests', label: 'Solicitudes de Marcas', url: '/atributos/marca/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+          // { key: 'add-marca', label: 'Agregar Marca', url: '/atributos/marca/agregar' }, // Ocultado - integrado en Todas las Marcas
+          // { key: 'marca-requests', label: 'Solicitudes de Marcas', url: '/atributos/marca/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todas las Marcas
         ],
       },
       // { key: 'product-requests', label: 'Solicitudes de Productos', url: '/products/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todos los Productos
@@ -273,11 +273,11 @@ export const horizontalMenuItems: MenuItemType[] = [
               // { key: 'add-obra', label: 'Agregar Obra', url: '/products/atributos/obras/agregar' }, // Ocultado - integrado en Todas las Obras
               // { key: 'obra-requests', label: 'Solicitudes de Obras', url: '/products/atributos/obras/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todas las Obras
               { key: 'all-sellos', label: 'Todos los Sellos', url: '/atributos/sello' },
-              { key: 'add-sello', label: 'Agregar Sello', url: '/atributos/sello/agregar' },
-              { key: 'sello-requests', label: 'Solicitudes de Sellos', url: '/atributos/sello/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+              // { key: 'add-sello', label: 'Agregar Sello', url: '/atributos/sello/agregar' }, // Ocultado - integrado en Todos los Sellos
+              // { key: 'sello-requests', label: 'Solicitudes de Sellos', url: '/atributos/sello/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todos los Sellos
               { key: 'all-marcas', label: 'Todas las Marcas', url: '/atributos/marca' },
-              { key: 'add-marca', label: 'Agregar Marca', url: '/atributos/marca/agregar' },
-              { key: 'marca-requests', label: 'Solicitudes de Marcas', url: '/atributos/marca/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+              // { key: 'add-marca', label: 'Agregar Marca', url: '/atributos/marca/agregar' }, // Ocultado - integrado en Todas las Marcas
+              // { key: 'marca-requests', label: 'Solicitudes de Marcas', url: '/atributos/marca/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todas las Marcas
             ],
           },
           // { key: 'product-requests', label: 'Solicitudes de Productos', url: '/products/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todos los Productos
