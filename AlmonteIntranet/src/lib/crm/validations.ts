@@ -11,7 +11,13 @@ export const MaterialSchema = z.object({
   cantidad: z.number().int().positive().default(1),
   obligatorio: z.boolean().default(true),
   descripcion: z.string().optional().nullable(),
-})
+}).transform(data => ({
+  material_nombre: data.material_nombre,
+  tipo: data.tipo ?? 'util', // Garantizar que siempre tenga valor
+  cantidad: data.cantidad ?? 1, // Garantizar que siempre tenga valor
+  obligatorio: data.obligatorio ?? true, // Garantizar que siempre tenga valor
+  descripcion: data.descripcion ?? null,
+}))
 
 // Schema para actualizar curso
 export const UpdateCursoSchema = z.object({
@@ -34,7 +40,17 @@ export const CreateCursoSchema = z.object({
   lista_utiles: z.union([z.number(), z.string(), z.null()]).optional(),
   materiales: z.array(MaterialSchema).optional(),
   colegio: z.union([z.number(), z.string()]),
-})
+}).transform(data => ({
+  ...data,
+  // Asegurar que materiales siempre tengan los campos requeridos
+  materiales: data.materiales?.map(m => ({
+    material_nombre: m.material_nombre,
+    tipo: m.tipo ?? 'util',
+    cantidad: m.cantidad ?? 1,
+    obligatorio: m.obligatorio ?? true,
+    descripcion: m.descripcion ?? null,
+  })),
+}))
 
 // Tipos inferidos de los schemas
 export type UpdateCursoInput = z.infer<typeof UpdateCursoSchema>
