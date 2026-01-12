@@ -86,7 +86,10 @@ export async function GET(
         'populate[lista_utiles]': 'true', // Solo el ID de lista_utiles, sin materiales anidados
         'fields[0]': 'nombre_curso', // Incluir nombre_curso explícitamente
         'fields[1]': 'año', // Incluir año explícitamente para el filtro
-        'fields[2]': 'versiones_materiales', // Incluir explícitamente versiones_materiales
+        'fields[2]': 'nivel', // Incluir nivel explícitamente
+        'fields[3]': 'grado', // Incluir grado explícitamente
+        'fields[4]': 'paralelo', // Incluir paralelo explícitamente
+        'fields[5]': 'versiones_materiales', // Incluir explícitamente versiones_materiales
         'publicationState': 'preview', // Incluir drafts y publicados
       })
       response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
