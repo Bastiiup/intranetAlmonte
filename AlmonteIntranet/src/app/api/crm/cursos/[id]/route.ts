@@ -39,29 +39,79 @@ export async function GET(
   try {
     debugLog('[API /crm/cursos/[id] GET] Buscando curso con ID:', id, 'Tipo:', typeof id)
     
+    // IMPORTANTE: Verificar si el ID es numérico o documentId
+    // Strapi puede usar diferentes formatos de ID dependiendo de la configuración
+    // Intentar primero con el ID tal como viene, luego probar otros formatos si falla
+    
     // Estrategia simplificada: primero obtener el curso básico, luego poblar relaciones si es necesario
     // NO intentar populate anidado desde el principio porque causa error 500 en Strapi
     let response: any
     
     // Paso 1: Intentar obtener curso con populate básico (sin populate anidado)
+    // IMPORTANTE: Como cursos tiene draftAndPublish: true, necesitamos publicationState=preview
+    // para incluir cursos en estado "Draft"
     try {
       const paramsObj = new URLSearchParams({
         'populate[materiales]': 'true',
         'populate[colegio]': 'true',
         'populate[lista_utiles]': 'true', // Solo el ID de lista_utiles, sin materiales anidados
+        'publicationState': 'preview', // Incluir drafts y publicados
       })
       response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
         `/api/cursos/${id}?${paramsObj.toString()}`
       )
-      debugLog('[API /crm/cursos/[id] GET] ✅ Curso obtenido con populate básico')
+      debugLog('[API /crm/cursos/[id] GET] ✅ Curso obtenido con populate básico y publicationState=preview')
     } catch (error: any) {
-      // Si falla, intentar sin lista_utiles
-      if (error.status === 500 || error.status === 400 || error.status === 404) {
-        debugLog('[API /crm/cursos/[id] GET] ⚠️ Error con populate básico, intentando sin lista_utiles')
+      // Si falla con 404, puede ser que el curso no exista o esté en draft sin publicationState
+      // Intentar primero sin publicationState (solo publicados)
+      if (error.status === 404) {
+        debugLog('[API /crm/cursos/[id] GET] ⚠️ Error 404 con publicationState=preview, intentando solo publicados')
         try {
           const paramsObj = new URLSearchParams({
             'populate[materiales]': 'true',
             'populate[colegio]': 'true',
+            'populate[lista_utiles]': 'true',
+            // Sin publicationState = solo publicados
+          })
+          response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+            `/api/cursos/${id}?${paramsObj.toString()}`
+          )
+          debugLog('[API /crm/cursos/[id] GET] ✅ Curso obtenido (solo publicados)')
+        } catch (secondError: any) {
+          // Si también falla, intentar sin lista_utiles
+          if (secondError.status === 500 || secondError.status === 400) {
+            debugLog('[API /crm/cursos/[id] GET] ⚠️ Error también sin publicationState, intentando sin lista_utiles')
+            try {
+              const paramsObj = new URLSearchParams({
+                'populate[materiales]': 'true',
+                'populate[colegio]': 'true',
+                'publicationState': 'preview',
+              })
+              response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+                `/api/cursos/${id}?${paramsObj.toString()}`
+              )
+              debugLog('[API /crm/cursos/[id] GET] ✅ Curso obtenido sin lista_utiles')
+            } catch (thirdError: any) {
+              // Si también falla, intentar solo campos básicos
+              debugLog('[API /crm/cursos/[id] GET] ⚠️ Error también sin lista_utiles, intentando solo campos básicos')
+              response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+                `/api/cursos/${id}?publicationState=preview`
+              )
+              debugLog('[API /crm/cursos/[id] GET] ✅ Curso obtenido solo con campos básicos')
+            }
+          } else {
+            // Si es otro tipo de error, propagarlo
+            throw secondError
+          }
+        }
+      } else if (error.status === 500 || error.status === 400) {
+        // Si es error 500/400, intentar sin lista_utiles
+        debugLog('[API /crm/cursos/[id] GET] ⚠️ Error 500/400 con populate básico, intentando sin lista_utiles')
+        try {
+          const paramsObj = new URLSearchParams({
+            'populate[materiales]': 'true',
+            'populate[colegio]': 'true',
+            'publicationState': 'preview',
           })
           response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
             `/api/cursos/${id}?${paramsObj.toString()}`
@@ -71,7 +121,7 @@ export async function GET(
           // Si también falla, intentar solo campos básicos
           debugLog('[API /crm/cursos/[id] GET] ⚠️ Error también sin lista_utiles, intentando solo campos básicos')
           response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-            `/api/cursos/${id}`
+            `/api/cursos/${id}?publicationState=preview`
           )
           debugLog('[API /crm/cursos/[id] GET] ✅ Curso obtenido solo con campos básicos')
         }

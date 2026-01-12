@@ -75,6 +75,8 @@ export async function GET(
     // Buscar cursos del colegio
     // Estrategia simplificada: NO intentar populate anidado desde el principio
     // porque causa error 500 en Strapi
+    // IMPORTANTE: Como cursos tiene draftAndPublish: true, necesitamos publicationState=preview
+    // para incluir cursos en estado "Draft"
     let response: any
     try {
       // Paso 1: Obtener cursos con populate básico (sin populate anidado)
@@ -82,11 +84,12 @@ export async function GET(
         'filters[colegio][id][$eq]': String(colegioIdNum),
         'populate[materiales]': 'true',
         'populate[lista_utiles]': 'true', // Solo el ID de lista_utiles, sin materiales anidados
+        'publicationState': 'preview', // Incluir drafts y publicados
       })
       response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
         `/api/cursos?${paramsObj.toString()}`
       )
-      debugLog('[API /crm/colegios/[id]/cursos GET] ✅ Cursos obtenidos con populate básico')
+      debugLog('[API /crm/colegios/[id]/cursos GET] ✅ Cursos obtenidos con populate básico y publicationState=preview')
     } catch (error: any) {
       // Si falla, intentar sin lista_utiles
       if (error.status === 500 || error.status === 400 || error.status === 404) {
@@ -95,6 +98,7 @@ export async function GET(
           const paramsObj = new URLSearchParams({
             'filters[colegio][id][$eq]': String(colegioIdNum),
             'populate[materiales]': 'true',
+            'publicationState': 'preview',
           })
           response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
             `/api/cursos?${paramsObj.toString()}`
@@ -105,6 +109,7 @@ export async function GET(
           debugLog('[API /crm/colegios/[id]/cursos GET] ⚠️ Error también sin lista_utiles, intentando solo campos básicos')
           const paramsObj = new URLSearchParams({
             'filters[colegio][id][$eq]': String(colegioIdNum),
+            'publicationState': 'preview',
           })
           response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
             `/api/cursos?${paramsObj.toString()}`

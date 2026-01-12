@@ -1084,12 +1084,15 @@ export default function ColegioDetailPage() {
                                         size="sm"
                                         className="p-1 text-success"
                                         onClick={() => {
-                                          // Intentar obtener el ID del curso (puede ser id numérico o documentId)
-                                          // Strapi puede devolver el ID en diferentes formatos
-                                          const cursoId = curso.id || 
-                                                         curso.documentId || 
-                                                         (curso.attributes && (curso.attributes.id || curso.attributes.documentId)) ||
-                                                         (curso.data && (curso.data.id || curso.data.documentId))
+                                          // Intentar obtener el ID del curso
+                                          // IMPORTANTE: Con draftAndPublish: true, Strapi usa:
+                                          // - id (numérico): Para documentos publicados
+                                          // - documentId (string UUID): Identificador único (draft o publicado)
+                                          // Preferir documentId si está disponible porque es más confiable
+                                          const cursoId = curso.documentId || // Preferir documentId
+                                                         curso.id || 
+                                                         (curso.attributes && (curso.attributes.documentId || curso.attributes.id)) ||
+                                                         (curso.data && (curso.data.documentId || curso.data.id))
                                           
                                           debugLog('[ColegioDetailPage] Navegando a detalle de curso:', { 
                                             cursoId, 
