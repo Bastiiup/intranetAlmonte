@@ -149,15 +149,16 @@ export async function POST(request: NextRequest) {
     const versionesActualizadas = [...versionesExistentes, nuevaVersion]
 
     // Actualizar el curso con las nuevas versiones
-    // IMPORTANTE: Incluir todos los campos requeridos para evitar que se pierdan o causen errores de validación
+    // IMPORTANTE: Solo incluir versiones_materiales y campos que existan y sean válidos
+    // NO incluir campos que no existen o son inválidos para evitar errores de validación
     const updateData: any = {
       data: {
         versiones_materiales: versionesActualizadas,
       },
     }
     
-    // Incluir campos requeridos del curso para evitar errores de validación y pérdida de datos
-    // IMPORTANTE: Incluir todos los campos que existen en el curso para no perderlos
+    // Incluir campos del curso SOLO si existen y son válidos
+    // NO incluir campos requeridos si no existen - Strapi mantendrá los valores existentes
     
     // Nombre del curso (probar diferentes variantes)
     if (attrs.nombre_curso) {
