@@ -84,6 +84,7 @@ export async function GET(
         'filters[colegio][id][$eq]': String(colegioIdNum),
         'populate[materiales]': 'true',
         'populate[lista_utiles]': 'true', // Solo el ID de lista_utiles, sin materiales anidados
+        'fields[0]': 'versiones_materiales', // Incluir explícitamente versiones_materiales
         'publicationState': 'preview', // Incluir drafts y publicados
       })
       response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
