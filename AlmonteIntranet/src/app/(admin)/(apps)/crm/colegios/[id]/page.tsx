@@ -968,84 +968,84 @@ export default function ColegioDetailPage() {
                                     )}
                                   </div>
                                 </CardHeader>
-                    <CardBody>
-                      <div className="mb-3">
-                        <h6 className="small text-muted mb-2">
-                          <LuPackage className="me-1" size={14} />
-                          Materiales ({materiales.length})
-                          {attrs.lista_utiles && (
-                            <Badge bg="secondary" className="ms-2">
-                              Lista predefinida
-                            </Badge>
-                          )}
-                        </h6>
-                        {materiales.length > 0 ? (
-                          <div className="small">
-                            {materiales.slice(0, 5).map((material: any, idx: number) => (
-                              <div key={idx} className="mb-1">
-                                <Badge bg={material.obligatorio !== false ? 'primary' : 'secondary'} className="me-1">
-                                  {material.cantidad || 1}x
-                                </Badge>
-                                {material.material_nombre || 'Sin nombre'}
-                                {material.obligatorio === false && (
-                                  <small className="text-muted ms-1">(Opcional)</small>
-                                )}
-                              </div>
-                            ))}
-                            {materiales.length > 5 && (
-                              <small className="text-muted">+{materiales.length - 5} más</small>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-muted small mb-0">No hay materiales asignados</p>
-                        )}
-                      </div>
-                      <div className="d-flex gap-2">
-                        {materiales.length > 0 && (
-                          <Button
-                            variant="outline-info"
-                            size="sm"
-                            onClick={async () => {
-                              try {
-                                // Formatear materiales para exportación
-                                const materialesFormateados = materiales.map((m: any) => ({
-                                  material_nombre: m.material_nombre || 'Sin nombre',
-                                  tipo: (m.tipo || 'util') as 'util' | 'libro' | 'cuaderno' | 'otro',
-                                  cantidad: parseInt(String(m.cantidad)) || 1,
-                                  obligatorio: m.obligatorio !== false,
-                                  descripcion: m.descripcion || undefined,
-                                }))
-                                
-                                // Nombre del archivo basado en el curso
-                                const nombreCurso = attrs.nombre_curso || attrs.curso_nombre || 'materiales_curso'
-                                const nombreArchivo = nombreCurso.replace(/\s+/g, '_')
-                                
-                                await exportarMaterialesAExcel(materialesFormateados, nombreArchivo)
-                              } catch (error: any) {
-                                console.error('Error al exportar materiales:', error)
-                                alert('Error al exportar materiales: ' + (error.message || 'Error desconocido'))
-                              }
-                            }}
-                            title="Exportar materiales a Excel"
-                          >
-                            <LuDownload size={14} />
-                          </Button>
-                        )}
-                        <Button
-                          variant="outline-primary"
-                          size="sm"
-                          className={materiales.length > 0 ? 'flex-fill' : ''}
-                          onClick={() => {
-                            setCursoSeleccionado(curso)
-                            setShowCursoModal(true)
-                          }}
-                        >
-                          Editar
-                        </Button>
-                      </div>
-                    </CardBody>
-                  </Card>
-                </Col>
+                                <CardBody>
+                                  <div className="mb-3">
+                                    <h6 className="small text-muted mb-2">
+                                      <LuPackage className="me-1" size={14} />
+                                      Materiales ({materiales.length})
+                                      {attrs.lista_utiles && (
+                                        <Badge bg="secondary" className="ms-2">
+                                          Lista predefinida
+                                        </Badge>
+                                      )}
+                                    </h6>
+                                    {materiales.length > 0 ? (
+                                      <div className="small">
+                                        {materiales.slice(0, 5).map((material: any, idx: number) => (
+                                          <div key={idx} className="mb-1">
+                                            <Badge bg={material.obligatorio !== false ? 'primary' : 'secondary'} className="me-1">
+                                              {material.cantidad || 1}x
+                                            </Badge>
+                                            {material.material_nombre || 'Sin nombre'}
+                                            {material.obligatorio === false && (
+                                              <small className="text-muted ms-1">(Opcional)</small>
+                                            )}
+                                          </div>
+                                        ))}
+                                        {materiales.length > 5 && (
+                                          <small className="text-muted">+{materiales.length - 5} más</small>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <p className="text-muted small mb-0">No hay materiales asignados</p>
+                                    )}
+                                  </div>
+                                  <div className="d-flex gap-2">
+                                    {materiales.length > 0 && (
+                                      <Button
+                                        variant="outline-info"
+                                        size="sm"
+                                        onClick={async () => {
+                                          try {
+                                            // Formatear materiales para exportación
+                                            const materialesFormateados = materiales.map((m: any) => ({
+                                              material_nombre: m.material_nombre || 'Sin nombre',
+                                              tipo: (m.tipo || 'util') as 'util' | 'libro' | 'cuaderno' | 'otro',
+                                              cantidad: parseInt(String(m.cantidad)) || 1,
+                                              obligatorio: m.obligatorio !== false,
+                                              descripcion: m.descripcion || undefined,
+                                            }))
+                                            
+                                            // Nombre del archivo basado en el curso
+                                            const nombreCurso = attrs.nombre_curso || attrs.curso_nombre || 'materiales_curso'
+                                            const nombreArchivo = nombreCurso.replace(/\s+/g, '_')
+                                            
+                                            await exportarMaterialesAExcel(materialesFormateados, nombreArchivo)
+                                          } catch (error: any) {
+                                            console.error('Error al exportar materiales:', error)
+                                            alert('Error al exportar materiales: ' + (error.message || 'Error desconocido'))
+                                          }
+                                        }}
+                                        title="Exportar materiales a Excel"
+                                      >
+                                        <LuDownload size={14} />
+                                      </Button>
+                                    )}
+                                    <Button
+                                      variant="outline-primary"
+                                      size="sm"
+                                      className={materiales.length > 0 ? 'flex-fill' : ''}
+                                      onClick={() => {
+                                        setCursoSeleccionado(curso)
+                                        setShowCursoModal(true)
+                                      }}
+                                    >
+                                      Editar
+                                    </Button>
+                                  </div>
+                                </CardBody>
+                              </Card>
+                            </Col>
                           )
                         })}
                       </div>
@@ -1054,7 +1054,7 @@ export default function ColegioDetailPage() {
                 })}
               </div>
             )
-          })()}
+          })()
         )}
       </CardBody>
     </Card>
