@@ -194,23 +194,23 @@ export async function POST(request: NextRequest) {
     
     // Año: asegurar que sea un número válido
     // IMPORTANTE: Si el año no existe o es inválido, NO incluirlo en el payload
-    // para evitar errores de validación en Strapi (año es requerido pero puede ser null si no está definido)
-    const añoValue = attrs.año !== undefined && attrs.año !== null ? attrs.año : 
-                     (attrs.ano !== undefined && attrs.ano !== null ? attrs.ano : null)
+    // Strapi mantendrá el valor existente del curso
+    const añoValue = attrs.año !== undefined && attrs.año !== null && attrs.año !== '' ? attrs.año : 
+                     (attrs.ano !== undefined && attrs.ano !== null && attrs.ano !== '' ? attrs.ano : null)
     
-    if (añoValue !== null && añoValue !== undefined) {
+    if (añoValue !== null && añoValue !== undefined && añoValue !== '') {
       const añoNum = Number(añoValue)
       if (!isNaN(añoNum) && añoNum > 1900 && añoNum < 2100) {
         // Solo incluir si es un año válido
         updateData.data.año = añoNum
         debugLog('[API /crm/cursos/import-pdf POST] ✅ Año incluido:', añoNum)
       } else {
-        debugLog('[API /crm/cursos/import-pdf POST] ⚠️ Año inválido, NO incluyendo en payload:', añoValue)
-        // NO incluir año en el payload si es inválido - Strapi validará con el valor existente
+        debugLog('[API /crm/cursos/import-pdf POST] ⚠️ Año inválido, NO incluyendo en payload:', { añoValue, añoNum })
+        // NO incluir año en el payload si es inválido
       }
     } else {
-      debugLog('[API /crm/cursos/import-pdf POST] ⚠️ Año no encontrado en curso, NO incluyendo en payload')
-      // NO incluir año si no existe - Strapi mantendrá el valor existente o usará el default
+      debugLog('[API /crm/cursos/import-pdf POST] ⚠️ Año no encontrado o es null/undefined/vacío, NO incluyendo en payload')
+      // NO incluir año si no existe - Strapi mantendrá el valor existente
     }
     
     // Estado activo (default a true si no está definido)
