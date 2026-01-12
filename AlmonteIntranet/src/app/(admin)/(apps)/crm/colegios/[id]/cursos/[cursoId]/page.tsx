@@ -47,13 +47,23 @@ export default function CursoDetailPage() {
         }
 
         // Obtener información del curso
+        debugLog('[CursoDetailPage] Obteniendo curso con ID:', cursoId)
         const cursoResponse = await fetch(`/api/crm/cursos/${cursoId}`)
         const cursoResult = await cursoResponse.json()
         
-        if (cursoResult.success && cursoResult.data) {
+        debugLog('[CursoDetailPage] Respuesta de API:', {
+          success: cursoResult.success,
+          hasData: !!cursoResult.data,
+          error: cursoResult.error,
+          status: cursoResponse.status,
+        })
+        
+        if (cursoResponse.status === 404 || (!cursoResult.success && cursoResult.error?.includes('Not Found'))) {
+          setError(`Curso con ID ${cursoId} no encontrado. Puede que el ID sea incorrecto o el curso haya sido eliminado.`)
+        } else if (cursoResult.success && cursoResult.data) {
           setCurso(cursoResult.data)
         } else {
-          setError(cursoResult.error || 'Curso no encontrado')
+          setError(cursoResult.error || 'Error al cargar el curso')
         }
       } catch (err: any) {
         console.error('Error al cargar datos:', err)

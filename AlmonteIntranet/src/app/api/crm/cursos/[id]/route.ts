@@ -60,13 +60,21 @@ export async function GET(
         } catch (secondError: any) {
           // Si también falla, intentar sin lista_utiles completamente
           debugLog('[API /crm/cursos/[id] GET] ⚠️ Error también sin populate anidado, intentando sin lista_utiles')
-          const paramsObj = new URLSearchParams({
-            'populate[materiales]': 'true',
-            'populate[colegio]': 'true',
-          })
-          response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-            `/api/cursos/${id}?${paramsObj.toString()}`
-          )
+          try {
+            const paramsObj = new URLSearchParams({
+              'populate[materiales]': 'true',
+              'populate[colegio]': 'true',
+            })
+            response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+              `/api/cursos/${id}?${paramsObj.toString()}`
+            )
+          } catch (thirdError: any) {
+            // Si también falla, intentar solo con campos básicos
+            debugLog('[API /crm/cursos/[id] GET] ⚠️ Error también sin lista_utiles, intentando solo campos básicos')
+            response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+              `/api/cursos/${id}`
+            )
+          }
         }
       } else {
         // Si es otro tipo de error, propagarlo

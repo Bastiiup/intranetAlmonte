@@ -1084,7 +1084,13 @@ export default function ColegioDetailPage() {
                                         size="sm"
                                         className="p-1 text-success"
                                         onClick={() => {
-                                          router.push(`/crm/colegios/${colegioId}/cursos/${curso.id || curso.documentId}`)
+                                          const cursoId = curso.id || curso.documentId || (curso.attributes && (curso.attributes.id || curso.attributes.documentId))
+                                          if (cursoId) {
+                                            router.push(`/crm/colegios/${colegioId}/cursos/${cursoId}`)
+                                          } else {
+                                            console.error('No se pudo obtener el ID del curso:', curso)
+                                            alert('Error: No se pudo obtener el ID del curso')
+                                          }
                                         }}
                                         title="Ver detalle del curso"
                                       >
