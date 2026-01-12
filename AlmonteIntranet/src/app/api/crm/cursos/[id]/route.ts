@@ -56,7 +56,8 @@ export async function GET(
         'populate[colegio]': 'true',
         'populate[lista_utiles]': 'true', // Solo el ID de lista_utiles, sin materiales anidados
         'fields[0]': 'nombre_curso', // Incluir nombre_curso explícitamente
-        'fields[1]': 'versiones_materiales', // Incluir explícitamente versiones_materiales
+        'fields[1]': 'año', // Incluir año explícitamente
+        'fields[2]': 'versiones_materiales', // Incluir explícitamente versiones_materiales
         'publicationState': 'preview', // Incluir drafts y publicados
       })
       response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
