@@ -18,8 +18,11 @@ const debugLog = (...args: any[]) => {
 
 /**
  * POST /api/crm/cursos/import-pdf
- * Recibe un archivo PDF y lo guarda (por ahora solo guarda, sin procesar)
+ * Recibe un archivo PDF y crea una nueva versión de materiales para el curso
  */
+import strapiClient from '@/lib/strapi/client'
+import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+
 export async function POST(request: NextRequest) {
   try {
     debugLog('[API /crm/cursos/import-pdf POST] Recibiendo PDF')
@@ -61,6 +64,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (!cursoId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'ID del curso es requerido',
+        },
+        { status: 400 }
+      )
+    }
+
     debugLog('[API /crm/cursos/import-pdf POST] PDF recibido:', {
       nombre: pdfFile.name,
       tamaño: pdfFile.size,
@@ -69,29 +82,71 @@ export async function POST(request: NextRequest) {
       colegioId,
     })
 
-    // Por ahora, solo confirmamos que el PDF se recibió correctamente
-    // En el futuro, aquí se podría:
-    // 1. Guardar el PDF en un storage (S3, local, etc.)
-    // 2. Procesar el PDF para extraer materiales
-    // 3. Crear una lista de útiles con los materiales extraídos
-    // 4. Asignar la lista al curso
+    // Obtener el curso actual para agregar la nueva versión
+    const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+      `/api/cursos/${cursoId}?publicationState=preview`
+    )
 
-    // Convertir el archivo a buffer para poder guardarlo o procesarlo
-    const arrayBuffer = await pdfFile.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    if (!cursoResponse.data) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Curso no encontrado',
+        },
+        { status: 404 }
+      )
+    }
 
-    // Aquí podrías guardar el buffer en un storage o procesarlo
-    // Por ahora, solo retornamos éxito
+    const curso = cursoResponse.data
+    const attrs = curso.attributes || curso
 
-    return NextResponse.json({
-      success: true,
-      message: `PDF "${pdfFile.name}" recibido correctamente. El procesamiento se realizará próximamente.`,
-      data: {
+    // Obtener versiones existentes (si existen) o crear array vacío
+    // Guardamos las versiones en un campo personalizado o en materiales como estructura de versiones
+    // Por ahora, crearemos una nueva "versión" guardando los materiales con metadata
+    const versionesExistentes = attrs.versiones_materiales || []
+    
+    // Crear nueva versión con fecha/hora actual
+    const nuevaVersion = {
+      id: versionesExistentes.length + 1,
+      nombre_archivo: pdfFile.name,
+      fecha_subida: new Date().toISOString(),
+      fecha_actualizacion: new Date().toISOString(),
+      materiales: [], // Por ahora vacío, se procesará después
+      // Por ahora, guardamos el PDF como metadata
+      metadata: {
         nombre: pdfFile.name,
         tamaño: pdfFile.size,
         tipo: pdfFile.type,
+      },
+    }
+
+    // Agregar la nueva versión
+    const versionesActualizadas = [...versionesExistentes, nuevaVersion]
+
+    // Actualizar el curso con las nuevas versiones
+    // Guardamos las versiones en un campo personalizado o en materiales
+    // Por ahora usaremos un campo temporal en materiales o crearemos un campo nuevo
+    const updateData: any = {
+      data: {
+        versiones_materiales: versionesActualizadas,
+        // También actualizamos la fecha de actualización del curso
+        updatedAt: new Date().toISOString(),
+      },
+    }
+
+    await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
+      `/api/cursos/${cursoId}`,
+      updateData
+    )
+
+    debugLog('[API /crm/cursos/import-pdf POST] Versión creada exitosamente')
+
+    return NextResponse.json({
+      success: true,
+      message: `PDF "${pdfFile.name}" subido correctamente como nueva versión.`,
+      data: {
+        version: nuevaVersion,
         cursoId,
-        colegioId,
       },
     }, { status: 200 })
   } catch (error: any) {

@@ -202,27 +202,30 @@ export default function CursoDetailPage() {
     }
   }
 
-  const handleExportarMateriales = async (formato: 'excel' | 'pdf' = 'excel', listaEspecifica?: any) => {
+  const handleExportarMateriales = async (formato: 'excel' | 'pdf' = 'excel', version?: any) => {
     if (!curso) return
 
     const attrs = curso.attributes || curso
     let materiales: any[] = []
 
-    if (listaEspecifica) {
-      // Exportar materiales de una lista específica
-      const listaAttrs = listaEspecifica.attributes || listaEspecifica
-      materiales = listaAttrs.materiales || []
+    if (version) {
+      // Exportar materiales de una versión específica
+      materiales = version.materiales || []
     } else {
-      // Exportar materiales del curso actual (directos + lista actual)
-      const materialesDirectos = attrs.materiales || []
-      const materialesLista = attrs.lista_utiles?.data?.attributes?.materiales || 
-                             attrs.lista_utiles?.attributes?.materiales || 
-                             attrs.lista_utiles?.materiales || []
-      materiales = [...materialesDirectos, ...(Array.isArray(materialesLista) ? materialesLista : [])]
+      // Si no hay versión específica, usar la más reciente
+      const versiones = attrs.versiones_materiales || []
+      if (versiones.length > 0) {
+        const versionMasReciente = versiones.sort((a: any, b: any) => {
+          const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
+          const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
+          return fechaB - fechaA
+        })[0]
+        materiales = versionMasReciente.materiales || []
+      }
     }
 
     if (materiales.length === 0) {
-      alert('No hay materiales para exportar')
+      alert('No hay materiales para exportar en esta versión')
       return
     }
 
@@ -236,15 +239,13 @@ export default function CursoDetailPage() {
       }))
       
       const nombreCurso = attrs.nombre_curso || attrs.curso_nombre || 'materiales_curso'
-      const nombreLista = listaEspecifica 
-        ? (listaEspecifica.attributes?.nombre || listaEspecifica.nombre || '')
-        : ''
-      const nombreArchivo = listaEspecifica
-        ? `${nombreCurso}_${nombreLista}`.replace(/\s+/g, '_')
+      const nombreVersion = version?.nombre_archivo || version?.metadata?.nombre || ''
+      const nombreArchivo = version
+        ? `${nombreCurso}_${nombreVersion.replace('.pdf', '')}`.replace(/\s+/g, '_')
         : nombreCurso.replace(/\s+/g, '_')
       
-      const titulo = listaEspecifica
-        ? `${nombreCurso} - ${nombreLista}`
+      const titulo = version
+        ? `${nombreCurso} - ${nombreVersion}`
         : nombreCurso
 
       if (formato === 'pdf') {
@@ -298,15 +299,17 @@ export default function CursoDetailPage() {
   }
 
   const attrs = curso.attributes || curso
-  const materialesDirectos = attrs.materiales || []
-  const materialesLista = attrs.lista_utiles?.data?.attributes?.materiales || 
-                         attrs.lista_utiles?.attributes?.materiales || 
-                         attrs.lista_utiles?.materiales || []
-  const materiales = [...materialesDirectos, ...(Array.isArray(materialesLista) ? materialesLista : [])]
-  const nombreLista = attrs.lista_utiles?.data?.attributes?.nombre || 
-                     attrs.lista_utiles?.attributes?.nombre || 
-                     attrs.lista_utiles?.nombre || null
   const año = obtenerAñoDelCurso(curso)
+  
+  // Obtener versiones de materiales (cada PDF subido es una versión)
+  const versionesMateriales = attrs.versiones_materiales || []
+  
+  // Ordenar versiones por fecha (más reciente primero)
+  const versionesOrdenadas = [...versionesMateriales].sort((a: any, b: any) => {
+    const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
+    const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
+    return fechaB - fechaA
+  })
 
   return (
     <Container fluid>
@@ -329,22 +332,6 @@ export default function CursoDetailPage() {
           </h2>
         </div>
         <div className="d-flex gap-2">
-          <Button variant="outline-success" onClick={() => setShowImportPDF(true)}>
-            <LuUpload className="me-1" />
-            Importar PDF
-          </Button>
-          {materiales.length > 0 && (
-            <>
-              <Button variant="outline-info" onClick={(e) => { e.preventDefault(); handleExportarMateriales('excel'); }}>
-                <LuDownload className="me-1" />
-                Exportar Excel
-              </Button>
-              <Button variant="outline-danger" onClick={(e) => { e.preventDefault(); handleExportarMateriales('pdf'); }}>
-                <LuFileText className="me-1" />
-                Exportar PDF
-              </Button>
-            </>
-          )}
           <Button variant="primary" onClick={() => setShowEditModal(true)}>
             <LuPencil className="me-1" />
             Editar Curso
@@ -423,83 +410,111 @@ export default function CursoDetailPage() {
               <div className="d-flex justify-content-between align-items-center">
                 <h5 className="mb-0">
                   <LuPackage className="me-2" />
-                  Materiales ({materiales.length})
+                  Versiones de Materiales ({versionesOrdenadas.length})
                 </h5>
-                {nombreLista && (
-                  <Badge bg="secondary">Incluye lista predefinida</Badge>
-                )}
+                <Button variant="outline-success" size="sm" onClick={() => setShowImportPDF(true)}>
+                  <LuUpload className="me-1" />
+                  Subir PDF
+                </Button>
               </div>
             </CardHeader>
             <CardBody>
-              {materiales.length === 0 ? (
-                <Alert variant="info">
-                  No hay materiales asignados a este curso.
+              {versionesOrdenadas.length === 0 ? (
+                <Alert variant="info" className="text-center">
+                  <p className="mb-2">No hay versiones de materiales subidas.</p>
+                  <Button variant="success" onClick={() => setShowImportPDF(true)}>
+                    <LuUpload className="me-1" />
+                    Subir Primer PDF
+                  </Button>
                 </Alert>
               ) : (
                 <div className="table-responsive">
                   <Table hover>
                     <thead className="table-light">
                       <tr>
-                        <th style={{ width: '5%' }}>Cant.</th>
-                        <th style={{ width: '40%' }}>Material</th>
-                        <th style={{ width: '15%' }}>Tipo</th>
-                        <th style={{ width: '15%' }}>Origen</th>
-                        <th style={{ width: '15%' }}>Estado</th>
-                        {materiales.some((m: any) => m.descripcion) && (
-                          <th style={{ width: '10%' }}>Descripción</th>
-                        )}
+                        <th style={{ width: '5%' }}>#</th>
+                        <th style={{ width: '30%' }}>Archivo PDF</th>
+                        <th style={{ width: '20%' }}>Fecha Subida</th>
+                        <th style={{ width: '20%' }}>Última Actualización</th>
+                        <th style={{ width: '10%' }}>Materiales</th>
+                        <th style={{ width: '15%' }} className="text-end">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {materiales.map((material: any, index: number) => {
-                        const esDeLista = materialesLista.some((m: any) => 
-                          m.material_nombre === material.material_nombre &&
-                          m.cantidad === material.cantidad
-                        )
+                      {versionesOrdenadas.map((version: any, index: number) => {
+                        const fechaSubida = version.fecha_subida 
+                          ? new Date(version.fecha_subida).toLocaleString('es-CL', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : 'Fecha no disponible'
+                        const fechaActualizacion = version.fecha_actualizacion 
+                          ? new Date(version.fecha_actualizacion).toLocaleString('es-CL', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : fechaSubida
+                        const materialesVersion = version.materiales || []
                         
                         return (
-                          <tr key={index}>
+                          <tr key={version.id || index}>
                             <td>
-                              <Badge bg="primary">{material.cantidad || 1}</Badge>
+                              <Badge bg="primary">{index + 1}</Badge>
                             </td>
                             <td className="fw-semibold">
-                              {material.material_nombre || 'Sin nombre'}
+                              <LuFileText className="me-1" />
+                              {version.nombre_archivo || version.metadata?.nombre || 'Sin nombre'}
                             </td>
                             <td>
-                              <Badge bg="info">
-                                {material.tipo === 'util' ? 'Útil Escolar' :
-                                 material.tipo === 'libro' ? 'Libro' :
-                                 material.tipo === 'cuaderno' ? 'Cuaderno' :
-                                 material.tipo === 'otro' ? 'Otro' : 'Útil Escolar'}
-                              </Badge>
+                              <small className="text-muted">{fechaSubida}</small>
                             </td>
                             <td>
-                              {esDeLista ? (
-                                <Badge bg="secondary">Lista Predefinida</Badge>
-                              ) : (
-                                <Badge bg="warning">Adicional</Badge>
-                              )}
+                              <small className="text-muted">{fechaActualizacion}</small>
                             </td>
                             <td>
-                              {material.obligatorio !== false ? (
-                                <Badge bg="success">
-                                  <LuCheck className="me-1" size={12} />
-                                  Obligatorio
-                                </Badge>
-                              ) : (
-                                <Badge bg="secondary">
-                                  <LuX className="me-1" size={12} />
-                                  Opcional
-                                </Badge>
-                              )}
+                              <Badge bg="info">{materialesVersion.length} materiales</Badge>
                             </td>
-                            {materiales.some((m: any) => m.descripcion) && (
-                              <td>
-                                <small className="text-muted">
-                                  {material.descripcion || '-'}
-                                </small>
-                              </td>
-                            )}
+                            <td>
+                              <div className="d-flex justify-content-end gap-2">
+                                <Button
+                                  variant="outline-primary"
+                                  size="sm"
+                                  onClick={() => {
+                                    // TODO: Abrir modal de edición para esta versión
+                                    alert('Funcionalidad de edición próximamente')
+                                  }}
+                                  title="Editar versión"
+                                >
+                                  <LuPencil size={14} />
+                                </Button>
+                                {materialesVersion.length > 0 && (
+                                  <>
+                                    <Button
+                                      variant="outline-info"
+                                      size="sm"
+                                      onClick={() => handleExportarMateriales('excel', { materiales: materialesVersion, nombre: version.nombre_archivo })}
+                                      title="Exportar Excel"
+                                    >
+                                      <LuDownload size={14} />
+                                    </Button>
+                                    <Button
+                                      variant="outline-danger"
+                                      size="sm"
+                                      onClick={() => handleExportarMateriales('pdf', { materiales: materialesVersion, nombre: version.nombre_archivo })}
+                                      title="Exportar PDF"
+                                    >
+                                      <LuFileText size={14} />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
                           </tr>
                         )
                       })}
