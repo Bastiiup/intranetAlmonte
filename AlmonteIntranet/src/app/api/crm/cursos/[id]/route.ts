@@ -26,7 +26,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   // Obtener el ID fuera del try para que esté disponible en el catch
-  const { id } = await params
+  let id: string
+  try {
+    const resolvedParams = await params
+    id = resolvedParams.id
+  } catch (paramsError: any) {
+    // Si falla obtener params, usar un valor por defecto
+    id = 'unknown'
+    console.error('[API /crm/cursos/[id] GET] Error obteniendo params:', paramsError)
+  }
   
   try {
     debugLog('[API /crm/cursos/[id] GET] Buscando curso con ID:', id, 'Tipo:', typeof id)
