@@ -30,11 +30,29 @@ export const CreateCursoSchema = z.object({
   nivel: z.enum(['Basica', 'Media']),
   grado: z.string().regex(/^[1-8]$/, 'El grado debe ser entre 1 y 8'),
   paralelo: z.string().nullable().optional(),
-  activo: z.boolean().default(true).transform(val => val ?? true), // Asegurar que siempre sea boolean
+  activo: z.boolean().default(true), // Default true, pero el tipo sigue siendo opcional
   lista_utiles: z.union([z.number(), z.string(), z.null()]).optional(),
   materiales: z.array(MaterialSchema).optional(),
   colegio: z.union([z.number(), z.string()]),
-})
+}).transform(data => ({
+  ...data,
+  activo: data.activo ?? true, // Garantizar que siempre sea boolean después del parse
+})) as z.ZodType<{
+  nombre_curso: string
+  nivel: 'Basica' | 'Media'
+  grado: string
+  paralelo?: string | null
+  activo: boolean // Tipo explícito requerido
+  lista_utiles?: number | string | null
+  materiales?: Array<{
+    material_nombre: string
+    tipo: 'util' | 'libro' | 'cuaderno' | 'otro'
+    cantidad: number
+    obligatorio: boolean
+    descripcion?: string | null
+  }>
+  colegio: number | string
+}>
 
 // Tipos inferidos de los schemas
 export type UpdateCursoInput = z.infer<typeof UpdateCursoSchema>

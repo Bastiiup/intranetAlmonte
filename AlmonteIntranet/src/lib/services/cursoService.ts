@@ -154,7 +154,7 @@ export class CursoService {
           nivel: data.nivel,
           grado: data.grado,
           paralelo: data.paralelo || null,
-          activo: data.activo, // Ya viene como boolean del schema con default
+          activo: data.activo ?? true, // Garantizar boolean (por si acaso)
         },
       }
 
