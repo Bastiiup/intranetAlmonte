@@ -77,6 +77,10 @@ export async function POST(request: Request) {
 
     const data = await loginResponse.json()
 
+    // Generar token de sesión único para sesión única
+    const sessionToken = crypto.randomUUID()
+    console.log('[API /auth/login] 🔐 Token de sesión generado:', sessionToken.substring(0, 8) + '...')
+
     // Obtener colaborador completo con populate de persona
     // Asegurarse de que el colaborador siempre tenga el ID
     let colaboradorCompleto = data.colaborador
@@ -147,6 +151,19 @@ export async function POST(request: Request) {
           }
           console.warn('[API /auth/login] ⚠️ Colaborador no tiene persona asociada:', colaboradorId)
         }
+
+        // Guardar token de sesión único en Strapi para sesión única
+        try {
+          await strapiClient.put(`/api/colaboradores/${colaboradorDocumentId || colaboradorId}`, {
+            data: {
+              session_token: sessionToken,
+            },
+          })
+          console.log('[API /auth/login] ✅ Token de sesión guardado en Strapi')
+        } catch (sessionError: any) {
+          console.warn('[API /auth/login] ⚠️ No se pudo guardar token de sesión en Strapi:', sessionError.message)
+          // Continuar aunque falle, pero el sistema de sesión única no funcionará
+        }
       } catch (error: any) {
         console.warn('[API /auth/login] ⚠️ No se pudo obtener persona del colaborador:', error.message)
         // Asegurar que tenga ID y documentId aunque falle la obtención de persona
@@ -212,7 +229,7 @@ export async function POST(request: Request) {
       }
       
       // Crear estructura limpia para la cookie (sin estructuras anidadas de Strapi)
-      // Incluir todos los campos necesarios: id, documentId, email_login, rol, plataforma, activo, persona
+      // Incluir todos los campos necesarios: id, documentId, email_login, rol, plataforma, activo, persona, session_token
       const colaboradorParaCookie = {
         id: colaboradorCompleto.id || colaboradorCompleto.documentId,
         documentId: colaboradorCompleto.documentId || colaboradorCompleto.id,
@@ -221,6 +238,7 @@ export async function POST(request: Request) {
         plataforma: colaboradorCompleto.plataforma || 'general', // Incluir plataforma (moraleja, escolar, general)
         activo: colaboradorCompleto.activo !== undefined ? colaboradorCompleto.activo : true,
         persona: colaboradorCompleto.persona || null,
+        session_token: sessionToken, // Token de sesión único para sesión única
       }
       
       console.log('[API /auth/login] 💾 Estructura del colaborador ANTES de guardar en cookie:', {

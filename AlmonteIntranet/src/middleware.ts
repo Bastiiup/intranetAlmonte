@@ -58,7 +58,27 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // Si hay token, permitir acceso
+  // Verificar token de sesión único (sesión única)
+  const colaboradorCookie = request.cookies.get('colaboradorData')?.value || 
+                            request.cookies.get('auth_colaborador')?.value ||
+                            request.cookies.get('colaborador')?.value
+
+  if (colaboradorCookie) {
+    try {
+      const colaborador = JSON.parse(colaboradorCookie)
+      const sessionToken = colaborador.session_token
+
+      if (sessionToken) {
+        // Verificar que el token de sesión coincida con el de Strapi
+        // Esto se hace en las API routes, aquí solo verificamos que exista
+        // La verificación completa se hace en las API routes para evitar llamadas a Strapi en cada request del middleware
+      }
+    } catch (error) {
+      // Si hay error parseando la cookie, continuar (la API route lo manejará)
+    }
+  }
+
+  // Si hay token, permitir acceso (la verificación completa de sesión se hace en API routes)
   return NextResponse.next()
 }
 

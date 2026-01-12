@@ -25,7 +25,13 @@ interface ColaboradorAttributes {
  * Usa la función centralizada de lib/auth/cookies
  */
 async function getAuthColaborador() {
-  return await getColaboradorFromCookies()
+  const colaborador = await getColaboradorFromCookies(true) // Verificar sesión única
+  if (!colaborador) {
+    // Si retorna null, puede ser porque el token de sesión no coincide
+    // Retornar null para que el endpoint maneje el error 401
+    return null
+  }
+  return colaborador
 }
 
 /**
