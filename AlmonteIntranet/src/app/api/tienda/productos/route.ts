@@ -67,12 +67,29 @@ export async function GET(request: NextRequest) {
       `${endpointUsed}?${queryString}`
     )
     
+    // Filtrar resultados en el cliente si el filtro de Strapi no funcionó
+    let filteredData = response.data || []
+    if (platformFilter && Array.isArray(filteredData)) {
+      const originalCount = filteredData.length
+      filteredData = filteredData.filter((item: any) => {
+        const attrs = item?.attributes || {}
+        const data = (attrs && Object.keys(attrs).length > 0) ? attrs : item
+        const itemPlatform = data?.platform || data?.originPlatform
+        return itemPlatform === userPlatform
+      })
+      if (filteredData.length !== originalCount) {
+        console.log(`[API /tienda/productos] 🔒 Filtrado adicional: ${originalCount} → ${filteredData.length} productos`)
+      }
+    }
+    
     // Log detallado para debugging
     console.log('[API /tienda/productos] Respuesta de Strapi exitosa:', {
       endpoint: endpointUsed,
-      hasData: !!response.data,
-      isArray: Array.isArray(response.data),
-      count: Array.isArray(response.data) ? response.data.length : response.data ? 1 : 0,
+      hasData: !!filteredData,
+      isArray: Array.isArray(filteredData),
+      count: Array.isArray(filteredData) ? filteredData.length : filteredData ? 1 : 0,
+      platform: userPlatform,
+      filtered: !!platformFilter,
     })
     
     // Log del primer producto para verificar estructura de imágenes

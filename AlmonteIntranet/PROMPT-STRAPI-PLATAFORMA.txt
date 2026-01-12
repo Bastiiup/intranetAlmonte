@@ -1,0 +1,37 @@
+Necesito agregar un nuevo campo al Content Type "intranet-colaboradores" (Intranet · Colaboradores) en Strapi.
+
+REQUERIMIENTO:
+Agregar un campo de tipo Enumeration llamado "plataforma" que permita controlar en qué plataforma trabaja cada colaborador.
+
+CONFIGURACIÓN ESPECÍFICA:
+- Content Type: intranet-colaboradores (singularName: colaborador, pluralName: colaboradores)
+- Nombre del campo: plataforma
+- Tipo: Enumeration
+- Valores del enum (en este orden exacto):
+  1. moraleja
+  2. escolar
+  3. general
+- Default value: general
+- Required: false (opcional)
+- Description: "Plataforma en la que trabaja el colaborador. 'general' permite acceso a ambas plataformas."
+
+CONTEXTO:
+Este campo se usa para filtrar automáticamente productos, pedidos y clientes según la plataforma asignada al colaborador:
+- moraleja: Solo puede ver datos de Editorial Moraleja
+- escolar: Solo puede ver datos de Librería Escolar  
+- general: Puede ver datos de ambas plataformas (comportamiento por defecto)
+
+IMPORTANTE:
+- El campo debe ser opcional (required: false) para mantener compatibilidad con colaboradores existentes
+- El valor por defecto debe ser "general" para que los colaboradores existentes puedan ver ambas plataformas
+- No modificar otros campos existentes del Content Type
+- El campo debe guardarse en la base de datos y estar disponible en las respuestas de la API
+
+VERIFICACIÓN:
+Después de agregar el campo, verificar que:
+1. Aparece en el Content-Type Builder
+2. Se puede seleccionar en el formulario de edición de colaboradores
+3. Los valores del enum son exactamente: moraleja, escolar, general
+4. El valor por defecto es "general"
+5. El campo es opcional (no requerido)
+
