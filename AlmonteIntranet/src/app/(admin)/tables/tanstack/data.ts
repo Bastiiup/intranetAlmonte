@@ -53,23 +53,7 @@ const productDates = [
     .map(() => randomDate(yearStart, thirtyDaysAgo)),
 ]
 
-export const products: ProductType[] = [
-  {
-    image: product1,
-    name: 'Wireless Earbuds',
-    brand: 'My Furniture',
-    code: 'WB-10245',
-    category: 'Electronics',
-    stock: 56,
-    price: 59.99,
-    sold: 124,
-    rating: 5,
-    reviews: 87,
-    status: 'published',
-    date: format(productDates[0], 'dd MMM, yyyy'),
-    time: format(productDates[0], 'h:mm a'),
-    url: '',
-  },
+export const products: ProductType[] = []
   {
     image: product2,
     name: 'Smart LED Desk Lamp',
