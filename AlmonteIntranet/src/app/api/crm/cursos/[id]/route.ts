@@ -25,8 +25,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Obtener el ID fuera del try para que esté disponible en el catch
+  const { id } = await params
+  
   try {
-    const { id } = await params
     debugLog('[API /crm/cursos/[id] GET] Buscando curso con ID:', id, 'Tipo:', typeof id)
     
     // El ID puede ser numérico o documentId (string), Strapi debería manejarlo automáticamente
