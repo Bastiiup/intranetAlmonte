@@ -534,11 +534,9 @@ export default function AddProductPage() {
   }
 
 
-  return (
-    <Container fluid>
-      <PageBreadcrumb title="Agregar nuevo producto" subtitle="Ecommerce" />
-
-      <form onSubmit={handleSubmit} noValidate>
+  // Función para renderizar solo el formulario (sin Container y PageBreadcrumb)
+  const renderForm = () => (
+    <form onSubmit={handleSubmit} noValidate>
         {error && (
           <Alert variant="danger" dismissible onClose={() => setError(null)}>
             <strong>Error:</strong> {error}
@@ -687,6 +685,19 @@ export default function AddProductPage() {
           </div>
         </div>
       </form>
+  )
+
+  // Si se está usando como componente (sin Container), solo renderizar el formulario
+  // Esto permite usar este componente dentro de tabs
+  if ((globalThis as any).__IS_COMPONENT_MODE__) {
+    return renderForm()
+  }
+
+  // Modo página completa (con Container y PageBreadcrumb)
+  return (
+    <Container fluid>
+      <PageBreadcrumb title="Agregar nuevo producto" subtitle="Ecommerce" />
+      {renderForm()}
     </Container>
   )
 }

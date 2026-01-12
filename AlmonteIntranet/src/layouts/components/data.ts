@@ -131,7 +131,7 @@ export const menuItems: MenuItemType[] = [
       { key: 'product-list', label: 'Todos los Productos', url: '/products' },
       // { key: 'product-grid', label: 'Product Grid', url: '/products-grid' }, // Ocultado - integrado en Todos los Productos
       // { key: 'product-details', label: 'Product Details', url: '/products/1' }, // Ocultado - se accede desde la lista
-      { key: 'add-product', label: 'Add Product', url: '/add-product' },
+      // { key: 'add-product', label: 'Add Product', url: '/add-product' }, // Ocultado - integrado en Todos los Productos
       { key: 'all-categories', label: 'Todas las Categorías', url: '/products/categorias' },
       { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' },
       { key: 'categoria-requests', label: 'Solicitudes de Categorías', url: '/products/categorias/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
@@ -252,7 +252,7 @@ export const horizontalMenuItems: MenuItemType[] = [
           { key: 'product-list', label: 'Todos los Productos', url: '/products' },
           // { key: 'product-grid', label: 'Cuadrícula de Productos', url: '/products-grid' }, // Ocultado - integrado en Todos los Productos
           // { key: 'product-details', label: 'Detalles del Producto', url: '/products/1' }, // Ocultado - se accede desde la lista
-          { key: 'add-product', label: 'Agregar Producto', url: '/add-product' },
+          // { key: 'add-product', label: 'Agregar Producto', url: '/add-product' }, // Ocultado - integrado en Todos los Productos
           { key: 'all-categories', label: 'Todas las Categorías', url: '/products/categorias' },
           { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' },
           { key: 'categoria-requests', label: 'Solicitudes de Categorías', url: '/products/categorias/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
@@ -280,7 +280,7 @@ export const horizontalMenuItems: MenuItemType[] = [
               { key: 'marca-requests', label: 'Solicitudes de Marcas', url: '/atributos/marca/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
             ],
           },
-          { key: 'product-requests', label: 'Solicitudes de Productos', url: '/products/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+          // { key: 'product-requests', label: 'Solicitudes de Productos', url: '/products/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todos los Productos
         ],
       },
       {

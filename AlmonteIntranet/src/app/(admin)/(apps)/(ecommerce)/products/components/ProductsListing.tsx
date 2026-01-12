@@ -16,10 +16,30 @@ import {
 import Image, { type StaticImageData } from 'next/image'
 import Link from 'next/link'
 import { useState, useEffect, useMemo } from 'react'
-import { Button, Card, CardFooter, CardHeader, Col, Row, Alert } from 'react-bootstrap'
+import { Button, Card, CardBody, CardFooter, CardHeader, Col, Nav, NavItem, NavLink, Row, Alert, TabContainer, TabContent, TabPane } from 'react-bootstrap'
 import { LuBox, LuDollarSign, LuSearch, LuTag } from 'react-icons/lu'
-import { TbEdit, TbEye, TbLayoutGrid, TbList, TbPlus, TbTrash } from 'react-icons/tb'
+import { TbEdit, TbEye, TbLayoutGrid, TbList, TbPlus, TbTrash, TbFileText, TbCheck } from 'react-icons/tb'
 import Products from '@/app/(admin)/(apps)/(ecommerce)/products-grid/components/Products'
+import ProductRequestsListing from '@/app/(admin)/(apps)/(ecommerce)/products/solicitudes/components/ProductRequestsListing'
+import dynamic from 'next/dynamic'
+
+// Cargar el formulario de agregar producto dinámicamente para evitar problemas de SSR
+// Usar un wrapper que active el modo componente
+const AddProductForm = dynamic(
+  () => import('@/app/(admin)/(apps)/(ecommerce)/add-product/page').then((mod) => {
+    const AddProductPage = mod.default
+    return {
+      default: function AddProductFormWrapper() {
+        // Activar modo componente para que solo renderice el formulario
+        if (typeof window !== 'undefined') {
+          (globalThis as any).__IS_COMPONENT_MODE__ = true
+        }
+        return <AddProductPage />
+      }
+    }
+  }),
+  { ssr: false }
+)
 
 import Rating from '@/components/Rating'
 import DataTable from '@/components/table/DataTable'
@@ -181,13 +201,19 @@ const priceRangeFilterFn: FilterFn<any> = (row, columnId, value) => {
 
 const columnHelper = createColumnHelper<ProductTypeExtended>()
 
+type TabType = 'productos' | 'solicitudes' | 'agregar'
+
 const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
   const canDelete = colaborador?.rol === 'super_admin'
+  const canViewRequests = ['super_admin', 'encargado_adquisiciones', 'supervisor'].includes(colaborador?.rol || '')
 
   // Estado para controlar la vista (lista o grid)
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
+  
+  // Estado para controlar el tab activo
+  const [activeTab, setActiveTab] = useState<TabType>('productos')
 
   // Mapear productos de Strapi al formato ProductType si están disponibles
   const mappedProducts = useMemo(() => {
@@ -553,11 +579,10 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
   // Debug: mostrar información sobre los datos
   console.log('[ProductsListing] Render - data.length:', data.length, 'mappedProducts.length:', mappedProducts.length, 'productos:', productos?.length)
 
-  return (
-    <Row>
-      <Col xs={12}>
-        <Card className="mb-4">
-          <CardHeader className="d-flex justify-content-between align-items-center">
+  // Renderizar el contenido del tab de productos
+  const renderProductosContent = () => (
+    <Card className="mb-4">
+      <CardHeader className="d-flex justify-content-between align-items-center">
             <div className="d-flex gap-2">
               <div className="app-search">
                 <input
@@ -666,11 +691,6 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
               >
                 <TbList className="fs-lg" />
               </Button>
-              <Link href="/add-product" passHref>
-                <Button variant="danger" className="ms-1">
-                  <TbPlus className="fs-sm me-2" /> Agregar Producto
-                </Button>
-              </Link>
             </div>
           </CardHeader>
 
@@ -714,6 +734,54 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
             itemName="producto"
           />
         </Card>
+  )
+
+  return (
+    <Row>
+      <Col xs={12}>
+        <TabContainer defaultActiveKey="productos" activeKey={activeTab} onSelect={(k) => setActiveTab(k as TabType)}>
+          <Card className="mb-4">
+            <CardHeader>
+              <Nav variant="tabs" className="card-header-tabs nav-bordered">
+                <NavItem>
+                  <NavLink eventKey="productos" className="d-flex align-items-center gap-2">
+                    <TbList size={18} />
+                    <span>Todos los Productos</span>
+                  </NavLink>
+                </NavItem>
+                {canViewRequests && (
+                  <NavItem>
+                    <NavLink eventKey="solicitudes" className="d-flex align-items-center gap-2">
+                      <TbCheck size={18} />
+                      <span>Solicitudes</span>
+                    </NavLink>
+                  </NavItem>
+                )}
+                <NavItem>
+                  <NavLink eventKey="agregar" className="d-flex align-items-center gap-2">
+                    <TbPlus size={18} />
+                    <span>Agregar Producto</span>
+                  </NavLink>
+                </NavItem>
+              </Nav>
+            </CardHeader>
+            <CardBody>
+              <TabContent>
+                <TabPane eventKey="productos">
+                  {renderProductosContent()}
+                </TabPane>
+                {canViewRequests && (
+                  <TabPane eventKey="solicitudes">
+                    <ProductRequestsListing productos={productos} error={error} />
+                  </TabPane>
+                )}
+                <TabPane eventKey="agregar">
+                  <AddProductForm />
+                </TabPane>
+              </TabContent>
+            </CardBody>
+          </Card>
+        </TabContainer>
       </Col>
     </Row>
   )
