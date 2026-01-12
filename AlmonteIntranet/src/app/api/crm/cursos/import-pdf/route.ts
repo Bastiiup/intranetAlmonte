@@ -125,9 +125,57 @@ export async function POST(request: NextRequest) {
       tieneVersiones: !!attrs.versiones_materiales,
     })
 
+    // Subir el PDF a Strapi Media Library
+    debugLog('[API /crm/cursos/import-pdf POST] Subiendo PDF a Strapi Media Library...')
+    
+    const pdfBuffer = await pdfFile.arrayBuffer()
+    const pdfBlob = new Blob([pdfBuffer], { type: 'application/pdf' })
+    
+    // Crear FormData para subir el archivo a Strapi
+    const uploadFormData = new FormData()
+    uploadFormData.append('files', pdfBlob, pdfFile.name)
+    
+    // Subir a Strapi Media Library
+    const strapiUrl = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.STRAPI_URL || 'https://strapi.moraleja.cl'
+    const uploadUrl = `${strapiUrl}/api/upload`
+    const uploadHeaders: HeadersInit = {
+      'Authorization': `Bearer ${process.env.STRAPI_API_TOKEN || ''}`,
+    }
+    
+    let pdfUrl: string | null = null
+    let pdfId: number | null = null
+    
+    try {
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: uploadHeaders,
+        body: uploadFormData,
+      })
+      
+      if (uploadResponse.ok) {
+        const uploadResult = await uploadResponse.json()
+        if (uploadResult && uploadResult.length > 0) {
+          const uploadedFile = uploadResult[0]
+          pdfId = uploadedFile.id
+          // Construir URL completa del PDF
+          pdfUrl = uploadedFile.url ? `${strapiUrl}${uploadedFile.url}` : null
+          debugLog('[API /crm/cursos/import-pdf POST] ✅ PDF subido a Strapi:', { pdfId, pdfUrl })
+        }
+      } else {
+        const errorText = await uploadResponse.text()
+        debugLog('[API /crm/cursos/import-pdf POST] ⚠️ Error al subir PDF a Strapi:', {
+          status: uploadResponse.status,
+          error: errorText,
+        })
+        // Continuar sin URL del PDF (solo guardamos metadata)
+      }
+    } catch (uploadError: any) {
+      debugLog('[API /crm/cursos/import-pdf POST] ⚠️ Error al subir PDF a Strapi:', uploadError)
+      // Continuar sin URL del PDF (solo guardamos metadata)
+    }
+    
     // Obtener versiones existentes (si existen) o crear array vacío
     // Guardamos las versiones en un campo personalizado o en materiales como estructura de versiones
-    // Por ahora, crearemos una nueva "versión" guardando los materiales con metadata
     const versionesExistentes = attrs.versiones_materiales || []
     
     // Crear nueva versión con fecha/hora actual
@@ -137,7 +185,10 @@ export async function POST(request: NextRequest) {
       fecha_subida: new Date().toISOString(),
       fecha_actualizacion: new Date().toISOString(),
       materiales: [], // Por ahora vacío, se procesará después
-      // Por ahora, guardamos el PDF como metadata
+      // Guardar URL del PDF si se subió correctamente
+      pdf_url: pdfUrl,
+      pdf_id: pdfId,
+      // Metadata del archivo
       metadata: {
         nombre: pdfFile.name,
         tamaño: pdfFile.size,

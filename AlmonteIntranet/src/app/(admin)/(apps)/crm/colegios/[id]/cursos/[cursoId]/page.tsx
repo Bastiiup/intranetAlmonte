@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Container, Card, CardHeader, CardBody, Alert, Spinner, Row, Col, Button, Badge, Table } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { LuArrowLeft, LuPackage, LuGraduationCap, LuDownload, LuPencil, LuCheck, LuX, LuFileText, LuUpload } from 'react-icons/lu'
+import { LuArrowLeft, LuPackage, LuGraduationCap, LuDownload, LuPencil, LuCheck, LuX, LuFileText, LuUpload, LuEye } from 'react-icons/lu'
 import Link from 'next/link'
 import { exportarMaterialesAExcel } from '@/helpers/excel'
 import { exportarMaterialesAPDF } from '@/helpers/pdf'
@@ -457,6 +457,51 @@ export default function CursoDetailPage() {
           </Card>
         </Col>
       </Row>
+
+      {/* Modal para visualizar PDF */}
+      <Modal show={showPDFViewer} onHide={() => { setShowPDFViewer(false); setPdfViewerUrl(null); }} size="xl" fullscreen="lg-down">
+        <Modal.Header closeButton>
+          <Modal.Title>
+            <LuEye className="me-2" />
+            Visualizar PDF
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ padding: 0, height: '80vh' }}>
+          {pdfViewerUrl && (
+            <iframe
+              src={pdfViewerUrl}
+              style={{
+                width: '100%',
+                height: '100%',
+                border: 'none',
+              }}
+              title="PDF Viewer"
+            />
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => { setShowPDFViewer(false); setPdfViewerUrl(null); }}>
+            Cerrar
+          </Button>
+          {pdfViewerUrl && (
+            <Button
+              variant="primary"
+              onClick={() => {
+                const link = document.createElement('a')
+                link.href = pdfViewerUrl
+                link.download = pdfViewerUrl.split('/').pop() || 'documento.pdf'
+                link.target = '_blank'
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+              }}
+            >
+              <LuDownload className="me-1" />
+              Descargar PDF
+            </Button>
+          )}
+        </Modal.Footer>
+      </Modal>
 
       {/* Modal para importar PDF */}
       <Modal show={showImportPDF} onHide={() => { setShowImportPDF(false); setSelectedPDF(null); }} size="lg">
