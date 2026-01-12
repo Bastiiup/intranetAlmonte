@@ -6,7 +6,7 @@ const CreateDealModal = ({ show, toggleModal }: { show: boolean; toggleModal: ()
   return (
     <Modal show={show} onHide={toggleModal} size="lg">
       <ModalHeader closeButton>
-        <ModalTitle as="h5">Create New Deal</ModalTitle>
+        <ModalTitle as="h5">Crear Nuevo Negocio</ModalTitle>
       </ModalHeader>
 
       <Form id="createDealForm">
@@ -14,49 +14,49 @@ const CreateDealModal = ({ show, toggleModal }: { show: boolean; toggleModal: ()
           <Row className="g-3">
             <Col md={6}>
               <FormGroup controlId="dealName">
-                <FormLabel>Deal Name</FormLabel>
-                <FormControl type="text" placeholder="Enter deal name" required />
+                <FormLabel>Nombre del Negocio</FormLabel>
+                <FormControl type="text" placeholder="Ingrese el nombre del negocio" required />
               </FormGroup>
             </Col>
 
             <Col md={6}>
               <FormGroup controlId="companyName">
-                <FormLabel>Company</FormLabel>
-                <FormControl type="text" placeholder="Enter company name" required />
+                <FormLabel>Empresa</FormLabel>
+                <FormControl type="text" placeholder="Ingrese el nombre de la empresa" required />
               </FormGroup>
             </Col>
 
             <Col md={6}>
               <FormGroup controlId="amount">
-                <FormLabel>Amount (USD)</FormLabel>
-                <Form.Control type="number" placeholder="e.g. 100000" required />
+                <FormLabel>Monto (USD)</FormLabel>
+                <Form.Control type="number" placeholder="ej. 100000" required />
               </FormGroup>
             </Col>
 
             <Col md={6}>
               <FormGroup controlId="stage">
-                <FormLabel>Stage</FormLabel>
+                <FormLabel>Etapa</FormLabel>
                 <FormSelect required>
-                  <option value="">Select stage</option>
-                  <option value="Qualification">Qualification</option>
-                  <option value="Proposal Sent">Proposal Sent</option>
-                  <option value="Negotiation">Negotiation</option>
-                  <option value="Won">Won</option>
-                  <option value="Lost">Lost</option>
+                  <option value="">Seleccionar etapa</option>
+                  <option value="Qualification">Calificación</option>
+                  <option value="Proposal Sent">Propuesta Enviada</option>
+                  <option value="Negotiation">Negociación</option>
+                  <option value="Won">Ganado</option>
+                  <option value="Lost">Perdido</option>
                 </FormSelect>
               </FormGroup>
             </Col>
 
             <Col md={6}>
               <FormGroup controlId="probability">
-                <FormLabel>Probability (%)</FormLabel>
-                <Form.Control type="number" min={0} max={100} placeholder="e.g. 75" required />
+                <FormLabel>Probabilidad (%)</FormLabel>
+                <Form.Control type="number" min={0} max={100} placeholder="ej. 75" required />
               </FormGroup>
             </Col>
 
             <Col md={6}>
               <FormGroup controlId="closingDate">
-                <FormLabel>Expected Closing Date</FormLabel>
+                <FormLabel>Fecha de Cierre Esperada</FormLabel>
                 <Flatpickr className="form-control" required />
               </FormGroup>
             </Col>
@@ -65,10 +65,10 @@ const CreateDealModal = ({ show, toggleModal }: { show: boolean; toggleModal: ()
 
         <ModalFooter>
           <Button variant="light" onClick={toggleModal}>
-            Cancel
+            Cancelar
           </Button>
           <Button variant="primary" type="submit">
-            Save Deal
+            Guardar Negocio
           </Button>
         </ModalFooter>
       </Form>

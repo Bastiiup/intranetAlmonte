@@ -38,39 +38,39 @@ type MegaMenuType = {
 
 const megaMenuItems: MegaMenuType[] = [
   {
-    title: 'Dashboard & Analytics',
+    title: 'Tableros y Análisis',
     links: [
-      { label: 'Sales Dashboard', url: '#;', icon: TbChartLine },
-      { label: 'Marketing Dashboard', url: '#;', icon: TbBulb },
-      { label: 'Finance Overview', url: '#;', icon: TbCurrencyDollar },
-      { label: 'User Analytics', url: '#;', icon: TbUsers },
-      { label: 'Traffic Insights', url: '#;', icon: TbActivity },
-      { label: 'Performance Metrics', url: '#;', icon: TbGauge },
-      { label: 'Conversion Tracking', url: '#;', icon: TbZoomCheck },
+      { label: 'Tablero de Ventas', url: '#;', icon: TbChartLine },
+      { label: 'Tablero de Marketing', url: '#;', icon: TbBulb },
+      { label: 'Resumen Financiero', url: '#;', icon: TbCurrencyDollar },
+      { label: 'Análisis de Usuarios', url: '#;', icon: TbUsers },
+      { label: 'Insights de Tráfico', url: '#;', icon: TbActivity },
+      { label: 'Métricas de Rendimiento', url: '#;', icon: TbGauge },
+      { label: 'Seguimiento de Conversiones', url: '#;', icon: TbZoomCheck },
     ],
   },
   {
-    title: 'Project Management',
+    title: 'Gestión de Proyectos',
     links: [
-      { label: 'Kanban Workflow', url: '#;', icon: TbLayoutKanban },
-      { label: 'Project Timeline', url: '#;', icon: TbCalendarStats },
-      { label: 'Task Management', url: '#;', icon: TbListCheck },
-      { label: 'Team Members', url: '#;', icon: TbUsersGroup },
-      { label: 'Assignments', url: '#;', icon: TbClipboardList },
-      { label: 'Resource Allocation', url: '#;', icon: TbChartPie },
-      { label: 'Project Reports', url: '#;', icon: TbFileInvoice },
+      { label: 'Flujo Kanban', url: '#;', icon: TbLayoutKanban },
+      { label: 'Cronograma del Proyecto', url: '#;', icon: TbCalendarStats },
+      { label: 'Gestión de Tareas', url: '#;', icon: TbListCheck },
+      { label: 'Miembros del Equipo', url: '#;', icon: TbUsersGroup },
+      { label: 'Asignaciones', url: '#;', icon: TbClipboardList },
+      { label: 'Asignación de Recursos', url: '#;', icon: TbChartPie },
+      { label: 'Informes del Proyecto', url: '#;', icon: TbFileInvoice },
     ],
   },
   {
-    title: 'User Management',
+    title: 'Gestión de Usuarios',
     links: [
-      { label: 'User Profiles', url: '#;', icon: TbUserCircle },
-      { label: 'Access Control', url: '#;', icon: TbLock },
-      { label: 'Role Permissions', url: '#;', icon: TbShieldLock },
-      { label: 'Activity Logs', url: '#;', icon: TbNotes },
-      { label: 'Security Settings', url: '#;', icon: TbSettings },
-      { label: 'User Groups', url: '#;', icon: TbUsers },
-      { label: 'Authentication', url: '#;', icon: TbKey },
+      { label: 'Perfiles de Usuario', url: '#;', icon: TbUserCircle },
+      { label: 'Control de Acceso', url: '#;', icon: TbLock },
+      { label: 'Permisos de Roles', url: '#;', icon: TbShieldLock },
+      { label: 'Registros de Actividad', url: '#;', icon: TbNotes },
+      { label: 'Configuración de Seguridad', url: '#;', icon: TbSettings },
+      { label: 'Grupos de Usuarios', url: '#;', icon: TbUsers },
+      { label: 'Autenticación', url: '#;', icon: TbKey },
     ],
   },
 ]
@@ -80,7 +80,7 @@ const MegaMenu = () => {
     <div className="topbar-item d-none d-md-flex">
       <Dropdown>
         <DropdownToggle as={'button'} className="topbar-link btn fw-medium btn-link dropdown-toggle drop-arrow-none">
-          Mega Menu  <TbChevronDown className="ms-1 fs-16"/>
+          Menú Principal  <TbChevronDown className="ms-1 fs-16"/>
         </DropdownToggle>
         <DropdownMenu className="dropdown-menu-xxl p-0">
           <SimplebarClient className="h-100" style={{ maxHeight: '380px' }}>

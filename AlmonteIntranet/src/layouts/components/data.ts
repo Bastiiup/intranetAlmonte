@@ -229,31 +229,31 @@ export const menuItems: MenuItemType[] = [
 export const horizontalMenuItems: MenuItemType[] = [
   {
     key: 'dashboards',
-    label: 'Dashboards',
+    label: 'Tableros',
     icon: TbLayoutDashboard,
     children: [
-      { key: 'dashboard-v1', label: 'Dashboard 1', url: '/dashboard' },
-      { key: 'dashboard-v2', label: 'Dashboard 2', url: '/dashboard2' },
+      { key: 'dashboard-v1', label: 'Tablero 1', url: '/dashboard' },
+      { key: 'dashboard-v2', label: 'Tablero 2', url: '/dashboard2' },
 
     ],
   },
   {
     key: 'apps',
-    label: 'Apps',
+    label: 'Aplicaciones',
     icon: TbApps,
     children: [
-      { key: 'calendar', label: 'Calendar', icon: TbCalendar, url: '/calendar' },
+      { key: 'calendar', label: 'Calendario', icon: TbCalendar, url: '/calendar' },
       { key: 'chat', label: 'Chat', icon: TbMessageDots, url: '/chat' },
-      { key: 'file-manager', label: 'File Manager', icon: TbFolder, url: '/file-manager' },
+      { key: 'file-manager', label: 'Gestor de Archivos', icon: TbFolder, url: '/file-manager' },
       {
         key: 'products',
-        label: 'Products',
+        label: 'Productos',
         icon: TbBasket,
         children: [
-          { key: 'product-list', label: 'Listing', url: '/products' },
-          { key: 'product-grid', label: 'Product Grid', url: '/products-grid' },
-          { key: 'product-details', label: 'Product Details', url: '/products/1' },
-          { key: 'add-product', label: 'Add Product', url: '/add-product' },
+          { key: 'product-list', label: 'Listado', url: '/products' },
+          { key: 'product-grid', label: 'Cuadrícula de Productos', url: '/products-grid' },
+          { key: 'product-details', label: 'Detalles del Producto', url: '/products/1' },
+          { key: 'add-product', label: 'Agregar Producto', url: '/add-product' },
           { key: 'all-categories', label: 'Todas las Categorías', url: '/products/categorias' },
           { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' },
           { key: 'categoria-requests', label: 'Solicitudes de Categorías', url: '/products/categorias/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
@@ -288,7 +288,7 @@ export const horizontalMenuItems: MenuItemType[] = [
         icon: TbBasket,
         roles: ['super_admin', 'encargado_adquisiciones', 'supervisor', 'soporte'], // Todos los roles pueden ver este menú
         children: [
-          { key: 'categories', label: 'Categories', url: '/categories' },
+          { key: 'categories', label: 'Categorías', url: '/categories' },
           {
             key: 'orders',
             label: 'Pedidos',
@@ -350,14 +350,14 @@ export const horizontalMenuItems: MenuItemType[] = [
       },
       {
         key: 'email',
-        label: 'Email',
+        label: 'Correo',
         icon: LuInbox,
-        badge: { variant: 'danger', text: 'New' },
+        badge: { variant: 'danger', text: 'Nuevo' },
         children: [
-          { key: 'inbox', label: 'Inbox', url: '/inbox' },
-          { key: 'inbox-details', label: 'Details', url: '/inbox/1' },
-          { key: 'email-compose', label: 'Compose', url: '/email-compose' },
-          { key: 'email-templates', label: 'Email Templates', url: '/email-templates' },
+          { key: 'inbox', label: 'Bandeja de Entrada', url: '/inbox' },
+          { key: 'inbox-details', label: 'Detalles', url: '/inbox/1' },
+          { key: 'email-compose', label: 'Redactar', url: '/email-compose' },
+          { key: 'email-templates', label: 'Plantillas de Correo', url: '/email-templates' },
         ],
       },
       {
@@ -382,25 +382,25 @@ export const horizontalMenuItems: MenuItemType[] = [
       },
       {
         key: 'users',
-        label: 'Users',
+        label: 'Usuarios',
         icon: LuUsers,
         children: [
-          { key: 'contacts', label: 'Contacts', url: '/users/contacts' },
-          { key: 'profile', label: 'Profile', url: '/users/profile' },
+          { key: 'contacts', label: 'Contactos', url: '/users/contacts' },
+          { key: 'profile', label: 'Perfil', url: '/users/profile' },
           { key: 'roles', label: 'Roles', url: '/users/roles' },
-          { key: 'roles-details', label: 'Roles Details', url: '/users/roles-details' },
-          { key: 'permissions', label: 'Permissions', url: '/users/permissions' },
+          { key: 'roles-details', label: 'Detalles de Roles', url: '/users/roles-details' },
+          { key: 'permissions', label: 'Permisos', url: '/users/permissions' },
         ],
       },
 
       {
         key: 'invoice',
-        label: 'Invoice',
+        label: 'Facturación',
         icon: LuReceiptText,
         children: [
-          { key: 'invoice-list', label: 'Invoice', url: '/invoices' },
-          { key: 'invoice-details', label: 'Single Invoice', url: '/invoices/1' },
-          { key: 'add-invoice', label: 'New Invoice', url: '/add-invoice' },
+          { key: 'invoice-list', label: 'Facturas', url: '/invoices' },
+          { key: 'invoice-details', label: 'Factura Individual', url: '/invoices/1' },
+          { key: 'add-invoice', label: 'Nueva Factura', url: '/add-invoice' },
         ],
       },
     ],

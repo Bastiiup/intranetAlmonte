@@ -13,23 +13,23 @@ type TabContentItem = {
 }
 
 const text1 =
-  'This dashboard provides a quick overview of your recent activity, performance metrics, and system status. You can easily monitor key indicators, recent logins, pending tasks, and overall user engagement.'
+  'Este tablero proporciona una vista rápida de tu actividad reciente, métricas de rendimiento y estado del sistema. Puedes monitorear fácilmente indicadores clave, inicios de sesión recientes, tareas pendientes y el compromiso general del usuario.'
 const text2 =
-  'View your latest interactions and actions taken across the platform. This includes recent file uploads, comments, status updates, and notification history to keep you up to date with ongoing changes.'
+  'Visualiza tus últimas interacciones y acciones realizadas en la plataforma. Esto incluye cargas de archivos recientes, comentarios, actualizaciones de estado e historial de notificaciones para mantenerte al día con los cambios en curso.'
 const text3 =
-  'Customize your account preferences including theme options, notification settings, and privacy controls. Adjust layout configurations to suit your workflow and manage integration with third-party services.'
+  'Personaliza las preferencias de tu cuenta incluyendo opciones de tema, configuración de notificaciones y controles de privacidad. Ajusta las configuraciones de diseño para adaptarlas a tu flujo de trabajo y gestiona la integración con servicios de terceros.'
 
 const tabContents: TabContentItem[] = [
-  { id: '1', title: 'Overview', text: text1, variant: 'info', icon: 'tabler:home' },
-  { id: '2', title: 'Activity', text: text2, variant: 'danger', icon: 'tabler:user-circle' },
-  { id: '3', title: 'Settings', text: text3, variant: 'secondary', icon: 'tabler:settings' },
+  { id: '1', title: 'Resumen', text: text1, variant: 'info', icon: 'tabler:home' },
+  { id: '2', title: 'Actividad', text: text2, variant: 'danger', icon: 'tabler:user-circle' },
+  { id: '3', title: 'Configuración', text: text3, variant: 'secondary', icon: 'tabler:settings' },
 ]
 
 const DefaultTabs = () => {
   return (
-    <ComponentCard isCollapsible title="Default Tabs">
-      <p className="text-muted">Simple widget of tabbable panes of local content.</p>
-      <TabContainer defaultActiveKey="Overview">
+    <ComponentCard isCollapsible title="Pestañas por Defecto">
+      <p className="text-muted">Widget simple de paneles con pestañas de contenido local.</p>
+      <TabContainer defaultActiveKey="Resumen">
         <Nav className="nav-tabs mb-3">
           {(tabContents || []).slice(0, 3).map((tab, idx) => {
             return (
@@ -41,7 +41,7 @@ const DefaultTabs = () => {
             )
           })}
           <NavItem>
-            <NavLink disabled>Disabled</NavLink>
+            <NavLink disabled>Deshabilitado</NavLink>
           </NavItem>
         </Nav>
         <TabContent>

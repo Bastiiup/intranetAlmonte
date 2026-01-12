@@ -33,18 +33,18 @@ interface ColaboradorOption {
 }
 
 const ETIQUETAS = [
-  { value: 'baja', label: 'Cold Lead' },
-  { value: 'media', label: 'Prospect' },
-  { value: 'alta', label: 'Hot Lead' },
+  { value: 'baja', label: 'Lead Frío' },
+  { value: 'media', label: 'Prospecto' },
+  { value: 'alta', label: 'Lead Caliente' },
 ]
 
 const ESTADOS = [
-  { value: 'in-progress', label: 'In Progress' },
-  { value: 'proposal-sent', label: 'Proposal Sent' },
-  { value: 'follow-up', label: 'Follow Up' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'negotiation', label: 'Negotiation' },
-  { value: 'rejected', label: 'Rejected' },
+  { value: 'in-progress', label: 'En Progreso' },
+  { value: 'proposal-sent', label: 'Propuesta Enviada' },
+  { value: 'follow-up', label: 'Seguimiento' },
+  { value: 'pending', label: 'Pendiente' },
+  { value: 'negotiation', label: 'Negociación' },
+  { value: 'rejected', label: 'Rechazado' },
 ]
 
 const AddNewLeadModal = ({ show, toggleModal, onLeadCreated }: AddNewLeadModalProps) => {
