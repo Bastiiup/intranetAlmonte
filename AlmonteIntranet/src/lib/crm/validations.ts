@@ -4,20 +4,23 @@
 
 import { z } from 'zod'
 
-// Schema para Material
-export const MaterialSchema = z.object({
-  material_nombre: z.string().min(1, 'El nombre del material es obligatorio'),
-  tipo: z.enum(['util', 'libro', 'cuaderno', 'otro']).default('util'),
-  cantidad: z.number().int().positive().default(1),
-  obligatorio: z.boolean().default(true),
-  descripcion: z.string().optional().nullable(),
-}).transform(data => ({
-  material_nombre: data.material_nombre,
-  tipo: data.tipo ?? 'util', // Garantizar que siempre tenga valor
-  cantidad: data.cantidad ?? 1, // Garantizar que siempre tenga valor
-  obligatorio: data.obligatorio ?? true, // Garantizar que siempre tenga valor
-  descripcion: data.descripcion ?? null,
-}))
+// Schema para Material (con preprocess para aplicar defaults)
+export const MaterialSchema = z.preprocess(
+  (data: any) => ({
+    material_nombre: data.material_nombre,
+    tipo: data.tipo ?? 'util',
+    cantidad: data.cantidad ?? 1,
+    obligatorio: data.obligatorio ?? true,
+    descripcion: data.descripcion ?? null,
+  }),
+  z.object({
+    material_nombre: z.string().min(1, 'El nombre del material es obligatorio'),
+    tipo: z.enum(['util', 'libro', 'cuaderno', 'otro']),
+    cantidad: z.number().int().positive(),
+    obligatorio: z.boolean(),
+    descripcion: z.string().nullable(),
+  })
+)
 
 // Schema para actualizar curso
 export const UpdateCursoSchema = z.object({
@@ -31,26 +34,29 @@ export const UpdateCursoSchema = z.object({
 })
 
 // Schema para crear curso
-export const CreateCursoSchema = z.object({
-  nombre_curso: z.string().min(1, 'El nombre del curso es obligatorio'),
-  nivel: z.enum(['Basica', 'Media']),
-  grado: z.string().regex(/^[1-8]$/, 'El grado debe ser entre 1 y 8'),
-  paralelo: z.string().nullable().optional(),
-  activo: z.boolean(), // Requerido (el endpoint asigna default antes de validar)
-  lista_utiles: z.union([z.number(), z.string(), z.null()]).optional(),
-  materiales: z.array(MaterialSchema).optional(),
-  colegio: z.union([z.number(), z.string()]),
-}).transform(data => ({
-  ...data,
-  // Asegurar que materiales siempre tengan los campos requeridos
-  materiales: data.materiales?.map(m => ({
-    material_nombre: m.material_nombre,
-    tipo: m.tipo ?? 'util',
-    cantidad: m.cantidad ?? 1,
-    obligatorio: m.obligatorio ?? true,
-    descripcion: m.descripcion ?? null,
-  })),
-}))
+export const CreateCursoSchema = z.preprocess(
+  (data: any) => ({
+    ...data,
+    // Asegurar que materiales siempre tengan los campos requeridos
+    materiales: data.materiales?.map((m: any) => ({
+      material_nombre: m.material_nombre,
+      tipo: m.tipo ?? 'util',
+      cantidad: m.cantidad ?? 1,
+      obligatorio: m.obligatorio ?? true,
+      descripcion: m.descripcion ?? null,
+    })),
+  }),
+  z.object({
+    nombre_curso: z.string().min(1, 'El nombre del curso es obligatorio'),
+    nivel: z.enum(['Basica', 'Media']),
+    grado: z.string().regex(/^[1-8]$/, 'El grado debe ser entre 1 y 8'),
+    paralelo: z.string().nullable().optional(),
+    activo: z.boolean(), // Requerido (el endpoint asigna default antes de validar)
+    lista_utiles: z.union([z.number(), z.string(), z.null()]).optional(),
+    materiales: z.array(MaterialSchema).optional(),
+    colegio: z.union([z.number(), z.string()]),
+  })
+)
 
 // Tipos inferidos de los schemas
 export type UpdateCursoInput = z.infer<typeof UpdateCursoSchema>
