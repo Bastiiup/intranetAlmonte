@@ -367,6 +367,27 @@ export default function ColegioDetailPage() {
     }
   }, [colegioId, activeTab])
 
+  // Obtener años únicos de los cursos para el filtro
+  const añosDisponibles = useMemo(() => {
+    const años = new Set<number>()
+    cursos.forEach((curso: any) => {
+      const attrs = curso.attributes || curso
+      const año = attrs.año || attrs.ano || new Date().getFullYear()
+      años.add(Number(año))
+    })
+    return Array.from(años).sort((a, b) => b - a) // Ordenar de mayor a menor
+  }, [cursos])
+
+  // Cursos filtrados por año
+  const cursosFiltrados = useMemo(() => {
+    if (añoFiltro === null) return cursos
+    return cursos.filter((curso: any) => {
+      const attrs = curso.attributes || curso
+      const año = attrs.año || attrs.ano || new Date().getFullYear()
+      return Number(año) === añoFiltro
+    })
+  }, [cursos, añoFiltro])
+
   // Calcular materiales más pedidos
   const materialesMasPedidos = useMemo(() => {
     const materialesMap = new Map<string, { nombre: string; cantidad: number; total: number; sku?: string }>()
@@ -883,27 +904,6 @@ export default function ColegioDetailPage() {
       </CardBody>
     </Card>
   )
-
-  // Obtener años únicos de los cursos para el filtro
-  const añosDisponibles = useMemo(() => {
-    const años = new Set<number>()
-    cursos.forEach((curso: any) => {
-      const attrs = curso.attributes || curso
-      const año = attrs.año || attrs.ano || new Date().getFullYear()
-      años.add(Number(año))
-    })
-    return Array.from(años).sort((a, b) => b - a) // Ordenar de mayor a menor
-  }, [cursos])
-
-  // Cursos filtrados por año
-  const cursosFiltrados = useMemo(() => {
-    if (añoFiltro === null) return cursos
-    return cursos.filter((curso: any) => {
-      const attrs = curso.attributes || curso
-      const año = attrs.año || attrs.ano || new Date().getFullYear()
-      return Number(año) === añoFiltro
-    })
-  }, [cursos, añoFiltro])
 
   const renderCursosTab = () => (
     <Card>
