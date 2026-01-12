@@ -428,6 +428,19 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
         throw new Error(result.error || 'Error al guardar el curso')
       }
 
+      // Si el año se guardó temporalmente (porque Strapi no tiene el campo), guardarlo en localStorage
+      if (result.añoTemporal && result.cursoId && typeof window !== 'undefined') {
+        try {
+          const añosGuardados = localStorage.getItem('cursos_años_temporales')
+          const añosMap = añosGuardados ? JSON.parse(añosGuardados) : {}
+          añosMap[String(result.cursoId)] = result.añoTemporal
+          localStorage.setItem('cursos_años_temporales', JSON.stringify(añosMap))
+          console.log('✅ Año guardado temporalmente en localStorage:', result.añoTemporal)
+        } catch (e) {
+          console.warn('Error al guardar año en localStorage:', e)
+        }
+      }
+
       // Cerrar modal y ejecutar callback
       onHide()
       if (onSuccess) {

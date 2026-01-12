@@ -351,6 +351,19 @@ export default function ColegioDetailPage() {
         const result = await response.json()
         if (response.ok && result.success) {
           const cursosData = Array.isArray(result.data) ? result.data : [result.data]
+          
+          // Si hay años temporales en la respuesta, guardarlos en localStorage
+          if (result.añosTemporales && typeof window !== 'undefined') {
+            try {
+              const añosGuardados = localStorage.getItem('cursos_años_temporales')
+              const añosMap = añosGuardados ? JSON.parse(añosGuardados) : {}
+              Object.assign(añosMap, result.añosTemporales)
+              localStorage.setItem('cursos_años_temporales', JSON.stringify(añosMap))
+            } catch (e) {
+              console.warn('Error al guardar años temporales:', e)
+            }
+          }
+          
           setCursos(cursosData)
         }
       } catch (err: any) {
@@ -367,11 +380,12 @@ export default function ColegioDetailPage() {
     }
   }, [colegioId, activeTab])
 
-  // Función helper para extraer el año de un curso (incluyendo metadata temporal)
+  // Función helper para extraer el año de un curso (incluyendo localStorage temporal)
   const obtenerAñoDelCurso = (curso: any): number => {
     const attrs = curso.attributes || curso
+    const cursoId = curso.id || curso.documentId || null
     
-    // Primero intentar obtener el año directamente
+    // Primero intentar obtener el año directamente de Strapi
     if (attrs.año !== undefined && attrs.año !== null) {
       return Number(attrs.año)
     }
@@ -379,16 +393,38 @@ export default function ColegioDetailPage() {
       return Number(attrs.ano)
     }
     
-    // Si no está, intentar extraerlo de la descripción (metadata temporal)
-    if (attrs.descripcion) {
-      const match = attrs.descripcion.match(/__AÑO_TEMPORAL__:(\d+)__/)
-      if (match && match[1]) {
-        return Number(match[1])
+    // Si no está en Strapi, intentar obtenerlo de localStorage (solución temporal)
+    if (cursoId && typeof window !== 'undefined') {
+      try {
+        const añosGuardados = localStorage.getItem('cursos_años_temporales')
+        if (añosGuardados) {
+          const añosMap = JSON.parse(añosGuardados)
+          const año = añosMap[String(cursoId)]
+          if (año) {
+            return Number(año)
+          }
+        }
+      } catch (e) {
+        console.warn('Error al leer años de localStorage:', e)
       }
     }
     
     // Fallback: año actual
     return new Date().getFullYear()
+  }
+
+  // Función helper para guardar el año en localStorage (solución temporal)
+  const guardarAñoEnLocalStorage = (cursoId: string | number, año: number) => {
+    if (typeof window === 'undefined') return
+    
+    try {
+      const añosGuardados = localStorage.getItem('cursos_años_temporales')
+      const añosMap = añosGuardados ? JSON.parse(añosGuardados) : {}
+      añosMap[String(cursoId)] = año
+      localStorage.setItem('cursos_años_temporales', JSON.stringify(añosMap))
+    } catch (e) {
+      console.warn('Error al guardar año en localStorage:', e)
+    }
   }
 
   // Obtener años únicos de los cursos para el filtro
