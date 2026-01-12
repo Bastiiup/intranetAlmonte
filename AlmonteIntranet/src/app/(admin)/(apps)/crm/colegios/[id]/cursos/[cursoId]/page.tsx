@@ -32,8 +32,6 @@ export default function CursoDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
-  const [historialListas, setHistorialListas] = useState<any[]>([])
-  const [loadingHistorial, setLoadingHistorial] = useState(false)
   const [showImportPDF, setShowImportPDF] = useState(false)
   const [selectedPDF, setSelectedPDF] = useState<File | null>(null)
   const [uploadingPDF, setUploadingPDF] = useState(false)
@@ -69,8 +67,6 @@ export default function CursoDetailPage() {
           setError(`Curso con ID ${cursoId} no encontrado. Puede que el ID sea incorrecto o el curso haya sido eliminado.`)
         } else if (cursoResult.success && cursoResult.data) {
           setCurso(cursoResult.data)
-          // Cargar historial de listas de útiles
-          await cargarHistorialListas(cursoResult.data)
         } else {
           setError(cursoResult.error || 'Error al cargar el curso')
         }
@@ -96,62 +92,6 @@ export default function CursoDetailPage() {
     return new Date().getFullYear()
   }
 
-  const cargarHistorialListas = async (cursoData: any) => {
-    try {
-      setLoadingHistorial(true)
-      const attrs = cursoData.attributes || cursoData
-      const nivel = attrs.nivel
-      const grado = attrs.grado
-      const año = obtenerAñoDelCurso(cursoData)
-
-      if (!nivel || !grado) {
-        setHistorialListas([])
-        return
-      }
-
-      // Buscar todas las listas de útiles que coincidan con nivel, grado y año
-      const params = new URLSearchParams({
-        nivel: nivel,
-        grado: String(grado),
-        año: String(año),
-        'populate[materiales]': 'true',
-        'publicationState': 'preview',
-      })
-
-      const response = await fetch(`/api/crm/listas-utiles?${params.toString()}`)
-      const result = await response.json()
-
-      if (result.success && Array.isArray(result.data)) {
-        // Ordenar por fecha de creación/modificación (más reciente primero)
-        const listasOrdenadas = result.data
-          .map((lista: any) => {
-            const listaAttrs = lista.attributes || lista
-            const createdAt = lista.createdAt || listaAttrs.createdAt || listaAttrs.created_at
-            const updatedAt = lista.updatedAt || listaAttrs.updatedAt || listaAttrs.updated_at
-            return {
-              ...lista,
-              fechaCreacion: createdAt ? new Date(createdAt).getTime() : 0,
-              fechaActualizacion: updatedAt ? new Date(updatedAt).getTime() : 0,
-            }
-          })
-          .sort((a: any, b: any) => {
-            // Ordenar por fecha de actualización (más reciente primero), luego por creación
-            const fechaA = a.fechaActualizacion || a.fechaCreacion
-            const fechaB = b.fechaActualizacion || b.fechaCreacion
-            return fechaB - fechaA
-          })
-
-        setHistorialListas(listasOrdenadas)
-      } else {
-        setHistorialListas([])
-      }
-    } catch (err: any) {
-      console.error('Error al cargar historial de listas:', err)
-      setHistorialListas([])
-    } finally {
-      setLoadingHistorial(false)
-    }
-  }
 
   const handleImportarPDF = async () => {
     if (!selectedPDF) {
@@ -188,7 +128,6 @@ export default function CursoDetailPage() {
           const cursoResult = await cursoResponse.json()
           if (cursoResult.success && cursoResult.data) {
             setCurso(cursoResult.data)
-            await cargarHistorialListas(cursoResult.data)
           }
         }
       } else {
