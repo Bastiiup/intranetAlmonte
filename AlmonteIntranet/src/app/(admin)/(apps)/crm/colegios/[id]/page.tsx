@@ -1085,11 +1085,27 @@ export default function ColegioDetailPage() {
                                         className="p-1 text-success"
                                         onClick={() => {
                                           // Intentar obtener el ID del curso (puede ser id numérico o documentId)
-                                          const cursoId = curso.id || curso.documentId || (curso.attributes && (curso.attributes.id || curso.attributes.documentId))
-                                          debugLog('[ColegioDetailPage] Navegando a detalle de curso:', { cursoId, curso })
+                                          // Strapi puede devolver el ID en diferentes formatos
+                                          const cursoId = curso.id || 
+                                                         curso.documentId || 
+                                                         (curso.attributes && (curso.attributes.id || curso.attributes.documentId)) ||
+                                                         (curso.data && (curso.data.id || curso.data.documentId))
+                                          
+                                          debugLog('[ColegioDetailPage] Navegando a detalle de curso:', { 
+                                            cursoId, 
+                                            cursoIdType: typeof cursoId,
+                                            curso: {
+                                              id: curso.id,
+                                              documentId: curso.documentId,
+                                              hasAttributes: !!curso.attributes,
+                                              attrsId: curso.attributes?.id,
+                                              attrsDocumentId: curso.attributes?.documentId,
+                                            }
+                                          })
                                           
                                           if (cursoId) {
-                                            router.push(`/crm/colegios/${colegioId}/cursos/${cursoId}`)
+                                            // Convertir a string para la URL
+                                            router.push(`/crm/colegios/${colegioId}/cursos/${String(cursoId)}`)
                                           } else {
                                             console.error('No se pudo obtener el ID del curso:', curso)
                                             alert('Error: No se pudo obtener el ID del curso. Por favor, intente editar el curso para ver sus detalles.')
