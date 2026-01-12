@@ -8,9 +8,11 @@ import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 import { createSuccessResponse, createErrorResponse, handleApiError } from '@/lib/api/utils'
 import { logger } from '@/lib/logging/logger'
-import type { CursoData, CreateCursoRequest } from '@/lib/crm/types'
+import type { CursoData } from '@/lib/crm/types'
 import { getCursosWithPopulate } from '@/lib/strapi/populate-helpers'
-import { prepareManyToOneRelation, cleanUndefinedNullFields } from '@/lib/strapi/relations'
+import { CursoService } from '@/lib/services/cursoService'
+import { CreateCursoSchema, validateWithZod } from '@/lib/crm/validations'
+import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
 
@@ -98,63 +100,33 @@ export async function POST(
       }
     }
 
-    // Validaciones
-    if (!body.nivel || !body.grado) {
-      return createErrorResponse('El nivel y grado son obligatorios', 400)
+    // Preparar datos para validación (incluir colegio y nombre_curso si viene como curso_nombre)
+    const dataToValidate = {
+      ...body,
+      nombre_curso: body.nombre_curso?.trim() || body.curso_nombre?.trim() || body.nombre_curso,
+      colegio: colegioIdNum,
     }
 
-    // ✅ Campo correcto en Strapi: nombre_curso (generado automáticamente o proporcionado)
-    const nombreCurso = body.nombre_curso?.trim() || body.curso_nombre?.trim()
-    if (!nombreCurso) {
-      return createErrorResponse('El nombre del curso es obligatorio', 400)
+    // Validar con Zod
+    const validation = validateWithZod(CreateCursoSchema, dataToValidate)
+    if (!validation.success) {
+      return createErrorResponse('Datos inválidos', 400, { errors: validation.errors.errors })
     }
 
-    const cursoData: any = {
-      data: {
-        nombre_curso: nombreCurso, // ✅ Campo correcto en Strapi
-        colegio: { connect: [typeof colegioIdNum === 'number' ? colegioIdNum : parseInt(String(colegioIdNum))] },
-        nivel: body.nivel,
-        grado: body.grado,
-        ...(body.paralelo && { paralelo: body.paralelo }),
-        ...(body.activo !== undefined && { activo: body.activo !== false }),
-      },
-    }
-
-    // Agregar relación lista_utiles usando helper
-    const listaUtilesRelation = prepareManyToOneRelation(body.lista_utiles, 'lista_utiles')
-    if (listaUtilesRelation) {
-      Object.assign(cursoData.data, listaUtilesRelation)
-    }
-
-    // Materiales adicionales (solo si no hay lista_utiles o si se proporcionan explícitamente)
-    if (body.materiales && Array.isArray(body.materiales) && body.materiales.length > 0) {
-      cursoData.data.materiales = body.materiales.map((material: any) => ({
-        material_nombre: material.material_nombre || '',
-        tipo: material.tipo || 'util',
-        cantidad: material.cantidad ? parseInt(String(material.cantidad)) : 1,
-        obligatorio: material.obligatorio !== undefined ? material.obligatorio : true,
-        ...(material.descripcion && { descripcion: material.descripcion }),
-      }))
-    } else if (!body.lista_utiles) {
-      // Si no hay lista_utiles ni materiales, enviar array vacío para mantener compatibilidad
-      cursoData.data.materiales = []
-    }
-    
-    // Limpiar campos undefined o null usando helper
-    cursoData.data = cleanUndefinedNullFields(cursoData.data) as typeof cursoData.data
-
-    const response = await strapiClient.post<StrapiResponse<StrapiEntity<CursoData>>>(
-      '/api/cursos',
-      cursoData
-    )
+    // Crear usando servicio
+    const curso = await CursoService.create(validation.data)
 
     logger.success('[API /crm/colegios/[id]/cursos POST] Curso creado exitosamente', { colegioId })
-
     return createSuccessResponse(
-      response.data,
+      curso,
       { message: 'Curso creado exitosamente' }
     )
   } catch (error: any) {
+    // Si es error de Zod, ya fue manejado arriba
+    if (error instanceof z.ZodError) {
+      return createErrorResponse('Datos inválidos', 400, { errors: error.errors })
+    }
+    
     logger.apiError('/crm/colegios/[id]/cursos', 'POST - Error al crear curso', error)
     return handleApiError(error, 'Error al crear curso')
   }
