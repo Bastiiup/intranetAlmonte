@@ -23,12 +23,17 @@ export class CursoService {
       logger.debug('[CursoService] Buscando curso', { id })
       
       const response = await getCursoWithPopulate<CursoData>(id)
-      const curso = Array.isArray(response.data) ? response.data[0] : response.data
+      const cursoEntity = Array.isArray(response.data) ? response.data[0] : response.data
       
-      if (!curso) {
+      if (!cursoEntity) {
         logger.warn('[CursoService] Curso no encontrado', { id })
         return null
       }
+      
+      // Extraer datos de StrapiEntity (puede venir en attributes o directamente)
+      const curso = cursoEntity.attributes 
+        ? { ...cursoEntity, ...cursoEntity.attributes, id: cursoEntity.id, documentId: cursoEntity.documentId }
+        : cursoEntity
       
       logger.debug('[CursoService] Curso encontrado', { id })
       return curso as CursoData
@@ -108,7 +113,12 @@ export class CursoService {
         cursoData
       )
 
-      const cursoActualizado = Array.isArray(response.data) ? response.data[0] : response.data
+      const cursoEntity = Array.isArray(response.data) ? response.data[0] : response.data
+      
+      // Extraer datos de StrapiEntity (puede venir en attributes o directamente)
+      const cursoActualizado = cursoEntity?.attributes 
+        ? { ...cursoEntity, ...cursoEntity.attributes, id: cursoEntity.id, documentId: cursoEntity.documentId }
+        : cursoEntity
       
       logger.success('[CursoService] Curso actualizado exitosamente', { id })
       return cursoActualizado as CursoData
@@ -194,7 +204,12 @@ export class CursoService {
         cursoData
       )
 
-      const cursoCreado = Array.isArray(response.data) ? response.data[0] : response.data
+      const cursoEntity = Array.isArray(response.data) ? response.data[0] : response.data
+      
+      // Extraer datos de StrapiEntity (puede venir en attributes o directamente)
+      const cursoCreado = cursoEntity?.attributes 
+        ? { ...cursoEntity, ...cursoEntity.attributes, id: cursoEntity.id, documentId: cursoEntity.documentId }
+        : cursoEntity
       
       logger.success('[CursoService] Curso creado exitosamente', { 
         id: cursoCreado?.id || cursoCreado?.documentId 
