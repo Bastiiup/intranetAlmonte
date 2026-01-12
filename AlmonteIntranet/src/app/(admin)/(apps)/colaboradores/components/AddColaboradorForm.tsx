@@ -30,6 +30,7 @@ const AddColaboradorForm = () => {
     email_login: '',
     password: '',
     rol: '',
+    plataforma: 'general', // Default: general (puede ver ambas plataformas)
     activo: false, // Siempre false - requiere activación por super_admin
     // Campos de persona
     rut: '',
@@ -165,6 +166,7 @@ const AddColaboradorForm = () => {
         email_login: formData.email_login.trim(),
         password: formData.password,
         activo: false, // Siempre false - requiere activación
+        plataforma: formData.plataforma || 'general', // Plataforma del colaborador
         // Solo enviar rol si tiene valor válido
         ...(formData.rol && formData.rol.trim() && { rol: formData.rol.trim() }),
         // Datos de persona para crear/relacionar
@@ -291,6 +293,27 @@ const AddColaboradorForm = () => {
               </FormGroup>
             </Col>
 
+            <Col md={6}>
+              <FormGroup className="mb-3">
+                <FormLabel>
+                  Plataforma <span className="text-danger">*</span>
+                </FormLabel>
+                <FormControl
+                  as="select"
+                  value={formData.plataforma}
+                  onChange={(e) => handleFieldChange('plataforma', e.target.value)}
+                  disabled={loading}
+                  required
+                >
+                  <option value="general">General (Ambas plataformas)</option>
+                  <option value="moraleja">Moraleja</option>
+                  <option value="escolar">Escolar</option>
+                </FormControl>
+                <small className="text-muted">
+                  Define qué plataforma puede ver este colaborador. "General" permite ver ambas.
+                </small>
+              </FormGroup>
+            </Col>
 
             <Col md={12}>
               <Alert variant="info" className="mb-0">

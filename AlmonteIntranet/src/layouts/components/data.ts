@@ -194,7 +194,6 @@ export const menuItems: MenuItemType[] = [
   { key: 'aplicaciones', label: 'APLICACIONES', isTitle: true },
   { key: 'chat', label: 'Chat', icon: LuMessageSquareDot, url: '/chat' },
   { key: 'logs', label: 'Logs de Actividades', icon: LuFileText, url: '/logs', roles: ['super_admin', 'supervisor', 'soporte'] },
-  { key: 'tienda-test', label: 'Test Strapi', url: '/tienda/test-strapi' },
   { key: 'equipos-section', label: 'EQUIPOS', isTitle: true },
   {
     key: 'equipos',
@@ -345,7 +344,6 @@ export const horizontalMenuItems: MenuItemType[] = [
               { key: 'tienda-pedidos-editar', label: 'Edición de pedidos', url: '/tienda/pedidos/editar' },
             ],
           },
-          { key: 'tienda-test', label: 'Test Strapi', url: '/tienda/test-strapi' },
         ],
       },
       {

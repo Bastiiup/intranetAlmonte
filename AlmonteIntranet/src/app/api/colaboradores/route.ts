@@ -149,6 +149,7 @@ export async function POST(request: Request) {
       data: {
         email_login: body.email_login.trim(),
         activo: false, // Siempre false - requiere activación por super_admin desde solicitudes
+        plataforma: body.plataforma || 'general', // Plataforma del colaborador (default: general)
         ...(body.password && { password: body.password }),
         ...(body.rol && body.rol.trim() && { rol: body.rol.trim() }),
         // CRÍTICO: Vincular persona usando el ID (Strapi acepta id numérico o documentId)
