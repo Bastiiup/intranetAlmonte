@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Container, Card, CardHeader, CardBody, Alert, Spinner, Row, Col, Button, Badge, Nav, NavItem, NavLink, Table } from 'react-bootstrap'
+import { Container, Card, CardHeader, CardBody, Alert, Spinner, Row, Col, Button, Badge, Nav, NavItem, NavLink, Table, Form, FormGroup, FormLabel, FormControl } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { LuMapPin, LuPhone, LuMail, LuGlobe, LuUsers, LuPencil, LuArrowLeft, LuShoppingCart, LuTrendingUp, LuActivity, LuPackage, LuGraduationCap, LuDownload } from 'react-icons/lu'
 import Link from 'next/link'
@@ -131,6 +131,7 @@ export default function ColegioDetailPage() {
   const [cursos, setCursos] = useState<any[]>([])
   const [showCursoModal, setShowCursoModal] = useState(false)
   const [cursoSeleccionado, setCursoSeleccionado] = useState<any>(null)
+  const [añoFiltro, setAñoFiltro] = useState<number | null>(null) // Filtro de año para cursos
 
   useEffect(() => {
     const fetchColegio = async () => {
@@ -358,7 +359,12 @@ export default function ColegioDetailPage() {
         setLoadingCursos(false)
       }
     }
-    if (colegioId && activeTab === 'cursos') fetchCursos()
+    if (colegioId && activeTab === 'cursos') {
+      fetchCursos()
+    } else if (activeTab !== 'cursos') {
+      // Resetear filtro de año cuando se cambia de tab
+      setAñoFiltro(null)
+    }
   }, [colegioId, activeTab])
 
   // Calcular materiales más pedidos
@@ -878,15 +884,58 @@ export default function ColegioDetailPage() {
     </Card>
   )
 
+  // Obtener años únicos de los cursos para el filtro
+  const añosDisponibles = useMemo(() => {
+    const años = new Set<number>()
+    cursos.forEach((curso: any) => {
+      const attrs = curso.attributes || curso
+      const año = attrs.año || attrs.ano || new Date().getFullYear()
+      años.add(Number(año))
+    })
+    return Array.from(años).sort((a, b) => b - a) // Ordenar de mayor a menor
+  }, [cursos])
+
+  // Cursos filtrados por año
+  const cursosFiltrados = useMemo(() => {
+    if (añoFiltro === null) return cursos
+    return cursos.filter((curso: any) => {
+      const attrs = curso.attributes || curso
+      const año = attrs.año || attrs.ano || new Date().getFullYear()
+      return Number(año) === añoFiltro
+    })
+  }, [cursos, añoFiltro])
+
   const renderCursosTab = () => (
     <Card>
       <CardHeader>
-        <div className="d-flex justify-content-between align-items-center">
-          <h4 className="mb-0 d-flex align-items-center">
-            <LuGraduationCap className="me-2" />
-            Cursos del Colegio
-            <Badge bg="primary" className="ms-2">{cursos.length}</Badge>
-          </h4>
+        <div className="d-flex justify-content-between align-items-center flex-wrap gap-3">
+          <div className="d-flex align-items-center gap-3">
+            <h4 className="mb-0 d-flex align-items-center">
+              <LuGraduationCap className="me-2" />
+              Cursos del Colegio
+              <Badge bg="primary" className="ms-2">{cursosFiltrados.length}</Badge>
+            </h4>
+            {añosDisponibles.length > 0 && (
+              <FormGroup className="mb-0" style={{ minWidth: '150px' }}>
+                <FormControl
+                  as="select"
+                  value={añoFiltro || ''}
+                  onChange={(e) => {
+                    const valor = e.target.value
+                    setAñoFiltro(valor === '' ? null : Number(valor))
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <option value="">Todos los años</option>
+                  {añosDisponibles.map((año) => (
+                    <option key={año} value={año}>
+                      Año {año}
+                    </option>
+                  ))}
+                </FormControl>
+              </FormGroup>
+            )}
+          </div>
           <Button
             variant="primary"
             size="sm"
@@ -906,14 +955,16 @@ export default function ColegioDetailPage() {
             <Spinner animation="border" variant="primary" />
             <p className="mt-2 text-muted">Cargando cursos...</p>
           </div>
-        ) : cursos.length === 0 ? (
+        ) : cursosFiltrados.length === 0 ? (
           <p className="text-muted text-center py-5">
-            No hay cursos registrados para este colegio. Haz clic en "Agregar Curso" para comenzar.
+            {añoFiltro 
+              ? `No hay cursos registrados para el año ${añoFiltro}. Haz clic en "Agregar Curso" para comenzar.`
+              : 'No hay cursos registrados para este colegio. Haz clic en "Agregar Curso" para comenzar.'}
           </p>
         ) : (
           (() => {
             // Agrupar cursos por año
-            const cursosPorAño = cursos.reduce((acc: Record<string, any[]>, curso: any) => {
+            const cursosPorAño = cursosFiltrados.reduce((acc: Record<string, any[]>, curso: any) => {
               const attrs = curso.attributes || curso
               const año = attrs.año || attrs.ano || new Date().getFullYear()
               const añoKey = String(año)
