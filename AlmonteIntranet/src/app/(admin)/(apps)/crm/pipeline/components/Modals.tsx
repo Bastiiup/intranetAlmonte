@@ -14,63 +14,63 @@ const Modals = () => {
       <Modal show={newTaskModal.open} aria-hidden={newTaskModal.open} onHide={newTaskModal.toggle} centered>
         <Form onSubmit={taskFormData ? taskForm.editRecord : taskForm.newRecord}>
           <ModalHeader closeButton>
-            <ModalTitle>{taskFormData ? 'Edit Deal' : 'Add New Deal'}</ModalTitle>
+            <ModalTitle>{taskFormData ? 'Editar Negocio' : 'Agregar Nuevo Negocio'}</ModalTitle>
           </ModalHeader>
           <ModalBody>
             <FormGroup className="mb-3" controlId="taskTitle">
-              <FormLabel>Title</FormLabel>
+              <FormLabel>Título</FormLabel>
               <Controller
                 control={taskForm.control}
                 name="title"
-                rules={{ required: 'Task title is required' }}
-                render={({ field }) => <FormControl {...field} value={field.value ?? ''} type="text" placeholder="Enter task title" />}
+                rules={{ required: 'El título es requerido' }}
+                render={({ field }) => <FormControl {...field} value={field.value ?? ''} type="text" placeholder="Ingrese el título" />}
               />
             </FormGroup>
 
             <FormGroup className="mb-3" controlId="userName">
-              <FormLabel>User Name</FormLabel>
+              <FormLabel>Nombre de Usuario</FormLabel>
               <Controller
                 control={taskForm.control}
                 name="userName"
-                rules={{ required: 'username  is required' }}
-                render={({ field }) => <FormControl {...field} value={field.value ?? ''} type="text" placeholder="Enter user name" />}
+                rules={{ required: 'El nombre de usuario es requerido' }}
+                render={({ field }) => <FormControl {...field} value={field.value ?? ''} type="text" placeholder="Ingrese el nombre de usuario" />}
               />
             </FormGroup>
 
             <FormGroup className="mb-3" controlId="companyName">
-              <FormLabel>Company Name</FormLabel>
+              <FormLabel>Nombre de la Empresa</FormLabel>
               <Controller
                 control={taskForm.control}
                 name="companyName"
-                rules={{ required: 'Company name  is required' }}
-                render={({ field }) => <FormControl {...field} value={field.value ?? ''} type="text" placeholder="Enter company name" />}
+                rules={{ required: 'El nombre de la empresa es requerido' }}
+                render={({ field }) => <FormControl {...field} value={field.value ?? ''} type="text" placeholder="Ingrese el nombre de la empresa" />}
               />
             </FormGroup>
             <FormGroup className="mb-3" controlId="amount">
-              <FormLabel>Amount</FormLabel>
+              <FormLabel>Monto</FormLabel>
               <Controller
                 control={taskForm.control}
                 name="amount"
-                rules={{ required: 'Enter amount' }}
-                render={({ field }) => <FormControl {...field} value={field.value ?? ''} type="text" placeholder="Enter amount" />}
+                rules={{ required: 'Ingrese el monto' }}
+                render={({ field }) => <FormControl {...field} value={field.value ?? ''} type="text" placeholder="Ingrese el monto" />}
               />
             </FormGroup>
             <Form.Group className="mb-0" controlId="taskDate">
-              <Form.Label>Date</Form.Label>
+              <Form.Label>Fecha</Form.Label>
               <Controller
                 control={taskForm.control}
                 name="date"
-                rules={{ required: 'Date is required' }}
+                rules={{ required: 'La fecha es requerida' }}
                 render={({ field }) => <FormControl {...field} value={field.value ?? ''} type="date" />}
               />
             </Form.Group>
           </ModalBody>
           <Modal.Footer>
             <Button variant="secondary" onClick={() => newTaskModal.toggle()}>
-              Cancel
+              Cancelar
             </Button>
             <Button type="submit" variant="primary">
-              {taskFormData ? 'Edit Deal' : 'Add Deal'}
+              {taskFormData ? 'Editar Negocio' : 'Agregar Negocio'}
             </Button>
           </Modal.Footer>
         </Form>
@@ -79,29 +79,29 @@ const Modals = () => {
       <Modal show={sectionModal.open} aria-hidden={sectionModal.open} onHide={sectionModal.toggle} tabIndex={-1} role="dialog">
         <form onSubmit={sectionFormData ? sectionForm.editRecord : sectionForm.newRecord}>
           <ModalHeader closeButton>
-            <ModalTitle className="m-0">{sectionFormData ? 'Edit New Section' : 'Add New Section'}</ModalTitle>
+            <ModalTitle className="m-0">{sectionFormData ? 'Editar Sección' : 'Agregar Nueva Sección'}</ModalTitle>
           </ModalHeader>
           <ModalBody>
             <Row>
               <Col sm={12} className="mb-3">
-                <FormLabel>Title</FormLabel>
+                <FormLabel>Título</FormLabel>
                 <Controller
                   control={sectionForm.control}
                   name="sectionTitle"
-                  rules={{ required: 'Task title is required' }}
+                  rules={{ required: 'El título es requerido' }}
                   render={({ field }) => (
                     <>
-                      <FormControl {...field} value={field.value ?? ''} type="text" placeholder="Enter task title" />
+                      <FormControl {...field} value={field.value ?? ''} type="text" placeholder="Ingrese el título" />
                     </>
                   )}
                 />
               </Col>
               <Col sm={12}>
-                  <FormLabel>Variant</FormLabel>
+                  <FormLabel>Variante</FormLabel>
                   <Controller
                     control={sectionForm.control}
                     name="sectionVariant"
-                    rules={{ required: 'Select a Variant' }}
+                    rules={{ required: 'Seleccione una Variante' }}
                     render={({ field }) => (
                       <Form.Select
                         {...field}
@@ -123,10 +123,10 @@ const Modals = () => {
           </ModalBody>
           <ModalFooter>
             <Button variant="primary" type="submit">
-              {sectionFormData ? 'Update' : 'Save'}
+              {sectionFormData ? 'Actualizar' : 'Guardar'}
             </Button>
             <Button variant="danger" onClick={() => sectionModal.toggle()} type="button">
-              Close
+              Cerrar
             </Button>
           </ModalFooter>
         </form>

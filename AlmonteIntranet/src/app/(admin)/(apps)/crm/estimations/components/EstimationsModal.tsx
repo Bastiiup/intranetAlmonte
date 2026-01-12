@@ -11,7 +11,7 @@ const EstimationsModal = ({ show, onHide }: EstimationsModalProps) => {
   return (
     <Modal show={show} onHide={onHide} size="lg">
       <ModalHeader closeButton>
-        <ModalTitle as="h5">Create New Estimation</ModalTitle>
+        <ModalTitle as="h5">Crear Nueva Cotización</ModalTitle>
       </ModalHeader>
 
       <Form id="createEstimationForm">
@@ -19,63 +19,63 @@ const EstimationsModal = ({ show, onHide }: EstimationsModalProps) => {
           <Row className="g-3">
             <Col md={6}>
               <FormGroup controlId="estimationTitle">
-                <FormLabel>Project Name</FormLabel>
-                <FormControl type="text" placeholder="Enter project name" required />
+                <FormLabel>Nombre del Proyecto</FormLabel>
+                <FormControl type="text" placeholder="Ingrese el nombre del proyecto" required />
               </FormGroup>
             </Col>
 
             <Col md={6}>
               <FormGroup controlId="clientName">
-                <FormLabel>Client</FormLabel>
-                <FormControl type="text" placeholder="Enter client name" required />
+                <FormLabel>Cliente</FormLabel>
+                <FormControl type="text" placeholder="Ingrese el nombre del cliente" required />
               </FormGroup>
             </Col>
 
             <Col md={6}>
               <FormGroup controlId="estimatedValue">
-                <FormLabel>Estimated Value (USD)</FormLabel>
-                <FormControl type="number" placeholder="e.g. 25000" required />
+                <FormLabel>Valor Estimado (USD)</FormLabel>
+                <FormControl type="number" placeholder="ej. 25000" required />
               </FormGroup>
             </Col>
 
             <Col md={6}>
               <FormGroup controlId="estimator">
-                <FormLabel>Estimated By</FormLabel>
-                <FormControl type="text" placeholder="Enter team member name" required />
+                <FormLabel>Cotizado Por</FormLabel>
+                <FormControl type="text" placeholder="Ingrese el nombre del miembro del equipo" required />
               </FormGroup>
             </Col>
 
             <Col md={6}>
               <FormGroup controlId="estimationStatus">
-                <FormLabel>Status</FormLabel>
+                <FormLabel>Estado</FormLabel>
                 <Form.Select required defaultValue="">
-                  <option value="">Select status</option>
-                  <option value="Approved">Approved</option>
-                  <option value="In Review">In Review</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Declined">Declined</option>
-                  <option value="Sent">Sent</option>
+                  <option value="">Seleccionar estado</option>
+                  <option value="Approved">Aprobada</option>
+                  <option value="In Review">En Revisión</option>
+                  <option value="Pending">Pendiente</option>
+                  <option value="Declined">Rechazada</option>
+                  <option value="Sent">Enviada</option>
                 </Form.Select>
               </FormGroup>
             </Col>
 
             <Col md={6}>
               <FormGroup controlId="estimationTags">
-                <FormLabel>Tags</FormLabel>
-                <FormControl type="text" placeholder="e.g. CRM, Mobile, API" />
+                <FormLabel>Etiquetas</FormLabel>
+                <FormControl type="text" placeholder="ej. CRM, Mobile, API" />
               </FormGroup>
             </Col>
 
             <Col md={6}>
               <FormGroup controlId="createdDate">
-                <FormLabel>Created Date</FormLabel>
+                <FormLabel>Fecha de Creación</FormLabel>
                 <FlatPicker className="form-control" />
               </FormGroup>
             </Col>
 
             <Col md={6}>
               <FormGroup controlId="expectedCloseDate">
-                <FormLabel>Expected Close</FormLabel>
+                <FormLabel>Cierre Esperado</FormLabel>
                 <FlatPicker className="form-control" />
               </FormGroup>
             </Col>
@@ -84,10 +84,10 @@ const EstimationsModal = ({ show, onHide }: EstimationsModalProps) => {
 
         <ModalFooter>
           <Button variant="light" onClick={onHide}>
-            Cancel
+            Cancelar
           </Button>
           <Button type="submit" variant="primary">
-            Save Estimation
+            Guardar Cotización
           </Button>
         </ModalFooter>
       </Form>

@@ -24,7 +24,7 @@ const ProposalsModal = ({ show, onHide }: ProposalsModalProps) => {
     return (
         <Modal show={show} onHide={onHide} size="lg">
             <ModalHeader closeButton>
-                <ModalTitle as="h5">Create New Proposal</ModalTitle>
+                <ModalTitle as="h5">Crear Nueva Propuesta</ModalTitle>
             </ModalHeader>
 
             <Form id="createEstimationForm">
@@ -33,10 +33,10 @@ const ProposalsModal = ({ show, onHide }: ProposalsModalProps) => {
 
                         <Col md={6}>
                             <FormGroup controlId="estimationTitle">
-                                <FormLabel>Proposale Id</FormLabel>
+                                <FormLabel>ID de Propuesta</FormLabel>
                                 <FormControl
                                     type="text"
-                                    placeholder="Enter proposal ID (e.g. #PS008120)"
+                                    placeholder="Ingrese ID de propuesta (ej. #PS008120)"
                                     required
                                 />
                             </FormGroup>
@@ -45,10 +45,10 @@ const ProposalsModal = ({ show, onHide }: ProposalsModalProps) => {
 
                         <Col md={6}>
                             <FormGroup controlId="clientName">
-                                <FormLabel>Subject</FormLabel>
+                                <FormLabel>Asunto</FormLabel>
                                 <FormControl
                                     type="text"
-                                    placeholder="Enter proposal subject"
+                                    placeholder="Ingrese el asunto de la propuesta"
                                     required
                                 />
                             </FormGroup>
@@ -57,10 +57,10 @@ const ProposalsModal = ({ show, onHide }: ProposalsModalProps) => {
 
                         <Col md={6}>
                             <FormGroup controlId="estimatedValue">
-                                <FormLabel>Send To (Client)</FormLabel>
+                                <FormLabel>Enviar A (Cliente)</FormLabel>
                                 <FormControl
                                     type="number"
-                                    placeholder="Enter client name"
+                                    placeholder="Ingrese el nombre del cliente"
                                     required
                                 />
                             </FormGroup>
@@ -69,10 +69,10 @@ const ProposalsModal = ({ show, onHide }: ProposalsModalProps) => {
 
                         <Col md={6}>
                             <FormGroup controlId="estimator">
-                                <FormLabel>Value (USD)</FormLabel>
+                                <FormLabel>Valor (USD)</FormLabel>
                                 <FormControl
                                     type="text"
-                                    placeholder="e.g. 15000"
+                                    placeholder="ej. 15000"
                                     required
                                 />
                             </FormGroup>
@@ -81,14 +81,14 @@ const ProposalsModal = ({ show, onHide }: ProposalsModalProps) => {
 
                         <Col md={6}>
                             <FormGroup controlId="estimationStatus">
-                                <FormLabel>Status</FormLabel>
+                                <FormLabel>Estado</FormLabel>
                                 <Form.Select required defaultValue="">
-                                    <option value="">Select status</option>
-                                    <option value="Approved">Approved</option>
-                                    <option value="In Review">In Review</option>
-                                    <option value="Pending">Pending</option>
-                                    <option value="Declined">Declined</option>
-                                    <option value="Sent">Sent</option>
+                                    <option value="">Seleccionar estado</option>
+                                    <option value="Approved">Aprobada</option>
+                                    <option value="In Review">En Revisión</option>
+                                    <option value="Pending">Pendiente</option>
+                                    <option value="Declined">Rechazada</option>
+                                    <option value="Sent">Enviada</option>
                                 </Form.Select>
                             </FormGroup>
                         </Col>
@@ -96,10 +96,10 @@ const ProposalsModal = ({ show, onHide }: ProposalsModalProps) => {
 
                         <Col md={6}>
                             <FormGroup controlId="estimationTags">
-                                <FormLabel>Tags</FormLabel>
+                                <FormLabel>Etiquetas</FormLabel>
                                 <FormControl
                                     type="text"
-                                    placeholder="e.g. CRM, Mobile, API"
+                                    placeholder="ej. CRM, Mobile, API"
                                 />
                             </FormGroup>
                         </Col>
@@ -107,7 +107,7 @@ const ProposalsModal = ({ show, onHide }: ProposalsModalProps) => {
         
                         <Col md={6}>
                             <FormGroup controlId="createdDate">
-                                <FormLabel>Created Date</FormLabel>
+                                <FormLabel>Fecha de Creación</FormLabel>
                               <FlatPicker className="form-control" options={{ dateFormat: "d M Y" }} required/>
                             </FormGroup>
                         </Col>
@@ -115,7 +115,7 @@ const ProposalsModal = ({ show, onHide }: ProposalsModalProps) => {
 
                         <Col md={6}>
                             <FormGroup controlId="expectedCloseDate">
-                                <FormLabel>Open Till</FormLabel>
+                                <FormLabel>Válida Hasta</FormLabel>
                               <FlatPicker className="form-control" options={{ dateFormat: "d M Y" }} required/>
                             </FormGroup>
                         </Col>
@@ -124,10 +124,10 @@ const ProposalsModal = ({ show, onHide }: ProposalsModalProps) => {
 
                 <ModalFooter>
                     <Button variant="light" onClick={onHide}>
-                        Cancel
+                        Cancelar
                     </Button>
                     <Button type="submit" variant="primary">
-                        Save Estimation
+                        Guardar Propuesta
                     </Button>
                 </ModalFooter>
             </Form>

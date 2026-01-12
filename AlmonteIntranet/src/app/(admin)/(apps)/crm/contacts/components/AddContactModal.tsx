@@ -16,9 +16,9 @@ const ORIGENES = [
 ]
 
 const ETIQUETAS = [
-  { value: 'baja', label: 'Cold Lead' },
-  { value: 'media', label: 'Prospect' },
-  { value: 'alta', label: 'Hot Lead' },
+  { value: 'baja', label: 'Lead Frío' },
+  { value: 'media', label: 'Prospecto' },
+  { value: 'alta', label: 'Lead Caliente' },
 ]
 
 const DEPENDENCIAS = [
