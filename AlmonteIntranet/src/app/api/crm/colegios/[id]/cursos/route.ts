@@ -115,8 +115,20 @@ export async function POST(
       return createErrorResponse('Datos inválidos', 400, { errors: validation.errors.errors })
     }
 
+    // Normalizar materiales para asegurar tipos correctos (preprocess puede no reflejarse en tipos)
+    const normalizedData = {
+      ...validation.data,
+      materiales: validation.data.materiales?.map((m: any) => ({
+        material_nombre: m.material_nombre,
+        tipo: (m.tipo ?? 'util') as 'util' | 'libro' | 'cuaderno' | 'otro',
+        cantidad: m.cantidad ?? 1,
+        obligatorio: m.obligatorio ?? true,
+        descripcion: m.descripcion ?? null,
+      })),
+    }
+
     // Crear usando servicio
-    const curso = await CursoService.create(validation.data)
+    const curso = await CursoService.create(normalizedData as CreateCursoInput)
 
     logger.success('[API /crm/colegios/[id]/cursos POST] Curso creado exitosamente', { colegioId })
     return createSuccessResponse(
