@@ -329,14 +329,6 @@ export default function CursoDetailPage() {
                       )}
                     </td>
                   </tr>
-                  {nombreLista && (
-                    <tr>
-                      <td className="fw-semibold">Lista de Útiles:</td>
-                      <td>
-                        <Badge bg="secondary">{nombreLista}</Badge>
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </Table>
             </CardBody>
