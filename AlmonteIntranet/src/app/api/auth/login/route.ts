@@ -212,12 +212,13 @@ export async function POST(request: Request) {
       }
       
       // Crear estructura limpia para la cookie (sin estructuras anidadas de Strapi)
-      // Incluir todos los campos necesarios: id, documentId, email_login, rol, activo, persona
+      // Incluir todos los campos necesarios: id, documentId, email_login, rol, plataforma, activo, persona
       const colaboradorParaCookie = {
         id: colaboradorCompleto.id || colaboradorCompleto.documentId,
         documentId: colaboradorCompleto.documentId || colaboradorCompleto.id,
         email_login: colaboradorCompleto.email_login || colaboradorCompleto.email,
         rol: colaboradorCompleto.rol || 'soporte',
+        plataforma: colaboradorCompleto.plataforma || 'general', // Incluir plataforma (moraleja, escolar, general)
         activo: colaboradorCompleto.activo !== undefined ? colaboradorCompleto.activo : true,
         persona: colaboradorCompleto.persona || null,
       }

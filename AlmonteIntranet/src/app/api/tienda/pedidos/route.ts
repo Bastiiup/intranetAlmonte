@@ -240,8 +240,15 @@ async function buscarYValidarCupon(cuponCode: string, originPlatform: string, su
   }
 }
 
+import { getServerPlatform } from '@/lib/platform/server'
+import { getPlatformFilter } from '@/lib/platform/filters'
+
 export async function GET(request: NextRequest) {
   try {
+    // Obtener plataforma del colaborador
+    const userPlatform = await getServerPlatform()
+    const platformFilter = getPlatformFilter(userPlatform, 'originPlatform')
+    
     const { searchParams } = new URL(request.url)
     const includeHidden = searchParams.get('includeHidden') === 'true'
     
@@ -249,7 +256,12 @@ export async function GET(request: NextRequest) {
     // Si es false, solo obtener pedidos publicados
     const publicationState = includeHidden ? 'preview' : 'live'
     
-    console.log('[API /tienda/pedidos GET] Obteniendo pedidos', { includeHidden, publicationState })
+    console.log('[API /tienda/pedidos GET] Obteniendo pedidos', { 
+      includeHidden, 
+      publicationState,
+      platform: userPlatform,
+      filtered: !!platformFilter,
+    })
     
     // Obtener TODOS los pedidos de ambas plataformas (woo_moraleja y woo_escolar)
     // Intentar primero con populate simple, si falla, intentar sin populate
@@ -292,6 +304,18 @@ export async function GET(request: NextRequest) {
       items = [response.data]
     } else {
       items = [response]
+    }
+    
+    // Filtrar por plataforma si aplica
+    if (platformFilter && userPlatform !== 'general') {
+      const originalCount = items.length
+      items = items.filter((item: any) => {
+        const attrs = item?.attributes || {}
+        const data = (attrs && Object.keys(attrs).length > 0) ? attrs : item
+        const itemPlatform = data?.originPlatform || data?.externalIds?.originPlatform
+        return itemPlatform === userPlatform
+      })
+      console.log(`[API /tienda/pedidos GET] 🔒 Filtrado por plataforma: ${originalCount} → ${items.length} pedidos`)
     }
     
     // Contar pedidos por plataforma para logging

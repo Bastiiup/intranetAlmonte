@@ -6,6 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import { getServerPlatform } from '@/lib/platform/server'
+import { getPlatformFilter } from '@/lib/platform/filters'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +28,10 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Obtener plataforma del colaborador
+    const userPlatform = await getServerPlatform()
+    const platformFilter = getPlatformFilter(userPlatform, 'platform')
+    
     // Obtener parámetros de query string
     const { searchParams } = new URL(request.url)
     const pageSize = searchParams.get('pagination[pageSize]') || '1000'
@@ -33,7 +39,18 @@ export async function GET(request: NextRequest) {
 
     // Endpoint correcto confirmado: /api/libros (verificado en test-strapi)
     const endpointUsed = '/api/libros'
-    const queryString = `populate=*&pagination[pageSize]=${pageSize}&pagination[page]=${page}`
+    
+    // Construir query string con filtro de plataforma si aplica
+    let queryString = `populate=*&pagination[pageSize]=${pageSize}&pagination[page]=${page}`
+    
+    if (platformFilter) {
+      // Agregar filtro de plataforma a la query
+      const filterStr = `filters[platform][$eq]=${userPlatform}`
+      queryString += `&${filterStr}`
+      console.log('[API /tienda/productos] 🔒 Filtrando por plataforma:', userPlatform)
+    } else {
+      console.log('[API /tienda/productos] 🌐 Sin filtro de plataforma (general - puede ver todas)')
+    }
     const url = `${process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'}${endpointUsed}?${queryString}`
     
     console.log('[API /tienda/productos] Intentando obtener productos:', {
@@ -59,8 +76,8 @@ export async function GET(request: NextRequest) {
     })
     
     // Log del primer producto para verificar estructura de imágenes
-    if (response.data && (Array.isArray(response.data) ? response.data[0] : response.data)) {
-      const primerProducto = Array.isArray(response.data) ? response.data[0] : response.data
+    if (filteredData && (Array.isArray(filteredData) ? filteredData[0] : filteredData)) {
+      const primerProducto = Array.isArray(filteredData) ? filteredData[0] : filteredData
       console.log('[API /tienda/productos] Primer producto estructura:', {
         id: primerProducto.id,
         tieneAttributes: !!primerProducto.attributes,
@@ -70,7 +87,7 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({
       success: true,
-      data: response.data || [],
+      data: filteredData,
       meta: response.meta || {},
       endpoint: endpointUsed,
     }, { status: 200 })

@@ -28,6 +28,7 @@ export interface AuthColaborador {
   documentId?: number | string
   email_login: string
   rol?: 'super_admin' | 'encargado_adquisiciones' | 'supervisor' | 'soporte'
+  plataforma?: 'moraleja' | 'escolar' | 'general' // Nueva plataforma del colaborador
   activo: boolean
   persona?: any
   empresa?: any
@@ -106,6 +107,7 @@ export function setAuth(authData: AuthResponse): void {
       documentId: authData.colaborador.documentId || authData.colaborador.id,
       email_login: authData.colaborador.email_login,
       rol: authData.colaborador.rol || 'soporte',
+      plataforma: authData.colaborador.plataforma || 'general', // Incluir plataforma
       activo: authData.colaborador.activo !== undefined ? authData.colaborador.activo : true,
       persona: authData.colaborador.persona || null,
     }

@@ -20,6 +20,7 @@ interface ColaboradorData {
   id: number
   email_login: string
   rol?: 'super_admin' | 'encargado_adquisiciones' | 'supervisor' | 'soporte'
+  plataforma?: 'moraleja' | 'escolar' | 'general' // Nueva plataforma del colaborador
   activo: boolean
   persona?: PersonaData
   [key: string]: any

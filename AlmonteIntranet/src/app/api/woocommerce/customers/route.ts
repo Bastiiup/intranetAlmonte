@@ -7,18 +7,30 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import wooCommerceClient from '@/lib/woocommerce/client'
+import wooCommerceClient, { createWooCommerceClient } from '@/lib/woocommerce/client'
 import { buildWooCommerceAddress, createAddressMetaData, type DetailedAddress } from '@/lib/woocommerce/address-utils'
 import { enviarClienteABothWordPress } from '@/lib/clientes/utils'
+import { getServerPlatform } from '@/lib/platform/server'
+import { getWooCommercePlatformParam } from '@/lib/platform/filters'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
+    // Obtener plataforma del colaborador
+    const userPlatform = await getServerPlatform()
+    const platformParam = getWooCommercePlatformParam(userPlatform)
+    
     const searchParams = request.nextUrl.searchParams
     const search = searchParams.get('search') || ''
     const perPage = parseInt(searchParams.get('per_page') || '10')
     const page = parseInt(searchParams.get('page') || '1')
+    
+    // Si el colaborador tiene plataforma específica, usar ese cliente de WooCommerce
+    // Si es 'general', usar el cliente por defecto (que puede ser moraleja)
+    const wooClient = platformParam 
+      ? createWooCommerceClient(platformParam === 'escolar' ? 'woo_escolar' : 'woo_moraleja')
+      : wooCommerceClient
 
     const params: Record<string, any> = {
       per_page: perPage,
@@ -28,8 +40,14 @@ export async function GET(request: NextRequest) {
     if (search) {
       params.search = search
     }
+    
+    console.log('[API /woocommerce/customers GET] Obteniendo clientes', {
+      platform: userPlatform,
+      platformParam,
+      filtered: !!platformParam,
+    })
 
-    const customers = await wooCommerceClient.get<any[]>('customers', params)
+    const customers = await wooClient.get<any[]>('customers', params)
 
     return NextResponse.json({
       success: true,
