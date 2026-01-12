@@ -83,9 +83,9 @@ export async function POST(request: NextRequest) {
     })
 
     // Obtener el curso actual para agregar la nueva versión
-    // Incluir el campo versiones_materiales para obtener las versiones existentes
+    // Incluir todos los campos necesarios para preservarlos al actualizar
     const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-      `/api/cursos/${cursoId}?fields=versiones_materiales&publicationState=preview`
+      `/api/cursos/${cursoId}?fields=nombre_curso,nivel,grado,paralelo,año,activo,versiones_materiales&publicationState=preview`
     )
 
     if (!cursoResponse.data) {
@@ -145,38 +145,68 @@ export async function POST(request: NextRequest) {
     }
     
     // Incluir campos requeridos del curso para evitar errores de validación y pérdida de datos
+    // IMPORTANTE: Incluir todos los campos que existen en el curso para no perderlos
+    
+    // Nombre del curso (probar diferentes variantes)
     if (attrs.nombre_curso) {
-      updateData.data.nombre_curso = attrs.nombre_curso
+      updateData.data.nombre_curso = String(attrs.nombre_curso).trim()
+    } else if (attrs.curso_nombre) {
+      updateData.data.nombre_curso = String(attrs.curso_nombre).trim()
+    } else if (attrs.titulo) {
+      updateData.data.nombre_curso = String(attrs.titulo).trim()
+    } else if (attrs.nombre) {
+      updateData.data.nombre_curso = String(attrs.nombre).trim()
     }
     
-    // Nivel: asegurar que sea "Basica" o "Media" (sin tilde, como espera Strapi)
+    // Nivel: normalizar a "Basica" o "Media" (sin tilde, como espera Strapi)
     if (attrs.nivel) {
-      const nivelNormalizado = attrs.nivel === 'Básico' || attrs.nivel === 'Básica' ? 'Basica' : 
-                               attrs.nivel === 'Media' ? 'Media' : 
-                               attrs.nivel
+      const nivelStr = String(attrs.nivel).trim()
+      // Normalizar diferentes variantes de "Básica" a "Basica"
+      const nivelLower = nivelStr.toLowerCase()
+      const nivelNormalizado = nivelLower === 'básico' || nivelLower === 'básica' || nivelLower === 'basica' ? 'Basica' : 
+                               nivelLower === 'media' ? 'Media' : 
+                               nivelStr
       updateData.data.nivel = nivelNormalizado
+      debugLog('[API /crm/cursos/import-pdf POST] Nivel normalizado:', { original: nivelStr, normalizado: nivelNormalizado })
     }
     
-    if (attrs.grado) {
-      updateData.data.grado = attrs.grado
+    // Grado (asegurar que sea string)
+    if (attrs.grado !== undefined && attrs.grado !== null && attrs.grado !== '') {
+      updateData.data.grado = String(attrs.grado).trim()
     }
     
-    if (attrs.paralelo) {
-      updateData.data.paralelo = attrs.paralelo
+    // Paralelo (opcional, solo si existe)
+    if (attrs.paralelo !== undefined && attrs.paralelo !== null && attrs.paralelo !== '') {
+      updateData.data.paralelo = String(attrs.paralelo).trim()
     }
     
     // Año: asegurar que sea un número válido
-    if (attrs.año !== undefined && attrs.año !== null && !isNaN(Number(attrs.año))) {
-      updateData.data.año = Number(attrs.año)
-    } else if (attrs.ano !== undefined && attrs.ano !== null && !isNaN(Number(attrs.ano))) {
-      // Fallback a "ano" sin tilde
-      updateData.data.año = Number(attrs.ano)
+    const añoValue = attrs.año !== undefined ? attrs.año : (attrs.ano !== undefined ? attrs.ano : null)
+    if (añoValue !== null && añoValue !== undefined) {
+      const añoNum = Number(añoValue)
+      if (!isNaN(añoNum) && añoNum > 1900 && añoNum < 2100) { // Validar que sea un año razonable
+        updateData.data.año = añoNum
+        debugLog('[API /crm/cursos/import-pdf POST] Año incluido:', añoNum)
+      } else {
+        debugLog('[API /crm/cursos/import-pdf POST] ⚠️ Año inválido, omitiendo:', añoValue)
+      }
     }
     
-    // Estado activo
+    // Estado activo (default a true si no está definido)
     if (attrs.activo !== undefined) {
       updateData.data.activo = attrs.activo !== false
+    } else {
+      updateData.data.activo = true
     }
+    
+    debugLog('[API /crm/cursos/import-pdf POST] Datos a actualizar:', {
+      versiones_materiales: versionesActualizadas.length,
+      nombre_curso: updateData.data.nombre_curso,
+      nivel: updateData.data.nivel,
+      grado: updateData.data.grado,
+      año: updateData.data.año,
+      activo: updateData.data.activo,
+    })
 
     await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
       `/api/cursos/${cursoId}`,
