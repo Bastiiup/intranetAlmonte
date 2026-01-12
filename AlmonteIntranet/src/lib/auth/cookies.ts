@@ -4,6 +4,7 @@
  */
 
 import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
 
 const COOKIE_NAMES = {
   AUTH_TOKEN: 'auth_token',
