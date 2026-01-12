@@ -35,6 +35,8 @@ export default function CursoDetailPage() {
   const [showImportPDF, setShowImportPDF] = useState(false)
   const [selectedPDF, setSelectedPDF] = useState<File | null>(null)
   const [uploadingPDF, setUploadingPDF] = useState(false)
+  const [showPDFViewer, setShowPDFViewer] = useState(false)
+  const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchData = async () => {
