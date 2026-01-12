@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Button, Form, FormGroup, FormLabel, FormControl, Alert, Row, Col, Collapse, Badge } from 'react-bootstrap'
-import { LuPlus, LuTrash2, LuChevronDown, LuChevronUp, LuFileSpreadsheet, LuDownload } from 'react-icons/lu'
+import { LuPlus, LuTrash2, LuChevronDown, LuChevronUp } from 'react-icons/lu'
 import Select from 'react-select'
 
 interface Material {
@@ -599,12 +599,6 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
         </ModalFooter>
       </Form>
 
-      {/* Modal de Importación Excel */}
-      <ImportarMaterialesExcelModal
-        show={showImportarExcel}
-        onHide={() => setShowImportarExcel(false)}
-        onImport={handleImportarMateriales}
-      />
     </Modal>
   )
 }
