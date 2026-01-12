@@ -100,15 +100,15 @@ export const menuItems: MenuItemType[] = [
       { key: 'crm-colegios', label: 'Colegios', url: '/crm/colegios' },
       { key: 'crm-personas', label: 'Personas', url: '/crm/personas' },
       { key: 'crm-opportunities', label: 'Oportunidades', url: '/crm/opportunities' },
-      { key: 'crm-deals', label: 'Negocios', url: '/crm/deals' },
+      // { key: 'crm-deals', label: 'Negocios', url: '/crm/deals' }, // Oculto - no se usa
       { key: 'crm-leads', label: 'Leads', url: '/crm/leads' },
       { key: 'crm-pipeline', label: 'Embudo', url: '/crm/pipeline' },
       { key: 'crm-campaign', label: 'Campaña', url: '/crm/campaign' },
-      { key: 'crm-proposals', label: 'Propuestas', url: '/crm/proposals' },
+      // { key: 'crm-proposals', label: 'Propuestas', url: '/crm/proposals' }, // Oculto - no se usa
       { key: 'crm-estimations', label: 'Cotizaciones', url: '/crm/estimations' },
-      { key: 'crm-customers', label: 'Clientes', url: '/crm/customers' },
+      // { key: 'crm-customers', label: 'Clientes', url: '/crm/customers' }, // Oculto - no se usa
       { key: 'crm-activities', label: 'Actividades', url: '/crm/activities' },
-      { key: 'crm-automatizaciones', label: 'Automatizaciones', url: '/crm/automatizaciones' },
+      // { key: 'crm-automatizaciones', label: 'Automatizaciones', url: '/crm/automatizaciones' }, // Oculto - no se usa
     ],
   },
   // { key: 'atencion-clientes', label: 'ATENCIÓN CLIENTES', isTitle: true },
@@ -369,15 +369,15 @@ export const horizontalMenuItems: MenuItemType[] = [
           { key: 'crm-colegios', label: 'Colegios', url: '/crm/colegios' },
           { key: 'crm-personas', label: 'Personas', url: '/crm/personas' },
           { key: 'crm-opportunities', label: 'Oportunidades', url: '/crm/opportunities' },
-          { key: 'crm-deals', label: 'Negocios', url: '/crm/deals' },
+          // { key: 'crm-deals', label: 'Negocios', url: '/crm/deals' }, // Oculto - no se usa
           { key: 'crm-leads', label: 'Leads', url: '/crm/leads' },
           { key: 'crm-pipeline', label: 'Embudo', url: '/crm/pipeline' },
           { key: 'crm-campaign', label: 'Campaña', url: '/crm/campaign' },
-          { key: 'crm-proposals', label: 'Propuestas', url: '/crm/proposals' },
+          // { key: 'crm-proposals', label: 'Propuestas', url: '/crm/proposals' }, // Oculto - no se usa
           { key: 'crm-estimations', label: 'Cotizaciones', url: '/crm/estimations' },
-          { key: 'crm-customers', label: 'Clientes', url: '/crm/customers' },
+          // { key: 'crm-customers', label: 'Clientes', url: '/crm/customers' }, // Oculto - no se usa
           { key: 'crm-activities', label: 'Actividades', url: '/crm/activities' },
-          { key: 'crm-automatizaciones', label: 'Automatizaciones', url: '/crm/automatizaciones' },
+          // { key: 'crm-automatizaciones', label: 'Automatizaciones', url: '/crm/automatizaciones' }, // Oculto - no se usa
         ],
       },
       {
