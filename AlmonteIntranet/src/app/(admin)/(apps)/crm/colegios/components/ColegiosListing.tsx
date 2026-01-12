@@ -66,11 +66,13 @@ const REGIONES = [
   'Magallanes',
 ]
 
-const ESTADOS = [
-  { value: '', label: 'Todos los estados' },
-  { value: 'Por Verificar', label: 'Por Verificar' },
-  { value: 'Verificado', label: 'Verificado' },
-  { value: 'Aprobado', label: 'Aprobado' },
+const TIPOS = [
+  { value: '', label: 'Todos los tipos' },
+  { value: 'Municipal', label: 'Municipal' },
+  { value: 'Particular Subvencionado', label: 'Particular Subvencionado' },
+  { value: 'Particular Pagado', label: 'Particular Pagado' },
+  { value: 'Corporación', label: 'Corporación' },
+  { value: 'Administración Delegada', label: 'Administración Delegada' },
 ]
 
 const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { colegios: any[]; error: string | null }) => {
@@ -82,7 +84,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
   
   // Estados de búsqueda y filtros
   const [globalFilter, setGlobalFilter] = useState('')
-  const [estado, setEstado] = useState('')
+  const [tipo, setTipo] = useState('')
   const [region, setRegion] = useState('')
   
   // Estados de tabla
@@ -109,7 +111,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
       params.append('page', (pagination.pageIndex + 1).toString())
       params.append('pageSize', pagination.pageSize.toString())
       if (globalFilter) params.append('search', globalFilter)
-      if (estado) params.append('estado', estado)
+      if (tipo) params.append('tipo', tipo)
       if (region) params.append('region', region)
 
       const response = await fetch(`/api/crm/colegios?${params.toString()}`)
@@ -126,7 +128,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     } finally {
       setLoading(false)
     }
-  }, [globalFilter, estado, region, pagination.pageIndex, pagination.pageSize])
+  }, [globalFilter, tipo, region, pagination.pageIndex, pagination.pageSize])
 
   // Debounce para búsqueda
   useEffect(() => {
@@ -340,7 +342,8 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     {
       id: 'region',
       header: 'REGIÓN',
-      filterFn: 'equalsString',
+      accessorKey: 'region',
+      filterFn: 'includesString',
       enableColumnFilter: true,
       cell: ({ row }) => {
         const colegio = row.original
@@ -379,19 +382,17 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
       },
     },
     {
-      id: 'estado',
-      header: 'ESTADO',
-      filterFn: 'equalsString',
+      id: 'tipo',
+      header: 'TIPO',
+      accessorKey: 'tipo',
+      filterFn: 'includesString',
       enableColumnFilter: true,
       cell: ({ row }) => {
         const colegio = row.original
-        const estado = colegio.estado || 'Por Verificar'
-        const badgeClass = estado === 'Aprobado' ? 'badge-soft-success' :
-                          estado === 'Verificado' ? 'badge-soft-info' :
-                          'badge-soft-warning'
+        const tipoValor = colegio.tipo || '-'
         return (
-          <span className={`badge ${badgeClass} fs-xxs`}>
-            {estado}
+          <span className="badge badge-soft-info fs-xxs">
+            {tipoValor}
           </span>
         )
       },
@@ -489,6 +490,14 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     enableColumnFilters: true,
     enableRowSelection: true,
     manualPagination: false, // Paginación del cliente (como productos)
+    filterFns: {
+      includesString: (row, columnId, filterValue) => {
+        const value = row.getValue(columnId) as string
+        if (!filterValue) return true
+        if (!value) return false
+        return String(value).toLowerCase().includes(String(filterValue).toLowerCase())
+      },
+    },
   })
 
   const pageIndex = table.getState().pagination.pageIndex
@@ -502,12 +511,12 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
 
   const clearFilters = () => {
     setGlobalFilter('')
-    setEstado('')
+    setTipo('')
     setRegion('')
     setColumnFilters([])
   }
 
-  const hasActiveFilters = globalFilter || estado || region || columnFilters.length > 0
+  const hasActiveFilters = globalFilter || tipo || region || columnFilters.length > 0
 
   const handleDelete = async () => {
     if (!deleteModal.colegio) return
@@ -572,17 +581,17 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     fetchColegios()
   }
 
-  // Aplicar filtros de estado y región como columnFilters
+  // Aplicar filtros de tipo y región como columnFilters
   useEffect(() => {
     const filters: ColumnFiltersState = []
-    if (estado) {
-      filters.push({ id: 'estado', value: estado })
+    if (tipo) {
+      filters.push({ id: 'tipo', value: tipo })
     }
     if (region) {
       filters.push({ id: 'region', value: region })
     }
     setColumnFilters(filters)
-  }, [estado, region])
+  }, [tipo, region])
 
   if (error && !colegios.length) {
     return (
@@ -626,12 +635,20 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
               <div className="app-search">
                 <select
                   className="form-select form-control my-1 my-md-0"
-                  value={estado}
-                  onChange={(e) => setEstado(e.target.value)}
+                  value={tipo}
+                  onChange={(e) => {
+                    setTipo(e.target.value)
+                    // Aplicar filtro directamente a la columna
+                    if (e.target.value) {
+                      table.getColumn('tipo')?.setFilterValue(e.target.value)
+                    } else {
+                      table.getColumn('tipo')?.setFilterValue(undefined)
+                    }
+                  }}
                 >
-                  {ESTADOS.map((est) => (
-                    <option key={est.value} value={est.value}>
-                      {est.label}
+                  {TIPOS.map((tip) => (
+                    <option key={tip.value} value={tip.value}>
+                      {tip.label}
                     </option>
                   ))}
                 </select>
@@ -642,7 +659,15 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
                 <select
                   className="form-select form-control my-1 my-md-0"
                   value={region}
-                  onChange={(e) => setRegion(e.target.value)}
+                  onChange={(e) => {
+                    setRegion(e.target.value)
+                    // Aplicar filtro directamente a la columna
+                    if (e.target.value) {
+                      table.getColumn('region')?.setFilterValue(e.target.value)
+                    } else {
+                      table.getColumn('region')?.setFilterValue(undefined)
+                    }
+                  }}
                 >
                   <option value="">Región</option>
                   {REGIONES.map((reg) => (

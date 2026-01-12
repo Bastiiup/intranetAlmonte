@@ -16,7 +16,7 @@ import {
 import { Alert, Button, Card, CardBody, CardFooter, CardHeader, Col, Container, OverlayTrigger, Row, Spinner, Tooltip } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { TbEdit, TbEye, TbMail, TbPhone, TbWorld } from 'react-icons/tb'
-import { LuSearch, LuShuffle, LuPlus } from 'react-icons/lu'
+import { LuSearch, LuShuffle, LuPlus, LuMapPin, LuX, LuUsers } from 'react-icons/lu'
 import { getContacts, type ContactsQuery } from './data'
 import type { ContactType } from '@/app/(admin)/(apps)/crm/types'
 import Image from 'next/image'
@@ -29,6 +29,8 @@ import { es } from 'date-fns/locale'
 import AddContactModal from './components/AddContactModal'
 import EditContactModal from './components/EditContactModal'
 import { useRouter } from 'next/navigation'
+import { REGIONES } from '@/app/(admin)/(apps)/crm/colegios/components/ColegiosListing'
+import { communesInfo } from '@/lib/shipit/communes'
 
 const columnHelper = createColumnHelper<ContactType>()
 
@@ -43,11 +45,44 @@ const ORIGENES = [
 ]
 
 const CONFIANZA = [
-  { value: '', label: 'Todos' },
+  { value: '', label: 'Todas las etiquetas' },
   { value: 'baja', label: 'Cold Lead' },
   { value: 'media', label: 'Prospect' },
   { value: 'alta', label: 'Hot Lead' },
 ]
+
+const CARGOS = [
+  'Profesor',
+  'Profesor de Matemáticas',
+  'Profesor de Lenguaje',
+  'Profesor de Historia',
+  'Profesor de Ciencias',
+  'Profesor de Inglés',
+  'Profesor de Educación Física',
+  'Profesor de Artes',
+  'Secretario',
+  'Director',
+  'Subdirector',
+  'Jefe de UTP',
+  'Coordinador',
+  'Inspector',
+  'Bibliotecario',
+  'Psicólogo',
+  'Psicopedagogo',
+  'Asistente de la Educación',
+  'Otro',
+]
+
+// Obtener comunas únicas de communesInfo
+const COMUNAS_UNICAS = (() => {
+  const comunasSet = new Set<string>()
+  communesInfo.forEach(commune => {
+    if (commune.name) {
+      comunasSet.add(commune.name)
+    }
+  })
+  return Array.from(comunasSet).sort()
+})()
 
 const Contacts = () => {
   const router = useRouter()
@@ -70,6 +105,9 @@ const Contacts = () => {
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 50 })
   const [filtroOrigen, setFiltroOrigen] = useState<string>('')
   const [filtroConfianza, setFiltroConfianza] = useState<string>('')
+  const [filtroRegion, setFiltroRegion] = useState<string>('')
+  const [filtroComuna, setFiltroComuna] = useState<string>('')
+  const [filtroCargo, setFiltroCargo] = useState<string>('')
   const [columnOrder, setColumnOrder] = useState<string[]>([
     'select',
     'contacto',
@@ -112,6 +150,9 @@ const Contacts = () => {
     {
       id: 'contacto',
       header: 'CONTACTO',
+      accessorKey: 'name',
+      filterFn: 'includesString',
+      enableColumnFilter: true,
       cell: ({ row }) => {
         const contact = row.original
         return (
@@ -144,6 +185,9 @@ const Contacts = () => {
     {
       id: 'empresa',
       header: 'INSTITUCIÓN',
+      accessorKey: 'empresa',
+      filterFn: 'includesString',
+      enableColumnFilter: true,
       cell: ({ row }) => {
         const contact = row.original
         return (
@@ -166,6 +210,9 @@ const Contacts = () => {
     {
       id: 'ubicacion',
       header: 'UBICACIÓN',
+      accessorKey: 'comuna',
+      filterFn: 'includesString',
+      enableColumnFilter: true,
       cell: ({ row }) => {
         const contact = row.original
         return (
@@ -251,6 +298,9 @@ const Contacts = () => {
     {
       id: 'representanteComercial',
       header: 'REPRESENTANTE COMERCIAL',
+      accessorKey: 'representanteComercial',
+      filterFn: 'includesString',
+      enableColumnFilter: true,
       cell: ({ row }) => {
         const contact = row.original
         return contact.representanteComercial ? (
@@ -299,6 +349,18 @@ const Contacts = () => {
     {
       id: 'label',
       header: 'ETIQUETA',
+      accessorKey: 'label.text',
+      filterFn: (row, columnId, filterValue) => {
+        if (!filterValue) return true
+        const label = row.original.label
+        if (!label) return false
+        // Filtrar por valor de confianza (baja, media, alta)
+        if (filterValue === 'baja') return label.variant === 'info' || label.text === 'Cold Lead'
+        if (filterValue === 'media') return label.variant === 'warning' || label.text === 'Prospect'
+        if (filterValue === 'alta') return label.variant === 'success' || label.text === 'Hot Lead'
+        return String(label.text).toLowerCase().includes(String(filterValue).toLowerCase())
+      },
+      enableColumnFilter: true,
       cell: ({ row }) => {
         const contact = row.original
         const variantMap: Record<string, string> = {
@@ -316,6 +378,13 @@ const Contacts = () => {
     {
       id: 'categories',
       header: 'CATEGORÍAS',
+      accessorKey: 'categories',
+      filterFn: (row, columnId, filterValue) => {
+        if (!filterValue) return true
+        const categories = row.original.categories || []
+        return categories.some(cat => cat.name === filterValue || cat.name?.toLowerCase().includes(String(filterValue).toLowerCase()))
+      },
+      enableColumnFilter: true,
       cell: ({ row }) => {
         const contact = row.original
         return (
@@ -337,6 +406,18 @@ const Contacts = () => {
       },
     },
     {
+      id: 'cargo',
+      accessorKey: 'cargo',
+      filterFn: 'includesString',
+      enableColumnFilter: true,
+    },
+    {
+      id: 'region',
+      accessorKey: 'region',
+      filterFn: 'includesString',
+      enableColumnFilter: true,
+    },
+    {
       id: 'actions',
       header: '',
       cell: ({ row }) => (
@@ -353,6 +434,27 @@ const Contacts = () => {
       ),
     },
   ], [])
+
+  // Aplicar filtros de columnas cuando cambian los estados de filtro
+  useEffect(() => {
+    const filters: ColumnFiltersState = []
+    if (filtroRegion) {
+      filters.push({ id: 'region', value: filtroRegion })
+    }
+    if (filtroComuna) {
+      filters.push({ id: 'ubicacion', value: filtroComuna })
+    }
+    if (filtroCargo) {
+      filters.push({ id: 'cargo', value: filtroCargo })
+    }
+    if (filtroConfianza) {
+      filters.push({ id: 'label', value: filtroConfianza })
+    }
+    if (filtroOrigen) {
+      filters.push({ id: 'categories', value: filtroOrigen })
+    }
+    setColumnFilters(filters)
+  }, [filtroRegion, filtroComuna, filtroCargo, filtroConfianza, filtroOrigen])
 
   // Función para cargar contactos
   const loadContacts = useCallback(async () => {
@@ -407,6 +509,14 @@ const Contacts = () => {
     manualPagination: true, // Paginación del servidor
     globalFilterFn: 'includesString',
     enableColumnFilters: true,
+    filterFns: {
+      includesString: (row, columnId, filterValue) => {
+        const value = row.getValue(columnId) as string
+        if (!filterValue) return true
+        if (!value) return false
+        return String(value).toLowerCase().includes(String(filterValue).toLowerCase())
+      },
+    },
     enableRowSelection: true,
   })
 
@@ -414,6 +524,18 @@ const Contacts = () => {
   const pageSize = table.getState().pagination.pageSize
   const start = pageIndex * pageSize + 1
   const end = Math.min(start + pageSize - 1, totalRows)
+
+  const clearFilters = () => {
+    setGlobalFilter('')
+    setFiltroOrigen('')
+    setFiltroConfianza('')
+    setFiltroRegion('')
+    setFiltroComuna('')
+    setFiltroCargo('')
+    setColumnFilters([])
+  }
+
+  const hasActiveFilters = globalFilter || filtroOrigen || filtroConfianza || filtroRegion || filtroComuna || filtroCargo || columnFilters.length > 0
 
   if (loading && contactsData.length === 0) {
     return (
@@ -481,44 +603,86 @@ const Contacts = () => {
                 <div className="app-search">
                   <select
                     className="form-select form-control my-1 my-md-0"
-                    value=""
-                    onChange={(e) => {}}
+                    value={filtroComuna}
+                    onChange={(e) => {
+                      setFiltroComuna(e.target.value)
+                      if (e.target.value) {
+                        table.getColumn('ubicacion')?.setFilterValue(e.target.value)
+                      } else {
+                        table.getColumn('ubicacion')?.setFilterValue(undefined)
+                      }
+                    }}
                   >
                     <option value="">Comuna</option>
+                    {COMUNAS_UNICAS.map((comuna) => (
+                      <option key={comuna} value={comuna}>
+                        {comuna}
+                      </option>
+                    ))}
                   </select>
-                  <LuShuffle className="app-search-icon text-muted" />
+                  <LuMapPin className="app-search-icon text-muted" />
                 </div>
 
                 <div className="app-search">
                   <select
                     className="form-select form-control my-1 my-md-0"
-                    value=""
-                    onChange={(e) => {}}
+                    value={filtroRegion}
+                    onChange={(e) => {
+                      setFiltroRegion(e.target.value)
+                      if (e.target.value) {
+                        table.getColumn('region')?.setFilterValue(e.target.value)
+                      } else {
+                        table.getColumn('region')?.setFilterValue(undefined)
+                      }
+                    }}
                   >
                     <option value="">Región</option>
+                    {REGIONES.map((reg) => (
+                      <option key={reg} value={reg}>
+                        {reg}
+                      </option>
+                    ))}
                   </select>
-                  <LuShuffle className="app-search-icon text-muted" />
+                  <LuMapPin className="app-search-icon text-muted" />
                 </div>
 
                 <div className="app-search">
                   <select
                     className="form-select form-control my-1 my-md-0"
-                    value=""
-                    onChange={(e) => {}}
+                    value={filtroCargo}
+                    onChange={(e) => {
+                      setFiltroCargo(e.target.value)
+                      if (e.target.value) {
+                        table.getColumn('cargo')?.setFilterValue(e.target.value)
+                      } else {
+                        table.getColumn('cargo')?.setFilterValue(undefined)
+                      }
+                    }}
                   >
                     <option value="">Cargo</option>
+                    {CARGOS.map((cargo) => (
+                      <option key={cargo} value={cargo}>
+                        {cargo}
+                      </option>
+                    ))}
                   </select>
-                  <LuShuffle className="app-search-icon text-muted" />
+                  <LuUsers className="app-search-icon text-muted" />
                 </div>
 
                 <div className="app-search">
                   <select
                     className="form-select form-control my-1 my-md-0"
                     value={filtroConfianza}
-                    onChange={(e) => setFiltroConfianza(e.target.value)}
+                    onChange={(e) => {
+                      setFiltroConfianza(e.target.value)
+                      if (e.target.value) {
+                        table.getColumn('label')?.setFilterValue(e.target.value)
+                      } else {
+                        table.getColumn('label')?.setFilterValue(undefined)
+                      }
+                    }}
                   >
-                    <option value="">Etiqueta</option>
-                    {CONFIANZA.filter(c => c.value).map((conf) => (
+                    {CONFIANZA.map((conf) => (
                       <option key={conf.value} value={conf.value}>
                         {conf.label}
                       </option>
@@ -531,10 +695,16 @@ const Contacts = () => {
                   <select
                     className="form-select form-control my-1 my-md-0"
                     value={filtroOrigen}
-                    onChange={(e) => setFiltroOrigen(e.target.value)}
+                    onChange={(e) => {
+                      setFiltroOrigen(e.target.value)
+                      if (e.target.value) {
+                        table.getColumn('categories')?.setFilterValue(e.target.value)
+                      } else {
+                        table.getColumn('categories')?.setFilterValue(undefined)
+                      }
+                    }}
                   >
-                    <option value="">Categoría</option>
-                    {ORIGENES.filter(o => o.value).map((origen) => (
+                    {ORIGENES.map((origen) => (
                       <option key={origen.value} value={origen.value}>
                         {origen.label}
                       </option>
@@ -543,15 +713,17 @@ const Contacts = () => {
                   <LuShuffle className="app-search-icon text-muted" />
                 </div>
 
-                <Button variant="primary" className="btn-icon">
-                  <LuShuffle size={18} />
-                </Button>
-
-                <Button variant="primary" className="btn-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                  </svg>
-                </Button>
+                {hasActiveFilters && (
+                  <Button
+                    variant="outline-secondary"
+                    size="sm"
+                    onClick={clearFilters}
+                    className="d-flex align-items-center gap-1"
+                  >
+                    <LuX size={16} />
+                    Limpiar
+                  </Button>
+                )}
               </div>
             </CardHeader>
 
