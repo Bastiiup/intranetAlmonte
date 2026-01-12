@@ -1084,12 +1084,15 @@ export default function ColegioDetailPage() {
                                         size="sm"
                                         className="p-1 text-success"
                                         onClick={() => {
+                                          // Intentar obtener el ID del curso (puede ser id numérico o documentId)
                                           const cursoId = curso.id || curso.documentId || (curso.attributes && (curso.attributes.id || curso.attributes.documentId))
+                                          debugLog('[ColegioDetailPage] Navegando a detalle de curso:', { cursoId, curso })
+                                          
                                           if (cursoId) {
                                             router.push(`/crm/colegios/${colegioId}/cursos/${cursoId}`)
                                           } else {
                                             console.error('No se pudo obtener el ID del curso:', curso)
-                                            alert('Error: No se pudo obtener el ID del curso')
+                                            alert('Error: No se pudo obtener el ID del curso. Por favor, intente editar el curso para ver sus detalles.')
                                           }
                                         }}
                                         title="Ver detalle del curso"
