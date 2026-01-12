@@ -137,14 +137,18 @@ export async function POST(request: NextRequest) {
     const versionesActualizadas = [...versionesExistentes, nuevaVersion]
 
     // Actualizar el curso con las nuevas versiones
-    // Guardamos las versiones en un campo personalizado o en materiales
-    // Por ahora usaremos un campo temporal en materiales o crearemos un campo nuevo
-    // Actualizar el curso con las nuevas versiones
-    // NOTA: No incluimos updatedAt porque es un campo automático de Strapi
+    // IMPORTANTE: Solo enviamos versiones_materiales para no sobrescribir otros campos
+    // Pero necesitamos incluir campos requeridos como año para evitar errores de validación
     const updateData: any = {
       data: {
         versiones_materiales: versionesActualizadas,
       },
+    }
+    
+    // Si el curso tiene año, asegurarnos de incluirlo para evitar errores de validación
+    // Pero solo si es un número válido
+    if (attrs.año !== undefined && attrs.año !== null && !isNaN(Number(attrs.año))) {
+      updateData.data.año = Number(attrs.año)
     }
 
     await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
