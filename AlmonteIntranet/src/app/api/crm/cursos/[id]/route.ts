@@ -3,19 +3,14 @@
  * GET, PUT, DELETE /api/crm/cursos/[id]
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import { createSuccessResponse, createErrorResponse, handleApiError } from '@/lib/api/utils'
+import { logger } from '@/lib/logging/logger'
+import type { CursoData, UpdateCursoRequest } from '@/lib/crm/types'
 
 export const dynamic = 'force-dynamic'
-
-// Helper para logs condicionales
-const DEBUG = process.env.NODE_ENV === 'development' || process.env.DEBUG_CRM === 'true'
-const debugLog = (...args: any[]) => {
-  if (DEBUG) {
-    console.log(...args)
-  }
-}
 
 /**
  * GET /api/crm/cursos/[id]
@@ -27,12 +22,12 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    debugLog('[API /crm/cursos/[id] GET] Buscando curso:', id)
+    logger.api('/crm/cursos/[id]', 'GET - Buscando curso', { id })
 
     // Intentar con populate de lista_utiles, si falla intentar sin él
     // NOTA: El populate anidado de lista_utiles.materiales puede causar error 500 en Strapi
     // si el content type no está configurado correctamente
-    let response: any
+    let response: StrapiResponse<StrapiEntity<CursoData>>
     try {
       const paramsObj = new URLSearchParams({
         'populate[materiales]': 'true',
@@ -40,31 +35,31 @@ export async function GET(
         'populate[lista_utiles]': 'true',
         'populate[lista_utiles][populate][materiales]': 'true',
       })
-      response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+      response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoData>>>(
         `/api/cursos/${id}?${paramsObj.toString()}`
       )
     } catch (error: any) {
       // Si falla con populate anidado de lista_utiles.materiales (error 500 común),
       // intentar solo con lista_utiles sin populate anidado
       if (error.status === 500 || error.status === 400) {
-        debugLog('[API /crm/cursos/[id] GET] ⚠️ Error 500/400 con populate anidado lista_utiles.materiales, intentando sin populate anidado')
+        logger.warn('[API /crm/cursos/[id] GET] Error 500/400 con populate anidado lista_utiles.materiales, intentando sin populate anidado', { id })
         try {
           const paramsObj = new URLSearchParams({
             'populate[materiales]': 'true',
             'populate[colegio]': 'true',
             'populate[lista_utiles]': 'true',
           })
-          response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+          response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoData>>>(
             `/api/cursos/${id}?${paramsObj.toString()}`
           )
         } catch (secondError: any) {
           // Si también falla, intentar sin lista_utiles completamente
-          debugLog('[API /crm/cursos/[id] GET] ⚠️ Error también sin populate anidado, intentando sin lista_utiles')
+          logger.warn('[API /crm/cursos/[id] GET] Error también sin populate anidado, intentando sin lista_utiles', { id })
           const paramsObj = new URLSearchParams({
             'populate[materiales]': 'true',
             'populate[colegio]': 'true',
           })
-          response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+          response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoData>>>(
             `/api/cursos/${id}?${paramsObj.toString()}`
           )
         }
@@ -74,23 +69,17 @@ export async function GET(
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      data: response.data,
-    }, { status: 200 })
+    const curso = Array.isArray(response.data) ? response.data[0] : response.data
+    
+    if (!curso) {
+      return createErrorResponse('Curso no encontrado', 404)
+    }
+
+    logger.success('[API /crm/cursos/[id] GET] Curso obtenido exitosamente', { id })
+    return createSuccessResponse(curso)
   } catch (error: any) {
-    console.error('[API /crm/cursos/[id] GET] Error:', {
-      message: error.message,
-      status: error.status,
-    })
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message || 'Error al obtener curso',
-        status: error.status || 500,
-      },
-      { status: error.status || 500 }
-    )
+    logger.apiError('/crm/cursos/[id]', 'GET - Error al obtener curso', error)
+    return handleApiError(error, 'Error al obtener curso')
   }
 }
 
@@ -104,20 +93,17 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
-    const body = await request.json()
+    const body = await request.json() as UpdateCursoRequest
 
-    debugLog('[API /crm/cursos/[id] PUT] Actualizando curso:', id)
+    logger.api('/crm/cursos/[id]', 'PUT - Actualizando curso', { id })
 
     // Validaciones
     if (body.nombre_curso !== undefined && !body.nombre_curso?.trim()) {
-      return NextResponse.json(
-        { success: false, error: 'El nombre del curso no puede estar vacío' },
-        { status: 400 }
-      )
+      return createErrorResponse('El nombre del curso no puede estar vacío', 400)
     }
 
     // Preparar datos para Strapi
-    const cursoData: any = {
+    const cursoData: { data: Partial<CursoData> & { lista_utiles?: any; materiales?: any[] } } = {
       data: {},
     }
 
@@ -156,7 +142,7 @@ export async function PUT(
     // Actualizar materiales adicionales si se proporcionan
     if (body.materiales !== undefined) {
       if (Array.isArray(body.materiales) && body.materiales.length > 0) {
-        cursoData.data.materiales = body.materiales.map((material: any) => ({
+        cursoData.data.materiales = body.materiales.map((material) => ({
           material_nombre: material.material_nombre || '',
           tipo: material.tipo || 'util',
           cantidad: material.cantidad ? parseInt(String(material.cantidad)) : 1,
@@ -171,36 +157,26 @@ export async function PUT(
     
     // Limpiar campos undefined o null
     Object.keys(cursoData.data).forEach(key => {
-      if (cursoData.data[key] === undefined || cursoData.data[key] === null) {
-        delete cursoData.data[key]
+      if (cursoData.data[key as keyof typeof cursoData.data] === undefined || 
+          cursoData.data[key as keyof typeof cursoData.data] === null) {
+        delete cursoData.data[key as keyof typeof cursoData.data]
       }
     })
 
-    const response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
+    const response = await strapiClient.put<StrapiResponse<StrapiEntity<CursoData>>>(
       `/api/cursos/${id}`,
       cursoData
     )
 
-    debugLog('[API /crm/cursos/[id] PUT] Curso actualizado exitosamente')
+    logger.success('[API /crm/cursos/[id] PUT] Curso actualizado exitosamente', { id })
 
-    return NextResponse.json({
-      success: true,
-      data: response.data,
-      message: 'Curso actualizado exitosamente',
-    }, { status: 200 })
-  } catch (error: any) {
-    console.error('[API /crm/cursos/[id] PUT] Error:', {
-      message: error.message,
-      status: error.status,
-    })
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message || 'Error al actualizar curso',
-        status: error.status || 500,
-      },
-      { status: error.status || 500 }
+    return createSuccessResponse(
+      response.data,
+      { message: 'Curso actualizado exitosamente' }
     )
+  } catch (error: any) {
+    logger.apiError('/crm/cursos/[id]', 'PUT - Error al actualizar curso', error)
+    return handleApiError(error, 'Error al actualizar curso')
   }
 }
 
@@ -214,26 +190,17 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    debugLog('[API /crm/cursos/[id] DELETE] Eliminando curso:', id)
+    logger.api('/crm/cursos/[id]', 'DELETE - Eliminando curso', { id })
 
     await strapiClient.delete(`/api/cursos/${id}`)
 
-    return NextResponse.json({
-      success: true,
-      message: 'Curso eliminado exitosamente',
-    }, { status: 200 })
-  } catch (error: any) {
-    console.error('[API /crm/cursos/[id] DELETE] Error:', {
-      message: error.message,
-      status: error.status,
-    })
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message || 'Error al eliminar curso',
-        status: error.status || 500,
-      },
-      { status: error.status || 500 }
+    logger.success('[API /crm/cursos/[id] DELETE] Curso eliminado exitosamente', { id })
+    return createSuccessResponse(
+      null,
+      { message: 'Curso eliminado exitosamente' }
     )
+  } catch (error: any) {
+    logger.apiError('/crm/cursos/[id]', 'DELETE - Error al eliminar curso', error)
+    return handleApiError(error, 'Error al eliminar curso')
   }
 }
