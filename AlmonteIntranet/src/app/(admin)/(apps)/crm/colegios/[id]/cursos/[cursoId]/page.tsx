@@ -7,7 +7,9 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { LuArrowLeft, LuPackage, LuGraduationCap, LuDownload, LuPencil, LuCheck, LuX } from 'react-icons/lu'
 import Link from 'next/link'
 import { exportarMaterialesAExcel } from '@/helpers/excel'
+import { exportarMaterialesAPDF } from '@/helpers/pdf'
 import CursoModal from '../../components/CursoModal'
+import { LuFileText, LuUpload } from 'react-icons/lu'
 
 // Helper para logs condicionales
 const DEBUG = process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && (window as any).DEBUG_CRM === 'true')
@@ -30,6 +32,9 @@ export default function CursoDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [historialListas, setHistorialListas] = useState<any[]>([])
+  const [loadingHistorial, setLoadingHistorial] = useState(false)
+  const [showImportPDF, setShowImportPDF] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -62,6 +67,8 @@ export default function CursoDetailPage() {
           setError(`Curso con ID ${cursoId} no encontrado. Puede que el ID sea incorrecto o el curso haya sido eliminado.`)
         } else if (cursoResult.success && cursoResult.data) {
           setCurso(cursoResult.data)
+          // Cargar historial de listas de útiles
+          await cargarHistorialListas(cursoResult.data)
         } else {
           setError(cursoResult.error || 'Error al cargar el curso')
         }
@@ -87,15 +94,81 @@ export default function CursoDetailPage() {
     return new Date().getFullYear()
   }
 
-  const handleExportarMateriales = async () => {
+  const cargarHistorialListas = async (cursoData: any) => {
+    try {
+      setLoadingHistorial(true)
+      const attrs = cursoData.attributes || cursoData
+      const nivel = attrs.nivel
+      const grado = attrs.grado
+      const año = obtenerAñoDelCurso(cursoData)
+
+      if (!nivel || !grado) {
+        setHistorialListas([])
+        return
+      }
+
+      // Buscar todas las listas de útiles que coincidan con nivel, grado y año
+      const params = new URLSearchParams({
+        nivel: nivel,
+        grado: String(grado),
+        año: String(año),
+        'populate[materiales]': 'true',
+        'publicationState': 'preview',
+      })
+
+      const response = await fetch(`/api/crm/listas-utiles?${params.toString()}`)
+      const result = await response.json()
+
+      if (result.success && Array.isArray(result.data)) {
+        // Ordenar por fecha de creación/modificación (más reciente primero)
+        const listasOrdenadas = result.data
+          .map((lista: any) => {
+            const listaAttrs = lista.attributes || lista
+            const createdAt = lista.createdAt || listaAttrs.createdAt || listaAttrs.created_at
+            const updatedAt = lista.updatedAt || listaAttrs.updatedAt || listaAttrs.updated_at
+            return {
+              ...lista,
+              fechaCreacion: createdAt ? new Date(createdAt).getTime() : 0,
+              fechaActualizacion: updatedAt ? new Date(updatedAt).getTime() : 0,
+            }
+          })
+          .sort((a: any, b: any) => {
+            // Ordenar por fecha de actualización (más reciente primero), luego por creación
+            const fechaA = a.fechaActualizacion || a.fechaCreacion
+            const fechaB = b.fechaActualizacion || b.fechaCreacion
+            return fechaB - fechaA
+          })
+
+        setHistorialListas(listasOrdenadas)
+      } else {
+        setHistorialListas([])
+      }
+    } catch (err: any) {
+      console.error('Error al cargar historial de listas:', err)
+      setHistorialListas([])
+    } finally {
+      setLoadingHistorial(false)
+    }
+  }
+
+  const handleExportarMateriales = async (formato: 'excel' | 'pdf' = 'excel', listaEspecifica?: any) => {
     if (!curso) return
 
     const attrs = curso.attributes || curso
-    const materialesDirectos = attrs.materiales || []
-    const materialesLista = attrs.lista_utiles?.data?.attributes?.materiales || 
-                           attrs.lista_utiles?.attributes?.materiales || 
-                           attrs.lista_utiles?.materiales || []
-    const materiales = [...materialesDirectos, ...(Array.isArray(materialesLista) ? materialesLista : [])]
+    let materiales: any[] = []
+
+    if (listaEspecifica) {
+      // Exportar materiales de una lista específica
+      const listaAttrs = listaEspecifica.attributes || listaEspecifica
+      materiales = listaAttrs.materiales || []
+    } else {
+      // Exportar materiales del curso actual (directos + lista actual)
+      const materialesDirectos = attrs.materiales || []
+      const materialesLista = attrs.lista_utiles?.data?.attributes?.materiales || 
+                             attrs.lista_utiles?.attributes?.materiales || 
+                             attrs.lista_utiles?.materiales || []
+      materiales = [...materialesDirectos, ...(Array.isArray(materialesLista) ? materialesLista : [])]
+    }
 
     if (materiales.length === 0) {
       alert('No hay materiales para exportar')
@@ -112,9 +185,22 @@ export default function CursoDetailPage() {
       }))
       
       const nombreCurso = attrs.nombre_curso || attrs.curso_nombre || 'materiales_curso'
-      const nombreArchivo = nombreCurso.replace(/\s+/g, '_')
+      const nombreLista = listaEspecifica 
+        ? (listaEspecifica.attributes?.nombre || listaEspecifica.nombre || '')
+        : ''
+      const nombreArchivo = listaEspecifica
+        ? `${nombreCurso}_${nombreLista}`.replace(/\s+/g, '_')
+        : nombreCurso.replace(/\s+/g, '_')
       
-      await exportarMaterialesAExcel(materialesFormateados, nombreArchivo)
+      const titulo = listaEspecifica
+        ? `${nombreCurso} - ${nombreLista}`
+        : nombreCurso
+
+      if (formato === 'pdf') {
+        await exportarMaterialesAPDF(materialesFormateados, nombreArchivo, titulo)
+      } else {
+        await exportarMaterialesAExcel(materialesFormateados, nombreArchivo)
+      }
     } catch (error: any) {
       console.error('Error al exportar materiales:', error)
       alert('Error al exportar materiales: ' + (error.message || 'Error desconocido'))
