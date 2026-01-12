@@ -427,15 +427,16 @@ export default function CursoDetailPage() {
                                   <LuPencil size={14} />
                                 </Button>
                                 {/* Botones para PDF original */}
-                                {version.pdf_url && (
+                                {version.pdf_id && (
                                   <>
                                     <Button
                                       variant="outline-success"
                                       size="sm"
                                       onClick={() => {
-                                        // Descargar PDF original
+                                        // Descargar PDF original usando API proxy
+                                        const pdfUrl = `/api/crm/cursos/pdf/${version.pdf_id}`
                                         const link = document.createElement('a')
-                                        link.href = version.pdf_url
+                                        link.href = pdfUrl
                                         link.download = version.nombre_archivo || 'documento.pdf'
                                         link.target = '_blank'
                                         document.body.appendChild(link)
@@ -450,7 +451,9 @@ export default function CursoDetailPage() {
                                       variant="outline-info"
                                       size="sm"
                                       onClick={() => {
-                                        setPdfViewerUrl(version.pdf_url)
+                                        // Usar API proxy para visualizar PDF
+                                        const pdfUrl = `/api/crm/cursos/pdf/${version.pdf_id}`
+                                        setPdfViewerUrl(pdfUrl)
                                         setShowPDFViewer(true)
                                       }}
                                       title="Visualizar PDF"
