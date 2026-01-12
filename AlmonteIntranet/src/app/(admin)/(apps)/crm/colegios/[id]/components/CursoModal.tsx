@@ -281,35 +281,8 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
     setShowMaterialesAdicionales(true)
   }
 
-  const handleExportarMateriales = async () => {
-    // Si hay lista de útiles seleccionada, exportar también esos materiales
-    const listaSeleccionada = listasUtiles.find(l => l.value === formData.lista_utiles)
-    const materialesAExportar = [...formData.materiales_adicionales]
-    
-    // Nota: Los materiales de la lista predefinida no están cargados en el componente
-    // Solo se exportan los materiales adicionales
-    // Para exportar la lista completa, el usuario debería ir al módulo de listas de útiles
-    
-    if (materialesAExportar.length === 0) {
-      alert('No hay materiales adicionales para exportar. Si deseas exportar una lista predefinida, ve al módulo de Listas de Útiles.')
-      return
-    }
-
-    try {
-      setLoading(true)
-      const nombreArchivo = nombreCursoGenerado || 'materiales_curso'
-      const nombreExport = listaSeleccionada 
-        ? `${nombreArchivo}_adicionales`
-        : nombreArchivo.replace(/\s+/g, '_')
-      
-      await exportarMaterialesAExcel(materialesAExportar, nombreExport)
-    } catch (error: any) {
-      console.error('Error al exportar:', error)
-      setError('Error al exportar materiales: ' + (error.message || 'Error desconocido'))
-    } finally {
-      setLoading(false)
-    }
-  }
+  // Función de exportar eliminada - los materiales ahora se gestionan mediante PDFs
+  // La exportación se realiza desde la página de detalle del curso
 
   const handleRemoveMaterial = (index: number) => {
     setFormData((prev) => ({
