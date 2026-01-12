@@ -961,140 +961,22 @@ export default function ColegioDetailPage() {
               ? `No hay cursos registrados para el año ${añoFiltro}. Haz clic en "Agregar Curso" para comenzar.`
               : 'No hay cursos registrados para este colegio. Haz clic en "Agregar Curso" para comenzar.'}
           </p>
-        ) : añoFiltro !== null ? (
-          // Vista de tabla cuando hay un año seleccionado
-          (() => {
-            const cursosDelAño = cursosFiltrados
-            return (
-              <div className="table-responsive">
-                <Table hover className="align-middle">
-                  <thead className="table-light">
-                    <tr>
-                      <th style={{ width: '25%' }}>CURSO</th>
-                      <th style={{ width: '10%' }}>NIVEL</th>
-                      <th style={{ width: '8%' }}>GRADO</th>
-                      <th style={{ width: '8%' }}>PARALELO</th>
-                      <th style={{ width: '15%' }}>LISTA DE ÚTILES</th>
-                      <th style={{ width: '10%' }}>MATERIALES</th>
-                      <th style={{ width: '8%' }}>ESTADO</th>
-                      <th style={{ width: '16%' }} className="text-end">ACCIONES</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cursosDelAño.map((curso: any) => {
-                      const attrs = curso.attributes || curso
-                      const materialesDirectos = attrs.materiales || []
-                      const materialesLista = attrs.lista_utiles?.data?.attributes?.materiales || 
-                                             attrs.lista_utiles?.attributes?.materiales || 
-                                             attrs.lista_utiles?.materiales || []
-                      const materiales = [...materialesDirectos, ...(Array.isArray(materialesLista) ? materialesLista : [])]
-                      const nombreLista = attrs.lista_utiles?.data?.attributes?.nombre || 
-                                         attrs.lista_utiles?.attributes?.nombre || 
-                                         attrs.lista_utiles?.nombre || null
-                      
-                      return (
-                        <tr key={curso.id || curso.documentId}>
-                          <td>
-                            <div>
-                              <div className="fw-semibold">
-                                {attrs.nombre_curso || attrs.curso_nombre || attrs.titulo || attrs.nombre || 'Sin nombre'}
-                              </div>
-                            </div>
-                          </td>
-                          <td>
-                            <Badge bg="info">{attrs.nivel || '-'}</Badge>
-                          </td>
-                          <td>
-                            <span className="text-muted">{attrs.grado ? `${attrs.grado}°` : '-'}</span>
-                          </td>
-                          <td>
-                            <span className="text-muted">{attrs.paralelo || '-'}</span>
-                          </td>
-                          <td>
-                            {nombreLista ? (
-                              <Badge bg="secondary">{nombreLista}</Badge>
-                            ) : (
-                              <span className="text-muted">Sin lista</span>
-                            )}
-                          </td>
-                          <td>
-                            <div className="d-flex align-items-center gap-2">
-                              <LuPackage size={16} className="text-muted" />
-                              <span className="text-muted">{materiales.length}</span>
-                            </div>
-                          </td>
-                          <td>
-                            {attrs.activo !== false ? (
-                              <Badge bg="success">Activo</Badge>
-                            ) : (
-                              <Badge bg="secondary">Inactivo</Badge>
-                            )}
-                          </td>
-                          <td>
-                            <div className="d-flex justify-content-end gap-2">
-                              {materiales.length > 0 && (
-                                <Button
-                                  variant="link"
-                                  size="sm"
-                                  className="p-1 text-info"
-                                  onClick={async () => {
-                                    try {
-                                      const materialesFormateados = materiales.map((m: any) => ({
-                                        material_nombre: m.material_nombre || 'Sin nombre',
-                                        tipo: (m.tipo || 'util') as 'util' | 'libro' | 'cuaderno' | 'otro',
-                                        cantidad: parseInt(String(m.cantidad)) || 1,
-                                        obligatorio: m.obligatorio !== false,
-                                        descripcion: m.descripcion || undefined,
-                                      }))
-                                      const nombreCurso = attrs.nombre_curso || attrs.curso_nombre || 'materiales_curso'
-                                      const nombreArchivo = nombreCurso.replace(/\s+/g, '_')
-                                      await exportarMaterialesAExcel(materialesFormateados, nombreArchivo)
-                                    } catch (error: any) {
-                                      console.error('Error al exportar materiales:', error)
-                                      alert('Error al exportar materiales: ' + (error.message || 'Error desconocido'))
-                                    }
-                                  }}
-                                  title="Exportar materiales a Excel"
-                                >
-                                  <LuDownload size={18} />
-                                </Button>
-                              )}
-                              <Button
-                                variant="link"
-                                size="sm"
-                                className="p-1 text-primary"
-                                onClick={() => {
-                                  setCursoSeleccionado(curso)
-                                  setShowCursoModal(true)
-                                }}
-                                title="Editar curso"
-                              >
-                                <LuPencil size={18} />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </Table>
-              </div>
-            )
-          })()
         ) : (
-          // Vista de cards cuando no hay año seleccionado (todos los años)
+          // Vista de tabla siempre (con o sin filtro de año)
           (() => {
-            // Agrupar cursos por año
-            const cursosPorAño = cursosFiltrados.reduce((acc: Record<string, any[]>, curso: any) => {
-              const attrs = curso.attributes || curso
-              const año = attrs.año || attrs.ano || new Date().getFullYear()
-              const añoKey = String(año)
-              if (!acc[añoKey]) {
-                acc[añoKey] = []
-              }
-              acc[añoKey].push(curso)
-              return acc
-            }, {})
+            // Agrupar cursos por año si no hay filtro
+            const cursosPorAño = añoFiltro === null 
+              ? cursosFiltrados.reduce((acc: Record<string, any[]>, curso: any) => {
+                  const attrs = curso.attributes || curso
+                  const año = attrs.año || attrs.ano || new Date().getFullYear()
+                  const añoKey = String(año)
+                  if (!acc[añoKey]) {
+                    acc[añoKey] = []
+                  }
+                  acc[añoKey].push(curso)
+                  return acc
+                }, {})
+              : { [String(añoFiltro)]: cursosFiltrados }
 
             // Ordenar años de mayor a menor
             const añosOrdenados = Object.keys(cursosPorAño).sort((a, b) => parseInt(b) - parseInt(a))
@@ -1104,115 +986,130 @@ export default function ColegioDetailPage() {
                 {añosOrdenados.map((añoKey) => {
                   const cursosDelAño = cursosPorAño[añoKey]
                   return (
-                    <div key={añoKey} className="mb-4">
-                      <div className="d-flex align-items-center mb-3">
-                        <h5 className="mb-0 me-2">Año {añoKey}</h5>
-                        <Badge bg="secondary">{cursosDelAño.length} {cursosDelAño.length === 1 ? 'curso' : 'cursos'}</Badge>
-                      </div>
-                      <div className="row g-3">
-                        {cursosDelAño.map((curso: any) => {
-                          const attrs = curso.attributes || curso
-                          const materialesDirectos = attrs.materiales || []
-                          const materialesLista = attrs.lista_utiles?.data?.attributes?.materiales || 
-                                                 attrs.lista_utiles?.attributes?.materiales || 
-                                                 attrs.lista_utiles?.materiales || []
-                          const materiales = [...materialesDirectos, ...(Array.isArray(materialesLista) ? materialesLista : [])]
-                          
-                          return (
-                            <Col md={6} lg={4} key={curso.id || curso.documentId}>
-                              <Card className="h-100">
-                                <CardHeader>
-                                  <div className="d-flex justify-content-between align-items-start">
+                    <div key={añoKey} className={añoFiltro === null ? 'mb-4' : ''}>
+                      {añoFiltro === null && (
+                        <div className="d-flex align-items-center mb-3">
+                          <h5 className="mb-0 me-2">Año {añoKey}</h5>
+                          <Badge bg="secondary">{cursosDelAño.length} {cursosDelAño.length === 1 ? 'curso' : 'cursos'}</Badge>
+                        </div>
+                      )}
+                      <div className="table-responsive">
+                        <Table hover className="align-middle">
+                          <thead className="table-light">
+                            <tr>
+                              <th style={{ width: '20%' }}>CURSO</th>
+                              <th style={{ width: '8%' }}>AÑO</th>
+                              <th style={{ width: '10%' }}>NIVEL</th>
+                              <th style={{ width: '8%' }}>GRADO</th>
+                              <th style={{ width: '8%' }}>PARALELO</th>
+                              <th style={{ width: '15%' }}>LISTA DE ÚTILES</th>
+                              <th style={{ width: '10%' }}>MATERIALES</th>
+                              <th style={{ width: '8%' }}>ESTADO</th>
+                              <th style={{ width: '13%' }} className="text-end">ACCIONES</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {cursosDelAño.map((curso: any) => {
+                              const attrs = curso.attributes || curso
+                              const materialesDirectos = attrs.materiales || []
+                              const materialesLista = attrs.lista_utiles?.data?.attributes?.materiales || 
+                                                     attrs.lista_utiles?.attributes?.materiales || 
+                                                     attrs.lista_utiles?.materiales || []
+                              const materiales = [...materialesDirectos, ...(Array.isArray(materialesLista) ? materialesLista : [])]
+                              const nombreLista = attrs.lista_utiles?.data?.attributes?.nombre || 
+                                                 attrs.lista_utiles?.attributes?.nombre || 
+                                                 attrs.lista_utiles?.nombre || null
+                              const año = attrs.año || attrs.ano || new Date().getFullYear()
+                              
+                              return (
+                                <tr key={curso.id || curso.documentId}>
+                                  <td>
                                     <div>
-                                      <h5 className="mb-1">{attrs.nombre_curso || attrs.curso_nombre || attrs.titulo || attrs.nombre || 'Sin nombre'}</h5>
-                                      {attrs.nivel && (
-                                        <small className="text-muted">Nivel: {attrs.nivel}</small>
-                                      )}
-                                      {attrs.grado && (
-                                        <small className="text-muted ms-2">Grado: {attrs.grado}</small>
-                                      )}
-                                    </div>
-                                    {attrs.activo !== false && (
-                                      <Badge bg="success">Activo</Badge>
-                                    )}
-                                  </div>
-                                </CardHeader>
-                                <CardBody>
-                                  <div className="mb-3">
-                                    <h6 className="small text-muted mb-2">
-                                      <LuPackage className="me-1" size={14} />
-                                      Materiales ({materiales.length})
-                                      {attrs.lista_utiles && (
-                                        <Badge bg="secondary" className="ms-2">
-                                          Lista predefinida
-                                        </Badge>
-                                      )}
-                                    </h6>
-                                    {materiales.length > 0 ? (
-                                      <div className="small">
-                                        {materiales.slice(0, 5).map((material: any, idx: number) => (
-                                          <div key={idx} className="mb-1">
-                                            <Badge bg={material.obligatorio !== false ? 'primary' : 'secondary'} className="me-1">
-                                              {material.cantidad || 1}x
-                                            </Badge>
-                                            {material.material_nombre || 'Sin nombre'}
-                                            {material.obligatorio === false && (
-                                              <small className="text-muted ms-1">(Opcional)</small>
-                                            )}
-                                          </div>
-                                        ))}
-                                        {materiales.length > 5 && (
-                                          <small className="text-muted">+{materiales.length - 5} más</small>
-                                        )}
+                                      <div className="fw-semibold">
+                                        {attrs.nombre_curso || attrs.curso_nombre || attrs.titulo || attrs.nombre || 'Sin nombre'}
                                       </div>
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <Badge bg="primary">{año}</Badge>
+                                  </td>
+                                  <td>
+                                    <Badge bg="info">{attrs.nivel || '-'}</Badge>
+                                  </td>
+                                  <td>
+                                    <span className="text-muted">{attrs.grado ? `${attrs.grado}°` : '-'}</span>
+                                  </td>
+                                  <td>
+                                    <span className="text-muted">{attrs.paralelo || '-'}</span>
+                                  </td>
+                                  <td>
+                                    {nombreLista ? (
+                                      <Badge bg="secondary">{nombreLista}</Badge>
                                     ) : (
-                                      <p className="text-muted small mb-0">No hay materiales asignados</p>
+                                      <span className="text-muted">Sin lista</span>
                                     )}
-                                  </div>
-                                  <div className="d-flex gap-2">
-                                    {materiales.length > 0 && (
+                                  </td>
+                                  <td>
+                                    <div className="d-flex align-items-center gap-2">
+                                      <LuPackage size={16} className="text-muted" />
+                                      <span className="text-muted">{materiales.length}</span>
+                                    </div>
+                                  </td>
+                                  <td>
+                                    {attrs.activo !== false ? (
+                                      <Badge bg="success">Activo</Badge>
+                                    ) : (
+                                      <Badge bg="secondary">Inactivo</Badge>
+                                    )}
+                                  </td>
+                                  <td>
+                                    <div className="d-flex justify-content-end gap-2">
+                                      {materiales.length > 0 && (
+                                        <Button
+                                          variant="link"
+                                          size="sm"
+                                          className="p-1 text-info"
+                                          onClick={async () => {
+                                            try {
+                                              const materialesFormateados = materiales.map((m: any) => ({
+                                                material_nombre: m.material_nombre || 'Sin nombre',
+                                                tipo: (m.tipo || 'util') as 'util' | 'libro' | 'cuaderno' | 'otro',
+                                                cantidad: parseInt(String(m.cantidad)) || 1,
+                                                obligatorio: m.obligatorio !== false,
+                                                descripcion: m.descripcion || undefined,
+                                              }))
+                                              const nombreCurso = attrs.nombre_curso || attrs.curso_nombre || 'materiales_curso'
+                                              const nombreArchivo = nombreCurso.replace(/\s+/g, '_')
+                                              await exportarMaterialesAExcel(materialesFormateados, nombreArchivo)
+                                            } catch (error: any) {
+                                              console.error('Error al exportar materiales:', error)
+                                              alert('Error al exportar materiales: ' + (error.message || 'Error desconocido'))
+                                            }
+                                          }}
+                                          title="Exportar materiales a Excel"
+                                        >
+                                          <LuDownload size={18} />
+                                        </Button>
+                                      )}
                                       <Button
-                                        variant="outline-info"
+                                        variant="link"
                                         size="sm"
-                                        onClick={async () => {
-                                          try {
-                                            const materialesFormateados = materiales.map((m: any) => ({
-                                              material_nombre: m.material_nombre || 'Sin nombre',
-                                              tipo: (m.tipo || 'util') as 'util' | 'libro' | 'cuaderno' | 'otro',
-                                              cantidad: parseInt(String(m.cantidad)) || 1,
-                                              obligatorio: m.obligatorio !== false,
-                                              descripcion: m.descripcion || undefined,
-                                            }))
-                                            const nombreCurso = attrs.nombre_curso || attrs.curso_nombre || 'materiales_curso'
-                                            const nombreArchivo = nombreCurso.replace(/\s+/g, '_')
-                                            await exportarMaterialesAExcel(materialesFormateados, nombreArchivo)
-                                          } catch (error: any) {
-                                            console.error('Error al exportar materiales:', error)
-                                            alert('Error al exportar materiales: ' + (error.message || 'Error desconocido'))
-                                          }
+                                        className="p-1 text-primary"
+                                        onClick={() => {
+                                          setCursoSeleccionado(curso)
+                                          setShowCursoModal(true)
                                         }}
-                                        title="Exportar materiales a Excel"
+                                        title="Editar curso"
                                       >
-                                        <LuDownload size={14} />
+                                        <LuPencil size={18} />
                                       </Button>
-                                    )}
-                                    <Button
-                                      variant="outline-primary"
-                                      size="sm"
-                                      className={materiales.length > 0 ? 'flex-fill' : ''}
-                                      onClick={() => {
-                                        setCursoSeleccionado(curso)
-                                        setShowCursoModal(true)
-                                      }}
-                                    >
-                                      Editar
-                                    </Button>
-                                  </div>
-                                </CardBody>
-                              </Card>
-                            </Col>
-                          )
-                        })}
+                                    </div>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </Table>
                       </div>
                     </div>
                   )
