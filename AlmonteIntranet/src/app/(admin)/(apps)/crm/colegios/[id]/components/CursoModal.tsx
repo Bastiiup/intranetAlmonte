@@ -90,7 +90,6 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
   const [listasUtiles, setListasUtiles] = useState<ListaUtilesOption[]>([])
   const [loadingListas, setLoadingListas] = useState(false)
   const [showMaterialesAdicionales, setShowMaterialesAdicionales] = useState(false)
-  const [showImportarExcel, setShowImportarExcel] = useState(false)
   
   const [formData, setFormData] = useState<CursoData>({
     nombre_curso: '',
@@ -273,13 +272,7 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
     setShowMaterialesAdicionales(true)
   }
 
-  const handleImportarMateriales = (materiales: Material[]) => {
-    setFormData((prev) => ({
-      ...prev,
-      materiales_adicionales: [...prev.materiales_adicionales, ...materiales],
-    }))
-    setShowMaterialesAdicionales(true)
-  }
+  // Función de importar materiales eliminada - los materiales ahora se gestionan mediante PDFs
 
   // Función de exportar eliminada - los materiales ahora se gestionan mediante PDFs
   // La exportación se realiza desde la página de detalle del curso
