@@ -7,7 +7,7 @@ import { NextRequest } from 'next/server'
 import { createSuccessResponse, createErrorResponse, handleApiError } from '@/lib/api/utils'
 import { logger } from '@/lib/logging/logger'
 import { CursoService } from '@/lib/services/cursoService'
-import { UpdateCursoSchema, validateWithZod } from '@/lib/crm/validations'
+import { UpdateCursoSchema, validateWithZod, type UpdateCursoInput } from '@/lib/crm/validations'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
@@ -58,8 +58,8 @@ export async function PUT(
       return createErrorResponse('Datos inválidos', 400, { errors: validation.errors.errors })
     }
 
-    // Actualizar usando servicio
-    const curso = await CursoService.update(id, validation.data)
+    // Actualizar usando servicio (validation.data ya está tipado correctamente)
+    const curso = await CursoService.update(id, validation.data as UpdateCursoInput)
 
     logger.success('[API /crm/cursos/[id] PUT] Curso actualizado exitosamente', { id })
     return createSuccessResponse(

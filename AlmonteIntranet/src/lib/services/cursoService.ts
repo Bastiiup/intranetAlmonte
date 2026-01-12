@@ -7,7 +7,8 @@ import strapiClient from '@/lib/strapi/client'
 import { getCursoWithPopulate } from '@/lib/strapi/populate-helpers'
 import { prepareManyToOneRelation, cleanUndefinedNullFields } from '@/lib/strapi/relations'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
-import type { CursoData, UpdateCursoRequest, CreateCursoRequest } from '@/lib/crm/types'
+import type { CursoData } from '@/lib/crm/types'
+import type { UpdateCursoInput, CreateCursoInput } from '@/lib/crm/validations'
 import { logger } from '@/lib/logging/logger'
 
 export class CursoService {
@@ -50,7 +51,7 @@ export class CursoService {
    */
   static async update(
     id: string | number,
-    data: UpdateCursoRequest
+    data: UpdateCursoInput
   ): Promise<CursoData> {
     try {
       logger.debug('[CursoService] Actualizando curso', { id, data })
@@ -141,7 +142,7 @@ export class CursoService {
    * @param data - Datos del curso a crear
    * @returns Curso creado
    */
-  static async create(data: CreateCursoRequest): Promise<CursoData> {
+  static async create(data: CreateCursoInput): Promise<CursoData> {
     try {
       logger.debug('[CursoService] Creando curso', { data })
       
