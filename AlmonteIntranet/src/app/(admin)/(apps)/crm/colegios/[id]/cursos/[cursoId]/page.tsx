@@ -451,6 +451,165 @@ export default function CursoDetailPage() {
         </Col>
       </Row>
 
+      {/* Historial de Listas de Útiles */}
+      {historialListas.length > 0 && (
+        <Card className="mt-4">
+          <CardHeader>
+            <div className="d-flex justify-content-between align-items-center">
+              <h5 className="mb-0">
+                <LuPackage className="me-2" />
+                Historial de Listas de Útiles ({historialListas.length})
+              </h5>
+              <small className="text-muted">Ordenadas de más reciente a más antigua</small>
+            </div>
+          </CardHeader>
+          <CardBody>
+            {loadingHistorial ? (
+              <div className="text-center py-3">
+                <Spinner animation="border" size="sm" variant="primary" />
+                <p className="mt-2 text-muted small">Cargando historial...</p>
+              </div>
+            ) : (
+              <div className="accordion" id="historialListasAccordion">
+                {historialListas.map((lista: any, index: number) => {
+                  const listaAttrs = lista.attributes || lista
+                  const listaId = lista.id || lista.documentId
+                  const listaMateriales = listaAttrs.materiales || []
+                  const fechaCreacion = lista.createdAt || listaAttrs.createdAt || listaAttrs.created_at
+                  const fechaActualizacion = lista.updatedAt || listaAttrs.updatedAt || listaAttrs.updated_at
+                  const fechaMostrar = fechaActualizacion || fechaCreacion
+                  const fechaFormateada = fechaMostrar
+                    ? new Date(fechaMostrar).toLocaleDateString('es-CL', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                      })
+                    : 'Fecha no disponible'
+                  const esListaActual = attrs.lista_utiles?.data?.id === listaId || 
+                                        attrs.lista_utiles?.id === listaId ||
+                                        attrs.lista_utiles?.data?.documentId === listaId ||
+                                        attrs.lista_utiles?.documentId === listaId
+
+                  return (
+                    <div key={listaId || index} className="accordion-item">
+                      <h2 className="accordion-header" id={`heading${index}`}>
+                        <button
+                          className={`accordion-button ${index !== 0 ? 'collapsed' : ''}`}
+                          type="button"
+                          data-bs-toggle="collapse"
+                          data-bs-target={`#collapse${index}`}
+                          aria-expanded={index === 0}
+                          aria-controls={`collapse${index}`}
+                        >
+                          <div className="d-flex justify-content-between align-items-center w-100 me-3">
+                            <div>
+                              <span className="fw-semibold">{listaAttrs.nombre || 'Sin nombre'}</span>
+                              {esListaActual && (
+                                <Badge bg="success" className="ms-2">Lista Actual</Badge>
+                              )}
+                            </div>
+                            <div className="d-flex align-items-center gap-3">
+                              <small className="text-muted">{fechaFormateada}</small>
+                              <Badge bg="info">{listaMateriales.length} materiales</Badge>
+                            </div>
+                          </div>
+                        </button>
+                      </h2>
+                      <div
+                        id={`collapse${index}`}
+                        className={`accordion-collapse collapse ${index === 0 ? 'show' : ''}`}
+                        aria-labelledby={`heading${index}`}
+                        data-bs-parent="#historialListasAccordion"
+                      >
+                        <div className="accordion-body">
+                          {listaMateriales.length > 0 ? (
+                            <>
+                              <div className="table-responsive mb-3">
+                                <Table hover size="sm">
+                                  <thead className="table-light">
+                                    <tr>
+                                      <th style={{ width: '8%' }}>Cant.</th>
+                                      <th style={{ width: '40%' }}>Material</th>
+                                      <th style={{ width: '20%' }}>Tipo</th>
+                                      <th style={{ width: '15%' }}>Estado</th>
+                                      <th style={{ width: '17%' }}>Descripción</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {listaMateriales.map((material: any, matIndex: number) => (
+                                      <tr key={matIndex}>
+                                        <td>
+                                          <Badge bg="primary">{material.cantidad || 1}</Badge>
+                                        </td>
+                                        <td className="fw-semibold">
+                                          {material.material_nombre || 'Sin nombre'}
+                                        </td>
+                                        <td>
+                                          <Badge bg="info">
+                                            {material.tipo === 'util' ? 'Útil Escolar' :
+                                             material.tipo === 'libro' ? 'Libro' :
+                                             material.tipo === 'cuaderno' ? 'Cuaderno' :
+                                             material.tipo === 'otro' ? 'Otro' : 'Útil Escolar'}
+                                          </Badge>
+                                        </td>
+                                        <td>
+                                          {material.obligatorio !== false ? (
+                                            <Badge bg="success">
+                                              <LuCheck className="me-1" size={12} />
+                                              Obligatorio
+                                            </Badge>
+                                          ) : (
+                                            <Badge bg="secondary">
+                                              <LuX className="me-1" size={12} />
+                                              Opcional
+                                            </Badge>
+                                          )}
+                                        </td>
+                                        <td>
+                                          <small className="text-muted">
+                                            {material.descripcion || '-'}
+                                          </small>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </Table>
+                              </div>
+                              <div className="d-flex justify-content-end gap-2">
+                                <Button
+                                  variant="outline-info"
+                                  size="sm"
+                                  onClick={() => handleExportarMateriales('excel', lista)}
+                                >
+                                  <LuDownload className="me-1" size={14} />
+                                  Exportar Excel
+                                </Button>
+                                <Button
+                                  variant="outline-danger"
+                                  size="sm"
+                                  onClick={() => handleExportarMateriales('pdf', lista)}
+                                >
+                                  <LuFileText className="me-1" size={14} />
+                                  Exportar PDF
+                                </Button>
+                              </div>
+                            </>
+                          ) : (
+                            <Alert variant="info" className="mb-0">
+                              Esta lista no tiene materiales asignados.
+                            </Alert>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      )}
+
       <CursoModal
         show={showEditModal}
         onHide={() => setShowEditModal(false)}
