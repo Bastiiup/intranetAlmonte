@@ -89,6 +89,7 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
     email_login: colaboradorData?.email_login || '',
     password: '', // Campo opcional para cambiar contraseña
     rol: colaboradorData?.rol || '',
+    plataforma: colaboradorData?.plataforma || 'general', // Plataforma del colaborador
     activo: false, // Siempre false - no se puede cambiar desde aquí, solo desde solicitudes
     // Campos de persona
     rut: personaData?.rut || '',
@@ -109,6 +110,7 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
         email_login: colaboradorData.email_login || '',
         password: '', // No prellenar contraseña por seguridad
         rol: colaboradorData.rol || '',
+        plataforma: colaboradorData.plataforma || 'general', // Plataforma del colaborador
         activo: false, // Siempre false - no se puede cambiar desde aquí
         rut: personaAttrs.rut || '',
         nombres: personaAttrs.nombres || '',
@@ -259,6 +261,7 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
       // IMPORTANTE: No enviar activo - no se puede cambiar desde aquí
       const colaboradorUpdateData: any = {
         email_login: formData.email_login.trim(),
+        plataforma: formData.plataforma || 'general', // Plataforma del colaborador
         // activo no se envía - solo se puede cambiar desde solicitudes
         // Solo enviar password si se proporcionó (no vacío)
         ...(formData.password && formData.password.trim().length > 0 && { password: formData.password }),
@@ -381,6 +384,27 @@ const EditColaboradorForm = ({ colaborador: propsColaborador, error: propsError 
               </FormGroup>
             </Col>
 
+            <Col md={6}>
+              <FormGroup className="mb-3">
+                <FormLabel>
+                  Plataforma <span className="text-danger">*</span>
+                </FormLabel>
+                <FormControl
+                  as="select"
+                  value={formData.plataforma}
+                  onChange={(e) => handleFieldChange('plataforma', e.target.value)}
+                  disabled={loading}
+                  required
+                >
+                  <option value="general">General (Ambas plataformas)</option>
+                  <option value="moraleja">Moraleja</option>
+                  <option value="escolar">Escolar</option>
+                </FormControl>
+                <small className="text-muted">
+                  Define qué plataforma puede ver este colaborador. "General" permite ver ambas.
+                </small>
+              </FormGroup>
+            </Col>
 
             <Col md={6}>
               <FormGroup className="mb-3">

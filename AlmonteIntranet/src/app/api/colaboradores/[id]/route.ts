@@ -188,6 +188,7 @@ export async function PUT(
       data: {
         email_login: body.email_login.trim(),
         activo: body.activo !== undefined ? body.activo : true,
+        plataforma: body.plataforma || 'general', // Plataforma del colaborador (default: general)
         // Solo enviar password si se proporcionó (no vacío)
         ...(body.password && body.password.trim().length > 0 && { password: body.password }),
         // Solo enviar rol si tiene valor (evitar enviar strings vacías o null)
