@@ -279,10 +279,16 @@ export default function CursoDetailPage() {
         </div>
         <div className="d-flex gap-2">
           {materiales.length > 0 && (
-            <Button variant="outline-info" onClick={handleExportarMateriales}>
-              <LuDownload className="me-1" />
-              Exportar Excel
-            </Button>
+            <>
+              <Button variant="outline-info" onClick={(e) => { e.preventDefault(); handleExportarMateriales('excel'); }}>
+                <LuDownload className="me-1" />
+                Exportar Excel
+              </Button>
+              <Button variant="outline-danger" onClick={(e) => { e.preventDefault(); handleExportarMateriales('pdf'); }}>
+                <LuFileText className="me-1" />
+                Exportar PDF
+              </Button>
+            </>
           )}
           <Button variant="primary" onClick={() => setShowEditModal(true)}>
             <LuPencil className="me-1" />
