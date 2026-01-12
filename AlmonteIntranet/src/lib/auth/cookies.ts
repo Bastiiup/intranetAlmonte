@@ -80,11 +80,11 @@ export async function getColaboradorFromCookies(verifySession: boolean = true): 
             })
           }
 
-          // Verificar token de sesión si está habilitado
-          if (verifySession && colaborador.session_token) {
+          // Verificar token de sesión si está habilitado (SIEMPRE verificar, no solo si hay token en cookies)
+          if (verifySession) {
             const isValidSession = await verifySessionToken(colaborador)
             if (!isValidSession) {
-              console.warn(`[Cookies] ❌ Token de sesión inválido para colaborador ${colaborador.email_login}`)
+              console.warn(`[Cookies] ❌ Token de sesión inválido para colaborador ${colaborador.email_login} - cerrando sesión`)
               return null // Sesión inválida, retornar null para forzar logout
             }
           }
