@@ -47,7 +47,7 @@ interface ColegioType {
 const columnHelper = createColumnHelper<ColegioType>()
 
 // Lista de regiones de Chile
-const REGIONES = [
+export const REGIONES = [
   'Arica y Parinacota',
   'Tarapacá',
   'Antofagasta',
