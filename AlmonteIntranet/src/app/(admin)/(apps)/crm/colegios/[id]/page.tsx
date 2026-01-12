@@ -1079,6 +1079,17 @@ export default function ColegioDetailPage() {
                                   </td>
                                   <td>
                                     <div className="d-flex justify-content-end gap-2">
+                                      <Button
+                                        variant="link"
+                                        size="sm"
+                                        className="p-1 text-success"
+                                        onClick={() => {
+                                          router.push(`/crm/colegios/${colegioId}/cursos/${curso.id || curso.documentId}`)
+                                        }}
+                                        title="Ver detalle del curso"
+                                      >
+                                        <LuEye size={18} />
+                                      </Button>
                                       {materiales.length > 0 && (
                                         <Button
                                           variant="link"
