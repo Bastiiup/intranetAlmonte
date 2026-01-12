@@ -4,12 +4,12 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Container, Card, CardHeader, CardBody, Alert, Spinner, Row, Col, Button, Badge, Table } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { LuArrowLeft, LuPackage, LuGraduationCap, LuDownload, LuPencil, LuCheck, LuX } from 'react-icons/lu'
+import { LuArrowLeft, LuPackage, LuGraduationCap, LuDownload, LuPencil, LuCheck, LuX, LuFileText, LuUpload } from 'react-icons/lu'
 import Link from 'next/link'
 import { exportarMaterialesAExcel } from '@/helpers/excel'
 import { exportarMaterialesAPDF } from '@/helpers/pdf'
 import CursoModal from '../../components/CursoModal'
-import { LuFileText, LuUpload } from 'react-icons/lu'
+import { Modal, Form } from 'react-bootstrap'
 
 // Helper para logs condicionales
 const DEBUG = process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && (window as any).DEBUG_CRM === 'true')
@@ -35,6 +35,8 @@ export default function CursoDetailPage() {
   const [historialListas, setHistorialListas] = useState<any[]>([])
   const [loadingHistorial, setLoadingHistorial] = useState(false)
   const [showImportPDF, setShowImportPDF] = useState(false)
+  const [selectedPDF, setSelectedPDF] = useState<File | null>(null)
+  const [uploadingPDF, setUploadingPDF] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -148,6 +150,55 @@ export default function CursoDetailPage() {
       setHistorialListas([])
     } finally {
       setLoadingHistorial(false)
+    }
+  }
+
+  const handleImportarPDF = async () => {
+    if (!selectedPDF) {
+      alert('Por favor, selecciona un archivo PDF')
+      return
+    }
+
+    if (selectedPDF.type !== 'application/pdf') {
+      alert('Por favor, selecciona un archivo PDF válido')
+      return
+    }
+
+    setUploadingPDF(true)
+    try {
+      const formData = new FormData()
+      formData.append('pdf', selectedPDF)
+      formData.append('cursoId', cursoId)
+      formData.append('colegioId', colegioId)
+
+      const response = await fetch('/api/crm/cursos/import-pdf', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        alert('PDF subido correctamente. ' + (result.message || ''))
+        setShowImportPDF(false)
+        setSelectedPDF(null)
+        // Recargar datos del curso si es necesario
+        if (result.data) {
+          const cursoResponse = await fetch(`/api/crm/cursos/${cursoId}`)
+          const cursoResult = await cursoResponse.json()
+          if (cursoResult.success && cursoResult.data) {
+            setCurso(cursoResult.data)
+            await cargarHistorialListas(cursoResult.data)
+          }
+        }
+      } else {
+        alert('Error al subir PDF: ' + (result.error || 'Error desconocido'))
+      }
+    } catch (error: any) {
+      console.error('Error al importar PDF:', error)
+      alert('Error al importar PDF: ' + (error.message || 'Error desconocido'))
+    } finally {
+      setUploadingPDF(false)
     }
   }
 
@@ -278,6 +329,10 @@ export default function CursoDetailPage() {
           </h2>
         </div>
         <div className="d-flex gap-2">
+          <Button variant="outline-success" onClick={() => setShowImportPDF(true)}>
+            <LuUpload className="me-1" />
+            Importar PDF
+          </Button>
           {materiales.length > 0 && (
             <>
               <Button variant="outline-info" onClick={(e) => { e.preventDefault(); handleExportarMateriales('excel'); }}>
