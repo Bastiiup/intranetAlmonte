@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Container, Card, CardHeader, CardBody, Alert, Spinner, Row, Col, Button, Badge, Table } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { LuArrowLeft, LuPackage, LuGraduationCap, LuDownload, LuPencil, LuCheckCircle, LuXCircle } from 'react-icons/lu'
+import { LuArrowLeft, LuPackage, LuGraduationCap, LuDownload, LuPencil, LuCheck, LuX } from 'react-icons/lu'
 import Link from 'next/link'
 import { exportarMaterialesAExcel } from '@/helpers/excel'
 import CursoModal from '../../components/CursoModal'
@@ -235,12 +235,12 @@ export default function CursoDetailPage() {
                     <td>
                       {attrs.activo !== false ? (
                         <Badge bg="success">
-                          <LuCheckCircle className="me-1" size={14} />
+                          <LuCheck className="me-1" size={14} />
                           Activo
                         </Badge>
                       ) : (
                         <Badge bg="secondary">
-                          <LuXCircle className="me-1" size={14} />
+                          <LuX className="me-1" size={14} />
                           Inactivo
                         </Badge>
                       )}
@@ -326,12 +326,12 @@ export default function CursoDetailPage() {
                             <td>
                               {material.obligatorio !== false ? (
                                 <Badge bg="success">
-                                  <LuCheckCircle className="me-1" size={12} />
+                                  <LuCheck className="me-1" size={12} />
                                   Obligatorio
                                 </Badge>
                               ) : (
                                 <Badge bg="secondary">
-                                  <LuXCircle className="me-1" size={12} />
+                                  <LuX className="me-1" size={12} />
                                   Opcional
                                 </Badge>
                               )}
