@@ -101,10 +101,12 @@ export async function POST(
     }
 
     // Preparar datos para validación (incluir colegio y nombre_curso si viene como curso_nombre)
+    // Asegurar que activo tenga un valor por defecto si no viene
     const dataToValidate = {
       ...body,
       nombre_curso: body.nombre_curso?.trim() || body.curso_nombre?.trim() || body.nombre_curso,
       colegio: colegioIdNum,
+      activo: body.activo !== undefined ? body.activo : true, // Default true si no viene
     }
 
     // Validar con Zod
