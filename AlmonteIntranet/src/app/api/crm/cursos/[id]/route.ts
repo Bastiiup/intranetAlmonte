@@ -90,14 +90,18 @@ export async function GET(
           `/api/listas-utiles/${listaUtilesId}?populate[materiales]=true`
         )
         // Agregar los materiales a la respuesta
-        if (listaResponse?.data?.materiales) {
+        // Strapi devuelve los datos en response.data.attributes o response.data directamente
+        const listaData = listaResponse?.data as any
+        const materiales = listaData?.attributes?.materiales || listaData?.materiales || null
+        
+        if (materiales) {
           if (response.data.lista_utiles.data) {
             response.data.lista_utiles.data.attributes = response.data.lista_utiles.data.attributes || {}
-            response.data.lista_utiles.data.attributes.materiales = listaResponse.data.materiales
+            response.data.lista_utiles.data.attributes.materiales = materiales
           } else if (response.data.lista_utiles.attributes) {
-            response.data.lista_utiles.attributes.materiales = listaResponse.data.materiales
+            response.data.lista_utiles.attributes.materiales = materiales
           } else {
-            response.data.lista_utiles.materiales = listaResponse.data.materiales
+            response.data.lista_utiles.materiales = materiales
           }
           debugLog('[API /crm/cursos/[id] GET] ✅ Materiales de lista_utiles agregados')
         }
