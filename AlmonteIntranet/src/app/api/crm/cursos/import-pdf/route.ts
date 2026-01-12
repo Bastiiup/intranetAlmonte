@@ -137,18 +137,45 @@ export async function POST(request: NextRequest) {
     const versionesActualizadas = [...versionesExistentes, nuevaVersion]
 
     // Actualizar el curso con las nuevas versiones
-    // IMPORTANTE: Solo enviamos versiones_materiales para no sobrescribir otros campos
-    // Pero necesitamos incluir campos requeridos como año para evitar errores de validación
+    // IMPORTANTE: Incluir todos los campos requeridos para evitar que se pierdan o causen errores de validación
     const updateData: any = {
       data: {
         versiones_materiales: versionesActualizadas,
       },
     }
     
-    // Si el curso tiene año, asegurarnos de incluirlo para evitar errores de validación
-    // Pero solo si es un número válido
+    // Incluir campos requeridos del curso para evitar errores de validación y pérdida de datos
+    if (attrs.nombre_curso) {
+      updateData.data.nombre_curso = attrs.nombre_curso
+    }
+    
+    // Nivel: asegurar que sea "Basica" o "Media" (sin tilde, como espera Strapi)
+    if (attrs.nivel) {
+      const nivelNormalizado = attrs.nivel === 'Básico' || attrs.nivel === 'Básica' ? 'Basica' : 
+                               attrs.nivel === 'Media' ? 'Media' : 
+                               attrs.nivel
+      updateData.data.nivel = nivelNormalizado
+    }
+    
+    if (attrs.grado) {
+      updateData.data.grado = attrs.grado
+    }
+    
+    if (attrs.paralelo) {
+      updateData.data.paralelo = attrs.paralelo
+    }
+    
+    // Año: asegurar que sea un número válido
     if (attrs.año !== undefined && attrs.año !== null && !isNaN(Number(attrs.año))) {
       updateData.data.año = Number(attrs.año)
+    } else if (attrs.ano !== undefined && attrs.ano !== null && !isNaN(Number(attrs.ano))) {
+      // Fallback a "ano" sin tilde
+      updateData.data.año = Number(attrs.ano)
+    }
+    
+    // Estado activo
+    if (attrs.activo !== undefined) {
+      updateData.data.activo = attrs.activo !== false
     }
 
     await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
