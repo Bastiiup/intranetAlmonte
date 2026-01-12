@@ -27,30 +27,30 @@ const BootstrapModals = () => {
       <p className="text-muted">A rendered modal with header, body, and set of actions in the footer.</p>
       <div className="d-flex flex-wrap gap-2">
         <Button variant="primary" onClick={toggleStandard}>
-          Standard Modal
+          Modal Estándar
         </Button>
         <Button variant="info" onClick={() => openModalWithSize('lg')}>
-          Large Modal
+          Modal Grande
         </Button>
         <Button variant="success" onClick={() => openModalWithSize('sm')}>
-          Small Modal
+          Modal Pequeño
         </Button>
         <Button variant="primary" onClick={() => openModalWithClass('modal-full-width')}>
-          Full Width Modal
+          Modal Ancho Completo
         </Button>
         <Button variant="secondary" onClick={openModalWithScroll}>
-          Scrollable Modal
+          Modal con Scroll
         </Button>
       </div>
       <Modal show={isStandardOpen} onHide={toggleStandard}>
         <ModalHeader onHide={toggleStandard} closeButton>
-          <ModalTitle as="h4">Modal Heading</ModalTitle>
+          <ModalTitle as="h4">Encabezado del Modal</ModalTitle>
         </ModalHeader>
         <ModalBody>
-          <h5>Text in a modal</h5>
+          <h5>Texto en un modal</h5>
           <p>Duis mollis, est non commodo luctus, nisi erat porttitor ligula.</p>
           <hr />
-          <h5>Overflowing text to show scroll behavior</h5>
+          <h5>Texto desbordado para mostrar comportamiento de scroll</h5>
           <p>
             Cras mattis consectetur purus sit amet fermentum. Cras justo odio, dapibus ac facilisis in, egestas eget quam. Morbi leo risus, porta ac
             consectetur ac, vestibulum at eros.
@@ -65,17 +65,17 @@ const BootstrapModals = () => {
         </ModalBody>
         <ModalFooter>
           <Button variant="light" onClick={toggleStandard}>
-            Close
+            Cerrar
           </Button>
           <Button variant="primary" onClick={toggleStandard}>
-            Save changes
+            Guardar cambios
           </Button>
         </ModalFooter>
       </Modal>
 
       <Modal className="fade" show={isOpen} onHide={toggleModal} dialogClassName={className} size={size} scrollable={scroll}>
         <ModalHeader onHide={toggleModal} closeButton>
-          <ModalTitle as={'h4'}>Large Model</ModalTitle>
+          <ModalTitle as={'h4'}>Modal Grande</ModalTitle>
         </ModalHeader>
         <ModalBody>
           ...
