@@ -147,13 +147,14 @@ export class CursoService {
       logger.debug('[CursoService] Creando curso', { data })
       
       // Preparar datos para Strapi
+      // Nota: activo puede ser undefined por el default de Zod, pero siempre lo convertimos a boolean
       const cursoData: { data: Partial<CursoData> & { lista_utiles?: any; materiales?: any[]; colegio?: any } } = {
         data: {
           nombre_curso: data.nombre_curso.trim(),
           nivel: data.nivel,
           grado: data.grado,
           paralelo: data.paralelo || null,
-          activo: data.activo !== undefined ? data.activo : true,
+          activo: data.activo, // Ya viene como boolean del schema con default
         },
       }
 

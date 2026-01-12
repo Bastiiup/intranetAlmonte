@@ -30,7 +30,7 @@ export const CreateCursoSchema = z.object({
   nivel: z.enum(['Basica', 'Media']),
   grado: z.string().regex(/^[1-8]$/, 'El grado debe ser entre 1 y 8'),
   paralelo: z.string().nullable().optional(),
-  activo: z.boolean().default(true),
+  activo: z.boolean().default(true).transform(val => val ?? true), // Asegurar que siempre sea boolean
   lista_utiles: z.union([z.number(), z.string(), z.null()]).optional(),
   materiales: z.array(MaterialSchema).optional(),
   colegio: z.union([z.number(), z.string()]),
