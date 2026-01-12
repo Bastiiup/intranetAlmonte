@@ -39,58 +39,71 @@ export async function GET(
   try {
     debugLog('[API /crm/cursos/[id] GET] Buscando curso con ID:', id, 'Tipo:', typeof id)
     
-    // El ID puede ser numérico o documentId (string), Strapi debería manejarlo automáticamente
-
-    // Intentar con populate de lista_utiles, si falla intentar sin él
-    // NOTA: El populate anidado de lista_utiles.materiales puede causar error 500 en Strapi
-    // si el content type no está configurado correctamente
+    // Estrategia simplificada: primero obtener el curso básico, luego poblar relaciones si es necesario
+    // NO intentar populate anidado desde el principio porque causa error 500 en Strapi
     let response: any
+    
+    // Paso 1: Intentar obtener curso con populate básico (sin populate anidado)
     try {
       const paramsObj = new URLSearchParams({
         'populate[materiales]': 'true',
         'populate[colegio]': 'true',
-        'populate[lista_utiles]': 'true',
-        'populate[lista_utiles][populate][materiales]': 'true',
+        'populate[lista_utiles]': 'true', // Solo el ID de lista_utiles, sin materiales anidados
       })
       response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
         `/api/cursos/${id}?${paramsObj.toString()}`
       )
+      debugLog('[API /crm/cursos/[id] GET] ✅ Curso obtenido con populate básico')
     } catch (error: any) {
-      // Si falla con populate anidado de lista_utiles.materiales (error 500 común),
-      // intentar solo con lista_utiles sin populate anidado
-      if (error.status === 500 || error.status === 400) {
-        debugLog('[API /crm/cursos/[id] GET] ⚠️ Error 500/400 con populate anidado lista_utiles.materiales, intentando sin populate anidado')
+      // Si falla, intentar sin lista_utiles
+      if (error.status === 500 || error.status === 400 || error.status === 404) {
+        debugLog('[API /crm/cursos/[id] GET] ⚠️ Error con populate básico, intentando sin lista_utiles')
         try {
           const paramsObj = new URLSearchParams({
             'populate[materiales]': 'true',
             'populate[colegio]': 'true',
-            'populate[lista_utiles]': 'true',
           })
           response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
             `/api/cursos/${id}?${paramsObj.toString()}`
           )
+          debugLog('[API /crm/cursos/[id] GET] ✅ Curso obtenido sin lista_utiles')
         } catch (secondError: any) {
-          // Si también falla, intentar sin lista_utiles completamente
-          debugLog('[API /crm/cursos/[id] GET] ⚠️ Error también sin populate anidado, intentando sin lista_utiles')
-          try {
-            const paramsObj = new URLSearchParams({
-              'populate[materiales]': 'true',
-              'populate[colegio]': 'true',
-            })
-            response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-              `/api/cursos/${id}?${paramsObj.toString()}`
-            )
-          } catch (thirdError: any) {
-            // Si también falla, intentar solo con campos básicos
-            debugLog('[API /crm/cursos/[id] GET] ⚠️ Error también sin lista_utiles, intentando solo campos básicos')
-            response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-              `/api/cursos/${id}`
-            )
-          }
+          // Si también falla, intentar solo campos básicos
+          debugLog('[API /crm/cursos/[id] GET] ⚠️ Error también sin lista_utiles, intentando solo campos básicos')
+          response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+            `/api/cursos/${id}`
+          )
+          debugLog('[API /crm/cursos/[id] GET] ✅ Curso obtenido solo con campos básicos')
         }
       } else {
         // Si es otro tipo de error, propagarlo
         throw error
+      }
+    }
+    
+    // Paso 2: Si tenemos lista_utiles pero sin materiales, intentar obtenerlos por separado
+    if (response?.data?.lista_utiles?.data?.id || response?.data?.lista_utiles?.id) {
+      const listaUtilesId = response.data.lista_utiles.data?.id || response.data.lista_utiles.id
+      try {
+        debugLog('[API /crm/cursos/[id] GET] Obteniendo materiales de lista_utiles por separado:', listaUtilesId)
+        const listaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+          `/api/listas-utiles/${listaUtilesId}?populate[materiales]=true`
+        )
+        // Agregar los materiales a la respuesta
+        if (listaResponse?.data?.materiales) {
+          if (response.data.lista_utiles.data) {
+            response.data.lista_utiles.data.attributes = response.data.lista_utiles.data.attributes || {}
+            response.data.lista_utiles.data.attributes.materiales = listaResponse.data.materiales
+          } else if (response.data.lista_utiles.attributes) {
+            response.data.lista_utiles.attributes.materiales = listaResponse.data.materiales
+          } else {
+            response.data.lista_utiles.materiales = listaResponse.data.materiales
+          }
+          debugLog('[API /crm/cursos/[id] GET] ✅ Materiales de lista_utiles agregados')
+        }
+      } catch (listaError: any) {
+        // Si falla obtener materiales de lista_utiles, no es crítico, continuar sin ellos
+        debugLog('[API /crm/cursos/[id] GET] ⚠️ No se pudieron obtener materiales de lista_utiles (no crítico):', listaError.message)
       }
     }
 
