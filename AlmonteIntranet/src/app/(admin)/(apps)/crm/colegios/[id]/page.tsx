@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Container, Card, CardHeader, CardBody, Alert, Spinner, Row, Col, Button, Badge, Nav, NavItem, NavLink, Table, Form, FormGroup, FormLabel, FormControl } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { LuMapPin, LuPhone, LuMail, LuGlobe, LuUsers, LuPencil, LuArrowLeft, LuShoppingCart, LuTrendingUp, LuActivity, LuPackage, LuGraduationCap, LuDownload } from 'react-icons/lu'
+import { LuMapPin, LuPhone, LuMail, LuGlobe, LuUsers, LuPencil, LuArrowLeft, LuShoppingCart, LuTrendingUp, LuActivity, LuPackage, LuGraduationCap, LuDownload, LuEye, LuTrash2 } from 'react-icons/lu'
 import Link from 'next/link'
 import CursoModal from './components/CursoModal'
 import { exportarMaterialesAExcel } from '@/helpers/excel'
@@ -961,7 +961,128 @@ export default function ColegioDetailPage() {
               ? `No hay cursos registrados para el año ${añoFiltro}. Haz clic en "Agregar Curso" para comenzar.`
               : 'No hay cursos registrados para este colegio. Haz clic en "Agregar Curso" para comenzar.'}
           </p>
+        ) : añoFiltro !== null ? (
+          // Vista de tabla cuando hay un año seleccionado
+          (() => {
+            const cursosDelAño = cursosFiltrados
+            return (
+              <div className="table-responsive">
+                <Table hover className="align-middle">
+                  <thead className="table-light">
+                    <tr>
+                      <th style={{ width: '25%' }}>CURSO</th>
+                      <th style={{ width: '10%' }}>NIVEL</th>
+                      <th style={{ width: '8%' }}>GRADO</th>
+                      <th style={{ width: '8%' }}>PARALELO</th>
+                      <th style={{ width: '15%' }}>LISTA DE ÚTILES</th>
+                      <th style={{ width: '10%' }}>MATERIALES</th>
+                      <th style={{ width: '8%' }}>ESTADO</th>
+                      <th style={{ width: '16%' }} className="text-end">ACCIONES</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cursosDelAño.map((curso: any) => {
+                      const attrs = curso.attributes || curso
+                      const materialesDirectos = attrs.materiales || []
+                      const materialesLista = attrs.lista_utiles?.data?.attributes?.materiales || 
+                                             attrs.lista_utiles?.attributes?.materiales || 
+                                             attrs.lista_utiles?.materiales || []
+                      const materiales = [...materialesDirectos, ...(Array.isArray(materialesLista) ? materialesLista : [])]
+                      const nombreLista = attrs.lista_utiles?.data?.attributes?.nombre || 
+                                         attrs.lista_utiles?.attributes?.nombre || 
+                                         attrs.lista_utiles?.nombre || null
+                      
+                      return (
+                        <tr key={curso.id || curso.documentId}>
+                          <td>
+                            <div>
+                              <div className="fw-semibold">
+                                {attrs.nombre_curso || attrs.curso_nombre || attrs.titulo || attrs.nombre || 'Sin nombre'}
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <Badge bg="info">{attrs.nivel || '-'}</Badge>
+                          </td>
+                          <td>
+                            <span className="text-muted">{attrs.grado ? `${attrs.grado}°` : '-'}</span>
+                          </td>
+                          <td>
+                            <span className="text-muted">{attrs.paralelo || '-'}</span>
+                          </td>
+                          <td>
+                            {nombreLista ? (
+                              <Badge bg="secondary">{nombreLista}</Badge>
+                            ) : (
+                              <span className="text-muted">Sin lista</span>
+                            )}
+                          </td>
+                          <td>
+                            <div className="d-flex align-items-center gap-2">
+                              <LuPackage size={16} className="text-muted" />
+                              <span className="text-muted">{materiales.length}</span>
+                            </div>
+                          </td>
+                          <td>
+                            {attrs.activo !== false ? (
+                              <Badge bg="success">Activo</Badge>
+                            ) : (
+                              <Badge bg="secondary">Inactivo</Badge>
+                            )}
+                          </td>
+                          <td>
+                            <div className="d-flex justify-content-end gap-2">
+                              {materiales.length > 0 && (
+                                <Button
+                                  variant="link"
+                                  size="sm"
+                                  className="p-1 text-info"
+                                  onClick={async () => {
+                                    try {
+                                      const materialesFormateados = materiales.map((m: any) => ({
+                                        material_nombre: m.material_nombre || 'Sin nombre',
+                                        tipo: (m.tipo || 'util') as 'util' | 'libro' | 'cuaderno' | 'otro',
+                                        cantidad: parseInt(String(m.cantidad)) || 1,
+                                        obligatorio: m.obligatorio !== false,
+                                        descripcion: m.descripcion || undefined,
+                                      }))
+                                      const nombreCurso = attrs.nombre_curso || attrs.curso_nombre || 'materiales_curso'
+                                      const nombreArchivo = nombreCurso.replace(/\s+/g, '_')
+                                      await exportarMaterialesAExcel(materialesFormateados, nombreArchivo)
+                                    } catch (error: any) {
+                                      console.error('Error al exportar materiales:', error)
+                                      alert('Error al exportar materiales: ' + (error.message || 'Error desconocido'))
+                                    }
+                                  }}
+                                  title="Exportar materiales a Excel"
+                                >
+                                  <LuDownload size={18} />
+                                </Button>
+                              )}
+                              <Button
+                                variant="link"
+                                size="sm"
+                                className="p-1 text-primary"
+                                onClick={() => {
+                                  setCursoSeleccionado(curso)
+                                  setShowCursoModal(true)
+                                }}
+                                title="Editar curso"
+                              >
+                                <LuPencil size={18} />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </Table>
+              </div>
+            )
+          })()
         ) : (
+          // Vista de cards cuando no hay año seleccionado (todos los años)
           (() => {
             // Agrupar cursos por año
             const cursosPorAño = cursosFiltrados.reduce((acc: Record<string, any[]>, curso: any) => {
@@ -991,13 +1112,10 @@ export default function ColegioDetailPage() {
                       <div className="row g-3">
                         {cursosDelAño.map((curso: any) => {
                           const attrs = curso.attributes || curso
-                          // Materiales directos del curso (adicionales)
                           const materialesDirectos = attrs.materiales || []
-                          // Materiales de la lista predefinida (si existe)
                           const materialesLista = attrs.lista_utiles?.data?.attributes?.materiales || 
                                                  attrs.lista_utiles?.attributes?.materiales || 
                                                  attrs.lista_utiles?.materiales || []
-                          // Combinar todos los materiales para mostrar/exportar
                           const materiales = [...materialesDirectos, ...(Array.isArray(materialesLista) ? materialesLista : [])]
                           
                           return (
@@ -1058,7 +1176,6 @@ export default function ColegioDetailPage() {
                                         size="sm"
                                         onClick={async () => {
                                           try {
-                                            // Formatear materiales para exportación
                                             const materialesFormateados = materiales.map((m: any) => ({
                                               material_nombre: m.material_nombre || 'Sin nombre',
                                               tipo: (m.tipo || 'util') as 'util' | 'libro' | 'cuaderno' | 'otro',
@@ -1066,11 +1183,8 @@ export default function ColegioDetailPage() {
                                               obligatorio: m.obligatorio !== false,
                                               descripcion: m.descripcion || undefined,
                                             }))
-                                            
-                                            // Nombre del archivo basado en el curso
                                             const nombreCurso = attrs.nombre_curso || attrs.curso_nombre || 'materiales_curso'
                                             const nombreArchivo = nombreCurso.replace(/\s+/g, '_')
-                                            
                                             await exportarMaterialesAExcel(materialesFormateados, nombreArchivo)
                                           } catch (error: any) {
                                             console.error('Error al exportar materiales:', error)
