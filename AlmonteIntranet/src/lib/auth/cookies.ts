@@ -175,12 +175,36 @@ export async function verifySessionToken(colaborador: ColaboradorCookie): Promis
       const colaboradorId = colaborador.documentId || colaborador.id
 
       try {
-        // Obtener colaborador completo (no usar fields porque session_token puede ser privado)
-        const colaboradorStrapi = await strapiClient.get<any>(
-          `/api/colaboradores/${colaboradorId}`
-        )
-        // Extraer datos del colaborador (puede venir en data.attributes o directamente)
-        const colaboradorData = colaboradorStrapi.data?.attributes || colaboradorStrapi.data || colaboradorStrapi
+        let colaboradorStrapi: any = null
+        let colaboradorData: any = null
+
+        // Intentar primero con endpoint directo
+        try {
+          colaboradorStrapi = await strapiClient.get<any>(
+            `/api/colaboradores/${colaboradorId}`
+          )
+          colaboradorData = colaboradorStrapi.data?.attributes || colaboradorStrapi.data || colaboradorStrapi
+        } catch (directError: any) {
+          // Si falla, intentar buscar por email_login (más confiable)
+          if (colaborador.email_login) {
+            try {
+              const filterResponse = await strapiClient.get<any>(
+                `/api/colaboradores?filters[email_login][$eq]=${encodeURIComponent(colaborador.email_login)}`
+              )
+              const filterData = filterResponse.data
+              if (Array.isArray(filterData) && filterData.length > 0) {
+                colaboradorData = filterData[0]?.attributes || filterData[0]
+              } else if (filterData && !Array.isArray(filterData)) {
+                colaboradorData = filterData?.attributes || filterData
+              }
+            } catch (filterError: any) {
+              throw directError // Lanzar el error original si el filtro también falla
+            }
+          } else {
+            throw directError
+          }
+        }
+
         const sessionTokenStrapi = colaboradorData?.session_token
 
         // Si Strapi tiene un token pero las cookies no, la sesión es inválida
@@ -214,13 +238,36 @@ export async function verifySessionToken(colaborador: ColaboradorCookie): Promis
     const colaboradorId = colaborador.documentId || colaborador.id
 
     try {
-      // Obtener colaborador completo (no usar fields porque session_token puede ser privado)
-      const colaboradorStrapi = await strapiClient.get<any>(
-        `/api/colaboradores/${colaboradorId}`
-      )
+      let colaboradorStrapi: any = null
+      let colaboradorData: any = null
 
-      // Extraer datos del colaborador (puede venir en data.attributes o directamente)
-      const colaboradorData = colaboradorStrapi.data?.attributes || colaboradorStrapi.data || colaboradorStrapi
+      // Intentar primero con endpoint directo
+      try {
+        colaboradorStrapi = await strapiClient.get<any>(
+          `/api/colaboradores/${colaboradorId}`
+        )
+        colaboradorData = colaboradorStrapi.data?.attributes || colaboradorStrapi.data || colaboradorStrapi
+      } catch (directError: any) {
+        // Si falla, intentar buscar por email_login (más confiable)
+        if (colaborador.email_login) {
+          try {
+            const filterResponse = await strapiClient.get<any>(
+              `/api/colaboradores?filters[email_login][$eq]=${encodeURIComponent(colaborador.email_login)}`
+            )
+            const filterData = filterResponse.data
+            if (Array.isArray(filterData) && filterData.length > 0) {
+              colaboradorData = filterData[0]?.attributes || filterData[0]
+            } else if (filterData && !Array.isArray(filterData)) {
+              colaboradorData = filterData?.attributes || filterData
+            }
+          } catch (filterError: any) {
+            throw directError // Lanzar el error original si el filtro también falla
+          }
+        } else {
+          throw directError
+        }
+      }
+
       const sessionTokenStrapi = colaboradorData?.session_token
 
       // Si no hay token en Strapi pero sí en cookies, puede ser que se haya limpiado o no se haya guardado
