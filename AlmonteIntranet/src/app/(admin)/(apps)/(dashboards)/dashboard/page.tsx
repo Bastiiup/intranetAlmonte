@@ -31,7 +31,7 @@ const Page = async () => {
   const statCards = [
     {
       id: 1,
-      title: 'Total Sales',
+      title: 'Ventas Totales',
       value: stats.totalSales / 1000, // Convertir a miles
       suffix: 'K',
       prefix: '$',
@@ -40,21 +40,21 @@ const Page = async () => {
     },
     {
       id: 2,
-      title: 'Orders Placed',
+      title: 'Pedidos Realizados',
       value: stats.totalOrders,
       icon: TbShoppingCart,
       iconBg: 'success' as const,
     },
     {
       id: 3,
-      title: 'Active Customers',
+      title: 'Clientes Activos',
       value: stats.activeCustomers,
       icon: TbUsers,
       iconBg: 'info' as const,
     },
     {
       id: 4,
-      title: 'Refund Requests',
+      title: 'Solicitudes de Reembolso',
       value: stats.refundRequests,
       icon: TbRotateClockwise2,
       iconBg: 'warning' as const,

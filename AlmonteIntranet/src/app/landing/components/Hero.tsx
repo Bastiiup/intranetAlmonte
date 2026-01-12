@@ -11,15 +11,15 @@ const Hero = () => {
         <Row>
           <Col lg={8} className="mx-auto text-center">
             <h1 className="my-4 fs-36 fw-bold lh-base">
-              Modern, Powerful &amp; Flexible <span className="text-primary">Admin &amp; Dashboard</span> Template –&nbsp;<span className="text-muted">Built for Serious Web Applications</span>
+              Moderno, Potente y Flexible <span className="text-primary">Panel de Administración</span> –&nbsp;<span className="text-muted">Construido para Aplicaciones Web Serias</span>
             </h1>
             <p className="mb-4 fs-md text-muted lh-lg">
-              Build fast, modern, and scalable web apps with our best-selling Admin Dashboard Template.
-              Engineered for performance, flexibility, and easy customization — ideal for startups, agencies, and enterprise teams.
+              Construye aplicaciones web rápidas, modernas y escalables con nuestra plantilla de Panel de Administración más vendida.
+              Diseñada para rendimiento, flexibilidad y fácil personalización — ideal para startups, agencias y equipos empresariales.
             </p>
             <div className="d-flex gap-1 gap-sm-2 flex-wrap justify-content-center">
               <Button variant="primary" className="py-2 fw-semibold" href="#">
-                <TbBasket className="fs-xl me-2" />Buy UBold Now!
+                <TbBasket className="fs-xl me-2" />Comprar UBold Ahora!
               </Button>
             </div>
           </Col>
