@@ -162,13 +162,40 @@ export function createLogoutResponse(): NextResponse {
  */
 export async function verifySessionToken(colaborador: ColaboradorCookie): Promise<boolean> {
   try {
-    // Si no hay token de sesión en las cookies, no verificar (compatibilidad con sesiones antiguas)
+    // Si no hay token de sesión en las cookies, verificar si el colaborador tiene uno en Strapi
+    // Si tiene uno en Strapi pero no en cookies, la sesión es inválida
     if (!colaborador.session_token) {
-      console.warn('[Cookies] ⚠️ Colaborador no tiene session_token, saltando verificación')
-      return true // Permitir acceso para compatibilidad
+      // Verificar si el colaborador tiene session_token en Strapi
+      if (!colaborador.id && !colaborador.documentId) {
+        console.warn('[Cookies] ⚠️ Colaborador no tiene ID ni session_token, no se puede verificar')
+        return false
+      }
+
+      const strapiClient = (await import('@/lib/strapi/client')).default
+      const colaboradorId = colaborador.documentId || colaborador.id
+
+      try {
+        const colaboradorStrapi = await strapiClient.get<any>(
+          `/api/colaboradores/${colaboradorId}?fields[0]=session_token`
+        )
+        const colaboradorData = colaboradorStrapi.data?.attributes || colaboradorStrapi.data || colaboradorStrapi
+        const sessionTokenStrapi = colaboradorData?.session_token
+
+        // Si Strapi tiene un token pero las cookies no, la sesión es inválida
+        if (sessionTokenStrapi) {
+          console.warn('[Cookies] ❌ Colaborador tiene session_token en Strapi pero no en cookies - sesión inválida')
+          return false
+        }
+
+        // Si no hay token ni en Strapi ni en cookies, permitir acceso (compatibilidad con sesiones antiguas)
+        return true
+      } catch (error: any) {
+        console.error('[Cookies] ❌ Error al verificar si existe session_token en Strapi:', error.message)
+        return false // Si hay error, denegar acceso por seguridad
+      }
     }
 
-    // Si no hay ID del colaborador, no se puede verificar
+    // Si hay token de sesión en las cookies, DEBE coincidir con Strapi
     if (!colaborador.id && !colaborador.documentId) {
       console.warn('[Cookies] ⚠️ Colaborador no tiene ID, no se puede verificar token de sesión')
       return false
@@ -186,15 +213,15 @@ export async function verifySessionToken(colaborador: ColaboradorCookie): Promis
       const colaboradorData = colaboradorStrapi.data?.attributes || colaboradorStrapi.data || colaboradorStrapi
       const sessionTokenStrapi = colaboradorData?.session_token
 
-      // Si no hay token en Strapi, permitir acceso (compatibilidad)
+      // Si no hay token en Strapi pero sí en cookies, sesión inválida
       if (!sessionTokenStrapi) {
-        console.warn('[Cookies] ⚠️ Colaborador en Strapi no tiene session_token, saltando verificación')
-        return true
+        console.warn('[Cookies] ❌ Colaborador tiene session_token en cookies pero no en Strapi - sesión inválida')
+        return false
       }
 
-      // Verificar que los tokens coincidan
+      // Verificar que los tokens coincidan - ESTO ES CRÍTICO
       if (sessionTokenStrapi !== colaborador.session_token) {
-        console.warn('[Cookies] ❌ Token de sesión no coincide:', {
+        console.warn('[Cookies] ❌ Token de sesión no coincide - sesión inválida:', {
           tokenCookie: colaborador.session_token?.substring(0, 8) + '...',
           tokenStrapi: sessionTokenStrapi?.substring(0, 8) + '...',
           email: colaborador.email_login,
@@ -205,13 +232,13 @@ export async function verifySessionToken(colaborador: ColaboradorCookie): Promis
       return true // Token coincide, sesión válida
     } catch (error: any) {
       console.error('[Cookies] ❌ Error al verificar token de sesión en Strapi:', error.message)
-      // Si hay error al verificar, permitir acceso para no bloquear usuarios (fallback)
-      return true
+      // Si hay error al verificar, denegar acceso por seguridad
+      return false
     }
   } catch (error: any) {
     console.error('[Cookies] ❌ Error al verificar token de sesión:', error.message)
-    // Si hay error, permitir acceso para no bloquear usuarios (fallback)
-    return true
+    // Si hay error, denegar acceso por seguridad
+    return false
   }
 }
 

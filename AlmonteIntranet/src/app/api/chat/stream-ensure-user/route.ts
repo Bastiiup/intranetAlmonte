@@ -14,22 +14,11 @@ import { cookies } from 'next/headers'
 export const dynamic = 'force-dynamic'
 
 /**
- * Obtiene el colaborador autenticado desde las cookies
+ * Obtiene el colaborador autenticado desde las cookies con verificación de sesión única
  */
 async function getAuthColaborador() {
-  try {
-    const cookieStore = await cookies()
-    const colaboradorStr = cookieStore.get('auth_colaborador')?.value
-
-    if (!colaboradorStr) {
-      return null
-    }
-
-    return JSON.parse(colaboradorStr)
-  } catch (error) {
-    console.error('[API /chat/stream-ensure-user] Error al obtener colaborador de cookies:', error)
-    return null
-  }
+  const { getColaboradorFromCookies } = await import('@/lib/auth/cookies')
+  return await getColaboradorFromCookies(true) // Verificar sesión única
 }
 
 export async function POST(request: NextRequest) {
