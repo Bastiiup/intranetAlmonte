@@ -32,9 +32,9 @@ const Basic = () => {
           <ToastHeader>
             <Image src={LogoSm} alt="brand-logo" height={16} className="me-1" />
             <strong className="me-auto text-body">BRAND</strong>
-            <small>11 mins ago</small>
+            <small>Hace 11 min</small>
           </ToastHeader>
-          <ToastBody>Hello, world! This is a toast message.</ToastBody>
+          <ToastBody>¡Hola, mundo! Este es un mensaje de notificación.</ToastBody>
         </Toast>
       </div>
     </ComponentCard>
@@ -56,9 +56,9 @@ const Placement = () => {
               <ToastHeader>
                 <Image src={LogoSm} alt="brand-logo" height={16} className="me-1" />
                 <strong className="me-auto">BRAND</strong>
-                <small>11 mins ago</small>
+                <small>Hace 11 min</small>
               </ToastHeader>
-              <ToastBody>Hello, world! This is a toast message.</ToastBody>
+              <ToastBody>¡Hola, mundo! Este es un mensaje de notificación.</ToastBody>
             </Toast>
           </div>
         </div>
@@ -79,21 +79,21 @@ const PlacementToast = () => {
       </p>
       <Form>
         <div className="mb-3">
-          <label htmlFor="selectToastPlacement">Toast placement</label>
+          <label htmlFor="selectToastPlacement">Posición de notificación</label>
           <FormSelect
             className="mt-2"
             onChange={(e) => setPosition(e?.currentTarget.value as ToastContainerProps['position'])}
             id="selectToastPlacement">
-            <option>Select a position...</option>
-            <option value="top-start">Top left</option>
-            <option value="top-center">Top center</option>
-            <option value="top-end">Top right</option>
-            <option value="middle-start">Middle left</option>
-            <option value="middle-center">Middle center</option>
-            <option value="middle-end">Middle right</option>
-            <option value="bottom-start">Bottom left</option>
-            <option value="bottom-center">Bottom center</option>
-            <option value="bottom-end">Bottom right</option>
+            <option>Seleccionar una posición...</option>
+            <option value="top-start">Superior izquierda</option>
+            <option value="top-center">Superior centro</option>
+            <option value="top-end">Superior derecha</option>
+            <option value="middle-start">Centro izquierda</option>
+            <option value="middle-center">Centro</option>
+            <option value="middle-end">Centro derecha</option>
+            <option value="bottom-start">Inferior izquierda</option>
+            <option value="bottom-center">Inferior centro</option>
+            <option value="bottom-end">Inferior derecha</option>
           </FormSelect>
         </div>
       </Form>
@@ -104,9 +104,9 @@ const PlacementToast = () => {
               <Image className="me-1" src={LogoSm} alt="logo-dark" height={16} />
               &nbsp;
               <strong className="me-auto text-body">BRAND</strong>
-              <small>11 mins ago</small>
+              <small>Hace 11 min</small>
             </ToastHeader>
-            <ToastBody>Hello, world! This is a toast message.</ToastBody>
+            <ToastBody>¡Hola, mundo! Este es un mensaje de notificación.</ToastBody>
           </Toast>
         </ToastContainer>
       </div>
@@ -129,9 +129,9 @@ const LiveToast = () => {
           <ToastHeader>
             <Image src={LogoSm} alt="brand-logo" height={16} className="me-1" />
             <strong className="me-auto text-body">BRAND</strong>
-            <small>11 mins ago</small>
+            <small>Hace 11 min</small>
           </ToastHeader>
-          <ToastBody>Hello, world! This is a toast message.</ToastBody>
+          <ToastBody>¡Hola, mundo! Este es un mensaje de notificación.</ToastBody>
         </Toast>
       </ToastContainer>
     </ComponentCard>
@@ -159,9 +159,9 @@ const Translucent = () => {
           <ToastHeader>
             <Image src={LogoSm} alt="brand-logo" height={16} className="me-1" />
             <strong className="me-auto text-body">BRAND</strong>
-            <small>11 mins ago</small>
+            <small>Hace 11 min</small>
           </ToastHeader>
-          <ToastBody>Hello, world! This is a toast message.</ToastBody>
+          <ToastBody>¡Hola, mundo! Este es un mensaje de notificación.</ToastBody>
         </Toast>
       </div>
     </ComponentCard>
@@ -209,7 +209,7 @@ const CustomContent = () => {
     <ComponentCard isCollapsible title="Custom content">
       <Toast show={isOpenCustom1} onClose={hideCustom1} delay={3000} autohide className="align-items-center mb-4">
         <div className="d-flex">
-          <ToastBody>Hello, world! This is a toast message.</ToastBody>
+          <ToastBody>¡Hola, mundo! Este es un mensaje de notificación.</ToastBody>
           <Button onClick={hideCustom1} className="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close" />
         </div>
       </Toast>
@@ -223,7 +223,7 @@ const CustomContent = () => {
         aria-live="assertive"
         aria-atomic="true">
         <div className="d-flex">
-          <ToastBody>Hello, world! This is a toast message.</ToastBody>
+          <ToastBody>¡Hola, mundo! Este es un mensaje de notificación.</ToastBody>
           <Button onClick={hideCustom2} className="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close" />
         </div>
       </Toast>
@@ -251,14 +251,14 @@ const CustomContent = () => {
         aria-live="assertive"
         aria-atomic="true">
         <ToastBody className="text-white">
-          Hello, world! This is a toast message.
+          ¡Hola, mundo! Este es un mensaje de notificación.
           <div className="mt-2 pt-2 border-top">
             <Button variant="light" size="sm">
-              Take action
+              Tomar acción
             </Button>
             &nbsp;
             <Button variant="secondary" size="sm" onClick={hideCustom4}>
-              Close
+              Cerrar
             </Button>
           </div>
         </ToastBody>

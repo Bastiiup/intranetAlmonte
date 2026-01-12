@@ -24,7 +24,7 @@ const TablePagination = ({
   totalItems,
   start,
   end,
-  itemsName = 'items',
+  itemsName = 'elementos',
   showInfo,
   previousPage,
   canPreviousPage,
