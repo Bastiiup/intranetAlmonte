@@ -159,7 +159,7 @@ export const menuItems: MenuItemType[] = [
           { key: 'marca-requests', label: 'Solicitudes de Marcas', url: '/atributos/marca/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
         ],
       },
-      { key: 'product-requests', label: 'Solicitudes de Productos', url: '/products/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+      // { key: 'product-requests', label: 'Solicitudes de Productos', url: '/products/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // Ocultado - integrado en Todos los Productos
     ],
   },
   {
