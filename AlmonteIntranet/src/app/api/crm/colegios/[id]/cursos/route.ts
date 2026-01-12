@@ -116,9 +116,10 @@ export async function POST(
     }
 
     // Normalizar materiales para asegurar tipos correctos (preprocess puede no reflejarse en tipos)
-    const normalizedData = {
-      ...validation.data,
-      materiales: validation.data.materiales?.map((m: any) => ({
+    const validatedData = validation.data as CreateCursoInput
+    const normalizedData: CreateCursoInput = {
+      ...validatedData,
+      materiales: validatedData.materiales?.map((m: any) => ({
         material_nombre: m.material_nombre,
         tipo: (m.tipo ?? 'util') as 'util' | 'libro' | 'cuaderno' | 'otro',
         cantidad: m.cantidad ?? 1,
@@ -128,7 +129,7 @@ export async function POST(
     }
 
     // Crear usando servicio
-    const curso = await CursoService.create(normalizedData as CreateCursoInput)
+    const curso = await CursoService.create(normalizedData)
 
     logger.success('[API /crm/colegios/[id]/cursos POST] Curso creado exitosamente', { colegioId })
     return createSuccessResponse(
