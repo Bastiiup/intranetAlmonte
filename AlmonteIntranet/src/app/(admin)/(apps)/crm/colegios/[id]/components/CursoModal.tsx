@@ -4,8 +4,6 @@ import { useState, useEffect, useMemo } from 'react'
 import { Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Button, Form, FormGroup, FormLabel, FormControl, Alert, Row, Col, Collapse, Badge } from 'react-bootstrap'
 import { LuPlus, LuTrash2, LuChevronDown, LuChevronUp, LuFileSpreadsheet, LuDownload } from 'react-icons/lu'
 import Select from 'react-select'
-import ImportarMaterialesExcelModal from './ImportarMaterialesExcelModal'
-import { exportarMaterialesAExcel } from '@/helpers/excel'
 
 interface Material {
   material_nombre: string
@@ -237,7 +235,6 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
           lista_utiles: null,
           materiales_adicionales: [],
         })
-        setShowMaterialesAdicionales(false)
       }
       setError(null)
     }
@@ -335,10 +332,7 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
       ...prev,
       lista_utiles: option?.value || null,
     }))
-    // Si se selecciona una lista, mantener materiales adicionales pero ocultarlos inicialmente
-    if (option && formData.materiales_adicionales.length === 0) {
-      setShowMaterialesAdicionales(false)
-    }
+    // Los materiales ahora se gestionan mediante PDFs
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -374,13 +368,7 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
         }
       }
 
-      // Validar materiales adicionales
-      const materialesInvalidos = formData.materiales_adicionales.filter(
-        (m) => !m.material_nombre.trim()
-      )
-      if (materialesInvalidos.length > 0) {
-        throw new Error('Todos los materiales adicionales deben tener un nombre')
-      }
+      // Los materiales ahora se gestionan mediante PDFs, no se validan aquí
 
       const url = curso
         ? `/api/crm/cursos/${curso.documentId || curso.id}`
@@ -620,179 +608,9 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
             </Col>
           </Row>
 
-          <div className="d-flex justify-content-between align-items-center mb-3">
-            <div>
-              <h5 className="mb-0">Materiales Adicionales</h5>
-              <small className="text-muted">Agregar materiales fuera de la lista predefinida (opcional)</small>
-            </div>
-            <div>
-              <Button
-                type="button"
-                variant="outline-success"
-                size="sm"
-                className="me-2"
-                onClick={() => setShowImportarExcel(true)}
-              >
-                <LuFileSpreadsheet className="me-1" size={16} />
-                Importar Excel
-              </Button>
-              {formData.materiales_adicionales.length > 0 && (
-                <Button
-                  type="button"
-                  variant="outline-info"
-                  size="sm"
-                  className="me-2"
-                  onClick={handleExportarMateriales}
-                >
-                  <LuDownload className="me-1" size={16} />
-                  Exportar Excel
-                </Button>
-              )}
-              <Button
-                type="button"
-                variant="outline-primary"
-                size="sm"
-                onClick={() => {
-                  handleAddMaterial()
-                  setShowMaterialesAdicionales(true)
-                }}
-              >
-                <LuPlus className="me-1" size={16} />
-                Agregar Material
-              </Button>
-            </div>
-          </div>
-
-          <Collapse in={showMaterialesAdicionales || formData.materiales_adicionales.length > 0}>
-            <div>
-              {formData.materiales_adicionales.length === 0 ? (
-                <Alert variant="info">
-                  No hay materiales adicionales. Haz clic en "Agregar Material" para comenzar.
-                </Alert>
-              ) : (
-                <div className="list-group">
-                  {formData.materiales_adicionales.map((material, index) => (
-                <div key={index} className="list-group-item mb-3 border rounded p-3">
-                  <div className="d-flex justify-content-between align-items-start mb-2">
-                    <h6 className="mb-0">Material #{index + 1}</h6>
-                    <Button
-                      type="button"
-                      variant="outline-danger"
-                      size="sm"
-                      onClick={() => handleRemoveMaterial(index)}
-                    >
-                      <LuTrash2 size={14} />
-                    </Button>
-                  </div>
-                  <Row>
-                    <Col md={12}>
-                      <FormGroup className="mb-2">
-                        <FormLabel>Nombre del Material *</FormLabel>
-                        <FormControl
-                          type="text"
-                          value={material.material_nombre}
-                          onChange={(e) =>
-                            handleMaterialChange(index, 'material_nombre', e.target.value)
-                          }
-                          placeholder="Ej: Lápiz grafito, Libro de Matemáticas"
-                          required
-                        />
-                      </FormGroup>
-                    </Col>
-                    <Col md={4}>
-                      <FormGroup className="mb-2">
-                        <FormLabel>Tipo *</FormLabel>
-                        <FormControl
-                          as="select"
-                          value={material.tipo}
-                          onChange={(e) =>
-                            handleMaterialChange(index, 'tipo', e.target.value as Material['tipo'])
-                          }
-                          required
-                        >
-                          {TIPOS_MATERIAL.map((tipo) => (
-                            <option key={tipo.value} value={tipo.value}>
-                              {tipo.label}
-                            </option>
-                          ))}
-                        </FormControl>
-                      </FormGroup>
-                    </Col>
-                    <Col md={3}>
-                      <FormGroup className="mb-2">
-                        <FormLabel>Cantidad *</FormLabel>
-                        <FormControl
-                          type="number"
-                          min="1"
-                          value={material.cantidad}
-                          onChange={(e) =>
-                            handleMaterialChange(index, 'cantidad', parseInt(e.target.value) || 1)
-                          }
-                          required
-                        />
-                      </FormGroup>
-                    </Col>
-                    <Col md={5}>
-                      <FormGroup className="mb-2">
-                        <div className="form-check mt-4">
-                          <input
-                            className="form-check-input"
-                            type="checkbox"
-                            checked={material.obligatorio}
-                            onChange={(e) =>
-                              handleMaterialChange(index, 'obligatorio', e.target.checked)
-                            }
-                            id={`obligatorio-${index}`}
-                          />
-                          <label className="form-check-label" htmlFor={`obligatorio-${index}`}>
-                            Obligatorio
-                          </label>
-                        </div>
-                      </FormGroup>
-                    </Col>
-                    <Col md={12}>
-                      <FormGroup className="mb-0">
-                        <FormLabel>Descripción (opcional)</FormLabel>
-                        <FormControl
-                          as="textarea"
-                          rows={2}
-                          value={material.descripcion || ''}
-                          onChange={(e) =>
-                            handleMaterialChange(index, 'descripcion', e.target.value)
-                          }
-                          placeholder="Descripción adicional del material..."
-                        />
-                      </FormGroup>
-                    </Col>
-                  </Row>
-                  </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </Collapse>
-
-          {formData.materiales_adicionales.length > 0 && (
-            <Button
-              type="button"
-              variant="link"
-              size="sm"
-              className="mt-2 p-0"
-              onClick={() => setShowMaterialesAdicionales(!showMaterialesAdicionales)}
-            >
-              {showMaterialesAdicionales ? (
-                <>
-                  <LuChevronUp size={16} className="me-1" />
-                  Ocultar materiales adicionales
-                </>
-              ) : (
-                <>
-                  <LuChevronDown size={16} className="me-1" />
-                  Mostrar materiales adicionales ({formData.materiales_adicionales.length})
-                </>
-              )}
-            </Button>
-          )}
+          <Alert variant="info" className="mt-3">
+            <strong>Nota:</strong> Los materiales se gestionan mediante PDFs. Sube un PDF desde la página de detalle del curso para agregar materiales.
+          </Alert>
         </ModalBody>
         <ModalFooter>
           {curso && (
