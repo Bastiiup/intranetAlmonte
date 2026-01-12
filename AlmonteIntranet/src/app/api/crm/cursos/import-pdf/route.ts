@@ -114,6 +114,17 @@ export async function POST(request: NextRequest) {
 
     const attrs = (curso as any).attributes || curso
 
+    debugLog('[API /crm/cursos/import-pdf POST] Atributos del curso:', {
+      nombre_curso: attrs.nombre_curso,
+      nivel: attrs.nivel,
+      grado: attrs.grado,
+      paralelo: attrs.paralelo,
+      año: attrs.año,
+      ano: attrs.ano,
+      activo: attrs.activo,
+      tieneVersiones: !!attrs.versiones_materiales,
+    })
+
     // Obtener versiones existentes (si existen) o crear array vacío
     // Guardamos las versiones en un campo personalizado o en materiales como estructura de versiones
     // Por ahora, crearemos una nueva "versión" guardando los materiales con metadata
