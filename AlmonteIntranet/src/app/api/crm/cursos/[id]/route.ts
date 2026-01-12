@@ -27,7 +27,9 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    debugLog('[API /crm/cursos/[id] GET] Buscando curso:', id)
+    debugLog('[API /crm/cursos/[id] GET] Buscando curso con ID:', id, 'Tipo:', typeof id)
+    
+    // El ID puede ser numérico o documentId (string), Strapi debería manejarlo automáticamente
 
     // Intentar con populate de lista_utiles, si falla intentar sin él
     // NOTA: El populate anidado de lista_utiles.materiales puede causar error 500 en Strapi
@@ -82,6 +84,24 @@ export async function GET(
       }
     }
 
+    // Verificar que la respuesta tenga datos
+    if (!response.data) {
+      debugLog('[API /crm/cursos/[id] GET] ⚠️ Respuesta sin datos para ID:', id)
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Curso con ID ${id} no encontrado`,
+          status: 404,
+        },
+        { status: 404 }
+      )
+    }
+
+    debugLog('[API /crm/cursos/[id] GET] ✅ Curso encontrado:', {
+      hasData: !!response.data,
+      id: response.data?.id || response.data?.documentId,
+    })
+
     return NextResponse.json({
       success: true,
       data: response.data,
@@ -90,7 +110,21 @@ export async function GET(
     console.error('[API /crm/cursos/[id] GET] Error:', {
       message: error.message,
       status: error.status,
+      id,
     })
+    
+    // Si es un error 404, devolver mensaje más claro
+    if (error.status === 404 || error.message?.includes('Not Found') || error.message?.includes('not found')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Curso con ID ${id} no encontrado`,
+          status: 404,
+        },
+        { status: 404 }
+      )
+    }
+    
     return NextResponse.json(
       {
         success: false,
