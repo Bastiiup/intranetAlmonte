@@ -135,48 +135,48 @@ const Page = () => {
                 <AppLogo />
               </div>
               <div className="mt-auto">
-                <p className="text-muted text-center auth-sub-text mx-auto">Let’s get you signed in. Enter your email and password to continue.</p>
+                <p className="text-muted text-center auth-sub-text mx-auto">Inicia sesión. Ingresa tu correo electrónico y contraseña para continuar.</p>
                 <form className="mt-4">
                   <div className="mb-3">
                     <label htmlFor="userEmail" className="form-label">
-                      Email address <span className="text-danger">*</span>
+                      Correo electrónico <span className="text-danger">*</span>
                     </label>
                     <div className="app-search">
-                      <FormControl type="email" id="userEmail" placeholder="you@example.com" required />
+                      <FormControl type="email" id="userEmail" placeholder="tu@ejemplo.com" required />
                       <LuCircleUser className="app-search-icon text-muted" />
                     </div>
                   </div>
                   <div className="mb-3">
                     <label htmlFor="userPassword" className="form-label">
-                      Password <span className="text-danger">*</span>
+                      Contraseña <span className="text-danger">*</span>
                     </label>
                     <div className="app-search">
                       <FormControl type="password" id="userPassword" placeholder="••••••••" required />
                       <LuKeyRound className="app-search-icon text-muted" />
-                    </div>
+</div>
                   </div>
                   <div className="d-flex justify-content-between align-items-center mb-3">
                     <div className="form-check">
                       <input className="form-check-input form-check-input-light fs-14" type="checkbox" defaultChecked id="rememberMe" />
                       <label className="form-check-label" htmlFor="rememberMe">
-                        Keep me signed in
+                        Mantener sesión iniciada
                       </label>
                     </div>
                     <Link href="/auth-2/reset-pass" className="text-decoration-underline link-offset-3 text-muted">
-                      Forgot Password?
+                      ¿Olvidaste tu contraseña?
                     </Link>
                   </div>
                   <div className="d-grid">
                     <button type="submit" className="btn btn-primary fw-bold py-2">
-                      Sign In
+                      Iniciar Sesión
                     </button>
                   </div>
                 </form>
               </div>
               <p className="text-muted text-center mt-4 mb-0">
-                New here?{' '}
+                ¿Nuevo aquí?{' '}
                 <Link href="/auth-2/sign-up" className="text-decoration-underline link-offset-3 fw-semibold">
-                  Create an account
+                  Crear una cuenta
                 </Link>
               </p>
               <p className="text-center text-muted mt-auto mb-0">

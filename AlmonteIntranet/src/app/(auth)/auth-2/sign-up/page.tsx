@@ -140,23 +140,23 @@ const Page = () => {
                 <AppLogo />
               </div>
               <div className="mt-auto">
-                <p className="text-muted text-center auth-sub-text mx-auto">Create your account by entering the form below.</p>
+                <p className="text-muted text-center auth-sub-text mx-auto">Crea tu cuenta completando el formulario a continuación.</p>
                 <form className="mt-4">
                   <div className="mb-3">
                     <FormLabel htmlFor="userName">
-                      Full Name <span className="text-danger">*</span>
+                      Nombre Completo <span className="text-danger">*</span>
                     </FormLabel>
                     <div className="app-search">
-                      <FormControl type="text" id="userName" placeholder="Geneva Denian" required />
+                      <FormControl type="text" id="userName" placeholder="Juan Pérez" required />
                       <LuCircleUser className="app-search-icon text-muted" />
                     </div>
                   </div>
                   <div className="mb-3">
                     <FormLabel htmlFor="userEmail">
-                      Email address <span className="text-danger">*</span>
+                      Correo electrónico <span className="text-danger">*</span>
                     </FormLabel>
                     <div className="app-search">
-                      <FormControl type="email" id="userEmail" placeholder="you@example.com" required />
+                      <FormControl type="email" id="userEmail" placeholder="tu@ejemplo.com" required />
                       <LuMail className="app-search-icon text-muted" />
                     </div>
                   </div>
@@ -164,7 +164,7 @@ const Page = () => {
                     <div className="app-search">
                       <PasswordInputWithStrength
                         id="userPassword"
-                        label="Password"
+                        label="Contraseña"
                         name="user-password"
                         password={password}
                         setPassword={setPassword}
@@ -177,21 +177,21 @@ const Page = () => {
                     <div className="form-check">
                       <input className="form-check-input form-check-input-light fs-14" type="checkbox" id="termAndPolicy" />
                       <label className="form-check-label" htmlFor="termAndPolicy">
-                        Agree the Terms &amp; Policy
+                        Acepto los Términos y Políticas
                       </label>
                     </div>
                   </div>
                   <div className="d-grid">
                     <button type="submit" className="btn btn-primary fw-semibold py-2">
-                      Create Account
+                      Crear Cuenta
                     </button>
                   </div>
                 </form>
               </div>
               <p className="text-muted text-center mt-4 mb-0">
-                Already have an account?{' '}
+                ¿Ya tienes una cuenta?{' '}
                 <Link href="/auth-2/sign-in" className="text-decoration-underline link-offset-3 fw-semibold">
-                  Login
+                  Iniciar Sesión
                 </Link>
               </p>
               <p className="text-center text-muted mt-auto mb-0">
