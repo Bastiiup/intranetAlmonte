@@ -36,7 +36,7 @@ export class CursoService {
         : cursoEntity
       
       logger.debug('[CursoService] Curso encontrado', { id })
-      return curso as CursoData
+      return curso as unknown as CursoData
     } catch (error: any) {
       if (error.status === 404) {
         logger.debug('[CursoService] Curso no encontrado (404)', { id })
@@ -121,7 +121,7 @@ export class CursoService {
         : cursoEntity
       
       logger.success('[CursoService] Curso actualizado exitosamente', { id })
-      return cursoActualizado as CursoData
+      return cursoActualizado as unknown as CursoData
     } catch (error: any) {
       logger.error('[CursoService] Error al actualizar curso', { id, error })
       throw error
@@ -214,7 +214,7 @@ export class CursoService {
       logger.success('[CursoService] Curso creado exitosamente', { 
         id: cursoCreado?.id || cursoCreado?.documentId 
       })
-      return cursoCreado as CursoData
+      return cursoCreado as unknown as CursoData
     } catch (error: any) {
       logger.error('[CursoService] Error al crear curso', { error })
       throw error
