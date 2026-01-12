@@ -83,8 +83,9 @@ export async function POST(request: NextRequest) {
     })
 
     // Obtener el curso actual para agregar la nueva versión
+    // Incluir el campo versiones_materiales para obtener las versiones existentes
     const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-      `/api/cursos/${cursoId}?publicationState=preview`
+      `/api/cursos/${cursoId}?fields=versiones_materiales&publicationState=preview`
     )
 
     if (!cursoResponse.data) {
