@@ -82,26 +82,53 @@ export async function POST(request: NextRequest) {
       colegioId,
     })
 
-    // Obtener el curso actual para agregar la nueva versión
-    // Incluir todos los campos necesarios para preservarlos al actualizar
-    // NOTA: No usar fields= porque puede excluir otros campos necesarios
-    const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-      `/api/cursos/${cursoId}?publicationState=preview`
-    )
+    // Determinar si cursoId es un documentId (UUID) o un id numérico
+    const isDocumentId = typeof cursoId === 'string' && !/^\d+$/.test(cursoId)
+    
+    let curso: any = null
+    let cursoResponse: any = null
 
-    if (!cursoResponse.data) {
+    // Obtener el curso actual para agregar la nueva versión
+    // Manejar tanto documentId como id numérico
+    try {
+      if (isDocumentId) {
+        // Si es documentId, usar filtro
+        debugLog('[API /crm/cursos/import-pdf POST] Buscando curso por documentId:', cursoId)
+        const params = new URLSearchParams({
+          'filters[documentId][$eq]': cursoId,
+          'publicationState': 'preview',
+        })
+        cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+          `/api/cursos?${params.toString()}`
+        )
+        
+        if (cursoResponse.data && Array.isArray(cursoResponse.data) && cursoResponse.data.length > 0) {
+          curso = cursoResponse.data[0]
+        } else if (cursoResponse.data && !Array.isArray(cursoResponse.data)) {
+          curso = cursoResponse.data
+        }
+      } else {
+        // Si es id numérico, usar ruta directa
+        debugLog('[API /crm/cursos/import-pdf POST] Buscando curso por id numérico:', cursoId)
+        cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+          `/api/cursos/${cursoId}?publicationState=preview`
+        )
+        
+        if (cursoResponse.data) {
+          curso = Array.isArray(cursoResponse.data) ? cursoResponse.data[0] : cursoResponse.data
+        }
+      }
+    } catch (error: any) {
+      debugLog('[API /crm/cursos/import-pdf POST] Error al buscar curso:', error)
       return NextResponse.json(
         {
           success: false,
-          error: 'Curso no encontrado',
+          error: 'Curso no encontrado: ' + (error.message || 'Error desconocido'),
         },
         { status: 404 }
       )
     }
 
-    // Asegurar que curso es un objeto, no un array
-    const curso = Array.isArray(cursoResponse.data) ? cursoResponse.data[0] : cursoResponse.data
-    
     if (!curso || typeof curso !== 'object') {
       return NextResponse.json(
         {
