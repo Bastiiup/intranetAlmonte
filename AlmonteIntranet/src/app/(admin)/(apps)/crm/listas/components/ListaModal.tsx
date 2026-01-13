@@ -126,7 +126,7 @@ export default function ListaModal({ show, onHide, lista, onSuccess }: ListaModa
           label: colegio.colegio_nombre || colegio.nombre || 'Sin nombre',
         }))
         // Ordenar alfabéticamente
-        opciones.sort((a, b) => a.label.localeCompare(b.label))
+        opciones.sort((a: ColegioOption, b: ColegioOption) => a.label.localeCompare(b.label))
         setColegios(opciones)
       }
     } catch (err) {
