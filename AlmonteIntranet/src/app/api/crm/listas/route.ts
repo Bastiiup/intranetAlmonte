@@ -62,6 +62,7 @@ export async function GET(request: NextRequest) {
     filters.push('fields[4]=paralelo')
     filters.push('fields[5]=versiones_materiales') // Campo JSON, no relación
     filters.push('fields[6]=activo')
+    filters.push('fields[7]=colegio') // Incluir relación con colegio
     filters.push('publicationState=preview')
 
     const queryString = filters.length > 0 ? `?${filters.join('&')}` : '?populate[colegio]=true&fields[0]=versiones_materiales&publicationState=preview'
@@ -98,14 +99,19 @@ export async function GET(request: NextRequest) {
       const colegioData = attrs.colegio?.data || attrs.colegio
       const colegioAttrs = colegioData?.attributes || colegioData
 
+      const nombreCurso = attrs.nombre_curso || attrs.curso_nombre || 'Sin nombre'
+      const paralelo = attrs.paralelo ? ` ${attrs.paralelo}` : ''
+      const nombreCompleto = `${nombreCurso}${paralelo}`
+
       return {
         id: curso.id || curso.documentId,
         documentId: curso.documentId || String(curso.id || ''),
-        nombre: attrs.nombre_curso || attrs.curso_nombre || 'Sin nombre',
+        nombre: nombreCompleto,
         nivel: attrs.nivel || 'Basica',
         grado: parseInt(attrs.grado) || 1,
+        paralelo: attrs.paralelo || '',
         año: attrs.año || attrs.ano || new Date().getFullYear(),
-        descripcion: `Curso: ${attrs.nombre_curso || ''}`,
+        descripcion: `Curso: ${nombreCompleto}`,
         activo: attrs.activo !== false,
         pdf_id: ultimaVersion?.pdf_id || null,
         pdf_nombre: ultimaVersion?.nombre_archivo || ultimaVersion?.metadata?.nombre || null,
@@ -115,7 +121,7 @@ export async function GET(request: NextRequest) {
         } : null,
         curso: {
           id: curso.id || curso.documentId,
-          nombre: attrs.nombre_curso || attrs.curso_nombre || '',
+          nombre: nombreCompleto,
         },
         versiones: versiones.length,
       }

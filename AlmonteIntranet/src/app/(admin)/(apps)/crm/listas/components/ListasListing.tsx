@@ -136,7 +136,10 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
     {
       id: 'curso',
       header: 'Curso',
-      cell: ({ row }) => row.original.curso?.nombre || '-',
+      cell: ({ row }) => {
+        const nombre = row.original.curso?.nombre || row.original.nombre || '-'
+        return nombre
+      },
     },
     {
       id: 'año',
@@ -348,12 +351,12 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               <div className="app-search">
                 <select
                   className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('colegio')?.getFilterValue() as string) ?? 'All'}
+                  value={(table.getColumn('colegio')?.getFilterValue() as string) ?? ''}
                   onChange={(e) => {
                     const value = e.target.value
-                    table.getColumn('colegio')?.setFilterValue(value === 'All' ? undefined : value)
+                    table.getColumn('colegio')?.setFilterValue(value === '' ? undefined : value)
                   }}>
-                  <option value="All">Colegio</option>
+                  <option value="">Colegio</option>
                   {Array.from(new Set(data.map(l => l.colegio?.nombre).filter(Boolean))).sort().map((nombre) => (
                     <option key={nombre} value={nombre}>{nombre}</option>
                   ))}
@@ -363,11 +366,11 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               <div className="app-search">
                 <select
                   className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('año')?.getFilterValue() as string) ?? 'All'}
+                  value={(table.getColumn('año')?.getFilterValue() as string) ?? ''}
                   onChange={(e) =>
-                    table.getColumn('año')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)
+                    table.getColumn('año')?.setFilterValue(e.target.value === '' ? undefined : e.target.value)
                   }>
-                  <option value="All">Año</option>
+                  <option value="">Año</option>
                   {Array.from(new Set(data.map(l => l.año).filter(Boolean))).sort((a, b) => (b || 0) - (a || 0)).map((año) => (
                     <option key={año} value={String(año)}>{año}</option>
                   ))}
