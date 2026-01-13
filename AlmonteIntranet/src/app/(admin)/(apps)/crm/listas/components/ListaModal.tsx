@@ -60,35 +60,6 @@ interface CursoOption {
   colegioId: number | string
 }
 
-const NIVELES = [
-  { value: 'Basica', label: 'Básica' },
-  { value: 'Media', label: 'Media' },
-]
-
-const GRADOS_BASICA = Array.from({ length: 8 }, (_, i) => ({
-  value: i + 1,
-  label: `${i + 1}° Básica`,
-}))
-
-const GRADOS_MEDIA = Array.from({ length: 4 }, (_, i) => ({
-  value: i + 1,
-  label: `${i + 1}° Media`,
-}))
-
-const getAñosDisponibles = () => {
-  const añoActual = new Date().getFullYear()
-  const años = []
-  for (let i = -2; i <= 2; i++) {
-    años.push({
-      value: añoActual + i,
-      label: String(añoActual + i),
-    })
-  }
-  return años
-}
-
-const AÑOS_DISPONIBLES = getAñosDisponibles()
-
 export default function ListaModal({ show, onHide, lista, onSuccess }: ListaModalProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
