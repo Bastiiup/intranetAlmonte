@@ -184,6 +184,14 @@ export default function ListaModal({ show, onHide, lista, onSuccess }: ListaModa
       if (selectedPDF) {
         setUploadingPDF(true)
         try {
+          // Verificar que tenemos el cursoId correcto
+          const cursoSeleccionado = cursos.find(c => c.value === formData.curso)
+          console.log('[ListaModal] Subiendo PDF:', {
+            cursoId: formData.curso,
+            cursoSeleccionado,
+            colegioId: formData.colegio,
+          })
+
           // Subir PDF directamente al curso usando la API de import-pdf
           const pdfFormData = new FormData()
           pdfFormData.append('pdf', selectedPDF)
@@ -198,7 +206,9 @@ export default function ListaModal({ show, onHide, lista, onSuccess }: ListaModa
           const uploadResult = await uploadResponse.json()
 
           if (!uploadResponse.ok || !uploadResult.success) {
-            throw new Error(uploadResult.error || 'Error al subir el PDF al curso')
+            const errorMsg = uploadResult.error || 'Error al subir el PDF al curso'
+            const detalles = uploadResult.detalles ? ` (${uploadResult.detalles})` : ''
+            throw new Error(errorMsg + detalles)
           }
 
           // Éxito: el PDF se subió al curso
@@ -208,6 +218,7 @@ export default function ListaModal({ show, onHide, lista, onSuccess }: ListaModa
             window.location.reload()
           }
         } catch (err: any) {
+          console.error('[ListaModal] Error al subir PDF:', err)
           throw new Error('Error al subir PDF: ' + err.message)
         } finally {
           setUploadingPDF(false)
