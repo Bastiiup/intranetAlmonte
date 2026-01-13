@@ -46,10 +46,13 @@ export async function GET(request: NextRequest) {
       filters.push(`filters[activo][$eq]=${activo === 'true'}`)
     }
 
-    // Populate materiales
+    // Populate materiales, PDF, colegio y curso
     filters.push('populate[materiales]=true')
+    filters.push('populate[pdf]=true')
+    filters.push('populate[colegio]=true')
+    filters.push('populate[curso]=true')
 
-    const queryString = filters.length > 0 ? `?${filters.join('&')}` : '?populate[materiales]=true'
+    const queryString = filters.length > 0 ? `?${filters.join('&')}` : '?populate[materiales]=true&populate[pdf]=true&populate[colegio]=true&populate[curso]=true'
 
     debugLog('[API /crm/listas-utiles GET] Query:', queryString)
 
@@ -132,6 +135,21 @@ export async function POST(request: NextRequest) {
         descripcion: body.descripcion || null,
         activo: body.activo !== false,
       },
+    }
+
+    // Agregar PDF si existe
+    if (body.pdf) {
+      payload.data.pdf = body.pdf
+    }
+
+    // Agregar relación con colegio si existe
+    if (body.colegio) {
+      payload.data.colegio = body.colegio
+    }
+
+    // Agregar relación con curso si existe
+    if (body.curso) {
+      payload.data.curso = body.curso
     }
 
     // Agregar materiales si existen

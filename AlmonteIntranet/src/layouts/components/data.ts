@@ -111,6 +111,14 @@ export const menuItems: MenuItemType[] = [
       { key: 'crm-automatizaciones', label: 'Automatizaciones', url: '/crm/automatizaciones' },
     ],
   },
+  {
+    key: 'listas',
+    label: 'Listas',
+    icon: LuFileText,
+    children: [
+      { key: 'listas-listing', label: 'Todas las Listas', url: '/crm/listas' },
+    ],
+  },
   // { key: 'atencion-clientes', label: 'ATENCIÓN CLIENTES', isTitle: true },
   // {
   //   key: 'support-center',
