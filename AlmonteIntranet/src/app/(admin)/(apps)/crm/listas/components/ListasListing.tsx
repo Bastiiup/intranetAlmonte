@@ -127,7 +127,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
     {
       id: 'colegio',
       header: 'Colegio',
-      accessorKey: 'colegio.nombre',
+      accessorFn: (row) => row.colegio?.nombre || '',
       enableSorting: true,
       enableColumnFilter: true,
       filterFn: 'includesString',
@@ -349,11 +349,12 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                 <select
                   className="form-select form-control my-1 my-md-0"
                   value={(table.getColumn('colegio')?.getFilterValue() as string) ?? 'All'}
-                  onChange={(e) =>
-                    table.getColumn('colegio')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)
-                  }>
+                  onChange={(e) => {
+                    const value = e.target.value
+                    table.getColumn('colegio')?.setFilterValue(value === 'All' ? undefined : value)
+                  }}>
                   <option value="All">Colegio</option>
-                  {Array.from(new Set(data.map(l => l.colegio?.nombre).filter(Boolean))).map((nombre) => (
+                  {Array.from(new Set(data.map(l => l.colegio?.nombre).filter(Boolean))).sort().map((nombre) => (
                     <option key={nombre} value={nombre}>{nombre}</option>
                   ))}
                 </select>
