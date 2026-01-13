@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Container, Card, CardHeader, CardBody, Alert, Spinner, Row, Col, Button, Badge, Nav, NavItem, NavLink, Table, Form, FormGroup, FormLabel, FormControl } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { LuMapPin, LuPhone, LuMail, LuGlobe, LuUsers, LuPencil, LuArrowLeft, LuShoppingCart, LuTrendingUp, LuActivity, LuPackage, LuGraduationCap, LuDownload, LuEye, LuTrash2 } from 'react-icons/lu'
+import { LuMapPin, LuPhone, LuMail, LuGlobe, LuUsers, LuPencil, LuArrowLeft, LuPackage, LuGraduationCap, LuDownload, LuEye, LuTrash2 } from 'react-icons/lu'
 import Link from 'next/link'
 import CursoModal from './components/CursoModal'
 import { exportarMaterialesAExcel } from '@/helpers/excel'
@@ -118,16 +118,10 @@ export default function ColegioDetailPage() {
   const [activeTab, setActiveTab] = useState<TabType>('informacion')
   const [loading, setLoading] = useState(true)
   const [loadingContacts, setLoadingContacts] = useState(true)
-  const [loadingPedidos, setLoadingPedidos] = useState(true)
-  const [loadingLeads, setLoadingLeads] = useState(true)
-  const [loadingActivities, setLoadingActivities] = useState(true)
   const [loadingCursos, setLoadingCursos] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [colegio, setColegio] = useState<ColegioData | null>(null)
   const [contactos, setContactos] = useState<ContactoData[]>([])
-  const [pedidos, setPedidos] = useState<PedidoData[]>([])
-  const [leads, setLeads] = useState<LeadData[]>([])
-  const [activities, setActivities] = useState<ActivityData[]>([])
   const [cursos, setCursos] = useState<any[]>([])
   const [showCursoModal, setShowCursoModal] = useState(false)
   const [cursoSeleccionado, setCursoSeleccionado] = useState<any>(null)
@@ -244,104 +238,6 @@ export default function ColegioDetailPage() {
     if (colegioId) fetchContactos()
   }, [colegioId])
 
-  useEffect(() => {
-    const fetchPedidos = async () => {
-      if (!colegioId) return
-      setLoadingPedidos(true)
-      try {
-        const response = await fetch(`/api/crm/colegios/${colegioId}/pedidos`)
-        const result = await response.json()
-        if (response.ok && result.success) {
-          const pedidosData = Array.isArray(result.data) ? result.data : [result.data]
-          const pedidosTransformed: PedidoData[] = pedidosData.map((pedido: any) => {
-            const attrs = pedido.attributes || pedido
-            return {
-              id: pedido.documentId || pedido.id,
-              documentId: pedido.documentId,
-              numero_pedido: attrs.numero_pedido,
-              fecha_pedido: attrs.fecha_pedido,
-              estado: attrs.estado,
-              total: attrs.total,
-              subtotal: attrs.subtotal,
-              cliente: attrs.cliente?.data?.attributes || attrs.cliente?.attributes || attrs.cliente,
-              items: attrs.items || [],
-            }
-          })
-          setPedidos(pedidosTransformed)
-        }
-      } catch (err: any) {
-        console.error('Error al cargar pedidos:', err)
-      } finally {
-        setLoadingPedidos(false)
-      }
-    }
-    if (colegioId && (activeTab === 'pedidos' || activeTab === 'materiales')) fetchPedidos()
-  }, [colegioId, activeTab])
-
-  useEffect(() => {
-    const fetchLeads = async () => {
-      if (!colegioId) return
-      setLoadingLeads(true)
-      try {
-        const response = await fetch(`/api/crm/colegios/${colegioId}/leads`)
-        const result = await response.json()
-        if (response.ok && result.success) {
-          const leadsData = Array.isArray(result.data) ? result.data : [result.data]
-          const leadsTransformed: LeadData[] = leadsData.map((lead: any) => {
-            const attrs = lead.attributes || lead
-            return {
-              id: lead.documentId || lead.id,
-              documentId: lead.documentId,
-              nombre: attrs.nombre,
-              email: attrs.email,
-              telefono: attrs.telefono,
-              estado: attrs.estado,
-              monto_estimado: attrs.monto_estimado,
-              fecha_creacion: attrs.fecha_creacion,
-            }
-          })
-          setLeads(leadsTransformed)
-        }
-      } catch (err: any) {
-        console.error('Error al cargar leads:', err)
-      } finally {
-        setLoadingLeads(false)
-      }
-    }
-    if (colegioId && activeTab === 'leads') fetchLeads()
-  }, [colegioId, activeTab])
-
-  useEffect(() => {
-    const fetchActivities = async () => {
-      if (!colegioId) return
-      setLoadingActivities(true)
-      try {
-        const response = await fetch(`/api/crm/colegios/${colegioId}/activities`)
-        const result = await response.json()
-        if (response.ok && result.success) {
-          const activitiesData = Array.isArray(result.data) ? result.data : [result.data]
-          const activitiesTransformed: ActivityData[] = activitiesData.map((activity: any) => {
-            const attrs = activity.attributes || activity
-            return {
-              id: activity.documentId || activity.id,
-              documentId: activity.documentId,
-              tipo_actividad: attrs.tipo_actividad,
-              titulo: attrs.titulo,
-              descripcion: attrs.descripcion,
-              fecha_actividad: attrs.fecha_actividad,
-              creado_por: attrs.creado_por?.data?.attributes || attrs.creado_por?.attributes || attrs.creado_por,
-            }
-          })
-          setActivities(activitiesTransformed)
-        }
-      } catch (err: any) {
-        console.error('Error al cargar actividades:', err)
-      } finally {
-        setLoadingActivities(false)
-      }
-    }
-    if (colegioId && activeTab === 'actividades') fetchActivities()
-  }, [colegioId, activeTab])
 
   useEffect(() => {
     const fetchCursos = async () => {
@@ -419,34 +315,6 @@ export default function ColegioDetailPage() {
     })
   }, [cursos, añoFiltro])
 
-  // Calcular materiales más pedidos
-  const materialesMasPedidos = useMemo(() => {
-    const materialesMap = new Map<string, { nombre: string; cantidad: number; total: number; sku?: string }>()
-    
-    pedidos.forEach((pedido) => {
-      pedido.items?.forEach((item) => {
-        const nombre = item.name || 'Sin nombre'
-        const cantidad = item.quantity || 0
-        const total = item.total || 0
-        
-        if (materialesMap.has(nombre)) {
-          const existente = materialesMap.get(nombre)!
-          materialesMap.set(nombre, {
-            nombre,
-            cantidad: existente.cantidad + cantidad,
-            total: existente.total + total,
-            sku: item.sku || existente.sku,
-          })
-        } else {
-          materialesMap.set(nombre, { nombre, cantidad, total, sku: item.sku })
-        }
-      })
-    })
-    
-    return Array.from(materialesMap.values())
-      .sort((a, b) => b.cantidad - a.cantidad)
-      .slice(0, 10) // Top 10
-  }, [pedidos])
 
   // Agrupar contactos por cargo/curso
   const contactosPorCargo = useMemo(() => {
@@ -742,196 +610,6 @@ export default function ColegioDetailPage() {
     </Card>
   )
 
-  const renderPedidosTab = () => (
-    <Card>
-      <CardHeader>
-        <h4 className="mb-0 d-flex align-items-center">
-          <LuShoppingCart className="me-2" />
-          Pedidos de Alumnos
-          <Badge bg="primary" className="ms-2">{pedidos.length}</Badge>
-        </h4>
-      </CardHeader>
-      <CardBody>
-        {loadingPedidos ? (
-          <div className="text-center py-5">
-            <Spinner animation="border" variant="primary" />
-            <p className="mt-2 text-muted">Cargando pedidos...</p>
-          </div>
-        ) : pedidos.length === 0 ? (
-          <p className="text-muted text-center py-5">No hay pedidos relacionados con este colegio</p>
-        ) : (
-          <div className="table-responsive">
-            <Table hover>
-              <thead>
-                <tr>
-                  <th>N° Pedido</th>
-                  <th>Fecha</th>
-                  <th>Alumno/Cliente</th>
-                  <th>Materiales</th>
-                  <th>Estado</th>
-                  <th>Total</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pedidos.map((pedido) => (
-                  <tr key={pedido.id}>
-                    <td>{pedido.numero_pedido || pedido.id}</td>
-                    <td>{pedido.fecha_pedido ? new Date(pedido.fecha_pedido).toLocaleDateString() : '-'}</td>
-                    <td>
-                      <div>
-                        <div className="fw-semibold">{pedido.cliente?.nombre || 'Sin nombre'}</div>
-                        {pedido.cliente?.correo_electronico && (
-                          <small className="text-muted">{pedido.cliente.correo_electronico}</small>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      {pedido.items && pedido.items.length > 0 ? (
-                        <div>
-                          {pedido.items.slice(0, 3).map((item, idx) => (
-                            <div key={idx} className="small mb-1">
-                              <Badge bg="light" text="dark" className="me-1">
-                                {item.quantity || 0}x
-                              </Badge>
-                              {item.name || 'Sin nombre'}
-                            </div>
-                          ))}
-                          {pedido.items.length > 3 && (
-                            <small className="text-muted">+{pedido.items.length - 3} más</small>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted">Sin materiales</span>
-                      )}
-                    </td>
-                    <td>
-                      <Badge bg={
-                        pedido.estado === 'completed' ? 'success' :
-                        pedido.estado === 'processing' ? 'warning' :
-                        pedido.estado === 'pending' ? 'info' : 'secondary'
-                      }>
-                        {pedido.estado || 'N/A'}
-                      </Badge>
-                    </td>
-                    <td>${pedido.total?.toLocaleString('es-CL') || '0'}</td>
-                    <td>
-                      <Link href={`/atributos/pedidos/${pedido.documentId || pedido.id}`}>
-                        <Button variant="outline-primary" size="sm">Ver</Button>
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          </div>
-        )}
-      </CardBody>
-    </Card>
-  )
-
-  const renderLeadsTab = () => (
-    <Card>
-      <CardHeader>
-        <h4 className="mb-0 d-flex align-items-center">
-          <LuTrendingUp className="me-2" />
-          Leads y Prospectos
-          <Badge bg="primary" className="ms-2">{leads.length}</Badge>
-        </h4>
-      </CardHeader>
-      <CardBody>
-        {loadingLeads ? (
-          <div className="text-center py-5">
-            <Spinner animation="border" variant="primary" />
-            <p className="mt-2 text-muted">Cargando leads...</p>
-          </div>
-        ) : leads.length === 0 ? (
-          <p className="text-muted text-center py-5">No hay leads relacionados con este colegio</p>
-        ) : (
-          <div className="table-responsive">
-            <Table hover>
-              <thead>
-                <tr>
-                  <th>Nombre</th>
-                  <th>Email</th>
-                  <th>Teléfono</th>
-                  <th>Estado</th>
-                  <th>Monto Estimado</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leads.map((lead) => (
-                  <tr key={lead.id}>
-                    <td>{lead.nombre || 'Sin nombre'}</td>
-                    <td>{lead.email || '-'}</td>
-                    <td>{lead.telefono || '-'}</td>
-                    <td>
-                      <Badge bg={
-                        lead.estado === 'in-progress' ? 'primary' :
-                        lead.estado === 'negotiation' ? 'warning' :
-                        lead.estado === 'rejected' ? 'danger' : 'secondary'
-                      }>
-                        {lead.estado || 'N/A'}
-                      </Badge>
-                    </td>
-                    <td>${lead.monto_estimado?.toLocaleString('es-CL') || '0'}</td>
-                    <td>
-                      <Link href={`/crm/leads/${lead.documentId || lead.id}`}>
-                        <Button variant="outline-primary" size="sm">Ver</Button>
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          </div>
-        )}
-      </CardBody>
-    </Card>
-  )
-
-  const renderActividadesTab = () => (
-    <Card>
-      <CardHeader>
-        <h4 className="mb-0 d-flex align-items-center">
-          <LuActivity className="me-2" />
-          Actividades
-          <Badge bg="primary" className="ms-2">{activities.length}</Badge>
-        </h4>
-      </CardHeader>
-      <CardBody>
-        {loadingActivities ? (
-          <div className="text-center py-5">
-            <Spinner animation="border" variant="primary" />
-            <p className="mt-2 text-muted">Cargando actividades...</p>
-          </div>
-        ) : activities.length === 0 ? (
-          <p className="text-muted text-center py-5">No hay actividades relacionadas con este colegio</p>
-        ) : (
-          <div className="list-group">
-            {activities.map((activity) => (
-              <div key={activity.id} className="list-group-item">
-                <div className="d-flex justify-content-between align-items-start">
-                  <div className="flex-grow-1">
-                    <h6 className="mb-1">{activity.titulo || activity.tipo_actividad || 'Sin título'}</h6>
-                    {activity.descripcion && (
-                      <p className="mb-1 text-muted">{activity.descripcion}</p>
-                    )}
-                    <small className="text-muted">
-                      {activity.fecha_actividad ? new Date(activity.fecha_actividad).toLocaleString('es-CL') : ''}
-                      {activity.creado_por?.nombre_completo && ` • Por: ${activity.creado_por.nombre_completo}`}
-                    </small>
-                  </div>
-                  <Badge bg="info">{activity.tipo_actividad || 'Actividad'}</Badge>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardBody>
-    </Card>
-  )
 
   const renderCursosTab = () => (
     <Card>
