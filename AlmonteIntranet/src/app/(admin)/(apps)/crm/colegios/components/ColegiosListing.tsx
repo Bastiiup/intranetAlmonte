@@ -121,8 +121,32 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
       const data = await response.json()
       
       if (data.success && data.data) {
-        setColegios(Array.isArray(data.data) ? data.data : [data.data])
+        const colegiosData = Array.isArray(data.data) ? data.data : [data.data]
+        setColegios(colegiosData)
         setTotalRows(data.meta?.pagination?.total || 0)
+        
+        // Obtener conteo de contactos para cada colegio
+        const colegiosConContactos = await Promise.all(
+          colegiosData.map(async (colegio: any) => {
+            const colegioId = colegio.documentId || colegio.id
+            if (!colegioId) return colegio
+            
+            try {
+              const contactosResponse = await fetch(`/api/crm/colegios/${colegioId}/contacts`)
+              const contactosData = await contactosResponse.json()
+              if (contactosData.success && contactosData.data) {
+                const contactosArray = Array.isArray(contactosData.data) ? contactosData.data : [contactosData.data]
+                colegio._contactosCount = contactosArray.length
+              } else {
+                colegio._contactosCount = 0
+              }
+            } catch (err) {
+              colegio._contactosCount = 0
+            }
+            return colegio
+          })
+        )
+        setColegios(colegiosConContactos)
       } else {
         setError(data.error || 'Error al obtener colegios')
       }

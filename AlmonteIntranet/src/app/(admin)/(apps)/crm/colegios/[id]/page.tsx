@@ -108,7 +108,7 @@ interface ActivityData {
   }
 }
 
-type TabType = 'informacion' | 'contactos' | 'pedidos' | 'leads' | 'actividades' | 'materiales' | 'cursos'
+type TabType = 'informacion' | 'contactos' | 'materiales' | 'cursos'
 
 export default function ColegioDetailPage() {
   const params = useParams()
@@ -132,6 +132,7 @@ export default function ColegioDetailPage() {
   const [showCursoModal, setShowCursoModal] = useState(false)
   const [cursoSeleccionado, setCursoSeleccionado] = useState<any>(null)
   const [añoFiltro, setAñoFiltro] = useState<number | null>(null) // Filtro de año para cursos
+  const [listasUtilesCount, setListasUtilesCount] = useState(0)
 
   useEffect(() => {
     const fetchColegio = async () => {
@@ -352,6 +353,20 @@ export default function ColegioDetailPage() {
         if (response.ok && result.success) {
           const cursosData = Array.isArray(result.data) ? result.data : [result.data]
           setCursos(cursosData)
+          
+          // Contar listas de útiles únicas
+          const listasUtilesSet = new Set<string>()
+          cursosData.forEach((curso: any) => {
+            const attrs = curso.attributes || curso
+            const listaId = attrs.lista_utiles?.data?.id || 
+                           attrs.lista_utiles?.id || 
+                           attrs.lista_utiles?.data?.documentId ||
+                           attrs.lista_utiles?.documentId
+            if (listaId) {
+              listasUtilesSet.add(String(listaId))
+            }
+          })
+          setListasUtilesCount(listasUtilesSet.size)
         }
       } catch (err: any) {
         console.error('Error al cargar cursos:', err)
@@ -359,11 +374,12 @@ export default function ColegioDetailPage() {
         setLoadingCursos(false)
       }
     }
-    if (colegioId && activeTab === 'cursos') {
+    if (colegioId) {
       fetchCursos()
-    } else if (activeTab !== 'cursos') {
-      // Resetear filtro de año cuando se cambia de tab
-      setAñoFiltro(null)
+      if (activeTab !== 'cursos') {
+        // Resetear filtro de año cuando se cambia de tab
+        setAñoFiltro(null)
+      }
     }
   }, [colegioId, activeTab])
 
@@ -453,17 +469,14 @@ export default function ColegioDetailPage() {
   // Calcular estadísticas
   const estadisticas = useMemo(() => {
     const colaboradoresActivos = contactos.length
-    const clientesUnicos = new Set(pedidos.map(p => p.cliente?.nombre || p.cliente?.correo_electronico || '').filter(Boolean)).size
-    const totalPedidos = pedidos.length
-    const valorTotalVendido = pedidos.reduce((sum, p) => sum + (p.total || 0), 0)
+    const totalCursos = cursos.length
 
     return {
       colaboradoresActivos,
-      clientesUnicos,
-      totalPedidos,
-      valorTotalVendido,
+      totalCursos,
+      listasUtilesCount,
     }
-  }, [contactos, pedidos])
+  }, [contactos, cursos, listasUtilesCount])
 
   if (loading) {
     return (
@@ -1243,7 +1256,7 @@ export default function ColegioDetailPage() {
 
       {/* Estadísticas Rápidas */}
       <Row className="mb-4">
-        <Col md={3}>
+        <Col md={4}>
           <Card className="text-center">
             <CardBody>
               <h3 className="mb-1 text-primary">{estadisticas.colaboradoresActivos}</h3>
@@ -1251,27 +1264,19 @@ export default function ColegioDetailPage() {
             </CardBody>
           </Card>
         </Col>
-        <Col md={3}>
+        <Col md={4}>
           <Card className="text-center">
             <CardBody>
-              <h3 className="mb-1 text-success">{estadisticas.clientesUnicos}</h3>
-              <p className="text-muted mb-0 small">Alumnos Comprando</p>
+              <h3 className="mb-1 text-success">{estadisticas.totalCursos}</h3>
+              <p className="text-muted mb-0 small">Cursos</p>
             </CardBody>
           </Card>
         </Col>
-        <Col md={3}>
+        <Col md={4}>
           <Card className="text-center">
             <CardBody>
-              <h3 className="mb-1 text-info">{estadisticas.totalPedidos}</h3>
-              <p className="text-muted mb-0 small">Total de Pedidos</p>
-            </CardBody>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="text-center">
-            <CardBody>
-              <h3 className="mb-1 text-warning">${estadisticas.valorTotalVendido.toLocaleString('es-CL')}</h3>
-              <p className="text-muted mb-0 small">Valor Total Vendido</p>
+              <h3 className="mb-1 text-info">{estadisticas.listasUtilesCount}</h3>
+              <p className="text-muted mb-0 small">Listas de Útiles</p>
             </CardBody>
           </Card>
         </Col>
@@ -1299,36 +1304,6 @@ export default function ColegioDetailPage() {
         </NavItem>
         <NavItem>
           <NavLink
-            active={activeTab === 'pedidos'}
-            onClick={() => setActiveTab('pedidos')}
-            style={{ cursor: 'pointer' }}
-          >
-            <LuShoppingCart className="me-1" size={16} />
-            Pedidos ({pedidos.length})
-          </NavLink>
-        </NavItem>
-        <NavItem>
-          <NavLink
-            active={activeTab === 'leads'}
-            onClick={() => setActiveTab('leads')}
-            style={{ cursor: 'pointer' }}
-          >
-            <LuTrendingUp className="me-1" size={16} />
-            Leads ({leads.length})
-          </NavLink>
-        </NavItem>
-        <NavItem>
-          <NavLink
-            active={activeTab === 'actividades'}
-            onClick={() => setActiveTab('actividades')}
-            style={{ cursor: 'pointer' }}
-          >
-            <LuActivity className="me-1" size={16} />
-            Actividades ({activities.length})
-          </NavLink>
-        </NavItem>
-        <NavItem>
-          <NavLink
             active={activeTab === 'materiales'}
             onClick={() => setActiveTab('materiales')}
             style={{ cursor: 'pointer' }}
@@ -1352,9 +1327,6 @@ export default function ColegioDetailPage() {
       <div>
         {activeTab === 'informacion' && renderInformacionTab()}
         {activeTab === 'contactos' && renderContactosTab()}
-        {activeTab === 'pedidos' && renderPedidosTab()}
-        {activeTab === 'leads' && renderLeadsTab()}
-        {activeTab === 'actividades' && renderActividadesTab()}
         {activeTab === 'materiales' && renderMaterialesTab()}
         {activeTab === 'cursos' && renderCursosTab()}
       </div>
