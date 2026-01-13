@@ -482,12 +482,13 @@ export default function ListaModal({ show, onHide, lista, onSuccess }: ListaModa
                 type="file"
                 accept=".pdf"
                 onChange={(e) => {
-                  const file = e.target.files?.[0]
+                  const input = e.target as HTMLInputElement
+                  const file = input.files?.[0]
                   if (file && file.type === 'application/pdf') {
                     setSelectedPDF(file)
                   } else {
                     alert('Por favor, seleccione un archivo PDF válido')
-                    e.target.value = ''
+                    input.value = ''
                   }
                 }}
               />
