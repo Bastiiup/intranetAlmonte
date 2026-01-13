@@ -21,9 +21,10 @@ ENV NEXT_PRIVATE_SKIP_LINT=true
 # Copiar archivos de dependencias primero (para mejor cache de Docker)
 COPY package*.json ./
 
-# Instalar dependencias (con cache de npm y modo silencioso)
-RUN npm ci --prefer-offline --no-audit --legacy-peer-deps --silent || \
-    npm install --prefer-offline --no-audit --legacy-peer-deps --silent
+# Instalar dependencias incluyendo devDependencies (TypeScript es necesario para next.config.ts)
+# Usar --include=dev para asegurar que TypeScript se instale
+RUN npm ci --prefer-offline --no-audit --legacy-peer-deps --include=dev --silent || \
+    npm install --prefer-offline --no-audit --legacy-peer-deps --include=dev --silent
 
 # Copiar solo archivos necesarios para el build (excluyendo docs, tests, etc.)
 COPY . .
