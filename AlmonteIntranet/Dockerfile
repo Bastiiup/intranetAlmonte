@@ -13,8 +13,9 @@ COPY package*.json ./
 # Instalar dependencias
 RUN npm ci --prefer-offline --no-audit --legacy-peer-deps || npm install --prefer-offline --no-audit --legacy-peer-deps
 
-# Copiar el resto de los archivos
+# Copiar solo archivos necesarios para el build (excluyendo docs, tests, etc.)
 COPY . .
+# Los archivos innecesarios ya están excluidos por .dockerignore
 
 # Variables de entorno para optimizar build
 ENV NEXT_TELEMETRY_DISABLED=1
