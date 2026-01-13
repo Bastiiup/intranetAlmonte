@@ -8,8 +8,8 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Variables de entorno para optimizar build (antes de copiar archivos)
+# NO establecer NODE_ENV=production aquí porque npm ci no instalará devDependencies
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 ENV NEXT_PRIVATE_STANDALONE=true
 ENV SKIP_ENV_VALIDATION=1
@@ -22,9 +22,12 @@ ENV NEXT_PRIVATE_SKIP_LINT=true
 COPY package*.json ./
 
 # Instalar dependencias incluyendo devDependencies (TypeScript es necesario para next.config.ts)
-# Usar --include=dev para asegurar que TypeScript se instale
-RUN npm ci --prefer-offline --no-audit --legacy-peer-deps --include=dev --silent || \
-    npm install --prefer-offline --no-audit --legacy-peer-deps --include=dev --silent
+# No usar NODE_ENV=production aquí para que npm instale devDependencies
+RUN npm ci --prefer-offline --no-audit --legacy-peer-deps --silent || \
+    npm install --prefer-offline --no-audit --legacy-peer-deps --silent
+
+# Ahora establecer NODE_ENV=production para el build
+ENV NODE_ENV=production
 
 # Copiar solo archivos necesarios para el build (excluyendo docs, tests, etc.)
 COPY . .
