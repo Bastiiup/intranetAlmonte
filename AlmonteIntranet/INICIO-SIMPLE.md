@@ -15,10 +15,12 @@ npm run dev
 
 ```powershell
 cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
-.\iniciar-local.ps1
+powershell -ExecutionPolicy Bypass -File .\iniciar-local.ps1
 ```
 
 Este script busca Node.js automáticamente y lo configura.
+
+**Nota:** Si aparece un error de "ejecución de scripts deshabilitada", usa el comando de arriba con `-ExecutionPolicy Bypass`.
 
 ---
 

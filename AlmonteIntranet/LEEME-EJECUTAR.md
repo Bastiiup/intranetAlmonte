@@ -13,8 +13,10 @@ npm run dev
 
 ```powershell
 cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
-.\iniciar-local.ps1
+powershell -ExecutionPolicy Bypass -File .\iniciar-local.ps1
 ```
+
+**Nota:** Si aparece error de "ejecución de scripts deshabilitada", usa el comando de arriba.
 
 **¡Listo!** Abre: http://localhost:3000
 
