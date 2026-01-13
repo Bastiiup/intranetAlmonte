@@ -251,7 +251,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
         telefonos,
         emails,
         website: data.website || '',
-        contactosCount: 0,
+        contactosCount: (colegio as any)._contactosCount || 0,
         representante,
         estado: data.estado || data.ESTADO || '',
         createdAt,
