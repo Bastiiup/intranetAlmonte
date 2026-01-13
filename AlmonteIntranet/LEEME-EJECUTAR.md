@@ -1,49 +1,33 @@
 # 🚀 Cómo Ejecutar el Proyecto Localmente
 
-## ✅ Todo Está Listo
-
-- ✅ Archivo `.env.local` creado con todas las credenciales
-- ✅ Script de inicio automático creado
-
-## 🎯 Opción 1: Script Automático (RECOMENDADO)
-
-### Pasos:
-
-1. **Abre PowerShell** (como Administrador si es necesario)
-
-2. **Navega al proyecto:**
-   ```powershell
-   cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
-   ```
-
-3. **Ejecuta el script:**
-   ```powershell
-   .\iniciar-local.ps1
-   ```
-
-El script automáticamente:
-- ✅ Busca Node.js en tu sistema
-- ✅ Verifica las versiones
-- ✅ Instala dependencias si es necesario
-- ✅ Inicia el servidor de desarrollo
-
-## 🎯 Opción 2: Manual
-
-Si prefieres hacerlo manualmente:
+## ✅ Super Simple - Solo 2 Comandos:
 
 ```powershell
-# 1. Ir al proyecto
 cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
-
-# 2. Verificar Node.js (debe estar en el PATH)
-node --version
-npm --version
-
-# 3. Instalar dependencias (solo primera vez)
-npm install
-
-# 4. Ejecutar servidor
 npm run dev
+```
+
+**¡Listo!** Abre: http://localhost:3000
+
+---
+
+## Si es la primera vez (instalar dependencias):
+
+```powershell
+cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
+npm install
+npm run dev
+```
+
+---
+
+## 🎯 Opción Alternativa: Script Automático
+
+Si `npm` no funciona, usa el script:
+
+```powershell
+cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
+.\iniciar-local.ps1
 ```
 
 ## 🌐 Acceder a la Aplicación
