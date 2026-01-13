@@ -1,5 +1,9 @@
+/**
+ * API Route para obtener un contacto individual con toda su información
+ * GET /api/crm/contacts/[id]
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
-import { revalidatePath, revalidateTag } from 'next/cache'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 
@@ -11,47 +15,246 @@ interface PersonaAttributes {
   primer_apellido?: string
   segundo_apellido?: string
   rut?: string
-  genero?: string
-  cumpleagno?: string
-  activo?: boolean
   nivel_confianza?: 'baja' | 'media' | 'alta'
   origen?: 'mineduc' | 'csv' | 'manual' | 'crm' | 'web' | 'otro'
+  activo?: boolean
+  createdAt?: string
+  updatedAt?: string
   emails?: Array<{ email?: string; principal?: boolean }>
   telefonos?: Array<{ telefono_norm?: string; telefono_raw?: string; principal?: boolean }>
+  imagen?: string | {
+    url?: string
+    media?: {
+      data?: {
+        attributes?: {
+          url?: string
+        }
+      }
+    }
+  }
+  tags?: Array<{ name?: string }>
+  trayectorias?: Array<{
+    id?: number
+    documentId?: string
+    cargo?: string
+    anio?: number
+    is_current?: boolean
+    activo?: boolean
+    fecha_inicio?: string
+    fecha_fin?: string
+    curso?: any
+    asignatura?: any
+    colegio?: {
+      id?: number
+      documentId?: string
+      colegio_nombre?: string
+      rbd?: string | number
+      dependencia?: string
+      region?: string
+      comuna?: {
+        comuna_nombre?: string
+        region_nombre?: string
+      }
+    }
+  }>
+}
+
+interface ActividadAttributes {
+  tipo?: 'llamada' | 'email' | 'reunion' | 'nota' | 'cambio_estado' | 'tarea' | 'recordatorio' | 'otro'
+  titulo?: string
+  descripcion?: string
+  fecha?: string
+  estado?: 'completada' | 'pendiente' | 'cancelada' | 'en_progreso'
+  notas?: string
+  creado_por?: {
+    id?: number
+    documentId?: string
+    nombre_completo?: string
+    email?: string
+  }
 }
 
 /**
  * GET /api/crm/contacts/[id]
- * Obtiene un contacto específico
+ * Obtiene un contacto individual con trayectorias, colegios y actividades
  */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params
+    const { id: contactId } = await params
 
-    const paramsObj = new URLSearchParams({
+    // PASO 1: Obtener el contacto (persona) con todas sus relaciones
+    const personaParams = new URLSearchParams({
       'populate[emails]': 'true',
       'populate[telefonos]': 'true',
       'populate[imagen]': 'true',
       'populate[tags]': 'true',
-      // Populate completo de trayectorias con TODAS sus relaciones
-      // ⚠️ IMPORTANTE: No usar fields para colegio, necesitamos todos los campos incluyendo id
       'populate[trayectorias][populate][colegio][populate][comuna]': 'true',
-      // ⚠️ Populate de curso y asignatura (SON RELACIONES)
       'populate[trayectorias][populate][curso]': 'true',
       'populate[trayectorias][populate][asignatura]': 'true',
-      'populate[trayectorias][populate][curso_asignatura]': 'true',
     })
 
-    const response = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
-      `/api/personas/${id}?${paramsObj.toString()}`
+    let personaResponse: StrapiResponse<StrapiEntity<PersonaAttributes>>
+    try {
+      personaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
+        `/api/personas/${contactId}?${personaParams.toString()}`
+      )
+    } catch (error: any) {
+      // Si falla con documentId, intentar buscar por id numérico
+      if (error.status === 404) {
+        const searchParams = new URLSearchParams({
+          'filters[id][$eq]': contactId,
+          ...Object.fromEntries(personaParams.entries()),
+        })
+        const searchResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
+          `/api/personas?${searchParams.toString()}`
+        )
+        if (Array.isArray(searchResponse.data) && searchResponse.data.length > 0) {
+          personaResponse = { ...searchResponse, data: searchResponse.data[0] }
+        } else {
+          throw new Error('Contacto no encontrado')
+        }
+      } else {
+        throw error
+      }
+    }
+
+    const personaData = Array.isArray(personaResponse.data) 
+      ? personaResponse.data[0] 
+      : personaResponse.data
+
+    if (!personaData) {
+      return NextResponse.json(
+        { success: false, error: 'Contacto no encontrado' },
+        { status: 404 }
+      )
+    }
+
+    const personaAttrs = personaData.attributes || personaData
+    const personaIdNum = personaData.id
+
+    // PASO 2: Obtener actividades relacionadas con este contacto
+    let actividades: any[] = []
+    try {
+      const actividadesParams = new URLSearchParams({
+        'filters[relacionado_con_contacto][id][$eq]': String(personaIdNum),
+        'populate[creado_por]': 'true',
+        'sort[0]': 'fecha:desc',
+        'pagination[pageSize]': '100',
+      })
+
+      const actividadesResponse = await strapiClient.get<StrapiResponse<StrapiEntity<ActividadAttributes>>>(
+        `/api/actividades?${actividadesParams.toString()}`
+      )
+
+      if (actividadesResponse.data) {
+        actividades = Array.isArray(actividadesResponse.data) 
+          ? actividadesResponse.data 
+          : [actividadesResponse.data]
+      }
+    } catch (error: any) {
+      console.error('[API /crm/contacts/[id] GET] Error obteniendo actividades:', error)
+      // Continuar sin actividades si hay error
+    }
+
+    // PASO 3: Transformar y normalizar datos
+    const trayectorias = (personaAttrs.trayectorias?.data || personaAttrs.trayectorias || [])
+      .map((t: any) => {
+        const tAttrs = t.attributes || t
+        const colegioData = tAttrs.colegio?.data || tAttrs.colegio
+        const colegioAttrs = colegioData?.attributes || colegioData
+        const cursoData = tAttrs.curso?.data || tAttrs.curso
+        const cursoAttrs = cursoData?.attributes || cursoData
+        const asignaturaData = tAttrs.asignatura?.data || tAttrs.asignatura
+        const asignaturaAttrs = asignaturaData?.attributes || asignaturaData
+        const comunaData = colegioAttrs?.comuna?.data || colegioAttrs?.comuna
+        const comunaAttrs = comunaData?.attributes || comunaData
+
+        return {
+          id: t.id || t.documentId,
+          documentId: t.documentId || String(t.id || ''),
+          cargo: tAttrs.cargo || '',
+          anio: tAttrs.anio || null,
+          is_current: tAttrs.is_current || false,
+          activo: tAttrs.activo !== undefined ? tAttrs.activo : true,
+          fecha_inicio: tAttrs.fecha_inicio || null,
+          fecha_fin: tAttrs.fecha_fin || null,
+          colegio: {
+            id: colegioData?.id || colegioData?.documentId,
+            documentId: colegioData?.documentId || String(colegioData?.id || ''),
+            nombre: colegioAttrs?.colegio_nombre || '',
+            rbd: colegioAttrs?.rbd || '',
+            dependencia: colegioAttrs?.dependencia || '',
+            region: colegioAttrs?.region || comunaAttrs?.region_nombre || '',
+            comuna: comunaAttrs?.comuna_nombre || comunaAttrs?.nombre || '',
+          },
+          curso: {
+            id: cursoData?.id || cursoData?.documentId,
+            nombre: cursoAttrs?.nombre || '',
+          },
+          asignatura: {
+            id: asignaturaData?.id || asignaturaData?.documentId,
+            nombre: asignaturaAttrs?.nombre || '',
+          },
+        }
+      })
+
+    const actividadesNormalizadas = actividades.map((act: any) => {
+      const actAttrs = act.attributes || act
+      const creadoPorData = actAttrs.creado_por?.data || actAttrs.creado_por
+      const creadoPorAttrs = creadoPorData?.attributes || creadoPorData
+
+      return {
+        id: act.id || act.documentId,
+        documentId: act.documentId || String(act.id || ''),
+        tipo: actAttrs.tipo || 'otro',
+        titulo: actAttrs.titulo || '',
+        descripcion: actAttrs.descripcion || '',
+        fecha: actAttrs.fecha || '',
+        estado: actAttrs.estado || 'pendiente',
+        notas: actAttrs.notas || '',
+        creado_por: creadoPorData ? {
+          id: creadoPorData.id || creadoPorData.documentId,
+          nombre: creadoPorAttrs?.nombre_completo || creadoPorAttrs?.email || 'Desconocido',
+          email: creadoPorAttrs?.email || '',
+        } : null,
+      }
+    })
+
+    // PASO 4: Obtener colegios únicos de las trayectorias
+    const colegiosUnicos = Array.from(
+      new Map(
+        trayectorias
+          .filter(t => t.colegio.id)
+          .map(t => [t.colegio.id, t.colegio])
+      ).values()
     )
 
     return NextResponse.json({
       success: true,
-      data: response.data,
+      data: {
+        id: personaData.id,
+        documentId: personaData.documentId || String(personaData.id || ''),
+        nombre_completo: personaAttrs.nombre_completo || '',
+        nombres: personaAttrs.nombres || '',
+        primer_apellido: personaAttrs.primer_apellido || '',
+        segundo_apellido: personaAttrs.segundo_apellido || '',
+        rut: personaAttrs.rut || '',
+        nivel_confianza: personaAttrs.nivel_confianza || 'media',
+        origen: personaAttrs.origen || 'manual',
+        activo: personaAttrs.activo !== undefined ? personaAttrs.activo : true,
+        createdAt: personaAttrs.createdAt || '',
+        updatedAt: personaAttrs.updatedAt || '',
+        emails: personaAttrs.emails || [],
+        telefonos: personaAttrs.telefonos || [],
+        imagen: personaAttrs.imagen,
+        tags: personaAttrs.tags || [],
+        trayectorias,
+        colegios: colegiosUnicos,
+        actividades: actividadesNormalizadas,
+      },
     }, { status: 200 })
   } catch (error: any) {
     console.error('[API /crm/contacts/[id] GET] Error:', {
@@ -62,320 +265,11 @@ export async function GET(
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Error al obtener contacto',
-        details: error.details || {},
+        error: 'Error obteniendo contacto',
+        details: error instanceof Error ? error.message : 'Unknown error',
         status: error.status || 500,
       },
       { status: error.status || 500 }
     )
   }
 }
-
-/**
- * PUT /api/crm/contacts/[id]
- * Actualiza un contacto
- */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params
-    
-    // Obtener el ID numérico de la persona si tenemos documentId
-    let personaIdNum: number | string = id
-    const isDocumentId = typeof id === 'string' && !/^\d+$/.test(id)
-    
-    if (isDocumentId) {
-      try {
-        // Intentar obtener la persona para obtener su ID numérico
-        const personaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-          `/api/personas/${id}?fields=id`
-        )
-        // Verificar si data es un objeto único (no array) y tiene id
-        const personaData = Array.isArray(personaResponse.data) ? personaResponse.data[0] : personaResponse.data
-        if (personaData && typeof personaData === 'object' && 'id' in personaData) {
-          personaIdNum = personaData.id as number
-        }
-      } catch (err) {
-        // Si falla, intentar buscar por documentId
-        try {
-          const personaFilterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
-            `/api/personas?filters[documentId][$eq]=${id}&fields=id`
-          )
-          if (personaFilterResponse.data && Array.isArray(personaFilterResponse.data) && personaFilterResponse.data.length > 0) {
-            const firstPersona = personaFilterResponse.data[0]
-            if (firstPersona && typeof firstPersona === 'object' && 'id' in firstPersona) {
-              personaIdNum = firstPersona.id as number
-            }
-          }
-        } catch (filterErr) {
-          console.error('[API /crm/contacts/[id] PUT] Error al obtener ID numérico de persona:', filterErr)
-          // Continuar con el id original si no se puede obtener el numérico
-        }
-      }
-    }
-    
-    const body = await request.json()
-
-    // Validaciones básicas
-    if (!body.nombres || !body.nombres.trim()) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'El nombre es obligatorio',
-        },
-        { status: 400 }
-      )
-    }
-
-    // Preparar datos para Strapi
-    const personaData: any = {
-      data: {
-        nombres: body.nombres.trim(),
-        ...(body.primer_apellido && { primer_apellido: body.primer_apellido.trim() }),
-        ...(body.segundo_apellido && { segundo_apellido: body.segundo_apellido.trim() }),
-        ...(body.rut && { rut: body.rut.trim() }),
-        ...(body.genero && { genero: body.genero }),
-        ...(body.cumpleagno && { cumpleagno: body.cumpleagno }),
-        ...(body.activo !== undefined && { activo: body.activo }),
-        ...(body.nivel_confianza && { nivel_confianza: body.nivel_confianza }),
-        ...(body.origen && { origen: body.origen }),
-      },
-    }
-
-    // Agregar emails si existen
-    if (body.emails && Array.isArray(body.emails) && body.emails.length > 0) {
-      personaData.data.emails = body.emails.map((emailItem: any, index: number) => {
-        // Manejar tanto string como objeto
-        const emailValue = typeof emailItem === 'string' ? emailItem : emailItem.email || ''
-        return {
-          email: typeof emailValue === 'string' ? emailValue.trim() : String(emailValue).trim(),
-          principal: typeof emailItem === 'object' && emailItem.principal !== undefined ? emailItem.principal : index === 0,
-        }
-      })
-    }
-
-    // Agregar telefonos si existen
-    if (body.telefonos && Array.isArray(body.telefonos) && body.telefonos.length > 0) {
-      personaData.data.telefonos = body.telefonos.map((telefonoItem: any, index: number) => {
-        // Manejar tanto string como objeto
-        const telefonoValue = typeof telefonoItem === 'string' 
-          ? telefonoItem 
-          : telefonoItem.telefono_raw || telefonoItem.telefono || telefonoItem.numero || ''
-        return {
-          telefono_raw: typeof telefonoValue === 'string' ? telefonoValue.trim() : String(telefonoValue).trim(),
-          principal: typeof telefonoItem === 'object' && telefonoItem.principal !== undefined ? telefonoItem.principal : index === 0,
-        }
-      })
-    }
-
-    const response = await strapiClient.put<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
-      `/api/personas/${id}`,
-      personaData
-    )
-
-    // Si se proporcionó una trayectoria, actualizarla o crearla
-    if (body.trayectoria) {
-      console.log('[API /crm/contacts/[id] PUT] 📥 Trayectoria recibida:', JSON.stringify(body.trayectoria, null, 2))
-      console.log('[API /crm/contacts/[id] PUT] 🔍 personaIdNum para buscar trayectorias:', personaIdNum)
-      
-      try {
-        // Buscar trayectorias existentes de esta persona usando ID numérico
-        const trayectoriasQuery = `/api/persona-trayectorias?filters[persona][id][$eq]=${personaIdNum}&filters[is_current][$eq]=true`
-        console.log('[API /crm/contacts/[id] PUT] 📤 Buscando trayectorias con query:', trayectoriasQuery)
-        
-        const trayectoriasResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-          trayectoriasQuery
-        )
-        
-        console.log('[API /crm/contacts/[id] PUT] 📥 Respuesta de trayectorias:', {
-          tieneData: !!trayectoriasResponse.data,
-          esArray: Array.isArray(trayectoriasResponse.data),
-          cantidad: Array.isArray(trayectoriasResponse.data) ? trayectoriasResponse.data.length : 1,
-        })
-        
-        const trayectoriasExistentes = Array.isArray(trayectoriasResponse.data) 
-          ? trayectoriasResponse.data 
-          : (trayectoriasResponse.data && typeof trayectoriasResponse.data === 'object' && 'data' in trayectoriasResponse.data && Array.isArray((trayectoriasResponse.data as any).data))
-          ? (trayectoriasResponse.data as any).data
-          : []
-
-        // Validar colegioId
-        let colegioIdNum: number | null = null
-        
-        if (body.trayectoria.colegio === null || body.trayectoria.colegio === undefined) {
-          console.warn('⚠️ [API /crm/contacts/[id] PUT] colegio es null/undefined, omitiendo trayectoria')
-        } else {
-          // Manejar formato { connect: [id] } o ID directo
-          if (body.trayectoria.colegio && typeof body.trayectoria.colegio === 'object' && 'connect' in body.trayectoria.colegio) {
-            // Formato { connect: [id] }
-            const connectArray = body.trayectoria.colegio.connect
-            if (Array.isArray(connectArray) && connectArray.length > 0) {
-              colegioIdNum = parseInt(String(connectArray[0]))
-            }
-          } else if (typeof body.trayectoria.colegio === 'number') {
-            // ID directo como número
-            colegioIdNum = body.trayectoria.colegio
-          } else {
-            // Intentar parsear como string
-            colegioIdNum = parseInt(String(body.trayectoria.colegio))
-          }
-          
-          if (!colegioIdNum || colegioIdNum === 0 || isNaN(colegioIdNum)) {
-            console.warn('⚠️ [API /crm/contacts/[id] PUT] ID de colegio inválido, omitiendo trayectoria:', {
-              colegioId: body.trayectoria.colegio,
-              colegioIdNum,
-              tipo: typeof body.trayectoria.colegio,
-            })
-          }
-        }
-        
-        if (colegioIdNum && colegioIdNum > 0 && !isNaN(colegioIdNum)) {
-          console.log('[API /crm/contacts/[id] PUT] ✅ colegioIdNum válido:', colegioIdNum)
-          console.log('[API /crm/contacts/[id] PUT] 📊 Trayectorias existentes encontradas:', trayectoriasExistentes.length)
-          
-          if (trayectoriasExistentes.length > 0) {
-            // Actualizar la trayectoria actual
-            const trayectoriaActual = trayectoriasExistentes[0]
-            const trayectoriaId = trayectoriaActual.documentId || trayectoriaActual.id
-            
-            console.log('[API /crm/contacts/[id] PUT] 🔄 Actualizando trayectoria existente:', {
-              trayectoriaId,
-              tieneDocumentId: !!trayectoriaActual.documentId,
-              tieneId: !!trayectoriaActual.id,
-            })
-            
-            const trayectoriaUpdateData = {
-              data: {
-                colegio: { connect: [colegioIdNum] },
-                cargo: body.trayectoria.cargo || null,
-                is_current: body.trayectoria.is_current !== undefined ? body.trayectoria.is_current : true,
-              },
-            }
-            
-            console.log('[API /crm/contacts/[id] PUT] 📤 Payload para actualizar trayectoria:', JSON.stringify(trayectoriaUpdateData, null, 2))
-            
-            // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
-            const updateResponse = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(`/api/persona-trayectorias/${trayectoriaId}`, trayectoriaUpdateData)
-            console.log('[API /crm/contacts/[id] PUT] ✅ Trayectoria actualizada exitosamente:', {
-              tieneData: !!updateResponse.data,
-            })
-          } else {
-            // Crear nueva trayectoria
-            console.log('[API /crm/contacts/[id] PUT] ➕ No hay trayectoria existente, creando nueva')
-            
-            const personaIdFinal = typeof personaIdNum === 'number' ? personaIdNum : parseInt(String(personaIdNum))
-            console.log('[API /crm/contacts/[id] PUT] 🔍 personaIdFinal para crear trayectoria:', personaIdFinal)
-            
-            const trayectoriaData = {
-              data: {
-                persona: { connect: [personaIdFinal] },
-                colegio: { connect: [colegioIdNum] },
-                cargo: body.trayectoria.cargo || null,
-                is_current: body.trayectoria.is_current !== undefined ? body.trayectoria.is_current : true,
-              },
-            }
-            
-            console.log('[API /crm/contacts/[id] PUT] 📤 Payload para crear trayectoria:', JSON.stringify(trayectoriaData, null, 2))
-            
-            // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
-            const createResponse = await strapiClient.post<StrapiResponse<StrapiEntity<any>>>('/api/persona-trayectorias', trayectoriaData)
-            console.log('[API /crm/contacts/[id] PUT] ✅ Trayectoria creada exitosamente:', {
-              tieneData: !!createResponse.data,
-            })
-          }
-        } else {
-          console.warn('[API /crm/contacts/[id] PUT] ⚠️ colegioIdNum inválido, no se puede crear/actualizar trayectoria')
-        }
-      } catch (trayectoriaError: any) {
-        console.error('[API /crm/contacts/[id] PUT] Error al actualizar/crear trayectoria:', trayectoriaError)
-        // No fallar si la trayectoria no se puede crear/actualizar, solo loguear
-      }
-    }
-
-    // Revalidar para sincronización bidireccional
-    revalidatePath('/crm/personas')
-    revalidatePath(`/crm/personas/${id}`)
-    revalidatePath('/crm/personas/[id]', 'page')
-    revalidatePath('/crm/contacts')
-    revalidateTag('personas', 'max')
-    revalidateTag('contacts', 'max')
-
-    return NextResponse.json({
-      success: true,
-      data: response.data,
-      message: 'Contacto actualizado exitosamente',
-    }, { status: 200 })
-  } catch (error: any) {
-    console.error('[API /crm/contacts/[id] PUT] Error:', {
-      message: error.message,
-      status: error.status,
-      details: error.details,
-    })
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message || 'Error al actualizar contacto',
-        details: error.details || {},
-        status: error.status || 500,
-      },
-      { status: error.status || 500 }
-    )
-  }
-}
-
-/**
- * DELETE /api/crm/contacts/[id]
- * Elimina un contacto permanentemente
- */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params
-
-    try {
-      await strapiClient.delete(`/api/personas/${id}`)
-
-      // Revalidar para sincronización bidireccional
-      revalidatePath('/crm/personas')
-      revalidatePath(`/crm/personas/${id}`)
-      revalidatePath('/crm/personas/[id]', 'page')
-      revalidatePath('/crm/contacts')
-      revalidateTag('personas', 'max')
-      revalidateTag('contacts', 'max')
-
-      return NextResponse.json({
-        success: true,
-        message: 'Contacto eliminado permanentemente',
-      }, { status: 200 })
-    } catch (deleteError: any) {
-      // Si el error es por respuesta vacía pero el status fue 200/204, considerar éxito
-      if (deleteError.status === 200 || deleteError.status === 204) {
-        return NextResponse.json({
-          success: true,
-          message: 'Contacto eliminado permanentemente',
-        }, { status: 200 })
-      }
-      throw deleteError
-    }
-  } catch (error: any) {
-    console.error('[API /crm/contacts/[id] DELETE] Error:', {
-      message: error.message,
-      status: error.status,
-      details: error.details,
-    })
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message || 'Error al eliminar contacto',
-        details: error.details || {},
-        status: error.status || 500,
-      },
-      { status: error.status || 500 }
-    )
-  }
-}
-

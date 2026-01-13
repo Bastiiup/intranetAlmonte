@@ -441,18 +441,34 @@ const Contacts = () => {
     {
       id: 'actions',
       header: '',
-      cell: ({ row }) => (
-        <div className="d-flex gap-1">
-          <Button 
-            variant="default" 
-            size="sm" 
-            className="btn-icon"
-            onClick={() => setEditModal({ open: true, contact: row.original })}
-          >
-            <TbEdit className="fs-lg" />
-          </Button>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const contact = row.original
+        // Obtener el ID para navegación (documentId si está disponible, sino id)
+        const contactId = (contact as any).documentId || contact.id
+        
+        return (
+          <div className="d-flex gap-1">
+            <Button 
+              variant="default" 
+              size="sm" 
+              className="btn-icon"
+              onClick={() => router.push(`/crm/contacts/${contactId}`)}
+              title="Ver detalle"
+            >
+              <TbEye className="fs-lg" />
+            </Button>
+            <Button 
+              variant="default" 
+              size="sm" 
+              className="btn-icon"
+              onClick={() => setEditModal({ open: true, contact: row.original })}
+              title="Editar"
+            >
+              <TbEdit className="fs-lg" />
+            </Button>
+          </div>
+        )
+      },
     },
   ], [])
 

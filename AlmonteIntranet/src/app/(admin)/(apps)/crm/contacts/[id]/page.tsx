@@ -1,0 +1,660 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { Container, Card, CardHeader, CardBody, Alert, Spinner, Row, Col, Badge, Table, Nav, NavItem, NavLink } from 'react-bootstrap'
+import PageBreadcrumb from '@/components/PageBreadcrumb'
+import { LuArrowLeft, LuUsers, LuBuilding2, LuHistory, LuFileText, LuMail, LuPhone, LuMapPin, LuGraduationCap, LuBookOpen, LuCalendar, LuUser } from 'react-icons/lu'
+import Link from 'next/link'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
+import Image from 'next/image'
+import { generateInitials } from '@/helpers/casing'
+
+interface ContactDetailData {
+  id: number | string
+  documentId: string
+  nombre_completo: string
+  nombres: string
+  primer_apellido?: string
+  segundo_apellido?: string
+  rut?: string
+  nivel_confianza: 'baja' | 'media' | 'alta'
+  origen: string
+  activo: boolean
+  createdAt: string
+  updatedAt: string
+  emails: Array<{ email?: string; principal?: boolean }>
+  telefonos: Array<{ telefono_norm?: string; telefono_raw?: string; principal?: boolean }>
+  imagen?: string | {
+    url?: string
+    media?: {
+      data?: {
+        attributes?: {
+          url?: string
+        }
+      }
+    }
+  }
+  tags?: Array<{ name?: string }>
+  trayectorias: Array<{
+    id: string | number
+    documentId: string
+    cargo?: string
+    anio?: number | null
+    is_current: boolean
+    activo: boolean
+    fecha_inicio?: string | null
+    fecha_fin?: string | null
+    colegio: {
+      id: string | number
+      documentId: string
+      nombre: string
+      rbd?: string | number
+      dependencia?: string
+      region?: string
+      comuna?: string
+    }
+    curso: {
+      id: string | number
+      nombre: string
+    }
+    asignatura: {
+      id: string | number
+      nombre: string
+    }
+  }>
+  colegios: Array<{
+    id: string | number
+    documentId: string
+    nombre: string
+    rbd?: string | number
+    dependencia?: string
+    region?: string
+    comuna?: string
+  }>
+  actividades: Array<{
+    id: string | number
+    documentId: string
+    tipo: string
+    titulo: string
+    descripcion?: string
+    fecha: string
+    estado: string
+    notas?: string
+    creado_por?: {
+      id: string | number
+      nombre: string
+      email?: string
+    } | null
+  }>
+}
+
+type TabType = 'equipo' | 'colegio' | 'historial' | 'logs'
+
+const ContactDetailPage = () => {
+  const params = useParams()
+  const router = useRouter()
+  const contactId = params.id as string
+
+  const [contact, setContact] = useState<ContactDetailData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<TabType>('equipo')
+
+  useEffect(() => {
+    const fetchContact = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const response = await fetch(`/api/crm/contacts/${contactId}`)
+        const result = await response.json()
+
+        if (!result.success) {
+          throw new Error(result.error || 'Error al cargar contacto')
+        }
+
+        setContact(result.data)
+      } catch (err: any) {
+        console.error('Error fetching contact:', err)
+        setError(err.message || 'Error al cargar contacto')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (contactId) {
+      fetchContact()
+    }
+  }, [contactId])
+
+  const getConfidenceBadge = (nivel: string) => {
+    const variants: Record<string, { variant: string; label: string }> = {
+      baja: { variant: 'info', label: 'Cold Lead' },
+      media: { variant: 'warning', label: 'Prospect' },
+      alta: { variant: 'success', label: 'Hot Lead' },
+    }
+    const conf = variants[nivel] || variants.media
+    return <Badge bg={`${conf.variant}-subtle`} text={conf.variant}>{conf.label}</Badge>
+  }
+
+  const getOrigenBadge = (origen: string) => {
+    const origenes: Record<string, string> = {
+      mineduc: 'MINEDUC',
+      csv: 'CSV',
+      manual: 'Manual',
+      crm: 'CRM',
+      web: 'Web',
+      otro: 'Otro',
+    }
+    return <Badge bg="primary-subtle" text="primary">{origenes[origen] || origen}</Badge>
+  }
+
+  const getTipoActividadBadge = (tipo: string) => {
+    const tipos: Record<string, { variant: string; label: string }> = {
+      llamada: { variant: 'info', label: 'Llamada' },
+      email: { variant: 'primary', label: 'Email' },
+      reunion: { variant: 'success', label: 'Reunión' },
+      nota: { variant: 'secondary', label: 'Nota' },
+      cambio_estado: { variant: 'warning', label: 'Cambio Estado' },
+      tarea: { variant: 'danger', label: 'Tarea' },
+      recordatorio: { variant: 'info', label: 'Recordatorio' },
+      otro: { variant: 'secondary', label: 'Otro' },
+    }
+    const tipoInfo = tipos[tipo] || tipos.otro
+    return <Badge bg={`${tipoInfo.variant}-subtle`} text={tipoInfo.variant}>{tipoInfo.label}</Badge>
+  }
+
+  const getEstadoActividadBadge = (estado: string) => {
+    const estados: Record<string, { variant: string; label: string }> = {
+      completada: { variant: 'success', label: 'Completada' },
+      pendiente: { variant: 'warning', label: 'Pendiente' },
+      cancelada: { variant: 'danger', label: 'Cancelada' },
+      en_progreso: { variant: 'info', label: 'En Progreso' },
+    }
+    const estadoInfo = estados[estado] || estados.pendiente
+    return <Badge bg={`${estadoInfo.variant}-subtle`} text={estadoInfo.variant}>{estadoInfo.label}</Badge>
+  }
+
+  const renderEquipoTab = () => {
+    if (!contact) return null
+
+    const trayectoriasActivas = contact.trayectorias.filter(t => t.activo && t.is_current)
+    const trayectoriasHistoricas = contact.trayectorias.filter(t => !t.is_current || !t.activo)
+
+    return (
+      <div>
+        <h5 className="mb-3">Equipo de Trabajo</h5>
+        
+        {trayectoriasActivas.length > 0 && (
+          <div className="mb-4">
+            <h6 className="text-muted mb-3">Trayectorias Activas</h6>
+            <Table responsive striped hover>
+              <thead>
+                <tr>
+                  <th>Colegio</th>
+                  <th>Cargo</th>
+                  <th>Curso</th>
+                  <th>Asignatura</th>
+                  <th>Año</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trayectoriasActivas.map((trayectoria) => (
+                  <tr key={trayectoria.id}>
+                    <td>
+                      <Link 
+                        href={`/crm/colegios/${trayectoria.colegio.documentId || trayectoria.colegio.id}`}
+                        className="text-decoration-none"
+                      >
+                        <strong>{trayectoria.colegio.nombre}</strong>
+                      </Link>
+                      {trayectoria.colegio.dependencia && (
+                        <div>
+                          <Badge bg="info-subtle" text="info" className="mt-1">
+                            {trayectoria.colegio.dependencia}
+                          </Badge>
+                        </div>
+                      )}
+                    </td>
+                    <td>{trayectoria.cargo || '-'}</td>
+                    <td>{trayectoria.curso.nombre || '-'}</td>
+                    <td>{trayectoria.asignatura.nombre || '-'}</td>
+                    <td>{trayectoria.anio || '-'}</td>
+                    <td>
+                      <Badge bg="success-subtle" text="success">Activo</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        )}
+
+        {trayectoriasHistoricas.length > 0 && (
+          <div>
+            <h6 className="text-muted mb-3">Historial de Trayectorias</h6>
+            <Table responsive striped hover>
+              <thead>
+                <tr>
+                  <th>Colegio</th>
+                  <th>Cargo</th>
+                  <th>Curso</th>
+                  <th>Asignatura</th>
+                  <th>Período</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trayectoriasHistoricas.map((trayectoria) => (
+                  <tr key={trayectoria.id}>
+                    <td>
+                      <Link 
+                        href={`/crm/colegios/${trayectoria.colegio.documentId || trayectoria.colegio.id}`}
+                        className="text-decoration-none"
+                      >
+                        {trayectoria.colegio.nombre}
+                      </Link>
+                    </td>
+                    <td>{trayectoria.cargo || '-'}</td>
+                    <td>{trayectoria.curso.nombre || '-'}</td>
+                    <td>{trayectoria.asignatura.nombre || '-'}</td>
+                    <td>
+                      {trayectoria.fecha_inicio && trayectoria.fecha_fin ? (
+                        <>
+                          {format(new Date(trayectoria.fecha_inicio), 'dd/MM/yyyy', { locale: es })} -{' '}
+                          {format(new Date(trayectoria.fecha_fin), 'dd/MM/yyyy', { locale: es })}
+                        </>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
+                    <td>
+                      <Badge bg="secondary-subtle" text="secondary">Inactivo</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        )}
+
+        {contact.trayectorias.length === 0 && (
+          <Alert variant="info">No hay trayectorias registradas para este contacto.</Alert>
+        )}
+      </div>
+    )
+  }
+
+  const renderColegioTab = () => {
+    if (!contact) return null
+
+    return (
+      <div>
+        <h5 className="mb-3">Colegios Asociados</h5>
+        
+        {contact.colegios.length > 0 ? (
+          <Row>
+            {contact.colegios.map((colegio) => (
+              <Col md={6} key={colegio.id} className="mb-3">
+                <Card>
+                  <CardBody>
+                    <div className="d-flex align-items-start justify-content-between mb-2">
+                      <Link 
+                        href={`/crm/colegios/${colegio.documentId || colegio.id}`}
+                        className="text-decoration-none"
+                      >
+                        <h6 className="mb-1">{colegio.nombre}</h6>
+                      </Link>
+                    </div>
+                    <div className="text-muted small">
+                      {colegio.rbd && (
+                        <div className="mb-1">
+                          <strong>RBD:</strong> {colegio.rbd}
+                        </div>
+                      )}
+                      {colegio.dependencia && (
+                        <div className="mb-1">
+                          <Badge bg="info-subtle" text="info">{colegio.dependencia}</Badge>
+                        </div>
+                      )}
+                      {(colegio.region || colegio.comuna) && (
+                        <div className="mb-1">
+                          <LuMapPin size={14} className="me-1" />
+                          {colegio.comuna && `${colegio.comuna}`}
+                          {colegio.comuna && colegio.region && ', '}
+                          {colegio.region && colegio.region}
+                        </div>
+                      )}
+                    </div>
+                  </CardBody>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        ) : (
+          <Alert variant="info">No hay colegios asociados a este contacto.</Alert>
+        )}
+      </div>
+    )
+  }
+
+  const renderHistorialTab = () => {
+    if (!contact) return null
+
+    const actividadesOrdenadas = [...contact.actividades].sort((a, b) => {
+      const fechaA = a.fecha ? new Date(a.fecha).getTime() : 0
+      const fechaB = b.fecha ? new Date(b.fecha).getTime() : 0
+      return fechaB - fechaA
+    })
+
+    return (
+      <div>
+        <h5 className="mb-3">Historial de Actividades</h5>
+        
+        {actividadesOrdenadas.length > 0 ? (
+          <div className="timeline">
+            {actividadesOrdenadas.map((actividad, index) => (
+              <div key={actividad.id} className="d-flex mb-4">
+                <div className="flex-shrink-0 me-3">
+                  <div className="avatar-sm rounded-circle bg-primary-subtle d-flex align-items-center justify-content-center">
+                    <LuFileText size={18} className="text-primary" />
+                  </div>
+                  {index < actividadesOrdenadas.length - 1 && (
+                    <div className="border-start border-2 border-primary-subtle ms-2" style={{ height: '60px' }} />
+                  )}
+                </div>
+                <div className="flex-grow-1">
+                  <div className="d-flex align-items-start justify-content-between mb-1">
+                    <div>
+                      <h6 className="mb-1">{actividad.titulo}</h6>
+                      {actividad.descripcion && (
+                        <p className="text-muted small mb-2">{actividad.descripcion}</p>
+                      )}
+                    </div>
+                    <div className="d-flex gap-2">
+                      {getTipoActividadBadge(actividad.tipo)}
+                      {getEstadoActividadBadge(actividad.estado)}
+                    </div>
+                  </div>
+                  <div className="d-flex align-items-center gap-3 text-muted small">
+                    {actividad.fecha && (
+                      <span>
+                        <LuCalendar size={14} className="me-1" />
+                        {format(new Date(actividad.fecha), 'dd/MM/yyyy HH:mm', { locale: es })}
+                      </span>
+                    )}
+                    {actividad.creado_por && (
+                      <span>
+                        <LuUser size={14} className="me-1" />
+                        {actividad.creado_por.nombre}
+                      </span>
+                    )}
+                  </div>
+                  {actividad.notas && (
+                    <div className="mt-2 p-2 bg-light rounded">
+                      <small className="text-muted">{actividad.notas}</small>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Alert variant="info">No hay actividades registradas para este contacto.</Alert>
+        )}
+      </div>
+    )
+  }
+
+  const renderLogsTab = () => {
+    if (!contact) return null
+
+    // Filtrar solo actividades creadas por administradores (actividades con creado_por)
+    const actividadesAdmin = contact.actividades.filter(a => a.creado_por)
+
+    const actividadesOrdenadas = [...actividadesAdmin].sort((a, b) => {
+      const fechaA = a.fecha ? new Date(a.fecha).getTime() : 0
+      const fechaB = b.fecha ? new Date(b.fecha).getTime() : 0
+      return fechaB - fechaA
+    })
+
+    return (
+      <div>
+        <h5 className="mb-3">Logs de Acciones Administrativas</h5>
+        <p className="text-muted small mb-3">
+          Registro de todas las acciones realizadas por administradores sobre este contacto.
+        </p>
+        
+        {actividadesOrdenadas.length > 0 ? (
+          <Table responsive striped hover>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Acción</th>
+                <th>Tipo</th>
+                <th>Estado</th>
+                <th>Administrador</th>
+                <th>Descripción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {actividadesOrdenadas.map((actividad) => (
+                <tr key={actividad.id}>
+                  <td>
+                    {actividad.fecha ? (
+                      format(new Date(actividad.fecha), 'dd/MM/yyyy HH:mm', { locale: es })
+                    ) : (
+                      '-'
+                    )}
+                  </td>
+                  <td>
+                    <strong>{actividad.titulo}</strong>
+                  </td>
+                  <td>{getTipoActividadBadge(actividad.tipo)}</td>
+                  <td>{getEstadoActividadBadge(actividad.estado)}</td>
+                  <td>
+                    {actividad.creado_por ? (
+                      <div>
+                        <div>{actividad.creado_por.nombre}</div>
+                        {actividad.creado_por.email && (
+                          <small className="text-muted">{actividad.creado_por.email}</small>
+                        )}
+                      </div>
+                    ) : (
+                      '-'
+                    )}
+                  </td>
+                  <td>
+                    {actividad.descripcion ? (
+                      <small className="text-muted">{actividad.descripcion}</small>
+                    ) : (
+                      '-'
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        ) : (
+          <Alert variant="info">No hay logs de acciones administrativas registradas.</Alert>
+        )}
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <Container fluid>
+        <PageBreadcrumb title="Detalle de Contacto" subtitle="CRM" />
+        <div className="text-center py-5">
+          <Spinner animation="border" variant="primary" />
+          <p className="mt-2 text-muted">Cargando contacto...</p>
+        </div>
+      </Container>
+    )
+  }
+
+  if (error || !contact) {
+    return (
+      <Container fluid>
+        <PageBreadcrumb title="Detalle de Contacto" subtitle="CRM" />
+        <Alert variant="danger">
+          <strong>Error:</strong> {error || 'Contacto no encontrado'}
+        </Alert>
+        <Link href="/crm/contacts" className="btn btn-primary">
+          <LuArrowLeft className="me-1" />
+          Volver a Contactos
+        </Link>
+      </Container>
+    )
+  }
+
+  const avatarUrl = typeof contact.imagen === 'string' 
+    ? contact.imagen 
+    : contact.imagen?.media?.data?.attributes?.url || contact.imagen?.url
+
+  const emailPrincipal = contact.emails.find(e => e.principal) || contact.emails[0]
+  const telefonoPrincipal = contact.telefonos.find(t => t.principal) || contact.telefonos[0]
+
+  return (
+    <Container fluid>
+      <PageBreadcrumb title="Detalle de Contacto" subtitle="CRM" />
+      
+      <div className="mb-3">
+        <Link href="/crm/contacts" className="btn btn-outline-secondary btn-sm">
+          <LuArrowLeft className="me-1" />
+          Volver a Contactos
+        </Link>
+      </div>
+
+      <Card className="mb-4">
+        <CardBody>
+          <Row>
+            <Col md="auto">
+              {avatarUrl ? (
+                <Image
+                  src={avatarUrl}
+                  alt={contact.nombre_completo}
+                  className="rounded-circle"
+                  width={80}
+                  height={80}
+                />
+              ) : (
+                <div className="avatar-lg rounded-circle bg-secondary-subtle d-flex align-items-center justify-content-center">
+                  <span className="avatar-title text-secondary fw-semibold fs-24">
+                    {generateInitials(contact.nombre_completo)}
+                  </span>
+                </div>
+              )}
+            </Col>
+            <Col>
+              <div className="d-flex align-items-start justify-content-between mb-2">
+                <div>
+                  <h4 className="mb-1">{contact.nombre_completo}</h4>
+                  {contact.rut && (
+                    <p className="text-muted mb-2">RUT: {contact.rut}</p>
+                  )}
+                  <div className="d-flex gap-2 mb-2">
+                    {getConfidenceBadge(contact.nivel_confianza)}
+                    {getOrigenBadge(contact.origen)}
+                    {contact.activo ? (
+                      <Badge bg="success-subtle" text="success">Activo</Badge>
+                    ) : (
+                      <Badge bg="danger-subtle" text="danger">Inactivo</Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <Row className="mt-3">
+                {emailPrincipal && (
+                  <Col md={6} className="mb-2">
+                    <LuMail size={18} className="me-2 text-muted" />
+                    <a href={`mailto:${emailPrincipal.email}`} className="text-decoration-none">
+                      {emailPrincipal.email}
+                    </a>
+                  </Col>
+                )}
+                {telefonoPrincipal && (
+                  <Col md={6} className="mb-2">
+                    <LuPhone size={18} className="me-2 text-muted" />
+                    <a href={`tel:${telefonoPrincipal.telefono_norm || telefonoPrincipal.telefono_raw}`} className="text-decoration-none">
+                      {telefonoPrincipal.telefono_norm || telefonoPrincipal.telefono_raw}
+                    </a>
+                  </Col>
+                )}
+              </Row>
+
+              {contact.tags && contact.tags.length > 0 && (
+                <div className="mt-2">
+                  {contact.tags.map((tag, idx) => (
+                    <Badge key={idx} bg="secondary-subtle" text="secondary" className="me-1">
+                      {tag.name}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </Col>
+          </Row>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <Nav variant="tabs" className="card-header-tabs">
+            <NavItem>
+              <NavLink 
+                active={activeTab === 'equipo'} 
+                onClick={() => setActiveTab('equipo')}
+                style={{ cursor: 'pointer' }}
+              >
+                <LuUsers className="me-1" />
+                Equipo de Trabajo
+              </NavLink>
+            </NavItem>
+            <NavItem>
+              <NavLink 
+                active={activeTab === 'colegio'} 
+                onClick={() => setActiveTab('colegio')}
+                style={{ cursor: 'pointer' }}
+              >
+                <LuBuilding2 className="me-1" />
+                Colegios
+              </NavLink>
+            </NavItem>
+            <NavItem>
+              <NavLink 
+                active={activeTab === 'historial'} 
+                onClick={() => setActiveTab('historial')}
+                style={{ cursor: 'pointer' }}
+              >
+                <LuHistory className="me-1" />
+                Historial
+              </NavLink>
+            </NavItem>
+            <NavItem>
+              <NavLink 
+                active={activeTab === 'logs'} 
+                onClick={() => setActiveTab('logs')}
+                style={{ cursor: 'pointer' }}
+              >
+                <LuFileText className="me-1" />
+                Logs Administrativos
+              </NavLink>
+            </NavItem>
+          </Nav>
+        </CardHeader>
+        <CardBody>
+          {activeTab === 'equipo' && renderEquipoTab()}
+          {activeTab === 'colegio' && renderColegioTab()}
+          {activeTab === 'historial' && renderHistorialTab()}
+          {activeTab === 'logs' && renderLogsTab()}
+        </CardBody>
+      </Card>
+    </Container>
+  )
+}
+
+export default ContactDetailPage
