@@ -2,20 +2,14 @@
 
 ## ✅ SOLUCIÓN MÁS FÁCIL
 
-**Opción 1: Doble clic**
-- Haz doble clic en `iniciar.bat` en el explorador de archivos
+**Doble clic en:** `iniciar.bat`
 
-**Opción 2: Desde PowerShell**
+**O desde PowerShell/CMD:**
 ```powershell
-cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
 .\iniciar.bat
 ```
 
-**Opción 3: Desde CMD**
-```cmd
-cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
-iniciar.bat
-```
+El script busca Node.js automáticamente y ejecuta `npm run dev`.
 
 **¡Listo!** Abre: http://localhost:3000
 
