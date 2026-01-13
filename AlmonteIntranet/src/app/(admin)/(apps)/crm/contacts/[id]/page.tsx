@@ -603,6 +603,7 @@ const ContactDetailPage = () => {
         </Link>
       </div>
 
+      {/* Información Principal del Contacto */}
       <Card className="mb-4">
         <CardBody>
           <Row>
@@ -641,39 +642,192 @@ const ContactDetailPage = () => {
                   </div>
                 </div>
               </div>
-              
-              <Row className="mt-3">
-                {emailPrincipal && (
-                  <Col md={6} className="mb-2">
-                    <LuMail size={18} className="me-2 text-muted" />
-                    <a href={`mailto:${emailPrincipal.email}`} className="text-decoration-none">
-                      {emailPrincipal.email}
-                    </a>
-                  </Col>
-                )}
-                {telefonoPrincipal && (
-                  <Col md={6} className="mb-2">
-                    <LuPhone size={18} className="me-2 text-muted" />
-                    <a href={`tel:${telefonoPrincipal.telefono_norm || telefonoPrincipal.telefono_raw}`} className="text-decoration-none">
-                      {telefonoPrincipal.telefono_norm || telefonoPrincipal.telefono_raw}
-                    </a>
-                  </Col>
-                )}
-              </Row>
-
-              {contact.tags && contact.tags.length > 0 && (
-                <div className="mt-2">
-                  {contact.tags.map((tag, idx) => (
-                    <Badge key={idx} bg="secondary-subtle" text="secondary" className="me-1">
-                      {tag.name}
-                    </Badge>
-                  ))}
-                </div>
-              )}
             </Col>
           </Row>
         </CardBody>
       </Card>
+
+      {/* Información Completa del Contacto */}
+      <Row className="mb-4">
+        <Col md={6}>
+          <Card>
+            <CardHeader>
+              <h5 className="mb-0">Información Personal</h5>
+            </CardHeader>
+            <CardBody>
+              <Table borderless className="mb-0">
+                <tbody>
+                  <tr>
+                    <td className="text-muted" style={{ width: '40%' }}><strong>Nombre Completo:</strong></td>
+                    <td>{contact.nombre_completo}</td>
+                  </tr>
+                  {contact.nombres && (
+                    <tr>
+                      <td className="text-muted"><strong>Nombres:</strong></td>
+                      <td>{contact.nombres}</td>
+                    </tr>
+                  )}
+                  {contact.primer_apellido && (
+                    <tr>
+                      <td className="text-muted"><strong>Primer Apellido:</strong></td>
+                      <td>{contact.primer_apellido}</td>
+                    </tr>
+                  )}
+                  {contact.segundo_apellido && (
+                    <tr>
+                      <td className="text-muted"><strong>Segundo Apellido:</strong></td>
+                      <td>{contact.segundo_apellido}</td>
+                    </tr>
+                  )}
+                  {contact.rut && (
+                    <tr>
+                      <td className="text-muted"><strong>RUT:</strong></td>
+                      <td>{contact.rut}</td>
+                    </tr>
+                  )}
+                  <tr>
+                    <td className="text-muted"><strong>Nivel de Confianza:</strong></td>
+                    <td>{getConfidenceBadge(contact.nivel_confianza)}</td>
+                  </tr>
+                  <tr>
+                    <td className="text-muted"><strong>Origen:</strong></td>
+                    <td>{getOrigenBadge(contact.origen)}</td>
+                  </tr>
+                  <tr>
+                    <td className="text-muted"><strong>Estado:</strong></td>
+                    <td>
+                      {contact.activo ? (
+                        <Badge bg="success-subtle" text="success">Activo</Badge>
+                      ) : (
+                        <Badge bg="danger-subtle" text="danger">Inactivo</Badge>
+                      )}
+                    </td>
+                  </tr>
+                  {contact.createdAt && (
+                    <tr>
+                      <td className="text-muted"><strong>Fecha de Creación:</strong></td>
+                      <td>{format(new Date(contact.createdAt), 'dd/MM/yyyy HH:mm', { locale: es })}</td>
+                    </tr>
+                  )}
+                  {contact.updatedAt && (
+                    <tr>
+                      <td className="text-muted"><strong>Última Actualización:</strong></td>
+                      <td>{format(new Date(contact.updatedAt), 'dd/MM/yyyy HH:mm', { locale: es })}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </Table>
+            </CardBody>
+          </Card>
+        </Col>
+        <Col md={6}>
+          <Card>
+            <CardHeader>
+              <h5 className="mb-0">Información de Contacto</h5>
+            </CardHeader>
+            <CardBody>
+              {contact.emails && contact.emails.length > 0 ? (
+                <div className="mb-3">
+                  <h6 className="mb-2">
+                    <LuMail className="me-1" />
+                    Emails ({contact.emails.length})
+                  </h6>
+                  <ul className="list-unstyled mb-0">
+                    {contact.emails.map((email, idx) => (
+                      <li key={idx} className="mb-2">
+                        <a href={`mailto:${email.email}`} className="text-decoration-none">
+                          {email.email}
+                        </a>
+                        {email.principal && (
+                          <Badge bg="primary-subtle" text="primary" className="ms-2">Principal</Badge>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div className="mb-3">
+                  <h6 className="mb-2">
+                    <LuMail className="me-1" />
+                    Emails
+                  </h6>
+                  <p className="text-muted">No hay emails registrados</p>
+                </div>
+              )}
+
+              {contact.telefonos && contact.telefonos.length > 0 ? (
+                <div>
+                  <h6 className="mb-2">
+                    <LuPhone className="me-1" />
+                    Teléfonos ({contact.telefonos.length})
+                  </h6>
+                  <ul className="list-unstyled mb-0">
+                    {contact.telefonos.map((telefono, idx) => (
+                      <li key={idx} className="mb-2">
+                        <a href={`tel:${telefono.telefono_norm || telefono.telefono_raw}`} className="text-decoration-none">
+                          {telefono.telefono_norm || telefono.telefono_raw}
+                        </a>
+                        {telefono.principal && (
+                          <Badge bg="primary-subtle" text="primary" className="ms-2">Principal</Badge>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div>
+                  <h6 className="mb-2">
+                    <LuPhone className="me-1" />
+                    Teléfonos
+                  </h6>
+                  <p className="text-muted">No hay teléfonos registrados</p>
+                </div>
+              )}
+
+              {contact.tags && contact.tags.length > 0 && (
+                <div className="mt-3">
+                  <h6 className="mb-2">Tags</h6>
+                  <div>
+                    {contact.tags.map((tag, idx) => (
+                      <Badge key={idx} bg="secondary-subtle" text="secondary" className="me-1 mb-1">
+                        {tag.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardBody>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Resumen de Relaciones */}
+      <Row className="mb-4">
+        <Col md={4}>
+          <Card className="text-center">
+            <CardBody>
+              <h3 className="mb-1">{contact.trayectorias.length}</h3>
+              <p className="text-muted mb-0">Trayectorias</p>
+            </CardBody>
+          </Card>
+        </Col>
+        <Col md={4}>
+          <Card className="text-center">
+            <CardBody>
+              <h3 className="mb-1">{contact.equipos?.length || 0}</h3>
+              <p className="text-muted mb-0">Equipos</p>
+            </CardBody>
+          </Card>
+        </Col>
+        <Col md={4}>
+          <Card className="text-center">
+            <CardBody>
+              <h3 className="mb-1">{contact.colegios.length}</h3>
+              <p className="text-muted mb-0">Colegios</p>
+            </CardBody>
+          </Card>
+        </Col>
+      </Row>
 
       <Card>
         <CardHeader>
