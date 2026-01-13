@@ -30,6 +30,8 @@ interface ListaType {
   descripcion?: string
   activo: boolean
   pdf_id?: number | string
+  pdf_url?: string
+  pdf_nombre?: string
   colegio?: {
     id: number | string
     nombre: string
