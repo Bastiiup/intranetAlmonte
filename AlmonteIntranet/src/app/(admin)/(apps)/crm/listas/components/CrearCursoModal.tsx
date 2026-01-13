@@ -182,7 +182,7 @@ export default function CrearCursoModal({
               onChange={(option) =>
                 setFormData((prev) => ({
                   ...prev,
-                  nivel: option?.value || 'Basica',
+                  nivel: (option?.value as 'Basica' | 'Media') || 'Basica',
                   grado: '1', // Resetear grado
                 }))
               }
