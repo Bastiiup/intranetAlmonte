@@ -49,3 +49,9 @@ NO deben existir:
 - ❌ `STREAM_SECRET_KEY`
 
 
+
+
+
+
+
+

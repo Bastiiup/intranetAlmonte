@@ -67,3 +67,9 @@ Después de agregar las 3 variables, deberías tener:
 - Después de agregar las variables, Railway hará un nuevo build automáticamente
 
 
+
+
+
+
+
+

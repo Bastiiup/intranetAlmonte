@@ -69,3 +69,9 @@ Después de agregar las variables, deberías tener:
 - El prefijo `NEXT_PUBLIC_` es requerido por Next.js para variables que se usan en el cliente
 
 
+
+
+
+
+
+

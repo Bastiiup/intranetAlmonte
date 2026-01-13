@@ -95,3 +95,9 @@ console.log('API Key:', process.env.NEXT_PUBLIC_STREAM_CHAT_API_KEY)
 Las variables `NEXT_PUBLIC_*` son especiales en Next.js porque se insertan en el código JavaScript durante el build. Esto es por diseño de Next.js para optimización. Por eso es crítico que Railway haga un rebuild después de agregar o modificar estas variables.
 
 
+
+
+
+
+
+

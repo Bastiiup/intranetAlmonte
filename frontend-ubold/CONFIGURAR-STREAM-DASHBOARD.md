@@ -93,3 +93,9 @@ Si después de verificar esto el problema sigue, el problema probablemente está
 3. **Los usuarios no están conectados al mismo tiempo**
 
 
+
+
+
+
+
+

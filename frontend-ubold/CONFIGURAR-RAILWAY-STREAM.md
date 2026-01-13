@@ -73,3 +73,9 @@ Deberías ver estas 3 variables en tu lista:
 - El API Secret solo se usa en el servidor (nunca se expone al cliente)
 
 
+
+
+
+
+
+

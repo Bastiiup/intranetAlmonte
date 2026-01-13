@@ -197,3 +197,9 @@ Este documento describe todos los cambios realizados después de clonar la rama 
 **Última actualización:** 2025-12-23
 
 
+
+
+
+
+
+

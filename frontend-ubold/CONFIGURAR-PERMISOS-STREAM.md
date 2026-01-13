@@ -109,3 +109,9 @@ Para el rol **"user"** con scope **"messaging"**, estos permisos DEBEN estar act
 El rol "admin" ya tiene todos los permisos activados por defecto. El problema es que tus usuarios normales NO son "admin", son "user" o "channel_member", y esos roles pueden no tener los permisos correctos configurados.
 
 
+
+
+
+
+
+
