@@ -23,7 +23,7 @@ export async function GET(
     debugLog('[API /crm/listas-utiles/[id] GET] ID:', id)
 
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-      `/api/listas-utiles/${id}?populate[materiales]=true&populate[pdf]=true&populate[colegio]=true&populate[curso]=true`
+      `/api/listas-utiles/${id}?populate[materiales]=true&populate[colegio]=true&populate[curso]=true`
     )
 
     debugLog('[API /crm/listas-utiles/[id] GET] ✅ Exitoso')

@@ -22,7 +22,7 @@ export default async function Page() {
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
     const baseUrl = `${protocol}://${host}`
     
-    const response = await fetch(`${baseUrl}/api/crm/listas-utiles`, {
+    const response = await fetch(`${baseUrl}/api/crm/listas`, {
       cache: 'no-store',
     })
     
