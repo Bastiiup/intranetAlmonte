@@ -1,6 +1,6 @@
 # 🚀 Inicio Local - Super Simple
 
-## Solo 2 Comandos:
+## Opción 1: Si `npm` funciona (más rápido)
 
 ```powershell
 cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
@@ -11,13 +11,30 @@ npm run dev
 
 ---
 
-## Si es la primera vez:
+## Opción 2: Si `npm` NO funciona (usa el script automático)
 
 ```powershell
 cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
+.\iniciar-local.ps1
+```
+
+Este script busca Node.js automáticamente y lo configura.
+
+---
+
+## Si es la primera vez (instalar dependencias):
+
+**Con npm:**
+```powershell
 npm install
 npm run dev
 ```
+
+**Con script:**
+```powershell
+.\iniciar-local.ps1
+```
+(El script instala dependencias automáticamente si es necesario)
 
 ---
 

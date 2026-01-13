@@ -1,10 +1,19 @@
 # 🚀 Cómo Ejecutar el Proyecto Localmente
 
-## ✅ Super Simple - Solo 2 Comandos:
+## ✅ Super Simple
+
+### Si `npm` funciona:
 
 ```powershell
 cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
 npm run dev
+```
+
+### Si `npm` NO funciona (Node.js no está en PATH):
+
+```powershell
+cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
+.\iniciar-local.ps1
 ```
 
 **¡Listo!** Abre: http://localhost:3000
@@ -13,22 +22,17 @@ npm run dev
 
 ## Si es la primera vez (instalar dependencias):
 
+**Con npm:**
 ```powershell
-cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
 npm install
 npm run dev
 ```
 
----
-
-## 🎯 Opción Alternativa: Script Automático
-
-Si `npm` no funciona, usa el script:
-
+**Con script (recomendado si npm no funciona):**
 ```powershell
-cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
 .\iniciar-local.ps1
 ```
+El script instala dependencias automáticamente.
 
 ## 🌐 Acceder a la Aplicación
 
