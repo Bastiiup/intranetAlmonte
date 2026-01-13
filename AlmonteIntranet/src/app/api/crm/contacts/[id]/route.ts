@@ -104,16 +104,46 @@ export async function GET(
     personaParamsConEquipos.append('populate[equipos][populate][lider][populate][imagen]', 'true')
 
     let personaResponse: StrapiResponse<StrapiEntity<PersonaAttributes>>
+    let usarEquipos = true // Flag para saber si intentar con equipos
+    
     try {
+      // Intentar primero con equipos
       personaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
-        `/api/personas/${contactId}?${personaParams.toString()}`
+        `/api/personas/${contactId}?${personaParamsConEquipos.toString()}`
       )
     } catch (error: any) {
-      // Si falla con documentId, intentar buscar por id numérico
-      if (error.status === 404) {
+      // Si el error es por campo "equipos" inválido, intentar sin equipos
+      if (error.status === 400 && (error.details?.key === 'equipos' || error.message?.includes('equipos'))) {
+        console.warn('[API /crm/contacts/[id] GET] Campo equipos no existe en Persona, intentando sin equipos')
+        usarEquipos = false
+        try {
+          personaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
+            `/api/personas/${contactId}?${personaParamsBase.toString()}`
+          )
+        } catch (retryError: any) {
+          // Si falla con documentId, intentar buscar por id numérico
+          if (retryError.status === 404) {
+            const searchParams = new URLSearchParams({
+              'filters[id][$eq]': contactId,
+              ...Object.fromEntries(personaParamsBase.entries()),
+            })
+            const searchResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
+              `/api/personas?${searchParams.toString()}`
+            )
+            if (Array.isArray(searchResponse.data) && searchResponse.data.length > 0) {
+              personaResponse = { ...searchResponse, data: searchResponse.data[0] }
+            } else {
+              throw new Error('Contacto no encontrado')
+            }
+          } else {
+            throw retryError
+          }
+        }
+      } else if (error.status === 404) {
+        // Si falla con documentId, intentar buscar por id numérico
         const searchParams = new URLSearchParams({
           'filters[id][$eq]': contactId,
-          ...Object.fromEntries(personaParams.entries()),
+          ...Object.fromEntries(personaParamsConEquipos.entries()),
         })
         const searchResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
           `/api/personas?${searchParams.toString()}`
