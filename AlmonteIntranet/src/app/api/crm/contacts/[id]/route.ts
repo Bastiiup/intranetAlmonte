@@ -160,7 +160,19 @@ export async function GET(
     }
 
     // PASO 3: Transformar y normalizar datos
-    const trayectorias = (personaAttrs.trayectorias?.data || personaAttrs.trayectorias || [])
+    // Manejar diferentes formatos de trayectorias (puede venir como array, data, etc.)
+    let trayectoriasArray: any[] = []
+    if (personaAttrs.trayectorias) {
+      if (Array.isArray(personaAttrs.trayectorias)) {
+        trayectoriasArray = personaAttrs.trayectorias
+      } else if ((personaAttrs.trayectorias as any).data && Array.isArray((personaAttrs.trayectorias as any).data)) {
+        trayectoriasArray = (personaAttrs.trayectorias as any).data
+      } else if ((personaAttrs.trayectorias as any).id || (personaAttrs.trayectorias as any).documentId) {
+        trayectoriasArray = [personaAttrs.trayectorias]
+      }
+    }
+    
+    const trayectorias = trayectoriasArray
       .map((t: any) => {
         const tAttrs = t.attributes || t
         const colegioData = tAttrs.colegio?.data || tAttrs.colegio
