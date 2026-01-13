@@ -64,6 +64,23 @@ interface ContactDetailData {
       nombre: string
     }
   }>
+  equipos: Array<{
+    id: string | number
+    documentId: string
+    nombre: string
+    descripcion?: string
+    activo: boolean
+    colegio?: {
+      id: string | number
+      documentId: string
+      nombre: string
+    } | null
+    lider?: {
+      id: string | number
+      documentId: string
+      nombre: string
+    } | null
+  }>
   colegios: Array<{
     id: string | number
     documentId: string
@@ -90,7 +107,7 @@ interface ContactDetailData {
   }>
 }
 
-type TabType = 'equipo' | 'colegio' | 'historial' | 'logs'
+type TabType = 'equipo' | 'equipos' | 'colegio' | 'historial' | 'logs'
 
 const ContactDetailPage = () => {
   const params = useParams()
@@ -282,6 +299,63 @@ const ContactDetailPage = () => {
 
         {contact.trayectorias.length === 0 && (
           <Alert variant="info">No hay trayectorias registradas para este contacto.</Alert>
+        )}
+      </div>
+    )
+  }
+
+  const renderEquiposTab = () => {
+    if (!contact) return null
+
+    return (
+      <div>
+        <h5 className="mb-3">Equipos de Trabajo</h5>
+        
+        {contact.equipos && contact.equipos.length > 0 ? (
+          <Row>
+            {contact.equipos.map((equipo) => (
+              <Col md={6} key={equipo.id} className="mb-3">
+                <Card>
+                  <CardBody>
+                    <div className="d-flex align-items-start justify-content-between mb-2">
+                      <div>
+                        <h6 className="mb-1">{equipo.nombre}</h6>
+                        {equipo.descripcion && (
+                          <p className="text-muted small mb-2">{equipo.descripcion}</p>
+                        )}
+                      </div>
+                      {equipo.activo ? (
+                        <Badge bg="success-subtle" text="success">Activo</Badge>
+                      ) : (
+                        <Badge bg="secondary-subtle" text="secondary">Inactivo</Badge>
+                      )}
+                    </div>
+                    <div className="text-muted small">
+                      {equipo.colegio && (
+                        <div className="mb-1">
+                          <LuBuilding2 size={14} className="me-1" />
+                          <Link 
+                            href={`/crm/colegios/${equipo.colegio.documentId || equipo.colegio.id}`}
+                            className="text-decoration-none"
+                          >
+                            {equipo.colegio.nombre}
+                          </Link>
+                        </div>
+                      )}
+                      {equipo.lider && (
+                        <div className="mb-1">
+                          <LuUser size={14} className="me-1" />
+                          <strong>Líder:</strong> {equipo.lider.nombre}
+                        </div>
+                      )}
+                    </div>
+                  </CardBody>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        ) : (
+          <Alert variant="info">Este contacto no pertenece a ningún equipo de trabajo.</Alert>
         )}
       </div>
     )
@@ -611,7 +685,17 @@ const ContactDetailPage = () => {
                 style={{ cursor: 'pointer' }}
               >
                 <LuUsers className="me-1" />
-                Equipo de Trabajo
+                Trayectorias
+              </NavLink>
+            </NavItem>
+            <NavItem>
+              <NavLink 
+                active={activeTab === 'equipos'} 
+                onClick={() => setActiveTab('equipos')}
+                style={{ cursor: 'pointer' }}
+              >
+                <LuUsers className="me-1" />
+                Equipos
               </NavLink>
             </NavItem>
             <NavItem>
@@ -648,6 +732,7 @@ const ContactDetailPage = () => {
         </CardHeader>
         <CardBody>
           {activeTab === 'equipo' && renderEquipoTab()}
+          {activeTab === 'equipos' && renderEquiposTab()}
           {activeTab === 'colegio' && renderColegioTab()}
           {activeTab === 'historial' && renderHistorialTab()}
           {activeTab === 'logs' && renderLogsTab()}

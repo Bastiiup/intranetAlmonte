@@ -57,6 +57,7 @@ interface PersonaAttributes {
       }
     }
   }>
+  equipos?: any // Relation many-to-many con Equipos
 }
 
 interface ActividadAttributes {
@@ -94,6 +95,8 @@ export async function GET(
       'populate[trayectorias][populate][colegio][populate][comuna]': 'true',
       'populate[trayectorias][populate][curso]': 'true',
       'populate[trayectorias][populate][asignatura]': 'true',
+      'populate[equipos][populate][colegio]': 'true',
+      'populate[equipos][populate][lider][populate][imagen]': 'true',
     })
 
     let personaResponse: StrapiResponse<StrapiEntity<PersonaAttributes>>
@@ -244,6 +247,38 @@ export async function GET(
       ).values()
     )
 
+    // PASO 5: Obtener y normalizar equipos
+    const equiposRaw = personaAttrs.equipos?.data || personaAttrs.equipos || []
+    const equiposArray = Array.isArray(equiposRaw) ? equiposRaw : [equiposRaw]
+    
+    const equipos = equiposArray
+      .map((eq: any) => {
+        const eqAttrs = eq.attributes || eq
+        const colegioData = eqAttrs.colegio?.data || eqAttrs.colegio
+        const colegioAttrs = colegioData?.attributes || colegioData
+        const liderData = eqAttrs.lider?.data || eqAttrs.lider
+        const liderAttrs = liderData?.attributes || liderData
+
+        return {
+          id: eq.id || eq.documentId,
+          documentId: eq.documentId || String(eq.id || ''),
+          nombre: eqAttrs.nombre || '',
+          descripcion: eqAttrs.descripcion || '',
+          activo: eqAttrs.activo !== undefined ? eqAttrs.activo : true,
+          colegio: colegioData ? {
+            id: colegioData.id || colegioData.documentId,
+            documentId: colegioData.documentId || String(colegioData.id || ''),
+            nombre: colegioAttrs?.colegio_nombre || '',
+          } : null,
+          lider: liderData ? {
+            id: liderData.id || liderData.documentId,
+            documentId: liderData.documentId || String(liderData.id || ''),
+            nombre: liderAttrs?.nombre_completo || '',
+          } : null,
+        }
+      })
+      .filter((eq: any) => eq.nombre) // Solo equipos con nombre válido
+
     return NextResponse.json({
       success: true,
       data: {
@@ -265,6 +300,7 @@ export async function GET(
         tags: personaAttrs.tags || [],
         trayectorias,
         colegios: colegiosUnicos,
+        equipos,
         actividades: actividadesNormalizadas,
       },
     }, { status: 200 })
