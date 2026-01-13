@@ -1,26 +1,36 @@
 # 🚀 Inicio Local - Super Simple
 
-## Opción 1: Si `npm` funciona (más rápido)
+## ✅ SOLUCIÓN MÁS FÁCIL - Doble clic o ejecutar:
 
-```powershell
+```cmd
+iniciar.bat
+```
+
+**O desde PowerShell/CMD:**
+```cmd
 cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
-npm run dev
+iniciar.bat
 ```
 
 **¡Listo!** Abre: http://localhost:3000
 
 ---
 
-## Opción 2: Si `npm` NO funciona (usa el script automático)
+## Opción 2: Si `npm` funciona directamente
+
+```powershell
+cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
+npm run dev
+```
+
+---
+
+## Opción 3: Script PowerShell (si prefieres)
 
 ```powershell
 cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
 powershell -ExecutionPolicy Bypass -File .\iniciar-local.ps1
 ```
-
-Este script busca Node.js automáticamente y lo configura.
-
-**Nota:** Si aparece un error de "ejecución de scripts deshabilitada", usa el comando de arriba con `-ExecutionPolicy Bypass`.
 
 ---
 
