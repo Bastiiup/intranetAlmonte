@@ -872,42 +872,13 @@ export default function ColegioDetailPage() {
       <CardHeader>
         <h4 className="mb-0 d-flex align-items-center">
           <LuPackage className="me-2" />
-          Materiales Más Pedidos
+          Materiales
         </h4>
       </CardHeader>
       <CardBody>
-        {materialesMasPedidos.length === 0 ? (
-          <p className="text-muted text-center py-5">
-            No hay materiales pedidos aún. Los materiales aparecerán aquí cuando se registren pedidos.
-          </p>
-        ) : (
-          <div className="table-responsive">
-            <Table hover>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Material</th>
-                  <th>SKU</th>
-                  <th>Cantidad Total</th>
-                  <th>Total Vendido</th>
-                </tr>
-              </thead>
-              <tbody>
-                {materialesMasPedidos.map((material, index) => (
-                  <tr key={index}>
-                    <td>{index + 1}</td>
-                    <td className="fw-semibold">{material.nombre}</td>
-                    <td>{material.sku || '-'}</td>
-                    <td>
-                      <Badge bg="primary">{material.cantidad}</Badge>
-                    </td>
-                    <td>${material.total.toLocaleString('es-CL')}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          </div>
-        )}
+        <p className="text-muted text-center py-5">
+          Los materiales se gestionan desde los cursos. Ve a la pestaña "Cursos" para ver y gestionar los materiales de cada curso.
+        </p>
       </CardBody>
     </Card>
   )
