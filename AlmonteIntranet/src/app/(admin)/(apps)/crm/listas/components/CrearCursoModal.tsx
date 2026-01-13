@@ -166,7 +166,7 @@ export default function CrearCursoModal({
   }
 
   return (
-    <Modal show={show} onHide={onHide} size="md">
+    <Modal show={show} onHide={onHide} size="lg">
       <ModalHeader closeButton>
         <ModalTitle>Crear Nuevo Curso</ModalTitle>
       </ModalHeader>
