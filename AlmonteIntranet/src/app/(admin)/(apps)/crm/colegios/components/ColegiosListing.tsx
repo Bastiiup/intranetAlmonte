@@ -506,9 +506,8 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
   const table = useReactTable<ColegioType>({
     data: mappedColegios,
     columns,
-    state: { sorting, globalFilter, columnFilters, pagination, rowSelection: selectedRowIds },
+    state: { sorting, columnFilters, pagination, rowSelection: selectedRowIds },
     onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
     onColumnFiltersChange: setColumnFilters,
     onPaginationChange: setPagination,
     onRowSelectionChange: setSelectedRowIds,
@@ -516,7 +515,6 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    globalFilterFn: 'includesString',
     enableColumnFilters: true,
     enableRowSelection: true,
     manualPagination: false, // Paginación del cliente (como productos)
@@ -532,7 +530,8 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
 
   const pageIndex = table.getState().pagination.pageIndex
   const pageSize = table.getState().pagination.pageSize
-  const totalItems = table.getFilteredRowModel().rows.length
+  // Usar totalRows del servidor cuando hay búsqueda/filtros, sino usar datos locales
+  const totalItems = globalFilter || tipo || region ? (totalRows > 0 ? totalRows : mappedColegios.length) : mappedColegios.length
 
   const start = pageIndex * pageSize + 1
   const end = Math.min(start + pageSize - 1, totalItems)
@@ -656,7 +655,11 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
                   className="form-control"
                   placeholder="Buscar por nombre, RBD, comuna..."
                   value={globalFilter ?? ''}
-                  onChange={(e) => setGlobalFilter(e.target.value)}
+                  onChange={(e) => {
+                    setGlobalFilter(e.target.value)
+                    // Resetear a página 1 cuando cambia la búsqueda
+                    setPagination({ pageIndex: 0, pageSize: pagination.pageSize })
+                  }}
                 />
                 <LuSearch className="app-search-icon text-muted" />
               </div>
