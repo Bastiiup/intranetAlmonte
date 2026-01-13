@@ -155,6 +155,7 @@ const Contacts = () => {
       accessorKey: 'name',
       filterFn: 'includesString',
       enableColumnFilter: true,
+      enableSorting: true,
       cell: ({ row }) => {
         const contact = row.original
         return (

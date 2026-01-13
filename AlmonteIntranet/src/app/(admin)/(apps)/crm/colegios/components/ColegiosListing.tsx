@@ -263,6 +263,8 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     {
       id: 'institucion',
       header: 'INSTITUCIÓN',
+      accessorKey: 'nombre',
+      enableSorting: true,
       cell: ({ row }) => {
         const colegio = row.original
         const iniciales = generarIniciales(colegio.nombre)
