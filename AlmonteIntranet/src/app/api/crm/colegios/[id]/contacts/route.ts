@@ -105,9 +105,10 @@ export async function GET(
     
     try {
       // ESTRATEGIA 1: Obtener trayectorias del colegio directamente
+      // Nota: No filtramos por activo aquí porque activo es un campo de persona, no de trayectoria
+      // Filtraremos por persona.activo después
       const trayectoriasParams = new URLSearchParams({
         'filters[colegio][id][$eq]': String(colegioIdNum),
-        'filters[activo][$eq]': 'true',
         'populate[persona][populate][emails]': 'true',
         'populate[persona][populate][telefonos]': 'true',
         'populate[persona][populate][imagen]': 'true',

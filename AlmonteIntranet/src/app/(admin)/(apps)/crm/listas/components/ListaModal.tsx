@@ -117,13 +117,16 @@ export default function ListaModal({ show, onHide, lista, onSuccess }: ListaModa
   const loadColegios = async () => {
     setLoadingColegios(true)
     try {
-      const response = await fetch('/api/crm/colegios')
+      // Obtener todos los colegios con un pageSize grande
+      const response = await fetch('/api/crm/colegios?page=1&pageSize=1000')
       const result = await response.json()
       if (result.success && Array.isArray(result.data)) {
         const opciones = result.data.map((colegio: any) => ({
           value: colegio.id || colegio.documentId,
           label: colegio.colegio_nombre || colegio.nombre || 'Sin nombre',
         }))
+        // Ordenar alfabéticamente
+        opciones.sort((a, b) => a.label.localeCompare(b.label))
         setColegios(opciones)
       }
     } catch (err) {
