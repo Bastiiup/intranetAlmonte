@@ -190,7 +190,7 @@ export async function PUT(
     // Revalidar cache
     revalidatePath('/crm/contacts')
     revalidatePath('/crm/contacts/[id]', 'page')
-    revalidateTag('equipos')
+    revalidateTag('equipos', 'max')
 
     return NextResponse.json({
       success: true,
@@ -247,7 +247,7 @@ export async function DELETE(
     // Revalidar cache
     revalidatePath('/crm/contacts')
     revalidatePath('/crm/contacts/[id]', 'page')
-    revalidateTag('equipos')
+    revalidateTag('equipos', 'max')
 
     return NextResponse.json({
       success: true,
