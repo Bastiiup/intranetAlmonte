@@ -1,12 +1,17 @@
 # 🚀 Inicio Local - Super Simple
 
-## ✅ SOLUCIÓN MÁS FÁCIL - Doble clic o ejecutar:
+## ✅ SOLUCIÓN MÁS FÁCIL
 
-```cmd
-iniciar.bat
+**Opción 1: Doble clic**
+- Haz doble clic en `iniciar.bat` en el explorador de archivos
+
+**Opción 2: Desde PowerShell**
+```powershell
+cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
+.\iniciar.bat
 ```
 
-**O desde PowerShell/CMD:**
+**Opción 3: Desde CMD**
 ```cmd
 cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
 iniciar.bat

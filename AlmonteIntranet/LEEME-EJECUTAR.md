@@ -1,24 +1,43 @@
 # 🚀 Cómo Ejecutar el Proyecto Localmente
 
-## ✅ Super Simple
+## ✅ Super Simple - SOLUCIÓN RECOMENDADA
 
-### Si `npm` funciona:
+### Opción 1: Script .bat (MÁS FÁCIL - Sin problemas de permisos)
+
+**Opción A: Doble clic**
+- Haz doble clic en `iniciar.bat` en el explorador de archivos
+
+**Opción B: Desde PowerShell**
+```powershell
+cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
+.\iniciar.bat
+```
+
+**Opción C: Desde CMD**
+```cmd
+cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
+iniciar.bat
+```
+
+**¡Listo!** Abre: http://localhost:3000
+
+---
+
+### Opción 2: Si `npm` funciona directamente
 
 ```powershell
 cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
 npm run dev
 ```
 
-### Si `npm` NO funciona (Node.js no está en PATH):
+---
+
+### Opción 3: Script PowerShell (si prefieres)
 
 ```powershell
 cd C:\Users\mati\Desktop\intranet\AlmonteIntranet
 powershell -ExecutionPolicy Bypass -File .\iniciar-local.ps1
 ```
-
-**Nota:** Si aparece error de "ejecución de scripts deshabilitada", usa el comando de arriba.
-
-**¡Listo!** Abre: http://localhost:3000
 
 ---
 
@@ -30,9 +49,9 @@ npm install
 npm run dev
 ```
 
-**Con script (recomendado si npm no funciona):**
-```powershell
-.\iniciar-local.ps1
+**Con script .bat (recomendado si npm no funciona):**
+```cmd
+iniciar.bat
 ```
 El script instala dependencias automáticamente.
 
