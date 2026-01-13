@@ -52,9 +52,20 @@ export async function GET(request: Request) {
     params.append('populate[direcciones]', 'true')
     params.append('populate[cartera_asignaciones][populate][ejecutivo]', 'true')
 
-    // Agregar búsqueda por nombre si existe
+    // Agregar búsqueda por nombre, RBD o comuna si existe
     if (search) {
-      params.append('filters[colegio_nombre][$containsi]', search)
+      const searchTerm = search.trim()
+      // Si el término de búsqueda es numérico, buscar por RBD también
+      const isNumeric = /^\d+$/.test(searchTerm)
+      
+      if (isNumeric) {
+        // Buscar por RBD (número exacto o parcial)
+        params.append('filters[$or][0][colegio_nombre][$containsi]', searchTerm)
+        params.append('filters[$or][1][rbd][$containsi]', searchTerm)
+      } else {
+        // Solo buscar por nombre si no es numérico
+        params.append('filters[colegio_nombre][$containsi]', searchTerm)
+      }
     }
 
     // Agregar filtro por estado
