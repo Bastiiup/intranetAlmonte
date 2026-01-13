@@ -61,63 +61,26 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
   const [selectedListaId, setSelectedListaId] = useState<string | number | null>(null)
   const [loading, setLoading] = useState(false)
 
-  // Mapear listas de Strapi al formato ListaType
+  // Los datos ya vienen transformados desde la API /api/crm/listas
   const mappedListas = useMemo(() => {
     if (!listasProp || !Array.isArray(listasProp)) return []
     
-    return listasProp.map((lista: any) => {
-      const attrs = lista.attributes || lista
-      const id = lista.id || lista.documentId
-      
-      // Obtener PDF si existe
-      let pdf_id: number | string | undefined
-      let pdf_url: string | undefined
-      let pdf_nombre: string | undefined
-      
-      if (attrs.pdf) {
-        const pdfData = attrs.pdf?.data || attrs.pdf
-        pdf_id = pdfData?.id || pdfData?.documentId
-        pdf_url = pdfData?.attributes?.url || pdfData?.url
-        pdf_nombre = pdfData?.attributes?.name || pdfData?.name
-      }
-      
-      // Obtener colegio si existe
-      let colegio: any = undefined
-      if (attrs.colegio) {
-        const colegioData = attrs.colegio?.data || attrs.colegio
-        colegio = {
-          id: colegioData?.id || colegioData?.documentId,
-          nombre: colegioData?.attributes?.colegio_nombre || colegioData?.colegio_nombre || '',
-        }
-      }
-      
-      // Obtener curso si existe
-      let curso: any = undefined
-      if (attrs.curso) {
-        const cursoData = attrs.curso?.data || attrs.curso
-        curso = {
-          id: cursoData?.id || cursoData?.documentId,
-          nombre: cursoData?.attributes?.nombre_curso || cursoData?.nombre_curso || '',
-        }
-      }
-      
-      return {
-        id,
-        documentId: lista.documentId || String(id),
-        nombre: attrs.nombre || '',
-        nivel: attrs.nivel || 'Basica',
-        grado: attrs.grado || 1,
-        año: attrs.año || attrs.ano || new Date().getFullYear(),
-        descripcion: attrs.descripcion || '',
-        activo: attrs.activo !== false,
-        pdf_id,
-        pdf_url,
-        pdf_nombre,
-        colegio,
-        curso,
-        materiales: attrs.materiales || [],
-      } as ListaType
-    })
+    return listasProp.map((lista: any) => ({
+      id: lista.id || lista.documentId,
+      documentId: lista.documentId || String(lista.id || ''),
+      nombre: lista.nombre || '',
+      nivel: lista.nivel || 'Basica',
+      grado: lista.grado || 1,
+      año: lista.año || lista.ano || new Date().getFullYear(),
+      descripcion: lista.descripcion || '',
+      activo: lista.activo !== false,
+      pdf_id: lista.pdf_id || undefined,
+      pdf_url: lista.pdf_url || undefined,
+      pdf_nombre: lista.pdf_nombre || undefined,
+      colegio: lista.colegio || undefined,
+      curso: lista.curso || undefined,
+      materiales: lista.materiales || [],
+    } as ListaType))
   }, [listasProp])
 
   const columns: ColumnDef<ListaType, any>[] = [
@@ -164,12 +127,25 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
     {
       id: 'colegio',
       header: 'Colegio',
+      accessorKey: 'colegio.nombre',
+      enableSorting: true,
+      enableColumnFilter: true,
+      filterFn: 'includesString',
       cell: ({ row }) => row.original.colegio?.nombre || '-',
     },
     {
       id: 'curso',
       header: 'Curso',
       cell: ({ row }) => row.original.curso?.nombre || '-',
+    },
+    {
+      id: 'año',
+      header: 'Año',
+      accessorKey: 'año',
+      enableSorting: true,
+      enableColumnFilter: true,
+      filterFn: 'equalsString',
+      cell: ({ row }) => row.original.año || '-',
     },
     {
       id: 'pdf',
@@ -210,7 +186,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                 size="sm"
                 className="btn-icon rounded-circle"
                 onClick={() => {
-                  const pdfUrl = `/api/crm/listas/pdf/${row.original.pdf_id}`
+                  const pdfUrl = `/api/crm/cursos/pdf/${row.original.pdf_id}`
                   window.open(pdfUrl, '_blank')
                 }}
                 title="Visualizar PDF"
@@ -222,7 +198,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                 size="sm"
                 className="btn-icon rounded-circle"
                 onClick={() => {
-                  const pdfUrl = `/api/crm/listas/pdf/${row.original.pdf_id}`
+                  const pdfUrl = `/api/crm/cursos/pdf/${row.original.pdf_id}`
                   const link = document.createElement('a')
                   link.href = pdfUrl
                   link.download = row.original.pdf_nombre || `${row.original.nombre}.pdf`
@@ -369,6 +345,34 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
             </div>
 
             <div className="d-flex align-items-center gap-2">
+              <div className="app-search">
+                <select
+                  className="form-select form-control my-1 my-md-0"
+                  value={(table.getColumn('colegio')?.getFilterValue() as string) ?? 'All'}
+                  onChange={(e) =>
+                    table.getColumn('colegio')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)
+                  }>
+                  <option value="All">Colegio</option>
+                  {Array.from(new Set(data.map(l => l.colegio?.nombre).filter(Boolean))).map((nombre) => (
+                    <option key={nombre} value={nombre}>{nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="app-search">
+                <select
+                  className="form-select form-control my-1 my-md-0"
+                  value={(table.getColumn('año')?.getFilterValue() as string) ?? 'All'}
+                  onChange={(e) =>
+                    table.getColumn('año')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)
+                  }>
+                  <option value="All">Año</option>
+                  {Array.from(new Set(data.map(l => l.año).filter(Boolean))).sort((a, b) => (b || 0) - (a || 0)).map((año) => (
+                    <option key={año} value={String(año)}>{año}</option>
+                  ))}
+                </select>
+              </div>
+
               <div className="app-search">
                 <select
                   className="form-select form-control my-1 my-md-0"

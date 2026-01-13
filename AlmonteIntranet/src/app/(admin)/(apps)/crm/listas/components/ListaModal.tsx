@@ -189,9 +189,11 @@ export default function ListaModal({ show, onHide, lista, onSuccess }: ListaModa
       if (result.success && Array.isArray(result.data)) {
         const opciones = result.data.map((curso: any) => {
           const attrs = curso.attributes || curso
+          const nombreCurso = attrs.nombre_curso || attrs.curso_nombre || 'Sin nombre'
+          const paralelo = attrs.paralelo ? ` ${attrs.paralelo}` : ''
           return {
             value: curso.id || curso.documentId,
-            label: attrs.nombre_curso || attrs.curso_nombre || 'Sin nombre',
+            label: `${nombreCurso}${paralelo}`,
             colegioId,
           }
         })
