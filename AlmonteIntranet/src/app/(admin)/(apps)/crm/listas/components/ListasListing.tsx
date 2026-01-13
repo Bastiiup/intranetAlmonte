@@ -385,7 +385,14 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               <div className="app-search">
                 <select
                   className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('activo')?.getFilterValue() as boolean | string) ?? 'All'}
+                  value={
+                    (() => {
+                      const filterValue = table.getColumn('activo')?.getFilterValue()
+                      if (filterValue === undefined) return 'All'
+                      if (typeof filterValue === 'boolean') return filterValue ? 'true' : 'false'
+                      return String(filterValue)
+                    })()
+                  }
                   onChange={(e) => {
                     const value = e.target.value
                     table.getColumn('activo')?.setFilterValue(value === 'All' ? undefined : value === 'true')
