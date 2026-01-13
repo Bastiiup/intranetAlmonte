@@ -23,7 +23,7 @@ export async function GET(
     debugLog('[API /crm/listas-utiles/[id] GET] ID:', id)
 
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-      `/api/listas-utiles/${id}?populate[materiales]=true`
+      `/api/listas-utiles/${id}?populate[materiales]=true&populate[colegio]=true&populate[curso]=true`
     )
 
     debugLog('[API /crm/listas-utiles/[id] GET] ✅ Exitoso')
@@ -103,6 +103,21 @@ export async function PUT(
     }
     if (body.activo !== undefined) {
       payload.data.activo = body.activo
+    }
+
+    // Actualizar PDF si se proporciona
+    if (body.pdf !== undefined) {
+      payload.data.pdf = body.pdf || null
+    }
+
+    // Actualizar relación con colegio si se proporciona
+    if (body.colegio !== undefined) {
+      payload.data.colegio = body.colegio || null
+    }
+
+    // Actualizar relación con curso si se proporciona
+    if (body.curso !== undefined) {
+      payload.data.curso = body.curso || null
     }
 
     // Actualizar materiales si se proporcionan

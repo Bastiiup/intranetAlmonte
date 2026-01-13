@@ -13,6 +13,7 @@ interface ListaUtilesAttributes {
   nombre: string
   nivel: 'Basica' | 'Media'
   grado: number
+  año?: number // Año de la lista de útiles
   descripcion?: string
   activo?: boolean
   materiales?: any[]
@@ -27,6 +28,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const nivel = searchParams.get('nivel')
     const grado = searchParams.get('grado')
+    const año = searchParams.get('año') || searchParams.get('ano')
     const activo = searchParams.get('activo')
 
     // Construir query
@@ -37,14 +39,20 @@ export async function GET(request: NextRequest) {
     if (grado) {
       filters.push(`filters[grado][$eq]=${grado}`)
     }
+    if (año) {
+      filters.push(`filters[año][$eq]=${año}`)
+    }
     if (activo !== null) {
       filters.push(`filters[activo][$eq]=${activo === 'true'}`)
     }
 
-    // Populate materiales
+    // Populate materiales, colegio y curso
+    // Nota: No incluimos 'pdf' porque puede no existir en Strapi aún
     filters.push('populate[materiales]=true')
+    filters.push('populate[colegio]=true')
+    filters.push('populate[curso]=true')
 
-    const queryString = filters.length > 0 ? `?${filters.join('&')}` : '?populate[materiales]=true'
+    const queryString = filters.length > 0 ? `?${filters.join('&')}` : '?populate[materiales]=true&populate[colegio]=true&populate[curso]=true'
 
     debugLog('[API /crm/listas-utiles GET] Query:', queryString)
 
@@ -123,9 +131,25 @@ export async function POST(request: NextRequest) {
         nombre: body.nombre.trim(),
         nivel: body.nivel,
         grado: gradoNum,
+        año: body.año || body.ano || new Date().getFullYear(), // Año de la lista
         descripcion: body.descripcion || null,
         activo: body.activo !== false,
       },
+    }
+
+    // Agregar PDF si existe
+    if (body.pdf) {
+      payload.data.pdf = body.pdf
+    }
+
+    // Agregar relación con colegio si existe
+    if (body.colegio) {
+      payload.data.colegio = body.colegio
+    }
+
+    // Agregar relación con curso si existe
+    if (body.curso) {
+      payload.data.curso = body.curso
     }
 
     // Agregar materiales si existen

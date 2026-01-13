@@ -16,6 +16,13 @@ import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
 
+// Helper para logs condicionales
+const DEBUG = process.env.NODE_ENV === 'development' || process.env.DEBUG_CRM === 'true'
+const debugLog = (...args: any[]) => {
+  if (DEBUG) {
+    console.log(...args)
+  }
+}
 
 /**
  * GET /api/crm/colegios/[id]/cursos
@@ -49,10 +56,37 @@ export async function GET(
       }
     }
 
-    // Usar helper con fallbacks automáticos
-    const response = await getCursosWithPopulate<CursoData>(
-      { colegio: { id: { $eq: Number(colegioIdNum) } } }
-    )
+    // IMPORTANTE: Como cursos tiene draftAndPublish: true, necesitamos publicationState=preview
+    // para incluir cursos en estado "Draft"
+    // Usar helper con fallbacks automáticos, pero agregar campos específicos y publicationState
+    const filters = { colegio: { id: { $eq: Number(colegioIdNum) } } }
+    
+    // Construir params manualmente para incluir campos específicos y publicationState
+    const paramsObj = new URLSearchParams({
+      'filters[colegio][id][$eq]': String(colegioIdNum),
+      'populate[materiales]': 'true',
+      'populate[lista_utiles]': 'true',
+      'fields[0]': 'nombre_curso',
+      'fields[1]': 'año',
+      'fields[2]': 'nivel',
+      'fields[3]': 'grado',
+      'fields[4]': 'paralelo', // Campo necesario para módulo Listas
+      'fields[5]': 'versiones_materiales', // Campo necesario para módulo Listas (JSON, no relación)
+      'publicationState': 'preview', // Incluir drafts y publicados
+    })
+
+    let response: any
+    try {
+      response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoData>[]>>(
+        `/api/cursos?${paramsObj.toString()}`
+      )
+      debugLog('[API /crm/colegios/[id]/cursos GET] ✅ Cursos obtenidos con campos específicos y publicationState=preview')
+    } catch (error: any) {
+      // Si falla, usar helper con fallback
+      logger.warn('[API /crm/colegios/[id]/cursos GET] Error con campos específicos, usando helper con fallback', { error: error.message })
+      response = await getCursosWithPopulate<CursoData>(filters)
+    }
+    
     const cursos = Array.isArray(response.data) ? response.data : []
 
     logger.success('[API /crm/colegios/[id]/cursos GET] Cursos obtenidos exitosamente', { 
@@ -107,6 +141,11 @@ export async function POST(
       nombre_curso: body.nombre_curso?.trim() || body.curso_nombre?.trim() || body.nombre_curso,
       colegio: colegioIdNum,
       activo: body.activo !== undefined ? body.activo : true, // Default true si no viene
+      // Incluir paralelo si viene (necesario para módulo Listas)
+      ...(body.paralelo && { paralelo: body.paralelo }),
+      // Incluir año si viene
+      ...(body.año !== undefined && { año: body.año }),
+      ...(body.ano !== undefined && { año: body.ano }),
     }
 
     // Validar con Zod

@@ -2,10 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Button, Form, FormGroup, FormLabel, FormControl, Alert, Row, Col, Collapse, Badge } from 'react-bootstrap'
-import { LuPlus, LuTrash2, LuChevronDown, LuChevronUp, LuFileSpreadsheet, LuDownload } from 'react-icons/lu'
+import { LuPlus, LuTrash2, LuChevronDown, LuChevronUp } from 'react-icons/lu'
 import Select from 'react-select'
-import ImportarMaterialesExcelModal from './ImportarMaterialesExcelModal'
-import { exportarMaterialesAExcel } from '@/helpers/excel'
 
 interface Material {
   material_nombre: string
@@ -20,6 +18,7 @@ interface CursoData {
   nivel: string // 'Basica' | 'Media'
   grado: string // '1' a '8' para Básica, '1' a '4' para Media
   paralelo?: string // 'A', 'B', 'C', etc. (opcional)
+  año: number | string // Año del curso (ej: 2024, 2025)
   activo: boolean
   lista_utiles?: number | null // ID de la lista de útiles predefinida (opcional)
   materiales_adicionales: Material[] // Materiales adicionales fuera de la lista
@@ -64,6 +63,21 @@ const PARALELOS = [
   { value: 'F', label: 'F' },
 ]
 
+// Generar años disponibles (año actual y 2 años anteriores/posteriores)
+const getAñosDisponibles = () => {
+  const añoActual = new Date().getFullYear()
+  const años = []
+  for (let i = -2; i <= 2; i++) {
+    años.push({
+      value: añoActual + i,
+      label: String(añoActual + i),
+    })
+  }
+  return años
+}
+
+const AÑOS_DISPONIBLES = getAñosDisponibles()
+
 interface ListaUtilesOption {
   value: number
   label: string
@@ -76,13 +90,13 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
   const [listasUtiles, setListasUtiles] = useState<ListaUtilesOption[]>([])
   const [loadingListas, setLoadingListas] = useState(false)
   const [showMaterialesAdicionales, setShowMaterialesAdicionales] = useState(false)
-  const [showImportarExcel, setShowImportarExcel] = useState(false)
   
   const [formData, setFormData] = useState<CursoData>({
     nombre_curso: '',
     nivel: '',
     grado: '',
     paralelo: '',
+    año: new Date().getFullYear(), // Año actual por defecto
     activo: true,
     lista_utiles: null,
     materiales_adicionales: [],
@@ -110,19 +124,23 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
   }, [formData.nivel, formData.grado, formData.paralelo])
 
 
-  const loadListasUtiles = async (nivelFilter?: string, gradoFilter?: string) => {
+  const loadListasUtiles = async (nivelFilter?: string, gradoFilter?: string, añoFilter?: number | string) => {
     setLoadingListas(true)
     try {
-      // Filtrar por nivel y grado si están seleccionados
+      // Filtrar por nivel, grado y año si están seleccionados
       const params = new URLSearchParams()
       const nivelParam = nivelFilter || formData.nivel
       const gradoParam = gradoFilter || formData.grado
+      const añoParam = añoFilter || formData.año
       
       if (nivelParam) {
         params.append('nivel', nivelParam)
       }
       if (gradoParam) {
         params.append('grado', gradoParam)
+      }
+      if (añoParam) {
+        params.append('año', String(añoParam))
       }
       params.append('activo', 'true') // Solo listas activas
 
@@ -153,12 +171,12 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
     }
   }
 
-  // Cargar listas cuando se abre el modal o cuando cambian nivel/grado
+  // Cargar listas cuando se abre el modal o cuando cambian nivel/grado/año
   useEffect(() => {
     if (show) {
-      loadListasUtiles(formData.nivel, formData.grado)
+      loadListasUtiles(formData.nivel, formData.grado, formData.año)
     }
-  }, [show, formData.nivel, formData.grado])
+  }, [show, formData.nivel, formData.grado, formData.año])
 
   // Cargar datos del curso si se está editando
   useEffect(() => {
@@ -188,6 +206,7 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
           nivel: nivel || '',
           grado: grado || '',
           paralelo: paralelo || '',
+          año: attrs.año || attrs.ano || new Date().getFullYear(), // Año del curso
           activo: attrs.activo !== false,
           lista_utiles: attrs.lista_utiles?.data?.id || attrs.lista_utiles?.id || attrs.lista_utiles || null,
           materiales_adicionales: (attrs.materiales || []).map((m: any) => ({
@@ -210,11 +229,11 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
           nivel: '',
           grado: '',
           paralelo: '',
+          año: new Date().getFullYear(), // Año actual por defecto
           activo: true,
           lista_utiles: null,
           materiales_adicionales: [],
         })
-        setShowMaterialesAdicionales(false)
       }
       setError(null)
     }
@@ -253,43 +272,10 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
     setShowMaterialesAdicionales(true)
   }
 
-  const handleImportarMateriales = (materiales: Material[]) => {
-    setFormData((prev) => ({
-      ...prev,
-      materiales_adicionales: [...prev.materiales_adicionales, ...materiales],
-    }))
-    setShowMaterialesAdicionales(true)
-  }
+  // Función de importar materiales eliminada - los materiales ahora se gestionan mediante PDFs
 
-  const handleExportarMateriales = async () => {
-    // Si hay lista de útiles seleccionada, exportar también esos materiales
-    const listaSeleccionada = listasUtiles.find(l => l.value === formData.lista_utiles)
-    const materialesAExportar = [...formData.materiales_adicionales]
-    
-    // Nota: Los materiales de la lista predefinida no están cargados en el componente
-    // Solo se exportan los materiales adicionales
-    // Para exportar la lista completa, el usuario debería ir al módulo de listas de útiles
-    
-    if (materialesAExportar.length === 0) {
-      alert('No hay materiales adicionales para exportar. Si deseas exportar una lista predefinida, ve al módulo de Listas de Útiles.')
-      return
-    }
-
-    try {
-      setLoading(true)
-      const nombreArchivo = nombreCursoGenerado || 'materiales_curso'
-      const nombreExport = listaSeleccionada 
-        ? `${nombreArchivo}_adicionales`
-        : nombreArchivo.replace(/\s+/g, '_')
-      
-      await exportarMaterialesAExcel(materialesAExportar, nombreExport)
-    } catch (error: any) {
-      console.error('Error al exportar:', error)
-      setError('Error al exportar materiales: ' + (error.message || 'Error desconocido'))
-    } finally {
-      setLoading(false)
-    }
-  }
+  // Función de exportar eliminada - los materiales ahora se gestionan mediante PDFs
+  // La exportación se realiza desde la página de detalle del curso
 
   const handleRemoveMaterial = (index: number) => {
     setFormData((prev) => ({
@@ -312,10 +298,7 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
       ...prev,
       lista_utiles: option?.value || null,
     }))
-    // Si se selecciona una lista, mantener materiales adicionales pero ocultarlos inicialmente
-    if (option && formData.materiales_adicionales.length === 0) {
-      setShowMaterialesAdicionales(false)
-    }
+    // Los materiales ahora se gestionan mediante PDFs
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -329,7 +312,7 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
         throw new Error('El nivel y grado son obligatorios')
       }
 
-      // Validar que no exista otro curso con mismo nivel+grado+paralelo en el mismo colegio
+      // Validar que no exista otro curso con mismo nivel+grado+paralelo+año en el mismo colegio
       if (!curso) {
         // Solo validar duplicados al crear (no al editar)
         const checkResponse = await fetch(`/api/crm/colegios/${colegioId}/cursos`)
@@ -337,25 +320,21 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
         if (checkResult.success && Array.isArray(checkResult.data)) {
           const existe = checkResult.data.some((c: any) => {
             const attrs = c.attributes || c
+            const añoCurso = attrs.año || attrs.ano || new Date().getFullYear()
             return (
               attrs.nivel === formData.nivel &&
               attrs.grado === formData.grado &&
-              (attrs.paralelo || '') === (formData.paralelo || '')
+              (attrs.paralelo || '') === (formData.paralelo || '') &&
+              String(añoCurso) === String(formData.año)
             )
           })
           if (existe) {
-            throw new Error(`Ya existe un curso con ${nombreCursoGenerado} en este colegio`)
+            throw new Error(`Ya existe un curso con ${nombreCursoGenerado} para el año ${formData.año} en este colegio`)
           }
         }
       }
 
-      // Validar materiales adicionales
-      const materialesInvalidos = formData.materiales_adicionales.filter(
-        (m) => !m.material_nombre.trim()
-      )
-      if (materialesInvalidos.length > 0) {
-        throw new Error('Todos los materiales adicionales deben tener un nombre')
-      }
+      // Los materiales ahora se gestionan mediante PDFs, no se validan aquí
 
       const url = curso
         ? `/api/crm/cursos/${curso.documentId || curso.id}`
@@ -367,6 +346,7 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
         nombre_curso: nombreCursoGenerado, // Campo generado automáticamente
         nivel: formData.nivel,
         grado: formData.grado,
+        año: formData.año, // Año del curso
         activo: formData.activo,
       }
 
@@ -505,6 +485,19 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
                 />
               </FormGroup>
             </Col>
+            <Col md={3}>
+              <FormGroup className="mb-3">
+                <FormLabel>Año *</FormLabel>
+                <Select
+                  options={AÑOS_DISPONIBLES}
+                  value={AÑOS_DISPONIBLES.find(a => a.value === formData.año) || null}
+                  onChange={(option) => handleFieldChange('año', option?.value || new Date().getFullYear())}
+                  placeholder="Seleccionar año"
+                  isSearchable={false}
+                />
+                <small className="text-muted">Año escolar del curso</small>
+              </FormGroup>
+            </Col>
             <Col md={12}>
               <FormGroup className="mb-3">
                 <FormLabel>Nombre del Curso (generado automáticamente)</FormLabel>
@@ -543,8 +536,8 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
               <FormGroup className="mb-3">
                 <FormLabel>
                   Lista de Útiles Predefinida (opcional)
-                  {formData.nivel && formData.grado && (
-                    <small className="text-muted ms-2">- Filtrado por {formData.grado}° {formData.nivel === 'Basica' ? 'Básica' : 'Media'}</small>
+                  {formData.nivel && formData.grado && formData.año && (
+                    <small className="text-muted ms-2">- Filtrado por {formData.grado}° {formData.nivel === 'Basica' ? 'Básica' : 'Media'} - Año {formData.año}</small>
                   )}
                 </FormLabel>
                 <Select
@@ -554,15 +547,15 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
                   placeholder={
                     loadingListas 
                       ? 'Cargando listas...' 
-                      : !formData.nivel || !formData.grado
-                      ? 'Seleccione nivel y grado primero'
+                      : !formData.nivel || !formData.grado || !formData.año
+                      ? 'Seleccione nivel, grado y año primero'
                       : listasUtiles.length === 0
-                      ? 'No hay listas disponibles para este nivel/grado'
+                      ? 'No hay listas disponibles para este nivel/grado/año'
                       : 'Seleccionar lista de útiles'
                   }
                   isClearable
                   isLoading={loadingListas}
-                  isDisabled={!formData.nivel || !formData.grado}
+                  isDisabled={!formData.nivel || !formData.grado || !formData.año}
                 />
                 {formData.lista_utiles && (
                   <div className="mt-2">
@@ -581,179 +574,9 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
             </Col>
           </Row>
 
-          <div className="d-flex justify-content-between align-items-center mb-3">
-            <div>
-              <h5 className="mb-0">Materiales Adicionales</h5>
-              <small className="text-muted">Agregar materiales fuera de la lista predefinida (opcional)</small>
-            </div>
-            <div>
-              <Button
-                type="button"
-                variant="outline-success"
-                size="sm"
-                className="me-2"
-                onClick={() => setShowImportarExcel(true)}
-              >
-                <LuFileSpreadsheet className="me-1" size={16} />
-                Importar Excel
-              </Button>
-              {formData.materiales_adicionales.length > 0 && (
-                <Button
-                  type="button"
-                  variant="outline-info"
-                  size="sm"
-                  className="me-2"
-                  onClick={handleExportarMateriales}
-                >
-                  <LuDownload className="me-1" size={16} />
-                  Exportar Excel
-                </Button>
-              )}
-              <Button
-                type="button"
-                variant="outline-primary"
-                size="sm"
-                onClick={() => {
-                  handleAddMaterial()
-                  setShowMaterialesAdicionales(true)
-                }}
-              >
-                <LuPlus className="me-1" size={16} />
-                Agregar Material
-              </Button>
-            </div>
-          </div>
-
-          <Collapse in={showMaterialesAdicionales || formData.materiales_adicionales.length > 0}>
-            <div>
-              {formData.materiales_adicionales.length === 0 ? (
-                <Alert variant="info">
-                  No hay materiales adicionales. Haz clic en "Agregar Material" para comenzar.
-                </Alert>
-              ) : (
-                <div className="list-group">
-                  {formData.materiales_adicionales.map((material, index) => (
-                <div key={index} className="list-group-item mb-3 border rounded p-3">
-                  <div className="d-flex justify-content-between align-items-start mb-2">
-                    <h6 className="mb-0">Material #{index + 1}</h6>
-                    <Button
-                      type="button"
-                      variant="outline-danger"
-                      size="sm"
-                      onClick={() => handleRemoveMaterial(index)}
-                    >
-                      <LuTrash2 size={14} />
-                    </Button>
-                  </div>
-                  <Row>
-                    <Col md={12}>
-                      <FormGroup className="mb-2">
-                        <FormLabel>Nombre del Material *</FormLabel>
-                        <FormControl
-                          type="text"
-                          value={material.material_nombre}
-                          onChange={(e) =>
-                            handleMaterialChange(index, 'material_nombre', e.target.value)
-                          }
-                          placeholder="Ej: Lápiz grafito, Libro de Matemáticas"
-                          required
-                        />
-                      </FormGroup>
-                    </Col>
-                    <Col md={4}>
-                      <FormGroup className="mb-2">
-                        <FormLabel>Tipo *</FormLabel>
-                        <FormControl
-                          as="select"
-                          value={material.tipo}
-                          onChange={(e) =>
-                            handleMaterialChange(index, 'tipo', e.target.value as Material['tipo'])
-                          }
-                          required
-                        >
-                          {TIPOS_MATERIAL.map((tipo) => (
-                            <option key={tipo.value} value={tipo.value}>
-                              {tipo.label}
-                            </option>
-                          ))}
-                        </FormControl>
-                      </FormGroup>
-                    </Col>
-                    <Col md={3}>
-                      <FormGroup className="mb-2">
-                        <FormLabel>Cantidad *</FormLabel>
-                        <FormControl
-                          type="number"
-                          min="1"
-                          value={material.cantidad}
-                          onChange={(e) =>
-                            handleMaterialChange(index, 'cantidad', parseInt(e.target.value) || 1)
-                          }
-                          required
-                        />
-                      </FormGroup>
-                    </Col>
-                    <Col md={5}>
-                      <FormGroup className="mb-2">
-                        <div className="form-check mt-4">
-                          <input
-                            className="form-check-input"
-                            type="checkbox"
-                            checked={material.obligatorio}
-                            onChange={(e) =>
-                              handleMaterialChange(index, 'obligatorio', e.target.checked)
-                            }
-                            id={`obligatorio-${index}`}
-                          />
-                          <label className="form-check-label" htmlFor={`obligatorio-${index}`}>
-                            Obligatorio
-                          </label>
-                        </div>
-                      </FormGroup>
-                    </Col>
-                    <Col md={12}>
-                      <FormGroup className="mb-0">
-                        <FormLabel>Descripción (opcional)</FormLabel>
-                        <FormControl
-                          as="textarea"
-                          rows={2}
-                          value={material.descripcion || ''}
-                          onChange={(e) =>
-                            handleMaterialChange(index, 'descripcion', e.target.value)
-                          }
-                          placeholder="Descripción adicional del material..."
-                        />
-                      </FormGroup>
-                    </Col>
-                  </Row>
-                  </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </Collapse>
-
-          {formData.materiales_adicionales.length > 0 && (
-            <Button
-              type="button"
-              variant="link"
-              size="sm"
-              className="mt-2 p-0"
-              onClick={() => setShowMaterialesAdicionales(!showMaterialesAdicionales)}
-            >
-              {showMaterialesAdicionales ? (
-                <>
-                  <LuChevronUp size={16} className="me-1" />
-                  Ocultar materiales adicionales
-                </>
-              ) : (
-                <>
-                  <LuChevronDown size={16} className="me-1" />
-                  Mostrar materiales adicionales ({formData.materiales_adicionales.length})
-                </>
-              )}
-            </Button>
-          )}
+          <Alert variant="info" className="mt-3">
+            <strong>Nota:</strong> Los materiales se gestionan mediante PDFs. Sube un PDF desde la página de detalle del curso para agregar materiales.
+          </Alert>
         </ModalBody>
         <ModalFooter>
           {curso && (
@@ -776,12 +599,6 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
         </ModalFooter>
       </Form>
 
-      {/* Modal de Importación Excel */}
-      <ImportarMaterialesExcelModal
-        show={showImportarExcel}
-        onHide={() => setShowImportarExcel(false)}
-        onImport={handleImportarMateriales}
-      />
     </Modal>
   )
 }

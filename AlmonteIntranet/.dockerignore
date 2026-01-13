@@ -50,9 +50,33 @@ next-env.d.ts
 .git
 .gitignore
 
-# Documentation
+# Documentation (excluir todos los MD excepto README.md si es necesario)
 *.md
 !README.md
+
+# Archivos de desarrollo y prompts
+**/*PROMPT*.md
+**/*GUIA*.md
+**/*INSTRUCCIONES*.md
+**/*CONFIGURAR*.md
+**/*SOLUCION*.md
+**/*ANALISIS*.md
+**/*DIAGNOSTICO*.md
+**/*RESUMEN*.md
+**/*CHANGELOG*.md
+**/*CONTEXTO*.md
+**/*ESTADO*.md
+**/*INVESTIGACION*.md
+**/*PREGUNTAS*.md
+**/*PROGRESO*.md
+**/*VARIABLES*.md
+**/*MIGRACION*.md
+**/*PASOS*.md
+**/*VERIFICAR*.md
+**/*CORREGIR*.md
+**/*COMANDOS*.md
+**/*INICIO*.md
+**/*LEEME*.md
 
 # Test files (no necesarios en producción)
 **/__tests__/**

@@ -8,19 +8,23 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   SortingState,
+  Row as TableRow,
+  Table as TableType,
   useReactTable,
 } from '@tanstack/react-table'
 import Link from 'next/link'
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { Button, Card, CardBody, CardFooter, CardHeader, Alert, Form } from 'react-bootstrap'
-import { LuSearch, LuMapPin, LuPhone, LuMail, LuX, LuUsers, LuPlus } from 'react-icons/lu'
-import { TbEye, TbDots, TbEdit, TbTrash } from 'react-icons/tb'
+import { Button, Card, CardFooter, CardHeader, CardBody, Col, Row, Alert, Form } from 'react-bootstrap'
+import { LuSearch, LuMapPin, LuPhone, LuMail, LuUsers, LuPlus, LuX, LuCalendar } from 'react-icons/lu'
+import { TbEye, TbEdit, TbTrash, TbLayoutGrid, TbList } from 'react-icons/tb'
+
 import DataTable from '@/components/table/DataTable'
+import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
 import EditColegioModal from './EditColegioModal'
 import AddColegioModal from './AddColegioModal'
-import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import { useRouter } from 'next/navigation'
+import { format } from 'date-fns'
 
 interface ColegioType {
   id: string
@@ -37,12 +41,13 @@ interface ColegioType {
   representante?: string
   createdAt?: string
   estado?: string
+  createdAtTimestamp?: number
 }
 
 const columnHelper = createColumnHelper<ColegioType>()
 
-// Lista de regiones de Chile (principales)
-const REGIONES = [
+// Lista de regiones de Chile
+export const REGIONES = [
   'Arica y Parinacota',
   'Tarapacá',
   'Antofagasta',
@@ -61,11 +66,13 @@ const REGIONES = [
   'Magallanes',
 ]
 
-const ESTADOS = [
-  { value: '', label: 'Todos los estados' },
-  { value: 'Por Verificar', label: 'Por Verificar' },
-  { value: 'Verificado', label: 'Verificado' },
-  { value: 'Aprobado', label: 'Aprobado' },
+const TIPOS = [
+  { value: '', label: 'Todos los tipos' },
+  { value: 'Municipal', label: 'Municipal' },
+  { value: 'Particular Subvencionado', label: 'Particular Subvencionado' },
+  { value: 'Particular Pagado', label: 'Particular Pagado' },
+  { value: 'Corporación', label: 'Corporación' },
+  { value: 'Administración Delegada', label: 'Administración Delegada' },
 ]
 
 const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { colegios: any[]; error: string | null }) => {
@@ -76,22 +83,26 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   
   // Estados de búsqueda y filtros
-  const [search, setSearch] = useState('')
-  const [estado, setEstado] = useState('')
+  const [globalFilter, setGlobalFilter] = useState('')
+  const [tipo, setTipo] = useState('')
   const [region, setRegion] = useState('')
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState<string>('')
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState<string>('')
+  const [soloConContactos, setSoloConContactos] = useState<boolean>(false)
   
   // Estados de tabla
   const [sorting, setSorting] = useState<SortingState>([
-    { id: 'nombre', desc: false }
+    { id: 'createdAtTimestamp', desc: true } // Ordenar por fecha descendente (más nuevo primero)
   ])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 25 })
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
   const [totalRows, setTotalRows] = useState(0)
   
   // Estados de modales
   const [editModal, setEditModal] = useState<{ open: boolean; colegio: any | null }>({ open: false, colegio: null })
   const [addModal, setAddModal] = useState(false)
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; colegio: any | null }>({ open: false, colegio: null })
+  const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
 
   // Función para obtener datos
   const fetchColegios = useCallback(async () => {
@@ -102,16 +113,40 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
       const params = new URLSearchParams()
       params.append('page', (pagination.pageIndex + 1).toString())
       params.append('pageSize', pagination.pageSize.toString())
-      if (search) params.append('search', search)
-      if (estado) params.append('estado', estado)
+      if (globalFilter) params.append('search', globalFilter)
+      if (tipo) params.append('tipo', tipo)
       if (region) params.append('region', region)
 
       const response = await fetch(`/api/crm/colegios?${params.toString()}`)
       const data = await response.json()
       
       if (data.success && data.data) {
-        setColegios(Array.isArray(data.data) ? data.data : [data.data])
+        const colegiosData = Array.isArray(data.data) ? data.data : [data.data]
+        setColegios(colegiosData)
         setTotalRows(data.meta?.pagination?.total || 0)
+        
+        // Obtener conteo de contactos para cada colegio
+        const colegiosConContactos = await Promise.all(
+          colegiosData.map(async (colegio: any) => {
+            const colegioId = colegio.documentId || colegio.id
+            if (!colegioId) return colegio
+            
+            try {
+              const contactosResponse = await fetch(`/api/crm/colegios/${colegioId}/contacts`)
+              const contactosData = await contactosResponse.json()
+              if (contactosData.success && contactosData.data) {
+                const contactosArray = Array.isArray(contactosData.data) ? contactosData.data : [contactosData.data]
+                colegio._contactosCount = contactosArray.length
+              } else {
+                colegio._contactosCount = 0
+              }
+            } catch (err) {
+              colegio._contactosCount = 0
+            }
+            return colegio
+          })
+        )
+        setColegios(colegiosConContactos)
       } else {
         setError(data.error || 'Error al obtener colegios')
       }
@@ -120,13 +155,13 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     } finally {
       setLoading(false)
     }
-  }, [search, estado, region, pagination.pageIndex, pagination.pageSize])
+  }, [globalFilter, tipo, region, pagination.pageIndex, pagination.pageSize])
 
   // Debounce para búsqueda
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       fetchColegios()
-    }, 300) // 300ms de debounce
+    }, 300)
 
     return () => clearTimeout(timeoutId)
   }, [fetchColegios])
@@ -148,13 +183,13 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
       const attrs = colegio.attributes || {}
       const data = Object.keys(attrs).length > 0 ? attrs : colegio
       
-      // Obtener teléfonos y emails (todos)
+      // Obtener teléfonos y emails
       const telefonosArray = data.telefonos || []
       const emailsArray = data.emails || []
       const telefonos = telefonosArray.map((t: any) => t.telefono_norm || t.telefono_raw || t.numero || t.telefono || '').filter(Boolean)
       const emails = emailsArray.map((e: any) => e.email || '').filter(Boolean)
       
-      // Obtener comuna (puede venir como relación)
+      // Obtener comuna y región
       let comunaNombre = ''
       let regionNombre = ''
       if (data.comuna) {
@@ -184,15 +219,14 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
         })[0]
       const representante = asignacionComercial?.ejecutivo?.nombre_completo || asignacionComercial?.ejecutivo?.data?.attributes?.nombre_completo || ''
       
-      // Obtener tipo (puede venir de dependencia o tipo)
+      // Obtener tipo
       const tipo = data.dependencia || data.tipo || ''
       
-      // Obtener dirección de direcciones array (usar campos correctos)
+      // Obtener dirección
       let direccionStr = ''
       if (Array.isArray(data.direcciones) && data.direcciones.length > 0) {
         const primeraDireccion = data.direcciones[0]
         direccionStr = `${primeraDireccion.nombre_calle || ''} ${primeraDireccion.numero_calle || ''}`.trim()
-        // Si no hay dirección en direcciones, usar comuna como fallback
         if (!direccionStr && comunaNombre) {
           direccionStr = comunaNombre
         }
@@ -201,6 +235,10 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
       } else if (comunaNombre) {
         direccionStr = comunaNombre
       }
+      
+      // Obtener fecha de creación
+      const createdAt = data.createdAt || colegio.createdAt || new Date().toISOString()
+      const createdDate = new Date(createdAt)
       
       return {
         id: colegio.documentId || colegio.id?.toString() || '',
@@ -213,245 +251,336 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
         telefonos,
         emails,
         website: data.website || '',
-        contactosCount: 0, // TODO: calcular desde relaciones
+        contactosCount: (colegio as any)._contactosCount || 0,
         representante,
         estado: data.estado || data.ESTADO || '',
-        createdAt: data.createdAt || colegio.createdAt || '',
+        createdAt,
+        createdAtTimestamp: createdDate.getTime(),
       }
     })
   }, [colegios])
 
-  const columns = useMemo<ColumnDef<ColegioType>[]>(
-    () => [
-      {
-        id: 'select',
-        maxSize: 45,
-        size: 45,
-        header: ({ table }) => (
-          <input
-            type="checkbox"
-            className="form-check-input form-check-input-light fs-14"
-            checked={table.getIsAllRowsSelected()}
-            onChange={table.getToggleAllRowsSelectedHandler()}
-          />
-        ),
-        cell: ({ row }) => (
-          <input
-            type="checkbox"
-            className="form-check-input form-check-input-light fs-14"
-            checked={row.getIsSelected()}
-            onChange={row.getToggleSelectedHandler()}
-          />
-        ),
-        enableSorting: false,
-        enableColumnFilter: false,
-      },
-      {
-        id: 'institucion',
-        header: 'INSTITUCIÓN',
-        cell: ({ row }) => {
-          const colegio = row.original
-          const iniciales = generarIniciales(colegio.nombre)
-          return (
-            <div className="d-flex align-items-center">
-              <div className="avatar-sm rounded-circle me-2 flex-shrink-0 bg-secondary-subtle d-flex align-items-center justify-content-center">
-                <span className="avatar-title text-secondary fw-semibold fs-12">
-                  {iniciales}
-                </span>
-              </div>
-              <div>
-                <Link 
-                  href={`/crm/colegios/${colegio.id}`}
-                  className="text-decoration-none"
-                >
-                  <h5 className="mb-0 fw-semibold text-primary" style={{ cursor: 'pointer' }}>
-                    {colegio.nombre}
-                  </h5>
-                </Link>
-                {colegio.tipo && (
-                  <span className="badge badge-soft-info">{colegio.tipo}</span>
-                )}
-              </div>
+  const columns: ColumnDef<ColegioType, any>[] = useMemo(() => [
+    {
+      id: 'select',
+      maxSize: 45,
+      size: 45,
+      header: ({ table }: { table: TableType<ColegioType> }) => (
+        <input
+          type="checkbox"
+          className="form-check-input form-check-input-light fs-14"
+          checked={table.getIsAllRowsSelected()}
+          onChange={table.getToggleAllRowsSelectedHandler()}
+        />
+      ),
+      cell: ({ row }: { row: TableRow<ColegioType> }) => (
+        <input
+          type="checkbox"
+          className="form-check-input form-check-input-light fs-14"
+          checked={row.getIsSelected()}
+          onChange={row.getToggleSelectedHandler()}
+        />
+      ),
+      enableSorting: false,
+      enableColumnFilter: false,
+    },
+    {
+      id: 'institucion',
+      header: 'INSTITUCIÓN',
+      accessorKey: 'nombre',
+      enableSorting: true,
+      cell: ({ row }) => {
+        const colegio = row.original
+        const iniciales = generarIniciales(colegio.nombre)
+        return (
+          <div className="d-flex align-items-center">
+            <div className="avatar-sm rounded-circle me-2 flex-shrink-0 bg-secondary-subtle d-flex align-items-center justify-content-center">
+              <span className="avatar-title text-secondary fw-semibold fs-12">
+                {iniciales}
+              </span>
             </div>
-          )
-        },
-      },
-      {
-        id: 'comunicacion',
-        header: 'COMUNICACIÓN',
-        cell: ({ row }) => {
-          const colegio = row.original
-          const emails = colegio.emails?.filter(e => e) || []
-          const telefonos = colegio.telefonos?.filter(t => t) || []
-          return (
-            <div className="fs-xs">
-              {emails.length > 0 && (
-                <div className="mb-1 d-flex align-items-center">
-                  <LuMail className="me-1" size={12} />
-                  <span>{emails.join(', ')}</span>
-                </div>
-              )}
-              {telefonos.length > 0 && (
-                <div className="d-flex align-items-center">
-                  <LuPhone className="me-1" size={12} />
-                  <span>{telefonos.join(', ')}</span>
-                </div>
-              )}
-              {emails.length === 0 && telefonos.length === 0 && (
-                <span className="text-muted">-</span>
-              )}
-            </div>
-          )
-        },
-      },
-      {
-        id: 'direccion',
-        header: 'DIRECCIÓN',
-        cell: ({ row }) => {
-          const colegio = row.original
-          return (
-            <div className="fs-xs">
-              {colegio.direccion && (
-                <div>{colegio.direccion}</div>
-              )}
-              {colegio.comuna && (
-                <div className="text-muted">{colegio.comuna}</div>
-              )}
-              {!colegio.direccion && !colegio.comuna && (
-                <span className="text-muted">-</span>
-              )}
-            </div>
-          )
-        },
-      },
-      {
-        id: 'contactos',
-        header: 'CONTACTOS',
-        cell: ({ row }) => {
-          const colegio = row.original
-          return (
-            <div className="d-flex align-items-center">
-              <LuUsers className="me-1 text-muted" size={16} />
-              <span>{colegio.contactosCount || 0}</span>
-            </div>
-          )
-        },
-      },
-      {
-        id: 'representante',
-        header: 'REPRESENTANTE',
-        cell: ({ row }) => {
-          const colegio = row.original
-          return colegio.representante ? (
-            <span>{colegio.representante}</span>
-          ) : (
-            <span className="text-muted">-</span>
-          )
-        },
-      },
-        {
-          id: 'fecha',
-          header: 'FECHA',
-        cell: ({ row }) => {
-          const colegio = row.original
-          const isNew = colegio.createdAt && 
-            (Date.now() - new Date(colegio.createdAt).getTime()) <= 7 * 24 * 60 * 60 * 1000
-          
-          const daysAgo = colegio.createdAt 
-            ? Math.floor((Date.now() - new Date(colegio.createdAt).getTime()) / (24 * 60 * 60 * 1000))
-            : null
-          
-          return (
-            <div className="fs-xs">
-              {isNew && (
-                <span className="badge bg-success-subtle text-success mb-1 d-block" style={{ width: 'fit-content' }}>Nuevo</span>
-              )}
-              {daysAgo !== null && (
-                <div className={isNew ? '' : 'mb-1'}>
-                  {daysAgo === 0 ? 'Hoy' : daysAgo === 1 ? '1 día' : `${daysAgo} días`}
-                </div>
-              )}
-              {!colegio.createdAt && (
-                <span className="text-muted">-</span>
-              )}
-            </div>
-          )
-        },
-      },
-      {
-        id: 'actions',
-        header: '',
-        cell: ({ row }) => {
-          const colegio = row.original
-          return (
-            <div className="d-flex gap-1">
-              <Button
-                variant="default"
-                size="sm"
-                className="btn-icon"
-                title="Editar"
-                onClick={() => setEditModal({ open: true, colegio })}
+            <div>
+              <Link 
+                href={`/crm/colegios/${colegio.id}`}
+                className="text-decoration-none"
               >
-                <TbEdit className="fs-lg" />
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                className="btn-icon text-danger"
-                title="Eliminar"
-                onClick={() => setDeleteModal({ open: true, colegio })}
-              >
-                <TbTrash className="fs-lg" />
-              </Button>
+                <h5 className="mb-0 fw-semibold text-primary" style={{ cursor: 'pointer' }}>
+                  {colegio.nombre}
+                </h5>
+              </Link>
+              {colegio.tipo && (
+                <span className="badge badge-soft-info">{colegio.tipo}</span>
+              )}
             </div>
-          )
-        },
+          </div>
+        )
       },
-    ],
-    []
-  )
+    },
+    {
+      id: 'comunicacion',
+      header: 'COMUNICACIÓN',
+      filterFn: 'includesString',
+      enableColumnFilter: true,
+      cell: ({ row }) => {
+        const colegio = row.original
+        const emails = colegio.emails?.filter(e => e) || []
+        const telefonos = colegio.telefonos?.filter(t => t) || []
+        return (
+          <div className="fs-xs">
+            {emails.length > 0 && (
+              <div className="mb-1 d-flex align-items-center">
+                <LuMail className="me-1" size={12} />
+                <span>{emails.join(', ')}</span>
+              </div>
+            )}
+            {telefonos.length > 0 && (
+              <div className="d-flex align-items-center">
+                <LuPhone className="me-1" size={12} />
+                <span>{telefonos.join(', ')}</span>
+              </div>
+            )}
+            {emails.length === 0 && telefonos.length === 0 && (
+              <span className="text-muted">-</span>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      id: 'direccion',
+      header: 'DIRECCIÓN',
+      filterFn: 'includesString',
+      enableColumnFilter: true,
+      cell: ({ row }) => {
+        const colegio = row.original
+        return (
+          <div className="fs-xs">
+            {colegio.direccion && (
+              <div>{colegio.direccion}</div>
+            )}
+            {colegio.comuna && (
+              <div className="text-muted">{colegio.comuna}</div>
+            )}
+            {!colegio.direccion && !colegio.comuna && (
+              <span className="text-muted">-</span>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      id: 'region',
+      header: 'REGIÓN',
+      accessorKey: 'region',
+      filterFn: 'includesString',
+      enableColumnFilter: true,
+      cell: ({ row }) => {
+        const colegio = row.original
+        return colegio.region ? (
+          <span>{colegio.region}</span>
+        ) : (
+          <span className="text-muted">-</span>
+        )
+      },
+    },
+    {
+      id: 'contactos',
+      header: 'CONTACTOS',
+      accessorFn: (row) => row.contactosCount || 0,
+      filterFn: (row, columnId, filterValue) => {
+        if (!filterValue) return true
+        const count = row.original.contactosCount || 0
+        return count > 0
+      },
+      enableColumnFilter: true,
+      cell: ({ row }) => {
+        const colegio = row.original
+        return (
+          <div className="d-flex align-items-center">
+            <LuUsers className="me-1 text-muted" size={16} />
+            <span>{colegio.contactosCount || 0}</span>
+          </div>
+        )
+      },
+    },
+    {
+      id: 'representante',
+      header: 'REPRESENTANTE',
+      filterFn: 'includesString',
+      enableColumnFilter: true,
+      cell: ({ row }) => {
+        const colegio = row.original
+        return colegio.representante ? (
+          <span>{colegio.representante}</span>
+        ) : (
+          <span className="text-muted">-</span>
+        )
+      },
+    },
+    {
+      id: 'tipo',
+      header: 'TIPO',
+      accessorKey: 'tipo',
+      filterFn: 'includesString',
+      enableColumnFilter: true,
+      cell: ({ row }) => {
+        const colegio = row.original
+        const tipoValor = colegio.tipo || '-'
+        return (
+          <span className="badge badge-soft-info fs-xxs">
+            {tipoValor}
+          </span>
+        )
+      },
+    },
+    {
+      id: 'createdAtTimestamp',
+      header: 'FECHA',
+      accessorFn: (row) => row.createdAtTimestamp || 0,
+      filterFn: (row, columnId, filterValue) => {
+        if (!filterValue || (!filterValue.desde && !filterValue.hasta)) return true
+        const createdAt = row.original.createdAt
+        if (!createdAt) return false
+        const fecha = new Date(createdAt)
+        const fechaDesde = filterValue.desde ? new Date(filterValue.desde) : null
+        const fechaHasta = filterValue.hasta ? new Date(filterValue.hasta) : null
+        
+        if (fechaDesde && fecha < fechaDesde) return false
+        if (fechaHasta) {
+          const fechaHastaFin = new Date(fechaHasta)
+          fechaHastaFin.setHours(23, 59, 59, 999) // Incluir todo el día
+          if (fecha > fechaHastaFin) return false
+        }
+        return true
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      sortingFn: 'basic',
+      cell: ({ row }) => {
+        const colegio = row.original
+        if (!colegio.createdAt) return <span className="text-muted">-</span>
+        
+        const createdDate = new Date(colegio.createdAt)
+        const dateStr = format(createdDate, 'dd MMM, yyyy')
+        const timeStr = format(createdDate, 'h:mm a')
+        const isNew = colegio.createdAtTimestamp && 
+          (Date.now() - colegio.createdAtTimestamp) <= 7 * 24 * 60 * 60 * 1000
+        
+        return (
+          <>
+            {isNew && (
+              <span className="badge bg-success-subtle text-success mb-1 d-block" style={{ width: 'fit-content' }}>Nuevo</span>
+            )}
+            <div className="fs-xs">
+              {dateStr} <small className="text-muted">{timeStr}</small>
+            </div>
+          </>
+        )
+      },
+    },
+    {
+      id: 'actions',
+      header: 'ACCIONES',
+      cell: ({ row }: { row: TableRow<ColegioType> }) => {
+        const colegio = row.original
+        return (
+          <div className="d-flex gap-1">
+            <Link href={`/crm/colegios/${colegio.id}`}>
+              <Button variant="default" size="sm" className="btn-icon rounded-circle">
+                <TbEye className="fs-lg" />
+              </Button>
+            </Link>
+            <Button
+              variant="default"
+              size="sm"
+              className="btn-icon rounded-circle"
+              title="Editar"
+              onClick={() => {
+                // Buscar el colegio original en los datos
+                const originalColegio = colegios.find((c: any) => {
+                  const cId = c.documentId || c.id?.toString() || ''
+                  return cId === colegio.id
+                })
+                setEditModal({ open: true, colegio: originalColegio || colegio })
+              }}
+            >
+              <TbEdit className="fs-lg" />
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              className="btn-icon rounded-circle"
+              title="Eliminar"
+              onClick={() => {
+                const originalColegio = colegios.find((c: any) => {
+                  const cId = c.documentId || c.id?.toString() || ''
+                  return cId === colegio.id
+                })
+                setDeleteModal({ open: true, colegio: originalColegio || colegio })
+              }}
+            >
+              <TbTrash className="fs-lg text-danger" />
+            </Button>
+          </div>
+        )
+      },
+    },
+  ], [colegios])
 
-  const table = useReactTable({
+  const table = useReactTable<ColegioType>({
     data: mappedColegios,
     columns,
-    pageCount: Math.ceil(totalRows / pagination.pageSize),
-    state: {
-      sorting,
-      columnFilters,
-      pagination,
-    },
+    state: { sorting, columnFilters, pagination, rowSelection: selectedRowIds },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onPaginationChange: setPagination,
+    onRowSelectionChange: setSelectedRowIds,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    manualPagination: true, // Paginación del servidor
+    enableColumnFilters: true,
+    enableRowSelection: true,
+    manualPagination: false, // Paginación del cliente (como productos)
+    filterFns: {
+      includesString: (row, columnId, filterValue) => {
+        const value = row.getValue(columnId) as string
+        if (!filterValue) return true
+        if (!value) return false
+        return String(value).toLowerCase().includes(String(filterValue).toLowerCase())
+      },
+    },
   })
 
   const pageIndex = table.getState().pagination.pageIndex
   const pageSize = table.getState().pagination.pageSize
+  // Usar totalRows del servidor cuando hay búsqueda/filtros, sino usar datos locales
+  const totalItems = globalFilter || tipo || region ? (totalRows > 0 ? totalRows : mappedColegios.length) : mappedColegios.length
+
   const start = pageIndex * pageSize + 1
-  const end = Math.min(start + pageSize - 1, totalRows)
+  const end = Math.min(start + pageSize - 1, totalItems)
+
+  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false)
 
   const clearFilters = () => {
-    setSearch('')
-    setEstado('')
+    setGlobalFilter('')
+    setTipo('')
     setRegion('')
+    setFiltroFechaDesde('')
+    setFiltroFechaHasta('')
+    setSoloConContactos(false)
+    setColumnFilters([])
   }
 
-  const hasActiveFilters = search || estado || region
+  const hasActiveFilters = globalFilter || tipo || region || filtroFechaDesde || filtroFechaHasta || soloConContactos || columnFilters.length > 0
 
   const handleDelete = async () => {
     if (!deleteModal.colegio) return
 
-    // Obtener el ID correcto (documentId es el identificador principal en Strapi)
     const colegioId = deleteModal.colegio.documentId || deleteModal.colegio.id
     
     if (!colegioId) {
       setError('No se pudo obtener el ID del colegio')
-      setLoading(false)
       return
     }
 
@@ -461,7 +590,6 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
         method: 'DELETE',
       })
 
-      // Manejar respuestas vacías (204 No Content) o con JSON
       let result: any = { success: true }
       
       if (response.ok) {
@@ -484,24 +612,19 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
         throw new Error(result.error || 'Error al eliminar colegio')
       }
 
-      // Actualizar la lista localmente removiendo el colegio eliminado
       setColegios(prev => prev.filter(c => {
         const cId = (c as any).documentId || (c as any).id
         return cId !== colegioId
       }))
       
-      // Cerrar modal y limpiar error
       setDeleteModal({ open: false, colegio: null })
+      setShowDeleteModal(false)
       setError(null)
       setSuccessMessage('Colegio eliminado exitosamente')
       
-      // Revalidar datos para sincronización bidireccional
       router.refresh()
-      
-      // Recargar datos
       fetchColegios()
       
-      // Limpiar mensaje de éxito después de 3 segundos
       setTimeout(() => setSuccessMessage(null), 3000)
     } catch (err: any) {
       setError(err.message || 'Error al eliminar colegio')
@@ -514,143 +637,244 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     fetchColegios()
   }
 
+  // Aplicar filtros de tipo, región, fecha y contactos como columnFilters
+  useEffect(() => {
+    const filters: ColumnFiltersState = []
+    if (tipo) {
+      filters.push({ id: 'tipo', value: tipo })
+    }
+    if (region) {
+      filters.push({ id: 'region', value: region })
+    }
+    if (filtroFechaDesde || filtroFechaHasta) {
+      filters.push({ id: 'createdAtTimestamp', value: { desde: filtroFechaDesde, hasta: filtroFechaHasta } })
+    }
+    if (soloConContactos) {
+      filters.push({ id: 'contactos', value: true })
+    }
+    setColumnFilters(filters)
+  }, [tipo, region, filtroFechaDesde, filtroFechaHasta, soloConContactos])
+
   if (error && !colegios.length) {
     return (
-      <Alert variant="danger">
-        <strong>Error:</strong> {error}
-      </Alert>
+      <Row>
+        <Col xs={12}>
+          <Alert variant="danger">
+            <strong>Error:</strong> {error}
+          </Alert>
+        </Col>
+      </Row>
     )
   }
 
   return (
-    <>
-      <Card>
-        <CardHeader className="justify-content-between align-items-center">
-          <h4 className="mb-0">Listado de Colegios</h4>
-          <div className="d-flex gap-2">
-            <Button variant="soft-secondary" size="sm" onClick={handleRefresh} disabled={loading}>
-              Actualizar
-            </Button>
-            <Button variant="primary" size="sm" onClick={() => setAddModal(true)}>
-              <LuPlus className="me-1" /> Agregar Colegio
-            </Button>
-          </div>
-        </CardHeader>
-      <CardBody>
-        {successMessage && (
-          <Alert variant="success" dismissible onClose={() => setSuccessMessage(null)} className="mb-3">
-            {successMessage}
-          </Alert>
-        )}
-        {error && (
-          <Alert variant="danger" dismissible onClose={() => setError(null)} className="mb-3">
-            <strong>Error:</strong> {error}
-          </Alert>
-        )}
-        {/* Búsqueda */}
-        <div className="mb-3">
-          <div className="app-search">
-            <input
-              type="search"
-              className="form-control"
-              placeholder="Buscar por nombre o RBD..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              disabled={loading}
-            />
-            <LuSearch className="app-search-icon text-muted" />
-          </div>
-        </div>
+    <Row>
+      <Col xs={12}>
+        <Card className="mb-4">
+          <CardHeader className="d-flex justify-content-between align-items-center">
+            <div className="d-flex gap-2">
+              <div className="app-search">
+                <input
+                  type="search"
+                  className="form-control"
+                  placeholder="Buscar por nombre, RBD, comuna..."
+                  value={globalFilter ?? ''}
+                  onChange={(e) => {
+                    setGlobalFilter(e.target.value)
+                    // Resetear a página 1 cuando cambia la búsqueda
+                    setPagination({ pageIndex: 0, pageSize: pagination.pageSize })
+                  }}
+                />
+                <LuSearch className="app-search-icon text-muted" />
+              </div>
 
-        {/* Filtros */}
-        <div className="d-flex gap-2 mb-3 flex-wrap align-items-end">
-          <div style={{ minWidth: '200px' }}>
-            <Form.Label className="form-label text-muted mb-1" style={{ fontSize: '0.875rem' }}>
-              Estado
-            </Form.Label>
-            <Form.Select
-              value={estado}
-              onChange={(e) => setEstado(e.target.value)}
-              disabled={loading}
-            >
-              {ESTADOS.map((est) => (
-                <option key={est.value} value={est.value}>
-                  {est.label}
-                </option>
-              ))}
-            </Form.Select>
-          </div>
-
-          <div style={{ minWidth: '200px' }}>
-            <Form.Label className="form-label text-muted mb-1" style={{ fontSize: '0.875rem' }}>
-              Región
-            </Form.Label>
-            <Form.Select
-              value={region}
-              onChange={(e) => setRegion(e.target.value)}
-              disabled={loading}
-            >
-              <option value="">Todas las regiones</option>
-              {REGIONES.map((reg) => (
-                <option key={reg} value={reg}>
-                  {reg}
-                </option>
-              ))}
-            </Form.Select>
-          </div>
-
-          {hasActiveFilters && (
-            <Button
-              variant="outline-secondary"
-              onClick={clearFilters}
-              disabled={loading}
-              className="d-flex align-items-center gap-1"
-            >
-              <LuX size={16} />
-              Limpiar filtros
-            </Button>
-          )}
-        </div>
-
-        {/* Tabla */}
-        {loading && colegios.length === 0 ? (
-          <div className="text-center py-5">
-            <div className="spinner-border text-primary" role="status">
-              <span className="visually-hidden">Cargando...</span>
+              {Object.keys(selectedRowIds).length > 0 && (
+                <Button variant="danger" size="sm" onClick={() => setShowDeleteModal(true)}>
+                  Eliminar
+                </Button>
+              )}
             </div>
-          </div>
-        ) : (
-          <>
+
+            <div className="d-flex align-items-center gap-2">
+              <span className="me-2 fw-semibold">Filtrar por:</span>
+
+              <div className="app-search">
+                <select
+                  className="form-select form-control my-1 my-md-0"
+                  value={tipo}
+                  onChange={(e) => {
+                    setTipo(e.target.value)
+                  }}
+                >
+                  {TIPOS.map((tip) => (
+                    <option key={tip.value} value={tip.value}>
+                      {tip.label}
+                    </option>
+                  ))}
+                </select>
+                <LuUsers className="app-search-icon text-muted" />
+              </div>
+
+              <div className="app-search">
+                <select
+                  className="form-select form-control my-1 my-md-0"
+                  value={region}
+                  onChange={(e) => {
+                    setRegion(e.target.value)
+                  }}
+                >
+                  <option value="">Región</option>
+                  {REGIONES.map((reg) => (
+                    <option key={reg} value={reg}>
+                      {reg}
+                    </option>
+                  ))}
+                </select>
+                <LuMapPin className="app-search-icon text-muted" />
+              </div>
+
+              <div className="app-search">
+                <input
+                  type="date"
+                  className="form-control my-1 my-md-0"
+                  placeholder="Desde"
+                  value={filtroFechaDesde}
+                  onChange={(e) => {
+                    setFiltroFechaDesde(e.target.value)
+                  }}
+                  style={{ minWidth: '150px' }}
+                />
+                <LuCalendar className="app-search-icon text-muted" />
+              </div>
+
+              <div className="app-search">
+                <input
+                  type="date"
+                  className="form-control my-1 my-md-0"
+                  placeholder="Hasta"
+                  value={filtroFechaHasta}
+                  onChange={(e) => {
+                    setFiltroFechaHasta(e.target.value)
+                  }}
+                  style={{ minWidth: '150px' }}
+                />
+                <LuCalendar className="app-search-icon text-muted" />
+              </div>
+
+              <div className="d-flex align-items-center">
+                <input
+                  type="checkbox"
+                  className="form-check-input me-2"
+                  id="soloConContactos"
+                  checked={soloConContactos}
+                  onChange={(e) => {
+                    setSoloConContactos(e.target.checked)
+                  }}
+                />
+                <label htmlFor="soloConContactos" className="form-check-label mb-0" style={{ cursor: 'pointer' }}>
+                  Solo con contactos
+                </label>
+              </div>
+
+              {hasActiveFilters && (
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="d-flex align-items-center gap-1"
+                >
+                  <LuX size={16} />
+                  Limpiar
+                </Button>
+              )}
+
+              <div>
+                <select
+                  className="form-select form-control my-1 my-md-0"
+                  value={table.getState().pagination.pageSize}
+                  onChange={(e) => table.setPageSize(Number(e.target.value))}
+                >
+                  {[5, 8, 10, 15, 20].map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="d-flex gap-1">
+              <Button variant="outline-primary" className="btn-icon btn-soft-primary">
+                <TbLayoutGrid className="fs-lg" />
+              </Button>
+              <Button variant="primary" className="btn-icon">
+                <TbList className="fs-lg" />
+              </Button>
+              <Button variant="danger" className="ms-1" onClick={() => setAddModal(true)}>
+                <LuPlus className="fs-sm me-2" /> Agregar Colegio
+              </Button>
+            </div>
+          </CardHeader>
+
+          <CardBody>
+            {successMessage && (
+              <Alert variant="success" dismissible onClose={() => setSuccessMessage(null)} className="mb-3">
+                {successMessage}
+              </Alert>
+            )}
             {error && (
-              <Alert variant="warning" className="mb-3">
+              <Alert variant="warning" dismissible onClose={() => setError(null)} className="mb-3">
                 <strong>Advertencia:</strong> {error}
               </Alert>
             )}
-            <DataTable table={table} />
-          </>
-        )}
-      </CardBody>
-      {table.getRowModel().rows.length > 0 && (
-        <CardFooter className="border-0">
-          <TablePagination
-            totalItems={totalRows}
-            start={start}
-            end={end}
-            itemsName="colegios"
-            showInfo
-            previousPage={table.previousPage}
-            canPreviousPage={table.getCanPreviousPage()}
-            pageCount={table.getPageCount()}
-            pageIndex={pageIndex}
-            setPageIndex={table.setPageIndex}
-            nextPage={table.nextPage}
-            canNextPage={table.getCanNextPage()}
-          />
-        </CardFooter>
-      )}
-    </Card>
 
-    {/* Modal de agregar */}
+            {loading && mappedColegios.length === 0 ? (
+              <div className="text-center py-5">
+                <div className="spinner-border text-primary" role="status">
+                  <span className="visually-hidden">Cargando...</span>
+                </div>
+              </div>
+            ) : (
+              <DataTable<ColegioType>
+                table={table}
+                emptyMessage="No se encontraron colegios"
+              />
+            )}
+          </CardBody>
+
+          {table.getRowModel().rows.length > 0 && (
+            <CardFooter className="border-0">
+              <TablePagination
+                totalItems={totalItems}
+                start={start}
+                end={end}
+                itemsName="colegios"
+                showInfo
+                previousPage={table.previousPage}
+                canPreviousPage={table.getCanPreviousPage()}
+                pageCount={table.getPageCount()}
+                pageIndex={table.getState().pagination.pageIndex}
+                setPageIndex={table.setPageIndex}
+                nextPage={table.nextPage}
+                canNextPage={table.getCanNextPage()}
+              />
+            </CardFooter>
+          )}
+
+          <DeleteConfirmationModal
+            show={showDeleteModal || deleteModal.open}
+            onHide={() => {
+              setShowDeleteModal(false)
+              setDeleteModal({ open: false, colegio: null })
+            }}
+            onConfirm={handleDelete}
+            selectedCount={Object.keys(selectedRowIds).length || 1}
+            itemName="colegio"
+          />
+        </Card>
+      </Col>
+
+      {/* Modal de agregar */}
       <AddColegioModal
         show={addModal}
         onHide={() => setAddModal(false)}
@@ -658,13 +882,12 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
           setAddModal(false)
           setSuccessMessage('Colegio creado exitosamente')
           setTimeout(() => setSuccessMessage(null), 3000)
-          // Revalidar datos para sincronización bidireccional
           router.refresh()
           fetchColegios()
         }}
       />
 
-    {/* Modal de edición */}
+      {/* Modal de edición */}
       <EditColegioModal
         show={editModal.open}
         onHide={() => setEditModal({ open: false, colegio: null })}
@@ -673,31 +896,11 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
           setEditModal({ open: false, colegio: null })
           setSuccessMessage('Colegio actualizado exitosamente')
           setTimeout(() => setSuccessMessage(null), 3000)
-          // Revalidar datos para sincronización bidireccional
           router.refresh()
           fetchColegios()
         }}
       />
-
-    {/* Modal de confirmación de eliminación */}
-    <DeleteConfirmationModal
-      show={deleteModal.open}
-      onHide={() => setDeleteModal({ open: false, colegio: null })}
-      onConfirm={handleDelete}
-      selectedCount={1}
-      itemName="colegio"
-      modalTitle="Eliminar Colegio"
-      confirmButtonText="Eliminar Permanentemente"
-      cancelButtonText="Cancelar"
-    >
-      <div>
-        <p>¿Estás seguro de que deseas eliminar permanentemente <strong>{deleteModal.colegio?.nombre || deleteModal.colegio?.colegio_nombre}</strong>?</p>
-        <p className="text-danger mb-0">
-          <small>Esta acción no se puede deshacer. El colegio será eliminado permanentemente del sistema.</small>
-        </p>
-      </div>
-    </DeleteConfirmationModal>
-    </>
+    </Row>
   )
 }
 
