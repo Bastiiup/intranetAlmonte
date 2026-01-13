@@ -147,8 +147,11 @@ export default function ListaModal({ show, onHide, lista, onSuccess }: ListaModa
           const attrs = curso.attributes || curso
           const nombreCurso = attrs.nombre_curso || attrs.curso_nombre || 'Sin nombre'
           const paralelo = attrs.paralelo ? ` ${attrs.paralelo}` : ''
+          // Preferir documentId si está disponible (más confiable en Strapi con draftAndPublish)
+          // Si no, usar id numérico
+          const cursoId = curso.documentId || curso.id || (curso.data && (curso.data.documentId || curso.data.id))
           return {
-            value: curso.id || curso.documentId,
+            value: cursoId,
             label: `${nombreCurso}${paralelo}`,
             colegioId,
           }
