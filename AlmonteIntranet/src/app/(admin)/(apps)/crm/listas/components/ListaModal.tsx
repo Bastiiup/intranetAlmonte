@@ -359,7 +359,7 @@ export default function ListaModal({ show, onHide, lista, onSuccess }: ListaModa
                     onChange={(option) =>
                       setFormData((prev) => ({
                         ...prev,
-                        nivel: option?.value || 'Basica',
+                        nivel: (option?.value as 'Basica' | 'Media') || 'Basica',
                         grado: 1, // Resetear grado
                       }))
                     }
