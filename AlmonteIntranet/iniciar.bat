@@ -3,15 +3,15 @@ echo 🚀 Iniciando proyecto local...
 echo.
 
 REM Buscar Node.js en ubicaciones comunes
-set NODE_PATH=
+set "NODE_PATH="
 if exist "C:\Program Files\nodejs\node.exe" (
-    set NODE_PATH=C:\Program Files\nodejs
+    set "NODE_PATH=C:\Program Files\nodejs"
     echo ✅ Node.js encontrado en: C:\Program Files\nodejs
 ) else if exist "C:\Program Files (x86)\nodejs\node.exe" (
-    set NODE_PATH=C:\Program Files (x86)\nodejs
+    set "NODE_PATH=C:\Program Files (x86)\nodejs"
     echo ✅ Node.js encontrado en: C:\Program Files (x86)\nodejs
 ) else if exist "%USERPROFILE%\AppData\Roaming\npm\node.exe" (
-    set NODE_PATH=%USERPROFILE%\AppData\Roaming\npm
+    set "NODE_PATH=%USERPROFILE%\AppData\Roaming\npm"
     echo ✅ Node.js encontrado en: %USERPROFILE%\AppData\Roaming\npm
 ) else (
     echo ❌ Node.js no encontrado
@@ -21,7 +21,7 @@ if exist "C:\Program Files\nodejs\node.exe" (
 )
 
 REM Agregar Node.js al PATH temporalmente
-set PATH=%NODE_PATH%;%PATH%
+set "PATH=%NODE_PATH%;%PATH%"
 
 REM Verificar versiones
 echo.
