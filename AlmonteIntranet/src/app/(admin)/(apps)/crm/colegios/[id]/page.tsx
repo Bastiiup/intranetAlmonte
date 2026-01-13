@@ -316,24 +316,6 @@ export default function ColegioDetailPage() {
   }, [cursos, añoFiltro])
 
 
-  // Agrupar contactos por cargo/curso
-  const contactosPorCargo = useMemo(() => {
-    const grupos = new Map<string, ContactoData[]>()
-    
-    contactos.forEach((contacto) => {
-      const trayectoriaActual = contacto.trayectorias?.find((t) => t.is_current) || contacto.trayectorias?.[0]
-      // Priorizar cursoNombre, luego cargo
-      const grupo = trayectoriaActual?.cursoNombre || trayectoriaActual?.cargo || 'Sin cargo/curso'
-      
-      if (!grupos.has(grupo)) {
-        grupos.set(grupo, [])
-      }
-      grupos.get(grupo)!.push(contacto)
-    })
-    
-    return Array.from(grupos.entries()).sort((a, b) => a[0].localeCompare(b[0]))
-  }, [contactos])
-
   // Calcular estadísticas
   const estadisticas = useMemo(() => {
     const colaboradoresActivos = contactos.length
@@ -540,70 +522,71 @@ export default function ColegioDetailPage() {
         ) : contactos.length === 0 ? (
           <p className="text-muted text-center py-5">No hay colaboradores asociados a este colegio</p>
         ) : (
-          <div>
-            {contactosPorCargo.map(([cargo, contactosGrupo]) => (
-              <div key={cargo} className="mb-4">
-                <h5 className="d-flex align-items-center mb-3">
-                  <LuGraduationCap className="me-2" />
-                  {cargo}
-                  <Badge bg="secondary" className="ms-2">{contactosGrupo.length}</Badge>
-                </h5>
-                <div className="row g-3">
-                  {contactosGrupo.map((contacto) => {
-                    const trayectoriaActual = contacto.trayectorias?.find((t) => t.is_current) || contacto.trayectorias?.[0]
-                    const telefonoPrincipal = contacto.telefonos?.find((t) => t.principal) || contacto.telefonos?.[0]
-                    const todosLosEmails = contacto.emails || []
-                    
-                    return (
-                      <Col md={6} lg={4} key={contacto.id}>
-                        <Card className="h-100">
-                          <CardBody>
-                            <Link 
-                              href={`/crm/contacts/${contacto.id}`}
-                              className="text-decoration-none fw-semibold d-block mb-2"
-                            >
-                              {contacto.nombre_completo || 'Sin nombre'}
-                            </Link>
-                            
-                            {/* Mostrar cargo si no es el mismo que el grupo */}
-                            {trayectoriaActual?.cargo && trayectoriaActual.cargo !== cargo && (
-                              <p className="mb-1 small text-muted">
-                                <Badge bg="info" className="me-1">{trayectoriaActual.cargo}</Badge>
-                              </p>
-                            )}
-                            
-                            {/* Mostrar todos los correos */}
-                            {todosLosEmails.length > 0 && (
-                              <div className="mb-2">
-                                <label className="text-muted small d-block mb-1">
-                                  <LuMail size={12} className="me-1" />
-                                  Correos:
-                                </label>
-                                {todosLosEmails.map((email, idx) => (
-                                  <p key={idx} className="mb-1 small">
-                                    <a href={`mailto:${email.email}`} className="text-decoration-none">
-                                      {email.email}
-                                    </a>
-                                    {email.principal && <Badge bg="primary" className="ms-1" style={{ fontSize: '0.65rem' }}>Principal</Badge>}
-                                  </p>
-                                ))}
-                              </div>
-                            )}
-                            
-                            {telefonoPrincipal && (
-                              <p className="mb-0 small text-muted">
-                                <LuPhone size={12} className="me-1" />
-                                {telefonoPrincipal.telefono_norm || telefonoPrincipal.telefono_raw}
-                              </p>
-                            )}
-                          </CardBody>
-                        </Card>
-                      </Col>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
+          <div className="table-responsive">
+            <Table hover className="align-middle">
+              <thead className="table-light">
+                <tr>
+                  <th style={{ width: '25%' }}>NOMBRE</th>
+                  <th style={{ width: '20%' }}>CARGO / CURSO</th>
+                  <th style={{ width: '20%' }}>EMAIL</th>
+                  <th style={{ width: '15%' }}>TELÉFONO</th>
+                  <th style={{ width: '20%' }} className="text-end">ACCIONES</th>
+                </tr>
+              </thead>
+              <tbody>
+                {contactos.map((contacto) => {
+                  const trayectoriaActual = contacto.trayectorias?.find((t) => t.is_current) || contacto.trayectorias?.[0]
+                  const telefonoPrincipal = contacto.telefonos?.find((t) => t.principal) || contacto.telefonos?.[0]
+                  const emailPrincipal = contacto.emails?.find((e) => e.principal) || contacto.emails?.[0]
+                  const cargoCurso = trayectoriaActual?.cursoNombre || trayectoriaActual?.cargo || '-'
+                  
+                  return (
+                    <tr key={contacto.id}>
+                      <td>
+                        <Link 
+                          href={`/crm/contacts/${contacto.id}`}
+                          className="text-decoration-none fw-semibold"
+                        >
+                          {contacto.nombre_completo || 'Sin nombre'}
+                        </Link>
+                      </td>
+                      <td>
+                        <Badge bg="info">{cargoCurso}</Badge>
+                      </td>
+                      <td>
+                        {emailPrincipal ? (
+                          <a href={`mailto:${emailPrincipal.email}`} className="text-decoration-none">
+                            {emailPrincipal.email}
+                          </a>
+                        ) : (
+                          <span className="text-muted">-</span>
+                        )}
+                      </td>
+                      <td>
+                        {telefonoPrincipal ? (
+                          <span>{telefonoPrincipal.telefono_norm || telefonoPrincipal.telefono_raw}</span>
+                        ) : (
+                          <span className="text-muted">-</span>
+                        )}
+                      </td>
+                      <td>
+                        <div className="d-flex justify-content-end gap-2">
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="p-1 text-primary"
+                            onClick={() => router.push(`/crm/contacts/${contacto.id}`)}
+                            title="Ver detalle"
+                          >
+                            <LuEye size={18} />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </Table>
           </div>
         )}
       </CardBody>
