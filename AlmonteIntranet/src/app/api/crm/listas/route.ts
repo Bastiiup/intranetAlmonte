@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     filters.push('fields[4]=paralelo')
     filters.push('fields[5]=versiones_materiales') // Campo JSON, no relación
     filters.push('fields[6]=activo')
-    filters.push('fields[7]=colegio') // Incluir relación con colegio
+    // colegio es una relación, se incluye con populate, no con fields
     filters.push('publicationState=preview')
 
     const queryString = filters.length > 0 ? `?${filters.join('&')}` : '?populate[colegio]=true&fields[0]=versiones_materiales&publicationState=preview'
