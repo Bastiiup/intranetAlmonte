@@ -205,14 +205,16 @@ export default function ActivarLibro({
       }
 
       // ===== ÉXITO =====
-      const libro = responseData.data;
+      // CRÍTICO: El backend ahora devuelve data: libro_mira directamente (no data.libro)
+      const libroMira = responseData.data;
       setSuccess(true);
-      setLibroActivado(libro);
+      setLibroActivado(libroMira);
       setCodigo(''); // Limpiar input
 
       // Llamar callback si existe
-      if (onLibroActivado) {
-        onLibroActivado(libro.libro);
+      // libroMira contiene: { id, activo, libro: { nombre_libro, portada_libro, ... } }
+      if (onLibroActivado && libroMira?.libro) {
+        onLibroActivado(libroMira.libro);
       }
 
       // CRÍTICO: Refrescar la página para que el libro aparezca inmediatamente
