@@ -176,7 +176,14 @@ const Contacts = () => {
               </div>
             )}
             <div>
-              <div className="fw-medium mb-1">{contact.name}</div>
+              <div className="fw-medium mb-1">
+                <Link 
+                  href={`/crm/contacts/${(contact as any).documentId || contact.id}`}
+                  className="text-decoration-none"
+                >
+                  {contact.name}
+                </Link>
+              </div>
               {contact.cargo && (
                 <div className="text-muted fs-xs">{contact.cargo}</div>
               )}

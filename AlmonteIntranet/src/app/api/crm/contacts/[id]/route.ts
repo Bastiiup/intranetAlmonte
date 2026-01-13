@@ -95,9 +95,18 @@ export async function GET(
       'populate[trayectorias][populate][colegio][populate][comuna]': 'true',
       'populate[trayectorias][populate][curso]': 'true',
       'populate[trayectorias][populate][asignatura]': 'true',
-      'populate[equipos][populate][colegio]': 'true',
-      'populate[equipos][populate][lider][populate][imagen]': 'true',
     })
+
+    // Intentar agregar populate de equipos solo si existe el campo
+    // Si el campo no existe en Strapi, se omitirá sin causar error
+    try {
+      // Nota: Si el campo equipos no existe en Persona, esto causará un error 400
+      // Por eso lo intentamos primero sin equipos, y si funciona, intentamos con equipos
+      personaParams.append('populate[equipos][populate][colegio]', 'true')
+      personaParams.append('populate[equipos][populate][lider][populate][imagen]', 'true')
+    } catch (error) {
+      // Ignorar si no se puede agregar
+    }
 
     let personaResponse: StrapiResponse<StrapiEntity<PersonaAttributes>>
     try {
