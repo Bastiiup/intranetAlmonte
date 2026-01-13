@@ -52,13 +52,19 @@ export async function GET(request: NextRequest) {
       filters.push(`filters[año][$eq]=${año}`)
     }
 
-    // Populate necesario
+    // Populate y fields necesarios
     filters.push('populate[colegio][fields][0]=colegio_nombre')
     filters.push('populate[colegio][fields][1]=rbd')
-    filters.push('populate[versiones_materiales]=true')
+    filters.push('fields[0]=nombre_curso')
+    filters.push('fields[1]=nivel')
+    filters.push('fields[2]=grado')
+    filters.push('fields[3]=año')
+    filters.push('fields[4]=paralelo')
+    filters.push('fields[5]=versiones_materiales') // Campo JSON, no relación
+    filters.push('fields[6]=activo')
     filters.push('publicationState=preview')
 
-    const queryString = filters.length > 0 ? `?${filters.join('&')}` : '?populate[colegio]=true&populate[versiones_materiales]=true&publicationState=preview'
+    const queryString = filters.length > 0 ? `?${filters.join('&')}` : '?populate[colegio]=true&fields[0]=versiones_materiales&publicationState=preview'
 
     debugLog('[API /crm/listas GET] Query:', queryString)
 
