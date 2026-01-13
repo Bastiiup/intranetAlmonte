@@ -1,5 +1,5 @@
-# Usar imagen base de Node.js 20.9.0 o superior
-FROM node:20.9.0-alpine
+# Usar imagen base de Node.js 20 LTS (más estable y disponible)
+FROM node:20-alpine
 
 # Instalar solo lo necesario para build
 RUN apk add --no-cache libc6-compat
