@@ -15,7 +15,7 @@ import {
 import Link from 'next/link'
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Button, Card, CardFooter, CardHeader, CardBody, Col, Row, Alert, Form } from 'react-bootstrap'
-import { LuSearch, LuMapPin, LuPhone, LuMail, LuUsers, LuPlus, LuX } from 'react-icons/lu'
+import { LuSearch, LuMapPin, LuPhone, LuMail, LuUsers, LuPlus, LuX, LuCalendar } from 'react-icons/lu'
 import { TbEye, TbEdit, TbTrash, TbLayoutGrid, TbList } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
@@ -86,6 +86,9 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
   const [globalFilter, setGlobalFilter] = useState('')
   const [tipo, setTipo] = useState('')
   const [region, setRegion] = useState('')
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState<string>('')
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState<string>('')
+  const [soloConContactos, setSoloConContactos] = useState<boolean>(false)
   
   // Estados de tabla
   const [sorting, setSorting] = useState<SortingState>([
@@ -357,6 +360,13 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     {
       id: 'contactos',
       header: 'CONTACTOS',
+      accessorFn: (row) => row.contactosCount || 0,
+      filterFn: (row, columnId, filterValue) => {
+        if (!filterValue) return true
+        const count = row.original.contactosCount || 0
+        return count > 0
+      },
+      enableColumnFilter: true,
       cell: ({ row }) => {
         const colegio = row.original
         return (
@@ -400,6 +410,24 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     {
       id: 'createdAtTimestamp',
       header: 'FECHA',
+      accessorFn: (row) => row.createdAtTimestamp || 0,
+      filterFn: (row, columnId, filterValue) => {
+        if (!filterValue || (!filterValue.desde && !filterValue.hasta)) return true
+        const createdAt = row.original.createdAt
+        if (!createdAt) return false
+        const fecha = new Date(createdAt)
+        const fechaDesde = filterValue.desde ? new Date(filterValue.desde) : null
+        const fechaHasta = filterValue.hasta ? new Date(filterValue.hasta) : null
+        
+        if (fechaDesde && fecha < fechaDesde) return false
+        if (fechaHasta) {
+          const fechaHastaFin = new Date(fechaHasta)
+          fechaHastaFin.setHours(23, 59, 59, 999) // Incluir todo el día
+          if (fecha > fechaHastaFin) return false
+        }
+        return true
+      },
+      enableColumnFilter: true,
       enableSorting: true,
       sortingFn: 'basic',
       cell: ({ row }) => {
@@ -513,10 +541,13 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     setGlobalFilter('')
     setTipo('')
     setRegion('')
+    setFiltroFechaDesde('')
+    setFiltroFechaHasta('')
+    setSoloConContactos(false)
     setColumnFilters([])
   }
 
-  const hasActiveFilters = globalFilter || tipo || region || columnFilters.length > 0
+  const hasActiveFilters = globalFilter || tipo || region || filtroFechaDesde || filtroFechaHasta || soloConContactos || columnFilters.length > 0
 
   const handleDelete = async () => {
     if (!deleteModal.colegio) return
@@ -581,7 +612,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     fetchColegios()
   }
 
-  // Aplicar filtros de tipo y región como columnFilters
+  // Aplicar filtros de tipo, región, fecha y contactos como columnFilters
   useEffect(() => {
     const filters: ColumnFiltersState = []
     if (tipo) {
@@ -590,8 +621,14 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     if (region) {
       filters.push({ id: 'region', value: region })
     }
+    if (filtroFechaDesde || filtroFechaHasta) {
+      filters.push({ id: 'createdAtTimestamp', value: { desde: filtroFechaDesde, hasta: filtroFechaHasta } })
+    }
+    if (soloConContactos) {
+      filters.push({ id: 'contactos', value: true })
+    }
     setColumnFilters(filters)
-  }, [tipo, region])
+  }, [tipo, region, filtroFechaDesde, filtroFechaHasta, soloConContactos])
 
   if (error && !colegios.length) {
     return (
@@ -638,12 +675,6 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
                   value={tipo}
                   onChange={(e) => {
                     setTipo(e.target.value)
-                    // Aplicar filtro directamente a la columna
-                    if (e.target.value) {
-                      table.getColumn('tipo')?.setFilterValue(e.target.value)
-                    } else {
-                      table.getColumn('tipo')?.setFilterValue(undefined)
-                    }
                   }}
                 >
                   {TIPOS.map((tip) => (
@@ -661,12 +692,6 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
                   value={region}
                   onChange={(e) => {
                     setRegion(e.target.value)
-                    // Aplicar filtro directamente a la columna
-                    if (e.target.value) {
-                      table.getColumn('region')?.setFilterValue(e.target.value)
-                    } else {
-                      table.getColumn('region')?.setFilterValue(undefined)
-                    }
                   }}
                 >
                   <option value="">Región</option>
@@ -677,6 +702,49 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
                   ))}
                 </select>
                 <LuMapPin className="app-search-icon text-muted" />
+              </div>
+
+              <div className="app-search">
+                <input
+                  type="date"
+                  className="form-control my-1 my-md-0"
+                  placeholder="Desde"
+                  value={filtroFechaDesde}
+                  onChange={(e) => {
+                    setFiltroFechaDesde(e.target.value)
+                  }}
+                  style={{ minWidth: '150px' }}
+                />
+                <LuCalendar className="app-search-icon text-muted" />
+              </div>
+
+              <div className="app-search">
+                <input
+                  type="date"
+                  className="form-control my-1 my-md-0"
+                  placeholder="Hasta"
+                  value={filtroFechaHasta}
+                  onChange={(e) => {
+                    setFiltroFechaHasta(e.target.value)
+                  }}
+                  style={{ minWidth: '150px' }}
+                />
+                <LuCalendar className="app-search-icon text-muted" />
+              </div>
+
+              <div className="d-flex align-items-center">
+                <input
+                  type="checkbox"
+                  className="form-check-input me-2"
+                  id="soloConContactos"
+                  checked={soloConContactos}
+                  onChange={(e) => {
+                    setSoloConContactos(e.target.checked)
+                  }}
+                />
+                <label htmlFor="soloConContactos" className="form-check-label mb-0" style={{ cursor: 'pointer' }}>
+                  Solo con contactos
+                </label>
               </div>
 
               {hasActiveFilters && (

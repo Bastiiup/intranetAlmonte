@@ -16,7 +16,7 @@ import {
 import { Alert, Button, Card, CardBody, CardFooter, CardHeader, Col, Container, OverlayTrigger, Row, Spinner, Tooltip } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { TbEdit, TbEye, TbMail, TbPhone, TbWorld } from 'react-icons/tb'
-import { LuSearch, LuShuffle, LuPlus, LuMapPin, LuX, LuUsers } from 'react-icons/lu'
+import { LuSearch, LuShuffle, LuPlus, LuMapPin, LuX, LuUsers, LuCalendar } from 'react-icons/lu'
 import { getContacts, type ContactsQuery } from './data'
 import type { ContactType } from '@/app/(admin)/(apps)/crm/types'
 import Image from 'next/image'
@@ -108,6 +108,8 @@ const Contacts = () => {
   const [filtroRegion, setFiltroRegion] = useState<string>('')
   const [filtroComuna, setFiltroComuna] = useState<string>('')
   const [filtroCargo, setFiltroCargo] = useState<string>('')
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState<string>('')
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState<string>('')
   const [columnOrder, setColumnOrder] = useState<string[]>([
     'select',
     'contacto',
@@ -210,7 +212,7 @@ const Contacts = () => {
     {
       id: 'ubicacion',
       header: 'UBICACIÓN',
-      accessorKey: 'comuna',
+      accessorFn: (row) => `${row.comuna || ''} ${row.region || ''}`,
       filterFn: 'includesString',
       enableColumnFilter: true,
       cell: ({ row }) => {
@@ -313,6 +315,24 @@ const Contacts = () => {
     {
       id: 'fechaOrigen',
       header: 'FECHA / ORIGEN',
+      accessorFn: (row) => row.createdAt ? new Date(row.createdAt).getTime() : 0,
+      filterFn: (row, columnId, filterValue) => {
+        if (!filterValue || (!filterValue.desde && !filterValue.hasta)) return true
+        const createdAt = row.original.createdAt
+        if (!createdAt) return false
+        const fecha = new Date(createdAt)
+        const fechaDesde = filterValue.desde ? new Date(filterValue.desde) : null
+        const fechaHasta = filterValue.hasta ? new Date(filterValue.hasta) : null
+        
+        if (fechaDesde && fecha < fechaDesde) return false
+        if (fechaHasta) {
+          const fechaHastaFin = new Date(fechaHasta)
+          fechaHastaFin.setHours(23, 59, 59, 999) // Incluir todo el día
+          if (fecha > fechaHastaFin) return false
+        }
+        return true
+      },
+      enableColumnFilter: true,
       cell: ({ row }) => {
         const contact = row.original
         const isNew = contact.createdAt && 
@@ -453,8 +473,12 @@ const Contacts = () => {
     if (filtroOrigen) {
       filters.push({ id: 'categories', value: filtroOrigen })
     }
+    // Filtro de fecha
+    if (filtroFechaDesde || filtroFechaHasta) {
+      filters.push({ id: 'fechaOrigen', value: { desde: filtroFechaDesde, hasta: filtroFechaHasta } })
+    }
     setColumnFilters(filters)
-  }, [filtroRegion, filtroComuna, filtroCargo, filtroConfianza, filtroOrigen])
+  }, [filtroRegion, filtroComuna, filtroCargo, filtroConfianza, filtroOrigen, filtroFechaDesde, filtroFechaHasta])
 
   // Función para cargar contactos
   const loadContacts = useCallback(async () => {
@@ -606,11 +630,6 @@ const Contacts = () => {
                     value={filtroComuna}
                     onChange={(e) => {
                       setFiltroComuna(e.target.value)
-                      if (e.target.value) {
-                        table.getColumn('ubicacion')?.setFilterValue(e.target.value)
-                      } else {
-                        table.getColumn('ubicacion')?.setFilterValue(undefined)
-                      }
                     }}
                   >
                     <option value="">Comuna</option>
@@ -629,11 +648,6 @@ const Contacts = () => {
                     value={filtroRegion}
                     onChange={(e) => {
                       setFiltroRegion(e.target.value)
-                      if (e.target.value) {
-                        table.getColumn('region')?.setFilterValue(e.target.value)
-                      } else {
-                        table.getColumn('region')?.setFilterValue(undefined)
-                      }
                     }}
                   >
                     <option value="">Región</option>
@@ -652,11 +666,6 @@ const Contacts = () => {
                     value={filtroCargo}
                     onChange={(e) => {
                       setFiltroCargo(e.target.value)
-                      if (e.target.value) {
-                        table.getColumn('cargo')?.setFilterValue(e.target.value)
-                      } else {
-                        table.getColumn('cargo')?.setFilterValue(undefined)
-                      }
                     }}
                   >
                     <option value="">Cargo</option>
@@ -675,11 +684,6 @@ const Contacts = () => {
                     value={filtroConfianza}
                     onChange={(e) => {
                       setFiltroConfianza(e.target.value)
-                      if (e.target.value) {
-                        table.getColumn('label')?.setFilterValue(e.target.value)
-                      } else {
-                        table.getColumn('label')?.setFilterValue(undefined)
-                      }
                     }}
                   >
                     {CONFIANZA.map((conf) => (
@@ -697,11 +701,6 @@ const Contacts = () => {
                     value={filtroOrigen}
                     onChange={(e) => {
                       setFiltroOrigen(e.target.value)
-                      if (e.target.value) {
-                        table.getColumn('categories')?.setFilterValue(e.target.value)
-                      } else {
-                        table.getColumn('categories')?.setFilterValue(undefined)
-                      }
                     }}
                   >
                     {ORIGENES.map((origen) => (
@@ -711,6 +710,34 @@ const Contacts = () => {
                     ))}
                   </select>
                   <LuShuffle className="app-search-icon text-muted" />
+                </div>
+
+                <div className="app-search">
+                  <input
+                    type="date"
+                    className="form-control my-1 my-md-0"
+                    placeholder="Desde"
+                    value={filtroFechaDesde}
+                    onChange={(e) => {
+                      setFiltroFechaDesde(e.target.value)
+                    }}
+                    style={{ minWidth: '150px' }}
+                  />
+                  <LuCalendar className="app-search-icon text-muted" />
+                </div>
+
+                <div className="app-search">
+                  <input
+                    type="date"
+                    className="form-control my-1 my-md-0"
+                    placeholder="Hasta"
+                    value={filtroFechaHasta}
+                    onChange={(e) => {
+                      setFiltroFechaHasta(e.target.value)
+                    }}
+                    style={{ minWidth: '150px' }}
+                  />
+                  <LuCalendar className="app-search-icon text-muted" />
                 </div>
 
                 {hasActiveFilters && (
