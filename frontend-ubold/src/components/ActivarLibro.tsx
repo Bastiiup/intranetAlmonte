@@ -146,8 +146,9 @@ export default function ActivarLibro({
       // ===== MANEJO DE ERRORES =====
 
       // 404: Código inválido (no existe la licencia)
+      // Backend devuelve: "El código ingresado no existe."
       if (response.status === 404) {
-        const errorMsg = 'Código inválido. Verifica que hayas ingresado el código correctamente.';
+        const errorMsg = responseData.message || responseData.error?.message || 'El código ingresado no existe.';
         setError(errorMsg);
         if (onError) onError(errorMsg);
         setLoading(false);
@@ -155,17 +156,14 @@ export default function ActivarLibro({
       }
 
       // 400: Licencia ya utilizada o libro inactivo
+      // Backend devuelve: "Este código ya fue utilizado por otro alumno." o "El libro no está disponible para activación"
       if (response.status === 400) {
-        const errorMessage = responseData.error?.message || 'Error al activar el libro';
-        
-        let errorMsg = '';
-        if (errorMessage.includes('ya fue utilizada')) {
-          errorMsg = 'Esta licencia ya fue utilizada. Cada código solo puede ser usado una vez.';
-        } else if (errorMessage.includes('no está disponible')) {
-          errorMsg = 'El libro no está disponible para activación en este momento.';
-        } else {
-          errorMsg = errorMessage;
-        }
+        const errorMessage = responseData.message || responseData.error?.message || 'Error al activar el libro';
+        setError(errorMessage);
+        if (onError) onError(errorMessage);
+        setLoading(false);
+        return;
+      }
 
         setError(errorMsg);
         if (onError) onError(errorMsg);
