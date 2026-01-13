@@ -87,7 +87,8 @@ export async function GET(
     const { id: contactId } = await params
 
     // PASO 1: Obtener el contacto (persona) con todas sus relaciones
-    const personaParams = new URLSearchParams({
+    // Parámetros base (sin equipos, por si el campo no existe aún en Strapi)
+    const personaParamsBase = new URLSearchParams({
       'populate[emails]': 'true',
       'populate[telefonos]': 'true',
       'populate[imagen]': 'true',
@@ -97,16 +98,10 @@ export async function GET(
       'populate[trayectorias][populate][asignatura]': 'true',
     })
 
-    // Intentar agregar populate de equipos solo si existe el campo
-    // Si el campo no existe en Strapi, se omitirá sin causar error
-    try {
-      // Nota: Si el campo equipos no existe en Persona, esto causará un error 400
-      // Por eso lo intentamos primero sin equipos, y si funciona, intentamos con equipos
-      personaParams.append('populate[equipos][populate][colegio]', 'true')
-      personaParams.append('populate[equipos][populate][lider][populate][imagen]', 'true')
-    } catch (error) {
-      // Ignorar si no se puede agregar
-    }
+    // Parámetros con equipos (intentar primero)
+    const personaParamsConEquipos = new URLSearchParams(personaParamsBase)
+    personaParamsConEquipos.append('populate[equipos][populate][colegio]', 'true')
+    personaParamsConEquipos.append('populate[equipos][populate][lider][populate][imagen]', 'true')
 
     let personaResponse: StrapiResponse<StrapiEntity<PersonaAttributes>>
     try {
@@ -256,37 +251,40 @@ export async function GET(
       ).values()
     )
 
-    // PASO 5: Obtener y normalizar equipos
-    const equiposRaw = personaAttrs.equipos?.data || personaAttrs.equipos || []
-    const equiposArray = Array.isArray(equiposRaw) ? equiposRaw : [equiposRaw]
-    
-    const equipos = equiposArray
-      .map((eq: any) => {
-        const eqAttrs = eq.attributes || eq
-        const colegioData = eqAttrs.colegio?.data || eqAttrs.colegio
-        const colegioAttrs = colegioData?.attributes || colegioData
-        const liderData = eqAttrs.lider?.data || eqAttrs.lider
-        const liderAttrs = liderData?.attributes || liderData
+    // PASO 5: Obtener y normalizar equipos (solo si el campo existe)
+    let equipos: any[] = []
+    if (usarEquipos && personaAttrs.equipos) {
+      const equiposRaw = personaAttrs.equipos?.data || personaAttrs.equipos || []
+      const equiposArray = Array.isArray(equiposRaw) ? equiposRaw : [equiposRaw]
+      
+      equipos = equiposArray
+        .map((eq: any) => {
+          const eqAttrs = eq.attributes || eq
+          const colegioData = eqAttrs.colegio?.data || eqAttrs.colegio
+          const colegioAttrs = colegioData?.attributes || colegioData
+          const liderData = eqAttrs.lider?.data || eqAttrs.lider
+          const liderAttrs = liderData?.attributes || liderData
 
-        return {
-          id: eq.id || eq.documentId,
-          documentId: eq.documentId || String(eq.id || ''),
-          nombre: eqAttrs.nombre || '',
-          descripcion: eqAttrs.descripcion || '',
-          activo: eqAttrs.activo !== undefined ? eqAttrs.activo : true,
-          colegio: colegioData ? {
-            id: colegioData.id || colegioData.documentId,
-            documentId: colegioData.documentId || String(colegioData.id || ''),
-            nombre: colegioAttrs?.colegio_nombre || '',
-          } : null,
-          lider: liderData ? {
-            id: liderData.id || liderData.documentId,
-            documentId: liderData.documentId || String(liderData.id || ''),
-            nombre: liderAttrs?.nombre_completo || '',
-          } : null,
-        }
-      })
-      .filter((eq: any) => eq.nombre) // Solo equipos con nombre válido
+          return {
+            id: eq.id || eq.documentId,
+            documentId: eq.documentId || String(eq.id || ''),
+            nombre: eqAttrs.nombre || '',
+            descripcion: eqAttrs.descripcion || '',
+            activo: eqAttrs.activo !== undefined ? eqAttrs.activo : true,
+            colegio: colegioData ? {
+              id: colegioData.id || colegioData.documentId,
+              documentId: colegioData.documentId || String(colegioData.id || ''),
+              nombre: colegioAttrs?.colegio_nombre || '',
+            } : null,
+            lider: liderData ? {
+              id: liderData.id || liderData.documentId,
+              documentId: liderData.documentId || String(liderData.id || ''),
+              nombre: liderAttrs?.nombre_completo || '',
+            } : null,
+          }
+        })
+        .filter((eq: any) => eq.nombre) // Solo equipos con nombre válido
+    }
 
     return NextResponse.json({
       success: true,
