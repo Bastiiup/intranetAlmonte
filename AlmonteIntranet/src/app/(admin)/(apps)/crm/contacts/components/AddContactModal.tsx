@@ -52,6 +52,8 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
   const [selectedColegio, setSelectedColegio] = useState<ColegioSelectOption | null>(null)
   const [formData, setFormData] = useState({
     nombres: '',
+    primer_apellido: '',
+    segundo_apellido: '',
     email: '',
     cargo: '',
     telefono: '',
@@ -201,6 +203,8 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
       // Preparar datos para Strapi (sin trayectoria, la crearemos después)
       const contactData: any = {
         nombres: formData.nombres.trim(),
+        ...(formData.primer_apellido && { primer_apellido: formData.primer_apellido.trim() }),
+        ...(formData.segundo_apellido && { segundo_apellido: formData.segundo_apellido.trim() }),
         emails: [{
           email: formData.email.trim(),
           principal: true,
@@ -426,6 +430,8 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
       // Limpiar formulario
       setFormData({
         nombres: '',
+        primer_apellido: '',
+        segundo_apellido: '',
         email: '',
         cargo: '',
         telefono: '',
@@ -469,14 +475,14 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
           )}
 
           <Row>
-            <Col md={6}>
+            <Col md={4}>
               <FormGroup className="mb-3">
                 <FormLabel>
-                  Nombre <span className="text-danger">*</span>
+                  Nombres <span className="text-danger">*</span>
                 </FormLabel>
                 <FormControl
                   type="text"
-                  placeholder="Nombre completo"
+                  placeholder="Ej: Juan Carlos"
                   value={formData.nombres}
                   onChange={(e) => handleFieldChange('nombres', e.target.value)}
                   required
@@ -484,6 +490,37 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
                 />
               </FormGroup>
             </Col>
+            <Col md={4}>
+              <FormGroup className="mb-3">
+                <FormLabel>
+                  Primer Apellido
+                </FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="Ej: Pérez"
+                  value={formData.primer_apellido}
+                  onChange={(e) => handleFieldChange('primer_apellido', e.target.value)}
+                  disabled={loading}
+                />
+              </FormGroup>
+            </Col>
+            <Col md={4}>
+              <FormGroup className="mb-3">
+                <FormLabel>
+                  Segundo Apellido
+                </FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="Ej: González"
+                  value={formData.segundo_apellido}
+                  onChange={(e) => handleFieldChange('segundo_apellido', e.target.value)}
+                  disabled={loading}
+                />
+              </FormGroup>
+            </Col>
+          </Row>
+
+          <Row>
             <Col md={6}>
               <FormGroup className="mb-3">
                 <FormLabel>
