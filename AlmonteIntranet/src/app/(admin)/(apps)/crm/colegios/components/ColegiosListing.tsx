@@ -532,6 +532,10 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError, initi
     },
   ], [colegios])
 
+  // Calcular totalItems antes de usarlo en la tabla
+  // Usar totalRows del servidor siempre que esté disponible, sino usar datos locales como fallback
+  const totalItems = totalRows > 0 ? totalRows : mappedColegios.length
+
   const table = useReactTable<ColegioType>({
     data: mappedColegios,
     columns,
@@ -559,8 +563,6 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError, initi
 
   const pageIndex = table.getState().pagination.pageIndex
   const pageSize = table.getState().pagination.pageSize
-  // Usar totalRows del servidor siempre que esté disponible, sino usar datos locales como fallback
-  const totalItems = totalRows > 0 ? totalRows : mappedColegios.length
 
   const start = pageIndex * pageSize + 1
   const end = Math.min(start + pageSize - 1, totalItems)
