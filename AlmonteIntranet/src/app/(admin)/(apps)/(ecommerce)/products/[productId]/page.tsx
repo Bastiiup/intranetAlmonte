@@ -194,7 +194,8 @@ export default function Page() {
                       onProductoUpdate={updateProductoLocal}
                     />
 
-                    <ProductReviews producto={producto} />
+                    {/* ProductReviews oculto temporalmente - no se usa por ahora */}
+                    {/* <ProductReviews producto={producto} /> */}
                   </div>
                 </Col>
               </Row>
