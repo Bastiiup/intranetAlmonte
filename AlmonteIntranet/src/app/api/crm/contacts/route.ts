@@ -295,7 +295,8 @@ export async function POST(request: Request) {
               colegio: { connect: [colegioIdNum] },
               cargo: body.trayectoria.cargo || null,
               is_current: body.trayectoria.is_current !== undefined ? body.trayectoria.is_current : true,
-              activo: true,
+              // ⚠️ NOTA: activo es un campo de persona, NO de persona-trayectorias
+              // No incluir activo aquí
             },
           }
           

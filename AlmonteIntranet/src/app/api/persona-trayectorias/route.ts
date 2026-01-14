@@ -22,9 +22,10 @@ export async function POST(request: NextRequest) {
     // ⚠️ DEBUG: Verificar si hay campos no permitidos en body.data
     if (body.data) {
       const camposPermitidosList = [
-        'persona', 'colegio', 'cargo', 'anio', 'curso', 'asignatura', 'is_current', 'activo', 
+        'persona', 'colegio', 'cargo', 'anio', 'curso', 'asignatura', 'is_current', 
         'fecha_inicio', 'fecha_fin', 'notas', 'curso_asignatura', 'org_display_name', 
         'role_key', 'department', 'colegio_region', 'correo', 'fecha_registro', 'ultimo_acceso'
+        // ⚠️ NOTA: activo NO es un campo de persona-trayectorias, es un campo de persona
       ]
       const camposProhibidosList = [
         'region', 'comuna', 'dependencia', 'zona', 'colegio_nombre', 'rbd',
@@ -125,9 +126,10 @@ export async function POST(request: NextRequest) {
     // NO incluir: region, comuna, dependencia, zona (esos son campos del colegio, no de la trayectoria)
     
     // Lista estricta de campos permitidos según la estructura real de persona-trayectorias
+    // ⚠️ NOTA: activo NO es un campo de persona-trayectorias, es un campo de persona
     const camposPermitidos = new Set([
       'persona', 'colegio', 'cargo', 'anio', 'curso', 'asignatura', 
-      'is_current', 'activo', 'fecha_inicio', 'fecha_fin', 'notas',
+      'is_current', 'fecha_inicio', 'fecha_fin', 'notas',
       'curso_asignatura', 'org_display_name', 'role_key', 'department',
       'colegio_region', 'correo', 'fecha_registro', 'ultimo_acceso'
     ])
@@ -184,7 +186,7 @@ export async function POST(request: NextRequest) {
           payloadLimpio.data[campo] = { connect: [parseInt(String(body.data[campo].connect[0]))] }
         } else if (campo === 'asignatura' && body.data[campo]?.connect && Array.isArray(body.data[campo].connect) && body.data[campo].connect.length > 0) {
           payloadLimpio.data[campo] = { connect: [parseInt(String(body.data[campo].connect[0]))] }
-        } else if (campo === 'is_current' || campo === 'activo') {
+        } else if (campo === 'is_current') {
           payloadLimpio.data[campo] = Boolean(body.data[campo])
         } else {
           payloadLimpio.data[campo] = body.data[campo] || null
@@ -281,8 +283,7 @@ export async function POST(request: NextRequest) {
       colegio: payloadLimpio.data.colegio,
       cargo: payloadLimpio.data.cargo,
       is_current: payloadLimpio.data.is_current,
-      activo: payloadLimpio.data.activo,
-      otrosCampos: Object.keys(payloadLimpio.data).filter(k => !['persona', 'colegio', 'cargo', 'is_current', 'activo'].includes(k)),
+      otrosCampos: Object.keys(payloadLimpio.data).filter(k => !['persona', 'colegio', 'cargo', 'is_current'].includes(k)),
     })
 
     // ⚠️ IMPORTANTE: El content type en Strapi es "persona-trayectorias"
@@ -305,9 +306,7 @@ export async function POST(request: NextRequest) {
     if (payloadFinal.data.is_current !== undefined) {
       payloadParaEnviar.data.is_current = payloadFinal.data.is_current
     }
-    if (payloadFinal.data.activo !== undefined) {
-      payloadParaEnviar.data.activo = payloadFinal.data.activo
-    }
+    // ⚠️ NOTA: activo NO se incluye porque es un campo de persona, no de persona-trayectorias
     if (payloadFinal.data.anio !== undefined) {
       payloadParaEnviar.data.anio = payloadFinal.data.anio
     }
@@ -356,7 +355,8 @@ export async function POST(request: NextRequest) {
     const payloadFinalLimpio = JSON.parse(payloadString)
     
     // Eliminar explícitamente cualquier campo prohibido que pueda haber quedado
-    const camposProhibidosFinal = ['region', 'comuna', 'dependencia', 'zona', 'colegio_nombre', 'rbd', 'telefonos', 'emails', 'direcciones', 'website', 'estado']
+    // ⚠️ NOTA: activo también se elimina porque es un campo de persona, no de persona-trayectorias
+    const camposProhibidosFinal = ['region', 'comuna', 'dependencia', 'zona', 'colegio_nombre', 'rbd', 'telefonos', 'emails', 'direcciones', 'website', 'estado', 'activo']
     camposProhibidosFinal.forEach(campo => {
       if (campo in payloadFinalLimpio.data) {
         console.error(`[API /persona-trayectorias POST] ❌ ERROR: ${campo} encontrado en payloadFinalLimpio, eliminando`)
