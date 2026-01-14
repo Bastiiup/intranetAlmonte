@@ -561,11 +561,19 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError, initi
     },
   })
 
-  const pageIndex = table.getState().pagination.pageIndex
-  const pageSize = table.getState().pagination.pageSize
+  // Obtener pageIndex y pageSize directamente del estado de paginación
+  const pageIndex = pagination.pageIndex
+  const pageSize = pagination.pageSize
 
-  const start = pageIndex * pageSize + 1
-  const end = Math.min(start + pageSize - 1, totalItems)
+  // Calcular start y end basándose en la página actual del servidor
+  // Usar useMemo para recalcular cuando cambien pageIndex, pageSize o totalItems
+  const start = useMemo(() => {
+    return pageIndex * pageSize + 1
+  }, [pageIndex, pageSize])
+  
+  const end = useMemo(() => {
+    return Math.min(start + pageSize - 1, totalItems)
+  }, [start, pageSize, totalItems])
 
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false)
 
