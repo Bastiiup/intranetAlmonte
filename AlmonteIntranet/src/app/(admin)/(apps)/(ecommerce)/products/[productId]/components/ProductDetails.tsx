@@ -399,7 +399,11 @@ export function ProductDetails({ producto, onUpdate, onProductoUpdate }: Product
                 <Form.Control
                   type="text"
                   value={formData.isbn_libro}
-                  onChange={(e) => setFormData({...formData, isbn_libro: e.target.value})}
+                  onChange={(e) => {
+                    // Formatear para que solo queden números
+                    const numericValue = e.target.value.replace(/\D/g, '')
+                    setFormData({...formData, isbn_libro: numericValue})
+                  }}
                 />
               </Form.Group>
             </Col>

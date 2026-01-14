@@ -88,7 +88,11 @@ const ProductInformation = ({
                 id="skuId" 
                 placeholder="ISBN-123456 (o déjalo vacío para generar automático)" 
                 value={isbn_libro}
-                onChange={(e) => onIsbnChange?.(e.target.value)}
+                onChange={(e) => {
+                  // Formatear para que solo queden números
+                  const numericValue = e.target.value.replace(/\D/g, '')
+                  onIsbnChange?.(numericValue)
+                }}
               />
               <small className="text-muted">
                 Si dejas este campo vacío, se generará un ISBN único automáticamente.

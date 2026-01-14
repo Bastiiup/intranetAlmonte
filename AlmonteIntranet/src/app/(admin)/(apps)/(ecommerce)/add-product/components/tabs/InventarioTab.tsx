@@ -21,7 +21,11 @@ const InventarioTab = memo(function InventarioTab({ formData, updateField }: Inv
               type="text"
               placeholder="SKU del producto"
               value={formData.sku || formData.isbn_libro || ''}
-              onChange={(e) => updateField('sku', e.target.value)}
+              onChange={(e) => {
+                // Formatear para que solo queden números
+                const numericValue = e.target.value.replace(/\D/g, '')
+                updateField('sku', numericValue)
+              }}
             />
             <small className="text-muted">Código único del producto (se puede usar el ISBN)</small>
           </FormGroup>
@@ -34,7 +38,11 @@ const InventarioTab = memo(function InventarioTab({ formData, updateField }: Inv
               type="text"
               placeholder="ISBN del libro"
               value={formData.isbn_libro || ''}
-              onChange={(e) => updateField('isbn_libro', e.target.value)}
+              onChange={(e) => {
+                // Formatear para que solo queden números
+                const numericValue = e.target.value.replace(/\D/g, '')
+                updateField('isbn_libro', numericValue)
+              }}
             />
             <small className="text-muted">Identificador internacional del producto</small>
           </FormGroup>
