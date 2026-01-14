@@ -75,7 +75,7 @@ const TIPOS = [
   { value: 'Administración Delegada', label: 'Administración Delegada' },
 ]
 
-const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { colegios: any[]; error: string | null }) => {
+const ColegiosListing = ({ colegios: initialColegios, error: initialError, initialTotalRows = 0 }: { colegios: any[]; error: string | null; initialTotalRows?: number }) => {
   const router = useRouter()
   const [colegios, setColegios] = useState<any[]>(initialColegios)
   const [error, setError] = useState<string | null>(initialError)
@@ -96,7 +96,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
   ])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
-  const [totalRows, setTotalRows] = useState(0)
+  const [totalRows, setTotalRows] = useState(initialTotalRows || initialColegios.length)
   
   // Estados de modales
   const [editModal, setEditModal] = useState<{ open: boolean; colegio: any | null }>({ open: false, colegio: null })
@@ -157,14 +157,19 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     }
   }, [globalFilter, tipo, region, pagination.pageIndex, pagination.pageSize])
 
-  // Debounce para búsqueda
+  // Efecto para búsqueda con debounce
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
+    // Solo aplicar debounce para búsqueda, no para paginación
+    if (globalFilter) {
+      const timeoutId = setTimeout(() => {
+        fetchColegios()
+      }, 300)
+      return () => clearTimeout(timeoutId)
+    } else {
+      // Sin debounce para cambios de paginación o filtros
       fetchColegios()
-    }, 300)
-
-    return () => clearTimeout(timeoutId)
-  }, [fetchColegios])
+    }
+  }, [fetchColegios, globalFilter])
 
   // Función para generar iniciales
   const generarIniciales = (nombre: string) => {
@@ -538,10 +543,10 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    pageCount: Math.ceil(totalItems / pagination.pageSize), // Total de páginas basado en totalItems del servidor
     enableColumnFilters: true,
     enableRowSelection: true,
-    manualPagination: false, // Paginación del cliente (como productos)
+    manualPagination: true, // Paginación del servidor
     filterFns: {
       includesString: (row, columnId, filterValue) => {
         const value = row.getValue(columnId) as string
@@ -554,8 +559,8 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
 
   const pageIndex = table.getState().pagination.pageIndex
   const pageSize = table.getState().pagination.pageSize
-  // Usar totalRows del servidor cuando hay búsqueda/filtros, sino usar datos locales
-  const totalItems = globalFilter || tipo || region ? (totalRows > 0 ? totalRows : mappedColegios.length) : mappedColegios.length
+  // Usar totalRows del servidor siempre que esté disponible, sino usar datos locales como fallback
+  const totalItems = totalRows > 0 ? totalRows : mappedColegios.length
 
   const start = pageIndex * pageSize + 1
   const end = Math.min(start + pageSize - 1, totalItems)

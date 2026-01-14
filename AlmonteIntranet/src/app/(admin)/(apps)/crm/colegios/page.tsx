@@ -15,6 +15,7 @@ export const metadata: Metadata = {
 export default async function Page() {
   let colegios: any[] = []
   let error: string | null = null
+  let totalRows: number = 0
 
   try {
     // Usar API Route como proxy
@@ -31,7 +32,8 @@ export default async function Page() {
     
     if (data.success && data.data) {
       colegios = Array.isArray(data.data) ? data.data : [data.data]
-      console.log('[Colegios Page] Colegios obtenidos:', colegios.length)
+      totalRows = data.meta?.pagination?.total || colegios.length
+      console.log('[Colegios Page] Colegios obtenidos:', colegios.length, 'Total:', totalRows)
     } else {
       error = data.error || 'Error al obtener colegios'
       console.error('[Colegios Page] Error en respuesta:', data)
@@ -48,7 +50,7 @@ export default async function Page() {
         subtitle="CRM" 
         infoText="Los Colegios son instituciones educativas con las que trabajas. Aquí puedes gestionar información completa de cada colegio: datos de contacto, ubicación, representantes comerciales, y ver todos los contactos asociados. Los colegios pueden estar relacionados con oportunidades de venta y leads."
       />
-      <ColegiosListing colegios={colegios} error={error} />
+      <ColegiosListing colegios={colegios} error={error} initialTotalRows={totalRows} />
     </Container>
   )
 }
