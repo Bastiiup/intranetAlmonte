@@ -157,19 +157,34 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError, initi
     }
   }, [globalFilter, tipo, region, pagination.pageIndex, pagination.pageSize])
 
-  // Efecto para búsqueda con debounce
+  // Efecto para cambios de paginación - ejecutar inmediatamente sin debounce
   useEffect(() => {
-    // Solo aplicar debounce para búsqueda, no para paginación
+    fetchColegios()
+  }, [pagination.pageIndex, pagination.pageSize, fetchColegios])
+
+  // Efecto para búsqueda con debounce (solo cuando cambia globalFilter, no cuando cambia paginación)
+  useEffect(() => {
     if (globalFilter) {
+      // Resetear a página 1 cuando cambia la búsqueda
+      setPagination(prev => ({ ...prev, pageIndex: 0 }))
       const timeoutId = setTimeout(() => {
         fetchColegios()
       }, 300)
       return () => clearTimeout(timeoutId)
-    } else {
-      // Sin debounce para cambios de paginación o filtros
+    } else if (globalFilter === '') {
+      // Si se limpia la búsqueda, también resetear y recargar
+      setPagination(prev => ({ ...prev, pageIndex: 0 }))
       fetchColegios()
     }
-  }, [fetchColegios, globalFilter])
+  }, [globalFilter, fetchColegios])
+
+  // Efecto para cambios de filtros (tipo, region) - resetear a página 1
+  useEffect(() => {
+    if (tipo || region) {
+      // Resetear a página 1 cuando cambian los filtros
+      setPagination(prev => ({ ...prev, pageIndex: 0 }))
+    }
+  }, [tipo, region])
 
   // Función para generar iniciales
   const generarIniciales = (nombre: string) => {
