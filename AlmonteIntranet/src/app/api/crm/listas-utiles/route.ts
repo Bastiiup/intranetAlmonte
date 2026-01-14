@@ -46,13 +46,14 @@ export async function GET(request: NextRequest) {
       filters.push(`filters[activo][$eq]=${activo === 'true'}`)
     }
 
-    // Populate materiales, colegio y curso
+    // Populate materiales y curso (colegio se obtiene a través de curso)
+    // ⚠️ NOTA: listas-utiles NO tiene relación directa con colegio, la relación es: listas-utiles -> curso -> colegio
     // Nota: No incluimos 'pdf' porque puede no existir en Strapi aún
     filters.push('populate[materiales]=true')
-    filters.push('populate[colegio]=true')
     filters.push('populate[curso]=true')
+    filters.push('populate[curso][populate][colegio]=true') // Colegio a través de curso
 
-    const queryString = filters.length > 0 ? `?${filters.join('&')}` : '?populate[materiales]=true&populate[colegio]=true&populate[curso]=true'
+    const queryString = filters.length > 0 ? `?${filters.join('&')}` : '?populate[materiales]=true&populate[curso]=true&populate[curso][populate][colegio]=true'
 
     debugLog('[API /crm/listas-utiles GET] Query:', queryString)
 

@@ -94,6 +94,7 @@ export default function ListaModal({ show, onHide, lista, onSuccess }: ListaModa
   }, [show, formData.colegio])
 
   // Cargar datos de la lista si se está editando
+  // ⚠️ IMPORTANTE: Resetear completamente el estado cuando el modal se cierra o se abre
   useEffect(() => {
     if (show) {
       if (lista) {
@@ -103,12 +104,24 @@ export default function ListaModal({ show, onHide, lista, onSuccess }: ListaModa
         })
         setSelectedColegioId(lista.colegio?.id || null)
       } else {
+        // Resetear completamente para nueva lista
         setFormData({
           colegio: null,
           curso: null,
         })
         setSelectedColegioId(null)
+        setCursos([]) // Limpiar cursos también
       }
+      setSelectedPDF(null)
+      setError(null)
+    } else {
+      // Cuando el modal se cierra, resetear todo
+      setFormData({
+        colegio: null,
+        curso: null,
+      })
+      setSelectedColegioId(null)
+      setCursos([])
       setSelectedPDF(null)
       setError(null)
     }
@@ -276,12 +289,13 @@ export default function ListaModal({ show, onHide, lista, onSuccess }: ListaModa
                     options={colegios}
                     value={colegios.find((c) => c.value === formData.colegio)}
                     onChange={(option) => {
-                      setFormData((prev) => ({
-                        ...prev,
-                        colegio: option?.value || null,
+                      const nuevoColegioId = option?.value || null
+                      setFormData({
+                        colegio: nuevoColegioId,
                         curso: null, // Resetear curso al cambiar colegio
-                      }))
-                      setSelectedColegioId(option?.value || null)
+                      })
+                      setSelectedColegioId(nuevoColegioId)
+                      setCursos([]) // Limpiar cursos al cambiar colegio
                     }}
                     isLoading={loadingColegios}
                     placeholder="Seleccionar colegio..."

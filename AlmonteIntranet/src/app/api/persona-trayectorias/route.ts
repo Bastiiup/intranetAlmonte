@@ -66,6 +66,13 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+    
+    // ⚠️ CRÍTICO: Eliminar 'activo' inmediatamente si viene en body.data
+    // activo es un campo de persona, NO de persona-trayectorias
+    if (body.data.activo !== undefined) {
+      console.warn('[API /persona-trayectorias POST] ⚠️ Campo activo detectado en body.data, eliminándolo inmediatamente (es campo de persona, no de trayectoria)')
+      delete body.data.activo
+    }
 
     // Validar persona
     let personaIdNum: number | null = null
@@ -169,6 +176,12 @@ export async function POST(request: NextRequest) {
     // Agregar solo campos permitidos que vengan en body.data
     // ⚠️ IMPORTANTE: Iterar solo sobre campos permitidos, NO sobre todo body.data
     // ⚠️ CRÍTICO: NO copiar ningún campo que no esté explícitamente en camposPermitidos
+    // ⚠️ CRÍTICO: Eliminar explícitamente 'activo' si viene en body.data
+    if (body.data.activo !== undefined) {
+      console.warn('[API /persona-trayectorias POST] ⚠️ Campo activo detectado en body.data, eliminándolo (es campo de persona, no de trayectoria)')
+      delete body.data.activo
+    }
+    
     for (const campo of camposPermitidos) {
       if (campo === 'persona' || campo === 'colegio') continue // Ya los agregamos arriba
       
@@ -353,7 +366,7 @@ export async function POST(request: NextRequest) {
     // ⚠️ VERIFICACIÓN FINAL ABSOLUTA: Convertir a string y parsear de nuevo para asegurar limpieza
     const payloadString = JSON.stringify(parsedPayload)
     const payloadFinalLimpio = JSON.parse(payloadString)
-    
+
     // Eliminar explícitamente cualquier campo prohibido que pueda haber quedado
     // ⚠️ NOTA: activo también se elimina porque es un campo de persona, no de persona-trayectorias
     const camposProhibidosFinal = ['region', 'comuna', 'dependencia', 'zona', 'colegio_nombre', 'rbd', 'telefonos', 'emails', 'direcciones', 'website', 'estado', 'activo']
@@ -363,6 +376,12 @@ export async function POST(request: NextRequest) {
         delete payloadFinalLimpio.data[campo]
       }
     })
+    
+    // ⚠️ VERIFICACIÓN EXTRA: Asegurar que activo NO esté presente
+    if ('activo' in payloadFinalLimpio.data) {
+      console.error('[API /persona-trayectorias POST] ❌ ERROR CRÍTICO: activo aún presente después de limpieza, eliminando forzadamente')
+      delete payloadFinalLimpio.data.activo
+    }
     
     console.log('[API /persona-trayectorias POST] 📤 Payload FINAL para enviar a Strapi:', JSON.stringify(payloadFinalLimpio, null, 2))
     console.log('[API /persona-trayectorias POST] 📋 Campos en payloadFinalLimpio.data:', Object.keys(payloadFinalLimpio.data))
