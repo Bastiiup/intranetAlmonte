@@ -699,13 +699,13 @@ export async function PUT(
       }
 
       // Función helper para obtener nombre de imagen desde relación
-      const getImageName = (imagen: any): string => {
+      const getImageName = (imagen: any): string | null => {
         if (!imagen) return null
         if (typeof imagen === 'number') return `ID: ${imagen}`
         if (typeof imagen === 'string') return imagen
         const imgData = imagen.data || imagen
         const imgAttrs = imgData?.attributes || imgData
-        return imgAttrs?.name || imgAttrs?.url || imgAttrs?.filename || `ID: ${imgData?.id || imagen}`
+        return imgAttrs?.name || imgAttrs?.url || imgAttrs?.filename || `ID: ${imgData?.id || imagen}` || null
       }
 
       // Campos básicos
