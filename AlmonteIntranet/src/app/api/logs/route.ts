@@ -26,8 +26,9 @@ export async function GET(request: NextRequest) {
     const sortOrder = sort.split(':')[1] || 'desc'
     
     // Construir parámetros de filtro
+    // Populate completo del usuario con su persona para obtener el nombre
     const params = new URLSearchParams({
-      'populate[usuario][populate]': '*',
+      'populate[usuario][populate][persona][populate]': '*',
       'pagination[page]': page.toString(),
       'pagination[pageSize]': pageSize.toString(),
       'sort': `${sortField}:${sortOrder}`

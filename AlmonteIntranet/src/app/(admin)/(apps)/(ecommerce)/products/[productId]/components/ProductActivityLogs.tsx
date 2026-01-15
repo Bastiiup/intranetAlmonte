@@ -45,7 +45,13 @@ const ProductActivityLogs = ({ productId }: ProductActivityLogsProps) => {
     try {
       const response = await fetch(
         `/api/logs?entidad=producto&entidad_id=${productId}&pageSize=100&sort=fecha:desc`,
-        { cache: 'no-store' }
+        { 
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+          }
+        }
       )
 
       const result = await response.json()
@@ -57,27 +63,59 @@ const ProductActivityLogs = ({ productId }: ProductActivityLogsProps) => {
         const transformedLogs = logsArray.map((log: any) => {
           const attrs = log.attributes || log
           
-          // Extraer usuario
+          // Extraer usuario - manejar diferentes estructuras de respuesta de Strapi
           let usuario: any = undefined
           if (attrs.usuario) {
+            // Strapi puede devolver el usuario en diferentes formatos:
+            // 1. { data: { id, attributes: { ... } } }
+            // 2. { id, attributes: { ... } }
+            // 3. { id, ... } (sin attributes)
             const usuarioData = attrs.usuario.data || attrs.usuario
-            const usuarioAttrs = usuarioData?.attributes || usuarioData
+            const usuarioAttrs = usuarioData?.attributes || usuarioData || attrs.usuario
             
             if (usuarioAttrs) {
-              const persona = usuarioAttrs.persona?.data?.attributes || 
-                             usuarioAttrs.persona?.attributes ||
-                             usuarioAttrs.persona
+              // Extraer persona - también puede venir en diferentes formatos
+              let persona: any = null
               
-              const nombreCompleto = persona?.nombre_completo || 
-                                   `${persona?.nombres || ''} ${persona?.primer_apellido || ''}`.trim() ||
-                                   usuarioAttrs.email_login ||
-                                   'Usuario'
+              if (usuarioAttrs.persona) {
+                const personaData = usuarioAttrs.persona.data || usuarioAttrs.persona
+                persona = personaData?.attributes || personaData || usuarioAttrs.persona
+              }
+              
+              // Construir nombre completo con múltiples fallbacks
+              let nombreCompleto = 'Usuario desconocido'
+              
+              if (persona) {
+                nombreCompleto = persona.nombre_completo || 
+                               `${(persona.nombres || '').trim()} ${(persona.primer_apellido || '').trim()}`.trim() ||
+                               persona.nombres ||
+                               nombreCompleto
+              }
+              
+              // Si no hay persona, usar email_login como fallback
+              if (nombreCompleto === 'Usuario desconocido' && usuarioAttrs.email_login) {
+                nombreCompleto = usuarioAttrs.email_login
+              }
               
               usuario = {
                 nombre: nombreCompleto,
-                email: usuarioAttrs.email_login || usuarioAttrs.email
+                email: usuarioAttrs.email_login || usuarioAttrs.email || usuarioAttrs.email_login
               }
+              
+              console.log('[ProductActivityLogs] 👤 Usuario extraído:', {
+                nombre: usuario.nombre,
+                email: usuario.email,
+                tienePersona: !!persona,
+                estructuraUsuario: Object.keys(usuarioAttrs).join(', ')
+              })
+            } else {
+              console.warn('[ProductActivityLogs] ⚠️ Usuario presente pero sin atributos:', attrs.usuario)
             }
+          } else {
+            console.warn('[ProductActivityLogs] ⚠️ Log sin usuario:', {
+              logId: log.id || log.documentId,
+              tieneAttrsUsuario: !!attrs.usuario
+            })
           }
 
           // Parsear datos anteriores y nuevos si son strings JSON
