@@ -320,19 +320,21 @@ export async function POST(request: NextRequest) {
         console.error('[API POST] ❌ Error al obtener canales desde Strapi:', {
           message: canalesError.message,
           status: canalesError.status,
+          response: canalesError.response?.data || canalesError.response,
           stack: canalesError.stack?.substring(0, 500),
         })
       }
       
-      // ⚠️ FALLBACK: Si no se pudieron obtener canales dinámicamente, usar IDs por defecto
-      // Estos IDs son comunes en Strapi: 1 = Moraleja, 2 = Escolar (ajustar si es necesario)
+      // ⚠️ IMPORTANTE: Si no se pudieron obtener canales, NO asignar IDs por defecto
+      // Los IDs por defecto pueden no existir y causar errores
+      // Es mejor dejar que el usuario asigne canales manualmente o que Strapi los asigne por defecto
       if (canalesDefault.length === 0) {
-        console.warn('[API POST] ⚠️ No se pudieron obtener canales dinámicamente, usando IDs por defecto')
-        // Intentar con IDs comunes (pueden variar según la instalación de Strapi)
-        const canalesFallback = ['1', '2'] // IDs por defecto comunes
-        strapiProductData.data.canales = canalesFallback
-        console.log('[API POST] 📡 Canales asignados (fallback con IDs por defecto):', canalesFallback)
-        console.log('[API POST] ⚠️ Si estos IDs no son correctos, el producto puede no sincronizarse. Verificar en Strapi.')
+        console.warn('[API POST] ⚠️ No se pudieron obtener canales dinámicamente desde Strapi')
+        console.warn('[API POST] ⚠️ El producto se creará SIN canales asignados')
+        console.warn('[API POST] ⚠️ IMPORTANTE: El producto NO se sincronizará con WooCommerce hasta que se asignen canales manualmente')
+        console.warn('[API POST] ⚠️ Solución: Asignar canales desde la interfaz de edición de productos o verificar que el endpoint /api/canales funcione correctamente')
+        // NO asignar canales si no se pudieron obtener - evitar errores de relaciones inexistentes
+        // strapiProductData.data.canales se dejará sin asignar
       }
     }
     
