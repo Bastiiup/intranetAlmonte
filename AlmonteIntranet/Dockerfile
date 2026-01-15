@@ -38,8 +38,8 @@ COPY . .
 # Los archivos innecesarios ya están excluidos por .dockerignore
 
 # Construir la aplicación con optimizaciones
-# Usar --no-lint para saltar linting (ya deshabilitado con NEXT_PRIVATE_SKIP_LINT)
-RUN npm run build -- --no-lint || npm run build
+# Next.js ya tiene las optimizaciones habilitadas por las variables de entorno
+RUN npm run build
 
 # Exponer el puerto (Railway usa variable PORT)
 EXPOSE 3000
