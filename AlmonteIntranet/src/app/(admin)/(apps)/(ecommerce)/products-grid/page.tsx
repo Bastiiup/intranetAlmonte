@@ -2,7 +2,6 @@ import { Container } from 'react-bootstrap'
 import { headers } from 'next/headers'
 
 import ProductsPage from '@/app/(admin)/(apps)/(ecommerce)/products-grid/components/ProductsPage'
-import ProductsGridDebug from '@/app/(admin)/(apps)/(ecommerce)/products-grid/debug'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 
 // Forzar renderizado dinámico
@@ -47,9 +46,6 @@ export default async function Page() {
   return (
     <Container fluid>
       <PageBreadcrumb title="Products Grid" subtitle="Ecommerce" />
-
-      {/* Página de debug - comentar cuando no se necesite */}
-      <ProductsGridDebug />
 
       <ProductsPage productos={productos} error={error} />
     </Container>

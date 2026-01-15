@@ -174,37 +174,27 @@ const Products = ({ productos, error }: ProductsProps) => {
 
   return (
     <Row className="row-cols-xxl-4 row-cols-lg-3 row-cols-sm-2 row-col-1 g-2">
-      {productos.map((producto, index) => {
-        // Los datos pueden venir en attributes o directamente (igual que ProductosGrid)
+      {productos.map((producto) => {
+        // Los datos pueden venir en attributes o directamente
         const attrs = producto.attributes || {}
         const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (producto as any)
         
-        // Debug: Log del primer producto para ver la estructura
-        if (index === 0 && typeof window !== 'undefined') {
-          console.log('[Products Grid] Primer producto estructura:', {
-            producto,
-            tieneAttributes: !!producto.attributes,
-            keysProducto: Object.keys(producto),
-            keysAttrs: producto.attributes ? Object.keys(producto.attributes) : [],
-            keysData: Object.keys(data),
-            muestraNombre: data.NOMBRE_LIBRO || data.nombre_libro || data.nombreLibro,
-            tienePortada: !!data.portada_libro || !!data.PORTADA_LIBRO,
-          })
-        }
+        // Obtener ID del producto (puede ser id numérico o documentId)
+        const productId = producto.id || (producto as any).documentId || data.id || data.documentId
         
-        // Buscar nombre con múltiples variaciones (mismo orden que ProductosGrid que funciona)
+        // Buscar nombre con múltiples variaciones
         const nombre = getField(data, 'NOMBRE_LIBRO', 'nombre_libro', 'nombreLibro', 'NOMBRE', 'nombre', 'name', 'NAME') || 'Sin nombre'
         const isbn = getField(data, 'isbn_libro', 'ISBN_LIBRO', 'isbnLibro', 'ISBN', 'isbn') || ''
-        const autor = data.autor_relacion?.data?.attributes?.nombre || data.autor_relacion?.data?.attributes?.NOMBRE || ''
-        const editorial = data.editorial?.data?.attributes?.nombre || data.editorial?.data?.attributes?.NOMBRE || ''
-        const isPublished = !!attrs.publishedAt
+        const autor = data.autor_relacion?.data?.attributes?.nombre || data.autor_relacion?.data?.attributes?.NOMBRE || data.autor_relacion?.nombre || ''
+        const editorial = data.editorial?.data?.attributes?.nombre || data.editorial?.data?.attributes?.NOMBRE || data.editorial?.nombre || ''
+        const isPublished = !!attrs.publishedAt || !!data.publishedAt
         
         const imageUrl = getImageUrl(producto)
         const stockTotal = getStockTotal(producto)
         const precioMinimo = getPrecioMinimo(producto)
 
         return (
-          <Col className="col" key={producto.id}>
+          <Col className="col" key={productId || producto.id}>
             <Card className="h-100 mb-2">
               {isPublished && (
                 <Badge
@@ -226,59 +216,25 @@ const Products = ({ productos, error }: ProductsProps) => {
                   }}
                 >
                   {imageUrl ? (
-                    <>
-                      {/* Intentar con Image de Next.js primero */}
-                      <Image 
-                        src={imageUrl} 
-                        alt={nombre} 
-                        fill
-                        unoptimized
-                        style={{
-                          objectFit: 'contain',
-                          padding: '12px',
-                        }}
-                        sizes="(max-width: 576px) 100vw, (max-width: 768px) 50vw, (max-width: 992px) 33vw, 25vw"
-                        onError={(e) => {
-                          console.error('[Products Grid] Error con Next Image:', imageUrl, e)
-                          // Si falla Next Image, intentar con img nativo
-                          const imgElement = e.currentTarget.nextElementSibling as HTMLImageElement
-                          if (imgElement) {
-                            imgElement.style.display = 'block'
-                            e.currentTarget.style.display = 'none'
-                          }
-                        }}
-                      />
-                      {/* Fallback con img nativo */}
-                      <img
-                        src={imageUrl}
-                        alt={nombre}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'contain',
-                          padding: '12px',
-                          display: 'none',
-                        }}
-                        onError={(e) => {
-                          console.error('[Products Grid] Error también con img nativo:', imageUrl, e)
-                          e.currentTarget.style.display = 'none'
-                        }}
-                        onLoad={() => {
-                          console.log('[Products Grid] Imagen cargada con img nativo:', imageUrl)
-                        }}
-                      />
-                    </>
+                    <Image 
+                      src={imageUrl} 
+                      alt={nombre} 
+                      fill
+                      unoptimized
+                      style={{
+                        objectFit: 'contain',
+                        padding: '12px',
+                      }}
+                      sizes="(max-width: 576px) 100vw, (max-width: 768px) 50vw, (max-width: 992px) 33vw, 25vw"
+                    />
                   ) : (
                     <div className="text-muted d-flex flex-column align-items-center justify-content-center">
                       <small>Sin imagen</small>
-                      {index === 0 && typeof window !== 'undefined' && (
-                        <small className="text-danger mt-1">Debug: Ver consola</small>
-                      )}
                     </div>
                   )}
                 </div>
                 <CardTitle className="fs-sm lh-base mb-2">
-                  <Link href={`/tienda/productos/${producto.id}`} className="link-reset">
+                  <Link href={`/products/${productId}`} className="link-reset">
                     {nombre}
                   </Link>
                 </CardTitle>
