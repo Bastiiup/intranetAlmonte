@@ -264,7 +264,22 @@ export async function POST(request: NextRequest) {
       
       try {
         console.log('[API POST] 🔍 Intentando obtener canales desde Strapi...')
-        const canalesResponse = await strapiClient.get<any>('/api/canales?populate=*&pagination[pageSize]=1000')
+        
+        // Intentar obtener canales directamente desde Strapi
+        let canalesResponse: any
+        try {
+          canalesResponse = await strapiClient.get<any>('/api/canales?populate=*&pagination[pageSize]=1000')
+        } catch (directError: any) {
+          console.warn('[API POST] ⚠️ Error al obtener canales directamente desde Strapi:', directError.message)
+          // Intentar sin populate
+          try {
+            canalesResponse = await strapiClient.get<any>('/api/canales?pagination[pageSize]=1000')
+          } catch (simpleError: any) {
+            console.error('[API POST] ❌ Error también sin populate:', simpleError.message)
+            throw simpleError
+          }
+        }
+        
         let canalesItems: any[] = []
         
         if (Array.isArray(canalesResponse)) {
@@ -278,6 +293,13 @@ export async function POST(request: NextRequest) {
         }
         
         console.log('[API POST] 📋 Canales obtenidos desde Strapi:', canalesItems.length)
+        if (canalesItems.length > 0) {
+          console.log('[API POST] 📋 Primeros canales:', canalesItems.slice(0, 3).map((c: any) => ({
+            id: c.id || c.documentId,
+            nombre: c.attributes?.nombre || c.nombre,
+            key: c.attributes?.key || c.key,
+          })))
+        }
         
         // Buscar canales por key o nombre
         const canalMoraleja = canalesItems.find((c: any) => {
