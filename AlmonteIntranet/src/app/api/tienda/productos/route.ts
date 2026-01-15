@@ -253,14 +253,18 @@ export async function POST(request: NextRequest) {
 
     // === RELACIONES MÚLTIPLES (array de documentIds) ===
     // CRÍTICO: Los canales son necesarios para sincronizar con WordPress
+    // Según la estructura de Strapi:
+    // - ID 1 = Moraleja (key: "moraleja")
+    // - ID 2 = Escolar (key: "escolar")
     // Si no se especifican canales, asignar automáticamente ambos (Moraleja y Escolar)
     if (body.canales && Array.isArray(body.canales) && body.canales.length > 0) {
-      strapiProductData.data.canales = body.canales
-      console.log('[API POST] 📡 Canales asignados (desde formulario):', body.canales)
+      // Convertir a números si vienen como strings
+      strapiProductData.data.canales = body.canales.map((c: any) => typeof c === 'string' ? parseInt(c) : c)
+      console.log('[API POST] 📡 Canales asignados (desde formulario):', strapiProductData.data.canales)
     } else {
       // ⚠️ ASIGNAR AMBOS CANALES POR DEFECTO
-      // Obtener IDs de canales dinámicamente
-      let canalesDefault: string[] = []
+      // Intentar obtener IDs de canales dinámicamente desde Strapi
+      let canalesDefault: number[] = []
       
       try {
         console.log('[API POST] 🔍 Intentando obtener canales desde Strapi...')
@@ -270,7 +274,7 @@ export async function POST(request: NextRequest) {
         try {
           canalesResponse = await strapiClient.get<any>('/api/canales?populate=*&pagination[pageSize]=1000')
         } catch (directError: any) {
-          console.warn('[API POST] ⚠️ Error al obtener canales directamente desde Strapi:', directError.message)
+          console.warn('[API POST] ⚠️ Error al obtener canales con populate:', directError.message)
           // Intentar sin populate
           try {
             canalesResponse = await strapiClient.get<any>('/api/canales?pagination[pageSize]=1000')
@@ -294,43 +298,51 @@ export async function POST(request: NextRequest) {
         
         console.log('[API POST] 📋 Canales obtenidos desde Strapi:', canalesItems.length)
         if (canalesItems.length > 0) {
-          console.log('[API POST] 📋 Primeros canales:', canalesItems.slice(0, 3).map((c: any) => ({
-            id: c.id || c.documentId,
-            nombre: c.attributes?.nombre || c.nombre,
-            key: c.attributes?.key || c.key,
-          })))
+          console.log('[API POST] 📋 Primeros canales:', canalesItems.slice(0, 3).map((c: any) => {
+            const attrs = c.attributes || c
+            return {
+              id: c.id || c.documentId,
+              name: attrs.name || attrs.nombre,
+              key: attrs.key,
+            }
+          }))
         }
         
-        // Buscar canales por key o nombre
+        // Buscar canales por key (según documentación: key debe ser "moraleja" o "escolar")
         const canalMoraleja = canalesItems.find((c: any) => {
           const attrs = c.attributes || c
-          const key = attrs.key || attrs.nombre?.toLowerCase()
-          const nombre = attrs.nombre?.toLowerCase() || ''
-          return key === 'moraleja' || key === 'woo_moraleja' || nombre.includes('moraleja')
+          const key = (attrs.key || '').toLowerCase()
+          const name = (attrs.name || attrs.nombre || '').toLowerCase()
+          return key === 'moraleja' || name.includes('moraleja')
         })
         
         const canalEscolar = canalesItems.find((c: any) => {
           const attrs = c.attributes || c
-          const key = attrs.key || attrs.nombre?.toLowerCase()
-          const nombre = attrs.nombre?.toLowerCase() || ''
-          return key === 'escolar' || key === 'woo_escolar' || nombre.includes('escolar')
+          const key = (attrs.key || '').toLowerCase()
+          const name = (attrs.name || attrs.nombre || '').toLowerCase()
+          return key === 'escolar' || name.includes('escolar')
         })
         
         console.log('[API POST] 🔍 Canales encontrados:', {
           tieneMoraleja: !!canalMoraleja,
           tieneEscolar: !!canalEscolar,
-          moralejaId: canalMoraleja ? (canalMoraleja.documentId || canalMoraleja.id) : null,
-          escolarId: canalEscolar ? (canalEscolar.documentId || canalEscolar.id) : null,
+          moralejaId: canalMoraleja ? (canalMoraleja.id || canalMoraleja.documentId) : null,
+          escolarId: canalEscolar ? (canalEscolar.id || canalEscolar.documentId) : null,
         })
         
+        // Usar ID numérico (no documentId) para relaciones manyToMany en Strapi
         if (canalMoraleja) {
-          const docId = canalMoraleja.documentId || canalMoraleja.id
-          if (docId) canalesDefault.push(String(docId))
+          const id = canalMoraleja.id || (typeof canalMoraleja.documentId === 'number' ? canalMoraleja.documentId : null)
+          if (id && typeof id === 'number') {
+            canalesDefault.push(id)
+          }
         }
         
         if (canalEscolar) {
-          const docId = canalEscolar.documentId || canalEscolar.id
-          if (docId) canalesDefault.push(String(docId))
+          const id = canalEscolar.id || (typeof canalEscolar.documentId === 'number' ? canalEscolar.documentId : null)
+          if (id && typeof id === 'number') {
+            canalesDefault.push(id)
+          }
         }
         
         if (canalesDefault.length > 0) {
@@ -343,20 +355,18 @@ export async function POST(request: NextRequest) {
           message: canalesError.message,
           status: canalesError.status,
           response: canalesError.response?.data || canalesError.response,
-          stack: canalesError.stack?.substring(0, 500),
         })
       }
       
-      // ⚠️ IMPORTANTE: Si no se pudieron obtener canales, NO asignar IDs por defecto
-      // Los IDs por defecto pueden no existir y causar errores
-      // Es mejor dejar que el usuario asigne canales manualmente o que Strapi los asigne por defecto
+      // ⚠️ FALLBACK: Si no se pudieron obtener canales dinámicamente, usar IDs por defecto según documentación
+      // Según la estructura de Strapi: ID 1 = Moraleja, ID 2 = Escolar
       if (canalesDefault.length === 0) {
         console.warn('[API POST] ⚠️ No se pudieron obtener canales dinámicamente desde Strapi')
-        console.warn('[API POST] ⚠️ El producto se creará SIN canales asignados')
-        console.warn('[API POST] ⚠️ IMPORTANTE: El producto NO se sincronizará con WooCommerce hasta que se asignen canales manualmente')
-        console.warn('[API POST] ⚠️ Solución: Asignar canales desde la interfaz de edición de productos o verificar que el endpoint /api/canales funcione correctamente')
-        // NO asignar canales si no se pudieron obtener - evitar errores de relaciones inexistentes
-        // strapiProductData.data.canales se dejará sin asignar
+        console.warn('[API POST] ⚠️ Usando IDs por defecto según documentación: [1, 2] (Moraleja y Escolar)')
+        // Usar IDs numéricos según la documentación proporcionada
+        strapiProductData.data.canales = [1, 2] // ID 1 = Moraleja, ID 2 = Escolar
+        console.log('[API POST] 📡 Canales asignados (IDs por defecto):', strapiProductData.data.canales)
+        console.log('[API POST] ⚠️ Si estos IDs no son correctos en tu instalación, verifica los IDs reales en Strapi Admin')
       }
     }
     
