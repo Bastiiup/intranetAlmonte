@@ -112,14 +112,24 @@ const ProductActivityLogs = ({ productId }: ProductActivityLogsProps) => {
             }
           }
           
-          // Si no hay usuario desde la relación, intentar desde campos de texto (usuario_email, usuario_nombre)
+          // Si no hay usuario desde la relación, intentar desde metadata
           if (!usuario || usuario.nombre === 'Usuario desconocido') {
-            if (attrs.usuario_nombre || attrs.usuario_email) {
-              usuario = {
-                nombre: attrs.usuario_nombre || attrs.usuario_email || 'Usuario desconocido',
-                email: attrs.usuario_email || null
+            // Intentar obtener desde metadata (campo JSON)
+            let metadata: any = {}
+            if (attrs.metadata) {
+              try {
+                metadata = typeof attrs.metadata === 'string' ? JSON.parse(attrs.metadata) : attrs.metadata
+              } catch {
+                metadata = {}
               }
-              console.log('[ProductActivityLogs] 👤 Usuario extraído desde campos de texto:', {
+            }
+            
+            if (metadata.usuario_nombre || metadata.usuario_email) {
+              usuario = {
+                nombre: metadata.usuario_nombre || metadata.usuario_email || 'Usuario desconocido',
+                email: metadata.usuario_email || null
+              }
+              console.log('[ProductActivityLogs] 👤 Usuario extraído desde metadata:', {
                 nombre: usuario.nombre,
                 email: usuario.email,
               })

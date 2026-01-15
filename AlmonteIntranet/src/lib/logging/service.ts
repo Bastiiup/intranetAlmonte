@@ -741,16 +741,27 @@ export async function logActivity(
             console.warn('[LOGGING] ⚠️ Error al extraer email/nombre desde cookies:', extractError)
           }
           
-          // Crear log sin usuario pero con email y nombre como texto
+          // Crear log sin usuario pero con email y nombre en metadata
           const logDataSinUsuario = { ...logData }
           delete logDataSinUsuario.usuario
           
-          // Agregar email y nombre como campos de texto si están disponibles
-          if (emailColaborador) {
-            logDataSinUsuario.usuario_email = emailColaborador
+          // Agregar email y nombre en metadata (campo JSON) si están disponibles
+          if (emailColaborador || nombreColaborador) {
+            const metadata: any = {}
+            if (emailColaborador) {
+              metadata.usuario_email = emailColaborador
+            }
+            if (nombreColaborador) {
+              metadata.usuario_nombre = nombreColaborador
+            }
+            logDataSinUsuario.metadata = JSON.stringify(metadata)
           }
+          
+          // También incluir el nombre en la descripción para que sea visible
           if (nombreColaborador) {
-            logDataSinUsuario.usuario_nombre = nombreColaborador
+            logDataSinUsuario.descripcion = `${nombreColaborador} - ${logDataSinUsuario.descripcion}`
+          } else if (emailColaborador) {
+            logDataSinUsuario.descripcion = `${emailColaborador} - ${logDataSinUsuario.descripcion}`
           }
           
           try {
