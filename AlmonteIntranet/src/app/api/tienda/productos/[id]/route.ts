@@ -686,13 +686,109 @@ export async function PUT(
       const datosNuevos: any = {}
       const cambios: string[] = []
 
-      // Detectar cambios en campos importantes
-      if (body.nombre_libro !== undefined && body.nombre_libro !== attrs.nombre_libro) {
+      // Función helper para comparar valores
+      const hasChanged = (campo: string, valorAnterior: any, valorNuevo: any): boolean => {
+        if (valorNuevo === undefined) return false
+        if (typeof valorAnterior === 'number' && typeof valorNuevo === 'number') {
+          return valorAnterior !== valorNuevo
+        }
+        if (typeof valorAnterior === 'string' && typeof valorNuevo === 'string') {
+          return valorAnterior.trim() !== valorNuevo.trim()
+        }
+        return JSON.stringify(valorAnterior) !== JSON.stringify(valorNuevo)
+      }
+
+      // Función helper para obtener nombre de imagen desde relación
+      const getImageName = (imagen: any): string => {
+        if (!imagen) return null
+        if (typeof imagen === 'number') return `ID: ${imagen}`
+        if (typeof imagen === 'string') return imagen
+        const imgData = imagen.data || imagen
+        const imgAttrs = imgData?.attributes || imgData
+        return imgAttrs?.name || imgAttrs?.url || imgAttrs?.filename || `ID: ${imgData?.id || imagen}`
+      }
+
+      // Campos básicos
+      if (body.nombre_libro !== undefined && hasChanged('nombre_libro', attrs.nombre_libro, body.nombre_libro)) {
         datosAnteriores.nombre_libro = attrs.nombre_libro
         datosNuevos.nombre_libro = body.nombre_libro
         cambios.push('nombre')
       }
 
+      if (body.isbn_libro !== undefined && hasChanged('isbn_libro', attrs.isbn_libro, body.isbn_libro)) {
+        datosAnteriores.isbn_libro = attrs.isbn_libro
+        datosNuevos.isbn_libro = body.isbn_libro
+        cambios.push('ISBN')
+      }
+
+      if (body.subtitulo_libro !== undefined && hasChanged('subtitulo_libro', attrs.subtitulo_libro, body.subtitulo_libro)) {
+        datosAnteriores.subtitulo_libro = attrs.subtitulo_libro
+        datosNuevos.subtitulo_libro = body.subtitulo_libro
+        cambios.push('subtítulo')
+      }
+
+      // IMAGEN - portada_libro
+      if (body.portada_libro !== undefined) {
+        const imagenAnterior = attrs.portada_libro
+        const imagenNueva = body.portada_libro
+        const imagenAnteriorName = getImageName(imagenAnterior)
+        const imagenNuevaName = getImageName(imagenNueva)
+        
+        if (JSON.stringify(imagenAnterior) !== JSON.stringify(imagenNueva)) {
+          datosAnteriores.portada_libro = imagenAnteriorName || 'Sin imagen'
+          datosNuevos.portada_libro = imagenNuevaName || 'Sin imagen'
+          cambios.push('imagen')
+        }
+      }
+
+      // Campos numéricos
+      if (body.numero_edicion !== undefined && body.numero_edicion !== '') {
+        const numEdicion = parseInt(body.numero_edicion.toString())
+        if (numEdicion !== attrs.numero_edicion) {
+          datosAnteriores.numero_edicion = attrs.numero_edicion
+          datosNuevos.numero_edicion = numEdicion
+          cambios.push('número de edición')
+        }
+      }
+
+      if (body.agno_edicion !== undefined && body.agno_edicion !== '') {
+        const agnoEdicion = parseInt(body.agno_edicion.toString())
+        if (agnoEdicion !== attrs.agno_edicion) {
+          datosAnteriores.agno_edicion = attrs.agno_edicion
+          datosNuevos.agno_edicion = agnoEdicion
+          cambios.push('año de edición')
+        }
+      }
+
+      // Enumeraciones
+      if (body.idioma !== undefined && body.idioma !== '' && body.idioma !== attrs.idioma) {
+        datosAnteriores.idioma = attrs.idioma
+        datosNuevos.idioma = body.idioma
+        cambios.push('idioma')
+      }
+
+      if (body.tipo_libro !== undefined && body.tipo_libro !== '' && body.tipo_libro !== attrs.tipo_libro) {
+        datosAnteriores.tipo_libro = attrs.tipo_libro
+        datosNuevos.tipo_libro = body.tipo_libro
+        cambios.push('tipo de libro')
+      }
+
+      if (body.estado_edicion !== undefined && body.estado_edicion !== '' && body.estado_edicion !== attrs.estado_edicion) {
+        datosAnteriores.estado_edicion = attrs.estado_edicion
+        datosNuevos.estado_edicion = body.estado_edicion
+        cambios.push('estado de edición')
+      }
+
+      if (body.estado_publicacion !== undefined && body.estado_publicacion !== '') {
+        const estadoPublicacionInput = body.data?.estado_publicacion !== undefined ? body.data.estado_publicacion : body.estado_publicacion
+        if (estadoPublicacionInput !== attrs.estado_publicacion) {
+          datosAnteriores.estado_publicacion = attrs.estado_publicacion
+          datosNuevos.estado_publicacion = estadoPublicacionInput
+          cambios.push('estado de publicación')
+        }
+      }
+
+      // Precios
       if (body.precio !== undefined && parseFloat(body.precio.toString()) !== attrs.precio) {
         datosAnteriores.precio = attrs.precio
         datosNuevos.precio = parseFloat(body.precio.toString())
@@ -711,16 +807,127 @@ export async function PUT(
         cambios.push('precio oferta')
       }
 
+      // Descripción
       if (body.descripcion !== undefined) {
-        datosAnteriores.descripcion = attrs.descripcion
-        datosNuevos.descripcion = body.descripcion
-        cambios.push('descripción')
+        const descAnterior = JSON.stringify(attrs.descripcion || '')
+        const descNueva = JSON.stringify(body.descripcion || '')
+        if (descAnterior !== descNueva) {
+          datosAnteriores.descripcion = attrs.descripcion || 'Sin descripción'
+          datosNuevos.descripcion = body.descripcion || 'Sin descripción'
+          cambios.push('descripción')
+        }
       }
 
+      // Stock
       if (body.stock_quantity !== undefined && parseInt(body.stock_quantity.toString()) !== attrs.stock_quantity) {
         datosAnteriores.stock_quantity = attrs.stock_quantity
         datosNuevos.stock_quantity = parseInt(body.stock_quantity.toString())
         cambios.push('stock')
+      }
+
+      // Relaciones simples
+      if (body.obra !== undefined && JSON.stringify(body.obra) !== JSON.stringify(attrs.obra)) {
+        datosAnteriores.obra = attrs.obra?.data?.attributes?.nombre || attrs.obra?.attributes?.nombre || attrs.obra || 'Sin obra'
+        datosNuevos.obra = body.obra || 'Sin obra'
+        cambios.push('obra')
+      }
+
+      if (body.autor_relacion !== undefined && JSON.stringify(body.autor_relacion) !== JSON.stringify(attrs.autor_relacion)) {
+        const autorAnterior = attrs.autor_relacion?.data?.attributes || attrs.autor_relacion?.attributes || attrs.autor_relacion
+        const autorAnteriorName = autorAnterior?.nombres || autorAnterior?.nombre_completo || 'Sin autor'
+        datosAnteriores.autor_relacion = autorAnteriorName
+        datosNuevos.autor_relacion = body.autor_relacion || 'Sin autor'
+        cambios.push('autor')
+      }
+
+      if (body.editorial !== undefined && JSON.stringify(body.editorial) !== JSON.stringify(attrs.editorial)) {
+        datosAnteriores.editorial = attrs.editorial?.data?.attributes?.nombre || attrs.editorial?.attributes?.nombre || attrs.editorial || 'Sin editorial'
+        datosNuevos.editorial = body.editorial || 'Sin editorial'
+        cambios.push('editorial')
+      }
+
+      if (body.sello !== undefined && JSON.stringify(body.sello) !== JSON.stringify(attrs.sello)) {
+        datosAnteriores.sello = attrs.sello?.data?.attributes?.nombre || attrs.sello?.attributes?.nombre || attrs.sello || 'Sin sello'
+        datosNuevos.sello = body.sello || 'Sin sello'
+        cambios.push('sello')
+      }
+
+      if (body.coleccion !== undefined && JSON.stringify(body.coleccion) !== JSON.stringify(attrs.coleccion)) {
+        datosAnteriores.coleccion = attrs.coleccion?.data?.attributes?.nombre || attrs.coleccion?.attributes?.nombre || attrs.coleccion || 'Sin colección'
+        datosNuevos.coleccion = body.coleccion || 'Sin colección'
+        cambios.push('colección')
+      }
+
+      // Relaciones múltiples
+      if (body.canales !== undefined && JSON.stringify(body.canales) !== JSON.stringify(attrs.canales)) {
+        const canalesAnteriores = Array.isArray(attrs.canales) ? attrs.canales.map((c: any) => c?.data?.attributes?.nombre || c?.attributes?.nombre || c).join(', ') : 'Sin canales'
+        const canalesNuevos = Array.isArray(body.canales) ? body.canales.map((c: any) => c?.data?.attributes?.nombre || c?.attributes?.nombre || c).join(', ') : 'Sin canales'
+        if (canalesAnteriores !== canalesNuevos) {
+          datosAnteriores.canales = canalesAnteriores
+          datosNuevos.canales = canalesNuevos
+          cambios.push('canales')
+        }
+      }
+
+      if (body.marcas !== undefined && JSON.stringify(body.marcas) !== JSON.stringify(attrs.marcas)) {
+        const marcasAnteriores = Array.isArray(attrs.marcas) ? attrs.marcas.map((m: any) => m?.data?.attributes?.nombre || m?.attributes?.nombre || m).join(', ') : 'Sin marcas'
+        const marcasNuevas = Array.isArray(body.marcas) ? body.marcas.map((m: any) => m?.data?.attributes?.nombre || m?.attributes?.nombre || m).join(', ') : 'Sin marcas'
+        if (marcasAnteriores !== marcasNuevas) {
+          datosAnteriores.marcas = marcasAnteriores
+          datosNuevos.marcas = marcasNuevas
+          cambios.push('marcas')
+        }
+      }
+
+      if (body.etiquetas !== undefined && JSON.stringify(body.etiquetas) !== JSON.stringify(attrs.etiquetas)) {
+        const etiquetasAnteriores = Array.isArray(attrs.etiquetas) ? attrs.etiquetas.map((e: any) => e?.data?.attributes?.nombre || e?.attributes?.nombre || e).join(', ') : 'Sin etiquetas'
+        const etiquetasNuevas = Array.isArray(body.etiquetas) ? body.etiquetas.map((e: any) => e?.data?.attributes?.nombre || e?.attributes?.nombre || e).join(', ') : 'Sin etiquetas'
+        if (etiquetasAnteriores !== etiquetasNuevas) {
+          datosAnteriores.etiquetas = etiquetasAnteriores
+          datosNuevos.etiquetas = etiquetasNuevas
+          cambios.push('etiquetas')
+        }
+      }
+
+      if (body.categorias_producto !== undefined && JSON.stringify(body.categorias_producto) !== JSON.stringify(attrs.categorias_producto)) {
+        const categoriasAnteriores = Array.isArray(attrs.categorias_producto) ? attrs.categorias_producto.map((c: any) => c?.data?.attributes?.nombre || c?.attributes?.nombre || c).join(', ') : 'Sin categorías'
+        const categoriasNuevas = Array.isArray(body.categorias_producto) ? body.categorias_producto.map((c: any) => c?.data?.attributes?.nombre || c?.attributes?.nombre || c).join(', ') : 'Sin categorías'
+        if (categoriasAnteriores !== categoriasNuevas) {
+          datosAnteriores.categorias_producto = categoriasAnteriores
+          datosNuevos.categorias_producto = categoriasNuevas
+          cambios.push('categorías')
+        }
+      }
+
+      // IDs numéricos
+      if (body.id_autor !== undefined && parseInt(body.id_autor.toString()) !== attrs.id_autor) {
+        datosAnteriores.id_autor = attrs.id_autor
+        datosNuevos.id_autor = parseInt(body.id_autor.toString())
+        cambios.push('ID autor')
+      }
+
+      if (body.id_editorial !== undefined && parseInt(body.id_editorial.toString()) !== attrs.id_editorial) {
+        datosAnteriores.id_editorial = attrs.id_editorial
+        datosNuevos.id_editorial = parseInt(body.id_editorial.toString())
+        cambios.push('ID editorial')
+      }
+
+      if (body.id_sello !== undefined && parseInt(body.id_sello.toString()) !== attrs.id_sello) {
+        datosAnteriores.id_sello = attrs.id_sello
+        datosNuevos.id_sello = parseInt(body.id_sello.toString())
+        cambios.push('ID sello')
+      }
+
+      if (body.id_coleccion !== undefined && parseInt(body.id_coleccion.toString()) !== attrs.id_coleccion) {
+        datosAnteriores.id_coleccion = attrs.id_coleccion
+        datosNuevos.id_coleccion = parseInt(body.id_coleccion.toString())
+        cambios.push('ID colección')
+      }
+
+      if (body.id_obra !== undefined && parseInt(body.id_obra.toString()) !== attrs.id_obra) {
+        datosAnteriores.id_obra = attrs.id_obra
+        datosNuevos.id_obra = parseInt(body.id_obra.toString())
+        cambios.push('ID obra')
       }
 
       // Si hay cambios, registrar log
