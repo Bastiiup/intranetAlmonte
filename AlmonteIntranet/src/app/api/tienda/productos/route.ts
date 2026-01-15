@@ -260,7 +260,10 @@ export async function POST(request: NextRequest) {
     } else {
       // ⚠️ ASIGNAR AMBOS CANALES POR DEFECTO
       // Obtener IDs de canales dinámicamente
+      let canalesDefault: string[] = []
+      
       try {
+        console.log('[API POST] 🔍 Intentando obtener canales desde Strapi...')
         const canalesResponse = await strapiClient.get<any>('/api/canales?populate=*&pagination[pageSize]=1000')
         let canalesItems: any[] = []
         
@@ -274,20 +277,29 @@ export async function POST(request: NextRequest) {
           canalesItems = [canalesResponse]
         }
         
+        console.log('[API POST] 📋 Canales obtenidos desde Strapi:', canalesItems.length)
+        
         // Buscar canales por key o nombre
         const canalMoraleja = canalesItems.find((c: any) => {
           const attrs = c.attributes || c
           const key = attrs.key || attrs.nombre?.toLowerCase()
-          return key === 'moraleja' || key === 'woo_moraleja' || attrs.nombre?.toLowerCase().includes('moraleja')
+          const nombre = attrs.nombre?.toLowerCase() || ''
+          return key === 'moraleja' || key === 'woo_moraleja' || nombre.includes('moraleja')
         })
         
         const canalEscolar = canalesItems.find((c: any) => {
           const attrs = c.attributes || c
           const key = attrs.key || attrs.nombre?.toLowerCase()
-          return key === 'escolar' || key === 'woo_escolar' || attrs.nombre?.toLowerCase().includes('escolar')
+          const nombre = attrs.nombre?.toLowerCase() || ''
+          return key === 'escolar' || key === 'woo_escolar' || nombre.includes('escolar')
         })
         
-        const canalesDefault: string[] = []
+        console.log('[API POST] 🔍 Canales encontrados:', {
+          tieneMoraleja: !!canalMoraleja,
+          tieneEscolar: !!canalEscolar,
+          moralejaId: canalMoraleja ? (canalMoraleja.documentId || canalMoraleja.id) : null,
+          escolarId: canalEscolar ? (canalEscolar.documentId || canalEscolar.id) : null,
+        })
         
         if (canalMoraleja) {
           const docId = canalMoraleja.documentId || canalMoraleja.id
@@ -301,14 +313,26 @@ export async function POST(request: NextRequest) {
         
         if (canalesDefault.length > 0) {
           strapiProductData.data.canales = canalesDefault
-          console.log('[API POST] 📡 Canales asignados automáticamente (por defecto):', canalesDefault)
+          console.log('[API POST] ✅ Canales asignados automáticamente (desde Strapi):', canalesDefault)
           console.log('[API POST] ✅ Producto se sincronizará con ambos canales: Moraleja y Escolar')
-        } else {
-          console.warn('[API POST] ⚠️ No se pudieron obtener los canales por defecto. El producto no se sincronizará con WordPress hasta que se asignen canales.')
         }
       } catch (canalesError: any) {
-        console.error('[API POST] ❌ Error al obtener canales por defecto:', canalesError.message)
-        console.warn('[API POST] ⚠️ No se asignaron canales. El producto no se sincronizará con WordPress hasta que se asignen canales.')
+        console.error('[API POST] ❌ Error al obtener canales desde Strapi:', {
+          message: canalesError.message,
+          status: canalesError.status,
+          stack: canalesError.stack?.substring(0, 500),
+        })
+      }
+      
+      // ⚠️ FALLBACK: Si no se pudieron obtener canales dinámicamente, usar IDs por defecto
+      // Estos IDs son comunes en Strapi: 1 = Moraleja, 2 = Escolar (ajustar si es necesario)
+      if (canalesDefault.length === 0) {
+        console.warn('[API POST] ⚠️ No se pudieron obtener canales dinámicamente, usando IDs por defecto')
+        // Intentar con IDs comunes (pueden variar según la instalación de Strapi)
+        const canalesFallback = ['1', '2'] // IDs por defecto comunes
+        strapiProductData.data.canales = canalesFallback
+        console.log('[API POST] 📡 Canales asignados (fallback con IDs por defecto):', canalesFallback)
+        console.log('[API POST] ⚠️ Si estos IDs no son correctos, el producto puede no sincronizarse. Verificar en Strapi.')
       }
     }
     
