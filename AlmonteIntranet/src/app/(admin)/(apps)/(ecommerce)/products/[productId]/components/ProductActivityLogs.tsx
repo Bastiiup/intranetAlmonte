@@ -65,6 +65,8 @@ const ProductActivityLogs = ({ productId }: ProductActivityLogsProps) => {
           
           // Extraer usuario - manejar diferentes estructuras de respuesta de Strapi
           let usuario: any = undefined
+          
+          // Primero intentar obtener desde la relación usuario
           if (attrs.usuario) {
             // Strapi puede devolver el usuario en diferentes formatos:
             // 1. { data: { id, attributes: { ... } } }
@@ -102,19 +104,34 @@ const ProductActivityLogs = ({ productId }: ProductActivityLogsProps) => {
                 email: usuarioAttrs.email_login || usuarioAttrs.email || usuarioAttrs.email_login
               }
               
-              console.log('[ProductActivityLogs] 👤 Usuario extraído:', {
+              console.log('[ProductActivityLogs] 👤 Usuario extraído desde relación:', {
                 nombre: usuario.nombre,
                 email: usuario.email,
                 tienePersona: !!persona,
-                estructuraUsuario: Object.keys(usuarioAttrs).join(', ')
               })
-            } else {
-              console.warn('[ProductActivityLogs] ⚠️ Usuario presente pero sin atributos:', attrs.usuario)
             }
-          } else {
-            console.warn('[ProductActivityLogs] ⚠️ Log sin usuario:', {
+          }
+          
+          // Si no hay usuario desde la relación, intentar desde campos de texto (usuario_email, usuario_nombre)
+          if (!usuario || usuario.nombre === 'Usuario desconocido') {
+            if (attrs.usuario_nombre || attrs.usuario_email) {
+              usuario = {
+                nombre: attrs.usuario_nombre || attrs.usuario_email || 'Usuario desconocido',
+                email: attrs.usuario_email || null
+              }
+              console.log('[ProductActivityLogs] 👤 Usuario extraído desde campos de texto:', {
+                nombre: usuario.nombre,
+                email: usuario.email,
+              })
+            }
+          }
+          
+          if (!usuario) {
+            console.warn('[ProductActivityLogs] ⚠️ Log sin usuario ni campos de texto:', {
               logId: log.id || log.documentId,
-              tieneAttrsUsuario: !!attrs.usuario
+              tieneAttrsUsuario: !!attrs.usuario,
+              tieneUsuarioNombre: !!attrs.usuario_nombre,
+              tieneUsuarioEmail: !!attrs.usuario_email
             })
           }
 
