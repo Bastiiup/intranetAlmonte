@@ -635,6 +635,25 @@ export async function logActivity(
         console.error('[LOGGING] ❌ Endpoint:', logEndpoint)
         console.error('[LOGGING] ❌ Details:', error.details)
         
+        // Si el error es porque el usuario no existe, intentar crear el log sin usuario
+        if (error.status === 400 && error.message?.includes('do not exist') && logData.usuario) {
+          console.log('[LOGGING] ⚠️ Usuario no existe en Strapi, intentando crear log sin usuario...')
+          const logDataSinUsuario = { ...logData }
+          delete logDataSinUsuario.usuario
+          
+          try {
+            const retryResponse = await strapiClient.post(logEndpoint, { data: logDataSinUsuario })
+            console.log('[LOGGING] ✅ Log creado sin usuario (usuario no existe en Strapi):', {
+              logId: retryResponse?.data?.id || retryResponse?.id || 'unknown',
+              accion: params.accion,
+              entidad: params.entidad,
+            })
+          } catch (retryError: any) {
+            console.error('[LOGGING] ❌ Error al crear log sin usuario:', retryError.message)
+          }
+          return // Salir sin mostrar más errores
+        }
+        
         // Intentar obtener más detalles del error si está disponible
         let errorResponse = null
         if (error.response) {
@@ -658,6 +677,30 @@ export async function logActivity(
           tieneUsuario: !!logData.usuario,
           bodyCompleto: JSON.stringify(bodyToSend, null, 2).substring(0, 500),
         })
+        
+        // Si el error es porque el usuario no existe, intentar crear el log sin usuario
+        if (error.status === 400 && 
+            (error.message?.includes('do not exist') || 
+             error.message?.includes('associated with this entity do not exist')) && 
+            logData.usuario) {
+          console.log('[LOGGING] ⚠️ Usuario no existe en Strapi, intentando crear log sin usuario...')
+          const logDataSinUsuario = { ...logData }
+          delete logDataSinUsuario.usuario
+          
+          try {
+            const retryResponse = await strapiClient.post(logEndpoint, { data: logDataSinUsuario })
+            console.log('[LOGGING] ✅ Log creado sin usuario (usuario no existe en Strapi):', {
+              logId: retryResponse?.data?.id || retryResponse?.id || 'unknown',
+              accion: params.accion,
+              entidad: params.entidad,
+            })
+            return // Salir sin mostrar más errores
+          } catch (retryError: any) {
+            console.error('[LOGGING] ❌ Error al crear log sin usuario:', retryError.message)
+            // Continuar para mostrar el error original también
+          }
+        }
+        
         console.error('[LOGGING] ❌ ==========================================')
       })
   } catch (error) {
