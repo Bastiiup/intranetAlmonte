@@ -14,8 +14,10 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('pageSize') || '100')
     const sort = searchParams.get('sort') || 'fecha:desc'
+    const entidad = searchParams.get('entidad')
+    const entidad_id = searchParams.get('entidad_id')
 
-    console.log('[API /logs] Obteniendo logs:', { page, pageSize, sort })
+    console.log('[API /logs] Obteniendo logs:', { page, pageSize, sort, entidad, entidad_id })
 
     // Construir query de Strapi
     // El Content Type "Log de Actividades" en Strapi se convierte a "activity-logs" en la API
@@ -23,8 +25,24 @@ export async function GET(request: NextRequest) {
     const sortField = sort.split(':')[0] || 'fecha'
     const sortOrder = sort.split(':')[1] || 'desc'
     
+    // Construir parámetros de filtro
+    const params = new URLSearchParams({
+      'populate[usuario][populate]': '*',
+      'pagination[page]': page.toString(),
+      'pagination[pageSize]': pageSize.toString(),
+      'sort': `${sortField}:${sortOrder}`
+    })
+
+    // Agregar filtros si existen
+    if (entidad) {
+      params.append('filters[entidad][$eq]', entidad)
+    }
+    if (entidad_id) {
+      params.append('filters[entidad_id][$eq]', entidad_id)
+    }
+    
     const response = await strapiClient.get<any>(
-      `/api/activity-logs?populate[usuario][populate]=*&pagination[page]=${page}&pagination[pageSize]=${pageSize}&sort=${sortField}:${sortOrder}`
+      `/api/activity-logs?${params.toString()}`
     )
 
     let items: any[] = []

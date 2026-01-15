@@ -6,7 +6,7 @@ import { Card, CardBody, Col, Container, Row, Alert, Spinner } from 'react-boots
 
 import ProductDetails from '@/app/(admin)/(apps)/(ecommerce)/products/[productId]/components/ProductDetails'
 import ProductDisplay from '@/app/(admin)/(apps)/(ecommerce)/products/[productId]/components/ProductDisplay'
-import ProductReviews from '@/app/(admin)/(apps)/(ecommerce)/products/[productId]/components/ProductReviews'
+import ProductActivityLogs from '@/app/(admin)/(apps)/(ecommerce)/products/[productId]/components/ProductActivityLogs'
 import { ProductPricing } from '@/app/(admin)/(apps)/(ecommerce)/products/[productId]/components/ProductPricing'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 
@@ -194,7 +194,7 @@ export default function Page() {
                       onProductoUpdate={updateProductoLocal}
                     />
 
-                    <ProductReviews producto={producto} />
+                    <ProductActivityLogs productId={productId} />
                   </div>
                 </Col>
               </Row>

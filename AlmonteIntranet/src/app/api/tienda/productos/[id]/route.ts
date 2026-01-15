@@ -607,6 +607,73 @@ export async function PUT(
 
     console.log('[API PUT] ✅ Actualización exitosa')
 
+    // Registrar cambios en logs de actividades
+    try {
+      const { logActivity } = await import('@/lib/logging/service')
+      
+      // Obtener datos anteriores y nuevos para el log
+      const attrs = producto.attributes || producto
+      const datosAnteriores: any = {}
+      const datosNuevos: any = {}
+      const cambios: string[] = []
+
+      // Detectar cambios en campos importantes
+      if (body.nombre_libro !== undefined && body.nombre_libro !== attrs.nombre_libro) {
+        datosAnteriores.nombre_libro = attrs.nombre_libro
+        datosNuevos.nombre_libro = body.nombre_libro
+        cambios.push('nombre')
+      }
+
+      if (body.precio !== undefined && parseFloat(body.precio.toString()) !== attrs.precio) {
+        datosAnteriores.precio = attrs.precio
+        datosNuevos.precio = parseFloat(body.precio.toString())
+        cambios.push('precio')
+      }
+
+      if (body.precio_regular !== undefined && parseFloat(body.precio_regular.toString()) !== attrs.precio_regular) {
+        datosAnteriores.precio_regular = attrs.precio_regular
+        datosNuevos.precio_regular = parseFloat(body.precio_regular.toString())
+        cambios.push('precio regular')
+      }
+
+      if (body.precio_oferta !== undefined && parseFloat(body.precio_oferta.toString()) !== attrs.precio_oferta) {
+        datosAnteriores.precio_oferta = attrs.precio_oferta
+        datosNuevos.precio_oferta = parseFloat(body.precio_oferta.toString())
+        cambios.push('precio oferta')
+      }
+
+      if (body.descripcion !== undefined) {
+        datosAnteriores.descripcion = attrs.descripcion
+        datosNuevos.descripcion = body.descripcion
+        cambios.push('descripción')
+      }
+
+      if (body.stock_quantity !== undefined && parseInt(body.stock_quantity.toString()) !== attrs.stock_quantity) {
+        datosAnteriores.stock_quantity = attrs.stock_quantity
+        datosNuevos.stock_quantity = parseInt(body.stock_quantity.toString())
+        cambios.push('stock')
+      }
+
+      // Si hay cambios, registrar log
+      if (cambios.length > 0) {
+        const descripcion = `Actualizó ${cambios.join(', ')} del producto "${attrs.nombre_libro || 'Sin nombre'}"`
+        
+        await logActivity(request, {
+          accion: 'actualizar',
+          entidad: 'producto',
+          entidadId: String(id),
+          descripcion,
+          datosAnteriores,
+          datosNuevos
+        })
+
+        console.log('[API PUT] 📝 Log de actividad registrado:', { cambios, descripcion })
+      }
+    } catch (logError: any) {
+      // No fallar la actualización si el log falla
+      console.error('[API PUT] ⚠️ Error al registrar log (no crítico):', logError.message)
+    }
+
     return NextResponse.json({
       success: true,
       data: updateResponse.data || updateResponse
