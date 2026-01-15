@@ -617,8 +617,9 @@ export async function PUT(
       console.log('═══════════════════════════════════════════════════════')
       
       // Verificar cookies disponibles
-      if (request instanceof Request && 'cookies' in request) {
-        const cookies = (request as any).cookies
+      const requestWithCookies = request as NextRequest
+      if (requestWithCookies && 'cookies' in requestWithCookies && requestWithCookies.cookies) {
+        const cookies = requestWithCookies.cookies
         console.log('[API PUT] 🍪 Cookies disponibles en request:')
         console.log('  - colaboradorData:', cookies?.get('colaboradorData')?.value ? '✅ Presente' : '❌ No encontrada')
         console.log('  - colaborador:', cookies?.get('colaborador')?.value ? '✅ Presente' : '❌ No encontrada')
