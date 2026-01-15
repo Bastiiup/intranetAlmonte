@@ -463,28 +463,34 @@ export async function logActivity(
       const documentId = (usuario as any).documentId
       const id = usuario.id
       
-      // Priorizar documentId, pero si es número, convertirlo a string
-      // Si no hay documentId, usar id (pero también intentar como string)
-      let usuarioParaStrapi: string | number | null = null
+      // CRÍTICO: Para relaciones manyToOne con colaborador, Strapi espera el ID numérico, NO documentId
+      // Usar siempre el ID numérico del colaborador
+      let usuarioParaStrapi: number | null = null
       
-      if (documentId !== undefined && documentId !== null) {
-        // Si documentId es número, convertirlo a string (Strapi v5 prefiere strings para documentId)
-        usuarioParaStrapi = typeof documentId === 'number' ? String(documentId) : documentId
-        console.log('[LOGGING] ✅ Usando documentId para Strapi:', {
-          documentIdOriginal: documentId,
-          documentIdTipo: typeof documentId,
-          documentIdEnviado: usuarioParaStrapi,
-          documentIdEnviadoTipo: typeof usuarioParaStrapi,
-        })
-      } else if (id !== undefined && id !== null) {
-        // Fallback: usar id, pero intentar como string primero
-        usuarioParaStrapi = typeof id === 'number' ? String(id) : id
-        console.log('[LOGGING] ⚠️ Usando id como fallback (documentId no disponible):', {
+      // Priorizar ID numérico (Strapi espera ID numérico para relaciones manyToOne con colaborador)
+      if (id !== undefined && id !== null) {
+        // Convertir a número si es string
+        usuarioParaStrapi = typeof id === 'string' ? parseInt(id) : id
+        if (isNaN(usuarioParaStrapi)) {
+          usuarioParaStrapi = null
+        }
+        console.log('[LOGGING] ✅ Usando ID numérico del colaborador para Strapi:', {
           idOriginal: id,
           idTipo: typeof id,
           idEnviado: usuarioParaStrapi,
           idEnviadoTipo: typeof usuarioParaStrapi,
         })
+      } else if (documentId !== undefined && documentId !== null) {
+        // Fallback: intentar usar documentId como número si el id no está disponible
+        const docIdNum = typeof documentId === 'string' ? parseInt(documentId) : documentId
+        if (!isNaN(docIdNum) && typeof docIdNum === 'number') {
+          usuarioParaStrapi = docIdNum
+          console.log('[LOGGING] ⚠️ Usando documentId como número (id no disponible):', {
+            documentIdOriginal: documentId,
+            documentIdTipo: typeof documentId,
+            idEnviado: usuarioParaStrapi,
+          })
+        }
       }
       
       if (!usuarioParaStrapi) {
@@ -495,7 +501,7 @@ export async function logActivity(
         })
         logData.usuario = null
       } else {
-        // En Strapi v5, para relaciones manyToOne, usar documentId (string) si está disponible
+        // CRÍTICO: Para relaciones manyToOne con colaborador, Strapi espera ID numérico
         logData.usuario = usuarioParaStrapi
         console.log('[LOGGING] ✅ Usuario asociado al log:', {
           idOriginal: usuario.id,
@@ -506,10 +512,7 @@ export async function logActivity(
           nombre: usuario.nombre,
           accion: params.accion,
           entidad: params.entidad,
-          formatoEnviado: typeof logData.usuario === 'string' 
-            ? 'documentId (string): ' + logData.usuario 
-            : 'ID numérico: ' + logData.usuario,
-          esString: typeof logData.usuario === 'string',
+          formatoEnviado: 'ID numérico del colaborador: ' + logData.usuario,
           esNumber: typeof logData.usuario === 'number',
         })
       }
@@ -642,23 +645,26 @@ export async function logActivity(
             logData.usuario) {
           console.log('[LOGGING] ⚠️ Usuario no existe en Strapi con el ID enviado, intentando verificar...')
           
-          // Intentar buscar el colaborador por documentId si tenemos el usuario original
-          if (usuario && (usuario as any).documentId && String((usuario as any).documentId) !== String(logData.usuario)) {
-            console.log('[LOGGING] 🔄 Intentando con documentId en lugar de id...')
-            const logDataConDocumentId = { ...logData }
-            logDataConDocumentId.usuario = String((usuario as any).documentId)
-            
-            try {
-              const retryResponse: any = await strapiClient.post(logEndpoint, { data: logDataConDocumentId })
-              console.log('[LOGGING] ✅ Log creado con documentId:', {
-                logId: retryResponse?.data?.id || retryResponse?.id || 'unknown',
-                accion: params.accion,
-                entidad: params.entidad,
-                usuarioUsado: logDataConDocumentId.usuario
-              })
-              return // Salir exitosamente
-            } catch (retryError: any) {
-              console.error('[LOGGING] ❌ Error al crear log con documentId:', retryError.message)
+          // Intentar con el ID numérico si tenemos el usuario original y el ID es diferente
+          if (usuario && usuario.id && usuario.id !== logData.usuario) {
+            console.log('[LOGGING] 🔄 Intentando con ID numérico del colaborador...')
+            const logDataConId = { ...logData }
+            const idNum = typeof usuario.id === 'string' ? parseInt(usuario.id) : usuario.id
+            if (!isNaN(idNum)) {
+              logDataConId.usuario = idNum
+              
+              try {
+                const retryResponse: any = await strapiClient.post(logEndpoint, { data: logDataConId })
+                console.log('[LOGGING] ✅ Log creado con ID numérico:', {
+                  logId: retryResponse?.data?.id || retryResponse?.id || 'unknown',
+                  accion: params.accion,
+                  entidad: params.entidad,
+                  usuarioUsado: logDataConId.usuario
+                })
+                return // Salir exitosamente
+              } catch (retryError: any) {
+                console.error('[LOGGING] ❌ Error al crear log con ID numérico:', retryError.message)
+              }
             }
           }
           
