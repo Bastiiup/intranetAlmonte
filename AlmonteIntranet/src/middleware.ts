@@ -47,11 +47,14 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Verificar cookie de autenticación
+  // Verificar cookies de autenticación (múltiples opciones para compatibilidad)
   const authToken = request.cookies.get('auth_token')?.value
+  const authColaborador = request.cookies.get('auth_colaborador')?.value
+  const colaboradorData = request.cookies.get('colaboradorData')?.value
+  const colaborador = request.cookies.get('colaborador')?.value
 
-  // Si no hay token, redirigir al login
-  if (!authToken) {
+  // Si no hay ninguna cookie de autenticación, redirigir al login
+  if (!authToken && !authColaborador && !colaboradorData && !colaborador) {
     const loginUrl = new URL('/auth-1/sign-in', request.url)
     // Guardar la URL a la que intentaba acceder para redirigir después del login
     loginUrl.searchParams.set('redirect', pathname)
