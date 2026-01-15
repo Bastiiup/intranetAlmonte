@@ -516,39 +516,49 @@ export async function logActivity(
     }
     const token = request.headers.get('authorization') || (isNextRequest(request) ? request.cookies.get('auth_token')?.value : undefined)
     
+    // ========== DECIDIR QUÉ USUARIO USAR ==========
+    // Priorizar colaboradorDirecto (más confiable, viene directamente de cookie)
+    const colaboradorFinal = colaboradorDirecto || usuario
+    const idFinal = colaboradorDirecto?.id || usuario?.id
+    const documentIdFinal = colaboradorDirecto?.documentId || (usuario as any)?.documentId
+    const emailFinal = emailColaborador || usuario?.email
+    const nombreFinal = nombreColaborador || usuario?.nombre
+    
+    console.log('[LOGGING] 🎯 Colaborador final seleccionado:', {
+      fuente: colaboradorDirecto ? 'cookie directa' : 'getUserFromRequest',
+      id: idFinal,
+      documentId: documentIdFinal,
+      email: emailFinal,
+      nombre: nombreFinal
+    })
+    
     // Agregar usuario si está disponible
-    if (usuario?.id || usuario?.documentId) {
-      // CRÍTICO: En Strapi v5, las relaciones manyToOne requieren el documentId (string), NO el id numérico
-      // Priorizar documentId si está disponible, sino usar id
-      // IMPORTANTE: Si documentId es un número, convertirlo a string para Strapi v5
-      const documentId = (usuario as any).documentId
-      const id = usuario.id
-      
+    if (idFinal || documentIdFinal) {
       // CRÍTICO: Para relaciones manyToOne con colaborador, Strapi espera el ID numérico, NO documentId
       // Usar siempre el ID numérico del colaborador
       let usuarioParaStrapi: number | null = null
       
       // Priorizar ID numérico (Strapi espera ID numérico para relaciones manyToOne con colaborador)
-      if (id !== undefined && id !== null) {
+      if (idFinal !== undefined && idFinal !== null) {
         // Convertir a número si es string
-        usuarioParaStrapi = typeof id === 'string' ? parseInt(id) : id
+        usuarioParaStrapi = typeof idFinal === 'string' ? parseInt(idFinal) : idFinal
         if (isNaN(usuarioParaStrapi)) {
           usuarioParaStrapi = null
         }
         console.log('[LOGGING] ✅ Usando ID numérico del colaborador para Strapi:', {
-          idOriginal: id,
-          idTipo: typeof id,
+          idOriginal: idFinal,
+          idTipo: typeof idFinal,
           idEnviado: usuarioParaStrapi,
           idEnviadoTipo: typeof usuarioParaStrapi,
         })
-      } else if (documentId !== undefined && documentId !== null) {
+      } else if (documentIdFinal !== undefined && documentIdFinal !== null) {
         // Fallback: intentar usar documentId como número si el id no está disponible
-        const docIdNum = typeof documentId === 'string' ? parseInt(documentId) : documentId
+        const docIdNum = typeof documentIdFinal === 'string' ? parseInt(documentIdFinal) : documentIdFinal
         if (!isNaN(docIdNum) && typeof docIdNum === 'number') {
           usuarioParaStrapi = docIdNum
           console.log('[LOGGING] ⚠️ Usando documentId como número (id no disponible):', {
-            documentIdOriginal: documentId,
-            documentIdTipo: typeof documentId,
+            documentIdOriginal: documentIdFinal,
+            documentIdTipo: typeof documentIdFinal,
             idEnviado: usuarioParaStrapi,
           })
         }
@@ -556,26 +566,35 @@ export async function logActivity(
       
       if (!usuarioParaStrapi) {
         console.error('[LOGGING] ❌ ERROR: No se pudo obtener ID ni documentId del usuario:', {
-          usuarioCompleto: JSON.stringify(usuario, null, 2),
-          tieneId: !!usuario.id,
-          tieneDocumentId: !!(usuario as any).documentId,
+          colaboradorFinal: JSON.stringify(colaboradorFinal, null, 2),
+          tieneId: !!idFinal,
+          tieneDocumentId: !!documentIdFinal,
         })
         logData.usuario = null
       } else {
         // CRÍTICO: Para relaciones manyToOne con colaborador, Strapi espera ID numérico
         logData.usuario = usuarioParaStrapi
         console.log('[LOGGING] ✅ Usuario asociado al log:', {
-          idOriginal: usuario.id,
-          documentId: (usuario as any).documentId || 'no disponible',
+          idOriginal: idFinal,
+          documentId: documentIdFinal || 'no disponible',
           valorEnviado: logData.usuario,
           tipoEnviado: typeof logData.usuario,
-          email: usuario.email,
-          nombre: usuario.nombre,
+          email: emailFinal,
+          nombre: nombreFinal,
           accion: params.accion,
           entidad: params.entidad,
           formatoEnviado: 'ID numérico del colaborador: ' + logData.usuario,
           esNumber: typeof logData.usuario === 'number',
         })
+        
+        // Guardar email y nombre en metadata por si el colaborador no existe en Strapi
+        if (emailFinal || nombreFinal) {
+          const metadata: any = {}
+          if (emailFinal) metadata.usuario_email = emailFinal
+          if (nombreFinal) metadata.usuario_nombre = nombreFinal
+          logData.metadata = JSON.stringify(metadata)
+          console.log('[LOGGING] 📋 Metadata guardada:', metadata)
+        }
       }
     } else {
       // No mostrar errores en producción - es normal que no haya usuario en algunos requests
@@ -632,9 +651,9 @@ export async function logActivity(
     console.log('[LOGGING] 📝 Registrando actividad:', {
       accion: params.accion,
       entidad: params.entidad,
-      usuario: usuario?.id || 'sin usuario',
-      usuarioEmail: usuario?.email || 'sin email',
-      usuarioNombre: usuario?.nombre || 'sin nombre',
+      usuario: idFinal || 'sin usuario',
+      usuarioEmail: emailFinal || 'sin email',
+      usuarioNombre: nombreFinal || 'sin nombre',
       descripcion: params.descripcion.substring(0, 50),
       tieneColaboradorCookie: !!colaboradorCookie,
       tieneToken: !!token,
@@ -706,13 +725,21 @@ export async function logActivity(
             logData.usuario) {
           console.log('[LOGGING] ⚠️ Usuario no existe en Strapi con el ID enviado, intentando verificar...')
           
-          // Intentar con el ID numérico si tenemos el usuario original y el ID es diferente
-          if (usuario && usuario.id && usuario.id !== logData.usuario) {
+          // Intentar con el ID numérico si tenemos el colaborador final y el ID es diferente
+          if (idFinal && idFinal !== logData.usuario) {
             console.log('[LOGGING] 🔄 Intentando con ID numérico del colaborador...')
             const logDataConId = { ...logData }
-            const idNum = typeof usuario.id === 'string' ? parseInt(usuario.id) : usuario.id
+            const idNum = typeof idFinal === 'string' ? parseInt(idFinal) : idFinal
             if (!isNaN(idNum)) {
               logDataConId.usuario = idNum
+              
+              // Asegurar que metadata tenga email y nombre
+              if (emailFinal || nombreFinal) {
+                const metadata: any = {}
+                if (emailFinal) metadata.usuario_email = emailFinal
+                if (nombreFinal) metadata.usuario_nombre = nombreFinal
+                logDataConId.metadata = JSON.stringify(metadata)
+              }
               
               try {
                 const retryResponse: any = await strapiClient.post(logEndpoint, { data: logDataConId })
@@ -731,106 +758,33 @@ export async function logActivity(
           
           // Si falla con ID numérico, capturar email y nombre desde cookies y guardarlos como texto
           console.log('[LOGGING] ⚠️ No se pudo usar usuario, capturando email y nombre desde cookies...')
-          
-          // Intentar extraer email y nombre del colaborador desde las cookies
-          let emailColaborador: string | null = null
-          let nombreColaborador: string | null = null
-          
-          try {
-            // Buscar en cookies (usar la misma lógica que arriba)
-            let colaboradorCookie: string | undefined = undefined
-            if (isNextRequest(request)) {
-              colaboradorCookie = request.cookies.get('colaboradorData')?.value || 
-                                 request.cookies.get('colaborador')?.value ||
-                                 request.cookies.get('auth_colaborador')?.value
-            } else {
-              const cookieHeader = request.headers.get('cookie')
-              if (cookieHeader) {
-                const cookies = cookieHeader.split(';').reduce((acc: Record<string, string>, cookie: string) => {
-                  const [name, ...valueParts] = cookie.trim().split('=')
-                  if (name && valueParts.length > 0) {
-                    const value = valueParts.join('=')
-                    try {
-                      JSON.parse(value)
-                      acc[name] = value
-                    } catch {
-                      acc[name] = decodeURIComponent(value)
-                    }
-                  }
-                  return acc
-                }, {})
-                colaboradorCookie = cookies['colaboradorData'] || 
-                                   cookies['colaborador'] || 
-                                   cookies['auth_colaborador']
-              }
-            }
-            
-            if (colaboradorCookie) {
-              try {
-                const colaborador = JSON.parse(colaboradorCookie)
-                
-                // Extraer email (la cookie tiene email_login en el nivel superior)
-                emailColaborador = colaborador.email_login || 
-                                 colaborador.data?.attributes?.email_login || 
-                                 colaborador.attributes?.email_login || 
-                                 colaborador.email || 
-                                 null
-                
-                // Extraer nombre de la persona (la cookie tiene persona en el nivel superior)
-                const persona = colaborador.persona || 
-                              colaborador.data?.attributes?.persona?.data?.attributes ||
-                              colaborador.attributes?.persona?.data?.attributes ||
-                              colaborador.data?.attributes?.persona ||
-                              colaborador.attributes?.persona ||
-                              {}
-                
-                const personaAttrs = persona.attributes || persona.data?.attributes || persona.data || persona
-                
-                nombreColaborador = personaAttrs.nombre_completo || 
-                                  `${(personaAttrs.nombres || '').trim()} ${(personaAttrs.primer_apellido || '').trim()}`.trim() ||
-                                  emailColaborador ||
-                                  null
-                
-                console.log('[LOGGING] 📋 Datos extraídos desde cookies (retry):')
-                console.log('  - email:', emailColaborador || 'NO HAY')
-                console.log('  - nombre:', nombreColaborador || 'NO HAY')
-              } catch (parseError) {
-                console.warn('[LOGGING] ⚠️ Error al parsear cookie para extraer email/nombre:', parseError)
-              }
-            }
-            
-            // Si no se pudo extraer, usar los valores que ya teníamos del método 2
-            if (!emailColaborador && emailFinal) {
-              emailColaborador = emailFinal
-            }
-            if (!nombreColaborador && nombreFinal) {
-              nombreColaborador = nombreFinal
-            }
-          } catch (extractError) {
-            console.warn('[LOGGING] ⚠️ Error al extraer email/nombre desde cookies:', extractError)
-          }
+          console.log('[LOGGING] 📋 Usando valores ya extraídos:', {
+            email: emailFinal || 'NO HAY',
+            nombre: nombreFinal || 'NO HAY'
+          })
           
           // Crear log sin usuario pero con email y nombre en metadata
           const logDataSinUsuario = { ...logData }
           delete logDataSinUsuario.usuario
           
           // Agregar email y nombre en metadata (campo JSON) si están disponibles
-          if (emailColaborador || nombreColaborador) {
+          if (emailFinal || nombreFinal) {
             const metadata: any = {}
-            if (emailColaborador) {
-              metadata.usuario_email = emailColaborador
+            if (emailFinal) {
+              metadata.usuario_email = emailFinal
             }
-            if (nombreColaborador) {
-              metadata.usuario_nombre = nombreColaborador
+            if (nombreFinal) {
+              metadata.usuario_nombre = nombreFinal
             }
             logDataSinUsuario.metadata = JSON.stringify(metadata)
+            console.log('[LOGGING] 📋 Metadata agregada al log:', metadata)
           }
           
           // También incluir el nombre en la descripción para que sea visible
-          if (nombreColaborador) {
-            logDataSinUsuario.descripcion = `${nombreColaborador} - ${logDataSinUsuario.descripcion}`
-          } else if (emailColaborador) {
-            logDataSinUsuario.descripcion = `${emailColaborador} - ${logDataSinUsuario.descripcion}`
+          if (nombreFinal) {
+            logDataSinUsuario.descripcion = `${nombreFinal} - ${logDataSinUsuario.descripcion}`
+          } else if (emailFinal) {
+            logDataSinUsuario.descripcion = `${emailFinal} - ${logDataSinUsuario.descripcion}`
           }
           
           try {
@@ -839,8 +793,8 @@ export async function logActivity(
               logId: retryResponse?.data?.id || retryResponse?.id || 'unknown',
               accion: params.accion,
               entidad: params.entidad,
-              usuario_email: emailColaborador || 'NO HAY',
-              usuario_nombre: nombreColaborador || 'NO HAY',
+              usuario_email: emailFinal || 'NO HAY',
+              usuario_nombre: nombreFinal || 'NO HAY',
             })
             return // Salir sin mostrar más errores
           } catch (retryError: any) {
@@ -873,21 +827,32 @@ export async function logActivity(
           bodyCompleto: JSON.stringify(bodyToSend, null, 2).substring(0, 500),
         })
         
-        // Si el error es porque el usuario no existe, intentar crear el log sin usuario
+        // Si el error es porque el usuario no existe, intentar crear el log sin usuario pero con email/nombre
         if (error.status === 400 && 
             (error.message?.includes('do not exist') || 
              error.message?.includes('associated with this entity do not exist')) && 
             logData.usuario) {
-          console.log('[LOGGING] ⚠️ Usuario no existe en Strapi, intentando crear log sin usuario...')
+          console.log('[LOGGING] ⚠️ Usuario no existe en Strapi, intentando crear log sin usuario pero con email/nombre...')
           const logDataSinUsuario = { ...logData }
           delete logDataSinUsuario.usuario
           
+          // Agregar email y nombre en metadata si están disponibles
+          if (emailFinal || nombreFinal) {
+            const metadata: any = {}
+            if (emailFinal) metadata.usuario_email = emailFinal
+            if (nombreFinal) metadata.usuario_nombre = nombreFinal
+            logDataSinUsuario.metadata = JSON.stringify(metadata)
+            console.log('[LOGGING] 📋 Metadata agregada al log (fallback):', metadata)
+          }
+          
           try {
             const retryResponse: any = await strapiClient.post(logEndpoint, { data: logDataSinUsuario })
-            console.log('[LOGGING] ✅ Log creado sin usuario (usuario no existe en Strapi):', {
+            console.log('[LOGGING] ✅ Log creado sin usuario pero con email/nombre (usuario no existe en Strapi):', {
               logId: retryResponse?.data?.id || retryResponse?.id || 'unknown',
               accion: params.accion,
               entidad: params.entidad,
+              usuario_email: emailFinal || 'NO HAY',
+              usuario_nombre: nombreFinal || 'NO HAY',
             })
             return // Salir sin mostrar más errores
           } catch (retryError: any) {
