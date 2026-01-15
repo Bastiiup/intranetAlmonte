@@ -635,9 +635,35 @@ export async function logActivity(
         console.error('[LOGGING] ❌ Endpoint:', logEndpoint)
         console.error('[LOGGING] ❌ Details:', error.details)
         
-        // Si el error es porque el usuario no existe, intentar crear el log sin usuario
-        if (error.status === 400 && error.message?.includes('do not exist') && logData.usuario) {
-          console.log('[LOGGING] ⚠️ Usuario no existe en Strapi, intentando crear log sin usuario...')
+        // Si el error es porque el usuario no existe, intentar verificar y usar documentId
+        if (error.status === 400 && 
+            (error.message?.includes('do not exist') || 
+             error.message?.includes('associated with this entity do not exist')) && 
+            logData.usuario) {
+          console.log('[LOGGING] ⚠️ Usuario no existe en Strapi con el ID enviado, intentando verificar...')
+          
+          // Intentar buscar el colaborador por documentId si tenemos el usuario original
+          if (usuario && (usuario as any).documentId && String((usuario as any).documentId) !== String(logData.usuario)) {
+            console.log('[LOGGING] 🔄 Intentando con documentId en lugar de id...')
+            const logDataConDocumentId = { ...logData }
+            logDataConDocumentId.usuario = String((usuario as any).documentId)
+            
+            try {
+              const retryResponse = await strapiClient.post(logEndpoint, { data: logDataConDocumentId })
+              console.log('[LOGGING] ✅ Log creado con documentId:', {
+                logId: retryResponse?.data?.id || retryResponse?.id || 'unknown',
+                accion: params.accion,
+                entidad: params.entidad,
+                usuarioUsado: logDataConDocumentId.usuario
+              })
+              return // Salir exitosamente
+            } catch (retryError: any) {
+              console.error('[LOGGING] ❌ Error al crear log con documentId:', retryError.message)
+            }
+          }
+          
+          // Si falla con documentId también, crear sin usuario como último recurso
+          console.log('[LOGGING] ⚠️ No se pudo usar usuario, creando log sin usuario...')
           const logDataSinUsuario = { ...logData }
           delete logDataSinUsuario.usuario
           

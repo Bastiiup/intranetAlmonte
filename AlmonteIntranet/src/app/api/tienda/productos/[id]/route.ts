@@ -609,7 +609,21 @@ export async function PUT(
 
     // Registrar cambios en logs de actividades
     try {
-      const { logActivity } = await import('@/lib/logging/service')
+      const { logActivity, getUserFromRequest } = await import('@/lib/logging/service')
+      
+      // Obtener usuario del request primero para verificar que existe
+      const usuario = await getUserFromRequest(request)
+      
+      if (!usuario || (!usuario.id && !usuario.documentId)) {
+        console.warn('[API PUT] ⚠️ No se pudo obtener usuario para el log, continuando sin usuario')
+      } else {
+        console.log('[API PUT] 👤 Usuario obtenido para log:', {
+          id: usuario.id,
+          documentId: usuario.documentId,
+          email: usuario.email,
+          nombre: usuario.nombre
+        })
+      }
       
       // Obtener datos anteriores y nuevos para el log
       const attrs = producto.attributes || producto
@@ -667,7 +681,11 @@ export async function PUT(
           datosNuevos
         })
 
-        console.log('[API PUT] 📝 Log de actividad registrado:', { cambios, descripcion })
+        console.log('[API PUT] 📝 Log de actividad registrado:', { 
+          cambios, 
+          descripcion,
+          usuario: usuario?.nombre || usuario?.email || 'sin usuario'
+        })
       }
     } catch (logError: any) {
       // No fallar la actualización si el log falla
