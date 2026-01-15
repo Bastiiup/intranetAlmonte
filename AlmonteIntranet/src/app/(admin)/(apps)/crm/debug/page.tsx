@@ -24,6 +24,10 @@ export default function DebugPage() {
   const [schemaLoading, setSchemaLoading] = useState(false)
   const [schemaResult, setSchemaResult] = useState<any>(null)
   const [schemaError, setSchemaError] = useState<string | null>(null)
+  
+  const [colaboradorLoading, setColaboradorLoading] = useState(false)
+  const [colaboradorResult, setColaboradorResult] = useState<any>(null)
+  const [colaboradorError, setColaboradorError] = useState<string | null>(null)
 
   const consultarSchema = async () => {
     setSchemaLoading(true)
@@ -135,12 +139,273 @@ export default function DebugPage() {
     }
   }
 
+  const consultarColaborador = async () => {
+    setColaboradorLoading(true)
+    setColaboradorError(null)
+    setColaboradorResult(null)
+    
+    try {
+      const response = await fetch('/api/debug/colaborador-sesion')
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al consultar colaborador')
+      }
+      
+      setColaboradorResult(data)
+    } catch (err: any) {
+      setColaboradorError(err.message || 'Error al consultar colaborador')
+      console.error('Error:', err)
+    } finally {
+      setColaboradorLoading(false)
+    }
+  }
+
   return (
     <Container fluid>
       <PageBreadcrumb
-        title="Diagnóstico Strapi - Trayectorias"
-        subtitle="Herramientas de diagnóstico para consultar y crear trayectorias"
+        title="Diagnóstico CRM"
+        subtitle="Herramientas de diagnóstico para consultar información del sistema"
       />
+
+      {/* Sección de Colaborador en Sesión */}
+      <Card className="mb-3">
+        <CardHeader>
+          <h5>👤 Colaborador en Sesión</h5>
+        </CardHeader>
+        <CardBody>
+          <p className="text-muted">
+            Consulta información completa del colaborador actualmente autenticado, incluyendo:
+            cookies disponibles, verificación en Strapi, y datos de persona asociada.
+          </p>
+          
+          <Button
+            variant="primary"
+            onClick={consultarColaborador}
+            disabled={colaboradorLoading}
+            className="mb-3"
+          >
+            {colaboradorLoading ? (
+              <>
+                <Spinner size="sm" className="me-2" />
+                Consultando...
+              </>
+            ) : (
+              '🔍 Consultar Colaborador en Sesión'
+            )}
+          </Button>
+          
+          {colaboradorError && (
+            <Alert variant="danger" className="mt-3">
+              <strong>Error:</strong> {colaboradorError}
+            </Alert>
+          )}
+          
+          {colaboradorResult && (
+            <div className="mt-3">
+              <Row>
+                <Col md={6}>
+                  <Card className="mb-3">
+                    <CardHeader>
+                      <h6>✅ Colaborador Final</h6>
+                    </CardHeader>
+                    <CardBody>
+                      <Table striped bordered size="sm">
+                        <tbody>
+                          <tr>
+                            <td><strong>ID:</strong></td>
+                            <td>{colaboradorResult.colaboradorFinal.id || 'N/A'}</td>
+                          </tr>
+                          <tr>
+                            <td><strong>Document ID:</strong></td>
+                            <td><small>{colaboradorResult.colaboradorFinal.documentId || 'N/A'}</small></td>
+                          </tr>
+                          <tr>
+                            <td><strong>Email:</strong></td>
+                            <td>{colaboradorResult.colaboradorFinal.email_login || 'N/A'}</td>
+                          </tr>
+                          <tr>
+                            <td><strong>Rol:</strong></td>
+                            <td>{colaboradorResult.colaboradorFinal.rol || 'N/A'}</td>
+                          </tr>
+                          <tr>
+                            <td><strong>Activo:</strong></td>
+                            <td>{colaboradorResult.colaboradorFinal.activo !== null ? (colaboradorResult.colaboradorFinal.activo ? '✅ Sí' : '❌ No') : 'N/A'}</td>
+                          </tr>
+                        </tbody>
+                      </Table>
+                      
+                      {colaboradorResult.colaboradorFinal.persona && (
+                        <div className="mt-3">
+                          <h6>👥 Información de Persona:</h6>
+                          <Table striped bordered size="sm">
+                            <tbody>
+                              <tr>
+                                <td><strong>RUT:</strong></td>
+                                <td>{colaboradorResult.colaboradorFinal.persona.rut || 'N/A'}</td>
+                              </tr>
+                              <tr>
+                                <td><strong>Nombre Completo:</strong></td>
+                                <td>{colaboradorResult.colaboradorFinal.persona.nombre_completo || 'N/A'}</td>
+                              </tr>
+                              <tr>
+                                <td><strong>Nombres:</strong></td>
+                                <td>{colaboradorResult.colaboradorFinal.persona.nombres || 'N/A'}</td>
+                              </tr>
+                              <tr>
+                                <td><strong>Apellidos:</strong></td>
+                                <td>{`${colaboradorResult.colaboradorFinal.persona.primer_apellido || ''} ${colaboradorResult.colaboradorFinal.persona.segundo_apellido || ''}`.trim() || 'N/A'}</td>
+                              </tr>
+                              <tr>
+                                <td><strong>Teléfono:</strong></td>
+                                <td>{colaboradorResult.colaboradorFinal.persona.telefono_principal || 'N/A'}</td>
+                              </tr>
+                            </tbody>
+                          </Table>
+                        </div>
+                      )}
+                    </CardBody>
+                  </Card>
+                </Col>
+                
+                <Col md={6}>
+                  <Card className="mb-3">
+                    <CardHeader>
+                      <h6>📋 Recomendaciones para Logging</h6>
+                    </CardHeader>
+                    <CardBody>
+                      <Table striped bordered size="sm">
+                        <tbody>
+                          <tr>
+                            <td><strong>ID para Logging:</strong></td>
+                            <td>{colaboradorResult.recomendaciones.idParaLogging || 'N/A'}</td>
+                          </tr>
+                          <tr>
+                            <td><strong>Email para Logging:</strong></td>
+                            <td>{colaboradorResult.recomendaciones.emailParaLogging || 'N/A'}</td>
+                          </tr>
+                          <tr>
+                            <td><strong>Nombre para Logging:</strong></td>
+                            <td>{colaboradorResult.recomendaciones.nombreParaLogging || 'N/A'}</td>
+                          </tr>
+                          <tr>
+                            <td><strong>Existe en Strapi:</strong></td>
+                            <td>
+                              {colaboradorResult.recomendaciones.existeEnStrapi ? (
+                                <span className="text-success">✅ Sí</span>
+                              ) : (
+                                <span className="text-warning">⚠️ No (usar email/nombre en metadata)</span>
+                              )}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td><strong>Puede usar en Logs:</strong></td>
+                            <td>
+                              {colaboradorResult.recomendaciones.puedeUsarEnLogs ? (
+                                <span className="text-success">✅ Sí</span>
+                              ) : (
+                                <span className="text-danger">❌ No</span>
+                              )}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </Table>
+                    </CardBody>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader>
+                      <h6>🔍 Verificación en Strapi</h6>
+                    </CardHeader>
+                    <CardBody>
+                      {colaboradorResult.metodos.verificacionStrapi ? (
+                        <>
+                          <p>
+                            <strong>Estado:</strong>{' '}
+                            {colaboradorResult.metodos.verificacionStrapi.existe ? (
+                              <span className="text-success">✅ Existe</span>
+                            ) : (
+                              <span className="text-warning">⚠️ No encontrado</span>
+                            )}
+                          </p>
+                          {colaboradorResult.metodos.verificacionStrapi.error && (
+                            <p className="text-danger">
+                              <strong>Error:</strong> {colaboradorResult.metodos.verificacionStrapi.error}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-muted">No se pudo verificar en Strapi</p>
+                      )}
+                    </CardBody>
+                  </Card>
+                </Col>
+              </Row>
+              
+              <Card className="mt-3">
+                <CardHeader>
+                  <h6>🍪 Cookies Disponibles</h6>
+                </CardHeader>
+                <CardBody>
+                  <div style={{ maxHeight: '300px', overflow: 'auto' }}>
+                    <Table striped bordered size="sm">
+                      <thead>
+                        <tr>
+                          <th>Nombre</th>
+                          <th>Valor (primeros 200 chars)</th>
+                          <th>Tiene Valor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {colaboradorResult.todasLasCookies.map((cookie: any, idx: number) => (
+                          <tr key={idx}>
+                            <td><code>{cookie.name}</code></td>
+                            <td><small>{cookie.value}</small></td>
+                            <td>{cookie.hasValue ? '✅' : '❌'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </Table>
+                  </div>
+                </CardBody>
+              </Card>
+              
+              <Card className="mt-3">
+                <CardHeader>
+                  <h6>📊 Resultado Completo (JSON)</h6>
+                </CardHeader>
+                <CardBody>
+                  <pre style={{ 
+                    backgroundColor: '#f5f5f5', 
+                    padding: '15px', 
+                    borderRadius: '5px',
+                    overflow: 'auto',
+                    maxHeight: '600px',
+                    fontSize: '12px'
+                  }}>
+                    {JSON.stringify(colaboradorResult, null, 2)}
+                  </pre>
+                  
+                  <div className="mt-3">
+                    <Button
+                      variant="outline-secondary"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(JSON.stringify(colaboradorResult, null, 2))
+                        alert('Resultado copiado al portapapeles')
+                      }}
+                    >
+                      📋 Copiar Resultado
+                    </Button>
+                  </div>
+                </CardBody>
+              </Card>
+            </div>
+          )}
+        </CardBody>
+      </Card>
+
+      <hr className="my-4" />
 
       <Row>
         <Col md={6}>
