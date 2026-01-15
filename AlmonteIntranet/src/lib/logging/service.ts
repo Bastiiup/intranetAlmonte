@@ -668,20 +668,103 @@ export async function logActivity(
             }
           }
           
-          // Si falla con documentId también, crear sin usuario como último recurso
-          console.log('[LOGGING] ⚠️ No se pudo usar usuario, creando log sin usuario...')
+          // Si falla con ID numérico, capturar email y nombre desde cookies y guardarlos como texto
+          console.log('[LOGGING] ⚠️ No se pudo usar usuario, capturando email y nombre desde cookies...')
+          
+          // Intentar extraer email y nombre del colaborador desde las cookies
+          let emailColaborador: string | null = null
+          let nombreColaborador: string | null = null
+          
+          try {
+            // Buscar en cookies (usar la misma lógica que arriba)
+            let colaboradorCookie: string | undefined = undefined
+            if (isNextRequest(request)) {
+              colaboradorCookie = request.cookies.get('colaboradorData')?.value || 
+                                 request.cookies.get('colaborador')?.value ||
+                                 request.cookies.get('auth_colaborador')?.value
+            } else {
+              const cookieHeader = request.headers.get('cookie')
+              if (cookieHeader) {
+                const cookies = cookieHeader.split(';').reduce((acc: Record<string, string>, cookie: string) => {
+                  const [name, ...valueParts] = cookie.trim().split('=')
+                  if (name && valueParts.length > 0) {
+                    const value = valueParts.join('=')
+                    try {
+                      JSON.parse(value)
+                      acc[name] = value
+                    } catch {
+                      acc[name] = decodeURIComponent(value)
+                    }
+                  }
+                  return acc
+                }, {})
+                colaboradorCookie = cookies['colaboradorData'] || 
+                                   cookies['colaborador'] || 
+                                   cookies['auth_colaborador']
+              }
+            }
+            
+            if (colaboradorCookie) {
+              try {
+                const colaborador = JSON.parse(colaboradorCookie)
+                
+                // Extraer email
+                emailColaborador = colaborador.email_login || 
+                                 colaborador.data?.attributes?.email_login || 
+                                 colaborador.attributes?.email_login || 
+                                 colaborador.email || 
+                                 null
+                
+                // Extraer nombre de la persona
+                const persona = colaborador.persona || 
+                              colaborador.data?.attributes?.persona?.data?.attributes ||
+                              colaborador.attributes?.persona?.data?.attributes ||
+                              colaborador.data?.attributes?.persona ||
+                              colaborador.attributes?.persona ||
+                              {}
+                
+                const personaAttrs = persona.attributes || persona.data?.attributes || persona.data || persona
+                
+                nombreColaborador = personaAttrs.nombre_completo || 
+                                  `${(personaAttrs.nombres || '').trim()} ${(personaAttrs.primer_apellido || '').trim()}`.trim() ||
+                                  emailColaborador ||
+                                  null
+                
+                console.log('[LOGGING] 📋 Datos extraídos desde cookies:')
+                console.log('  - email:', emailColaborador || 'NO HAY')
+                console.log('  - nombre:', nombreColaborador || 'NO HAY')
+              } catch (parseError) {
+                console.warn('[LOGGING] ⚠️ Error al parsear cookie para extraer email/nombre:', parseError)
+              }
+            }
+          } catch (extractError) {
+            console.warn('[LOGGING] ⚠️ Error al extraer email/nombre desde cookies:', extractError)
+          }
+          
+          // Crear log sin usuario pero con email y nombre como texto
           const logDataSinUsuario = { ...logData }
           delete logDataSinUsuario.usuario
           
+          // Agregar email y nombre como campos de texto si están disponibles
+          if (emailColaborador) {
+            logDataSinUsuario.usuario_email = emailColaborador
+          }
+          if (nombreColaborador) {
+            logDataSinUsuario.usuario_nombre = nombreColaborador
+          }
+          
           try {
             const retryResponse: any = await strapiClient.post(logEndpoint, { data: logDataSinUsuario })
-            console.log('[LOGGING] ✅ Log creado sin usuario (usuario no existe en Strapi):', {
+            console.log('[LOGGING] ✅ Log creado con email/nombre (usuario no existe en Strapi):', {
               logId: retryResponse?.data?.id || retryResponse?.id || 'unknown',
               accion: params.accion,
               entidad: params.entidad,
+              usuario_email: emailColaborador || 'NO HAY',
+              usuario_nombre: nombreColaborador || 'NO HAY',
             })
+            return // Salir sin mostrar más errores
           } catch (retryError: any) {
-            console.error('[LOGGING] ❌ Error al crear log sin usuario:', retryError.message)
+            console.error('[LOGGING] ❌ Error al crear log con email/nombre:', retryError.message)
           }
           return // Salir sin mostrar más errores
         }
