@@ -611,18 +611,72 @@ export async function PUT(
     try {
       const { logActivity, getUserFromRequest } = await import('@/lib/logging/service')
       
+      // ========== LOGS DETALLADOS DE DEPURACIÓN ==========
+      console.log('═══════════════════════════════════════════════════════')
+      console.log('[API PUT] 🔍 INICIANDO REGISTRO DE LOG DE ACTIVIDAD')
+      console.log('═══════════════════════════════════════════════════════')
+      
+      // Verificar cookies disponibles
+      if (request instanceof Request && 'cookies' in request) {
+        const cookies = (request as any).cookies
+        console.log('[API PUT] 🍪 Cookies disponibles en request:')
+        console.log('  - colaboradorData:', cookies?.get('colaboradorData')?.value ? '✅ Presente' : '❌ No encontrada')
+        console.log('  - colaborador:', cookies?.get('colaborador')?.value ? '✅ Presente' : '❌ No encontrada')
+        console.log('  - auth_colaborador:', cookies?.get('auth_colaborador')?.value ? '✅ Presente' : '❌ No encontrada')
+        
+        // Mostrar preview de colaboradorData si existe
+        const colaboradorDataValue = cookies?.get('colaboradorData')?.value
+        if (colaboradorDataValue) {
+          try {
+            const colaboradorParsed = JSON.parse(colaboradorDataValue)
+            console.log('[API PUT] 📋 Estructura de colaboradorData:')
+            console.log('  - id:', colaboradorParsed.id || 'NO HAY')
+            console.log('  - documentId:', colaboradorParsed.documentId || 'NO HAY')
+            console.log('  - email_login:', colaboradorParsed.email_login || colaboradorParsed.data?.attributes?.email_login || 'NO HAY')
+            console.log('  - Keys principales:', Object.keys(colaboradorParsed).join(', '))
+          } catch (e) {
+            console.log('[API PUT] ⚠️ No se pudo parsear colaboradorData:', (e as Error).message)
+          }
+        }
+      } else {
+        // Verificar headers de cookie
+        const cookieHeader = request.headers.get('cookie')
+        console.log('[API PUT] 🍪 Cookie header:', cookieHeader ? '✅ Presente' : '❌ No encontrado')
+        if (cookieHeader) {
+          const cookies = cookieHeader.split(';').reduce((acc: Record<string, string>, cookie: string) => {
+            const [name, ...valueParts] = cookie.trim().split('=')
+            if (name && valueParts.length > 0) {
+              acc[name] = decodeURIComponent(valueParts.join('='))
+            }
+            return acc
+          }, {})
+          console.log('[API PUT] 📋 Cookies en header:', Object.keys(cookies).join(', '))
+          if (cookies['colaboradorData']) {
+            try {
+              const colaboradorParsed = JSON.parse(cookies['colaboradorData'])
+              console.log('[API PUT] 📋 Estructura de colaboradorData (desde header):')
+              console.log('  - id:', colaboradorParsed.id || 'NO HAY')
+              console.log('  - documentId:', colaboradorParsed.documentId || 'NO HAY')
+            } catch (e) {
+              console.log('[API PUT] ⚠️ No se pudo parsear colaboradorData del header')
+            }
+          }
+        }
+      }
+      
       // Obtener usuario del request primero para verificar que existe
+      console.log('[API PUT] 🔍 Obteniendo usuario desde request...')
       const usuario = await getUserFromRequest(request)
       
-      if (!usuario || (!usuario.id && !usuario.documentId)) {
-        console.warn('[API PUT] ⚠️ No se pudo obtener usuario para el log, continuando sin usuario')
+      console.log('[API PUT] 👤 Resultado de getUserFromRequest:')
+      console.log('  - usuario:', usuario ? '✅ Obtenido' : '❌ NULL')
+      if (usuario) {
+        console.log('  - id:', usuario.id || 'NO HAY')
+        console.log('  - documentId:', (usuario as any).documentId || 'NO HAY')
+        console.log('  - email:', usuario.email || 'NO HAY')
+        console.log('  - nombre:', usuario.nombre || 'NO HAY')
       } else {
-        console.log('[API PUT] 👤 Usuario obtenido para log:', {
-          id: usuario.id,
-          documentId: usuario.documentId,
-          email: usuario.email,
-          nombre: usuario.nombre
-        })
+        console.warn('[API PUT] ⚠️ No se pudo obtener usuario para el log, continuando sin usuario')
       }
       
       // Obtener datos anteriores y nuevos para el log
@@ -672,6 +726,21 @@ export async function PUT(
       if (cambios.length > 0) {
         const descripcion = `Actualizó ${cambios.join(', ')} del producto "${attrs.nombre_libro || 'Sin nombre'}"`
         
+        console.log('[API PUT] 📝 Preparando log de actividad:')
+        console.log('  - accion: actualizar')
+        console.log('  - entidad: producto')
+        console.log('  - entidadId:', String(id))
+        console.log('  - descripcion:', descripcion)
+        console.log('  - usuario disponible:', usuario ? '✅ SÍ' : '❌ NO')
+        if (usuario) {
+          console.log('  - usuario.id:', usuario.id)
+          console.log('  - usuario.documentId:', (usuario as any).documentId)
+          console.log('  - usuario.nombre:', usuario.nombre)
+          console.log('  - usuario.email:', usuario.email)
+        }
+        console.log('  - datosAnteriores:', Object.keys(datosAnteriores).length, 'campos')
+        console.log('  - datosNuevos:', Object.keys(datosNuevos).length, 'campos')
+        
         await logActivity(request, {
           accion: 'actualizar',
           entidad: 'producto',
@@ -681,15 +750,17 @@ export async function PUT(
           datosNuevos
         })
 
-        console.log('[API PUT] 📝 Log de actividad registrado:', { 
-          cambios, 
-          descripcion,
-          usuario: usuario?.nombre || usuario?.email || 'sin usuario'
-        })
+        console.log('[API PUT] ✅ Log de actividad enviado a logActivity()')
+        console.log('═══════════════════════════════════════════════════════')
+      } else {
+        console.log('[API PUT] ℹ️ No hay cambios detectados, no se creará log')
+        console.log('═══════════════════════════════════════════════════════')
       }
     } catch (logError: any) {
       // No fallar la actualización si el log falla
       console.error('[API PUT] ⚠️ Error al registrar log (no crítico):', logError.message)
+      console.error('[API PUT] ⚠️ Stack:', logError.stack)
+      console.log('═══════════════════════════════════════════════════════')
     }
 
     return NextResponse.json({
