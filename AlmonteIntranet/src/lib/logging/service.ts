@@ -386,10 +386,71 @@ export async function logActivity(
   }
   
   try {
-    // Obtener información del usuario, IP y User-Agent
-    // CRÍTICO: Esta es la función que debe capturar el usuario SIEMPRE
+    // ========== MÉTODO 1: Usar getUserFromRequest ==========
+    console.log('[LOGGING] 🔍 MÉTODO 1: Intentando getUserFromRequest...')
     const usuario = await getUserFromRequest(request)
     console.log('[LOGGING] 👤 Resultado de getUserFromRequest:', JSON.stringify(usuario, null, 2))
+    
+    // ========== MÉTODO 2: Extracción directa desde cookies (más confiable) ==========
+    let colaboradorDirecto: any = null
+    let emailColaborador: string | null = null
+    let nombreColaborador: string | null = null
+    
+    try {
+      console.log('[LOGGING] 🔍 MÉTODO 2: Extracción directa desde cookies...')
+      let colaboradorCookieValue: string | undefined = undefined
+      
+      if (isNextRequest(request)) {
+        colaboradorCookieValue = request.cookies.get('colaboradorData')?.value || 
+                                 request.cookies.get('colaborador')?.value ||
+                                 request.cookies.get('auth_colaborador')?.value
+      } else {
+        const cookieHeader = request.headers.get('cookie')
+        if (cookieHeader) {
+          const cookies = cookieHeader.split(';').reduce((acc: Record<string, string>, cookie: string) => {
+            const [name, ...valueParts] = cookie.trim().split('=')
+            if (name && valueParts.length > 0) {
+              const value = valueParts.join('=')
+              try {
+                JSON.parse(value)
+                acc[name] = value
+              } catch {
+                acc[name] = decodeURIComponent(value)
+              }
+            }
+            return acc
+          }, {})
+          colaboradorCookieValue = cookies['colaboradorData'] || 
+                                   cookies['colaborador'] || 
+                                   cookies['auth_colaborador']
+        }
+      }
+      
+      if (colaboradorCookieValue) {
+        colaboradorDirecto = JSON.parse(colaboradorCookieValue)
+        console.log('[LOGGING] ✅ Colaborador extraído directamente desde cookie:', {
+          id: colaboradorDirecto.id,
+          documentId: colaboradorDirecto.documentId,
+          email_login: colaboradorDirecto.email_login,
+          tienePersona: !!colaboradorDirecto.persona
+        })
+        
+        // Extraer email
+        emailColaborador = colaboradorDirecto.email_login || null
+        
+        // Extraer nombre de la persona
+        if (colaboradorDirecto.persona) {
+          const persona = colaboradorDirecto.persona
+          const personaAttrs = persona.attributes || persona.data?.attributes || persona.data || persona
+          nombreColaborador = personaAttrs.nombre_completo || 
+                            `${(personaAttrs.nombres || '').trim()} ${(personaAttrs.primer_apellido || '').trim()}`.trim() ||
+                            emailColaborador ||
+                            null
+        }
+      }
+    } catch (error: any) {
+      console.warn('[LOGGING] ⚠️ Error en método 2 (extracción directa):', error.message)
+    }
     
     // Si no se pudo obtener el usuario, intentar una vez más (solo en desarrollo)
     if (!usuario || !usuario.id) {
@@ -708,14 +769,14 @@ export async function logActivity(
               try {
                 const colaborador = JSON.parse(colaboradorCookie)
                 
-                // Extraer email
+                // Extraer email (la cookie tiene email_login en el nivel superior)
                 emailColaborador = colaborador.email_login || 
                                  colaborador.data?.attributes?.email_login || 
                                  colaborador.attributes?.email_login || 
                                  colaborador.email || 
                                  null
                 
-                // Extraer nombre de la persona
+                // Extraer nombre de la persona (la cookie tiene persona en el nivel superior)
                 const persona = colaborador.persona || 
                               colaborador.data?.attributes?.persona?.data?.attributes ||
                               colaborador.attributes?.persona?.data?.attributes ||
@@ -730,12 +791,20 @@ export async function logActivity(
                                   emailColaborador ||
                                   null
                 
-                console.log('[LOGGING] 📋 Datos extraídos desde cookies:')
+                console.log('[LOGGING] 📋 Datos extraídos desde cookies (retry):')
                 console.log('  - email:', emailColaborador || 'NO HAY')
                 console.log('  - nombre:', nombreColaborador || 'NO HAY')
               } catch (parseError) {
                 console.warn('[LOGGING] ⚠️ Error al parsear cookie para extraer email/nombre:', parseError)
               }
+            }
+            
+            // Si no se pudo extraer, usar los valores que ya teníamos del método 2
+            if (!emailColaborador && emailFinal) {
+              emailColaborador = emailFinal
+            }
+            if (!nombreColaborador && nombreFinal) {
+              nombreColaborador = nombreFinal
             }
           } catch (extractError) {
             console.warn('[LOGGING] ⚠️ Error al extraer email/nombre desde cookies:', extractError)
