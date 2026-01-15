@@ -649,7 +649,7 @@ export async function logActivity(
             logDataConDocumentId.usuario = String((usuario as any).documentId)
             
             try {
-              const retryResponse = await strapiClient.post(logEndpoint, { data: logDataConDocumentId })
+              const retryResponse: any = await strapiClient.post(logEndpoint, { data: logDataConDocumentId })
               console.log('[LOGGING] ✅ Log creado con documentId:', {
                 logId: retryResponse?.data?.id || retryResponse?.id || 'unknown',
                 accion: params.accion,
@@ -668,7 +668,7 @@ export async function logActivity(
           delete logDataSinUsuario.usuario
           
           try {
-            const retryResponse = await strapiClient.post(logEndpoint, { data: logDataSinUsuario })
+            const retryResponse: any = await strapiClient.post(logEndpoint, { data: logDataSinUsuario })
             console.log('[LOGGING] ✅ Log creado sin usuario (usuario no existe en Strapi):', {
               logId: retryResponse?.data?.id || retryResponse?.id || 'unknown',
               accion: params.accion,
