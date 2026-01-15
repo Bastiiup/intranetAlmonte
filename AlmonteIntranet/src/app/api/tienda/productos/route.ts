@@ -410,10 +410,33 @@ export async function POST(request: NextRequest) {
     const strapiProduct = await Promise.race([strapiPromise, timeoutPromise]) as any
     console.log('[API POST] ✅ Producto creado en Strapi:', {
       id: strapiProduct.data?.id,
-      documentId: strapiProduct.data?.documentId
+      documentId: strapiProduct.data?.documentId,
+      nombre: strapiProduct.data?.attributes?.nombre_libro || strapiProduct.data?.nombre_libro,
+      estado_publicacion: strapiProduct.data?.attributes?.estado_publicacion || strapiProduct.data?.estado_publicacion,
+      tieneCanales: !!(strapiProduct.data?.attributes?.canales || strapiProduct.data?.canales),
+      canales: strapiProduct.data?.attributes?.canales?.data || strapiProduct.data?.canales?.data || strapiProduct.data?.attributes?.canales || strapiProduct.data?.canales,
     })
-    console.log('[API POST] Estado: ⏸️ Solo guardado en Strapi (pendiente), no se publica en WordPress')
-    console.log('[API POST] Para publicar, cambiar el estado desde la página de Solicitudes')
+    
+    // Verificar que el producto tenga canales asignados
+    const productoCompleto = strapiProduct.data?.attributes || strapiProduct.data || strapiProduct
+    const canalesAsignados = productoCompleto.canales?.data || productoCompleto.canales || []
+    
+    if (canalesAsignados.length === 0) {
+      console.error('[API POST] ⚠️ ADVERTENCIA: El producto NO tiene canales asignados. NO se sincronizará con WooCommerce.')
+      console.error('[API POST] ⚠️ El producto necesita tener canales (Moraleja y/o Escolar) para sincronizarse con WordPress.')
+    } else {
+      console.log('[API POST] ✅ Producto tiene canales asignados:', canalesAsignados.length)
+      console.log('[API POST] ✅ El lifecycle de Strapi debería sincronizar automáticamente con WooCommerce')
+    }
+    
+    // Verificar estado de publicación
+    const estadoPub = productoCompleto.estado_publicacion || 'Sin estado'
+    if (estadoPub !== 'Publicado') {
+      console.warn('[API POST] ⚠️ ADVERTENCIA: El producto NO está publicado. Estado actual:', estadoPub)
+      console.warn('[API POST] ⚠️ El producto necesita estado_publicacion = "Publicado" para sincronizarse con WooCommerce.')
+    } else {
+      console.log('[API POST] ✅ Producto está publicado. Debería sincronizarse con WooCommerce.')
+    }
 
     return NextResponse.json({
       success: true,

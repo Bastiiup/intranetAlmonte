@@ -606,6 +606,26 @@ export async function PUT(
     )
 
     console.log('[API PUT] ✅ Actualización exitosa')
+    
+    // Verificar que el producto actualizado tenga canales y estado correcto
+    const productoActualizado = updateResponse.data?.attributes || updateResponse.data || updateResponse
+    const canalesActualizados = productoActualizado.canales?.data || productoActualizado.canales || []
+    const estadoActualizado = productoActualizado.estado_publicacion || 'Sin estado'
+    
+    console.log('[API PUT] 📊 Estado del producto después de actualizar:', {
+      estado_publicacion: estadoActualizado,
+      tieneCanales: canalesActualizados.length > 0,
+      cantidadCanales: canalesActualizados.length,
+      canales: canalesActualizados.map((c: any) => c?.attributes?.nombre || c?.nombre || c?.id || c).join(', '),
+    })
+    
+    if (canalesActualizados.length === 0) {
+      console.warn('[API PUT] ⚠️ ADVERTENCIA: El producto NO tiene canales asignados. NO se sincronizará con WooCommerce.')
+    } else if (estadoActualizado === 'Publicado') {
+      console.log('[API PUT] ✅ Producto actualizado con canales y estado "Publicado". Debería sincronizarse con WooCommerce.')
+    } else {
+      console.warn('[API PUT] ⚠️ ADVERTENCIA: El producto NO está publicado. Estado:', estadoActualizado)
+    }
 
     // Registrar cambios en logs de actividades
     try {
