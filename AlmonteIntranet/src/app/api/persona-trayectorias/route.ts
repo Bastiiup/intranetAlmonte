@@ -52,6 +52,13 @@ export async function POST(request: NextRequest) {
           console.log(`[API /persona-trayectorias POST] 🗑️ Eliminado campo prohibido de body.data: ${campo}`)
         })
       }
+      
+      // ⚠️ CRÍTICO: Eliminar 'activo' explícitamente si está presente (no existe en persona-trayectorias)
+      if ('activo' in body.data) {
+        console.warn('[API /persona-trayectorias POST] ⚠️ Campo "activo" detectado en body.data, eliminando (no existe en schema de persona-trayectorias)')
+        delete body.data.activo
+        console.log('[API /persona-trayectorias POST] 🗑️ Eliminado campo "activo" de body.data')
+      }
     }
 
     // Validaciones

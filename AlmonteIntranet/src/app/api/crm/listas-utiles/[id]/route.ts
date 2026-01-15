@@ -22,8 +22,10 @@ export async function GET(
 
     debugLog('[API /crm/listas-utiles/[id] GET] ID:', id)
 
+    // ⚠️ IMPORTANTE: listas-utiles NO tiene relación directa con colegio, solo con curso
+    // Para obtener colegio, usar populate anidado: populate[curso][populate][colegio]
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-      `/api/listas-utiles/${id}?populate[materiales]=true&populate[colegio]=true&populate[curso]=true`
+      `/api/listas-utiles/${id}?populate[materiales]=true&populate[curso][populate][colegio]=true`
     )
 
     debugLog('[API /crm/listas-utiles/[id] GET] ✅ Exitoso')
