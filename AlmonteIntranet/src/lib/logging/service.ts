@@ -541,8 +541,10 @@ export async function logActivity(
       // Priorizar ID numérico (Strapi espera ID numérico para relaciones manyToOne con colaborador)
       if (idFinal !== undefined && idFinal !== null) {
         // Convertir a número si es string
-        usuarioParaStrapi = typeof idFinal === 'string' ? parseInt(idFinal) : idFinal
-        if (isNaN(usuarioParaStrapi)) {
+        const idNum = typeof idFinal === 'string' ? parseInt(idFinal) : idFinal
+        if (typeof idNum === 'number' && !isNaN(idNum)) {
+          usuarioParaStrapi = idNum
+        } else {
           usuarioParaStrapi = null
         }
         console.log('[LOGGING] ✅ Usando ID numérico del colaborador para Strapi:', {
