@@ -8,7 +8,7 @@ import {
   TbChecklist, 
   TbArrowBackUp, 
   TbUserCircle,
-  TbDollar,
+  TbCurrencyDollar,
   TbTag,
   TbRefresh
 } from 'react-icons/tb'
@@ -139,7 +139,7 @@ const ProductActivityLogs = ({ productId }: ProductActivityLogsProps) => {
 
     // Cambios de precio
     if (descripcion.includes('precio') || descripcion.includes('price')) {
-      return TbDollar
+      return TbCurrencyDollar
     }
     
     // Cambios de nombre
