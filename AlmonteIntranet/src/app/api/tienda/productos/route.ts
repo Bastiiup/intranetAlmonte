@@ -267,67 +267,48 @@ export async function POST(request: NextRequest) {
       let canalesDefault: number[] = []
       
       try {
-        console.log('[API POST] 🔍 Intentando obtener canales desde Strapi...')
+        console.log('[API POST] 🔍 Intentando obtener canales directamente desde Strapi...')
         
-        // Intentar obtener canales usando el endpoint interno primero
         let canalesItems: any[] = []
         
         try {
-          // Usar fetch para llamar al endpoint interno
-          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-          const canalesResponse = await fetch(`${baseUrl}/api/tienda/canales`, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+          const canalesResponse = await strapiClient.get<any>('/api/canales?populate=*&pagination[pageSize]=1000')
+          console.log('[API POST] ✅ Respuesta de Strapi recibida:', {
+            tipo: typeof canalesResponse,
+            esArray: Array.isArray(canalesResponse),
+            tieneData: !!canalesResponse?.data,
           })
           
-          if (canalesResponse.ok) {
-            const canalesData = await canalesResponse.json()
-            if (canalesData.success && Array.isArray(canalesData.data)) {
-              canalesItems = canalesData.data
-              console.log('[API POST] ✅ Canales obtenidos desde endpoint interno:', canalesItems.length)
-            }
+          if (Array.isArray(canalesResponse)) {
+            canalesItems = canalesResponse
+          } else if (canalesResponse?.data && Array.isArray(canalesResponse.data)) {
+            canalesItems = canalesResponse.data
+          } else if (canalesResponse?.data) {
+            canalesItems = [canalesResponse.data]
+          } else if (canalesResponse) {
+            canalesItems = [canalesResponse]
           }
-        } catch (internalError: any) {
-          console.warn('[API POST] ⚠️ Error al obtener canales desde endpoint interno:', internalError.message)
-        }
-        
-        // Si no se obtuvieron desde el endpoint interno, intentar directamente desde Strapi
-        if (canalesItems.length === 0) {
+        } catch (directError: any) {
+          console.warn('[API POST] ⚠️ Error al obtener canales con populate:', {
+            message: directError.message,
+            status: directError.status,
+          })
+          // Intentar sin populate
           try {
-            const canalesResponse = await strapiClient.get<any>('/api/canales?populate=*&pagination[pageSize]=1000')
-            console.log('[API POST] ✅ Respuesta de Strapi (con populate):', {
-              tipo: typeof canalesResponse,
-              esArray: Array.isArray(canalesResponse),
-              tieneData: !!canalesResponse?.data,
-            })
-            
+            const canalesResponse = await strapiClient.get<any>('/api/canales?pagination[pageSize]=1000')
             if (Array.isArray(canalesResponse)) {
               canalesItems = canalesResponse
             } else if (canalesResponse?.data && Array.isArray(canalesResponse.data)) {
               canalesItems = canalesResponse.data
             } else if (canalesResponse?.data) {
               canalesItems = [canalesResponse.data]
-            } else if (canalesResponse) {
-              canalesItems = [canalesResponse]
             }
-          } catch (directError: any) {
-            console.warn('[API POST] ⚠️ Error al obtener canales con populate:', directError.message)
-            // Intentar sin populate
-            try {
-              const canalesResponse = await strapiClient.get<any>('/api/canales?pagination[pageSize]=1000')
-              if (Array.isArray(canalesResponse)) {
-                canalesItems = canalesResponse
-              } else if (canalesResponse?.data && Array.isArray(canalesResponse.data)) {
-                canalesItems = canalesResponse.data
-              } else if (canalesResponse?.data) {
-                canalesItems = [canalesResponse.data]
-              }
-            } catch (simpleError: any) {
-              console.error('[API POST] ❌ Error también sin populate:', simpleError.message)
-              throw simpleError
-            }
+          } catch (simpleError: any) {
+            console.error('[API POST] ❌ Error también sin populate:', {
+              message: simpleError.message,
+              status: simpleError.status,
+            })
+            // No lanzar error, continuar sin canales
           }
         }
         
@@ -348,73 +329,71 @@ export async function POST(request: NextRequest) {
               key: attrs?.key,
             }
           }))
+          
+          // Buscar canales por key (según documentación: key debe ser "moraleja" o "escolar")
+          const canalMoraleja = canalesItems.find((c: any) => {
+            const attrs = c.attributes || c
+            const key = (attrs?.key || '').toLowerCase()
+            const name = (attrs?.name || attrs?.nombre || '').toLowerCase()
+            return key === 'moraleja' || name.includes('moraleja')
+          })
+          
+          const canalEscolar = canalesItems.find((c: any) => {
+            const attrs = c.attributes || c
+            const key = (attrs?.key || '').toLowerCase()
+            const name = (attrs?.name || attrs?.nombre || '').toLowerCase()
+            return key === 'escolar' || name.includes('escolar')
+          })
+          
+          console.log('[API POST] 🔍 Canales encontrados:', {
+            tieneMoraleja: !!canalMoraleja,
+            tieneEscolar: !!canalEscolar,
+            moralejaId: canalMoraleja ? (canalMoraleja.id || canalMoraleja.documentId) : null,
+            escolarId: canalEscolar ? (canalEscolar.id || canalEscolar.documentId) : null,
+          })
+          
+          // Usar ID numérico (no documentId) para relaciones manyToMany en Strapi
+          if (canalMoraleja) {
+            const id = canalMoraleja.id || (typeof canalMoraleja.documentId === 'number' ? canalMoraleja.documentId : null)
+            if (id && typeof id === 'number') {
+              canalesDefault.push(id)
+            } else {
+              console.warn('[API POST] ⚠️ Canal Moraleja encontrado pero sin ID numérico válido:', {
+                id: canalMoraleja.id,
+                documentId: canalMoraleja.documentId,
+              })
+            }
+          }
+          
+          if (canalEscolar) {
+            const id = canalEscolar.id || (typeof canalEscolar.documentId === 'number' ? canalEscolar.documentId : null)
+            if (id && typeof id === 'number') {
+              canalesDefault.push(id)
+            } else {
+              console.warn('[API POST] ⚠️ Canal Escolar encontrado pero sin ID numérico válido:', {
+                id: canalEscolar.id,
+                documentId: canalEscolar.documentId,
+              })
+            }
+          }
+          
+          if (canalesDefault.length > 0) {
+            strapiProductData.data.canales = canalesDefault
+            console.log('[API POST] ✅ Canales asignados automáticamente (desde Strapi):', canalesDefault)
+            console.log('[API POST] ✅ Producto se sincronizará con canales:', canalesDefault)
+          }
         } else {
-          console.warn('[API POST] ⚠️ No se encontraron canales en la respuesta')
-        }
-        
-        // Buscar canales por key (según documentación: key debe ser "moraleja" o "escolar")
-        const canalMoraleja = canalesItems.find((c: any) => {
-          const attrs = c.attributes || c
-          const key = (attrs?.key || '').toLowerCase()
-          const name = (attrs?.name || attrs?.nombre || '').toLowerCase()
-          return key === 'moraleja' || name.includes('moraleja')
-        })
-        
-        const canalEscolar = canalesItems.find((c: any) => {
-          const attrs = c.attributes || c
-          const key = (attrs?.key || '').toLowerCase()
-          const name = (attrs?.name || attrs?.nombre || '').toLowerCase()
-          return key === 'escolar' || name.includes('escolar')
-        })
-        
-        console.log('[API POST] 🔍 Canales encontrados:', {
-          tieneMoraleja: !!canalMoraleja,
-          tieneEscolar: !!canalEscolar,
-          moralejaId: canalMoraleja ? (canalMoraleja.id || canalMoraleja.documentId) : null,
-          escolarId: canalEscolar ? (canalEscolar.id || canalEscolar.documentId) : null,
-        })
-        
-        // Usar ID numérico (no documentId) para relaciones manyToMany en Strapi
-        if (canalMoraleja) {
-          const id = canalMoraleja.id || (typeof canalMoraleja.documentId === 'number' ? canalMoraleja.documentId : null)
-          if (id && typeof id === 'number') {
-            canalesDefault.push(id)
-          } else {
-            console.warn('[API POST] ⚠️ Canal Moraleja encontrado pero sin ID numérico válido:', {
-              id: canalMoraleja.id,
-              documentId: canalMoraleja.documentId,
-            })
-          }
-        }
-        
-        if (canalEscolar) {
-          const id = canalEscolar.id || (typeof canalEscolar.documentId === 'number' ? canalEscolar.documentId : null)
-          if (id && typeof id === 'number') {
-            canalesDefault.push(id)
-          } else {
-            console.warn('[API POST] ⚠️ Canal Escolar encontrado pero sin ID numérico válido:', {
-              id: canalEscolar.id,
-              documentId: canalEscolar.documentId,
-            })
-          }
-        }
-        
-        if (canalesDefault.length > 0) {
-          strapiProductData.data.canales = canalesDefault
-          console.log('[API POST] ✅ Canales asignados automáticamente (desde Strapi):', canalesDefault)
-          console.log('[API POST] ✅ Producto se sincronizará con canales:', canalesDefault)
+          console.warn('[API POST] ⚠️ No se encontraron canales en la respuesta de Strapi')
         }
       } catch (canalesError: any) {
         console.error('[API POST] ❌ Error al obtener canales desde Strapi:', {
           message: canalesError.message,
           status: canalesError.status,
-          response: canalesError.response?.data || canalesError.response,
         })
       }
       
-      // ⚠️ IMPORTANTE: Si no se pudieron obtener canales, NO usar IDs por defecto
-      // Los IDs pueden variar según la instalación de Strapi
-      // Es mejor dejar que el usuario asigne canales manualmente
+      // ⚠️ IMPORTANTE: Si no se pudieron obtener canales, NO asignar el campo
+      // Eliminar el campo canales del objeto si está vacío para evitar errores en Strapi
       if (canalesDefault.length === 0) {
         console.warn('[API POST] ⚠️ No se pudieron obtener canales dinámicamente desde Strapi')
         console.warn('[API POST] ⚠️ El producto se creará SIN canales asignados')
@@ -422,9 +401,8 @@ export async function POST(request: NextRequest) {
         console.warn('[API POST] ⚠️ Solución:')
         console.warn('[API POST]   1. Verificar que el endpoint /api/canales funcione correctamente en Strapi')
         console.warn('[API POST]   2. Asignar canales manualmente desde la interfaz de edición de productos')
-        console.warn('[API POST]   3. O verificar los logs del servidor para ver por qué falla la obtención de canales')
-        // NO asignar canales si no se pudieron obtener - evitar errores de relaciones inexistentes
-        // strapiProductData.data.canales se dejará sin asignar
+        // Eliminar el campo canales si está vacío para evitar errores
+        delete strapiProductData.data.canales
       }
     }
     
@@ -516,6 +494,28 @@ export async function POST(request: NextRequest) {
     if (body.featured !== undefined) {
       strapiProductData.data.featured = body.featured
     }
+
+    // ⚠️ IMPORTANTE: Eliminar campos vacíos o undefined antes de enviar a Strapi
+    // Esto evita errores cuando campos opcionales no tienen valores
+    Object.keys(strapiProductData.data).forEach(key => {
+      const value = strapiProductData.data[key as keyof typeof strapiProductData.data]
+      // Eliminar campos undefined, null, o arrays vacíos (excepto canales que se maneja aparte)
+      if (value === undefined || value === null || (Array.isArray(value) && value.length === 0 && key !== 'canales')) {
+        delete strapiProductData.data[key as keyof typeof strapiProductData.data]
+      }
+    })
+    
+    // Si canales está vacío o no existe, eliminarlo completamente
+    if (!strapiProductData.data.canales || (Array.isArray(strapiProductData.data.canales) && strapiProductData.data.canales.length === 0)) {
+      delete strapiProductData.data.canales
+      console.log('[API POST] 📝 Campo canales eliminado del payload (está vacío o no existe)')
+    }
+
+    console.log('[API POST] 📤 Enviando producto a Strapi:', {
+      tieneCanales: !!strapiProductData.data.canales,
+      canales: strapiProductData.data.canales,
+      campos: Object.keys(strapiProductData.data).length,
+    })
 
     // Usar Promise.race con timeout para evitar que se quede colgado
     const strapiPromise = strapiClient.post<any>('/api/libros', strapiProductData)
