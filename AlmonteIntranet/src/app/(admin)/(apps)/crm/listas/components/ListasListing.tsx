@@ -846,7 +846,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               )}
               <Button 
                 variant="outline-secondary" 
-                onClick={recargarListas}
+                onClick={() => recargarListas()}
                 disabled={loading}
                 title="Recargar listas"
               >
