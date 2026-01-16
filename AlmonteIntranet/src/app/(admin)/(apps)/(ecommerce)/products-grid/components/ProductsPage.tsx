@@ -15,9 +15,10 @@ interface Producto {
 interface ProductsPageProps {
   productos: Producto[]
   error: string | null
+  onProductSelect?: (productId: string) => void
 }
 
-const ProductsPage = ({ productos, error }: ProductsPageProps) => {
+const ProductsPage = ({ productos, error, onProductSelect }: ProductsPageProps) => {
   const [isOffcanvasOpen, setIsOffcanvasOpen] = useState(false)
 
   return (
@@ -62,7 +63,7 @@ const ProductsPage = ({ productos, error }: ProductsPageProps) => {
         <ProductFilter isOffcanvasOpen={isOffcanvasOpen} setIsOffcanvasOpen={setIsOffcanvasOpen} />
 
         <Col xl={9}>
-          <Products productos={productos} error={error} />
+          <Products productos={productos} error={error} onProductSelect={onProductSelect} />
 
           <div className="d-flex justify-content-between align-items-center mb-4 mt-3">
             <span className="text-muted fst-italic">

@@ -234,9 +234,22 @@ const Products = ({ productos, error }: ProductsProps) => {
                   )}
                 </div>
                 <CardTitle className="fs-sm lh-base mb-2">
-                  <Link href={`/products/${productId}`} className="link-reset">
-                    {nombre}
-                  </Link>
+                  {onProductSelect && productId ? (
+                    <a 
+                      href="#" 
+                      className="link-reset" 
+                      onClick={(e) => {
+                        e.preventDefault()
+                        onProductSelect(String(productId))
+                      }}
+                    >
+                      {nombre}
+                    </a>
+                  ) : (
+                    <Link href={`/products/${productId}`} className="link-reset">
+                      {nombre}
+                    </Link>
+                  )}
                 </CardTitle>
                 <div className="mb-2">
                   {autor && <p className="text-muted mb-0 fs-xxs">by: {autor}</p>}

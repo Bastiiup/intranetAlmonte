@@ -133,42 +133,9 @@ export const menuItems: MenuItemType[] = [
   { key: 'ecommerce-section', label: 'ECOMMERCE', isTitle: true },
   {
     key: 'products',
-    label: 'Products',
+    label: 'Todos los Productos',
     icon: LuShoppingBag,
-    children: [
-      { key: 'product-list', label: 'Listing', url: '/products' },
-      { key: 'product-grid', label: 'Product Grid', url: '/products-grid' },
-      { key: 'product-details', label: 'Product Details', url: '/products/1' },
-      { key: 'add-product', label: 'Add Product', url: '/add-product' },
-      { key: 'all-categories', label: 'Todas las Categorías', url: '/products/categorias' },
-      { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' },
-      { key: 'categoria-requests', label: 'Solicitudes de Categorías', url: '/products/categorias/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
-      { key: 'all-tags', label: 'Todas las Etiquetas', url: '/products/etiquetas' },
-      { key: 'add-tag', label: 'Agregar Etiqueta', url: '/products/etiquetas/agregar' },
-      { key: 'etiqueta-requests', label: 'Solicitudes de Etiquetas', url: '/products/etiquetas/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
-      {
-        key: 'atributos',
-        label: 'Atributos',
-        children: [
-          { key: 'all-autores', label: 'Todos los Autores', url: '/products/atributos/autores' },
-          { key: 'add-autor', label: 'Agregar Autor', url: '/products/atributos/autores/agregar' },
-          { key: 'autor-requests', label: 'Solicitudes de Autores', url: '/products/atributos/autores/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
-          { key: 'all-colecciones', label: 'Todas las Colecciones', url: '/products/atributos/colecciones' },
-          { key: 'add-coleccion', label: 'Agregar Colección', url: '/products/atributos/colecciones/agregar' },
-          { key: 'coleccion-requests', label: 'Solicitudes de Colecciones', url: '/products/atributos/colecciones/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // soporte NO puede ver solicitudes
-          { key: 'all-obras', label: 'Todas las Obras', url: '/products/atributos/obras' },
-          { key: 'add-obra', label: 'Agregar Obra', url: '/products/atributos/obras/agregar' },
-          { key: 'obra-requests', label: 'Solicitudes de Obras', url: '/products/atributos/obras/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] }, // soporte NO puede ver solicitudes
-          { key: 'all-sellos', label: 'Todos los Sellos', url: '/atributos/sello' },
-          { key: 'add-sello', label: 'Agregar Sello', url: '/atributos/sello/agregar' },
-          { key: 'sello-requests', label: 'Solicitudes de Sellos', url: '/atributos/sello/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
-          { key: 'all-marcas', label: 'Todas las Marcas', url: '/atributos/marca' },
-          { key: 'add-marca', label: 'Agregar Marca', url: '/atributos/marca/agregar' },
-          { key: 'marca-requests', label: 'Solicitudes de Marcas', url: '/atributos/marca/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
-        ],
-      },
-      { key: 'product-requests', label: 'Solicitudes de Productos', url: '/products/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
-    ],
+    url: '/products',
   },
   {
     key: 'ecommerce',
@@ -176,28 +143,20 @@ export const menuItems: MenuItemType[] = [
     icon: LuShoppingBag,
     roles: ['super_admin', 'encargado_adquisiciones', 'supervisor', 'soporte'], // Todos los roles pueden ver este menú
     children: [
-      // { key: 'categories', label: 'Categories', url: '/categories' },
       { key: 'all-clients', label: 'Todos los Clientes', url: '/clientes', roles: ['super_admin', 'supervisor', 'soporte'] },
-      {
-        key: 'cupones',
-        label: 'Cupones',
-        roles: ['super_admin', 'supervisor', 'soporte'],
-        children: [
-          { key: 'all-cupones', label: 'Todos los Cupones', url: '/atributos/cupones' },
-          { key: 'add-cupon', label: 'Agregar Cupón', url: '/atributos/cupones/agregar' },
-        ],
-      },
+      { key: 'all-cupones', label: 'Todos los Cupones', url: '/atributos/cupones', roles: ['super_admin', 'supervisor', 'soporte'] },
+      { key: 'add-cupon', label: 'Agregar Cupón', url: '/atributos/cupones/agregar', roles: ['super_admin', 'supervisor', 'soporte'] },
     ],
   },
   {
     key: 'pedidos',
-    label: 'Pedidos',
+    label: 'Todos los Pedidos',
     icon: LuReceiptText,
-    roles: ['super_admin', 'supervisor', 'soporte'],
     children: [
       { key: 'all-pedidos', label: 'Todos los Pedidos', url: '/atributos/pedidos' },
       { key: 'add-pedido', label: 'Agregar Pedido', url: '/atributos/pedidos/agregar' },
     ],
+    roles: ['super_admin', 'supervisor', 'soporte'],
   },
   { key: 'aplicaciones', label: 'APLICACIONES', isTitle: true },
   { key: 'chat', label: 'Chat', icon: LuMessageSquareDot, url: '/chat' },
@@ -206,7 +165,7 @@ export const menuItems: MenuItemType[] = [
   { key: 'equipos-section', label: 'EQUIPOS', isTitle: true },
   {
     key: 'equipos',
-    label: 'Equipos',
+    label: 'Todos los Colaboradores',
     icon: LuUsers,
     children: [
       { key: 'colaboradores', label: 'Colaboradores', url: '/colaboradores', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
@@ -223,13 +182,7 @@ export const menuItems: MenuItemType[] = [
     children: [
       { key: 'tienda-pos', label: 'POS', url: '/tienda/pos' },
       { key: 'tienda-turno', label: 'Número de atención', url: '/tienda/turno' },
-      {
-        key: 'tienda-facturas',
-        label: 'Facturas',
-        children: [
-          { key: 'tienda-facturas-listing', label: 'Todas las Facturas', url: '/tienda/facturas' },
-        ],
-      },
+      { key: 'tienda-facturas-listing', label: 'Todas las Facturas', url: '/tienda/facturas' },
     ],
   },
 ]
@@ -255,39 +208,23 @@ export const horizontalMenuItems: MenuItemType[] = [
       { key: 'file-manager', label: 'File Manager', icon: TbFolder, url: '/file-manager' },
       {
         key: 'products',
-        label: 'Products',
+        label: 'Todos los Productos',
         icon: TbBasket,
         children: [
           { key: 'product-list', label: 'Listing', url: '/products' },
-          { key: 'product-grid', label: 'Product Grid', url: '/products-grid' },
-          { key: 'product-details', label: 'Product Details', url: '/products/1' },
-          { key: 'add-product', label: 'Add Product', url: '/add-product' },
-          { key: 'all-categories', label: 'Todas las Categorías', url: '/products/categorias' },
-          { key: 'add-category', label: 'Agregar Categoría', url: '/products/categorias/agregar' },
-          { key: 'categoria-requests', label: 'Solicitudes de Categorías', url: '/products/categorias/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
-          { key: 'all-tags', label: 'Todas las Etiquetas', url: '/products/etiquetas' },
-          { key: 'add-tag', label: 'Agregar Etiqueta', url: '/products/etiquetas/agregar' },
-          { key: 'etiqueta-requests', label: 'Solicitudes de Etiquetas', url: '/products/etiquetas/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
-          {
-            key: 'atributos',
-            label: 'Atributos',
-            children: [
-              { key: 'all-autores', label: 'Todos los Autores', url: '/products/atributos/autores' },
-              { key: 'add-autor', label: 'Agregar Autor', url: '/products/atributos/autores/agregar' },
-              { key: 'autor-requests', label: 'Solicitudes de Autores', url: '/products/atributos/autores/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
-              { key: 'all-colecciones', label: 'Todas las Colecciones', url: '/products/atributos/colecciones' },
-              { key: 'add-coleccion', label: 'Agregar Colección', url: '/products/atributos/colecciones/agregar' },
-              { key: 'all-obras', label: 'Todas las Obras', url: '/atributos/obras' },
-              { key: 'add-obra', label: 'Agregar Obra', url: '/atributos/obras/agregar' },
-              { key: 'all-sellos', label: 'Todos los Sellos', url: '/atributos/sello' },
-              { key: 'add-sello', label: 'Agregar Sello', url: '/atributos/sello/agregar' },
-              { key: 'sello-requests', label: 'Solicitudes de Sellos', url: '/atributos/sello/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
-              { key: 'all-marcas', label: 'Todas las Marcas', url: '/atributos/marca' },
-              { key: 'add-marca', label: 'Agregar Marca', url: '/atributos/marca/agregar' },
-              { key: 'marca-requests', label: 'Solicitudes de Marcas', url: '/atributos/marca/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
-            ],
-          },
+          { key: 'product-grid', label: 'Grid', url: '/products-grid' },
+          { key: 'product-details', label: 'Details', url: '/products/1' },
+          { key: 'add-product', label: 'Agregar Producto', url: '/add-product' },
+          { key: 'all-categories', label: 'Categorías', url: '/products/categorias' },
+          { key: 'all-tags', label: 'Etiquetas', url: '/products/etiquetas' },
+          { key: 'all-autores', label: 'Autores', url: '/products/atributos/autores' },
+          { key: 'all-colecciones', label: 'Colecciones', url: '/products/atributos/colecciones' },
+          { key: 'all-obras', label: 'Obras', url: '/products/atributos/obras' },
+          { key: 'all-sellos', label: 'Sellos', url: '/atributos/sello' },
+          { key: 'all-marcas', label: 'Marcas', url: '/atributos/marca' },
           { key: 'product-requests', label: 'Solicitudes de Productos', url: '/products/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+          { key: 'categoria-requests', label: 'Solicitudes de Categorías', url: '/products/categorias/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
+          { key: 'etiqueta-requests', label: 'Solicitudes de Etiquetas', url: '/products/etiquetas/solicitudes', roles: ['super_admin', 'encargado_adquisiciones', 'supervisor'] },
         ],
       },
       {
@@ -297,35 +234,12 @@ export const horizontalMenuItems: MenuItemType[] = [
         roles: ['super_admin', 'encargado_adquisiciones', 'supervisor', 'soporte'], // Todos los roles pueden ver este menú
         children: [
           { key: 'categories', label: 'Categories', url: '/categories' },
-          {
-            key: 'orders',
-            label: 'Pedidos',
-            roles: ['super_admin', 'supervisor', 'soporte'],
-            children: [
-              { key: 'orders-list', label: 'Pedidos', url: '/orders' },
-              { key: 'order-details', label: 'Detalles del Pedido', url: '/orders/1' },
-            ],
-          },
           { key: 'customers', label: 'Clientes', url: '/customers', roles: ['super_admin', 'supervisor', 'soporte'] },
           { key: 'all-clients', label: 'Todos los Clientes', url: '/clientes', roles: ['super_admin', 'supervisor', 'soporte'] },
-          {
-            key: 'cupones',
-            label: 'Cupones',
-            roles: ['super_admin', 'supervisor', 'soporte'],
-            children: [
-              { key: 'all-cupones', label: 'Todos los Cupones', url: '/atributos/cupones' },
-              { key: 'add-cupon', label: 'Agregar Cupón', url: '/atributos/cupones/agregar' },
-            ],
-          },
-          {
-            key: 'pedidos',
-            label: 'Pedidos',
-            roles: ['super_admin', 'supervisor', 'soporte'],
-            children: [
-              { key: 'all-pedidos', label: 'Todos los Pedidos', url: '/atributos/pedidos' },
-              { key: 'add-pedido', label: 'Agregar Pedido', url: '/atributos/pedidos/agregar' },
-            ],
-          },
+          { key: 'all-cupones', label: 'Todos los Cupones', url: '/atributos/cupones', roles: ['super_admin', 'supervisor', 'soporte'] },
+          { key: 'add-cupon', label: 'Agregar Cupón', url: '/atributos/cupones/agregar', roles: ['super_admin', 'supervisor', 'soporte'] },
+          { key: 'all-pedidos', label: 'Todos los Pedidos', url: '/atributos/pedidos', roles: ['super_admin', 'supervisor', 'soporte'] },
+          { key: 'add-pedido', label: 'Agregar Pedido', url: '/atributos/pedidos/agregar', roles: ['super_admin', 'supervisor', 'soporte'] },
         ],
       },
       {
@@ -336,23 +250,10 @@ export const horizontalMenuItems: MenuItemType[] = [
         children: [
           { key: 'tienda-pos', label: 'POS', url: '/tienda/pos' },
           { key: 'tienda-turno', label: 'Número de atención', url: '/tienda/turno' },
-          {
-            key: 'tienda-productos',
-            label: 'Productos',
-            children: [
-              { key: 'tienda-productos-listing', label: 'Listing', url: '/tienda/productos' },
-              { key: 'tienda-productos-editar', label: 'Editar Producto', url: '/tienda/productos/editar' },
-            ],
-          },
-          {
-            key: 'tienda-pedidos',
-            label: 'Pedidos',
-            roles: ['super_admin', 'supervisor', 'soporte'],
-            children: [
-              { key: 'tienda-pedidos-listing', label: 'Pedidos', url: '/tienda/pedidos' },
-              { key: 'tienda-pedidos-editar', label: 'Edición de pedidos', url: '/tienda/pedidos/editar' },
-            ],
-          },
+          { key: 'tienda-productos-listing', label: 'Productos', url: '/tienda/productos' },
+          { key: 'tienda-productos-editar', label: 'Editar Producto', url: '/tienda/productos/editar' },
+          { key: 'tienda-pedidos-listing', label: 'Pedidos', url: '/tienda/pedidos', roles: ['super_admin', 'supervisor', 'soporte'] },
+          { key: 'tienda-pedidos-editar', label: 'Edición de pedidos', url: '/tienda/pedidos/editar', roles: ['super_admin', 'supervisor', 'soporte'] },
           { key: 'tienda-test', label: 'Test Strapi', url: '/tienda/test-strapi' },
         ],
       },

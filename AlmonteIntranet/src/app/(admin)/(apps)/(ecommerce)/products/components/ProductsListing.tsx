@@ -168,6 +168,7 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
 interface ProductsListingProps {
   productos?: any[]
   error?: string | null
+  onProductSelect?: (productId: string) => void
 }
 
 const priceRangeFilterFn: FilterFn<any> = (row, columnId, value) => {
@@ -180,7 +181,7 @@ const priceRangeFilterFn: FilterFn<any> = (row, columnId, value) => {
 
 const columnHelper = createColumnHelper<ProductTypeExtended>()
 
-const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
+const ProductsListing = ({ productos, error, onProductSelect }: ProductsListingProps = {}) => {
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
   const canDelete = colaborador?.rol === 'super_admin'
@@ -240,9 +241,22 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
               </div>
               <div>
                 <h5 className="mb-0">
-                  <Link href={row.original.url} className="link-reset">
-                    {row.original.name}
-                  </Link>
+                  {onProductSelect && row.original.strapiId ? (
+                    <a 
+                      href="#" 
+                      className="link-reset" 
+                      onClick={(e) => {
+                        e.preventDefault()
+                        onProductSelect(String(row.original.strapiId))
+                      }}
+                    >
+                      {row.original.name}
+                    </a>
+                  ) : (
+                    <Link href={row.original.url} className="link-reset">
+                      {row.original.name}
+                    </Link>
+                  )}
                 </h5>
                 <p className="text-muted mb-0 fs-xxs">by: {row.original.brand}</p>
               </div>
@@ -267,9 +281,22 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
             </div>
             <div>
               <h5 className="mb-0">
-                <Link href={row.original.url} className="link-reset">
-                  {row.original.name || 'Sin nombre'}
-                </Link>
+                {onProductSelect && row.original.strapiId ? (
+                  <a 
+                    href="#" 
+                    className="link-reset" 
+                    onClick={(e) => {
+                      e.preventDefault()
+                      onProductSelect(String(row.original.strapiId))
+                    }}
+                  >
+                    {row.original.name || 'Sin nombre'}
+                  </a>
+                ) : (
+                  <Link href={row.original.url} className="link-reset">
+                    {row.original.name || 'Sin nombre'}
+                  </Link>
+                )}
               </h5>
               <p className="text-muted mb-0 fs-xxs">by: {row.original.brand || 'Sin autor'}</p>
             </div>
@@ -355,11 +382,25 @@ const ProductsListing = ({ productos, error }: ProductsListingProps = {}) => {
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<ProductTypeExtended> }) => (
         <div className="d-flex  gap-1">
-          <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle">
+          {onProductSelect && row.original.strapiId ? (
+            <Button 
+              variant="default" 
+              size="sm" 
+              className="btn-icon rounded-circle"
+              onClick={(e) => {
+                e.preventDefault()
+                onProductSelect(String(row.original.strapiId))
+              }}
+            >
               <TbEye className="fs-lg" />
             </Button>
-          </Link>
+          ) : (
+            <Link href={row.original.url}>
+              <Button variant="default" size="sm" className="btn-icon rounded-circle">
+                <TbEye className="fs-lg" />
+              </Button>
+            </Link>
+          )}
           <Link href={`/edit-product/${row.original.strapiId || row.original.code}`}>
             <Button variant="default" size="sm" className="btn-icon rounded-circle">
               <TbEdit className="fs-lg" />

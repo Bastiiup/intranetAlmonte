@@ -135,6 +135,7 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
 interface ProductRequestsListingProps {
   productos?: any[]
   error?: string | null
+  onProductSelect?: (productId: string) => void
 }
 
 const priceRangeFilterFn: FilterFn<any> = (row, columnId, value) => {
@@ -147,7 +148,7 @@ const priceRangeFilterFn: FilterFn<any> = (row, columnId, value) => {
 
 const columnHelper = createColumnHelper<ProductTypeExtended>()
 
-const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProps = {}) => {
+const ProductRequestsListing = ({ productos, error, onProductSelect }: ProductRequestsListingProps = {}) => {
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
   const canDelete = colaborador?.rol === 'super_admin'
@@ -315,16 +316,47 @@ const ProductRequestsListing = ({ productos, error }: ProductRequestsListingProp
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<ProductTypeExtended> }) => (
         <div className="d-flex gap-1">
-          <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver">
-              <TbEye className="fs-lg" />
-            </Button>
-          </Link>
-          <Link href={`/products/${row.original.strapiId || row.original.code}`}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Editar">
-              <TbEdit className="fs-lg" />
-            </Button>
-          </Link>
+          {onProductSelect && row.original.strapiId ? (
+            <>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle" 
+                title="Ver"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onProductSelect(String(row.original.strapiId))
+                }}
+              >
+                <TbEye className="fs-lg" />
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle" 
+                title="Editar"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onProductSelect(String(row.original.strapiId))
+                }}
+              >
+                <TbEdit className="fs-lg" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link href={row.original.url}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver">
+                  <TbEye className="fs-lg" />
+                </Button>
+              </Link>
+              <Link href={`/products/${row.original.strapiId || row.original.code}`}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Editar">
+                  <TbEdit className="fs-lg" />
+                </Button>
+              </Link>
+            </>
+          )}
           <Button
             variant="default"
             size="sm"
