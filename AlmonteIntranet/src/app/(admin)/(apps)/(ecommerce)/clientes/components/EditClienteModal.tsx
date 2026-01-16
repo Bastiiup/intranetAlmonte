@@ -253,7 +253,8 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
         }
 
         // Cargar datos de billing/shipping desde WooCommerce si hay woocommerce_id
-        const woocommerceId = clienteAttrs.woocommerce_id || cliente.woocommerce_id || cliente.woocommerceId
+        // Buscar en wooId (campo de Strapi) o woocommerce_id (compatibilidad)
+        const woocommerceId = clienteAttrs.wooId || clienteAttrs.woocommerce_id || cliente.wooId || cliente.woocommerce_id
         if (woocommerceId && typeof woocommerceId === 'number') {
           try {
             console.log('[EditClienteModal] 🔍 Cargando datos de WooCommerce para cliente ID:', woocommerceId)
