@@ -19,10 +19,14 @@ const ProductsTabs = ({ productos, error }: ProductsTabsProps) => {
   const [activeTab, setActiveTab] = useState<string>('listing')
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null)
   const { colaborador } = useAuth()
-  const userRole = colaborador?.rol?.nombre || colaborador?.rol
+  
+  // Manejar rol que puede ser string o objeto con nombre
+  const userRole = typeof colaborador?.rol === 'string' 
+    ? colaborador.rol 
+    : (colaborador?.rol as any)?.nombre || null
 
   // Verificar si el usuario puede ver solicitudes
-  const canViewRequests = userRole && ['super_admin', 'encargado_adquisiciones', 'supervisor'].includes(userRole)
+  const canViewRequests = userRole && typeof userRole === 'string' && ['super_admin', 'encargado_adquisiciones', 'supervisor'].includes(userRole)
 
   // Manejar selección de producto y cambiar a tab de details
   const handleProductSelect = useCallback((productId: string) => {
