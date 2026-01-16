@@ -507,8 +507,9 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
         } : undefined
 
         // Obtener código de provincia para shipping (necesita código de provincia, no nombre de región)
-        const shippingStateCode = (useSameAddress ? billingAddress.state : shippingAddress.state) 
-          ? getProvinceCodeFromRegionName(useSameAddress ? billingAddress.state : shippingAddress.state) 
+        const shippingStateName = (useSameAddress ? billingAddress.state : shippingAddress.state) || ''
+        const shippingStateCode = shippingStateName 
+          ? getProvinceCodeFromRegionName(shippingStateName) 
           : ''
         
         const shippingData = (hasShippingData || useSameAddress) ? {
