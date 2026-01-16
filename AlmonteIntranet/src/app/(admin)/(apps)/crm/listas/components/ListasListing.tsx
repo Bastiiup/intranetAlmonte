@@ -497,7 +497,12 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
             console.log('[ListasListing] ✅ Estado actualizado con', nuevasListas.length, 'cursos')
             
             // Notificar cambio a otras páginas
-            notificarCambio('eliminado', successful.map(r => r.id))
+            // Si solo se eliminó uno, pasar el ID; si son múltiples, solo el tipo
+            if (successful.length === 1) {
+              notificarCambio('eliminado', successful[0].id)
+            } else {
+              notificarCambio('eliminado') // Sin ID para múltiples eliminaciones
+            }
           } else {
             console.error('[ListasListing] ❌ Respuesta de API no válida:', result)
             // Si la API falla, al menos remover los eliminados del estado local
