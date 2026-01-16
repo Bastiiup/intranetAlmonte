@@ -1,6 +1,6 @@
-# 🚀 Guía Completa de Despliegue Local
+# 🚀 Guía Completa de Despliegue Local con Cursor
 
-Este documento contiene todas las instrucciones necesarias para desplegar el proyecto localmente en tu máquina.
+Este documento contiene todas las instrucciones necesarias para desplegar el proyecto localmente usando **Cursor IDE**. Sigue los pasos en orden y podrás tener el proyecto corriendo en minutos.
 
 ---
 
@@ -29,33 +29,46 @@ Si no tienes Node.js instalado, descárgalo desde: https://nodejs.org/
 
 ---
 
-## 📥 Paso 1: Clonar/Navegar al Proyecto
+## 📥 Paso 1: Abrir el Proyecto en Cursor
 
-### Si ya tienes el proyecto clonado:
+### Opción A: Si ya tienes el proyecto clonado
 
-```bash
-cd AlmonteIntranet
-```
+1. Abre **Cursor**
+2. Ve a **File → Open Folder** (o `Ctrl+K Ctrl+O`)
+3. Navega a la carpeta `AlmonteIntranet` y selecciónala
+4. Haz clic en **Select Folder**
 
-### Si necesitas clonarlo:
+### Opción B: Si necesitas clonarlo
 
+1. Abre **Cursor**
+2. Abre la terminal integrada: **Terminal → New Terminal** (o `` Ctrl+` ``)
+3. Ejecuta:
 ```bash
 git clone https://github.com/subimeDev/intranetAlmonte.git
 cd intranetAlmonte/AlmonteIntranet
 ```
+4. En Cursor, ve a **File → Open Folder** y selecciona la carpeta `AlmonteIntranet`
 
 ---
 
 ## 📦 Paso 2: Instalar Dependencias
 
+1. En Cursor, abre la terminal integrada: **Terminal → New Terminal** (o `` Ctrl+` ``)
+2. Asegúrate de estar en la carpeta `AlmonteIntranet` (deberías ver `AlmonteIntranet` en la ruta)
+3. Ejecuta:
 ```bash
 npm install
 ```
 
 ⏱️ **Tiempo estimado:** 3-5 minutos
 
-**Nota:** Si encuentras errores durante la instalación, intenta:
+**Nota:** Si encuentras errores durante la instalación, en la terminal ejecuta:
 ```bash
+# Windows PowerShell
+Remove-Item -Recurse -Force node_modules, package-lock.json
+npm install
+
+# O en Git Bash / WSL
 rm -rf node_modules package-lock.json
 npm install
 ```
@@ -64,9 +77,12 @@ npm install
 
 ## 🔧 Paso 3: Configurar Variables de Entorno
 
-### Crear archivo `.env.local`
+### Crear archivo `.env.local` en Cursor
 
-Crea un archivo `.env.local` en la raíz de `AlmonteIntranet/` con el siguiente contenido:
+1. En Cursor, haz clic derecho en la carpeta `AlmonteIntranet` (en el explorador de archivos a la izquierda)
+2. Selecciona **New File**
+3. Nombra el archivo: `.env.local`
+4. Pega el siguiente contenido:
 
 ```env
 # ==========================================
@@ -103,13 +119,17 @@ STRAPI_API_TOKEN=tu_token_de_strapi_aqui
 
 ## 🔨 Paso 4: Corregir Errores de Bootstrap Sass (IMPORTANTE)
 
-El proyecto tiene problemas conocidos con Bootstrap 5.3+ y Next.js 16/Turbopack. Necesitas aplicar estos parches **después de instalar dependencias**:
+El proyecto tiene problemas conocidos con Bootstrap 5.3+ y Next.js 16/Turbopack. Necesitas aplicar estos parches **después de instalar dependencias**.
+
+**💡 Tip en Cursor:** Usa `Ctrl+P` para buscar archivos rápidamente.
 
 ### 4.1. Corregir `_variables.scss`
 
-Edita el archivo: `node_modules/bootstrap/scss/_variables.scss`
+1. En Cursor, presiona `Ctrl+P` y busca: `_variables.scss`
+2. Abre el archivo: `node_modules/bootstrap/scss/_variables.scss`
+3. Presiona `Ctrl+G` para ir a la línea 1753 (o busca `@import "variables-dark"`)
 
-**Busca la línea 1753:**
+**Busca esta línea (alrededor de la línea 1753):**
 ```scss
 @import "variables-dark"; // TODO: can be removed safely in v6, only here to avoid breaking changes in v5.3
 ```
@@ -123,9 +143,11 @@ Edita el archivo: `node_modules/bootstrap/scss/_variables.scss`
 
 ### 4.2. Corregir `_mixins.scss`
 
-Edita el archivo: `node_modules/bootstrap/scss/_mixins.scss`
+1. En Cursor, presiona `Ctrl+P` y busca: `_mixins.scss`
+2. Abre el archivo: `node_modules/bootstrap/scss/_mixins.scss`
+3. Presiona `Ctrl+G` para ir a la línea 6
 
-**Busca la línea 6:**
+**Busca esta línea (línea 6):**
 ```scss
 @import "vendor/rfs";
 ```
@@ -137,14 +159,22 @@ Edita el archivo: `node_modules/bootstrap/scss/_mixins.scss`
 // @import "vendor/rfs";
 ```
 
-**Busca las líneas 11-44** (todas las importaciones de mixins) y reemplaza todas las rutas relativas por absolutas:
+**Ahora busca las líneas 11-44** (todas las importaciones de mixins). 
+
+**💡 Tip:** En Cursor, usa `Ctrl+H` para buscar y reemplazar múltiples líneas a la vez:
+1. Presiona `Ctrl+H` para abrir buscar y reemplazar
+2. En "Buscar", escribe: `@import "mixins/`
+3. En "Reemplazar", escribe: `@import "bootstrap/scss/mixins/`
+4. Haz clic en **Replace All** (o `Ctrl+Alt+Enter`)
+
+**O manualmente, reemplaza cada línea:**
 
 **Antes:**
 ```scss
 @import "mixins/deprecate";
 @import "mixins/breakpoints";
 @import "mixins/color-mode";
-// ... etc
+// ... etc (líneas 11-44)
 ```
 
 **Después:**
@@ -157,9 +187,14 @@ Edita el archivo: `node_modules/bootstrap/scss/_mixins.scss`
 
 ### 4.3. Corregir `_forms.scss`
 
-Edita el archivo: `node_modules/bootstrap/scss/_forms.scss`
+1. En Cursor, presiona `Ctrl+P` y busca: `_forms.scss`
+2. Abre el archivo: `node_modules/bootstrap/scss/_forms.scss`
+3. Presiona `Ctrl+H` para buscar y reemplazar:
+   - **Buscar:** `@import "forms/`
+   - **Reemplazar:** `@import "bootstrap/scss/forms/`
+   - Haz clic en **Replace All**
 
-**Reemplaza todas las importaciones relativas por absolutas:**
+**O manualmente:**
 
 **Antes:**
 ```scss
@@ -177,9 +212,14 @@ Edita el archivo: `node_modules/bootstrap/scss/_forms.scss`
 
 ### 4.4. Corregir `_helpers.scss`
 
-Edita el archivo: `node_modules/bootstrap/scss/_helpers.scss`
+1. En Cursor, presiona `Ctrl+P` y busca: `_helpers.scss`
+2. Abre el archivo: `node_modules/bootstrap/scss/_helpers.scss`
+3. Presiona `Ctrl+H` para buscar y reemplazar:
+   - **Buscar:** `@import "helpers/`
+   - **Reemplazar:** `@import "bootstrap/scss/helpers/`
+   - Haz clic en **Replace All**
 
-**Reemplaza todas las importaciones relativas por absolutas:**
+**O manualmente:**
 
 **Antes:**
 ```scss
@@ -197,7 +237,10 @@ Edita el archivo: `node_modules/bootstrap/scss/_helpers.scss`
 
 ### 4.5. Verificar `next.config.ts`
 
-Asegúrate de que `next.config.ts` tenga esta configuración en `sassOptions`:
+1. En Cursor, presiona `Ctrl+P` y busca: `next.config.ts`
+2. Abre el archivo: `AlmonteIntranet/next.config.ts`
+3. Busca la sección `sassOptions` (alrededor de la línea 74)
+4. Asegúrate de que tenga esta configuración:
 
 ```typescript
 sassOptions: {
@@ -212,9 +255,13 @@ sassOptions: {
 
 ---
 
-## 🚀 Paso 5: Iniciar el Servidor
+## 🚀 Paso 5: Iniciar el Servidor en Cursor
 
-### Opción A: Usando npm
+1. En Cursor, abre la terminal integrada: **Terminal → New Terminal** (o `` Ctrl+` ``)
+2. Asegúrate de estar en la carpeta `AlmonteIntranet`
+3. Ejecuta uno de estos comandos:
+
+### Opción A: Usando npm (Recomendado)
 
 ```bash
 npm run dev
@@ -226,22 +273,22 @@ npm run dev
 npx next dev
 ```
 
-### Opción C: Usando el script de PowerShell (Windows)
-
-```powershell
-.\iniciar-local.ps1
-```
-
 ⏱️ **Tiempo estimado:** 30-60 segundos (primera vez puede tardar más)
+
+**💡 Tip:** Verás el output del servidor directamente en la terminal de Cursor. Cuando veas "Ready" o "Local: http://localhost:3000", el servidor está listo.
 
 ---
 
 ## ✅ Paso 6: Verificar que Funciona
 
-1. **Abre tu navegador** en: http://localhost:3000
-2. **Verifica que la página carga** correctamente
-3. **Revisa la consola del navegador** (F12) por errores
-4. **Prueba el CRM:** http://localhost:3000/crm/colegios
+1. **En Cursor, verifica que no hay errores** en la terminal (debería decir "Ready" o similar)
+2. **Abre tu navegador** en: http://localhost:3000
+   - 💡 **Tip:** Puedes hacer `Ctrl+Click` en la URL en la terminal de Cursor para abrirla automáticamente
+3. **Verifica que la página carga** correctamente
+4. **Revisa la consola del navegador** (F12) por errores
+5. **Prueba el CRM:** http://localhost:3000/crm/colegios
+
+**✅ Si todo funciona:** ¡Felicitaciones! El proyecto está corriendo localmente.
 
 ---
 
@@ -300,34 +347,45 @@ npx next dev
 
 ## 🔄 Hacer los Parches Permanentes (Opcional pero Recomendado)
 
-Los cambios en `node_modules` se perderán si ejecutas `npm install` de nuevo. Para hacerlos permanentes:
+⚠️ **IMPORTANTE:** Los cambios en `node_modules` se perderán si ejecutas `npm install` de nuevo. Para hacerlos permanentes usando Cursor:
 
 ### Instalar patch-package
 
+1. En la terminal de Cursor, ejecuta:
 ```bash
 npm install --save-dev patch-package
 ```
 
 ### Crear los parches
 
+2. En la terminal de Cursor, ejecuta:
 ```bash
 # Crear parche para Bootstrap
 npx patch-package bootstrap
 ```
 
+Esto creará una carpeta `patches/` con los cambios aplicados.
+
 ### Agregar script postinstall
 
-Edita `package.json` y agrega en la sección `scripts`:
+3. En Cursor, presiona `Ctrl+P` y busca: `package.json`
+4. Abre el archivo `AlmonteIntranet/package.json`
+5. Busca la sección `"scripts"` y agrega:
 
 ```json
 {
   "scripts": {
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    // ... otros scripts existentes
   }
 }
 ```
 
-Ahora, cada vez que ejecutes `npm install`, los parches se aplicarán automáticamente.
+6. **Guarda el archivo** (`Ctrl+S`)
+
+✅ **Listo:** Ahora, cada vez que ejecutes `npm install`, los parches se aplicarán automáticamente.
+
+**💡 Tip:** Si ya creaste el parche, puedes commitear la carpeta `patches/` al repositorio para que todos tengan los mismos parches.
 
 ---
 
@@ -348,7 +406,9 @@ Antes de comenzar a desarrollar, verifica:
 
 ---
 
-## 🎯 Comandos Rápidos
+## 🎯 Comandos Rápidos en Cursor
+
+**💡 Tip:** Todos estos comandos se ejecutan en la terminal integrada de Cursor (`` Ctrl+` ``)
 
 ```bash
 # Instalar dependencias
@@ -369,6 +429,15 @@ npm run type-check
 # Ejecutar linter
 npm run lint
 ```
+
+### Atajos de Cursor Útiles
+
+- `` Ctrl+` `` - Abrir/cerrar terminal
+- `Ctrl+P` - Buscar archivos rápidamente
+- `Ctrl+G` - Ir a línea específica
+- `Ctrl+H` - Buscar y reemplazar
+- `Ctrl+Click` - Abrir URL en navegador (desde terminal)
+- `Ctrl+S` - Guardar archivo
 
 ---
 
