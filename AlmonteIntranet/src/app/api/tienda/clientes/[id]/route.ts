@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
-import { enviarClienteABothWordPress } from '@/lib/clientes/utils'
+import { enviarClienteABothWordPress, createOrUpdateClienteEnWooCommerce } from '@/lib/clientes/utils'
 import { limpiarRUT } from '@/lib/utils/rut'
 
 export const dynamic = 'force-dynamic'
@@ -347,12 +347,163 @@ export async function PUT(
         const nombresWordPress = partesNombre[0] || nombreFinal.trim()
         const apellidoWordPress = partesNombre.slice(1).join(' ') || ''
         
-        console.log('[API Clientes PUT] 🌐 Sincronizando cliente con WordPress (Moraleja y Escolar)...')
-        const wordPressResults = await enviarClienteABothWordPress({
+        // Extraer datos de billing/shipping de woocommerce_data si están presentes
+        const woocommerceData = body.data?.woocommerce_data || {}
+        console.log('[API Clientes PUT] 🔍 woocommerce_data recibido:', JSON.stringify(woocommerceData, null, 2))
+        
+        const clienteWordPressData: any = {
           email: correoFinal.trim(),
           first_name: nombresWordPress,
           last_name: apellidoWordPress,
-        })
+        }
+        
+        // Agregar billing/shipping si están en woocommerce_data
+        if (woocommerceData.billing) {
+          console.log('[API Clientes PUT] 📦 Agregando billing:', JSON.stringify(woocommerceData.billing, null, 2))
+          clienteWordPressData.billing = woocommerceData.billing
+        } else {
+          console.log('[API Clientes PUT] ⚠️ No hay datos de billing en woocommerce_data')
+        }
+        
+        if (woocommerceData.shipping) {
+          console.log('[API Clientes PUT] 📦 Agregando shipping:', JSON.stringify(woocommerceData.shipping, null, 2))
+          clienteWordPressData.shipping = woocommerceData.shipping
+        } else {
+          console.log('[API Clientes PUT] ⚠️ No hay datos de shipping en woocommerce_data')
+        }
+        
+        if (woocommerceData.meta_data && Array.isArray(woocommerceData.meta_data)) {
+          console.log('[API Clientes PUT] 📦 Agregando meta_data:', woocommerceData.meta_data.length, 'elementos')
+          clienteWordPressData.meta_data = woocommerceData.meta_data
+        }
+        
+        console.log('[API Clientes PUT] 🌐 Sincronizando cliente con WordPress (Moraleja y Escolar)...')
+        console.log('[API Clientes PUT] 📤 Datos completos a enviar:', JSON.stringify(clienteWordPressData, null, 2))
+        const wordPressResults = await enviarClienteABothWordPress(clienteWordPressData)
+        
+        // Si hay billing/shipping y el cliente fue creado/actualizado exitosamente, 
+        // actualizar billing/shipping también (por si no se incluyó en la primera llamada)
+        const hasBillingShipping = woocommerceData.billing || woocommerceData.shipping
+        if (hasBillingShipping) {
+          // URLs y credenciales de las plataformas
+          const escolarUrl = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL_ESCOLAR || process.env.WOO_ESCOLAR_URL || process.env.NEXT_PUBLIC_WOOCOMMERCE_URL || process.env.WOOCOMMERCE_URL || ''
+          const moralejaUrl = process.env.NEXT_PUBLIC_WOO_MORALEJA_URL || process.env.WOO_MORALEJA_URL || ''
+          const escolarKey = process.env.WOO_ESCOLAR_CONSUMER_KEY || process.env.WOOCOMMERCE_CONSUMER_KEY || ''
+          const escolarSecret = process.env.WOO_ESCOLAR_CONSUMER_SECRET || process.env.WOOCOMMERCE_CONSUMER_SECRET || ''
+          const moralejaKey = process.env.WOO_MORALEJA_CONSUMER_KEY || ''
+          const moralejaSecret = process.env.WOO_MORALEJA_CONSUMER_SECRET || ''
+          
+          // Actualizar billing/shipping en Escolar si fue exitoso
+          if (wordPressResults.escolar.success && wordPressResults.escolar.data?.id && escolarUrl && escolarKey && escolarSecret) {
+            try {
+              await createOrUpdateClienteEnWooCommerce(escolarUrl, escolarKey, escolarSecret, clienteWordPressData)
+              console.log('[API Clientes PUT] ✅ Billing/Shipping actualizado en Escolar')
+            } catch (error: any) {
+              console.warn('[API Clientes PUT] ⚠️ Error al actualizar billing/shipping en Escolar (no crítico):', error.message)
+            }
+          }
+          
+          // Actualizar billing/shipping en Moraleja si fue exitoso
+          if (wordPressResults.moraleja.success && wordPressResults.moraleja.data?.id && moralejaUrl && moralejaKey && moralejaSecret) {
+            try {
+              await createOrUpdateClienteEnWooCommerce(moralejaUrl, moralejaKey, moralejaSecret, clienteWordPressData)
+              console.log('[API Clientes PUT] ✅ Billing/Shipping actualizado en Moraleja')
+            } catch (error: any) {
+              console.warn('[API Clientes PUT] ⚠️ Error al actualizar billing/shipping en Moraleja (no crítico):', error.message)
+            }
+          }
+        }
+        
+        // Actualizar woocommerce_id en Strapi WO-Clientes si se obtuvo de WooCommerce
+        try {
+          const emailFinal = correoFinal.trim()
+          
+          // Actualizar woocommerce_id para Escolar
+          if (wordPressResults.escolar.success && wordPressResults.escolar.data?.id) {
+            try {
+              const strapiSearchEscolar = await strapiClient.get<any>(`/api/wo-clientes?filters[correo_electronico][$eq]=${encodeURIComponent(emailFinal)}&filters[originPlatform][$eq]=woo_escolar&populate=*`)
+              const strapiClientesEscolar = strapiSearchEscolar.data && Array.isArray(strapiSearchEscolar.data) ? strapiSearchEscolar.data : (strapiSearchEscolar.data ? [strapiSearchEscolar.data] : [])
+              
+              if (strapiClientesEscolar.length > 0) {
+                const strapiClienteEscolar = strapiClientesEscolar[0]
+                const strapiClienteEscolarId = strapiClienteEscolar.documentId || strapiClienteEscolar.id?.toString()
+                
+                // Preparar datos de actualización incluyendo rawWooData con billing/shipping
+                const updateDataEscolar: any = {
+                  data: {
+                    wooId: wordPressResults.escolar.data.id,
+                  },
+                }
+                
+                // Guardar billing/shipping en rawWooData si existen
+                if (woocommerceData.billing || woocommerceData.shipping || wordPressResults.escolar.data) {
+                  const partesNombre = nombreFinal.trim().split(/\s+/)
+                  const nombresWordPress = partesNombre[0] || nombreFinal.trim()
+                  const apellidoWordPress = partesNombre.slice(1).join(' ') || ''
+                  
+                  updateDataEscolar.data.rawWooData = {
+                    id: wordPressResults.escolar.data.id,
+                    email: correoFinal.trim(),
+                    first_name: nombresWordPress,
+                    last_name: apellidoWordPress,
+                    ...(woocommerceData.billing && { billing: woocommerceData.billing }),
+                    ...(woocommerceData.shipping && { shipping: woocommerceData.shipping }),
+                    ...(woocommerceData.meta_data && { meta_data: woocommerceData.meta_data }),
+                  }
+                }
+                
+                await strapiClient.put(`/api/wo-clientes/${strapiClienteEscolarId}`, updateDataEscolar)
+                console.log('[API Clientes PUT] ✅ woocommerce_id y rawWooData actualizados en WO-Clientes (Escolar):', wordPressResults.escolar.data.id)
+              }
+            } catch (error: any) {
+              console.warn('[API Clientes PUT] ⚠️ Error al actualizar woocommerce_id en WO-Clientes (Escolar):', error.message)
+            }
+          }
+          
+          // Actualizar woocommerce_id para Moraleja
+          if (wordPressResults.moraleja.success && wordPressResults.moraleja.data?.id) {
+            try {
+              const strapiSearchMoraleja = await strapiClient.get<any>(`/api/wo-clientes?filters[correo_electronico][$eq]=${encodeURIComponent(emailFinal)}&filters[originPlatform][$eq]=woo_moraleja&populate=*`)
+              const strapiClientesMoraleja = strapiSearchMoraleja.data && Array.isArray(strapiSearchMoraleja.data) ? strapiSearchMoraleja.data : (strapiSearchMoraleja.data ? [strapiSearchMoraleja.data] : [])
+              
+              if (strapiClientesMoraleja.length > 0) {
+                const strapiClienteMoraleja = strapiClientesMoraleja[0]
+                const strapiClienteMoralejaId = strapiClienteMoraleja.documentId || strapiClienteMoraleja.id?.toString()
+                
+                // Preparar datos de actualización incluyendo rawWooData con billing/shipping
+                const updateDataMoraleja: any = {
+                  data: {
+                    wooId: wordPressResults.moraleja.data.id,
+                  },
+                }
+                
+                // Guardar billing/shipping en rawWooData si existen
+                if (woocommerceData.billing || woocommerceData.shipping || wordPressResults.moraleja.data) {
+                  const partesNombre = nombreFinal.trim().split(/\s+/)
+                  const nombresWordPress = partesNombre[0] || nombreFinal.trim()
+                  const apellidoWordPress = partesNombre.slice(1).join(' ') || ''
+                  
+                  updateDataMoraleja.data.rawWooData = {
+                    id: wordPressResults.moraleja.data.id,
+                    email: correoFinal.trim(),
+                    first_name: nombresWordPress,
+                    last_name: apellidoWordPress,
+                    ...(woocommerceData.billing && { billing: woocommerceData.billing }),
+                    ...(woocommerceData.shipping && { shipping: woocommerceData.shipping }),
+                    ...(woocommerceData.meta_data && { meta_data: woocommerceData.meta_data }),
+                  }
+                }
+                
+                await strapiClient.put(`/api/wo-clientes/${strapiClienteMoralejaId}`, updateDataMoraleja)
+                console.log('[API Clientes PUT] ✅ woocommerce_id y rawWooData actualizados en WO-Clientes (Moraleja):', wordPressResults.moraleja.data.id)
+              }
+            } catch (error: any) {
+              console.warn('[API Clientes PUT] ⚠️ Error al actualizar woocommerce_id en WO-Clientes (Moraleja):', error.message)
+            }
+          }
+        } catch (updateError: any) {
+          console.warn('[API Clientes PUT] ⚠️ Error general al actualizar woocommerce_id en Strapi (no crítico):', updateError.message)
+        }
         
         console.log('[API Clientes PUT] ✅ Cliente sincronizado con WordPress:', {
           escolar: wordPressResults.escolar.success,

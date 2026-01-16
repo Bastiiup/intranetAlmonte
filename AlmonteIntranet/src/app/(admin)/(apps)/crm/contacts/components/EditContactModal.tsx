@@ -6,6 +6,7 @@ import { LuCheck } from 'react-icons/lu'
 import Select from 'react-select'
 import { debounce } from 'lodash'
 import type { ContactType } from '@/app/(admin)/(apps)/crm/types'
+import ChileRegionComuna from '@/components/common/ChileRegionsComunas'
 
 interface ColegioOption {
   id: number
@@ -854,15 +855,14 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
                 )}
               </FormGroup>
             </Col>
-            <Col md={6}>
+            <Col md={12}>
               <FormGroup className="mb-3">
-                <FormLabel>Región</FormLabel>
-                <FormControl
-                  type="text"
-                  placeholder="Ej: Región Metropolitana"
-                  value={formData.region}
-                  onChange={(e) => handleFieldChange('region', e.target.value)}
-                  disabled={loading}
+                <FormLabel>Región y Comuna</FormLabel>
+                <ChileRegionComuna
+                  regionValue={formData.region}
+                  comunaValue={formData.comuna}
+                  onRegionChange={(value) => handleFieldChange('region', value)}
+                  onComunaChange={(value) => handleFieldChange('comuna', value)}
                 />
               </FormGroup>
             </Col>
@@ -870,17 +870,6 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
 
           <Row>
             <Col md={6}>
-              <FormGroup className="mb-3">
-                <FormLabel>Comuna</FormLabel>
-                <FormControl
-                  type="text"
-                  placeholder="Ej: Santiago"
-                  value={formData.comuna}
-                  onChange={(e) => handleFieldChange('comuna', e.target.value)}
-                  disabled={loading}
-                />
-              </FormGroup>
-            </Col>
             <Col md={6}>
               <FormGroup className="mb-3">
                 <FormLabel>Dependencia</FormLabel>

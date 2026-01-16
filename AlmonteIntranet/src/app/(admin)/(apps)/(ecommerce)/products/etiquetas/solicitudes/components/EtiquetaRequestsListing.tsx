@@ -38,6 +38,7 @@ type EtiquetaTypeExtended = {
   time: string
   url: string
   strapiId?: number
+  tagId?: string
   estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
   etiquetaOriginal?: any
 }
@@ -91,6 +92,7 @@ const mapStrapiEtiquetaToEtiquetaType = (etiqueta: any): EtiquetaTypeExtended =>
     time: format(createdDate, 'h:mm a'),
     url: `/products/etiquetas/${etiqueta.id || etiqueta.documentId || etiqueta.id}`,
     strapiId: etiqueta.id,
+    tagId: String(etiqueta.id || etiqueta.documentId || etiqueta.id),
     estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
                        estadoPublicacion === 'borrador' ? 'Borrador' : 
                        'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
@@ -101,11 +103,12 @@ const mapStrapiEtiquetaToEtiquetaType = (etiqueta: any): EtiquetaTypeExtended =>
 interface EtiquetaRequestsListingProps {
   etiquetas?: any[]
   error?: string | null
+  onTagSelect?: (tagId: string) => void
 }
 
 const columnHelper = createColumnHelper<EtiquetaTypeExtended>()
 
-const EtiquetaRequestsListing = ({ etiquetas, error }: EtiquetaRequestsListingProps = {}) => {
+const EtiquetaRequestsListing = ({ etiquetas, error, onTagSelect }: EtiquetaRequestsListingProps = {}) => {
   const router = useRouter()
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
@@ -203,16 +206,47 @@ const EtiquetaRequestsListing = ({ etiquetas, error }: EtiquetaRequestsListingPr
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<EtiquetaTypeExtended> }) => (
         <div className="d-flex gap-1">
-          <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver">
-              <TbEye className="fs-lg" />
-            </Button>
-          </Link>
-          <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Editar">
-              <TbEdit className="fs-lg" />
-            </Button>
-          </Link>
+          {onTagSelect && row.original.tagId ? (
+            <>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle" 
+                title="Ver"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onTagSelect(row.original.tagId!)
+                }}
+              >
+                <TbEye className="fs-lg" />
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle" 
+                title="Editar"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onTagSelect(row.original.tagId!)
+                }}
+              >
+                <TbEdit className="fs-lg" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link href={row.original.url}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver">
+                  <TbEye className="fs-lg" />
+                </Button>
+              </Link>
+              <Link href={row.original.url}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Editar">
+                  <TbEdit className="fs-lg" />
+                </Button>
+              </Link>
+            </>
+          )}
           <Button
             variant="default"
             size="sm"

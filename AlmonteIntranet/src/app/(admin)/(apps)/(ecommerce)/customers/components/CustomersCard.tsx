@@ -26,6 +26,7 @@ import EditClienteModal from '@/app/(admin)/(apps)/(ecommerce)/clientes/componen
 import AddClienteForm from '@/app/(admin)/(apps)/(ecommerce)/clientes/components/AddClienteForm'
 import { currency } from '@/helpers'
 import { format } from 'date-fns'
+import Link from 'next/link'
 import user1 from '@/assets/images/users/user-1.jpg'
 import usFlag from '@/assets/images/flags/us.svg'
 import { StaticImageData } from 'next/image'
@@ -121,18 +122,31 @@ const CustomersCard = ({ clientes, error }: CustomersCardProps = {}) => {
     },
     columnHelper.accessor('name', {
       header: 'Nombre del Cliente',
-      cell: ({ row }) => (
-        <div className="d-flex align-items-center gap-2">
-          <div className="avatar avatar-sm">
-            <Image src={row.original.avatar.src} alt="" height={32} width={32} className="img-fluid rounded-circle" />
+      cell: ({ row }) => {
+        const clienteId = row.original.id || row.original.woocommerce_id
+        return (
+          <div className="d-flex align-items-center gap-2">
+            <div className="avatar avatar-sm">
+              <Image src={row.original.avatar.src} alt="" height={32} width={32} className="img-fluid rounded-circle" />
+            </div>
+            <div>
+              <h5 className="mb-0">
+                {clienteId ? (
+                  <Link 
+                    href={`/clientes/${clienteId}`}
+                    className="text-reset hover-underline"
+                    title="Ver detalle del cliente"
+                  >
+                    {row.original.name}
+                  </Link>
+                ) : (
+                  row.original.name
+                )}
+              </h5>
+            </div>
           </div>
-          <div>
-            <h5 className="mb-0">
-              {row.original.name}
-            </h5>
-          </div>
-        </div>
-      ),
+        )
+      },
     }),
     columnHelper.accessor('email', { header: 'Email' }),
     columnHelper.accessor('phone', { header: 'Teléfono' }),

@@ -5,6 +5,7 @@ import { Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Button, Form, F
 import { LuCheck } from 'react-icons/lu'
 import Select from 'react-select'
 import { debounce } from 'lodash'
+import ChileRegionComuna from '@/components/common/ChileRegionsComunas'
 
 const ORIGENES = [
   { value: 'mineduc', label: 'MINEDUC' },
@@ -572,13 +573,12 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
             </Col>
             <Col md={6}>
               <FormGroup className="mb-3">
-                <FormLabel>Región</FormLabel>
-                <FormControl
-                  type="text"
-                  placeholder="Ej: Región Metropolitana"
-                  value={formData.region}
-                  onChange={(e) => handleFieldChange('region', e.target.value)}
-                  disabled={loading}
+                <FormLabel>Región y Comuna</FormLabel>
+                <ChileRegionComuna
+                  regionValue={formData.region}
+                  comunaValue={formData.comuna}
+                  onRegionChange={(value) => handleFieldChange('region', value)}
+                  onComunaChange={(value) => handleFieldChange('comuna', value)}
                 />
               </FormGroup>
             </Col>
@@ -586,17 +586,6 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
 
           <Row>
             <Col md={6}>
-              <FormGroup className="mb-3">
-                <FormLabel>Comuna</FormLabel>
-                <FormControl
-                  type="text"
-                  placeholder="Ej: Santiago"
-                  value={formData.comuna}
-                  onChange={(e) => handleFieldChange('comuna', e.target.value)}
-                  disabled={loading}
-                />
-              </FormGroup>
-            </Col>
             <Col md={6}>
               <FormGroup className="mb-3">
                 <FormLabel>Dependencia</FormLabel>

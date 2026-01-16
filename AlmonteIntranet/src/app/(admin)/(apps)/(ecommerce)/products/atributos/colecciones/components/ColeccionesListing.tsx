@@ -39,6 +39,7 @@ type ColeccionType = {
   date: string
   time: string
   url: string
+  coleccionId?: string
   estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
 }
 
@@ -90,6 +91,7 @@ const mapStrapiColeccionToColeccionType = (coleccion: any): ColeccionType => {
   const createdAt = attrs.createdAt || (coleccion as any).createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
   
+  const coleccionIdStr = String(coleccion.id || coleccion.documentId || coleccion.id)
   return {
     id: coleccion.id || coleccion.documentId || coleccion.id,
     name: nombreColeccion,
@@ -100,7 +102,8 @@ const mapStrapiColeccionToColeccionType = (coleccion: any): ColeccionType => {
     status: isPublished ? 'active' : 'inactive',
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
-    url: `/products/atributos/colecciones/${coleccion.id || coleccion.documentId || coleccion.id}`,
+    url: `/products/atributos/colecciones/${coleccionIdStr}`,
+    coleccionId: coleccionIdStr,
     estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
                        estadoPublicacion === 'borrador' ? 'Borrador' : 
                        'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
@@ -110,11 +113,13 @@ const mapStrapiColeccionToColeccionType = (coleccion: any): ColeccionType => {
 interface ColeccionesListingProps {
   colecciones?: any[]
   error?: string | null
+  onColeccionSelect?: (coleccionId: string) => void
+  onSwitchToGrid?: () => void
 }
 
 const columnHelper = createColumnHelper<ColeccionType>()
 
-const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}) => {
+const ColeccionesListing = ({ colecciones, error, onColeccionSelect, onSwitchToGrid }: ColeccionesListingProps = {}) => {
   const router = useRouter()
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
@@ -162,9 +167,22 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
         <div className="d-flex">
           <div>
             <h5 className="mb-0">
-              <Link href={row.original.url} className="link-reset">
-                {row.original.name || 'Sin nombre'}
-              </Link>
+              {onColeccionSelect && row.original.coleccionId ? (
+                <a 
+                  href="#" 
+                  className="link-reset" 
+                  onClick={(e) => {
+                    e.preventDefault()
+                    onColeccionSelect(row.original.coleccionId!)
+                  }}
+                >
+                  {row.original.name || 'Sin nombre'}
+                </a>
+              ) : (
+                <Link href={row.original.url} className="link-reset">
+                  {row.original.name || 'Sin nombre'}
+                </Link>
+              )}
             </h5>
             <p className="text-muted mb-0 fs-xxs">ID: {row.original.idColeccion || 'N/A'}</p>
           </div>
@@ -234,20 +252,49 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<ColeccionType> }) => (
         <div className="d-flex gap-1">
-          <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle">
-              <TbEye className="fs-lg" />
-            </Button>
-          </Link>
-          <Link href={row.original.url}>
-            <Button
-              variant="default"
-              size="sm"
-              className="btn-icon rounded-circle"
-            >
-              <TbEdit className="fs-lg" />
-            </Button>
-          </Link>
+          {onColeccionSelect && row.original.coleccionId ? (
+            <>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onColeccionSelect(row.original.coleccionId!)
+                }}
+              >
+                <TbEye className="fs-lg" />
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                className="btn-icon rounded-circle"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onColeccionSelect(row.original.coleccionId!)
+                }}
+              >
+                <TbEdit className="fs-lg" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link href={row.original.url}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle">
+                  <TbEye className="fs-lg" />
+                </Button>
+              </Link>
+              <Link href={row.original.url}>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="btn-icon rounded-circle"
+                >
+                  <TbEdit className="fs-lg" />
+                </Button>
+              </Link>
+            </>
+          )}
           {canDelete && (
             <Button
               variant="default"
@@ -449,11 +496,21 @@ const ColeccionesListing = ({ colecciones, error }: ColeccionesListingProps = {}
             </div>
 
             <div className="d-flex gap-1">
-              <Link passHref href="/products/atributos/colecciones">
-                <Button variant="outline-primary" className="btn-icon btn-soft-primary">
+              {onSwitchToGrid ? (
+                <Button 
+                  variant="outline-primary" 
+                  className="btn-icon btn-soft-primary"
+                  onClick={onSwitchToGrid}
+                >
                   <TbLayoutGrid className="fs-lg" />
                 </Button>
-              </Link>
+              ) : (
+                <Link passHref href="/products/atributos/colecciones">
+                  <Button variant="outline-primary" className="btn-icon btn-soft-primary">
+                    <TbLayoutGrid className="fs-lg" />
+                  </Button>
+                </Link>
+              )}
               <Button variant="primary" className="btn-icon">
                 <TbList className="fs-lg" />
               </Button>

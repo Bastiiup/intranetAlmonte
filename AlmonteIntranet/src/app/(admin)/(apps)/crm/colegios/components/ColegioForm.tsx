@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Form, FormGroup, FormLabel, FormControl, Button, Alert, Row, Col } from 'react-bootstrap'
 import { LuSave, LuPlus, LuX } from 'react-icons/lu'
+import ChileRegionComuna from '@/components/common/ChileRegionsComunas'
 
 const DEPENDENCIAS = [
   'Municipal',
@@ -268,13 +269,16 @@ const ColegioForm = ({ initialData, onSubmit, onCancel, loading = false, error: 
       <Row>
         <Col md={6}>
           <FormGroup className="mb-3">
-            <FormLabel>Región</FormLabel>
-            <FormControl
-              type="text"
-              placeholder="Metropolitana"
-              value={formData.region}
-              onChange={(e) => handleFieldChange('region', e.target.value)}
-              disabled={loading}
+            <FormLabel>Región y Comuna</FormLabel>
+            <ChileRegionComuna
+              regionValue={formData.region}
+              comunaValue={formData.comunaId ? String(formData.comunaId) : ''}
+              onRegionChange={(value) => handleFieldChange('region', value)}
+              onComunaChange={(value) => {
+                // Si el valor es un número, guardarlo como comunaId, sino como string
+                const comunaId = value ? (isNaN(Number(value)) ? value : Number(value)) : undefined
+                handleFieldChange('comunaId', comunaId)
+              }}
             />
           </FormGroup>
         </Col>

@@ -36,6 +36,7 @@ type ObraType = {
   date: string
   time: string
   url: string
+  obraId?: string
   estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
 }
 
@@ -79,6 +80,7 @@ const mapStrapiObraToObraType = (obra: any): ObraType => {
   const createdAt = attrs.createdAt || (obra as any).createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
   
+  const obraIdStr = String(obra.id || obra.documentId || obra.id)
   return {
     id: obra.id || obra.documentId || obra.id,
     name: nombre,
@@ -87,7 +89,8 @@ const mapStrapiObraToObraType = (obra: any): ObraType => {
     status: isPublished ? 'active' : 'inactive',
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
-    url: `/products/atributos/obras/${obra.id || obra.documentId || obra.id}`, // URL actualizada
+    url: `/products/atributos/obras/${obraIdStr}`, // URL actualizada
+    obraId: obraIdStr,
     estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
                        estadoPublicacion === 'borrador' ? 'Borrador' : 
                        'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
@@ -97,11 +100,13 @@ const mapStrapiObraToObraType = (obra: any): ObraType => {
 interface ObrasListingProps {
   obras?: any[]
   error?: string | null
+  onObraSelect?: (obraId: string) => void
+  onSwitchToGrid?: () => void
 }
 
 const columnHelper = createColumnHelper<ObraType>()
 
-const ObrasListing = ({ obras, error }: ObrasListingProps = {}) => {
+const ObrasListing = ({ obras, error, onObraSelect, onSwitchToGrid }: ObrasListingProps = {}) => {
   const router = useRouter()
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
@@ -153,9 +158,22 @@ const ObrasListing = ({ obras, error }: ObrasListingProps = {}) => {
             </div>
             <div>
               <h5 className="mb-0">
-                <Link href={`/products/atributos/obras/${row.original.id}`} className="link-reset">
-                  {row.original.name || 'Sin nombre'}
-                </Link>
+                {onObraSelect && row.original.obraId ? (
+                  <a 
+                    href="#" 
+                    className="link-reset" 
+                    onClick={(e) => {
+                      e.preventDefault()
+                      onObraSelect(row.original.obraId!)
+                    }}
+                  >
+                    {row.original.name || 'Sin nombre'}
+                  </a>
+                ) : (
+                  <Link href={`/products/atributos/obras/${row.original.id}`} className="link-reset">
+                    {row.original.name || 'Sin nombre'}
+                  </Link>
+                )}
               </h5>
             </div>
           </div>
@@ -199,20 +217,49 @@ const ObrasListing = ({ obras, error }: ObrasListingProps = {}) => {
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<ObraType> }) => (
         <div className="d-flex gap-1">
-          <Link href={`/products/atributos/obras/${row.original.id}`}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle">
-              <TbEye className="fs-lg" />
-            </Button>
-          </Link>
-          <Link href={`/products/atributos/obras/${row.original.id}`}>
-            <Button
-              variant="default"
-              size="sm"
-              className="btn-icon rounded-circle"
-            >
-              <TbEdit className="fs-lg" />
-            </Button>
-          </Link>
+          {onObraSelect && row.original.obraId ? (
+            <>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onObraSelect(row.original.obraId!)
+                }}
+              >
+                <TbEye className="fs-lg" />
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                className="btn-icon rounded-circle"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onObraSelect(row.original.obraId!)
+                }}
+              >
+                <TbEdit className="fs-lg" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link href={`/products/atributos/obras/${row.original.id}`}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle">
+                  <TbEye className="fs-lg" />
+                </Button>
+              </Link>
+              <Link href={`/products/atributos/obras/${row.original.id}`}>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="btn-icon rounded-circle"
+                >
+                  <TbEdit className="fs-lg" />
+                </Button>
+              </Link>
+            </>
+          )}
           {canDelete && (
             <Button
               variant="default"
@@ -426,11 +473,21 @@ const ObrasListing = ({ obras, error }: ObrasListingProps = {}) => {
             </div>
 
             <div className="d-flex gap-1">
-              <Link passHref href="/products/atributos/obras">
-                <Button variant="outline-primary" className="btn-icon btn-soft-primary">
+              {onSwitchToGrid ? (
+                <Button 
+                  variant="outline-primary" 
+                  className="btn-icon btn-soft-primary"
+                  onClick={onSwitchToGrid}
+                >
                   <TbLayoutGrid className="fs-lg" />
                 </Button>
-              </Link>
+              ) : (
+                <Link passHref href="/products/atributos/obras">
+                  <Button variant="outline-primary" className="btn-icon btn-soft-primary">
+                    <TbLayoutGrid className="fs-lg" />
+                  </Button>
+                </Link>
+              )}
               <Button variant="primary" className="btn-icon">
                 <TbList className="fs-lg" />
               </Button>

@@ -1,0 +1,61 @@
+{
+  "id": 54,
+  "date_created": "2026-01-15T17:54:47",
+  "date_created_gmt": "2026-01-15T17:54:47",
+  "date_modified": "2026-01-15T17:54:47",
+  "date_modified_gmt": "2026-01-15T17:54:47",
+  "email": "martininfanteinfante@gmail.com",
+  "first_name": "Martin",
+  "last_name": "Infante",
+  "role": "customer",
+  "username": "martininfanteinfante_1768499686677",
+  "billing": {
+    "first_name": "Martin",
+    "last_name": "Infante",
+    "company": "",
+    "address_1": "Av Einstein 578",
+    "address_2": "",
+    "city": "Rancagua",
+    "postcode": "",
+    "country": "CL",
+    "state": "Región del Libertador General Bernardo O'Higgins",
+    "email": "martininfanteinfante@gmail.com",
+    "phone": ""
+  },
+  "shipping": {
+    "first_name": "Martin",
+    "last_name": "Infante",
+    "company": "",
+    "address_1": "Av Einstein 578",
+    "address_2": "",
+    "city": "Rancagua",
+    "postcode": "",
+    "country": "CL",
+    "state": "Región del Libertador General Bernardo O'Higgins",
+    "phone": ""
+  },
+  "is_paying_customer": false,
+  "avatar_url": "https://secure.gravatar.com/avatar/d182c3deb50ed47a7fce02947501a4d94600dbf8b446ad13e7b2fbd26e1b56aa?s=96&d=mm&r=g",
+  "meta_data": [],
+  "_links": {
+    "self": [
+      {
+        "href": "https://staging.escolar.cl/wp-json/wc/v3/customers/54",
+        "targetHints": {
+          "allow": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://staging.escolar.cl/wp-json/wc/v3/customers"
+      }
+    ]
+  }
+}

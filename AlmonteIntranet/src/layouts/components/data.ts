@@ -49,6 +49,7 @@ import {
   LuShoppingBag,
   LuSparkles,
   LuTable,
+  LuTag,
   LuUsers,
 } from 'react-icons/lu'
 
@@ -133,9 +134,66 @@ export const menuItems: MenuItemType[] = [
   { key: 'ecommerce-section', label: 'ECOMMERCE', isTitle: true },
   {
     key: 'products',
-    label: 'Todos los Productos',
+    label: 'Productos',
     icon: LuShoppingBag,
-    url: '/products',
+    children: [
+      { key: 'productos-gestion', label: 'Gestión', url: '/products' },
+      {
+        key: 'categorias',
+        label: 'Categorías',
+        children: [
+          { key: 'all-categories', label: 'Listado', url: '/products/categorias' },
+        ],
+      },
+      {
+        key: 'etiquetas',
+        label: 'Etiquetas',
+        children: [
+          { key: 'all-tags', label: 'Listado', url: '/products/etiquetas' },
+        ],
+      },
+      {
+        key: 'atributos',
+        label: 'Atributos',
+        children: [
+          {
+            key: 'autores',
+            label: 'Autores',
+            children: [
+              { key: 'all-autores', label: 'Listado', url: '/products/atributos/autores' },
+            ],
+          },
+          {
+            key: 'colecciones',
+            label: 'Colecciones',
+            children: [
+              { key: 'all-colecciones', label: 'Listado', url: '/products/atributos/colecciones' },
+            ],
+          },
+          {
+            key: 'obras',
+            label: 'Obras',
+            children: [
+              { key: 'all-obras', label: 'Listado', url: '/products/atributos/obras' },
+            ],
+          },
+          {
+            key: 'sellos',
+            label: 'Sellos',
+            children: [
+              { key: 'all-sellos', label: 'Listado', url: '/atributos/sello' },
+            ],
+          },
+          {
+            key: 'marcas',
+            label: 'Marcas',
+            children: [
+              { key: 'all-marcas', label: 'Listado', url: '/atributos/marca' },
+            ],
+          },
+        ],
+      },
+    ],
   },
   {
     key: 'ecommerce',

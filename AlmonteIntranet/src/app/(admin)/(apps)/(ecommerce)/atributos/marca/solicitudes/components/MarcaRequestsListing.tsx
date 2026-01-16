@@ -37,6 +37,7 @@ type MarcaTypeExtended = {
   time: string
   url: string
   strapiId?: number
+  marcaId?: string
   estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
   marcaOriginal?: any
 }
@@ -76,6 +77,7 @@ const mapStrapiMarcaToMarcaType = (marca: any): MarcaTypeExtended => {
   const createdAt = attrs.createdAt || (marca as any).createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
   
+  const marcaIdStr = String(marca.id || marca.documentId || marca.id)
   return {
     id: marca.id || marca.documentId || marca.id,
     name: nombre,
@@ -83,8 +85,9 @@ const mapStrapiMarcaToMarcaType = (marca: any): MarcaTypeExtended => {
     status: isPublished ? 'active' : 'inactive',
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
-    url: `/atributos/marca/${marca.id || marca.documentId || marca.id}`,
+    url: `/atributos/marca/${marcaIdStr}`,
     strapiId: marca.id,
+    marcaId: marcaIdStr,
     estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
                        estadoPublicacion === 'borrador' ? 'Borrador' : 
                        'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
@@ -95,11 +98,12 @@ const mapStrapiMarcaToMarcaType = (marca: any): MarcaTypeExtended => {
 interface MarcaRequestsListingProps {
   marcas?: any[]
   error?: string | null
+  onMarcaSelect?: (marcaId: string) => void
 }
 
 const columnHelper = createColumnHelper<MarcaTypeExtended>()
 
-const MarcaRequestsListing = ({ marcas, error }: MarcaRequestsListingProps = {}) => {
+const MarcaRequestsListing = ({ marcas, error, onMarcaSelect }: MarcaRequestsListingProps = {}) => {
   const router = useRouter()
   const { colaborador } = useAuth()
   const canDelete = colaborador?.rol === 'super_admin'
@@ -146,11 +150,24 @@ const MarcaRequestsListing = ({ marcas, error }: MarcaRequestsListingProps = {})
       header: 'Marca',
       cell: ({ row }) => (
         <div>
-          <h5 className="mb-0">
-            <Link href={row.original.url} className="link-reset">
-              {row.original.name || 'Sin nombre'}
-            </Link>
-          </h5>
+              <h5 className="mb-0">
+                {onMarcaSelect && row.original.marcaId ? (
+                  <a 
+                    href="#" 
+                    className="link-reset" 
+                    onClick={(e) => {
+                      e.preventDefault()
+                      onMarcaSelect(row.original.marcaId!)
+                    }}
+                  >
+                    {row.original.name || 'Sin nombre'}
+                  </a>
+                ) : (
+                  <Link href={row.original.url} className="link-reset">
+                    {row.original.name || 'Sin nombre'}
+                  </Link>
+                )}
+              </h5>
         </div>
       ),
     }),
@@ -190,16 +207,47 @@ const MarcaRequestsListing = ({ marcas, error }: MarcaRequestsListingProps = {})
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<MarcaTypeExtended> }) => (
         <div className="d-flex gap-1">
-          <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver">
-              <TbEye className="fs-lg" />
-            </Button>
-          </Link>
-          <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Editar">
-              <TbEdit className="fs-lg" />
-            </Button>
-          </Link>
+          {onMarcaSelect && row.original.marcaId ? (
+            <>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle" 
+                title="Ver"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onMarcaSelect(row.original.marcaId!)
+                }}
+              >
+                <TbEye className="fs-lg" />
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle" 
+                title="Editar"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onMarcaSelect(row.original.marcaId!)
+                }}
+              >
+                <TbEdit className="fs-lg" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link href={row.original.url}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver">
+                  <TbEye className="fs-lg" />
+                </Button>
+              </Link>
+              <Link href={row.original.url}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Editar">
+                  <TbEdit className="fs-lg" />
+                </Button>
+              </Link>
+            </>
+          )}
           <Button
             variant="default"
             size="sm"

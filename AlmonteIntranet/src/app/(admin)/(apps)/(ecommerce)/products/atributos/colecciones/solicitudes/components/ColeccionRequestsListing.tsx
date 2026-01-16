@@ -40,6 +40,7 @@ type ColeccionTypeExtended = {
   time: string
   url: string
   strapiId?: number
+  coleccionId?: string
   estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
   coleccionOriginal?: any
 }
@@ -103,6 +104,7 @@ const mapStrapiColeccionToColeccionType = (coleccion: any): ColeccionTypeExtende
     time: format(createdDate, 'h:mm a'),
     url: `/products/atributos/colecciones/${coleccion.id || coleccion.documentId || coleccion.id}`,
     strapiId: coleccion.id,
+    coleccionId: String(coleccion.id || coleccion.documentId || coleccion.id),
     estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
                        estadoPublicacion === 'borrador' ? 'Borrador' : 
                        'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
@@ -113,11 +115,12 @@ const mapStrapiColeccionToColeccionType = (coleccion: any): ColeccionTypeExtende
 interface ColeccionRequestsListingProps {
   colecciones?: any[]
   error?: string | null
+  onColeccionSelect?: (coleccionId: string) => void
 }
 
 const columnHelper = createColumnHelper<ColeccionTypeExtended>()
 
-const ColeccionRequestsListing = ({ colecciones, error }: ColeccionRequestsListingProps = {}) => {
+const ColeccionRequestsListing = ({ colecciones, error, onColeccionSelect }: ColeccionRequestsListingProps = {}) => {
   const router = useRouter()
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
@@ -165,11 +168,24 @@ const ColeccionRequestsListing = ({ colecciones, error }: ColeccionRequestsListi
       header: 'Colección',
       cell: ({ row }) => (
         <div>
-          <h5 className="mb-0">
-            <Link href={row.original.url} className="link-reset">
-              {row.original.name || 'Sin nombre'}
-            </Link>
-          </h5>
+              <h5 className="mb-0">
+                {onColeccionSelect && row.original.coleccionId ? (
+                  <a 
+                    href="#" 
+                    className="link-reset" 
+                    onClick={(e) => {
+                      e.preventDefault()
+                      onColeccionSelect(row.original.coleccionId!)
+                    }}
+                  >
+                    {row.original.name || 'Sin nombre'}
+                  </a>
+                ) : (
+                  <Link href={row.original.url} className="link-reset">
+                    {row.original.name || 'Sin nombre'}
+                  </Link>
+                )}
+              </h5>
           <p className="text-muted mb-0 fs-xxs">ID: {row.original.idColeccion || 'N/A'}</p>
         </div>
       ),
@@ -226,16 +242,47 @@ const ColeccionRequestsListing = ({ colecciones, error }: ColeccionRequestsListi
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<ColeccionTypeExtended> }) => (
         <div className="d-flex gap-1">
-          <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver">
-              <TbEye className="fs-lg" />
-            </Button>
-          </Link>
-          <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Editar">
-              <TbEdit className="fs-lg" />
-            </Button>
-          </Link>
+          {onColeccionSelect && row.original.coleccionId ? (
+            <>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle" 
+                title="Ver"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onColeccionSelect(row.original.coleccionId!)
+                }}
+              >
+                <TbEye className="fs-lg" />
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle" 
+                title="Editar"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onColeccionSelect(row.original.coleccionId!)
+                }}
+              >
+                <TbEdit className="fs-lg" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link href={row.original.url}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver">
+                  <TbEye className="fs-lg" />
+                </Button>
+              </Link>
+              <Link href={row.original.url}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Editar">
+                  <TbEdit className="fs-lg" />
+                </Button>
+              </Link>
+            </>
+          )}
           <Button
             variant="default"
             size="sm"

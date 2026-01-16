@@ -36,6 +36,7 @@ type MarcaType = {
   date: string
   time: string
   url: string
+  marcaId?: string
   estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
 }
 
@@ -71,6 +72,7 @@ const mapStrapiMarcaToMarcaType = (marca: any): MarcaType => {
   const createdAt = attrs.createdAt || (marca as any).createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
   
+  const marcaIdStr = String(marca.id || marca.documentId || marca.id)
   return {
     id: marca.id || marca.documentId || marca.id,
     name: nombre,
@@ -79,7 +81,8 @@ const mapStrapiMarcaToMarcaType = (marca: any): MarcaType => {
     status: isPublished ? 'active' : 'inactive',
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
-    url: `/atributos/marca/${marca.id || marca.documentId || marca.id}`,
+    url: `/atributos/marca/${marcaIdStr}`,
+    marcaId: marcaIdStr,
     estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
                        estadoPublicacion === 'borrador' ? 'Borrador' : 
                        'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
@@ -89,11 +92,13 @@ const mapStrapiMarcaToMarcaType = (marca: any): MarcaType => {
 interface MarcasListingProps {
   marcas?: any[]
   error?: string | null
+  onMarcaSelect?: (marcaId: string) => void
+  onSwitchToGrid?: () => void
 }
 
 const columnHelper = createColumnHelper<MarcaType>()
 
-const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
+const MarcasListing = ({ marcas, error, onMarcaSelect, onSwitchToGrid }: MarcasListingProps = {}) => {
   const router = useRouter()
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
@@ -150,9 +155,22 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
             </div>
             <div>
               <h5 className="mb-0">
-                <Link href={`/atributos/marca/${row.original.id}`} className="link-reset">
-                  {row.original.name || 'Sin nombre'}
-                </Link>
+                {onMarcaSelect && row.original.marcaId ? (
+                  <a 
+                    href="#" 
+                    className="link-reset" 
+                    onClick={(e) => {
+                      e.preventDefault()
+                      onMarcaSelect(row.original.marcaId!)
+                    }}
+                  >
+                    {row.original.name || 'Sin nombre'}
+                  </a>
+                ) : (
+                  <Link href={`/atributos/marca/${row.original.id}`} className="link-reset">
+                    {row.original.name || 'Sin nombre'}
+                  </Link>
+                )}
               </h5>
             </div>
           </div>
@@ -208,20 +226,49 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<MarcaType> }) => (
         <div className="d-flex gap-1">
-          <Link href={`/atributos/marca/${row.original.id}`}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle">
-              <TbEye className="fs-lg" />
-            </Button>
-          </Link>
-          <Link href={`/atributos/marca/${row.original.id}`}>
-            <Button
-              variant="default"
-              size="sm"
-              className="btn-icon rounded-circle"
-            >
-              <TbEdit className="fs-lg" />
-            </Button>
-          </Link>
+          {onMarcaSelect && row.original.marcaId ? (
+            <>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onMarcaSelect(row.original.marcaId!)
+                }}
+              >
+                <TbEye className="fs-lg" />
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                className="btn-icon rounded-circle"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onMarcaSelect(row.original.marcaId!)
+                }}
+              >
+                <TbEdit className="fs-lg" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link href={`/atributos/marca/${row.original.id}`}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle">
+                  <TbEye className="fs-lg" />
+                </Button>
+              </Link>
+              <Link href={`/atributos/marca/${row.original.id}`}>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="btn-icon rounded-circle"
+                >
+                  <TbEdit className="fs-lg" />
+                </Button>
+              </Link>
+            </>
+          )}
           {canDelete && (
             <Button
               variant="default"
@@ -427,11 +474,21 @@ const MarcasListing = ({ marcas, error }: MarcasListingProps = {}) => {
             </div>
 
             <div className="d-flex gap-1">
-              <Link passHref href="/atributos/marca">
-                <Button variant="outline-primary" className="btn-icon btn-soft-primary">
+              {onSwitchToGrid ? (
+                <Button 
+                  variant="outline-primary" 
+                  className="btn-icon btn-soft-primary"
+                  onClick={onSwitchToGrid}
+                >
                   <TbLayoutGrid className="fs-lg" />
                 </Button>
-              </Link>
+              ) : (
+                <Link passHref href="/atributos/marca">
+                  <Button variant="outline-primary" className="btn-icon btn-soft-primary">
+                    <TbLayoutGrid className="fs-lg" />
+                  </Button>
+                </Link>
+              )}
               <Button variant="primary" className="btn-icon">
                 <TbList className="fs-lg" />
               </Button>

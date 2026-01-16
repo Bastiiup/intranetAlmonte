@@ -110,6 +110,9 @@ export async function createOrUpdateClienteEnWooCommerce(
     email: string
     first_name: string
     last_name?: string
+    billing?: any
+    shipping?: any
+    meta_data?: Array<{ key: string; value: string }>
   }
 ): Promise<{ success: boolean; data?: any; error?: string; created?: boolean }> {
   try {
@@ -131,11 +134,52 @@ export async function createOrUpdateClienteEnWooCommerce(
     if (searchResult.success && searchResult.customer) {
       // Actualizar cliente existente
       console.log(`[createOrUpdateClienteEnWooCommerce] ✏️ Cliente existente encontrado (ID: ${searchResult.customer.id}), actualizando...`)
+      console.log(`[createOrUpdateClienteEnWooCommerce] 📦 Datos recibidos:`, {
+        hasBilling: !!clienteData.billing,
+        hasShipping: !!clienteData.shipping,
+        hasMetaData: !!(clienteData.meta_data && clienteData.meta_data.length > 0),
+      })
       const apiUrl = `${url}/wp-json/wc/v3/customers/${searchResult.customer.id}`
-      const updateData = {
+      const updateData: any = {
         email: clienteData.email,
         first_name: clienteData.first_name,
         last_name: clienteData.last_name || '',
+      }
+      
+      // ⚠️ CRÍTICO: SIEMPRE construir billing y shipping, incluso si vienen vacíos
+      // WooCommerce necesita que estén presentes para actualizarlos correctamente
+      updateData.billing = {
+        first_name: clienteData.billing?.first_name || clienteData.first_name || '',
+        last_name: clienteData.billing?.last_name || clienteData.last_name || '',
+        company: clienteData.billing?.company || '',
+        address_1: clienteData.billing?.address_1 || '',
+        address_2: clienteData.billing?.address_2 || '',
+        city: clienteData.billing?.city || '',
+        state: clienteData.billing?.state || '',
+        postcode: clienteData.billing?.postcode || '',
+        country: clienteData.billing?.country || 'CL',
+        email: clienteData.billing?.email || clienteData.email || '',
+        phone: clienteData.billing?.phone || '',
+      }
+      console.log(`[createOrUpdateClienteEnWooCommerce] 📦 Billing completo enviado a ${url}:`, JSON.stringify(updateData.billing, null, 2))
+      
+      updateData.shipping = {
+        first_name: clienteData.shipping?.first_name || clienteData.first_name || '',
+        last_name: clienteData.shipping?.last_name || clienteData.last_name || '',
+        company: clienteData.shipping?.company || '',
+        address_1: clienteData.shipping?.address_1 || '',
+        address_2: clienteData.shipping?.address_2 || '',
+        city: clienteData.shipping?.city || '',
+        state: clienteData.shipping?.state || '',
+        postcode: clienteData.shipping?.postcode || '',
+        country: clienteData.shipping?.country || 'CL',
+        phone: clienteData.shipping?.phone || '',
+      }
+      console.log(`[createOrUpdateClienteEnWooCommerce] 📦 Shipping completo enviado a ${url}:`, JSON.stringify(updateData.shipping, null, 2))
+      
+      // Agregar meta_data si está presente
+      if (clienteData.meta_data && Array.isArray(clienteData.meta_data) && clienteData.meta_data.length > 0) {
+        updateData.meta_data = clienteData.meta_data
       }
       
       const response = await fetch(apiUrl, {
@@ -168,12 +212,54 @@ export async function createOrUpdateClienteEnWooCommerce(
       // Crear nuevo cliente
       console.log(`[createOrUpdateClienteEnWooCommerce] ➕ Cliente no encontrado, creando nuevo...`)
       const apiUrl = `${url}/wp-json/wc/v3/customers`
-      const customerData = {
+      const customerData: any = {
         email: clienteData.email,
         first_name: clienteData.first_name,
         last_name: clienteData.last_name || '',
         username: clienteData.email.split('@')[0] + '_' + Date.now(),
         password: `temp_${Date.now()}`,
+      }
+      
+      // ⚠️ CRÍTICO: SIEMPRE construir billing y shipping, incluso si vienen vacíos
+      // WooCommerce necesita que estén presentes para guardarlos correctamente
+      console.log(`[createOrUpdateClienteEnWooCommerce] 📦 Datos recibidos para creación:`, {
+        hasBilling: !!clienteData.billing,
+        hasShipping: !!clienteData.shipping,
+        hasMetaData: !!(clienteData.meta_data && clienteData.meta_data.length > 0),
+      })
+      
+      customerData.billing = {
+        first_name: clienteData.billing?.first_name || clienteData.first_name || '',
+        last_name: clienteData.billing?.last_name || clienteData.last_name || '',
+        company: clienteData.billing?.company || '',
+        address_1: clienteData.billing?.address_1 || '',
+        address_2: clienteData.billing?.address_2 || '',
+        city: clienteData.billing?.city || '',
+        state: clienteData.billing?.state || '',
+        postcode: clienteData.billing?.postcode || '',
+        country: clienteData.billing?.country || 'CL',
+        email: clienteData.billing?.email || clienteData.email || '',
+        phone: clienteData.billing?.phone || '',
+      }
+      console.log(`[createOrUpdateClienteEnWooCommerce] 📦 Billing completo para creación en ${url}:`, JSON.stringify(customerData.billing, null, 2))
+      
+      customerData.shipping = {
+        first_name: clienteData.shipping?.first_name || clienteData.first_name || '',
+        last_name: clienteData.shipping?.last_name || clienteData.last_name || '',
+        company: clienteData.shipping?.company || '',
+        address_1: clienteData.shipping?.address_1 || '',
+        address_2: clienteData.shipping?.address_2 || '',
+        city: clienteData.shipping?.city || '',
+        state: clienteData.shipping?.state || '',
+        postcode: clienteData.shipping?.postcode || '',
+        country: clienteData.shipping?.country || 'CL',
+        phone: clienteData.shipping?.phone || '',
+      }
+      console.log(`[createOrUpdateClienteEnWooCommerce] 📦 Shipping completo para creación en ${url}:`, JSON.stringify(customerData.shipping, null, 2))
+      
+      // Agregar meta_data si está presente
+      if (clienteData.meta_data && Array.isArray(clienteData.meta_data) && clienteData.meta_data.length > 0) {
+        customerData.meta_data = clienteData.meta_data
       }
       
       console.log(`[createOrUpdateClienteEnWooCommerce] 📤 Enviando datos a ${apiUrl}...`)
@@ -230,14 +316,17 @@ export async function enviarClienteABothWordPress(
     email: string
     first_name: string
     last_name?: string
+    billing?: any
+    shipping?: any
+    meta_data?: Array<{ key: string; value: string }>
   }
 ): Promise<{
   escolar: { success: boolean; data?: any; error?: string; created?: boolean }
   moraleja: { success: boolean; data?: any; error?: string; created?: boolean }
 }> {
   // URLs de los WordPress
-  const escolarUrl = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL_ESCOLAR || process.env.NEXT_PUBLIC_WOOCOMMERCE_URL || ''
-  const moralejaUrl = process.env.WOO_MORALEJA_URL || ''
+  const escolarUrl = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL_ESCOLAR || process.env.WOO_ESCOLAR_URL || process.env.NEXT_PUBLIC_WOOCOMMERCE_URL || process.env.WOOCOMMERCE_URL || ''
+  const moralejaUrl = process.env.NEXT_PUBLIC_WOO_MORALEJA_URL || process.env.WOO_MORALEJA_URL || ''
   
   // Credenciales para Librería Escolar
   const escolarKey = process.env.WOO_ESCOLAR_CONSUMER_KEY || process.env.WOOCOMMERCE_CONSUMER_KEY || ''
@@ -294,18 +383,38 @@ export async function enviarClienteABothWordPress(
   // Solo intentar enviar a Moraleja si tiene credenciales
   if (moralejaUrl && moralejaKey && moralejaSecret) {
     console.log('[enviarClienteABothWordPress] 📤 Enviando a Editorial Moraleja...')
+    console.log('[enviarClienteABothWordPress] 📦 Datos a enviar a Moraleja:', {
+      hasBilling: !!clienteData.billing,
+      hasShipping: !!clienteData.shipping,
+      hasMetaData: !!(clienteData.meta_data && clienteData.meta_data.length > 0),
+      billing: clienteData.billing,
+      shipping: clienteData.shipping,
+      metaDataCount: clienteData.meta_data?.length || 0,
+    })
     promises.push(
       createOrUpdateClienteEnWooCommerce(moralejaUrl, moralejaKey, moralejaSecret, clienteData)
         .then(result => {
           console.log('[enviarClienteABothWordPress] ✅ Resultado Moraleja:', result.success ? 'Éxito' : `Error: ${result.error}`)
+          if (result.success && result.data) {
+            console.log('[enviarClienteABothWordPress] 📦 Cliente Moraleja actualizado/creado:', {
+              id: result.data.id,
+              email: result.data.email,
+              hasBilling: !!result.data.billing,
+              hasShipping: !!result.data.shipping,
+              billing: result.data.billing,
+              shipping: result.data.shipping,
+            })
+          }
           return { tipo: 'moraleja', result }
         })
         .catch(error => {
           console.error('[enviarClienteABothWordPress] ❌ Error en Moraleja:', error.message)
+          console.error('[enviarClienteABothWordPress] ❌ Stack trace:', error.stack)
           return { tipo: 'moraleja', result: { success: false, error: error.message } }
         })
     )
   } else {
+    console.warn('[enviarClienteABothWordPress] ⚠️ Credenciales de Moraleja no configuradas, no se enviará')
     promises.push(Promise.resolve({ tipo: 'moraleja', result: { success: false, error: 'Credenciales no configuradas' } }))
   }
   

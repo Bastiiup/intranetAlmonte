@@ -299,17 +299,30 @@ export async function POST(request: NextRequest) {
     })
     
     // URLs y credenciales de las plataformas
-    const escolarUrl = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL_ESCOLAR || process.env.NEXT_PUBLIC_WOOCOMMERCE_URL || ''
-    const moralejaUrl = process.env.WOO_MORALEJA_URL || ''
+    const escolarUrl = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL_ESCOLAR || process.env.WOO_ESCOLAR_URL || process.env.NEXT_PUBLIC_WOOCOMMERCE_URL || process.env.WOOCOMMERCE_URL || ''
+    const moralejaUrl = process.env.NEXT_PUBLIC_WOO_MORALEJA_URL || process.env.WOO_MORALEJA_URL || ''
     const escolarKey = process.env.WOO_ESCOLAR_CONSUMER_KEY || process.env.WOOCOMMERCE_CONSUMER_KEY || ''
     const escolarSecret = process.env.WOO_ESCOLAR_CONSUMER_SECRET || process.env.WOOCOMMERCE_CONSUMER_SECRET || ''
     const moralejaKey = process.env.WOO_MORALEJA_CONSUMER_KEY || ''
     const moralejaSecret = process.env.WOO_MORALEJA_CONSUMER_SECRET || ''
     
-    const clienteWordPressData = {
+    // Extraer datos de billing/shipping de woocommerce_data si están presentes
+    const woocommerceData = body.data.woocommerce_data || {}
+    const clienteWordPressData: any = {
       email: emailPrincipal.email.trim(),
       first_name: nombresWordPress,
       last_name: apellidoWordPress,
+    }
+    
+    // Agregar billing/shipping si están en woocommerce_data
+    if (woocommerceData.billing) {
+      clienteWordPressData.billing = woocommerceData.billing
+    }
+    if (woocommerceData.shipping) {
+      clienteWordPressData.shipping = woocommerceData.shipping
+    }
+    if (woocommerceData.meta_data && Array.isArray(woocommerceData.meta_data)) {
+      clienteWordPressData.meta_data = woocommerceData.meta_data
     }
     
     let wordPressResults: any = {
@@ -398,9 +411,23 @@ export async function POST(request: NextRequest) {
                           (wordPressResults?.moraleja?.data && typeof wordPressResults.moraleja.data === 'object' && 'id' in wordPressResults.moraleja.data ? wordPressResults.moraleja.data.id : null)
         
         if (wordPressResults?.moraleja?.success && moralejaId) {
-          // Comentar woocommerce_id si no existe en el schema de WO-Clientes
-          // woClienteMoralejaData.data.woocommerce_id = moralejaId
-          console.log('[API Clientes POST] 📌 ID de WooCommerce Moraleja obtenido:', moralejaId, '(no se guardará en Strapi si el campo no existe)')
+          // Guardar woocommerce_id en el campo wooId de Strapi
+          woClienteMoralejaData.data.wooId = moralejaId
+          console.log('[API Clientes POST] 📌 ID de WooCommerce Moraleja obtenido y asignado a wooId:', moralejaId)
+          
+          // Guardar datos de billing/shipping en rawWooData si existen
+          if (woocommerceData.billing || woocommerceData.shipping || wordPressResults.moraleja.data) {
+            woClienteMoralejaData.data.rawWooData = {
+              id: moralejaId,
+              email: emailPrincipal.email.trim(),
+              first_name: nombresWordPress,
+              last_name: apellidoWordPress,
+              ...(woocommerceData.billing && { billing: woocommerceData.billing }),
+              ...(woocommerceData.shipping && { shipping: woocommerceData.shipping }),
+              ...(woocommerceData.meta_data && { meta_data: woocommerceData.meta_data }),
+            }
+            console.log('[API Clientes POST] 📦 rawWooData guardado en WO-Clientes (Moraleja) con billing/shipping')
+          }
         } else {
           console.log('[API Clientes POST] ⚠️ No se pudo obtener ID de WooCommerce Moraleja', {
             success: wordPressResults?.moraleja?.success,
@@ -450,9 +477,23 @@ export async function POST(request: NextRequest) {
                          (wordPressResults?.escolar?.data && typeof wordPressResults.escolar.data === 'object' && 'id' in wordPressResults.escolar.data ? wordPressResults.escolar.data.id : null)
         
         if (wordPressResults?.escolar?.success && escolarId) {
-          // Comentar woocommerce_id si no existe en el schema de WO-Clientes
-          // woClienteEscolarData.data.woocommerce_id = escolarId
-          console.log('[API Clientes POST] 📌 ID de WooCommerce Escolar obtenido:', escolarId, '(no se guardará en Strapi si el campo no existe)')
+          // Guardar woocommerce_id en el campo wooId de Strapi
+          woClienteEscolarData.data.wooId = escolarId
+          console.log('[API Clientes POST] 📌 ID de WooCommerce Escolar obtenido y asignado a wooId:', escolarId)
+          
+          // Guardar datos de billing/shipping en rawWooData si existen
+          if (woocommerceData.billing || woocommerceData.shipping || wordPressResults.escolar.data) {
+            woClienteEscolarData.data.rawWooData = {
+              id: escolarId,
+              email: emailPrincipal.email.trim(),
+              first_name: nombresWordPress,
+              last_name: apellidoWordPress,
+              ...(woocommerceData.billing && { billing: woocommerceData.billing }),
+              ...(woocommerceData.shipping && { shipping: woocommerceData.shipping }),
+              ...(woocommerceData.meta_data && { meta_data: woocommerceData.meta_data }),
+            }
+            console.log('[API Clientes POST] 📦 rawWooData guardado en WO-Clientes (Escolar) con billing/shipping')
+          }
         } else {
           console.log('[API Clientes POST] ⚠️ No se pudo obtener ID de WooCommerce Escolar', {
             success: wordPressResults?.escolar?.success,

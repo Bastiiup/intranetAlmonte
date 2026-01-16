@@ -29,7 +29,6 @@ import { useAuth } from '@/hooks/useAuth'
 // Tipo para la tabla
 type SelloType = {
   id: number
-  id_sello: number
   name: string
   acronimo: string
   editorial: string
@@ -38,6 +37,7 @@ type SelloType = {
   date: string
   time: string
   url: string
+  selloId?: string
   estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
 }
 
@@ -57,9 +57,6 @@ const mapStrapiSelloToSelloType = (sello: any): SelloType => {
   const attrs = sello.attributes || {}
   const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (sello as any)
 
-  // Obtener id_sello (schema real de Strapi - Number)
-  const idSello = getField(data, 'id_sello', 'idSello', 'ID_SELLO') || 0
-  
   // Obtener nombre_sello (schema real de Strapi)
   const nombre = getField(data, 'nombre_sello', 'nombreSello', 'nombre', 'NOMBRE_SELLO', 'NAME') || 'Sin nombre'
   
@@ -94,9 +91,9 @@ const mapStrapiSelloToSelloType = (sello: any): SelloType => {
   const createdAt = attrs.createdAt || (sello as any).createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
   
+  const selloIdStr = String(sello.id || sello.documentId || sello.id)
   return {
     id: sello.id || sello.documentId || sello.id,
-    id_sello: typeof idSello === 'string' ? parseInt(idSello) : idSello,
     name: nombre,
     acronimo: acronimo,
     editorial: typeof editorial === 'string' ? editorial : '-',
@@ -104,7 +101,8 @@ const mapStrapiSelloToSelloType = (sello: any): SelloType => {
     status: isPublished ? 'active' : 'inactive',
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
-    url: `/atributos/sello/${sello.id || sello.documentId || sello.id}`,
+    url: `/atributos/sello/${selloIdStr}`,
+    selloId: selloIdStr,
     estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
                        estadoPublicacion === 'borrador' ? 'Borrador' : 
                        'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
@@ -114,11 +112,13 @@ const mapStrapiSelloToSelloType = (sello: any): SelloType => {
 interface SellosListingProps {
   sellos?: any[]
   error?: string | null
+  onSelloSelect?: (selloId: string) => void
+  onSwitchToGrid?: () => void
 }
 
 const columnHelper = createColumnHelper<SelloType>()
 
-const SellosListing = ({ sellos, error }: SellosListingProps = {}) => {
+const SellosListing = ({ sellos, error, onSelloSelect, onSwitchToGrid }: SellosListingProps = {}) => {
   const router = useRouter()
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
@@ -160,18 +160,6 @@ const SellosListing = ({ sellos, error }: SellosListingProps = {}) => {
       enableSorting: false,
       enableColumnFilter: false,
     },
-    columnHelper.accessor('id', {
-      header: 'ID',
-      cell: ({ row }) => (
-        <span className="text-muted">{row.original.id}</span>
-      ),
-    }),
-    columnHelper.accessor('id_sello', {
-      header: 'ID_SELLO',
-      cell: ({ row }) => (
-        <span className="fw-semibold">{row.original.id_sello?.toLocaleString() || '-'}</span>
-      ),
-    }),
     columnHelper.accessor('name', {
       header: 'NOMBRE_SELLO',
       cell: ({ row }) => {
@@ -182,9 +170,22 @@ const SellosListing = ({ sellos, error }: SellosListingProps = {}) => {
             </div>
             <div>
               <h5 className="mb-0">
-                <Link href={`/atributos/sello/${row.original.id}`} className="link-reset">
-                  {row.original.name || 'Sin nombre'}
-                </Link>
+                {onSelloSelect && row.original.selloId ? (
+                  <a 
+                    href="#" 
+                    className="link-reset" 
+                    onClick={(e) => {
+                      e.preventDefault()
+                      onSelloSelect(row.original.selloId!)
+                    }}
+                  >
+                    {row.original.name || 'Sin nombre'}
+                  </a>
+                ) : (
+                  <Link href={`/atributos/sello/${row.original.id}`} className="link-reset">
+                    {row.original.name || 'Sin nombre'}
+                  </Link>
+                )}
               </h5>
             </div>
           </div>
@@ -228,20 +229,49 @@ const SellosListing = ({ sellos, error }: SellosListingProps = {}) => {
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<SelloType> }) => (
         <div className="d-flex gap-1">
-          <Link href={`/atributos/sello/${row.original.id}`}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle">
-              <TbEye className="fs-lg" />
-            </Button>
-          </Link>
-          <Link href={`/atributos/sello/${row.original.id}`}>
-            <Button
-              variant="default"
-              size="sm"
-              className="btn-icon rounded-circle"
-            >
-              <TbEdit className="fs-lg" />
-            </Button>
-          </Link>
+          {onSelloSelect && row.original.selloId ? (
+            <>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onSelloSelect(row.original.selloId!)
+                }}
+              >
+                <TbEye className="fs-lg" />
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                className="btn-icon rounded-circle"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onSelloSelect(row.original.selloId!)
+                }}
+              >
+                <TbEdit className="fs-lg" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link href={`/atributos/sello/${row.original.id}`}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle">
+                  <TbEye className="fs-lg" />
+                </Button>
+              </Link>
+              <Link href={`/atributos/sello/${row.original.id}`}>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="btn-icon rounded-circle"
+                >
+                  <TbEdit className="fs-lg" />
+                </Button>
+              </Link>
+            </>
+          )}
           {canDelete && (
             <Button
               variant="default"
@@ -455,11 +485,21 @@ const SellosListing = ({ sellos, error }: SellosListingProps = {}) => {
             </div>
 
             <div className="d-flex gap-1">
-              <Link passHref href="/atributos/sello">
-                <Button variant="outline-primary" className="btn-icon btn-soft-primary">
+              {onSwitchToGrid ? (
+                <Button 
+                  variant="outline-primary" 
+                  className="btn-icon btn-soft-primary"
+                  onClick={onSwitchToGrid}
+                >
                   <TbLayoutGrid className="fs-lg" />
                 </Button>
-              </Link>
+              ) : (
+                <Link passHref href="/atributos/sello">
+                  <Button variant="outline-primary" className="btn-icon btn-soft-primary">
+                    <TbLayoutGrid className="fs-lg" />
+                  </Button>
+                </Link>
+              )}
               <Button variant="primary" className="btn-icon">
                 <TbList className="fs-lg" />
               </Button>

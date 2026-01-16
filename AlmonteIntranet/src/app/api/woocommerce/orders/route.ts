@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
     const perPage = parseInt(searchParams.get('per_page') || '10')
     const page = parseInt(searchParams.get('page') || '1')
     const status = searchParams.get('status') || 'any'
+    const customerId = searchParams.get('customer_id')
+    const customerEmail = searchParams.get('customer_email')
 
     const params: Record<string, any> = {
       per_page: perPage,
@@ -24,6 +26,25 @@ export async function GET(request: NextRequest) {
 
     if (status !== 'any') {
       params.status = status
+    }
+
+    // Filtrar por customer_id si se proporciona
+    if (customerId) {
+      params.customer = customerId
+    }
+
+    // Filtrar por email de cliente si se proporciona (a través de billing.email)
+    if (customerEmail && !customerId) {
+      // WooCommerce no soporta filtrar directamente por billing.email,
+      // así que obtenemos todos y filtramos después
+      const orders = await wooCommerceClient.get<WooCommerceOrder[]>('orders', params)
+      const filteredOrders = orders.filter(order => 
+        order.billing?.email?.toLowerCase() === customerEmail.toLowerCase()
+      )
+      return NextResponse.json({
+        success: true,
+        data: filteredOrders,
+      })
     }
 
     const orders = await wooCommerceClient.get<WooCommerceOrder[]>('orders', params)

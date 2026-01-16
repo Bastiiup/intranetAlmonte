@@ -31,7 +31,6 @@ import { useAuth } from '@/hooks/useAuth'
 type ObraTypeExtended = {
   id: number
   nombre: string
-  codigoObra: string | null
   descripcion: string | null
   productos: number
   status: 'active' | 'inactive'
@@ -39,6 +38,7 @@ type ObraTypeExtended = {
   time: string
   url: string
   strapiId?: number
+  obraId?: string
   estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
   obraOriginal?: any
 }
@@ -60,9 +60,6 @@ const mapStrapiObraToObraType = (obra: any): ObraTypeExtended => {
 
   // Obtener nombre_obra (schema usa nombre_obra, no name)
   const nombreObra = getField(data, 'nombre_obra', 'nombreObra', 'NOMBRE_OBRA') || 'Sin nombre'
-  
-  // Obtener código_obra
-  const codigoObra = getField(data, 'codigo_obra', 'codigoObra', 'CODIGO_OBRA') || null
   
   // Obtener descripción
   const descripcion = getField(data, 'descripcion', 'description', 'DESCRIPCION', 'DESCRIPTION') || null
@@ -88,7 +85,6 @@ const mapStrapiObraToObraType = (obra: any): ObraTypeExtended => {
   return {
     id: obra.id || obra.documentId || obra.id,
     nombre: nombreObra,
-    codigoObra: codigoObra,
     descripcion: descripcion,
     productos: productosCount,
     status: isPublished ? 'active' : 'inactive',
@@ -96,6 +92,7 @@ const mapStrapiObraToObraType = (obra: any): ObraTypeExtended => {
     time: format(createdDate, 'h:mm a'),
     url: `/products/atributos/obras/${obra.id || obra.documentId || obra.id}`,
     strapiId: obra.id,
+    obraId: String(obra.id || obra.documentId || obra.id),
     estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
                        estadoPublicacion === 'borrador' ? 'Borrador' : 
                        'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
@@ -106,11 +103,12 @@ const mapStrapiObraToObraType = (obra: any): ObraTypeExtended => {
 interface ObraRequestsListingProps {
   obras?: any[]
   error?: string | null
+  onObraSelect?: (obraId: string) => void
 }
 
 const columnHelper = createColumnHelper<ObraTypeExtended>()
 
-const ObraRequestsListing = ({ obras, error }: ObraRequestsListingProps = {}) => {
+const ObraRequestsListing = ({ obras, error, onObraSelect }: ObraRequestsListingProps = {}) => {
   const router = useRouter()
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
@@ -158,21 +156,25 @@ const ObraRequestsListing = ({ obras, error }: ObraRequestsListingProps = {}) =>
       header: 'Obra',
       cell: ({ row }) => (
         <div>
-          <h5 className="mb-0">
-            <Link href={row.original.url} className="link-reset">
-              {row.original.nombre || 'Sin nombre'}
-            </Link>
-          </h5>
-          {row.original.codigoObra && (
-            <p className="text-muted mb-0 fs-xxs">Código: {row.original.codigoObra}</p>
-          )}
+              <h5 className="mb-0">
+                {onObraSelect && row.original.obraId ? (
+                  <a 
+                    href="#" 
+                    className="link-reset" 
+                    onClick={(e) => {
+                      e.preventDefault()
+                      onObraSelect(row.original.obraId!)
+                    }}
+                  >
+                    {row.original.nombre || 'Sin nombre'}
+                  </a>
+                ) : (
+                  <Link href={row.original.url} className="link-reset">
+                    {row.original.nombre || 'Sin nombre'}
+                  </Link>
+                )}
+              </h5>
         </div>
-      ),
-    }),
-    columnHelper.accessor('codigoObra', { 
-      header: 'Código',
-      cell: ({ row }) => (
-        <code className="text-muted">{row.original.codigoObra || 'N/A'}</code>
       ),
     }),
     columnHelper.accessor('descripcion', {
@@ -217,16 +219,47 @@ const ObraRequestsListing = ({ obras, error }: ObraRequestsListingProps = {}) =>
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<ObraTypeExtended> }) => (
         <div className="d-flex gap-1">
-          <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver">
-              <TbEye className="fs-lg" />
-            </Button>
-          </Link>
-          <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Editar">
-              <TbEdit className="fs-lg" />
-            </Button>
-          </Link>
+          {onObraSelect && row.original.obraId ? (
+            <>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle" 
+                title="Ver"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onObraSelect(row.original.obraId!)
+                }}
+              >
+                <TbEye className="fs-lg" />
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle" 
+                title="Editar"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onObraSelect(row.original.obraId!)
+                }}
+              >
+                <TbEdit className="fs-lg" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link href={row.original.url}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver">
+                  <TbEye className="fs-lg" />
+                </Button>
+              </Link>
+              <Link href={row.original.url}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Editar">
+                  <TbEdit className="fs-lg" />
+                </Button>
+              </Link>
+            </>
+          )}
           <Button
             variant="default"
             size="sm"

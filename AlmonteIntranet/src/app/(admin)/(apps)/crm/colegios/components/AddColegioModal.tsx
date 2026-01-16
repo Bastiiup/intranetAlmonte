@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Button, Form, FormGroup, FormLabel, FormControl, Alert, Row, Col } from 'react-bootstrap'
 import { LuSave, LuCheck } from 'react-icons/lu'
+import ChileRegionComuna from '@/components/common/ChileRegionsComunas'
 
 const DEPENDENCIAS = [
   'Municipal',
@@ -213,27 +214,14 @@ const AddColegioModal = ({ show, onHide, onSuccess }: AddColegioModalProps) => {
           </Row>
 
           <Row>
-            <Col md={6}>
+            <Col md={12}>
               <FormGroup className="mb-3">
-                <FormLabel>Región</FormLabel>
-                <FormControl
-                  type="text"
-                  placeholder="Ej: Región Metropolitana"
-                  value={formData.region}
-                  onChange={(e) => handleFieldChange('region', e.target.value)}
-                  disabled={loading}
-                />
-              </FormGroup>
-            </Col>
-            <Col md={6}>
-              <FormGroup className="mb-3">
-                <FormLabel>Comuna</FormLabel>
-                <FormControl
-                  type="text"
-                  placeholder="Ej: Santiago"
-                  value={formData.comuna}
-                  onChange={(e) => handleFieldChange('comuna', e.target.value)}
-                  disabled={loading}
+                <FormLabel>Región y Comuna</FormLabel>
+                <ChileRegionComuna
+                  regionValue={formData.region}
+                  comunaValue={formData.comuna}
+                  onRegionChange={(value) => handleFieldChange('region', value)}
+                  onComunaChange={(value) => handleFieldChange('comuna', value)}
                 />
               </FormGroup>
             </Col>

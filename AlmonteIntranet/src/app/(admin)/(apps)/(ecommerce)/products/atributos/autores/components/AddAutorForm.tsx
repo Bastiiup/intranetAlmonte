@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardHeader, CardBody, Form, Button, Row, Col, FormGroup, FormLabel, FormControl, Alert } from 'react-bootstrap'
 import { LuSave, LuX } from 'react-icons/lu'
+import { countries } from '@/app/(admin)/icons/flags/data'
 
 const AddAutorForm = () => {
   const router = useRouter()
@@ -212,11 +213,21 @@ const AddAutorForm = () => {
                   <FormGroup className="mb-3">
                     <FormLabel>País</FormLabel>
                     <FormControl
-                      type="text"
-                      placeholder="Ej: Colombia"
+                      as="select"
                       value={formData.pais}
                       onChange={(e) => handleFieldChange('pais', e.target.value)}
-                    />
+                    >
+                      <option value="">Seleccionar país</option>
+                      {countries
+                        .map((country) => country.name)
+                        .sort((a, b) => a.localeCompare(b))
+                        .map((countryName) => (
+                          <option key={countryName} value={countryName}>
+                            {countryName}
+                          </option>
+                        ))}
+                    </FormControl>
+                    <small className="text-muted">Selecciona el país del autor</small>
                   </FormGroup>
                 </Col>
                 <Col md={6}>

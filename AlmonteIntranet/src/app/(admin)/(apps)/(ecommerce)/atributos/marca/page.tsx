@@ -3,12 +3,12 @@ import { headers } from 'next/headers'
 import type { Metadata } from 'next'
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import MarcasListing from './components/MarcasListing'
+import MarcasTabs from './components/MarcasTabs'
 
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Todas las Marcas',
+  title: 'Marcas',
 }
 
 export default async function Page() {
@@ -41,8 +41,8 @@ export default async function Page() {
 
   return (
     <Container fluid>
-      <PageBreadcrumb title="Todas las Marcas" subtitle="Ecommerce" />
-      <MarcasListing marcas={marcas} error={error} />
+      <PageBreadcrumb title="Marcas" subtitle="Ecommerce" />
+      <MarcasTabs marcas={marcas} error={error} />
     </Container>
   )
 }

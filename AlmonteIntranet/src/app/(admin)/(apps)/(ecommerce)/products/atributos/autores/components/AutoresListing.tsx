@@ -41,6 +41,7 @@ type AutorType = {
   date: string
   time: string
   url: string
+  autorId?: string
   estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
 }
 
@@ -118,6 +119,7 @@ const mapStrapiAutorToAutorType = (autor: any): AutorType => {
 
   const fotoUrl = getFotoUrl()
   
+  const autorIdStr = String(autor.id || autor.documentId || autor.id)
   return {
     id: autor.id || autor.documentId || autor.id,
     name: nombreCompleto,
@@ -128,7 +130,8 @@ const mapStrapiAutorToAutorType = (autor: any): AutorType => {
     status: isPublished ? 'active' : 'inactive',
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
-    url: `/products/atributos/autores/${autor.id || autor.documentId || autor.id}`,
+    url: `/products/atributos/autores/${autorIdStr}`,
+    autorId: autorIdStr,
     estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
                        estadoPublicacion === 'borrador' ? 'Borrador' : 
                        'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
@@ -138,11 +141,13 @@ const mapStrapiAutorToAutorType = (autor: any): AutorType => {
 interface AutoresListingProps {
   autores?: any[]
   error?: string | null
+  onAutorSelect?: (autorId: string) => void
+  onSwitchToGrid?: () => void
 }
 
 const columnHelper = createColumnHelper<AutorType>()
 
-const AutoresListing = ({ autores, error }: AutoresListingProps = {}) => {
+const AutoresListing = ({ autores, error, onAutorSelect, onSwitchToGrid }: AutoresListingProps = {}) => {
   const router = useRouter()
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
@@ -198,9 +203,22 @@ const AutoresListing = ({ autores, error }: AutoresListingProps = {}) => {
               </div>
               <div>
                 <h5 className="mb-0">
-                  <Link href={row.original.url} className="link-reset">
-                    {row.original.name}
-                  </Link>
+                  {onAutorSelect && row.original.autorId ? (
+                    <a 
+                      href="#" 
+                      className="link-reset" 
+                      onClick={(e) => {
+                        e.preventDefault()
+                        onAutorSelect(row.original.autorId!)
+                      }}
+                    >
+                      {row.original.name}
+                    </a>
+                  ) : (
+                    <Link href={row.original.url} className="link-reset">
+                      {row.original.name}
+                    </Link>
+                  )}
                 </h5>
                 <p className="text-muted mb-0 fs-xxs">ID: {row.original.idAutor || 'N/A'}</p>
               </div>
@@ -225,9 +243,22 @@ const AutoresListing = ({ autores, error }: AutoresListingProps = {}) => {
             </div>
             <div>
               <h5 className="mb-0">
-                <Link href={row.original.url} className="link-reset">
-                  {row.original.name || 'Sin nombre'}
-                </Link>
+                {onAutorSelect && row.original.autorId ? (
+                  <a 
+                    href="#" 
+                    className="link-reset" 
+                    onClick={(e) => {
+                      e.preventDefault()
+                      onAutorSelect(row.original.autorId!)
+                    }}
+                  >
+                    {row.original.name || 'Sin nombre'}
+                  </a>
+                ) : (
+                  <Link href={row.original.url} className="link-reset">
+                    {row.original.name || 'Sin nombre'}
+                  </Link>
+                )}
               </h5>
               <p className="text-muted mb-0 fs-xxs">ID: {row.original.idAutor || 'N/A'}</p>
             </div>
@@ -294,20 +325,49 @@ const AutoresListing = ({ autores, error }: AutoresListingProps = {}) => {
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<AutorType> }) => (
         <div className="d-flex gap-1">
-          <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle">
-              <TbEye className="fs-lg" />
-            </Button>
-          </Link>
-          <Link href={row.original.url}>
-            <Button
-              variant="default"
-              size="sm"
-              className="btn-icon rounded-circle"
-            >
-              <TbEdit className="fs-lg" />
-            </Button>
-          </Link>
+          {onAutorSelect && row.original.autorId ? (
+            <>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onAutorSelect(row.original.autorId!)
+                }}
+              >
+                <TbEye className="fs-lg" />
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                className="btn-icon rounded-circle"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onAutorSelect(row.original.autorId!)
+                }}
+              >
+                <TbEdit className="fs-lg" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link href={row.original.url}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle">
+                  <TbEye className="fs-lg" />
+                </Button>
+              </Link>
+              <Link href={row.original.url}>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="btn-icon rounded-circle"
+                >
+                  <TbEdit className="fs-lg" />
+                </Button>
+              </Link>
+            </>
+          )}
           {canDelete && (
             <Button
               variant="default"
@@ -524,11 +584,21 @@ const AutoresListing = ({ autores, error }: AutoresListingProps = {}) => {
             </div>
 
             <div className="d-flex gap-1">
-              <Link passHref href="/products/atributos/autores">
-                <Button variant="outline-primary" className="btn-icon btn-soft-primary">
+              {onSwitchToGrid ? (
+                <Button 
+                  variant="outline-primary" 
+                  className="btn-icon btn-soft-primary"
+                  onClick={onSwitchToGrid}
+                >
                   <TbLayoutGrid className="fs-lg" />
                 </Button>
-              </Link>
+              ) : (
+                <Link passHref href="/products/atributos/autores">
+                  <Button variant="outline-primary" className="btn-icon btn-soft-primary">
+                    <TbLayoutGrid className="fs-lg" />
+                  </Button>
+                </Link>
+              )}
               <Button variant="primary" className="btn-icon">
                 <TbList className="fs-lg" />
               </Button>

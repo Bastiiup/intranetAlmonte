@@ -6,6 +6,86 @@ import { Card, CardHeader, CardBody, Form, Button, Row, Col, FormGroup, FormLabe
 import { LuSave, LuX } from 'react-icons/lu'
 import { RelationSelector } from '@/app/(admin)/(apps)/(ecommerce)/add-product/components/RelationSelector'
 import ProductSelector from './ProductSelector'
+import ChileRegionComuna, { CHILE_REGIONS } from '@/components/common/ChileRegionsComunas'
+import { parseWooCommerceAddress, buildWooCommerceAddress, type DetailedAddress } from '@/lib/woocommerce/address-utils'
+
+// Generar número de pedido automático
+const generarNumeroPedido = async (platform: 'woo_moraleja' | 'woo_escolar' | 'otros'): Promise<string> => {
+    if (platform === 'otros') {
+      // Para "otros", usar formato simple con timestamp
+      const year = new Date().getFullYear().toString().slice(-2)
+      const timestamp = Date.now().toString().slice(-8)
+      return `ord${year}${timestamp}`
+    }
+
+    try {
+      // Obtener pedidos de la plataforma (obtener más para asegurar que tenemos el último)
+      const response = await fetch(`/api/tienda/pedidos?pagination[pageSize]=1000`)
+      const data = await response.json()
+      
+      const year = new Date().getFullYear().toString().slice(-2)
+      let nextNumber = 1
+      
+      if (data.success && data.data && data.data.length > 0) {
+        // Filtrar pedidos de la plataforma y del mismo año, extraer números
+        const pedidosDePlataforma = data.data
+          .filter((p: any) => {
+            const attrs = p.attributes || {}
+            const pedidoData = (attrs && Object.keys(attrs).length > 0) ? attrs : p
+            const pedidoPlatform = pedidoData.originPlatform || p.originPlatform
+            return pedidoPlatform === platform
+          })
+          .map((p: any) => {
+            const attrs = p.attributes || {}
+            const pedidoData = (attrs && Object.keys(attrs).length > 0) ? attrs : p
+            const numeroPedido = pedidoData.numero_pedido || pedidoData.numeroPedido || ''
+            
+            // Extraer año y número secuencial del formato ord{YY}{NNNNNNNNNN}
+            const match = numeroPedido.match(/ord(\d{2})(\d+)/)
+            if (match && match[1] && match[2]) {
+              const pedidoYear = match[1]
+              const secuencial = parseInt(match[2], 10)
+              
+              // Solo incluir si es del mismo año
+              if (!isNaN(secuencial) && secuencial >= 0 && pedidoYear === year) {
+                return {
+                  numeroPedido,
+                  secuencial,
+                  year: pedidoYear,
+                  pedido: p
+                }
+              }
+            }
+            return null
+          })
+          .filter((item: any) => item !== null) // Eliminar nulls
+          .sort((a: any, b: any) => b.secuencial - a.secuencial) // Ordenar descendente por número secuencial
+        
+        // Obtener el último número secuencial del año actual
+        if (pedidosDePlataforma.length > 0) {
+          const ultimoPedido = pedidosDePlataforma[0]
+          nextNumber = ultimoPedido.secuencial + 1
+          console.log('[generarNumeroPedido] ✅ Último número encontrado para', platform, 'año', year, ':', ultimoPedido.numeroPedido, '-> Siguiente:', nextNumber)
+        } else {
+          console.log('[generarNumeroPedido] ℹ️ No se encontraron pedidos previos de la plataforma', platform, 'para el año', year, ', empezando desde 1')
+        }
+      } else {
+        console.log('[generarNumeroPedido] ℹ️ No hay pedidos en el sistema, empezando desde 1 para', platform, 'año', year)
+      }
+      
+      // Formato: ord{YY}{NNNNNNNNNN} donde NNNNNNNNNN es el número secuencial con ceros a la izquierda
+      const numeroSecuencial = nextNumber.toString().padStart(10, '0')
+      const numeroFinal = `ord${year}${numeroSecuencial}`
+      console.log('[generarNumeroPedido] ✅ Número generado:', numeroFinal)
+      return numeroFinal
+    } catch (error) {
+      console.error('[AddPedidoForm] Error al generar número de pedido:', error)
+      // Fallback: usar timestamp si falla
+      const year = new Date().getFullYear().toString().slice(-2)
+      const timestamp = Date.now().toString().slice(-8)
+      return `ord${year}${timestamp}`
+    }
+}
 
 const AddPedidoForm = () => {
   const router = useRouter()
@@ -26,6 +106,8 @@ const AddPedidoForm = () => {
     nombre: string
     email?: string
     displayName: string
+    clienteData?: any
+    woocommerce_id?: number
   }>>([])
   const [loadingClientes, setLoadingClientes] = useState(false)
 
@@ -59,6 +141,132 @@ const AddPedidoForm = () => {
     nota_cliente: '',
     originPlatform: 'woo_moraleja' as 'woo_moraleja' | 'woo_escolar' | 'otros',
   })
+
+  // Estados para billing (facturación)
+  const [billingAddress, setBillingAddress] = useState({
+    first_name: '',
+    last_name: '',
+    company: '',
+    calle: '',
+    numero: '',
+    dpto: '',
+    block: '',
+    condominio: '',
+    address_1: '',
+    address_2: '',
+    city: '',
+    state: '',
+    postcode: '',
+    country: 'CL',
+    email: '',
+    phone: '',
+  })
+
+  // Estados para shipping (envío)
+  const [shippingAddress, setShippingAddress] = useState({
+    first_name: '',
+    last_name: '',
+    company: '',
+    calle: '',
+    numero: '',
+    dpto: '',
+    block: '',
+    condominio: '',
+    address_1: '',
+    address_2: '',
+    city: '',
+    state: '',
+    postcode: '',
+    country: 'CL',
+    phone: '',
+  })
+
+  // Estado para usar misma dirección de facturación para envío
+  const [useSameAddress, setUseSameAddress] = useState(true)
+
+  // Mapeo de nombres de región a códigos de provincia (para enviar a WooCommerce)
+  const REGION_NAME_TO_PROVINCE_CODE: Record<string, string> = {
+    'Tarapacá': '011',
+    'Antofagasta': '021',
+    'Atacama': '031',
+    'Coquimbo': '041',
+    'Valparaíso': '051',
+    'Región del Libertador General Bernardo O\'Higgins': '061',
+    'Región del Maule': '071',
+    'Región del Biobío': '081',
+    'Región de la Araucanía': '091',
+    'Región de Los Lagos': '101',
+    'Región de Aysén del General Carlos Ibáñez del Campo': '111',
+    'Región de Magallanes y de la Antártica Chilena': '121',
+    'Región Metropolitana de Santiago': '131',
+    'Región de Los Ríos': '141',
+    'Arica y Parinacota': '151',
+    'Ñuble': '161',
+  }
+
+  // Mapeo de códigos de provincia a nombres de región (para convertir de vuelta desde WooCommerce)
+  const PROVINCE_CODE_TO_REGION_NAME: Record<string, string> = {
+    '011': 'Tarapacá',
+    '014': 'Tarapacá',
+    '021': 'Antofagasta',
+    '022': 'Antofagasta',
+    '023': 'Antofagasta',
+    '031': 'Atacama',
+    '032': 'Atacama',
+    '033': 'Atacama',
+    '041': 'Coquimbo',
+    '042': 'Coquimbo',
+    '043': 'Coquimbo',
+    '051': 'Valparaíso',
+    '052': 'Valparaíso',
+    '053': 'Valparaíso',
+    '054': 'Valparaíso',
+    '055': 'Valparaíso',
+    '061': 'Región del Libertador General Bernardo O\'Higgins',
+    '062': 'Región del Libertador General Bernardo O\'Higgins',
+    '063': 'Región del Libertador General Bernardo O\'Higgins',
+    '071': 'Región del Maule',
+    '072': 'Región del Maule',
+    '073': 'Región del Maule',
+    '074': 'Región del Maule',
+    '081': 'Región del Biobío',
+    '082': 'Región del Biobío',
+    '083': 'Región del Biobío',
+    '091': 'Región de la Araucanía',
+    '092': 'Región de la Araucanía',
+    '101': 'Región de Los Lagos',
+    '102': 'Región de Los Lagos',
+    '103': 'Región de Los Lagos',
+    '104': 'Región de Los Lagos',
+    '111': 'Región de Aysén del General Carlos Ibáñez del Campo',
+    '112': 'Región de Aysén del General Carlos Ibáñez del Campo',
+    '113': 'Región de Aysén del General Carlos Ibáñez del Campo',
+    '114': 'Región de Aysén del General Carlos Ibáñez del Campo',
+    '121': 'Región de Magallanes y de la Antártica Chilena',
+    '122': 'Región de Magallanes y de la Antártica Chilena',
+    '131': 'Región Metropolitana de Santiago',
+    '132': 'Región Metropolitana de Santiago',
+    '133': 'Región Metropolitana de Santiago',
+    '134': 'Región Metropolitana de Santiago',
+    '135': 'Región Metropolitana de Santiago',
+    '141': 'Región de Los Ríos',
+    '142': 'Región de Los Ríos',
+    '151': 'Arica y Parinacota',
+    '152': 'Arica y Parinacota',
+    '161': 'Ñuble',
+    '162': 'Ñuble',
+    '163': 'Ñuble',
+  }
+
+  // Helper para convertir código de provincia a nombre de región
+  const getRegionNameFromProvinceCode = (provinceCode: string): string => {
+    if (!provinceCode) return ''
+    // Si ya es un nombre de región (no código), devolverlo tal cual
+    const region = CHILE_REGIONS.find(r => r.name === provinceCode)
+    if (region) return provinceCode
+    // Si es un código de provincia, convertir a nombre de región
+    return PROVINCE_CODE_TO_REGION_NAME[provinceCode] || provinceCode
+  }
 
   // Cargar cupones cuando cambia la plataforma
   useEffect(() => {
@@ -140,33 +348,57 @@ const AddPedidoForm = () => {
         const data = await response.json()
 
         if (data.success && data.data) {
-          const clientesMapeados = data.data.map((cliente: any) => {
-            const attrs = cliente.attributes || {}
-            const clienteData = (attrs && Object.keys(attrs).length > 0) ? attrs : cliente
-            
-            // Obtener nombre del cliente
-            let nombre = 'Cliente sin nombre'
-            if (clienteData.persona?.data?.attributes) {
-              const persona = clienteData.persona.data.attributes
-              const nombreCompleto = `${persona.nombre || ''} ${persona.apellido || ''}`.trim()
-              nombre = nombreCompleto || persona.nombre || persona.apellido || 'Cliente sin nombre'
-            } else if (clienteData.nombre) {
-              nombre = clienteData.nombre
-            } else if (clienteData.correo_electronico) {
-              nombre = clienteData.correo_electronico.split('@')[0]
-            }
+          const clientesMapeados = data.data
+            .filter((cliente: any) => {
+              // Filtrar clientes por originPlatform
+              const attrs = cliente.attributes || {}
+              const clienteData = (attrs && Object.keys(attrs).length > 0) ? attrs : cliente
+              const clientePlatform = clienteData.originPlatform || cliente.originPlatform
+              // Solo incluir clientes de la plataforma seleccionada
+              return clientePlatform === formData.originPlatform
+            })
+            .map((cliente: any) => {
+              const attrs = cliente.attributes || {}
+              const clienteData = (attrs && Object.keys(attrs).length > 0) ? attrs : cliente
+              
+              // Obtener nombre del cliente
+              let nombre = 'Cliente sin nombre'
+              if (clienteData.persona?.data?.attributes) {
+                const persona = clienteData.persona.data.attributes
+                const nombreCompleto = `${persona.nombre || ''} ${persona.apellido || ''}`.trim()
+                nombre = nombreCompleto || persona.nombre || persona.apellido || 'Cliente sin nombre'
+              } else if (clienteData.nombre) {
+                nombre = clienteData.nombre
+              } else if (clienteData.correo_electronico) {
+                nombre = clienteData.correo_electronico.split('@')[0]
+              }
 
-            const email = clienteData.correo_electronico || ''
-            const displayName = email ? `${nombre} (${email})` : nombre
+              const email = clienteData.correo_electronico || ''
+              const displayName = email ? `${nombre} (${email})` : nombre
+              
+              // Obtener woocommerce_id del cliente (buscar en wooId primero, luego woocommerce_id para compatibilidad)
+              const woocommerceId = clienteData.wooId || clienteData.woocommerce_id || cliente.wooId || cliente.woocommerce_id || null
+              
+              console.log('[AddPedidoForm] 🔍 Mapeando cliente:', {
+                nombre,
+                email,
+                woocommerceId,
+                clienteData_wooId: clienteData.wooId,
+                clienteData_woocommerce_id: clienteData.woocommerce_id,
+                cliente_wooId: cliente.wooId,
+                cliente_woocommerce_id: cliente.woocommerce_id,
+              })
 
-            return {
-              id: cliente.id || cliente.documentId || cliente.id,
-              documentId: cliente.documentId || cliente.id,
-              nombre,
-              email,
-              displayName,
-            }
-          })
+              return {
+                id: cliente.id || cliente.documentId || cliente.id,
+                documentId: cliente.documentId || cliente.id,
+                nombre,
+                email,
+                displayName,
+                clienteData, // Guardar datos completos para usar después
+                woocommerce_id: woocommerceId ? parseInt(String(woocommerceId), 10) : undefined,
+              }
+            })
 
           // Agregar opción "Invitado" al inicio
           setClientes([
@@ -175,6 +407,8 @@ const AddPedidoForm = () => {
               nombre: 'Invitado',
               email: '',
               displayName: 'Invitado',
+              clienteData: null,
+              woocommerce_id: undefined,
             },
             ...clientesMapeados,
           ])
@@ -186,6 +420,8 @@ const AddPedidoForm = () => {
               nombre: 'Invitado',
               email: '',
               displayName: 'Invitado',
+              clienteData: null,
+              woocommerce_id: undefined,
             },
           ])
         }
@@ -198,6 +434,8 @@ const AddPedidoForm = () => {
             nombre: 'Invitado',
             email: '',
             displayName: 'Invitado',
+            clienteData: null,
+            woocommerce_id: undefined,
           },
         ])
       } finally {
@@ -207,6 +445,343 @@ const AddPedidoForm = () => {
 
     fetchClientes()
   }, [formData.originPlatform])
+
+  // Generar número de pedido automático cuando cambia la plataforma
+  // También resetear cliente seleccionado cuando cambia la plataforma
+  useEffect(() => {
+    const generarNumero = async () => {
+      const numero = await generarNumeroPedido(formData.originPlatform)
+      setFormData((prev) => ({ ...prev, numero_pedido: numero, cliente: null }))
+    }
+    generarNumero()
+  }, [formData.originPlatform])
+
+  // Cargar datos de billing/shipping cuando se selecciona un cliente
+  useEffect(() => {
+    const loadClienteData = async () => {
+      console.log('[AddPedidoForm] 🔄 useEffect loadClienteData ejecutado:', {
+        clienteId: formData.cliente,
+        totalClientes: clientes.length,
+        originPlatform: formData.originPlatform,
+      })
+      
+      if (formData.cliente && formData.cliente !== 'invitado') {
+        const clienteSeleccionado = clientes.find(c => 
+          (c.documentId || c.id) === formData.cliente
+        ) as any
+
+        console.log('[AddPedidoForm] 🔍 Cliente seleccionado encontrado:', {
+          encontrado: !!clienteSeleccionado,
+          nombre: clienteSeleccionado?.nombre,
+          email: clienteSeleccionado?.email,
+          woocommerce_id: clienteSeleccionado?.woocommerce_id,
+          hasWoocommerceId: !!clienteSeleccionado?.woocommerce_id,
+          clienteCompleto: clienteSeleccionado,
+        })
+
+        if (clienteSeleccionado) {
+          const nombreCompleto = clienteSeleccionado.nombre.split(' ')
+          const firstName = nombreCompleto[0] || ''
+          const lastName = nombreCompleto.slice(1).join(' ') || ''
+
+          // Intentar cargar datos desde rawWooData primero (más rápido, sin llamada a API)
+          const rawWooData = clienteSeleccionado.clienteData?.rawWooData || (clienteSeleccionado as any).rawWooData
+          
+          if (rawWooData && (rawWooData.billing || rawWooData.shipping)) {
+            console.log('[AddPedidoForm] ✅ Cliente tiene rawWooData, cargando desde Strapi (más rápido)')
+            const wooCustomer = rawWooData
+            
+            // Cargar billing desde rawWooData
+            if (wooCustomer.billing) {
+              const billingWoo = wooCustomer.billing
+              const billingParsed = billingWoo.address_1 && billingWoo.address_2 
+                ? parseWooCommerceAddress(billingWoo.address_1 || '', billingWoo.address_2 || '')
+                : { calle: '', numero: '', dpto: '', block: '', condominio: '' }
+              
+              const billingStateName = getRegionNameFromProvinceCode(billingWoo.state || '')
+              
+              setBillingAddress({
+                first_name: billingWoo.first_name || firstName,
+                last_name: billingWoo.last_name || lastName,
+                company: billingWoo.company || '',
+                calle: billingParsed.calle || '',
+                numero: billingParsed.numero || '',
+                dpto: billingParsed.dpto || '',
+                block: billingParsed.block || '',
+                condominio: billingParsed.condominio || '',
+                address_1: billingWoo.address_1 || '',
+                address_2: billingWoo.address_2 || '',
+                city: billingWoo.city || '',
+                state: billingStateName,
+                postcode: billingWoo.postcode || '',
+                country: billingWoo.country || 'CL',
+                email: billingWoo.email || clienteSeleccionado.email || '',
+                phone: billingWoo.phone || '',
+              })
+              
+              console.log('[AddPedidoForm] ✅ Billing cargado desde rawWooData (Strapi)')
+            }
+            
+            // Cargar shipping desde rawWooData
+            if (wooCustomer.shipping && !useSameAddress) {
+              const shippingWoo = wooCustomer.shipping
+              const shippingParsed = shippingWoo.address_1 && shippingWoo.address_2 
+                ? parseWooCommerceAddress(shippingWoo.address_1 || '', shippingWoo.address_2 || '')
+                : { calle: '', numero: '', dpto: '', block: '', condominio: '' }
+              
+              const shippingStateName = getRegionNameFromProvinceCode(shippingWoo.state || '')
+              
+              setShippingAddress({
+                first_name: shippingWoo.first_name || firstName,
+                last_name: shippingWoo.last_name || lastName,
+                company: shippingWoo.company || '',
+                calle: shippingParsed.calle || '',
+                numero: shippingParsed.numero || '',
+                dpto: shippingParsed.dpto || '',
+                block: shippingParsed.block || '',
+                condominio: shippingParsed.condominio || '',
+                address_1: shippingWoo.address_1 || '',
+                address_2: shippingWoo.address_2 || '',
+                city: shippingWoo.city || '',
+                state: shippingStateName,
+                postcode: shippingWoo.postcode || '',
+                country: shippingWoo.country || 'CL',
+                phone: shippingWoo.phone || '',
+              })
+              
+              console.log('[AddPedidoForm] ✅ Shipping cargado desde rawWooData (Strapi)')
+            }
+          } else if (clienteSeleccionado.woocommerce_id) {
+            // Si no hay rawWooData pero tiene woocommerce_id, cargar desde WooCommerce API
+            console.log('[AddPedidoForm] ⚠️ No hay rawWooData, cargando desde WooCommerce API...')
+            try {
+              // Determinar la plataforma según el originPlatform del pedido
+              const platform = formData.originPlatform === 'woo_moraleja' ? 'woo_moraleja' : 'woo_escolar'
+              console.log('[AddPedidoForm] 🔍 Cargando datos de WooCommerce para cliente ID:', clienteSeleccionado.woocommerce_id, 'de plataforma:', platform)
+              const wooResponse = await fetch(`/api/woocommerce/customers/${clienteSeleccionado.woocommerce_id}?platform=${platform}`)
+              const wooResult = await wooResponse.json()
+              
+              if (wooResponse.ok && wooResult.success && wooResult.data) {
+                const wooCustomer = wooResult.data
+                
+                console.log('[AddPedidoForm] 📦 Datos completos de WooCommerce recibidos:', {
+                  id: wooCustomer.id,
+                  email: wooCustomer.email,
+                  first_name: wooCustomer.first_name,
+                  last_name: wooCustomer.last_name,
+                  hasBilling: !!wooCustomer.billing,
+                  hasShipping: !!wooCustomer.shipping,
+                  billing: wooCustomer.billing,
+                  shipping: wooCustomer.shipping,
+                })
+                
+                // Cargar billing desde WooCommerce
+                // Verificar que billing existe y tiene al menos un campo de dirección
+                const hasBillingData = wooCustomer.billing && (
+                  wooCustomer.billing.address_1 || 
+                  wooCustomer.billing.city || 
+                  wooCustomer.billing.phone ||
+                  wooCustomer.billing.company
+                )
+                
+                if (hasBillingData) {
+                  const billingWoo = wooCustomer.billing
+                  const billingParsed = billingWoo.address_1 && billingWoo.address_2 
+                    ? parseWooCommerceAddress(billingWoo.address_1 || '', billingWoo.address_2 || '')
+                    : { calle: '', numero: '', dpto: '', block: '', condominio: '' }
+                  
+                  // Convertir código de provincia a nombre de región si viene como código
+                  const billingStateName = getRegionNameFromProvinceCode(billingWoo.state || '')
+                  
+                  setBillingAddress({
+                    first_name: billingWoo.first_name || firstName,
+                    last_name: billingWoo.last_name || lastName,
+                    company: billingWoo.company || '',
+                    calle: billingParsed.calle || '',
+                    numero: billingParsed.numero || '',
+                    dpto: billingParsed.dpto || '',
+                    block: billingParsed.block || '',
+                    condominio: billingParsed.condominio || '',
+                    address_1: billingWoo.address_1 || '',
+                    address_2: billingWoo.address_2 || '',
+                    city: billingWoo.city || '',
+                    state: billingStateName, // Convertir código de provincia a nombre de región
+                    postcode: billingWoo.postcode || '',
+                    country: billingWoo.country || 'CL',
+                    email: billingWoo.email || clienteSeleccionado.email || '',
+                    phone: billingWoo.phone || '',
+                  })
+                  
+                  console.log('[AddPedidoForm] ✅ Billing cargado desde WooCommerce:', {
+                    stateOriginal: billingWoo.state,
+                    stateConverted: billingStateName,
+                    company: billingWoo.company || '(vacío)',
+                    phone: billingWoo.phone || '(vacío)',
+                    postcode: billingWoo.postcode || '(vacío)',
+                    address_1: billingWoo.address_1 || '(vacío)',
+                    city: billingWoo.city || '(vacío)',
+                    calle: billingParsed.calle || '(vacío)',
+                    numero: billingParsed.numero || '(vacío)',
+                    dpto: billingParsed.dpto || '(vacío)',
+                  })
+                } else {
+                  // Si no hay billing o está vacío en WooCommerce
+                  console.warn('[AddPedidoForm] ⚠️ No hay datos de billing en WooCommerce o están vacíos:', {
+                    hasBilling: !!wooCustomer.billing,
+                    billing: wooCustomer.billing,
+                  })
+                  // Usar datos básicos
+                  setBillingAddress(prev => ({
+                    ...prev,
+                    first_name: firstName,
+                    last_name: lastName,
+                    email: clienteSeleccionado.email || '',
+                  }))
+                }
+                
+                // Cargar shipping desde WooCommerce
+                if (wooCustomer.shipping && !useSameAddress) {
+                  const shippingWoo = wooCustomer.shipping
+                  const shippingParsed = shippingWoo.address_1 && shippingWoo.address_2 
+                    ? parseWooCommerceAddress(shippingWoo.address_1 || '', shippingWoo.address_2 || '')
+                    : { calle: '', numero: '', dpto: '', block: '', condominio: '' }
+                  
+                  // Convertir código de provincia a nombre de región si viene como código
+                  const shippingStateName = getRegionNameFromProvinceCode(shippingWoo.state || '')
+                  
+                  setShippingAddress({
+                    first_name: shippingWoo.first_name || firstName,
+                    last_name: shippingWoo.last_name || lastName,
+                    company: shippingWoo.company || '',
+                    calle: shippingParsed.calle || '',
+                    numero: shippingParsed.numero || '',
+                    dpto: shippingParsed.dpto || '',
+                    block: shippingParsed.block || '',
+                    condominio: shippingParsed.condominio || '',
+                    address_1: shippingWoo.address_1 || '',
+                    address_2: shippingWoo.address_2 || '',
+                    city: shippingWoo.city || '',
+                    state: shippingStateName, // Convertir código de provincia a nombre de región
+                    postcode: shippingWoo.postcode || '',
+                    country: shippingWoo.country || 'CL',
+                    phone: shippingWoo.phone || '',
+                  })
+                  
+                  console.log('[AddPedidoForm] 📦 Shipping cargado:', {
+                    stateOriginal: shippingWoo.state,
+                    stateConverted: shippingStateName,
+                    company: shippingWoo.company,
+                    phone: shippingWoo.phone,
+                    postcode: shippingWoo.postcode,
+                  })
+                }
+                // Nota: Si useSameAddress está activo, el useEffect de sincronización se encargará
+                // de copiar todos los datos de billing a shipping después de que billingAddress se actualice
+                
+                console.log('[AddPedidoForm] ✅ Datos de billing/shipping cargados desde WooCommerce')
+              }
+            } catch (wooError: any) {
+              console.error('[AddPedidoForm] ❌ Error al cargar datos de WooCommerce:', {
+                error: wooError.message,
+                stack: wooError.stack,
+                clienteId: clienteSeleccionado.woocommerce_id,
+                platform: formData.originPlatform,
+              })
+              // Usar datos básicos si falla la carga desde WooCommerce
+              setBillingAddress(prev => ({
+                ...prev,
+                first_name: firstName,
+                last_name: lastName,
+                email: clienteSeleccionado.email || '',
+              }))
+              if (useSameAddress) {
+                setShippingAddress(prev => ({
+                  ...prev,
+                  first_name: firstName,
+                  last_name: lastName,
+                }))
+              }
+            }
+          } else {
+            // Si no tiene woocommerce_id, usar datos básicos
+            console.log('[AddPedidoForm] ⚠️ Cliente NO tiene woocommerce_id, usando solo datos básicos:', {
+              nombre: clienteSeleccionado.nombre,
+              email: clienteSeleccionado.email,
+              woocommerce_id: clienteSeleccionado.woocommerce_id,
+            })
+            setBillingAddress(prev => ({
+              ...prev,
+              first_name: firstName,
+              last_name: lastName,
+              email: clienteSeleccionado.email || '',
+            }))
+            if (useSameAddress) {
+              setShippingAddress(prev => ({
+                ...prev,
+                first_name: firstName,
+                last_name: lastName,
+              }))
+            }
+          }
+        }
+      } else {
+        // Resetear campos si se selecciona "Invitado"
+        setBillingAddress({
+          first_name: '',
+          last_name: '',
+          company: '',
+          address_1: '',
+          address_2: '',
+          city: '',
+          state: '',
+          postcode: '',
+          country: 'CL',
+          email: '',
+          phone: '',
+        })
+        if (useSameAddress) {
+          setShippingAddress({
+            first_name: '',
+            last_name: '',
+            company: '',
+            address_1: '',
+            address_2: '',
+            city: '',
+            state: '',
+            postcode: '',
+            country: 'CL',
+            phone: '',
+          })
+        }
+      }
+    }
+
+    loadClienteData()
+  }, [formData.cliente, clientes, useSameAddress])
+
+  // Sincronizar shipping con billing cuando useSameAddress está activo
+  useEffect(() => {
+    if (useSameAddress) {
+      setShippingAddress(prev => ({
+        ...prev,
+        first_name: billingAddress.first_name,
+        last_name: billingAddress.last_name,
+        company: billingAddress.company,
+        calle: billingAddress.calle,
+        numero: billingAddress.numero,
+        dpto: billingAddress.dpto,
+        block: billingAddress.block,
+        condominio: billingAddress.condominio,
+        address_1: billingAddress.address_1,
+        address_2: billingAddress.address_2,
+        city: billingAddress.city,
+        state: billingAddress.state,
+        postcode: billingAddress.postcode,
+        country: billingAddress.country,
+        phone: billingAddress.phone,
+      }))
+    }
+  }, [useSameAddress, billingAddress])
 
   // Calcular subtotal y total cuando cambian los productos o el cupón
   useEffect(() => {
@@ -358,33 +933,96 @@ const AddPedidoForm = () => {
         }))
       })
 
-      // Obtener información del cliente seleccionado si existe
-      let billingInfo = null
-      let clienteSeleccionado = null
-      
-      if (formData.cliente && formData.cliente !== 'invitado') {
-        clienteSeleccionado = clientes.find(c => 
-          (c.documentId || c.id) === formData.cliente
-        )
-        
-        if (clienteSeleccionado && clienteSeleccionado.email) {
-          // Construir información de billing desde el cliente
-          const nombreCompleto = clienteSeleccionado.nombre.split(' ')
-          const firstName = nombreCompleto[0] || ''
-          const lastName = nombreCompleto.slice(1).join(' ') || ''
-          
-          billingInfo = {
-            first_name: firstName,
-            last_name: lastName,
-            email: clienteSeleccionado.email,
-            address_1: '',
-            city: '',
-            state: '',
-            postcode: '',
-            country: 'CL',
-          }
-        }
+      // Construir direcciones detalladas para billing y shipping
+      const billingDetailed: DetailedAddress = {
+        calle: billingAddress.calle || '',
+        numero: billingAddress.numero || '',
+        dpto: billingAddress.dpto || '',
+        block: billingAddress.block || '',
+        condominio: billingAddress.condominio || '',
+        address_1: billingAddress.address_1 || '',
+        address_2: billingAddress.address_2 || '',
+        city: billingAddress.city || '',
+        state: billingAddress.state || '',
+        postcode: billingAddress.postcode || '',
+        country: billingAddress.country || 'CL',
       }
+      
+      const shippingDetailed: DetailedAddress = {
+        calle: shippingAddress.calle || '',
+        numero: shippingAddress.numero || '',
+        dpto: shippingAddress.dpto || '',
+        block: shippingAddress.block || '',
+        condominio: shippingAddress.condominio || '',
+        address_1: shippingAddress.address_1 || '',
+        address_2: shippingAddress.address_2 || '',
+        city: shippingAddress.city || '',
+        state: shippingAddress.state || '',
+        postcode: shippingAddress.postcode || '',
+        country: shippingAddress.country || 'CL',
+      }
+      
+      // Construir address_1 y address_2 desde campos detallados
+      const billingWooCommerce = buildWooCommerceAddress(billingDetailed)
+      const shippingWooCommerce = buildWooCommerceAddress(shippingDetailed)
+      
+      // Convertir nombre de región a código de provincia para WooCommerce
+      const billingStateCode = billingAddress.state 
+        ? (REGION_NAME_TO_PROVINCE_CODE[billingAddress.state] || 
+           (/^\d{3}$/.test(billingAddress.state) ? billingAddress.state : ''))
+        : ''
+      
+      const shippingStateCode = shippingAddress.state 
+        ? (REGION_NAME_TO_PROVINCE_CODE[shippingAddress.state] || 
+           (/^\d{3}$/.test(shippingAddress.state) ? shippingAddress.state : ''))
+        : ''
+
+      // Construir información de billing y shipping desde los estados
+      const billingInfo = {
+        first_name: billingAddress.first_name || '',
+        last_name: billingAddress.last_name || '',
+        company: billingAddress.company || '',
+        address_1: billingWooCommerce.address_1 || billingAddress.address_1 || '',
+        address_2: billingWooCommerce.address_2 || billingAddress.address_2 || '',
+        city: billingAddress.city || '',
+        state: billingStateCode || billingAddress.state || '', // Usar código de provincia
+        postcode: billingAddress.postcode || '',
+        country: billingAddress.country || 'CL',
+        email: billingAddress.email || '',
+        phone: billingAddress.phone || '',
+      }
+
+      const shippingInfo = {
+        first_name: shippingAddress.first_name || '',
+        last_name: shippingAddress.last_name || '',
+        company: shippingAddress.company || '',
+        address_1: shippingWooCommerce.address_1 || shippingAddress.address_1 || '',
+        address_2: shippingWooCommerce.address_2 || shippingAddress.address_2 || '',
+        city: shippingAddress.city || '',
+        state: shippingStateCode || shippingAddress.state || '', // Usar código de provincia
+        postcode: shippingAddress.postcode || '',
+        country: shippingAddress.country || 'CL',
+        phone: shippingAddress.phone || '',
+      }
+      
+      console.log('[AddPedidoForm] 📦 Billing/Shipping preparados:', {
+        billing: {
+          stateOriginal: billingAddress.state,
+          stateCode: billingStateCode,
+          company: billingInfo.company,
+          phone: billingInfo.phone,
+          postcode: billingInfo.postcode,
+          address_1: billingInfo.address_1,
+          address_2: billingInfo.address_2,
+        },
+        shipping: {
+          stateOriginal: shippingAddress.state,
+          stateCode: shippingStateCode,
+          company: shippingInfo.company,
+          phone: shippingInfo.phone,
+          postcode: shippingInfo.postcode,
+        },
+      })
 
       // ⚠️ VALIDACIÓN CRÍTICA: Verificar que items NO esté vacío
       if (!items || items.length === 0) {
@@ -392,6 +1030,20 @@ const AddPedidoForm = () => {
         console.error('[AddPedidoForm] selectedProducts:', selectedProducts)
         console.error('[AddPedidoForm] items construidos:', items)
         throw new Error('El pedido debe tener al menos un producto. Agrega productos antes de crear el pedido.')
+      }
+
+      // Obtener woocommerce_id del cliente seleccionado si existe
+      let customerIdWoo: number | undefined = undefined
+      if (formData.cliente && formData.cliente !== 'invitado') {
+        const clienteSeleccionado = clientes.find(c => 
+          (c.documentId || c.id) === formData.cliente
+        )
+        if (clienteSeleccionado && clienteSeleccionado.woocommerce_id) {
+          customerIdWoo = clienteSeleccionado.woocommerce_id
+          console.log('[AddPedidoForm] ✅ Cliente seleccionado tiene woocommerce_id:', customerIdWoo)
+        } else {
+          console.warn('[AddPedidoForm] ⚠️ Cliente seleccionado no tiene woocommerce_id, se buscará por email')
+        }
       }
 
       const pedidoData: any = {
@@ -407,8 +1059,10 @@ const AddPedidoForm = () => {
           moneda: formData.moneda || 'CLP',
           origen: formData.origen || 'woocommerce',
           cliente: formData.cliente && formData.cliente !== 'invitado' ? formData.cliente : null,
+          customer_id_woo: customerIdWoo, // ⚠️ CRÍTICO: Enviar woocommerce_id para vincular el pedido con el cliente
           cupon_code: formData.cupon_code || null,
           billing: billingInfo,
+          shipping: shippingInfo,
           items: items, // ⚠️ CRÍTICO: Siempre incluir items (ya validado que no está vacío)
           metodo_pago: formData.metodo_pago || null,
           metodo_pago_titulo: formData.metodo_pago_titulo || null,
@@ -616,15 +1270,13 @@ const AddPedidoForm = () => {
                 </FormLabel>
                 <FormControl
                   type="text"
-                  placeholder="Ej: PED-001, ORD-2024-001"
                   value={formData.numero_pedido}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, numero_pedido: e.target.value }))
-                  }
-                  required
+                  readOnly
+                  disabled
+                  className="bg-light"
                 />
                 <small className="text-muted">
-                  Número único del pedido (requerido).
+                  Número generado automáticamente (no editable).
                 </small>
               </FormGroup>
             </Col>
@@ -882,6 +1534,286 @@ const AddPedidoForm = () => {
             </Col>
 
             <Col md={12}>
+              <hr className="my-4" />
+              <h5 className="mb-3">Datos de Facturación</h5>
+            </Col>
+
+            <Col md={6}>
+              <FormGroup>
+                <FormLabel>Nombre</FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="Nombre"
+                  value={billingAddress.first_name}
+                  onChange={(e) =>
+                    setBillingAddress((prev) => ({ ...prev, first_name: e.target.value }))
+                  }
+                />
+              </FormGroup>
+            </Col>
+
+            <Col md={6}>
+              <FormGroup>
+                <FormLabel>Apellido</FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="Apellido"
+                  value={billingAddress.last_name}
+                  onChange={(e) =>
+                    setBillingAddress((prev) => ({ ...prev, last_name: e.target.value }))
+                  }
+                />
+              </FormGroup>
+            </Col>
+
+            <Col md={6}>
+              <FormGroup>
+                <FormLabel>Email</FormLabel>
+                <FormControl
+                  type="email"
+                  placeholder="email@ejemplo.com"
+                  value={billingAddress.email}
+                  onChange={(e) =>
+                    setBillingAddress((prev) => ({ ...prev, email: e.target.value }))
+                  }
+                />
+              </FormGroup>
+            </Col>
+
+            <Col md={6}>
+              <FormGroup>
+                <FormLabel>Teléfono</FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="+56912345678"
+                  value={billingAddress.phone}
+                  onChange={(e) =>
+                    setBillingAddress((prev) => ({ ...prev, phone: e.target.value }))
+                  }
+                />
+              </FormGroup>
+            </Col>
+
+            <Col md={6}>
+              <FormGroup>
+                <FormLabel>Empresa</FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="Nombre de la empresa (opcional)"
+                  value={billingAddress.company}
+                  onChange={(e) =>
+                    setBillingAddress((prev) => ({ ...prev, company: e.target.value }))
+                  }
+                />
+              </FormGroup>
+            </Col>
+
+            <Col md={12}>
+              <FormGroup>
+                <FormLabel>Dirección</FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="Calle y número"
+                  value={billingAddress.address_1}
+                  onChange={(e) =>
+                    setBillingAddress((prev) => ({ ...prev, address_1: e.target.value }))
+                  }
+                />
+              </FormGroup>
+            </Col>
+
+            <Col md={12}>
+              <FormGroup>
+                <FormLabel>Dirección 2 (opcional)</FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="Depto, Block, Condominio, etc."
+                  value={billingAddress.address_2}
+                  onChange={(e) =>
+                    setBillingAddress((prev) => ({ ...prev, address_2: e.target.value }))
+                  }
+                />
+              </FormGroup>
+            </Col>
+
+            <Col md={12}>
+              <ChileRegionComuna
+                regionValue={billingAddress.state}
+                comunaValue={billingAddress.city}
+                onRegionChange={(region) =>
+                  setBillingAddress((prev) => ({ ...prev, state: region, postcode: '' }))
+                }
+                onComunaChange={(comuna) =>
+                  setBillingAddress((prev) => ({ ...prev, city: comuna }))
+                }
+                onPostalCodeChange={(postalCode) =>
+                  setBillingAddress((prev) => ({ ...prev, postcode: postalCode }))
+                }
+                regionLabel="Región"
+                comunaLabel="Comuna"
+                autoGeneratePostalCode={true}
+              />
+            </Col>
+
+            <Col md={6}>
+              <FormGroup>
+                <FormLabel>Código Postal</FormLabel>
+                <FormControl
+                  type="text"
+                  placeholder="1234567"
+                  value={billingAddress.postcode}
+                  onChange={(e) =>
+                    setBillingAddress((prev) => ({ ...prev, postcode: e.target.value }))
+                  }
+                />
+              </FormGroup>
+            </Col>
+
+            <Col md={12}>
+              <hr className="my-4" />
+              <h5 className="mb-3">Datos de Envío</h5>
+            </Col>
+
+            <Col md={12}>
+              <FormGroup>
+                <div className="form-check">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    id="useSameAddress"
+                    checked={useSameAddress}
+                    onChange={(e) => setUseSameAddress(e.target.checked)}
+                  />
+                  <label className="form-check-label" htmlFor="useSameAddress">
+                    Usar la misma dirección de facturación para envío
+                  </label>
+                </div>
+              </FormGroup>
+            </Col>
+
+            {!useSameAddress && (
+              <>
+                <Col md={6}>
+                  <FormGroup>
+                    <FormLabel>Nombre</FormLabel>
+                    <FormControl
+                      type="text"
+                      placeholder="Nombre"
+                      value={shippingAddress.first_name}
+                      onChange={(e) =>
+                        setShippingAddress((prev) => ({ ...prev, first_name: e.target.value }))
+                      }
+                    />
+                  </FormGroup>
+                </Col>
+
+                <Col md={6}>
+                  <FormGroup>
+                    <FormLabel>Apellido</FormLabel>
+                    <FormControl
+                      type="text"
+                      placeholder="Apellido"
+                      value={shippingAddress.last_name}
+                      onChange={(e) =>
+                        setShippingAddress((prev) => ({ ...prev, last_name: e.target.value }))
+                      }
+                    />
+                  </FormGroup>
+                </Col>
+
+                <Col md={6}>
+                  <FormGroup>
+                    <FormLabel>Teléfono</FormLabel>
+                    <FormControl
+                      type="text"
+                      placeholder="+56912345678"
+                      value={shippingAddress.phone}
+                      onChange={(e) =>
+                        setShippingAddress((prev) => ({ ...prev, phone: e.target.value }))
+                      }
+                    />
+                  </FormGroup>
+                </Col>
+
+                <Col md={6}>
+                  <FormGroup>
+                    <FormLabel>Empresa</FormLabel>
+                    <FormControl
+                      type="text"
+                      placeholder="Nombre de la empresa (opcional)"
+                      value={shippingAddress.company}
+                      onChange={(e) =>
+                        setShippingAddress((prev) => ({ ...prev, company: e.target.value }))
+                      }
+                    />
+                  </FormGroup>
+                </Col>
+
+                <Col md={12}>
+                  <FormGroup>
+                    <FormLabel>Dirección</FormLabel>
+                    <FormControl
+                      type="text"
+                      placeholder="Calle y número"
+                      value={shippingAddress.address_1}
+                      onChange={(e) =>
+                        setShippingAddress((prev) => ({ ...prev, address_1: e.target.value }))
+                      }
+                    />
+                  </FormGroup>
+                </Col>
+
+                <Col md={12}>
+                  <FormGroup>
+                    <FormLabel>Dirección 2 (opcional)</FormLabel>
+                    <FormControl
+                      type="text"
+                      placeholder="Depto, Block, Condominio, etc."
+                      value={shippingAddress.address_2}
+                      onChange={(e) =>
+                        setShippingAddress((prev) => ({ ...prev, address_2: e.target.value }))
+                      }
+                    />
+                  </FormGroup>
+                </Col>
+
+                <Col md={12}>
+                  <ChileRegionComuna
+                    regionValue={shippingAddress.state}
+                    comunaValue={shippingAddress.city}
+                    onRegionChange={(region) =>
+                      setShippingAddress((prev) => ({ ...prev, state: region, postcode: '' }))
+                    }
+                    onComunaChange={(comuna) =>
+                      setShippingAddress((prev) => ({ ...prev, city: comuna }))
+                    }
+                    onPostalCodeChange={(postalCode) =>
+                      setShippingAddress((prev) => ({ ...prev, postcode: postalCode }))
+                    }
+                    regionLabel="Región"
+                    comunaLabel="Comuna"
+                    autoGeneratePostalCode={true}
+                  />
+                </Col>
+
+                <Col md={6}>
+                  <FormGroup>
+                    <FormLabel>Código Postal</FormLabel>
+                    <FormControl
+                      type="text"
+                      placeholder="1234567"
+                      value={shippingAddress.postcode}
+                      onChange={(e) =>
+                        setShippingAddress((prev) => ({ ...prev, postcode: e.target.value }))
+                      }
+                    />
+                  </FormGroup>
+                </Col>
+              </>
+            )}
+
+            <Col md={12}>
+              <hr className="my-4" />
               <FormGroup>
                 <FormLabel>Nota del Cliente</FormLabel>
                 <FormControl

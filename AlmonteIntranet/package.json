@@ -19,7 +19,12 @@
     "test:coverage": "jest --coverage",
     "test:unit": "jest --testPathPattern=unit",
     "test:integration": "jest --testPathPattern=integration",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:strapi": "node scripts/test-strapi.js",
+    "test:strapi:verbose": "node scripts/test-strapi.js --verbose",
+    "test:strapi:crud": "node scripts/test-strapi.js --test-crud",
+    "test:woo:order": "node scripts/test-woocommerce-order.js",
+    "test:woo:customer": "node scripts/test-woocommerce-customer.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

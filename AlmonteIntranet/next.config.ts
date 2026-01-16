@@ -75,6 +75,7 @@ const nextConfig: NextConfig = {
     includePaths: [
       './src/assets/scss',
       './node_modules/bootstrap/scss',
+      './node_modules',
     ],
     silenceDeprecations: ['legacy-js-api'],
   },

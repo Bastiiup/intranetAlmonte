@@ -39,6 +39,11 @@ const ProductsTabs = ({ productos, error }: ProductsTabsProps) => {
     setActiveTab(key || 'listing')
   }, [])
 
+  // Manejar cambio a vista grid desde el botón en Listing
+  const handleSwitchToGrid = useCallback(() => {
+    setActiveTab('grid')
+  }, [])
+
   return (
     <Card>
       <CardBody>
@@ -48,12 +53,6 @@ const ProductsTabs = ({ productos, error }: ProductsTabsProps) => {
               <NavLink eventKey="listing">
                 <TbList className="me-1" />
                 Listing
-              </NavLink>
-            </NavItem>
-            <NavItem>
-              <NavLink eventKey="grid">
-                <TbLayoutGrid className="me-1" />
-                Grid
               </NavLink>
             </NavItem>
             <NavItem>
@@ -74,7 +73,12 @@ const ProductsTabs = ({ productos, error }: ProductsTabsProps) => {
 
           <TabContent>
             <TabPane eventKey="listing">
-              <ProductsListing productos={productos} error={error} onProductSelect={handleProductSelect} />
+              <ProductsListing 
+                productos={productos} 
+                error={error} 
+                onProductSelect={handleProductSelect}
+                onSwitchToGrid={handleSwitchToGrid}
+              />
             </TabPane>
 
             <TabPane eventKey="grid">

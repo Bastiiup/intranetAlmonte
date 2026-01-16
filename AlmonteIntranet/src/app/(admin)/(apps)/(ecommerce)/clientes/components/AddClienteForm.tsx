@@ -1,11 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardHeader, CardBody, Form, Button, Row, Col, FormGroup, FormLabel, FormControl, Alert } from 'react-bootstrap'
 import { LuSave, LuX, LuPlus, LuTrash2 } from 'react-icons/lu'
 import PlatformSelector from './PlatformSelector'
 import { validarRUTChileno, formatearRUT } from '@/lib/utils/rut'
+import { buildWooCommerceAddress, createAddressMetaData, type DetailedAddress } from '@/lib/woocommerce/address-utils'
+import ChileRegionComuna from '@/components/common/ChileRegionsComunas'
 
 interface AddClienteFormProps {
   onSave?: () => void
@@ -39,6 +41,40 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
   const [emails, setEmails] = useState<EmailItem[]>([{ email: '', tipo: 'Personal' }])
   const [telefonos, setTelefonos] = useState<TelefonoItem[]>([{ numero: '', tipo: 'Personal' }])
   const [rutError, setRutError] = useState<string | null>(null)
+  
+  // Estados para direcciones de facturación y envío
+  const [billingAddress, setBillingAddress] = useState<DetailedAddress>({
+    calle: '',
+    numero: '',
+    dpto: '',
+    block: '',
+    condominio: '',
+    city: '',
+    state: '',
+    postcode: '',
+    country: 'CL',
+  })
+  const [shippingAddress, setShippingAddress] = useState<DetailedAddress>({
+    calle: '',
+    numero: '',
+    dpto: '',
+    block: '',
+    condominio: '',
+    city: '',
+    state: '',
+    postcode: '',
+    country: 'CL',
+  })
+  const [useSameAddress, setUseSameAddress] = useState(true)
+  const [billingPhone, setBillingPhone] = useState('')
+  const [billingCompany, setBillingCompany] = useState('')
+
+  // Sincronizar shipping con billing si useSameAddress está activado
+  useEffect(() => {
+    if (useSameAddress) {
+      setShippingAddress({ ...billingAddress })
+    }
+  }, [useSameAddress, billingAddress])
 
   const handleFieldChange = (field: string, value: any) => {
     setFormData((prev) => ({
@@ -182,6 +218,46 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
         // Convertir nombres de plataformas a formato que entienda el servidor
         dataToSend.data.canales = selectedPlatforms // Se usa el nombre de la plataforma directamente
         console.log('[AddCliente] 📡 Plataformas seleccionadas:', selectedPlatforms)
+      }
+      
+      // Agregar datos de billing y shipping si están presentes
+      const billingWooCommerce = buildWooCommerceAddress(billingAddress)
+      const shippingWooCommerce = buildWooCommerceAddress(useSameAddress ? billingAddress : shippingAddress)
+      const billingMetaData = createAddressMetaData('billing', billingAddress)
+      const shippingMetaData = createAddressMetaData('shipping', useSameAddress ? billingAddress : shippingAddress)
+      
+      // Solo agregar billing/shipping si hay al menos un campo completado
+      const hasBillingData = billingAddress.calle || billingAddress.city || billingAddress.state || billingPhone || billingCompany
+      const hasShippingData = shippingAddress.calle || shippingAddress.city || shippingAddress.state
+      
+      if (hasBillingData || hasShippingData) {
+        dataToSend.data.woocommerce_data = {
+          billing: hasBillingData ? {
+            first_name: formData.nombres.trim(),
+            last_name: [formData.primer_apellido.trim(), formData.segundo_apellido.trim()].filter(Boolean).join(' '),
+            email: emailsValidos[0].email.trim(),
+            phone: billingPhone.trim() || (telefonosValidos.length > 0 ? telefonosValidos[0].numero.trim() : ''),
+            company: billingCompany.trim(),
+            address_1: billingWooCommerce.address_1,
+            address_2: billingWooCommerce.address_2,
+            city: billingAddress.city || '',
+            state: billingAddress.state || '',
+            postcode: billingAddress.postcode || '',
+            country: billingAddress.country || 'CL',
+          } : undefined,
+          shipping: (hasShippingData || useSameAddress) ? {
+            first_name: formData.nombres.trim(),
+            last_name: [formData.primer_apellido.trim(), formData.segundo_apellido.trim()].filter(Boolean).join(' '),
+            company: billingCompany.trim(),
+            address_1: shippingWooCommerce.address_1,
+            address_2: shippingWooCommerce.address_2,
+            city: (useSameAddress ? billingAddress : shippingAddress).city || '',
+            state: (useSameAddress ? billingAddress : shippingAddress).state || '',
+            postcode: (useSameAddress ? billingAddress : shippingAddress).postcode || '',
+            country: (useSameAddress ? billingAddress : shippingAddress).country || 'CL',
+          } : undefined,
+          meta_data: [...billingMetaData, ...shippingMetaData],
+        }
       }
 
       // Crear el cliente en Strapi (se sincronizará con WordPress según los canales)
@@ -426,6 +502,256 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
                       </Row>
                     ))}
                   </FormGroup>
+                </Col>
+              </Row>
+
+              {/* Dirección de Facturación */}
+              <Row>
+                <Col xs={12}>
+                  <div className="mb-3 mt-4">
+                    <h5 className="text-uppercase bg-light-subtle p-2 border-dashed border rounded border-light mb-3">
+                      Dirección de Facturación
+                    </h5>
+                    <Row>
+                      <Col md={6}>
+                        <FormGroup className="mb-3">
+                          <FormLabel>Teléfono de Facturación</FormLabel>
+                          <FormControl
+                            type="tel"
+                            placeholder="Ej: +56 9 1234 5678"
+                            value={billingPhone}
+                            onChange={(e) => setBillingPhone(e.target.value)}
+                          />
+                        </FormGroup>
+                      </Col>
+                      <Col md={6}>
+                        <FormGroup className="mb-3">
+                          <FormLabel>Empresa</FormLabel>
+                          <FormControl
+                            type="text"
+                            placeholder="Ej: Mi Empresa S.A."
+                            value={billingCompany}
+                            onChange={(e) => setBillingCompany(e.target.value)}
+                          />
+                        </FormGroup>
+                      </Col>
+                    </Row>
+                    <Row>
+                      <Col md={8}>
+                        <FormGroup className="mb-3">
+                          <FormLabel>Calle</FormLabel>
+                          <FormControl
+                            type="text"
+                            placeholder="Ej: Av. Providencia"
+                            value={billingAddress.calle || ''}
+                            onChange={(e) => setBillingAddress({ ...billingAddress, calle: e.target.value })}
+                          />
+                        </FormGroup>
+                      </Col>
+                      <Col md={4}>
+                        <FormGroup className="mb-3">
+                          <FormLabel>Número</FormLabel>
+                          <FormControl
+                            type="text"
+                            placeholder="Ej: 123"
+                            value={billingAddress.numero || ''}
+                            onChange={(e) => setBillingAddress({ ...billingAddress, numero: e.target.value })}
+                          />
+                        </FormGroup>
+                      </Col>
+                    </Row>
+                    <Row>
+                      <Col md={4}>
+                        <FormGroup className="mb-3">
+                          <FormLabel>Departamento</FormLabel>
+                          <FormControl
+                            type="text"
+                            placeholder="Ej: 101"
+                            value={billingAddress.dpto || ''}
+                            onChange={(e) => setBillingAddress({ ...billingAddress, dpto: e.target.value })}
+                          />
+                        </FormGroup>
+                      </Col>
+                      <Col md={4}>
+                        <FormGroup className="mb-3">
+                          <FormLabel>Block</FormLabel>
+                          <FormControl
+                            type="text"
+                            placeholder="Ej: A"
+                            value={billingAddress.block || ''}
+                            onChange={(e) => setBillingAddress({ ...billingAddress, block: e.target.value })}
+                          />
+                        </FormGroup>
+                      </Col>
+                      <Col md={4}>
+                        <FormGroup className="mb-3">
+                          <FormLabel>Condominio</FormLabel>
+                          <FormControl
+                            type="text"
+                            placeholder="Ej: Los Rosales"
+                            value={billingAddress.condominio || ''}
+                            onChange={(e) => setBillingAddress({ ...billingAddress, condominio: e.target.value })}
+                          />
+                        </FormGroup>
+                      </Col>
+                    </Row>
+                    <ChileRegionComuna
+                      regionValue={billingAddress.state || ''}
+                      comunaValue={billingAddress.city || ''}
+                      onRegionChange={(region) => setBillingAddress({ ...billingAddress, state: region })}
+                      onComunaChange={(comuna) => setBillingAddress({ ...billingAddress, city: comuna })}
+                      regionLabel="Región"
+                      comunaLabel="Ciudad/Comuna"
+                      regionPlaceholder="Seleccione una región"
+                      comunaPlaceholder="Seleccione una comuna"
+                    />
+                    <Row>
+                      <Col md={6}>
+                        <FormGroup className="mb-3">
+                          <FormLabel>Código Postal</FormLabel>
+                          <FormControl
+                            type="text"
+                            placeholder="Ej: 7500000"
+                            value={billingAddress.postcode || ''}
+                            onChange={(e) => setBillingAddress({ ...billingAddress, postcode: e.target.value })}
+                          />
+                        </FormGroup>
+                      </Col>
+                      <Col md={6}>
+                        <FormGroup className="mb-3">
+                          <FormLabel>País</FormLabel>
+                          <FormControl
+                            type="text"
+                            value={billingAddress.country || 'CL'}
+                            onChange={(e) => setBillingAddress({ ...billingAddress, country: e.target.value })}
+                          />
+                        </FormGroup>
+                      </Col>
+                    </Row>
+                  </div>
+                </Col>
+              </Row>
+
+              {/* Dirección de Envío */}
+              <Row>
+                <Col xs={12}>
+                  <div className="mb-3 mt-4">
+                    <div className="mb-3">
+                      <FormGroup>
+                        <FormControl
+                          type="checkbox"
+                          checked={useSameAddress}
+                          onChange={(e) => {
+                            setUseSameAddress(e.target.checked)
+                            if (e.target.checked) {
+                              setShippingAddress({ ...billingAddress })
+                            }
+                          }}
+                          className="form-check-input"
+                        />
+                        <FormLabel className="ms-2 mb-0">Usar la misma dirección para envío</FormLabel>
+                      </FormGroup>
+                    </div>
+                    {!useSameAddress && (
+                      <>
+                        <h5 className="text-uppercase bg-light-subtle p-2 border-dashed border rounded border-light mb-3">
+                          Dirección de Envío
+                        </h5>
+                        <Row>
+                          <Col md={8}>
+                            <FormGroup className="mb-3">
+                              <FormLabel>Calle</FormLabel>
+                              <FormControl
+                                type="text"
+                                placeholder="Ej: Av. Providencia"
+                                value={shippingAddress.calle || ''}
+                                onChange={(e) => setShippingAddress({ ...shippingAddress, calle: e.target.value })}
+                              />
+                            </FormGroup>
+                          </Col>
+                          <Col md={4}>
+                            <FormGroup className="mb-3">
+                              <FormLabel>Número</FormLabel>
+                              <FormControl
+                                type="text"
+                                placeholder="Ej: 123"
+                                value={shippingAddress.numero || ''}
+                                onChange={(e) => setShippingAddress({ ...shippingAddress, numero: e.target.value })}
+                              />
+                            </FormGroup>
+                          </Col>
+                        </Row>
+                        <Row>
+                          <Col md={4}>
+                            <FormGroup className="mb-3">
+                              <FormLabel>Departamento</FormLabel>
+                              <FormControl
+                                type="text"
+                                placeholder="Ej: 101"
+                                value={shippingAddress.dpto || ''}
+                                onChange={(e) => setShippingAddress({ ...shippingAddress, dpto: e.target.value })}
+                              />
+                            </FormGroup>
+                          </Col>
+                          <Col md={4}>
+                            <FormGroup className="mb-3">
+                              <FormLabel>Block</FormLabel>
+                              <FormControl
+                                type="text"
+                                placeholder="Ej: A"
+                                value={shippingAddress.block || ''}
+                                onChange={(e) => setShippingAddress({ ...shippingAddress, block: e.target.value })}
+                              />
+                            </FormGroup>
+                          </Col>
+                          <Col md={4}>
+                            <FormGroup className="mb-3">
+                              <FormLabel>Condominio</FormLabel>
+                              <FormControl
+                                type="text"
+                                placeholder="Ej: Los Rosales"
+                                value={shippingAddress.condominio || ''}
+                                onChange={(e) => setShippingAddress({ ...shippingAddress, condominio: e.target.value })}
+                              />
+                            </FormGroup>
+                          </Col>
+                        </Row>
+                        <ChileRegionComuna
+                          regionValue={shippingAddress.state || ''}
+                          comunaValue={shippingAddress.city || ''}
+                          onRegionChange={(region) => setShippingAddress({ ...shippingAddress, state: region })}
+                          onComunaChange={(comuna) => setShippingAddress({ ...shippingAddress, city: comuna })}
+                          regionLabel="Región"
+                          comunaLabel="Ciudad/Comuna"
+                          regionPlaceholder="Seleccione una región"
+                          comunaPlaceholder="Seleccione una comuna"
+                        />
+                        <Row>
+                          <Col md={6}>
+                            <FormGroup className="mb-3">
+                              <FormLabel>Código Postal</FormLabel>
+                              <FormControl
+                                type="text"
+                                placeholder="Ej: 7500000"
+                                value={shippingAddress.postcode || ''}
+                                onChange={(e) => setShippingAddress({ ...shippingAddress, postcode: e.target.value })}
+                              />
+                            </FormGroup>
+                          </Col>
+                          <Col md={6}>
+                            <FormGroup className="mb-3">
+                              <FormLabel>País</FormLabel>
+                              <FormControl
+                                type="text"
+                                value={shippingAddress.country || 'CL'}
+                                onChange={(e) => setShippingAddress({ ...shippingAddress, country: e.target.value })}
+                              />
+                            </FormGroup>
+                          </Col>
+                        </Row>
+                      </>
+                    )}
+                  </div>
                 </Col>
               </Row>
 

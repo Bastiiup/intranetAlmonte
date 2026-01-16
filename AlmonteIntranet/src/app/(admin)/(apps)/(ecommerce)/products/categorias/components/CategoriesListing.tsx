@@ -59,6 +59,7 @@ type CategoryType = {
   date: string
   time: string
   url: string
+  categoryId?: string
   estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
 }
 
@@ -136,6 +137,7 @@ const mapStrapiCategoryToCategoryType = (categoria: any): CategoryType => {
 
   const imageUrl = getImageUrl()
   
+  const categoryId = String(categoria.id || categoria.documentId || categoria.id)
   return {
     id: categoria.id || categoria.documentId || categoria.id,
     name: nombre,
@@ -146,7 +148,8 @@ const mapStrapiCategoryToCategoryType = (categoria: any): CategoryType => {
     status: activo ? 'active' : 'inactive',
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
-    url: `/products/categorias/${categoria.id || categoria.documentId || categoria.id}`,
+    url: `/products/categorias/${categoryId}`,
+    categoryId: categoryId,
     estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
                        estadoPublicacion === 'borrador' ? 'Borrador' : 
                        'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
@@ -156,11 +159,13 @@ const mapStrapiCategoryToCategoryType = (categoria: any): CategoryType => {
 interface CategoriesListingProps {
   categorias?: any[]
   error?: string | null
+  onCategorySelect?: (categoryId: string) => void
+  onSwitchToGrid?: () => void
 }
 
 const columnHelper = createColumnHelper<CategoryType>()
 
-const CategoriesListing = ({ categorias, error }: CategoriesListingProps = {}) => {
+const CategoriesListing = ({ categorias, error, onCategorySelect, onSwitchToGrid }: CategoriesListingProps = {}) => {
   const router = useRouter()
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
@@ -216,9 +221,22 @@ const CategoriesListing = ({ categorias, error }: CategoriesListingProps = {}) =
               </div>
               <div>
                 <h5 className="mb-0">
-                  <Link href={row.original.url} className="link-reset">
-                    {row.original.name}
-                  </Link>
+                  {onCategorySelect && row.original.categoryId ? (
+                    <a 
+                      href="#" 
+                      className="link-reset" 
+                      onClick={(e) => {
+                        e.preventDefault()
+                        onCategorySelect(row.original.categoryId!)
+                      }}
+                    >
+                      {row.original.name}
+                    </a>
+                  ) : (
+                    <Link href={row.original.url} className="link-reset">
+                      {row.original.name}
+                    </Link>
+                  )}
                 </h5>
                 <p className="text-muted mb-0 fs-xxs">Slug: {row.original.slug || 'N/A'}</p>
               </div>
@@ -243,9 +261,22 @@ const CategoriesListing = ({ categorias, error }: CategoriesListingProps = {}) =
             </div>
             <div>
               <h5 className="mb-0">
-                <Link href={row.original.url} className="link-reset">
-                  {row.original.name || 'Sin nombre'}
-                </Link>
+                {onCategorySelect && row.original.categoryId ? (
+                  <a 
+                    href="#" 
+                    className="link-reset" 
+                    onClick={(e) => {
+                      e.preventDefault()
+                      onCategorySelect(row.original.categoryId!)
+                    }}
+                  >
+                    {row.original.name || 'Sin nombre'}
+                  </a>
+                ) : (
+                  <Link href={row.original.url} className="link-reset">
+                    {row.original.name || 'Sin nombre'}
+                  </Link>
+                )}
               </h5>
               <p className="text-muted mb-0 fs-xxs">Slug: {row.original.slug || 'N/A'}</p>
             </div>
@@ -312,11 +343,25 @@ const CategoriesListing = ({ categorias, error }: CategoriesListingProps = {}) =
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<CategoryType> }) => (
         <div className="d-flex gap-1">
-          <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle">
+          {onCategorySelect && row.original.categoryId ? (
+            <Button 
+              variant="default" 
+              size="sm" 
+              className="btn-icon rounded-circle"
+              onClick={(e) => {
+                e.preventDefault()
+                onCategorySelect(row.original.categoryId!)
+              }}
+            >
               <TbEye className="fs-lg" />
             </Button>
-          </Link>
+          ) : (
+            <Link href={row.original.url}>
+              <Button variant="default" size="sm" className="btn-icon rounded-circle">
+                <TbEye className="fs-lg" />
+              </Button>
+            </Link>
+          )}
           <Link href={row.original.url}>
             <Button
               variant="default"
@@ -545,11 +590,21 @@ const CategoriesListing = ({ categorias, error }: CategoriesListingProps = {}) =
             </div>
 
             <div className="d-flex gap-1">
-              <Link passHref href="/products/categorias">
-                <Button variant="outline-primary" className="btn-icon btn-soft-primary">
+              {onSwitchToGrid ? (
+                <Button 
+                  variant="outline-primary" 
+                  className="btn-icon btn-soft-primary"
+                  onClick={onSwitchToGrid}
+                >
                   <TbLayoutGrid className="fs-lg" />
                 </Button>
-              </Link>
+              ) : (
+                <Link passHref href="/products/categorias">
+                  <Button variant="outline-primary" className="btn-icon btn-soft-primary">
+                    <TbLayoutGrid className="fs-lg" />
+                  </Button>
+                </Link>
+              )}
               <Button variant="primary" className="btn-icon">
                 <TbList className="fs-lg" />
               </Button>

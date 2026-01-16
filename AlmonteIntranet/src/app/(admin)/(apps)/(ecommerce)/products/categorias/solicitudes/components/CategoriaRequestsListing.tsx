@@ -40,6 +40,7 @@ type CategoriaTypeExtended = {
   time: string
   url: string
   strapiId?: number
+  categoryId?: string
   estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
   categoriaOriginal?: any
 }
@@ -124,6 +125,7 @@ const mapStrapiCategoriaToCategoriaType = (categoria: any): CategoriaTypeExtende
     time: format(createdDate, 'h:mm a'),
     url: `/products/categorias/${categoria.id || categoria.documentId || categoria.id}`,
     strapiId: categoria.id,
+    categoryId: String(categoria.id || categoria.documentId || categoria.id),
     estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
                        estadoPublicacion === 'borrador' ? 'Borrador' : 
                        'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
@@ -134,11 +136,12 @@ const mapStrapiCategoriaToCategoriaType = (categoria: any): CategoriaTypeExtende
 interface CategoriaRequestsListingProps {
   categorias?: any[]
   error?: string | null
+  onCategorySelect?: (categoryId: string) => void
 }
 
 const columnHelper = createColumnHelper<CategoriaTypeExtended>()
 
-const CategoriaRequestsListing = ({ categorias, error }: CategoriaRequestsListingProps = {}) => {
+const CategoriaRequestsListing = ({ categorias, error, onCategorySelect }: CategoriaRequestsListingProps = {}) => {
   const router = useRouter()
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
@@ -239,16 +242,47 @@ const CategoriaRequestsListing = ({ categorias, error }: CategoriaRequestsListin
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<CategoriaTypeExtended> }) => (
         <div className="d-flex gap-1">
-          <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver">
-              <TbEye className="fs-lg" />
-            </Button>
-          </Link>
-          <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Editar">
-              <TbEdit className="fs-lg" />
-            </Button>
-          </Link>
+          {onCategorySelect && row.original.categoryId ? (
+            <>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle" 
+                title="Ver"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onCategorySelect(row.original.categoryId!)
+                }}
+              >
+                <TbEye className="fs-lg" />
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle" 
+                title="Editar"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onCategorySelect(row.original.categoryId!)
+                }}
+              >
+                <TbEdit className="fs-lg" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link href={row.original.url}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver">
+                  <TbEye className="fs-lg" />
+                </Button>
+              </Link>
+              <Link href={row.original.url}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Editar">
+                  <TbEdit className="fs-lg" />
+                </Button>
+              </Link>
+            </>
+          )}
           <Button
             variant="default"
             size="sm"

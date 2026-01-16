@@ -6,12 +6,20 @@
  */
 
 // Configuración para WooCommerce Escolar (por defecto)
-export const WOOCOMMERCE_URL = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL || 'https://staging.escolar.cl'
-export const WOOCOMMERCE_CONSUMER_KEY = process.env.WOOCOMMERCE_CONSUMER_KEY || ''
-export const WOOCOMMERCE_CONSUMER_SECRET = process.env.WOOCOMMERCE_CONSUMER_SECRET || ''
+// Soporta múltiples nombres de variables para compatibilidad
+export const WOOCOMMERCE_URL = process.env.NEXT_PUBLIC_WOOCOMMERCE_URL_ESCOLAR 
+  || process.env.WOO_ESCOLAR_URL 
+  || process.env.NEXT_PUBLIC_WOOCOMMERCE_URL 
+  || 'https://staging.escolar.cl'
+export const WOOCOMMERCE_CONSUMER_KEY = process.env.WOO_ESCOLAR_CONSUMER_KEY 
+  || process.env.WOOCOMMERCE_CONSUMER_KEY 
+  || ''
+export const WOOCOMMERCE_CONSUMER_SECRET = process.env.WOO_ESCOLAR_CONSUMER_SECRET 
+  || process.env.WOOCOMMERCE_CONSUMER_SECRET 
+  || ''
 
 // Configuración para WooCommerce Moraleja
-export const WOO_MORALEJA_URL = process.env.NEXT_PUBLIC_WOO_MORALEJA_URL || process.env.WOO_MORALEJA_URL || 'https://moraleja.cl'
+export const WOO_MORALEJA_URL = process.env.NEXT_PUBLIC_WOO_MORALEJA_URL || process.env.WOO_MORALEJA_URL || 'https://staging.moraleja.cl'
 export const WOO_MORALEJA_CONSUMER_KEY = process.env.WOO_MORALEJA_CONSUMER_KEY || ''
 export const WOO_MORALEJA_CONSUMER_SECRET = process.env.WOO_MORALEJA_CONSUMER_SECRET || ''
 

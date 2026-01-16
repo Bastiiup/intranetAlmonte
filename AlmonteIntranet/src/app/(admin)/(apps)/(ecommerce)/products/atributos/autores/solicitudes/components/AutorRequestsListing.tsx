@@ -42,6 +42,7 @@ type AutorTypeExtended = {
   time: string
   url: string
   strapiId?: number
+  autorId?: string
   estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
   autorOriginal?: any
 }
@@ -118,6 +119,7 @@ const mapStrapiAutorToAutorType = (autor: any): AutorTypeExtended => {
     time: format(createdDate, 'h:mm a'),
     url: `/products/atributos/autores/${autor.id || autor.documentId || autor.id}`,
     strapiId: autor.id,
+    autorId: String(autor.id || autor.documentId || autor.id),
     estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
                        estadoPublicacion === 'borrador' ? 'Borrador' : 
                        'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
@@ -128,11 +130,12 @@ const mapStrapiAutorToAutorType = (autor: any): AutorTypeExtended => {
 interface AutorRequestsListingProps {
   autores?: any[]
   error?: string | null
+  onAutorSelect?: (autorId: string) => void
 }
 
 const columnHelper = createColumnHelper<AutorTypeExtended>()
 
-const AutorRequestsListing = ({ autores, error }: AutorRequestsListingProps = {}) => {
+const AutorRequestsListing = ({ autores, error, onAutorSelect }: AutorRequestsListingProps = {}) => {
   const router = useRouter()
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
@@ -213,9 +216,22 @@ const AutorRequestsListing = ({ autores, error }: AutorRequestsListingProps = {}
             </div>
             <div>
               <h5 className="mb-0">
-                <Link href={row.original.url} className="link-reset">
-                  {row.original.name || 'Sin nombre'}
-                </Link>
+                {onAutorSelect && row.original.autorId ? (
+                  <a 
+                    href="#" 
+                    className="link-reset" 
+                    onClick={(e) => {
+                      e.preventDefault()
+                      onAutorSelect(row.original.autorId!)
+                    }}
+                  >
+                    {row.original.name || 'Sin nombre'}
+                  </a>
+                ) : (
+                  <Link href={row.original.url} className="link-reset">
+                    {row.original.name || 'Sin nombre'}
+                  </Link>
+                )}
               </h5>
               <p className="text-muted mb-0 fs-xxs">ID: {row.original.idAutor || 'N/A'}</p>
             </div>
@@ -271,16 +287,47 @@ const AutorRequestsListing = ({ autores, error }: AutorRequestsListingProps = {}
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<AutorTypeExtended> }) => (
         <div className="d-flex gap-1">
-          <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver">
-              <TbEye className="fs-lg" />
-            </Button>
-          </Link>
-          <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Editar">
-              <TbEdit className="fs-lg" />
-            </Button>
-          </Link>
+          {onAutorSelect && row.original.autorId ? (
+            <>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle" 
+                title="Ver"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onAutorSelect(row.original.autorId!)
+                }}
+              >
+                <TbEye className="fs-lg" />
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle" 
+                title="Editar"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onAutorSelect(row.original.autorId!)
+                }}
+              >
+                <TbEdit className="fs-lg" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link href={row.original.url}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver">
+                  <TbEye className="fs-lg" />
+                </Button>
+              </Link>
+              <Link href={row.original.url}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Editar">
+                  <TbEdit className="fs-lg" />
+                </Button>
+              </Link>
+            </>
+          )}
           <Button
             variant="default"
             size="sm"

@@ -3,13 +3,13 @@ import { headers } from 'next/headers'
 import type { Metadata } from 'next'
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import ColeccionesListing from './components/ColeccionesListing'
+import ColeccionesTabs from './components/ColeccionesTabs'
 
 // Forzar renderizado dinámico
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Todas las Colecciones - Intranet Almonte',
+  title: 'Colecciones - Intranet Almonte',
 }
 
 export default async function Page() {
@@ -43,8 +43,8 @@ export default async function Page() {
 
   return (
     <Container fluid>
-      <PageBreadcrumb title="Todas las Colecciones" subtitle="Ecommerce" />
-      <ColeccionesListing colecciones={colecciones} error={error} />
+      <PageBreadcrumb title="Colecciones" subtitle="Ecommerce" />
+      <ColeccionesTabs colecciones={colecciones} error={error} />
     </Container>
   )
 }

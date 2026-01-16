@@ -353,6 +353,9 @@ export async function PUT(
 /**
  * GET /api/woocommerce/customers/[id]
  * Obtiene un cliente específico con todos sus datos
+ * 
+ * Query parameters:
+ * - platform: 'woo_moraleja' | 'woo_escolar' (opcional, por defecto 'woo_escolar')
  */
 export async function GET(
   request: NextRequest,
@@ -372,7 +375,51 @@ export async function GET(
       )
     }
 
-    const customer = await wooCommerceClient.get(`customers/${customerId}`)
+    // Obtener plataforma de query parameters
+    const { searchParams } = new URL(request.url)
+    const platform = searchParams.get('platform') as 'woo_moraleja' | 'woo_escolar' | null
+    
+    // Usar el cliente correcto según la plataforma
+    const { createWooCommerceClient } = await import('@/lib/woocommerce/client')
+    const wcClient = platform 
+      ? createWooCommerceClient(platform)
+      : wooCommerceClient // Por defecto Escolar
+    
+    console.log(`[API GET Customers] 🔍 Obteniendo cliente ${customerId} de plataforma: ${platform || 'woo_escolar (default)'}`)
+    
+    const customer = await wcClient.get(`customers/${customerId}`)
+    
+    console.log(`[API GET Customers] ✅ Cliente obtenido:`, {
+      id: customer.id,
+      email: customer.email,
+      first_name: customer.first_name,
+      last_name: customer.last_name,
+      hasBilling: !!customer.billing,
+      hasShipping: !!customer.shipping,
+      billing: customer.billing ? {
+        first_name: customer.billing.first_name,
+        last_name: customer.billing.last_name,
+        company: customer.billing.company,
+        phone: customer.billing.phone,
+        address_1: customer.billing.address_1,
+        address_2: customer.billing.address_2,
+        city: customer.billing.city,
+        state: customer.billing.state,
+        postcode: customer.billing.postcode,
+        country: customer.billing.country,
+        email: customer.billing.email,
+      } : null,
+      shipping: customer.shipping ? {
+        first_name: customer.shipping.first_name,
+        last_name: customer.shipping.last_name,
+        company: customer.shipping.company,
+        phone: customer.shipping.phone,
+        address_1: customer.shipping.address_1,
+        city: customer.shipping.city,
+        state: customer.shipping.state,
+        postcode: customer.shipping.postcode,
+      } : null,
+    })
 
     return NextResponse.json({
       success: true,

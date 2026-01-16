@@ -194,19 +194,32 @@ const ClientsListing = ({ clientes, error }: ClientsListingProps = {}) => {
     },
     columnHelper.accessor('nombre', {
       header: 'Cliente',
-      cell: ({ row }) => (
-        <div className="d-flex">
-          <div className="avatar-md me-3 bg-light d-flex align-items-center justify-content-center rounded">
-            <LuUser className="text-muted fs-lg" />
+      cell: ({ row }) => {
+        const clienteId = row.original.documentId || row.original.id
+        return (
+          <div className="d-flex">
+            <div className="avatar-md me-3 bg-light d-flex align-items-center justify-content-center rounded">
+              <LuUser className="text-muted fs-lg" />
+            </div>
+            <div>
+              <h5 className="mb-0">
+                {clienteId ? (
+                  <Link 
+                    href={`/clientes/${clienteId}`}
+                    className="text-reset hover-underline"
+                    title="Ver detalle del cliente"
+                  >
+                    {row.original.nombre || 'Sin nombre'}
+                  </Link>
+                ) : (
+                  row.original.nombre || 'Sin nombre'
+                )}
+              </h5>
+              <p className="text-muted mb-0 fs-xxs">{row.original.correo_electronico}</p>
+            </div>
           </div>
-          <div>
-            <h5 className="mb-0">
-              {row.original.nombre || 'Sin nombre'}
-            </h5>
-            <p className="text-muted mb-0 fs-xxs">{row.original.correo_electronico}</p>
-          </div>
-        </div>
-      ),
+        )
+      },
     }),
     columnHelper.accessor('correo_electronico', { 
       header: 'Email',

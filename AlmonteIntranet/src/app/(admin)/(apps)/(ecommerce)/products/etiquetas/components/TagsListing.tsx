@@ -36,6 +36,7 @@ type TagType = {
   date: string
   time: string
   url: string
+  tagId?: string
   estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
 }
 
@@ -79,6 +80,7 @@ const mapStrapiTagToTagType = (etiqueta: any): TagType => {
   const createdAt = attrs.createdAt || (etiqueta as any).createdAt || new Date().toISOString()
   const createdDate = new Date(createdAt)
   
+  const tagId = String(etiqueta.id || etiqueta.documentId || etiqueta.id)
   return {
     id: etiqueta.id || etiqueta.documentId || etiqueta.id,
     name: nombre,
@@ -87,7 +89,8 @@ const mapStrapiTagToTagType = (etiqueta: any): TagType => {
     status: isPublished ? 'active' : 'inactive',
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
-    url: `/products/etiquetas/${etiqueta.id || etiqueta.documentId || etiqueta.id}`, // URL para edición
+    url: `/products/etiquetas/${tagId}`, // URL para edición
+    tagId: tagId,
     estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
                        estadoPublicacion === 'borrador' ? 'Borrador' : 
                        'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
@@ -97,11 +100,13 @@ const mapStrapiTagToTagType = (etiqueta: any): TagType => {
 interface TagsListingProps {
   etiquetas?: any[]
   error?: string | null
+  onTagSelect?: (tagId: string) => void
+  onSwitchToGrid?: () => void
 }
 
 const columnHelper = createColumnHelper<TagType>()
 
-const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
+const TagsListing = ({ etiquetas, error, onTagSelect, onSwitchToGrid }: TagsListingProps = {}) => {
   const router = useRouter()
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
@@ -153,9 +158,22 @@ const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
             </div>
             <div>
               <h5 className="mb-0">
-                <Link href={`/products/etiquetas/${row.original.id}`} className="link-reset">
-                  {row.original.name || 'Sin nombre'}
-                </Link>
+                {onTagSelect && row.original.tagId ? (
+                  <a 
+                    href="#" 
+                    className="link-reset" 
+                    onClick={(e) => {
+                      e.preventDefault()
+                      onTagSelect(row.original.tagId!)
+                    }}
+                  >
+                    {row.original.name || 'Sin nombre'}
+                  </a>
+                ) : (
+                  <Link href={`/products/etiquetas/${row.original.id}`} className="link-reset">
+                    {row.original.name || 'Sin nombre'}
+                  </Link>
+                )}
               </h5>
             </div>
           </div>
@@ -215,20 +233,49 @@ const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<TagType> }) => (
         <div className="d-flex gap-1">
-          <Link href={`/products/etiquetas/${row.original.id}`}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle">
-              <TbEye className="fs-lg" />
-            </Button>
-          </Link>
-          <Link href={`/products/etiquetas/${row.original.id}`}>
-            <Button
-              variant="default"
-              size="sm"
-              className="btn-icon rounded-circle"
-            >
-              <TbEdit className="fs-lg" />
-            </Button>
-          </Link>
+          {onTagSelect && row.original.tagId ? (
+            <>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onTagSelect(row.original.tagId!)
+                }}
+              >
+                <TbEye className="fs-lg" />
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                className="btn-icon rounded-circle"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onTagSelect(row.original.tagId!)
+                }}
+              >
+                <TbEdit className="fs-lg" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link href={`/products/etiquetas/${row.original.id}`}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle">
+                  <TbEye className="fs-lg" />
+                </Button>
+              </Link>
+              <Link href={`/products/etiquetas/${row.original.id}`}>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="btn-icon rounded-circle"
+                >
+                  <TbEdit className="fs-lg" />
+                </Button>
+              </Link>
+            </>
+          )}
           {canDelete && (
             <Button
               variant="default"
@@ -442,11 +489,21 @@ const TagsListing = ({ etiquetas, error }: TagsListingProps = {}) => {
             </div>
 
             <div className="d-flex gap-1">
-              <Link passHref href="/products/etiquetas">
-                <Button variant="outline-primary" className="btn-icon btn-soft-primary">
+              {onSwitchToGrid ? (
+                <Button 
+                  variant="outline-primary" 
+                  className="btn-icon btn-soft-primary"
+                  onClick={onSwitchToGrid}
+                >
                   <TbLayoutGrid className="fs-lg" />
                 </Button>
-              </Link>
+              ) : (
+                <Link passHref href="/products/etiquetas">
+                  <Button variant="outline-primary" className="btn-icon btn-soft-primary">
+                    <TbLayoutGrid className="fs-lg" />
+                  </Button>
+                </Link>
+              )}
               <Button variant="primary" className="btn-icon">
                 <TbList className="fs-lg" />
               </Button>

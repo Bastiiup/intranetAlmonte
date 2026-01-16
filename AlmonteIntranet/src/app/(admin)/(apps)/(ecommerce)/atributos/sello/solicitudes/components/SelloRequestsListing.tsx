@@ -30,7 +30,6 @@ import { useAuth } from '@/hooks/useAuth'
 // Tipo extendido para sellos con estado_publicacion
 type SelloTypeExtended = {
   id: number
-  id_sello: number
   name: string
   acronimo: string
   editorial: string
@@ -40,6 +39,7 @@ type SelloTypeExtended = {
   time: string
   url: string
   strapiId?: number
+  selloId?: string
   estadoPublicacion?: 'Publicado' | 'Pendiente' | 'Borrador'
   selloOriginal?: any
 }
@@ -59,9 +59,6 @@ const mapStrapiSelloToSelloType = (sello: any): SelloTypeExtended => {
   const attrs = sello.attributes || {}
   const data = (attrs && Object.keys(attrs).length > 0) ? attrs : (sello as any)
 
-  // Obtener id_sello (schema real de Strapi - Number)
-  const idSello = getField(data, 'id_sello', 'idSello', 'ID_SELLO') || 0
-  
   // Obtener nombre_sello (schema real de Strapi)
   const nombre = getField(data, 'nombre_sello', 'nombreSello', 'nombre', 'NOMBRE_SELLO', 'NAME') || 'Sin nombre'
   
@@ -99,7 +96,6 @@ const mapStrapiSelloToSelloType = (sello: any): SelloTypeExtended => {
   
   return {
     id: sello.id || sello.documentId || sello.id,
-    id_sello: typeof idSello === 'string' ? parseInt(idSello) : idSello,
     name: nombre,
     acronimo: acronimo,
     editorial: typeof editorial === 'string' ? editorial : '-',
@@ -109,6 +105,7 @@ const mapStrapiSelloToSelloType = (sello: any): SelloTypeExtended => {
     time: format(createdDate, 'h:mm a'),
     url: `/atributos/sello/${sello.id || sello.documentId || sello.id}`,
     strapiId: sello.id,
+    selloId: String(sello.id || sello.documentId || sello.id),
     estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
                        estadoPublicacion === 'borrador' ? 'Borrador' : 
                        'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
@@ -119,11 +116,12 @@ const mapStrapiSelloToSelloType = (sello: any): SelloTypeExtended => {
 interface SelloRequestsListingProps {
   sellos?: any[]
   error?: string | null
+  onSelloSelect?: (selloId: string) => void
 }
 
 const columnHelper = createColumnHelper<SelloTypeExtended>()
 
-const SelloRequestsListing = ({ sellos, error }: SelloRequestsListingProps = {}) => {
+const SelloRequestsListing = ({ sellos, error, onSelloSelect }: SelloRequestsListingProps = {}) => {
   const router = useRouter()
   const { colaborador } = useAuth()
   const canDelete = colaborador?.rol === 'super_admin'
@@ -170,19 +168,25 @@ const SelloRequestsListing = ({ sellos, error }: SelloRequestsListingProps = {})
       header: 'Sello',
       cell: ({ row }) => (
         <div>
-          <h5 className="mb-0">
-            <Link href={row.original.url} className="link-reset">
-              {row.original.name || 'Sin nombre'}
-            </Link>
-          </h5>
-          <p className="text-muted mb-0 fs-xxs">ID: {row.original.id_sello || 'N/A'}</p>
+              <h5 className="mb-0">
+                {onSelloSelect && row.original.selloId ? (
+                  <a 
+                    href="#" 
+                    className="link-reset" 
+                    onClick={(e) => {
+                      e.preventDefault()
+                      onSelloSelect(row.original.selloId!)
+                    }}
+                  >
+                    {row.original.name || 'Sin nombre'}
+                  </a>
+                ) : (
+                  <Link href={row.original.url} className="link-reset">
+                    {row.original.name || 'Sin nombre'}
+                  </Link>
+                )}
+              </h5>
         </div>
-      ),
-    }),
-    columnHelper.accessor('id_sello', { 
-      header: 'ID Sello',
-      cell: ({ row }) => (
-        <code className="text-muted">{row.original.id_sello || 'N/A'}</code>
       ),
     }),
     columnHelper.accessor('acronimo', {
@@ -231,16 +235,47 @@ const SelloRequestsListing = ({ sellos, error }: SelloRequestsListingProps = {})
       header: 'Acciones',
       cell: ({ row }: { row: TableRow<SelloTypeExtended> }) => (
         <div className="d-flex gap-1">
-          <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver">
-              <TbEye className="fs-lg" />
-            </Button>
-          </Link>
-          <Link href={row.original.url}>
-            <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Editar">
-              <TbEdit className="fs-lg" />
-            </Button>
-          </Link>
+          {onSelloSelect && row.original.selloId ? (
+            <>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle" 
+                title="Ver"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onSelloSelect(row.original.selloId!)
+                }}
+              >
+                <TbEye className="fs-lg" />
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="btn-icon rounded-circle" 
+                title="Editar"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onSelloSelect(row.original.selloId!)
+                }}
+              >
+                <TbEdit className="fs-lg" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link href={row.original.url}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver">
+                  <TbEye className="fs-lg" />
+                </Button>
+              </Link>
+              <Link href={row.original.url}>
+                <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Editar">
+                  <TbEdit className="fs-lg" />
+                </Button>
+              </Link>
+            </>
+          )}
           <Button
             variant="default"
             size="sm"

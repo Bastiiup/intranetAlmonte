@@ -3,13 +3,13 @@ import { headers } from 'next/headers'
 import type { Metadata } from 'next'
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import CategoriesListing from './components/CategoriesListing'
+import CategoriesTabs from './components/CategoriesTabs'
 
 // Forzar renderizado dinámico
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Todas las Categorías',
+  title: 'Categorías',
 }
 
 export default async function Page() {
@@ -43,8 +43,8 @@ export default async function Page() {
 
   return (
     <Container fluid>
-      <PageBreadcrumb title="Todas las Categorías" subtitle="Ecommerce" />
-      <CategoriesListing categorias={categorias} error={error} />
+      <PageBreadcrumb title="Categorías" subtitle="Ecommerce" />
+      <CategoriesTabs categorias={categorias} error={error} />
     </Container>
   )
 }

@@ -169,6 +169,7 @@ interface ProductsListingProps {
   productos?: any[]
   error?: string | null
   onProductSelect?: (productId: string) => void
+  onSwitchToGrid?: () => void
 }
 
 const priceRangeFilterFn: FilterFn<any> = (row, columnId, value) => {
@@ -181,7 +182,7 @@ const priceRangeFilterFn: FilterFn<any> = (row, columnId, value) => {
 
 const columnHelper = createColumnHelper<ProductTypeExtended>()
 
-const ProductsListing = ({ productos, error, onProductSelect }: ProductsListingProps = {}) => {
+const ProductsListing = ({ productos, error, onProductSelect, onSwitchToGrid }: ProductsListingProps = {}) => {
   // Obtener rol del usuario autenticado
   const { colaborador } = useAuth()
   const canDelete = colaborador?.rol === 'super_admin'
@@ -687,11 +688,21 @@ const ProductsListing = ({ productos, error, onProductSelect }: ProductsListingP
             </div>
 
             <div className="d-flex gap-1">
-              <Link passHref href="/products-grid">
-                <Button variant="outline-primary" className="btn-icon btn-soft-primary">
+              {onSwitchToGrid ? (
+                <Button 
+                  variant="outline-primary" 
+                  className="btn-icon btn-soft-primary"
+                  onClick={onSwitchToGrid}
+                >
                   <TbLayoutGrid className="fs-lg" />
                 </Button>
-              </Link>
+              ) : (
+                <Link passHref href="/products-grid">
+                  <Button variant="outline-primary" className="btn-icon btn-soft-primary">
+                    <TbLayoutGrid className="fs-lg" />
+                  </Button>
+                </Link>
+              )}
               <Button variant="primary" className="btn-icon">
                 <TbList className="fs-lg" />
               </Button>
