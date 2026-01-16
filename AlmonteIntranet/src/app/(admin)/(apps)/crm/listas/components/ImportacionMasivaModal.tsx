@@ -867,7 +867,8 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
                           accept=".pdf"
                           size="sm"
                           onChange={(e) => {
-                            const file = e.target.files?.[0]
+                            const target = e.target as HTMLInputElement
+                            const file = target.files?.[0]
                             handlePDFUpload(index, file || null)
                           }}
                         />
