@@ -642,8 +642,9 @@ const AddClienteForm = ({ onSave, onCancel, showCard = true }: AddClienteFormPro
                           type="checkbox"
                           checked={useSameAddress}
                           onChange={(e) => {
-                            setUseSameAddress(e.target.checked)
-                            if (e.target.checked) {
+                            const checked = (e.target as HTMLInputElement).checked
+                            setUseSameAddress(checked)
+                            if (checked) {
                               setShippingAddress({ ...billingAddress })
                             }
                           }}
