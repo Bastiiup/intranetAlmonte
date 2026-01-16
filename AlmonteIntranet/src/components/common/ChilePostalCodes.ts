@@ -232,7 +232,6 @@ export const CHILE_POSTAL_CODES: Record<string, Record<string, string>> = {
     'Chillán': '3780000',
     'Chillán Viejo': '3820000',
     'Bulnes': '3900000',
-    'Chillán': '3780000',
   },
 }
 
