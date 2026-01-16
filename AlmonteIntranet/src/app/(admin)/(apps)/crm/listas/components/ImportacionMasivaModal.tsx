@@ -42,6 +42,8 @@ interface ImportRow {
   paralelo?: string
   año?: number
   pdf?: File | null
+  _cursoIdNum?: number
+  _cursoDocumentId?: string
 }
 
 interface ProcessResult {
