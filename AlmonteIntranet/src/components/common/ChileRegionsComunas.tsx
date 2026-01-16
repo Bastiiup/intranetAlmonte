@@ -27,9 +27,6 @@ export const CHILE_REGIONS = [
   { id: '13', name: 'Región Metropolitana de Santiago', code: 'RM' },
 ] as const
 
-// Exportar para uso externo
-export { CHILE_REGIONS }
-
 export const CHILE_COMUNAS: Record<string, string[]> = {
   '15': ['Arica', 'Camarones', 'General Lagos', 'Putre'],
   '01': ['Alto Hospicio', 'Camiña', 'Colchane', 'Huara', 'Iquique', 'Pica', 'Pozo Almonte'],
