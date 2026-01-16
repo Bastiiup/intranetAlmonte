@@ -12,6 +12,7 @@ interface Cliente {
   documentId?: string
   personaDocumentId?: string
   woocommerce_id?: number | string
+  wooId?: number | string
   nombre?: string
   correo_electronico?: string
   telefono?: string
@@ -254,7 +255,7 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
 
         // Cargar datos de billing/shipping desde WooCommerce si hay woocommerce_id
         // Buscar en wooId (campo de Strapi) o woocommerce_id (compatibilidad)
-        const woocommerceId = clienteAttrs.wooId || clienteAttrs.woocommerce_id || cliente.wooId || cliente.woocommerce_id
+        const woocommerceId = clienteAttrs.wooId || clienteAttrs.woocommerce_id || (cliente as any).wooId || cliente.woocommerce_id
         if (woocommerceId && typeof woocommerceId === 'number') {
           try {
             console.log('[EditClienteModal] 🔍 Cargando datos de WooCommerce para cliente ID:', woocommerceId)
