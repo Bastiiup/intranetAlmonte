@@ -870,7 +870,6 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
 
           <Row>
             <Col md={6}>
-            <Col md={6}>
               <FormGroup className="mb-3">
                 <FormLabel>Dependencia</FormLabel>
                 <FormControl

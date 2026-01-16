@@ -586,7 +586,6 @@ const AddContactModal = ({ show, onHide, onSuccess }: AddContactModalProps) => {
 
           <Row>
             <Col md={6}>
-            <Col md={6}>
               <FormGroup className="mb-3">
                 <FormLabel>Dependencia</FormLabel>
                 <FormControl
