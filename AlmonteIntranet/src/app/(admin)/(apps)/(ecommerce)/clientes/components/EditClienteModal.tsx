@@ -984,7 +984,7 @@ const EditClienteModal = ({ show, onHide, cliente, onSave }: EditClienteModalPro
                         type="checkbox"
                         checked={useSameAddress}
                         onChange={(e) => {
-                          const checked = e.target.checked
+                          const checked = (e.target as HTMLInputElement).checked
                           setUseSameAddress(checked)
                           if (checked) {
                             // Sincronizar shipping con billing cuando se activa
