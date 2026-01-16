@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { Nav, NavItem, NavLink, TabContainer, TabContent, TabPane, Card, CardBody } from 'react-bootstrap'
-import { TbList, TbLayoutGrid, TbEye, TbFileRequest } from 'react-icons/tb'
+import { TbList, TbLayoutGrid, TbEye, TbFileText } from 'react-icons/tb'
 
 import ProductsListing from './ProductsListing'
 import ProductsPage from '@/app/(admin)/(apps)/(ecommerce)/products-grid/components/ProductsPage'
@@ -61,7 +61,7 @@ const ProductsTabs = ({ productos, error }: ProductsTabsProps) => {
             {canViewRequests && (
               <NavItem>
                 <NavLink eventKey="solicitudes">
-                  <TbFileRequest className="me-1" />
+                  <TbFileText className="me-1" />
                   Solicitudes
                 </NavLink>
               </NavItem>
