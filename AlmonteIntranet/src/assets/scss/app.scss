@@ -7,6 +7,9 @@
 
 // Core files
 @import "bootstrap/scss/functions";
+// Importar variables-dark de Bootstrap ANTES de variables para evitar error de resolución
+// Esto asegura que cuando _variables.scss intente importar variables-dark, ya esté disponible
+@import "bootstrap/scss/variables-dark";
 @import "bootstrap/scss/variables";
 
 @import "variables";

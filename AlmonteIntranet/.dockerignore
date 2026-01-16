@@ -103,3 +103,24 @@ logs
 tmp
 temp
 .cache
+.turbo
+
+# Source maps (no necesarios en producción)
+*.map
+
+# Archivos de desarrollo
+*.local
+.vscode
+.idea
+
+# Archivos grandes innecesarios
+*.zip
+*.tar.gz
+*.rar
+
+# Logs y archivos temporales
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

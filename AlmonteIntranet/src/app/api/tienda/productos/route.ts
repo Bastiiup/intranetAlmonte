@@ -244,40 +244,22 @@ export async function POST(request: NextRequest) {
       strapiProductData.data.portada_libro = typeof body.portada_libro === 'number' ? body.portada_libro : parseInt(body.portada_libro, 10)
     }
 
-    // === RELACIONES MANY-TO-ONE (IDs numéricos, no documentIds) ===
-    // Según el schema de Strapi, las relaciones manyToOne se envían como IDs numéricos
-    // Si vienen como documentId (UUID), necesitamos convertirlos a ID numérico
-    // Por ahora, asumimos que vienen como IDs numéricos desde el frontend
-    if (body.obra) {
-      strapiProductData.data.obra = typeof body.obra === 'number' ? body.obra : parseInt(String(body.obra), 10)
-    }
-    if (body.autor_relacion) {
-      strapiProductData.data.autor_relacion = typeof body.autor_relacion === 'number' ? body.autor_relacion : parseInt(String(body.autor_relacion), 10)
-    }
-    if (body.editorial) {
-      strapiProductData.data.editorial = typeof body.editorial === 'number' ? body.editorial : parseInt(String(body.editorial), 10)
-    }
-    if (body.sello) {
-      strapiProductData.data.sello = typeof body.sello === 'number' ? body.sello : parseInt(String(body.sello), 10)
-    }
-    if (body.coleccion) {
-      strapiProductData.data.coleccion = typeof body.coleccion === 'number' ? body.coleccion : parseInt(String(body.coleccion), 10)
-    }
+    // === RELACIONES SIMPLES (documentId) ===
+    if (body.obra) strapiProductData.data.obra = body.obra
+    if (body.autor_relacion) strapiProductData.data.autor_relacion = body.autor_relacion
+    if (body.editorial) strapiProductData.data.editorial = body.editorial
+    if (body.sello) strapiProductData.data.sello = body.sello
+    if (body.coleccion) strapiProductData.data.coleccion = body.coleccion
 
-    // === RELACIONES MANY-TO-MANY (arrays de IDs numéricos) ===
+    // === RELACIONES MÚLTIPLES (array de documentIds) ===
     // CRÍTICO: Los canales son necesarios para sincronizar con WordPress
-    // Según el schema de Strapi, las relaciones manyToMany se envían como arrays de IDs numéricos
-    // Formato: [1, 2] donde 1=Moraleja, 2=Escolar
+    // Según la estructura de Strapi:
+    // - ID 1 = Moraleja (key: "moraleja")
+    // - ID 2 = Escolar (key: "escolar")
+    // Si no se especifican canales, asignar automáticamente ambos (Moraleja y Escolar)
     if (body.canales && Array.isArray(body.canales) && body.canales.length > 0) {
       // Convertir a números si vienen como strings
-      strapiProductData.data.canales = body.canales.map((c: any) => {
-        if (typeof c === 'number') return c
-        if (typeof c === 'string') {
-          const num = parseInt(c, 10)
-          if (!isNaN(num)) return num
-        }
-        return c
-      }).filter((c: any) => typeof c === 'number') // Solo IDs numéricos válidos
+      strapiProductData.data.canales = body.canales.map((c: any) => typeof c === 'string' ? parseInt(c) : c)
       console.log('[API POST] 📡 Canales asignados (desde formulario):', strapiProductData.data.canales)
     } else {
       // ⚠️ ASIGNAR AMBOS CANALES POR DEFECTO
@@ -424,18 +406,14 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Relaciones manyToMany: deben ser arrays de IDs numéricos
     if (body.marcas && Array.isArray(body.marcas) && body.marcas.length > 0) {
-      strapiProductData.data.marcas = body.marcas.map((m: any) => typeof m === 'number' ? m : parseInt(String(m), 10)).filter((m: any) => !isNaN(m))
+      strapiProductData.data.marcas = body.marcas
     }
     if (body.etiquetas && Array.isArray(body.etiquetas) && body.etiquetas.length > 0) {
-      strapiProductData.data.etiquetas = body.etiquetas.map((e: any) => typeof e === 'number' ? e : parseInt(String(e), 10)).filter((e: any) => !isNaN(e))
+      strapiProductData.data.etiquetas = body.etiquetas
     }
     if (body.categorias_producto && Array.isArray(body.categorias_producto) && body.categorias_producto.length > 0) {
-      strapiProductData.data.categorias_producto = body.categorias_producto.map((c: any) => typeof c === 'number' ? c : parseInt(String(c), 10)).filter((c: any) => !isNaN(c))
-    }
-    if (body.libros_relacionados && Array.isArray(body.libros_relacionados) && body.libros_relacionados.length > 0) {
-      strapiProductData.data.libros_relacionados = body.libros_relacionados.map((l: any) => typeof l === 'number' ? l : parseInt(String(l), 10)).filter((l: any) => !isNaN(l))
+      strapiProductData.data.categorias_producto = body.categorias_producto
     }
 
     // === CAMPOS NUMÉRICOS ===
