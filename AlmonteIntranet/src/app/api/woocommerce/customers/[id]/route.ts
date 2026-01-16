@@ -387,7 +387,7 @@ export async function GET(
     
     console.log(`[API GET Customers] 🔍 Obteniendo cliente ${customerId} de plataforma: ${platform || 'woo_escolar (default)'}`)
     
-    const customer = await wcClient.get(`customers/${customerId}`)
+    const customer = await wcClient.get(`customers/${customerId}`) as any
     
     console.log(`[API GET Customers] ✅ Cliente obtenido:`, {
       id: customer.id,
