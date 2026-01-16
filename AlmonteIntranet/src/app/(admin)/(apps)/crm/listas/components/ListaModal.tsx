@@ -215,6 +215,19 @@ export default function ListaModal({ show, onHide, lista, onSuccess }: ListaModa
           }
 
           // Éxito: el PDF se subió al curso
+          // Notificar cambio a otras páginas
+          if (typeof window !== 'undefined') {
+            const cursoId = formData.curso // Usar el ID del curso seleccionado
+            window.dispatchEvent(new CustomEvent('curso-cambiado', {
+              detail: { tipo: lista ? 'editado' : 'creado', cursoId, timestamp: Date.now() }
+            }))
+            localStorage.setItem('curso-cambio-notificacion', JSON.stringify({
+              tipo: lista ? 'editado' : 'creado',
+              cursoId,
+              timestamp: Date.now()
+            }))
+          }
+          
           if (onSuccess) {
             onSuccess()
           } else {
@@ -228,6 +241,19 @@ export default function ListaModal({ show, onHide, lista, onSuccess }: ListaModa
         }
       } else {
         // Si no hay PDF nuevo pero estamos editando, solo recargar
+        // Notificar cambio a otras páginas
+        if (typeof window !== 'undefined' && formData.curso) {
+          const cursoId = formData.curso
+          window.dispatchEvent(new CustomEvent('curso-cambiado', {
+            detail: { tipo: 'editado', cursoId, timestamp: Date.now() }
+          }))
+          localStorage.setItem('curso-cambio-notificacion', JSON.stringify({
+            tipo: 'editado',
+            cursoId,
+            timestamp: Date.now()
+          }))
+        }
+        
         if (onSuccess) {
           onSuccess()
         } else {

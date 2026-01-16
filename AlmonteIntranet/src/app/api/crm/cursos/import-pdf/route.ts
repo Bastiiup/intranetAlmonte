@@ -30,6 +30,8 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     const pdfFile = formData.get('pdf') as File | null
     const cursoId = formData.get('cursoId') as string | null
+    const cursoDocumentId = formData.get('cursoDocumentId') as string | null
+    const cursoIdNum = formData.get('cursoIdNum') as string | null
     const colegioId = formData.get('colegioId') as string | null
 
     if (!pdfFile) {
@@ -64,7 +66,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!cursoId) {
+    if (!cursoId && !cursoDocumentId && !cursoIdNum) {
       return NextResponse.json(
         {
           success: false,
@@ -79,67 +81,42 @@ export async function POST(request: NextRequest) {
       tamaño: pdfFile.size,
       tipo: pdfFile.type,
       cursoId,
+      cursoDocumentId,
+      cursoIdNum,
       colegioId,
       tipoCursoId: typeof cursoId,
     })
 
-    // Determinar si cursoId es un documentId (UUID) o un id numérico
-    const isDocumentId = typeof cursoId === 'string' && !/^\d+$/.test(cursoId)
+    // Determinar qué ID usar (priorizar documentId si está disponible)
+    const idParaBuscar = cursoDocumentId || cursoId || cursoIdNum
+    const isDocumentId = idParaBuscar && typeof idParaBuscar === 'string' && !/^\d+$/.test(idParaBuscar)
     
     let curso: any = null
     let cursoResponse: any = null
     let errorDetalle: string = ''
 
     // Obtener el curso actual para agregar la nueva versión
-    // Manejar tanto documentId como id numérico
-    try {
-      if (isDocumentId) {
-        // Si es documentId, usar filtro
-        debugLog('[API /crm/cursos/import-pdf POST] Buscando curso por documentId:', cursoId)
-        const params = new URLSearchParams({
-          'filters[documentId][$eq]': cursoId,
-          'publicationState': 'preview',
-        })
-        cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-          `/api/cursos?${params.toString()}`
-        )
-        
-        debugLog('[API /crm/cursos/import-pdf POST] Respuesta por documentId:', {
-          tieneData: !!cursoResponse.data,
-          esArray: Array.isArray(cursoResponse.data),
-          length: Array.isArray(cursoResponse.data) ? cursoResponse.data.length : 'N/A',
-        })
-        
-        if (cursoResponse.data && Array.isArray(cursoResponse.data) && cursoResponse.data.length > 0) {
-          curso = cursoResponse.data[0]
-        } else if (cursoResponse.data && !Array.isArray(cursoResponse.data)) {
-          curso = cursoResponse.data
-        } else {
-          errorDetalle = `No se encontró curso con documentId: ${cursoId}`
-        }
-      } else {
-        // Si es id numérico, usar ruta directa
-        debugLog('[API /crm/cursos/import-pdf POST] Buscando curso por id numérico:', cursoId)
-        try {
-          cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-            `/api/cursos/${cursoId}?publicationState=preview`
-          )
-          
-          debugLog('[API /crm/cursos/import-pdf POST] Respuesta por id numérico:', {
-            tieneData: !!cursoResponse.data,
-            esArray: Array.isArray(cursoResponse.data),
-          })
-          
-          if (cursoResponse.data) {
-            curso = Array.isArray(cursoResponse.data) ? cursoResponse.data[0] : cursoResponse.data
-          } else {
-            errorDetalle = `No se encontró curso con id: ${cursoId}`
-          }
-        } catch (idError: any) {
-          // Si falla con id numérico, intentar también con documentId por si acaso
-          debugLog('[API /crm/cursos/import-pdf POST] Falló búsqueda por id, intentando por documentId...')
+    // Manejar tanto documentId como id numérico, con retry mechanism
+    let intentos = 0
+    const maxIntentos = 3
+    const delayEntreIntentos = 1000 // 1 segundo
+    
+    while (intentos < maxIntentos && !curso) {
+      intentos++
+      debugLog(`[API /crm/cursos/import-pdf POST] Intento ${intentos}/${maxIntentos} de buscar curso`)
+      
+      // Si no es el primer intento, esperar un poco
+      if (intentos > 1) {
+        debugLog(`[API /crm/cursos/import-pdf POST] Esperando ${delayEntreIntentos}ms antes del siguiente intento...`)
+        await new Promise(resolve => setTimeout(resolve, delayEntreIntentos))
+      }
+      
+      try {
+        // Intentar primero con documentId si está disponible
+        if (cursoDocumentId) {
+          debugLog('[API /crm/cursos/import-pdf POST] Buscando curso por documentId:', cursoDocumentId)
           const params = new URLSearchParams({
-            'filters[documentId][$eq]': String(cursoId),
+            'filters[documentId][$eq]': cursoDocumentId,
             'publicationState': 'preview',
           })
           cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
@@ -148,40 +125,109 @@ export async function POST(request: NextRequest) {
           
           if (cursoResponse.data && Array.isArray(cursoResponse.data) && cursoResponse.data.length > 0) {
             curso = cursoResponse.data[0]
+            debugLog('[API /crm/cursos/import-pdf POST] ✅ Curso encontrado por documentId')
+            break
           } else if (cursoResponse.data && !Array.isArray(cursoResponse.data)) {
             curso = cursoResponse.data
-          } else {
-            errorDetalle = `No se encontró curso con id/documentId: ${cursoId}. Error original: ${idError.message}`
+            debugLog('[API /crm/cursos/import-pdf POST] ✅ Curso encontrado por documentId (no array)')
+            break
           }
         }
+        
+        // Si no se encontró con documentId, intentar con id numérico
+        if (!curso && cursoIdNum) {
+          debugLog('[API /crm/cursos/import-pdf POST] Buscando curso por id numérico:', cursoIdNum)
+          try {
+            cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+              `/api/cursos/${cursoIdNum}?publicationState=preview`
+            )
+            
+            if (cursoResponse.data) {
+              curso = Array.isArray(cursoResponse.data) ? cursoResponse.data[0] : cursoResponse.data
+              debugLog('[API /crm/cursos/import-pdf POST] ✅ Curso encontrado por id numérico')
+              break
+            }
+          } catch (idError: any) {
+            debugLog('[API /crm/cursos/import-pdf POST] ⚠️ Error al buscar por id numérico:', idError.message)
+          }
+        }
+        
+        // Si aún no se encontró, intentar con el cursoId principal
+        if (!curso && cursoId && cursoId !== cursoDocumentId && cursoId !== cursoIdNum) {
+          const isDocumentId = typeof cursoId === 'string' && !/^\d+$/.test(cursoId)
+          
+          if (isDocumentId) {
+            debugLog('[API /crm/cursos/import-pdf POST] Buscando curso por cursoId (documentId):', cursoId)
+            const params = new URLSearchParams({
+              'filters[documentId][$eq]': cursoId,
+              'publicationState': 'preview',
+            })
+            cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+              `/api/cursos?${params.toString()}`
+            )
+            
+            if (cursoResponse.data && Array.isArray(cursoResponse.data) && cursoResponse.data.length > 0) {
+              curso = cursoResponse.data[0]
+              debugLog('[API /crm/cursos/import-pdf POST] ✅ Curso encontrado por cursoId (documentId)')
+              break
+            }
+          } else {
+            debugLog('[API /crm/cursos/import-pdf POST] Buscando curso por cursoId (numérico):', cursoId)
+            try {
+              cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+                `/api/cursos/${cursoId}?publicationState=preview`
+              )
+              
+              if (cursoResponse.data) {
+                curso = Array.isArray(cursoResponse.data) ? cursoResponse.data[0] : cursoResponse.data
+                debugLog('[API /crm/cursos/import-pdf POST] ✅ Curso encontrado por cursoId (numérico)')
+                break
+              }
+            } catch (idError: any) {
+              debugLog('[API /crm/cursos/import-pdf POST] ⚠️ Error al buscar por cursoId:', idError.message)
+            }
+          }
+        }
+        
+        // Si aún no se encontró después de todos los intentos, preparar mensaje de error
+        if (!curso && intentos >= maxIntentos) {
+          errorDetalle = `No se encontró curso después de ${maxIntentos} intentos. IDs probados: documentId=${cursoDocumentId || 'N/A'}, idNum=${cursoIdNum || 'N/A'}, cursoId=${cursoId || 'N/A'}`
+        }
+      } catch (error: any) {
+        debugLog(`[API /crm/cursos/import-pdf POST] Error en intento ${intentos}:`, {
+          error: error.message,
+          status: error.status,
+        })
+        
+        // Si es el último intento, retornar error
+        if (intentos >= maxIntentos) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Error al buscar curso: ' + (error.message || 'Error desconocido'),
+              detalles: errorDetalle || `cursoId recibido: ${cursoId} (tipo: ${typeof cursoId})`,
+            },
+            { status: 404 }
+          )
+        }
       }
-    } catch (error: any) {
-      debugLog('[API /crm/cursos/import-pdf POST] Error al buscar curso:', {
-        error: error.message,
-        status: error.status,
-        response: error.response?.data || error.data,
-      })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Error al buscar curso: ' + (error.message || 'Error desconocido'),
-          detalles: errorDetalle || `cursoId recibido: ${cursoId} (tipo: ${typeof cursoId})`,
-        },
-        { status: 404 }
-      )
     }
 
     if (!curso || typeof curso !== 'object') {
       debugLog('[API /crm/cursos/import-pdf POST] Curso no encontrado o formato inválido:', {
         curso: curso,
         cursoId,
+        cursoDocumentId,
+        cursoIdNum,
+        idParaBuscar,
         isDocumentId,
+        intentos,
       })
       return NextResponse.json(
         {
           success: false,
           error: 'Curso no encontrado o formato inválido',
-          detalles: errorDetalle || `cursoId recibido: ${cursoId} (tipo: ${typeof cursoId}, isDocumentId: ${isDocumentId})`,
+          detalles: errorDetalle || `IDs probados: documentId=${cursoDocumentId || 'N/A'}, idNum=${cursoIdNum || 'N/A'}, cursoId=${cursoId || 'N/A'} (intentos: ${intentos})`,
         },
         { status: 404 }
       )
@@ -362,19 +408,50 @@ export async function POST(request: NextRequest) {
       activo: updateData.data.activo,
     })
 
-    await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
-      `/api/cursos/${cursoId}`,
+    // Determinar qué ID usar para actualizar (preferir documentId si está disponible)
+    const cursoIdParaActualizar = curso.documentId || curso.id || cursoId
+    
+    debugLog('[API /crm/cursos/import-pdf POST] Actualizando curso con ID:', {
+      cursoIdRecibido: cursoId,
+      cursoIdParaActualizar: cursoIdParaActualizar,
+      cursoDocumentId: curso.documentId,
+      cursoIdNum: curso.id,
+    })
+    
+    const updateResponse = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
+      `/api/cursos/${cursoIdParaActualizar}`,
       updateData
     )
 
-    debugLog('[API /crm/cursos/import-pdf POST] Versión creada exitosamente')
+    debugLog('[API /crm/cursos/import-pdf POST] ✅ Versión creada exitosamente')
+    debugLog('[API /crm/cursos/import-pdf POST] Respuesta de actualización:', {
+      tieneData: !!updateResponse.data,
+      cursoActualizado: updateResponse.data,
+    })
+
+    // Verificar que la actualización fue exitosa
+    if (updateResponse.data) {
+      const cursoActualizado = Array.isArray(updateResponse.data) ? updateResponse.data[0] : updateResponse.data
+      const attrsActualizados = cursoActualizado?.attributes || cursoActualizado
+      const versionesActualizadas = attrsActualizados?.versiones_materiales || []
+      
+      debugLog('[API /crm/cursos/import-pdf POST] Verificando versiones guardadas:', {
+        cantidadVersiones: versionesActualizadas.length,
+        versiones: versionesActualizadas,
+      })
+      
+      if (versionesActualizadas.length === 0) {
+        console.warn('[API /crm/cursos/import-pdf POST] ⚠️ ADVERTENCIA: El curso se actualizó pero no se guardaron las versiones')
+      }
+    }
 
     return NextResponse.json({
       success: true,
       message: `PDF "${pdfFile.name}" subido correctamente como nueva versión.`,
       data: {
         version: nuevaVersion,
-        cursoId,
+        cursoId: cursoIdParaActualizar,
+        versionesCount: versionesActualizadas.length,
       },
     }, { status: 200 })
   } catch (error: any) {
