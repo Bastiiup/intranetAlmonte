@@ -1223,17 +1223,18 @@ export default function ColegioDetailPage() {
           setCursoAEliminar(null)
         }}
         onConfirm={handleEliminarCurso}
-        title="Eliminar Curso"
-        message={
-          cursoAEliminar
-            ? `¿Está seguro de que desea eliminar el curso "${cursoAEliminar.attributes?.nombre_curso || cursoAEliminar.attributes?.curso_nombre || 'Sin nombre'}"? Esta acción también eliminará todas las listas de útiles asociadas y no se puede deshacer.`
-            : '¿Está seguro de que desea eliminar este curso?'
-        }
-        confirmText="Eliminar"
-        cancelText="Cancelar"
-        variant="danger"
+        selectedCount={1}
+        itemName="curso"
+        modalTitle="Eliminar Curso"
+        confirmButtonText="Eliminar"
+        cancelButtonText="Cancelar"
+        confirmButtonVariant="danger"
         loading={eliminando}
-      />
+      >
+        {cursoAEliminar
+          ? `¿Está seguro de que desea eliminar el curso "${cursoAEliminar.attributes?.nombre_curso || cursoAEliminar.attributes?.curso_nombre || 'Sin nombre'}"? Esta acción también eliminará todas las listas de útiles asociadas y no se puede deshacer.`
+          : '¿Está seguro de que desea eliminar este curso?'}
+      </DeleteConfirmationModal>
     </Container>
   )
 }

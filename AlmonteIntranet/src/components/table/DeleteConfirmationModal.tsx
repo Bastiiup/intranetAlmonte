@@ -13,6 +13,8 @@ type DeleteConfirmationModalProps = {
   confirmButtonText?: string
   cancelButtonText?: string
   children?: ReactNode
+  loading?: boolean
+  disabled?: boolean
 }
 
 const DeleteConfirmationModal = ({
@@ -27,6 +29,8 @@ const DeleteConfirmationModal = ({
   confirmButtonText = 'Delete',
   cancelButtonText = 'Cancel',
   children,
+  loading = false,
+  disabled = false,
 }: DeleteConfirmationModalProps) => {
   const getConfirmationMessage = () => {
     if (children) return children
@@ -44,11 +48,19 @@ const DeleteConfirmationModal = ({
       </ModalHeader>
       <ModalBody>{getConfirmationMessage()}</ModalBody>
       <ModalFooter>
-        <Button variant={cancelButtonVariant} onClick={onHide}>
+        <Button 
+          variant={cancelButtonVariant} 
+          onClick={onHide}
+          disabled={loading || disabled}
+        >
           {cancelButtonText}
         </Button>
-        <Button variant={confirmButtonVariant} onClick={onConfirm}>
-          {confirmButtonText}
+        <Button 
+          variant={confirmButtonVariant} 
+          onClick={onConfirm}
+          disabled={loading || disabled}
+        >
+          {loading ? 'Eliminando...' : confirmButtonText}
         </Button>
       </ModalFooter>
     </Modal>
