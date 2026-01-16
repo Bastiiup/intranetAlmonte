@@ -489,7 +489,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
             )
             
             if (eliminadosAunPresentes.length > 0) {
-              console.warn('[ListasListing] ⚠️ ADVERTENCIA: Algunos cursos eliminados aún aparecen en la respuesta:', eliminadosAunPresentes.map(l => l.id))
+              console.warn('[ListasListing] ⚠️ ADVERTENCIA: Algunos cursos eliminados aún aparecen en la respuesta:', eliminadosAunPresentes.map((l: ListaType) => l.id))
             }
             
             // Actualizar estado con los nuevos datos
