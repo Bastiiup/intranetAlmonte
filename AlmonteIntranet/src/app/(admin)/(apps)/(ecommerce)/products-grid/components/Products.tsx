@@ -85,6 +85,7 @@ interface Producto {
 interface ProductsProps {
   productos: Producto[]
   error: string | null
+  onProductSelect?: (productId: string) => void
 }
 
 // Helper para obtener un campo con múltiples variaciones de nombre
@@ -97,7 +98,7 @@ const getField = (obj: any, ...fieldNames: string[]): any => {
   return undefined
 }
 
-const Products = ({ productos, error }: ProductsProps) => {
+const Products = ({ productos, error, onProductSelect }: ProductsProps) => {
   // Obtener URL de imagen (manejar datos directos o en attributes)
   const getImageUrl = (producto: Producto): string | null => {
     // Los datos pueden venir directamente (sin attributes) o en attributes
