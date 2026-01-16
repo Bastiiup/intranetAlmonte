@@ -475,11 +475,11 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
             } as ListaType))
             
             console.log('[ListasListing] ✅ Datos recargados desde API:', nuevasListas.length, 'cursos')
-            console.log('[ListasListing] IDs en nuevos datos:', nuevasListas.map(l => l.id))
-            console.log('[ListasListing] IDs eliminados que NO deberían aparecer:', successful.map(r => r.id))
+            console.log('[ListasListing] IDs en nuevos datos:', nuevasListas.map((l: ListaType) => l.id))
+            console.log('[ListasListing] IDs eliminados que NO deberían aparecer:', successful.map((r: any) => r.id))
             
             // Verificar que los eliminados no estén en los nuevos datos
-            const eliminadosAunPresentes = nuevasListas.filter(l => 
+            const eliminadosAunPresentes = nuevasListas.filter((l: ListaType) => 
               successful.some(r => 
                 r.id === l.id || 
                 r.id === l.documentId || 
