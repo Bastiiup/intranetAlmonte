@@ -119,6 +119,14 @@ export const menuItems: MenuItemType[] = [
       { key: 'listas-listing', label: 'Todas las Listas', url: '/crm/listas' },
     ],
   },
+  {
+    key: 'etiquetas-qr',
+    label: 'Etiquetas QR',
+    icon: LuSparkles,
+    children: [
+      { key: 'qr-listing', label: 'Listado de QR', url: '/comercial/etiquetas-qr' },
+    ],
+  },
   // { key: 'atencion-clientes', label: 'ATENCIÓN CLIENTES', isTitle: true },
   // {
   //   key: 'support-center',
