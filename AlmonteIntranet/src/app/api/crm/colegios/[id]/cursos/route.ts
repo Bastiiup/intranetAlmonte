@@ -172,25 +172,53 @@ export async function POST(
 
     debugLog('[API /crm/colegios/[id]/cursos POST] Creando curso para colegio:', colegioId)
 
-    // Obtener el ID numérico del colegio
+    // Obtener el ID numérico del colegio (Strapi requiere ID numérico para relaciones manyToOne)
     const isDocumentId = typeof colegioId === 'string' && !/^\d+$/.test(colegioId)
-    let colegioIdNum: number | string = colegioId
+    let colegioIdNum: number | null = null
 
     if (isDocumentId) {
       try {
+        debugLog('[API /crm/colegios/[id]/cursos POST] Obteniendo ID numérico del colegio con documentId:', colegioId)
         const colegioResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-          `/api/colegios/${colegioId}?fields=id`
+          `/api/colegios/${colegioId}?fields=id,documentId&publicationState=preview`
         )
         const colegioData = Array.isArray(colegioResponse.data) ? colegioResponse.data[0] : colegioResponse.data
-        if (colegioData && typeof colegioData === 'object' && 'id' in colegioData) {
-          colegioIdNum = colegioData.id as number
+        const colegioAttrs = colegioData?.attributes || colegioData
+        
+        if (colegioData && colegioAttrs) {
+          colegioIdNum = colegioData.id || colegioAttrs.id || null
+          debugLog('[API /crm/colegios/[id]/cursos POST] ID numérico obtenido:', colegioIdNum)
+          
+          if (!colegioIdNum) {
+            throw new Error('No se pudo obtener el ID numérico del colegio')
+          }
+        } else {
+          throw new Error('Colegio no encontrado en la respuesta')
         }
       } catch (error: any) {
+        debugLog('[API /crm/colegios/[id]/cursos POST] ❌ Error obteniendo ID del colegio:', error)
         return NextResponse.json(
-          { success: false, error: 'Colegio no encontrado' },
+          { success: false, error: `Colegio no encontrado: ${error.message}` },
           { status: 404 }
         )
       }
+    } else {
+      // Si es un número, usarlo directamente
+      colegioIdNum = typeof colegioId === 'number' ? colegioId : parseInt(String(colegioId))
+      if (isNaN(colegioIdNum)) {
+        return NextResponse.json(
+          { success: false, error: 'ID de colegio inválido' },
+          { status: 400 }
+        )
+      }
+      debugLog('[API /crm/colegios/[id]/cursos POST] Usando ID numérico directamente:', colegioIdNum)
+    }
+
+    if (!colegioIdNum) {
+      return NextResponse.json(
+        { success: false, error: 'No se pudo determinar el ID del colegio' },
+        { status: 400 }
+      )
     }
 
     // Validaciones
@@ -228,12 +256,31 @@ export async function POST(
       )
     }
 
+    // Asegurar que colegioIdNum sea un número
+    const colegioIdFinal = typeof colegioIdNum === 'number' ? colegioIdNum : parseInt(String(colegioIdNum))
+    
+    if (isNaN(colegioIdFinal)) {
+      return NextResponse.json(
+        { success: false, error: 'ID de colegio inválido para crear el curso' },
+        { status: 400 }
+      )
+    }
+
+    debugLog('[API /crm/colegios/[id]/cursos POST] Creando curso con datos:', {
+      nombre_curso: nombreCurso,
+      colegioId: colegioIdFinal,
+      nivel: body.nivel,
+      grado: body.grado,
+      año: año,
+      paralelo: body.paralelo,
+    })
+
     const cursoData: any = {
       data: {
         nombre_curso: nombreCurso, // ✅ Campo correcto en Strapi
-        colegio: { connect: [typeof colegioIdNum === 'number' ? colegioIdNum : parseInt(String(colegioIdNum))] },
+        colegio: { connect: [colegioIdFinal] }, // ✅ Usar ID numérico para relación manyToOne
         nivel: body.nivel,
-        grado: body.grado,
+        grado: String(body.grado), // ✅ grado debe ser string según schema de Strapi
         año: año, // Campo ya configurado en Strapi
         ...(body.paralelo && { paralelo: body.paralelo }),
         ...(body.activo !== undefined && { activo: body.activo !== false }),
@@ -271,16 +318,36 @@ export async function POST(
       }
     })
 
+    debugLog('[API /crm/colegios/[id]/cursos POST] Enviando datos a Strapi:', {
+      url: '/api/cursos',
+      payload: JSON.stringify(cursoData, null, 2),
+    })
+
     const response = await strapiClient.post<StrapiResponse<StrapiEntity<CursoAttributes>>>(
       '/api/cursos',
       cursoData
     )
 
-    debugLog('[API /crm/colegios/[id]/cursos POST] Curso creado exitosamente')
+    debugLog('[API /crm/colegios/[id]/cursos POST] Respuesta de Strapi:', {
+      tieneData: !!response.data,
+      dataType: typeof response.data,
+      esArray: Array.isArray(response.data),
+      dataKeys: response.data ? Object.keys(response.data) : [],
+    })
+
+    // Extraer el curso creado de la respuesta
+    const cursoCreado = Array.isArray(response.data) ? response.data[0] : response.data
+    const cursoAttrs = cursoCreado?.attributes || cursoCreado
+    
+    debugLog('[API /crm/colegios/[id]/cursos POST] Curso creado:', {
+      id: cursoCreado?.id,
+      documentId: cursoCreado?.documentId,
+      nombre: cursoAttrs?.nombre_curso,
+    })
 
     return NextResponse.json({
       success: true,
-      data: response.data,
+      data: cursoCreado || response.data,
       message: 'Curso creado exitosamente',
     }, { status: 200 })
   } catch (error: any) {
@@ -288,12 +355,29 @@ export async function POST(
       message: error.message,
       status: error.status,
       details: error.details,
+      stack: error.stack,
     })
+    
+    // Intentar extraer más información del error
+    let errorMessage = error.message || 'Error al crear curso'
+    let errorDetails = error.details || {}
+    
+    // Si el error tiene más información, incluirla
+    if (error.response) {
+      try {
+        const errorData = typeof error.response === 'string' ? JSON.parse(error.response) : error.response
+        errorMessage = errorData.error?.message || errorData.message || errorMessage
+        errorDetails = errorData.error?.details || errorData.details || errorDetails
+      } catch {
+        // Si no se puede parsear, usar el mensaje original
+      }
+    }
+    
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Error al crear curso',
-        details: error.details || {},
+        error: errorMessage,
+        details: errorDetails,
         status: error.status || 500,
       },
       { status: error.status || 500 }

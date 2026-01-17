@@ -8,6 +8,8 @@
 // Core files
 @import "bootstrap/scss/functions";
 @import "bootstrap/scss/variables";
+// Importar variables-dark DESPUÉS de variables porque necesita las variables definidas ($primary, etc.)
+@import "bootstrap/scss/variables-dark";
 
 @import "variables";
 @import "variables-dark"; // Necesario para que maps.scss tenga las variables dark definidas

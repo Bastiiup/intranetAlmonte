@@ -29,6 +29,8 @@ export async function GET(request: NextRequest) {
     const nivel = searchParams.get('nivel')
     const grado = searchParams.get('grado')
     const año = searchParams.get('año') || searchParams.get('ano')
+    // Ignorar parámetro 't' que se usa para evitar caché
+    const _ = searchParams.get('t')
 
     debugLog('[API /crm/listas GET] Obteniendo cursos con PDFs...')
 
@@ -69,20 +71,73 @@ export async function GET(request: NextRequest) {
 
     debugLog('[API /crm/listas GET] Query:', queryString)
 
-    const response = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
-      `/api/cursos${queryString}`
-    )
+    // Agregar timestamp para evitar caché en Strapi
+    const cacheBuster = queryString.includes('?') ? `&_t=${Date.now()}` : `?_t=${Date.now()}`
+    const finalQuery = `${queryString}${cacheBuster}`
+
+    let response: any
+    try {
+      response = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
+        `/api/cursos${finalQuery}`
+      )
+    } catch (strapiError: any) {
+      debugLog('[API /crm/listas GET] ❌ Error al obtener cursos de Strapi:', {
+        error: strapiError.message,
+        status: strapiError.status,
+        response: strapiError.response?.data || strapiError.data,
+      })
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Error al obtener cursos de Strapi: ${strapiError.message || 'Error desconocido'}`,
+          details: strapiError.response?.data || strapiError.data,
+        },
+        { status: strapiError.status || 500 }
+      )
+    }
+
+    if (!response || !response.data) {
+      debugLog('[API /crm/listas GET] ⚠️ Respuesta vacía de Strapi')
+      return NextResponse.json({
+        success: true,
+        data: [],
+        count: 0,
+      }, { status: 200 })
+    }
 
     const cursos = Array.isArray(response.data) ? response.data : [response.data]
+    
+    debugLog('[API /crm/listas GET] Total de cursos obtenidos de Strapi:', cursos.length)
+    debugLog('[API /crm/listas GET] IDs de cursos obtenidos:', cursos.map((c: any) => c.id || c.documentId))
 
     // Filtrar solo los cursos que tienen al menos una versión de materiales (PDF)
+    // También verificar que el curso tenga un ID válido (los eliminados pueden no tenerlo)
     const cursosConPDFs = cursos.filter((curso: any) => {
+      // Verificar que el curso tenga un ID válido
+      if (!curso.id && !curso.documentId) {
+        debugLog('[API /crm/listas GET] Curso sin ID válido filtrado:', curso)
+        return false
+      }
+      
       const attrs = curso.attributes || curso
       const versiones = attrs.versiones_materiales || []
-      return Array.isArray(versiones) && versiones.length > 0
+      
+      const tienePDFs = Array.isArray(versiones) && versiones.length > 0
+      
+      // Solo loggear cursos CON PDFs para reducir ruido
+      if (tienePDFs) {
+        debugLog('[API /crm/listas GET] ✅ Curso CON PDFs:', {
+          id: curso.id || curso.documentId,
+          nombre: attrs.nombre_curso,
+          cantidadVersiones: versiones.length,
+        })
+      }
+      
+      return tienePDFs
     })
 
     debugLog('[API /crm/listas GET] ✅ Cursos con PDFs encontrados:', cursosConPDFs.length)
+    debugLog('[API /crm/listas GET] IDs de cursos con PDFs:', cursosConPDFs.map((c: any) => c.id || c.documentId))
 
     // Transformar a formato de "lista" para el frontend
     const listas = cursosConPDFs.map((curso: any) => {

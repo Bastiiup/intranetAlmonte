@@ -428,7 +428,7 @@ const ProductsListing = ({ productos, error, onProductSelect, onSwitchToGrid }: 
   const [globalFilter, setGlobalFilter] = useState('')
   // ✅ Ordenar por fecha descendente por defecto (más nuevo primero)
   const [sorting, setSorting] = useState<SortingState>([
-    { id: 'createdAtTimestamp', desc: true } // Ordenar por timestamp descendente (más nuevo primero)
+    { id: 'date', desc: true } // Ordenar por fecha descendente (más nuevo primero) - usar 'date' que es el ID de la columna
   ])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })

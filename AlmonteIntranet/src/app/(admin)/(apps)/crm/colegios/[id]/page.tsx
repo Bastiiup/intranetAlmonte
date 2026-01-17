@@ -7,6 +7,7 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { LuMapPin, LuPhone, LuMail, LuGlobe, LuUsers, LuPencil, LuArrowLeft, LuPackage, LuGraduationCap, LuDownload, LuEye, LuTrash2 } from 'react-icons/lu'
 import Link from 'next/link'
 import CursoModal from './components/CursoModal'
+import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import { exportarMaterialesAExcel } from '@/helpers/excel'
 
 // Helper para logs condicionales de debugging (cliente)
@@ -127,6 +128,9 @@ export default function ColegioDetailPage() {
   const [cursoSeleccionado, setCursoSeleccionado] = useState<any>(null)
   const [añoFiltro, setAñoFiltro] = useState<number | null>(null) // Filtro de año para cursos
   const [listasUtilesCount, setListasUtilesCount] = useState(0)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [cursoAEliminar, setCursoAEliminar] = useState<any>(null)
+  const [eliminando, setEliminando] = useState(false)
 
   useEffect(() => {
     const fetchColegio = async () => {
@@ -239,45 +243,147 @@ export default function ColegioDetailPage() {
   }, [colegioId])
 
 
-  useEffect(() => {
-    const fetchCursos = async () => {
-      if (!colegioId) return
-      setLoadingCursos(true)
-      try {
-        const response = await fetch(`/api/crm/colegios/${colegioId}/cursos`)
-        const result = await response.json()
-        if (response.ok && result.success) {
-          const cursosData = Array.isArray(result.data) ? result.data : [result.data]
-          setCursos(cursosData)
-          
-          // Contar listas de útiles únicas
-          const listasUtilesSet = new Set<string>()
-          cursosData.forEach((curso: any) => {
-            const attrs = curso.attributes || curso
-            const listaId = attrs.lista_utiles?.data?.id || 
-                           attrs.lista_utiles?.id || 
-                           attrs.lista_utiles?.data?.documentId ||
-                           attrs.lista_utiles?.documentId
-            if (listaId) {
-              listasUtilesSet.add(String(listaId))
-            }
-          })
-          setListasUtilesCount(listasUtilesSet.size)
-        }
-      } catch (err: any) {
-        console.error('Error al cargar cursos:', err)
-      } finally {
-        setLoadingCursos(false)
+  // Función para recargar cursos (reutilizable)
+  const recargarCursosDesdeAPI = async () => {
+    if (!colegioId) return
+    setLoadingCursos(true)
+    try {
+      // Agregar timestamp para evitar caché
+      const timestamp = Date.now()
+      const response = await fetch(`/api/crm/colegios/${colegioId}/cursos?_t=${timestamp}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+        },
+      })
+      const result = await response.json()
+      if (response.ok && result.success) {
+        const cursosData = Array.isArray(result.data) ? result.data : [result.data]
+        
+        // Filtrar cursos que tengan un ID válido (los eliminados pueden no tenerlo)
+        const cursosValidos = cursosData.filter((curso: any) => {
+          return curso.id || curso.documentId || (curso.attributes && (curso.attributes.id || curso.attributes.documentId))
+        })
+        
+        debugLog('[ColegioDetailPage] Cursos cargados:', {
+          total: cursosData.length,
+          validos: cursosValidos.length,
+          ids: cursosValidos.map((c: any) => c.id || c.documentId),
+        })
+        
+        setCursos(cursosValidos)
+        
+        // Contar listas de útiles únicas
+        const listasUtilesSet = new Set<string>()
+        cursosValidos.forEach((curso: any) => {
+          const attrs = curso.attributes || curso
+          const listaId = attrs.lista_utiles?.data?.id || 
+                         attrs.lista_utiles?.id || 
+                         attrs.lista_utiles?.data?.documentId ||
+                         attrs.lista_utiles?.documentId
+          if (listaId) {
+            listasUtilesSet.add(String(listaId))
+          }
+        })
+        setListasUtilesCount(listasUtilesSet.size)
       }
+    } catch (err: any) {
+      console.error('Error al cargar cursos:', err)
+    } finally {
+      setLoadingCursos(false)
     }
+  }
+
+  useEffect(() => {
     if (colegioId) {
-      fetchCursos()
+      recargarCursosDesdeAPI()
       if (activeTab !== 'cursos') {
         // Resetear filtro de año cuando se cambia de tab
         setAñoFiltro(null)
       }
     }
+  }, [colegioId]) // Solo recargar cuando cambia el colegioId, no cuando cambia el tab
+  
+  // Recargar cuando se cambia al tab de cursos (con delay para evitar recargas múltiples)
+  useEffect(() => {
+    if (colegioId && activeTab === 'cursos') {
+      const timeoutId = setTimeout(() => {
+        debugLog('[ColegioDetailPage] Cambió al tab de cursos, recargando...')
+        recargarCursosDesdeAPI()
+      }, 300) // Pequeño delay para evitar recargas múltiples
+      
+      return () => clearTimeout(timeoutId)
+    }
+  }, [activeTab]) // Solo cuando cambia el tab
+  
+  // Agregar listener para recargar cursos cuando se vuelve a la página
+  useEffect(() => {
+    const handleFocus = () => {
+      // Cuando la ventana recupera el foco, recargar cursos si estamos en el tab de cursos
+      if (colegioId && activeTab === 'cursos') {
+        debugLog('[ColegioDetailPage] Ventana recuperó foco, recargando cursos...')
+        recargarCursosDesdeAPI()
+      }
+    }
+    
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
   }, [colegioId, activeTab])
+
+  // Función para notificar cambios a otras páginas
+  const notificarCambio = (tipo: 'eliminado' | 'creado' | 'editado', cursoId?: string | number) => {
+    // Usar CustomEvent para notificar a otras pestañas/ventanas
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('curso-cambiado', {
+        detail: { tipo, cursoId, timestamp: Date.now() }
+      }))
+      
+      // También usar localStorage como backup
+      localStorage.setItem('curso-cambio-notificacion', JSON.stringify({
+        tipo,
+        cursoId,
+        timestamp: Date.now()
+      }))
+    }
+  }
+
+  // Listener para cambios desde otras páginas
+  useEffect(() => {
+    const handleCambioCurso = (event: any) => {
+      debugLog('[ColegioDetailPage] 🔔 Cambio detectado desde otra página:', event.detail)
+      // Recargar cursos si estamos en el tab de cursos
+      if (activeTab === 'cursos') {
+        setTimeout(() => {
+          recargarCursosDesdeAPI()
+        }, 500)
+      }
+    }
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'curso-cambio-notificacion' && e.newValue) {
+        try {
+          const cambio = JSON.parse(e.newValue)
+          debugLog('[ColegioDetailPage] 🔔 Cambio detectado desde localStorage:', cambio)
+          if (activeTab === 'cursos') {
+            setTimeout(() => {
+              recargarCursosDesdeAPI()
+            }, 500)
+          }
+        } catch (err) {
+          console.error('[ColegioDetailPage] Error al parsear notificación:', err)
+        }
+      }
+    }
+
+    window.addEventListener('curso-cambiado', handleCambioCurso)
+    window.addEventListener('storage', handleStorageChange)
+
+    return () => {
+      window.removeEventListener('curso-cambiado', handleCambioCurso)
+      window.removeEventListener('storage', handleStorageChange)
+    }
+  }, [activeTab])
 
   // Función helper para extraer el año de un curso desde Strapi
   const obtenerAñoDelCurso = (curso: any): number => {
@@ -594,6 +700,108 @@ export default function ColegioDetailPage() {
   )
 
 
+  const recargarCursos = async () => {
+    if (!colegioId) return
+    setLoadingCursos(true)
+    try {
+      const timestamp = Date.now()
+      const response = await fetch(`/api/crm/colegios/${colegioId}/cursos?_t=${timestamp}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+        },
+      })
+      const result = await response.json()
+      if (response.ok && result.success) {
+        const cursosData = Array.isArray(result.data) ? result.data : [result.data]
+        const cursosValidos = cursosData.filter((curso: any) => {
+          return curso.id || curso.documentId || (curso.attributes && (curso.attributes.id || curso.attributes.documentId))
+        })
+        setCursos(cursosValidos)
+        
+        // Actualizar contador de listas
+        const listasUtilesSet = new Set<string>()
+        cursosValidos.forEach((curso: any) => {
+          const attrs = curso.attributes || curso
+          const listaId = attrs.lista_utiles?.data?.id || 
+                         attrs.lista_utiles?.id || 
+                         attrs.lista_utiles?.data?.documentId ||
+                         attrs.lista_utiles?.documentId
+          if (listaId) {
+            listasUtilesSet.add(String(listaId))
+          }
+        })
+        setListasUtilesCount(listasUtilesSet.size)
+        debugLog('[ColegioDetailPage] ✅ Cursos recargados:', cursosValidos.length)
+      }
+    } catch (err: any) {
+      console.error('Error al recargar cursos:', err)
+    } finally {
+      setLoadingCursos(false)
+    }
+  }
+
+  const handleEliminarCurso = async () => {
+    if (!cursoAEliminar) return
+
+    setEliminando(true)
+    try {
+      // Obtener el ID del curso (documentId o id numérico)
+      const cursoId = cursoAEliminar.documentId || cursoAEliminar.id || 
+                     (cursoAEliminar.attributes && (cursoAEliminar.attributes.documentId || cursoAEliminar.attributes.id))
+      
+      if (!cursoId) {
+        alert('Error: No se pudo obtener el ID del curso')
+        setShowDeleteModal(false)
+        setCursoAEliminar(null)
+        return
+      }
+
+      debugLog('[ColegioDetailPage] Eliminando curso:', cursoId)
+
+      const response = await fetch(`/api/crm/listas/${cursoId}`, {
+        method: 'DELETE',
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+        },
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        debugLog('[ColegioDetailPage] ✅ Curso eliminado exitosamente')
+        
+        // Notificar cambio a otras páginas
+        notificarCambio('eliminado', cursoId)
+        
+        // Esperar un momento para que Strapi procese la eliminación
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
+        // Recargar cursos
+        await recargarCursos()
+        
+        alert('Curso eliminado exitosamente')
+      } else {
+        throw new Error(result.error || 'Error desconocido al eliminar')
+      }
+    } catch (error: any) {
+      console.error('[ColegioDetailPage] Error al eliminar curso:', error)
+      alert('Error al eliminar curso: ' + (error.message || 'Error desconocido'))
+    } finally {
+      setEliminando(false)
+      setShowDeleteModal(false)
+      setCursoAEliminar(null)
+    }
+  }
+
   const renderCursosTab = () => (
     <Card>
       <CardHeader>
@@ -625,17 +833,28 @@ export default function ColegioDetailPage() {
               </FormGroup>
             )}
           </div>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => {
-              setCursoSeleccionado(null)
-              setShowCursoModal(true)
-            }}
-          >
-            <LuGraduationCap className="me-1" />
-            Agregar Curso
-          </Button>
+          <div className="d-flex gap-2">
+            <Button
+              variant="outline-secondary"
+              size="sm"
+              onClick={recargarCursos}
+              disabled={loadingCursos}
+            >
+              <LuArrowLeft className="me-1" style={{ transform: 'rotate(180deg)' }} />
+              {loadingCursos ? 'Recargando...' : 'Recargar'}
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                setCursoSeleccionado(null)
+                setShowCursoModal(true)
+              }}
+            >
+              <LuGraduationCap className="me-1" />
+              Agregar Curso
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardBody>
@@ -831,6 +1050,18 @@ export default function ColegioDetailPage() {
                                       >
                                         <LuPencil size={18} />
                                       </Button>
+                                      <Button
+                                        variant="link"
+                                        size="sm"
+                                        className="p-1 text-danger"
+                                        onClick={() => {
+                                          setCursoAEliminar(curso)
+                                          setShowDeleteModal(true)
+                                        }}
+                                        title="Eliminar curso"
+                                      >
+                                        <LuTrash2 size={18} />
+                                      </Button>
                                     </div>
                                   </td>
                                 </tr>
@@ -971,21 +1202,39 @@ export default function ColegioDetailPage() {
         }}
         colegioId={colegioId}
         curso={cursoSeleccionado}
-        onSuccess={() => {
-          // Recargar cursos
+        onSuccess={(cursoCreado?: any) => {
+          // Notificar cambio
+          const cursoId = cursoCreado?.id || cursoCreado?.documentId
+          notificarCambio(cursoSeleccionado ? 'editado' : 'creado', cursoId)
+          
+          // Recargar cursos usando la función helper
           if (colegioId && activeTab === 'cursos') {
-            fetch(`/api/crm/colegios/${colegioId}/cursos`)
-              .then((res) => res.json())
-              .then((result) => {
-                if (result.success) {
-                  const cursosData = Array.isArray(result.data) ? result.data : [result.data]
-                  setCursos(cursosData)
-                }
-              })
-              .catch((err) => console.error('Error al recargar cursos:', err))
+            setTimeout(() => {
+              recargarCursos()
+            }, 500)
           }
         }}
       />
+
+      <DeleteConfirmationModal
+        show={showDeleteModal}
+        onHide={() => {
+          setShowDeleteModal(false)
+          setCursoAEliminar(null)
+        }}
+        onConfirm={handleEliminarCurso}
+        selectedCount={1}
+        itemName="curso"
+        modalTitle="Eliminar Curso"
+        confirmButtonText="Eliminar"
+        cancelButtonText="Cancelar"
+        confirmButtonVariant="danger"
+        loading={eliminando}
+      >
+        {cursoAEliminar
+          ? `¿Está seguro de que desea eliminar el curso "${cursoAEliminar.attributes?.nombre_curso || cursoAEliminar.attributes?.curso_nombre || 'Sin nombre'}"? Esta acción también eliminará todas las listas de útiles asociadas y no se puede deshacer.`
+          : '¿Está seguro de que desea eliminar este curso?'}
+      </DeleteConfirmationModal>
     </Container>
   )
 }
