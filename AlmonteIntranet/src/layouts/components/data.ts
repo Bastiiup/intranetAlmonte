@@ -42,6 +42,7 @@ import {
   LuPanelTop,
   LuPencilRuler,
   LuProportions,
+  LuQrCode,
   LuReceiptText,
   LuRss,
   LuShieldAlert,
@@ -118,6 +119,14 @@ export const menuItems: MenuItemType[] = [
     icon: LuFileText,
     children: [
       { key: 'listas-listing', label: 'Todas las Listas', url: '/crm/listas' },
+    ],
+  },
+  {
+    key: 'etiquetas-qr',
+    label: 'Etiquetas QR',
+    icon: LuQrCode,
+    children: [
+      { key: 'qr-listing', label: 'Listado de PDFs', url: '/comercial/etiquetas-qr' },
     ],
   },
   // { key: 'atencion-clientes', label: 'ATENCIÓN CLIENTES', isTitle: true },

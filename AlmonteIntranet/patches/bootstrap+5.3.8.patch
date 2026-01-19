@@ -1,0 +1,136 @@
+diff --git a/node_modules/bootstrap/scss/_forms.scss b/node_modules/bootstrap/scss/_forms.scss
+index 7b17d84..afd15fd 100644
+--- a/node_modules/bootstrap/scss/_forms.scss
++++ b/node_modules/bootstrap/scss/_forms.scss
+@@ -1,9 +1,9 @@
+-@import "forms/labels";
+-@import "forms/form-text";
+-@import "forms/form-control";
+-@import "forms/form-select";
+-@import "forms/form-check";
+-@import "forms/form-range";
+-@import "forms/floating-labels";
+-@import "forms/input-group";
+-@import "forms/validation";
++@import "bootstrap/scss/forms/labels";
++@import "bootstrap/scss/forms/form-text";
++@import "bootstrap/scss/forms/form-control";
++@import "bootstrap/scss/forms/form-select";
++@import "bootstrap/scss/forms/form-check";
++@import "bootstrap/scss/forms/form-range";
++@import "bootstrap/scss/forms/floating-labels";
++@import "bootstrap/scss/forms/input-group";
++@import "bootstrap/scss/forms/validation";
+diff --git a/node_modules/bootstrap/scss/_helpers.scss b/node_modules/bootstrap/scss/_helpers.scss
+index 13f2752..c7b3df9 100644
+--- a/node_modules/bootstrap/scss/_helpers.scss
++++ b/node_modules/bootstrap/scss/_helpers.scss
+@@ -1,12 +1,12 @@
+-@import "helpers/clearfix";
+-@import "helpers/color-bg";
+-@import "helpers/colored-links";
+-@import "helpers/focus-ring";
+-@import "helpers/icon-link";
+-@import "helpers/ratio";
+-@import "helpers/position";
+-@import "helpers/stacks";
+-@import "helpers/visually-hidden";
+-@import "helpers/stretched-link";
+-@import "helpers/text-truncation";
+-@import "helpers/vr";
++@import "bootstrap/scss/helpers/clearfix";
++@import "bootstrap/scss/helpers/color-bg";
++@import "bootstrap/scss/helpers/colored-links";
++@import "bootstrap/scss/helpers/focus-ring";
++@import "bootstrap/scss/helpers/icon-link";
++@import "bootstrap/scss/helpers/ratio";
++@import "bootstrap/scss/helpers/position";
++@import "bootstrap/scss/helpers/stacks";
++@import "bootstrap/scss/helpers/visually-hidden";
++@import "bootstrap/scss/helpers/stretched-link";
++@import "bootstrap/scss/helpers/text-truncation";
++@import "bootstrap/scss/helpers/vr";
+diff --git a/node_modules/bootstrap/scss/_mixins.scss b/node_modules/bootstrap/scss/_mixins.scss
+index e1e130b..30714ae 100644
+--- a/node_modules/bootstrap/scss/_mixins.scss
++++ b/node_modules/bootstrap/scss/_mixins.scss
+@@ -3,40 +3,42 @@
+ // Used in conjunction with global variables to enable certain theme features.
+ 
+ // Vendor
+-@import "vendor/rfs";
++// Comentado temporalmente para evitar error de resolución en Next.js/Turbopack
++// El archivo vendor/rfs ya se importa antes en app.scss
++// @import "vendor/rfs";
+ 
+ // Deprecate
+-@import "mixins/deprecate";
++@import "bootstrap/scss/mixins/deprecate";
+ 
+ // Helpers
+-@import "mixins/breakpoints";
+-@import "mixins/color-mode";
+-@import "mixins/color-scheme";
+-@import "mixins/image";
+-@import "mixins/resize";
+-@import "mixins/visually-hidden";
+-@import "mixins/reset-text";
+-@import "mixins/text-truncate";
++@import "bootstrap/scss/mixins/breakpoints";
++@import "bootstrap/scss/mixins/color-mode";
++@import "bootstrap/scss/mixins/color-scheme";
++@import "bootstrap/scss/mixins/image";
++@import "bootstrap/scss/mixins/resize";
++@import "bootstrap/scss/mixins/visually-hidden";
++@import "bootstrap/scss/mixins/reset-text";
++@import "bootstrap/scss/mixins/text-truncate";
+ 
+ // Utilities
+-@import "mixins/utilities";
++@import "bootstrap/scss/mixins/utilities";
+ 
+ // Components
+-@import "mixins/backdrop";
+-@import "mixins/buttons";
+-@import "mixins/caret";
+-@import "mixins/pagination";
+-@import "mixins/lists";
+-@import "mixins/forms";
+-@import "mixins/table-variants";
++@import "bootstrap/scss/mixins/backdrop";
++@import "bootstrap/scss/mixins/buttons";
++@import "bootstrap/scss/mixins/caret";
++@import "bootstrap/scss/mixins/pagination";
++@import "bootstrap/scss/mixins/lists";
++@import "bootstrap/scss/mixins/forms";
++@import "bootstrap/scss/mixins/table-variants";
+ 
+ // Skins
+-@import "mixins/border-radius";
+-@import "mixins/box-shadow";
+-@import "mixins/gradients";
+-@import "mixins/transition";
++@import "bootstrap/scss/mixins/border-radius";
++@import "bootstrap/scss/mixins/box-shadow";
++@import "bootstrap/scss/mixins/gradients";
++@import "bootstrap/scss/mixins/transition";
+ 
+ // Layout
+-@import "mixins/clearfix";
+-@import "mixins/container";
+-@import "mixins/grid";
++@import "bootstrap/scss/mixins/clearfix";
++@import "bootstrap/scss/mixins/container";
++@import "bootstrap/scss/mixins/grid";
+diff --git a/node_modules/bootstrap/scss/_variables.scss b/node_modules/bootstrap/scss/_variables.scss
+index 1ffa7e7..9b3b634 100644
+--- a/node_modules/bootstrap/scss/_variables.scss
++++ b/node_modules/bootstrap/scss/_variables.scss
+@@ -1750,4 +1750,6 @@ $nested-kbd-font-weight:            null !default; // Deprecated in v5.2.0, remo
+ 
+ $pre-color:                         null !default;
+ 
+-@import "variables-dark"; // TODO: can be removed safely in v6, only here to avoid breaking changes in v5.3
++// Comentado temporalmente para evitar error de resolución en Next.js/Turbopack
++// El archivo variables-dark ya se importa después de variables en app.scss
++// @import "variables-dark"; // TODO: can be removed safely in v6, only here to avoid breaking changes in v5.3
