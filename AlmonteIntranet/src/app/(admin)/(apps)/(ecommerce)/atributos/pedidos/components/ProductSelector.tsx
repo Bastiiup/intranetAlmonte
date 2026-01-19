@@ -142,9 +142,7 @@ const ProductSelector = ({ originPlatform, selectedProducts, onProductsChange }:
       console.log('[ProductSelector] 🔄 Cargando productos:', { originPlatform, show })
       setProducts([]) // Limpiar productos anteriores
       setError(null) // Limpiar errores anteriores
-      if (originPlatform !== 'otros') {
-        fetchProducts()
-      }
+      fetchProducts()
     }
   }, [show, originPlatform, fetchProducts])
 
