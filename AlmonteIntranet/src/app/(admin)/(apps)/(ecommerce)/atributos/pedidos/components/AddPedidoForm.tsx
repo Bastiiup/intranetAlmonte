@@ -1347,6 +1347,14 @@ const AddPedidoForm = () => {
                   value={formData.originPlatform}
                   onChange={(e) => {
                     const value = e.target.value as 'woo_moraleja' | 'woo_escolar' | 'otros'
+                    const previousPlatform = formData.originPlatform
+                    
+                    // Si cambia la plataforma, limpiar productos seleccionados
+                    if (previousPlatform !== value) {
+                      console.log(`[AddPedidoForm] 🔄 Cambiando plataforma de ${previousPlatform} a ${value}. Limpiando productos seleccionados.`)
+                      setSelectedProducts([])
+                    }
+                    
                     setFormData((prev) => ({ ...prev, originPlatform: value }))
                   }}
                   required
