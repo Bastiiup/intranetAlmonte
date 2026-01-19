@@ -153,15 +153,31 @@ export async function GET(request: NextRequest) {
       let pdfId: number | string | undefined
       
       if (archivoPdf) {
-        // Intentar diferentes estructuras
-        const archivoData = archivoPdf.data || archivoPdf
-        const archivoAttrs = archivoData?.attributes || archivoData
+        // Manejar diferentes estructuras de Strapi
+        let url: string | undefined
+        let fileId: number | string | undefined
         
-        // Obtener ID del archivo
-        pdfId = archivoData?.id || archivoPdf.id || archivoAttrs?.id
+        // Caso 1: { data: { id, attributes: { url, ... } } }
+        if (archivoPdf.data && typeof archivoPdf.data === 'object' && 'attributes' in archivoPdf.data) {
+          const data = archivoPdf.data as { id?: number | string; attributes?: { url?: string; [key: string]: any } }
+          fileId = data.id
+          url = data.attributes?.url
+        }
+        // Caso 2: { data: { url, ... } } (sin attributes)
+        else if (archivoPdf.data && typeof archivoPdf.data === 'object' && 'url' in archivoPdf.data) {
+          const data = archivoPdf.data as { id?: number | string; url?: string; [key: string]: any }
+          fileId = data.id
+          url = data.url
+        }
+        // Caso 3: { url, ... } (directo)
+        else if (typeof archivoPdf === 'object' && 'url' in archivoPdf) {
+          fileId = (archivoPdf as any).id
+          url = (archivoPdf as any).url
+        }
         
-        if (archivoAttrs?.url) {
-          const url = archivoAttrs.url
+        pdfId = fileId || (archivoPdf as any).id
+        
+        if (url) {
           // Si la URL ya es completa (http/https), usarla directamente
           if (url.startsWith('http://') || url.startsWith('https://')) {
             pdfUrl = url
@@ -176,13 +192,14 @@ export async function GET(request: NextRequest) {
 
       // Log para debugging (solo en desarrollo)
       if (process.env.NODE_ENV !== 'production' && pdfsData.indexOf(pdf) < 2) {
+        const archivoPdfAny = archivoPdf as any
         console.log('[API /comercial/etiquetas-qr] 📄 Procesando PDF:', {
           id: pdf.id,
           tieneArchivoPdf: !!archivoPdf,
           estructuraArchivoPdf: archivoPdf ? {
-            tieneData: !!archivoPdf.data,
-            tieneAttributes: !!(archivoPdf.data?.attributes || archivoPdf.attributes),
-            keys: Object.keys(archivoPdf),
+            tieneData: !!archivoPdfAny.data,
+            tieneAttributes: !!(archivoPdfAny.data?.attributes || archivoPdfAny.attributes),
+            keys: Object.keys(archivoPdfAny),
           } : null,
           pdfUrl,
         })
