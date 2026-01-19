@@ -29,7 +29,12 @@ export async function GET(request: NextRequest) {
       per_page: perPage,
       page: page,
       status: 'publish', // Solo productos publicados
-      stock_status: stockStatus,
+    }
+    
+    // Solo agregar stock_status si se especifica explícitamente y no es 'all'
+    // Por defecto no filtrar por stock para obtener todos los productos disponibles
+    if (stockStatus && stockStatus !== 'all') {
+      params.stock_status = stockStatus
     }
 
     if (search) {
@@ -41,7 +46,20 @@ export async function GET(request: NextRequest) {
     }
 
     // Obtener productos desde WooCommerce
+    console.log(`[API Products ${platform}] 🔍 Obteniendo productos con parámetros:`, {
+      platform,
+      platformKey,
+      params,
+      url: `products?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString()}`
+    })
+    
     const products = await wooCommerceClient.get<WooCommerceProduct[]>('products', params)
+    
+    console.log(`[API Products ${platform}] 📦 Respuesta de WooCommerce:`, {
+      isArray: Array.isArray(products),
+      length: Array.isArray(products) ? products.length : (products ? 1 : 0),
+      firstProduct: Array.isArray(products) && products.length > 0 ? products[0].name : 'N/A'
+    })
 
     return NextResponse.json({
       success: true,

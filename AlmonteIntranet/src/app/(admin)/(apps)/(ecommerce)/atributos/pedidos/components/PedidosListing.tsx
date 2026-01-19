@@ -1009,8 +1009,8 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
               </thead>
               <tbody>
                 {table.getFilteredRowModel().rows.map((row) => (
-                  <>
-                    <tr key={row.id} className={row.getIsSelected() ? 'table-active' : ''}>
+                  <React.Fragment key={row.id}>
+                    <tr className={row.getIsSelected() ? 'table-active' : ''}>
                       {row.getVisibleCells().map((cell) => (
                         <td key={cell.id}>
                           {typeof cell.column.columnDef.cell === 'function'
@@ -1026,7 +1026,7 @@ const PedidosListing = ({ pedidos, error }: PedidosListingProps = {}) => {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </React.Fragment>
                 ))}
                 {table.getFilteredRowModel().rows.length === 0 && (
                   <tr>
