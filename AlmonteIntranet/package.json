@@ -10,6 +10,7 @@
     "dev": "next dev",
     "build": "next build",
     "postbuild": "node fix-server.js",
+    "postinstall": "patch-package",
     "start": "node server.js",
     "lint": "eslint",
     "format": "prettier --write './src/**/*.{ts,tsx,js,jsx}'",

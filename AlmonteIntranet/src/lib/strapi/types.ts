@@ -155,4 +155,54 @@ export function unwrapStrapiItem<T>(response: StrapiResponse<StrapiEntity<T>>): 
   return data.attributes
 }
 
+// Tipos para Etiquetas - PDF
+export interface EtiquetaPDFAttributes {
+  apoderado?: any // Puede ser StrapiEntity<ApoderadoAttributes> o string (documentId)
+  alumno?: any // Puede ser StrapiEntity<AlumnoAttributes> o string (documentId)
+  fecha_generacion: string // ISO date string
+  hash_qr: string
+  archivo_pdf?: {
+    data?: {
+      id: number
+      attributes: {
+        url: string
+        name: string
+        mime: string
+        size: number
+      }
+    }
+  }
+  numero_orden: number
+  año_escolar: number
+  colegio_nombre: string
+  estado?: 'generado' | 'impreso' | 'archivado'
+}
+
+// Tipo completo para EtiquetaPDF (incluye id, documentId)
+export interface EtiquetaPDF extends StrapiEntity<EtiquetaPDFAttributes> {
+  id: number
+  documentId?: string
+}
+
+// Tipos relacionados (simplificados)
+export interface ApoderadoAttributes {
+  nombres: string
+  primer_apellido: string
+  segundo_apellido?: string
+  rut: string
+  telefono?: string
+  email?: string
+  uid?: string
+}
+
+export interface AlumnoAttributes {
+  nombres: string
+  primer_apellido: string
+  segundo_apellido?: string
+  curso?: string
+  letra?: string
+  colegio?: string
+  apoderado?: any
+}
+
 
