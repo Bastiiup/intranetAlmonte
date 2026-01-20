@@ -72,19 +72,35 @@ async function extractTextFromPDF(pdfBuffer: Buffer): Promise<string> {
     // pdf-parse usa pdfjs-dist internamente, así que necesitamos configurar el worker primero
     try {
       // Configurar pdfjs-dist con el worker ANTES de que pdf-parse lo cargue
+      // Intentar diferentes rutas según la versión de pdfjs-dist
       try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const pdfjs = require('pdfjs-dist/legacy/build/pdf.js')
-        
-        // Configurar el worker usando la ruta del archivo en node_modules
-        // El worker está en public/pdfjs pero necesitamos la ruta del módulo
         const path = require('path')
-        const workerPath = path.resolve(
-          require.resolve('pdfjs-dist/package.json'),
-          '../build/pdf.worker.min.js'
-        )
+        let pdfjs: any = null
         
-        if (pdfjs.GlobalWorkerOptions) {
+        // Intentar diferentes rutas posibles según la versión de pdfjs-dist
+        const possiblePaths = [
+          'pdfjs-dist/build/pdf.js',           // Versiones modernas (4.x+)
+          'pdfjs-dist/legacy/build/pdf.js',    // Versiones antiguas (2.x)
+          'pdfjs-dist'                         // Fallback
+        ]
+        
+        for (const pdfjsPath of possiblePaths) {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            pdfjs = require(pdfjsPath)
+            if (pdfjs) break
+          } catch {
+            // Continuar con el siguiente path
+            continue
+          }
+        }
+        
+        if (pdfjs && pdfjs.GlobalWorkerOptions) {
+          // Configurar el worker usando la ruta del archivo en node_modules
+          const workerPath = path.resolve(
+            require.resolve('pdfjs-dist/package.json'),
+            '../build/pdf.worker.min.js'
+          )
           pdfjs.GlobalWorkerOptions.workerSrc = workerPath
           debugLogExtract('✅ Worker configurado:', workerPath)
         }
