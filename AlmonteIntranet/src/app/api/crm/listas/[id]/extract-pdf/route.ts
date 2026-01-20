@@ -443,13 +443,13 @@ IMPORTANTE:
         
         // Asegurar que todos los materiales tengan campos requeridos
         materiales = materiales.map((m, index) => ({
+          ...m,
           asignatura: m.asignatura || 'Lenguaje',
           item: m.item || `Material ${index + 1}`,
           cantidad: m.cantidad || '1',
           categoria: m.categoria || 'Materiales',
           marca: m.marca || 'N/A',
           relacion_orden_num: m.relacion_orden_num || index + 1,
-          ...m,
         }))
 
         debugLog('[API /crm/listas/[id]/extract-pdf POST] Materiales extraídos:', materiales.length)
