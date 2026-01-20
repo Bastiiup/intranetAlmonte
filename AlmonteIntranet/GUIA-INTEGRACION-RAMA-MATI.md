@@ -18,6 +18,7 @@ Resolver problemas críticos en:
 2. **Sincronización de productos:** Faltaba sincronización bidireccional (Strapi → WooCommerce)
 3. **Validación de precios:** Productos con `price: "0"` pero `regular_price` válido eran rechazados
 4. **Limpieza de estado:** Productos no se limpiaban al cambiar de plataforma en pedidos
+5. **Extracción de PDF con IA:** Nueva funcionalidad para extraer productos de PDFs de listas de útiles usando Google Gemini AI
 
 ---
 
@@ -55,6 +56,29 @@ Resolver problemas críticos en:
 **Cambios principales:**
 - ✅ Limpieza automática de productos seleccionados al cambiar plataforma
 - ✅ Previene conflictos al mezclar productos de diferentes plataformas
+
+### Commit 4: `[NUEVO]` - feat: Extracción de productos desde PDF con Gemini AI
+
+**Archivos nuevos:**
+- `src/app/(admin)/(apps)/crm/listas/[id]/validacion/page.tsx`
+- `src/app/(admin)/(apps)/crm/listas/[id]/validacion/components/ValidacionLista.tsx`
+- `src/app/api/crm/listas/[id]/route.ts`
+- `src/app/api/crm/listas/[id]/procesar-pdf/route.ts`
+- `src/app/api/crm/listas/test-gemini/route.ts`
+- `DOCUMENTACION-EXTRACCION-PDF-ACTUAL.md`
+- `GEMINI-AI-CONFIG.md`
+
+**Archivos modificados:**
+- `src/app/(admin)/(apps)/crm/listas/components/ListasListing.tsx` (navegación al hacer clic en curso)
+
+**Cambios principales:**
+- ✅ Nueva página de validación de listas (`/crm/listas/[id]/validacion`)
+- ✅ Visualizador de PDF integrado con `react-pdf`
+- ✅ Extracción automática de productos desde PDF usando Google Gemini AI
+- ✅ Validación automática de productos contra WooCommerce Escolar
+- ✅ Enriquecimiento de productos con datos de WooCommerce (precio, stock, imagen)
+- ✅ Interfaz dividida: productos a la izquierda, PDF a la derecha
+- ✅ Endpoint de prueba para verificar modelos disponibles de Gemini
 
 ---
 
@@ -137,6 +161,19 @@ if (previousPlatform !== value) {
 - [ ] Abrir consola del navegador (F12)
 - [ ] **Verificar:** No hay warnings sobre "key" prop en Fragment
 
+#### 6. Extracción de PDF con IA
+- [ ] Ir a `/crm/listas`
+- [ ] Hacer clic en el nombre de un curso que tenga PDF
+- [ ] **Verificar:** Se navega a `/crm/listas/[id]/validacion`
+- [ ] **Verificar:** El PDF se muestra correctamente en el lado derecho
+- [ ] **Verificar:** Si hay productos, se muestran en la tabla del lado izquierdo
+- [ ] Hacer clic en "Procesar con IA"
+- [ ] **Verificar:** Se muestra spinner de carga
+- [ ] **Verificar:** Después del procesamiento, los productos aparecen en la tabla
+- [ ] **Verificar:** Los productos encontrados en WooCommerce muestran precio, stock y disponibilidad
+- [ ] **Verificar:** Los productos no encontrados muestran badge "No Encontrado"
+- [ ] Hacer clic en "Recargar" para verificar que los datos persisten
+
 ---
 
 ## 🔄 Proceso de Integración
@@ -199,6 +236,10 @@ git push origin main
 3. **`src/app/(admin)/(apps)/(ecommerce)/atributos/pedidos/components/ProductSelector.tsx`**
    - **Probabilidad:** Media
    - **Resolución:** Mergear lógica de paginación y validación de precios
+
+4. **`src/app/(admin)/(apps)/crm/listas/components/ListasListing.tsx`**
+   - **Probabilidad:** Media
+   - **Resolución:** Mergear cambios de navegación (link en nombre del curso)
 
 ### Cómo Resolver Conflictos:
 
@@ -284,10 +325,18 @@ Si encuentras problemas durante la integración:
    - Credenciales de WooCommerce (Escolar y Moraleja)
    - URL de Strapi
    - Variables de autenticación
+   - `GEMINI_API_KEY` (requerida para extracción de PDF)
 
 3. **Consultar documentación:**
-   - `CAMBIOS-SINCRONIZACION-PRODUCTOS.md` para detalles técnicos
+   - `CAMBIOS-SINCRONIZACION-PRODUCTOS.md` para detalles técnicos de sincronización
+   - `DOCUMENTACION-EXTRACCION-PDF-ACTUAL.md` para detalles de extracción de PDF
+   - `GEMINI-AI-CONFIG.md` para configuración de Gemini AI
    - Código comentado en los archivos modificados
+
+4. **Probar modelos de Gemini:**
+   - Visitar `http://localhost:3000/api/crm/listas/test-gemini`
+   - Verificar qué modelos están disponibles
+   - Si ningún modelo funciona, verificar API key en Google AI Studio
 
 ---
 
@@ -308,12 +357,17 @@ Si encuentras problemas durante la integración:
 
 ## 📊 Estadísticas de Cambios
 
-- **Líneas agregadas:** ~1,074
+- **Líneas agregadas:** ~3,500+
 - **Líneas eliminadas:** ~89
-- **Archivos modificados:** 6
-- **Archivos nuevos:** 2 (sync/route.ts + documentación)
-- **Tiempo estimado de revisión:** 30-45 minutos
-- **Tiempo estimado de pruebas:** 20-30 minutos
+- **Archivos modificados:** 7
+- **Archivos nuevos:** 8 (sync/route.ts, validación de PDF, API routes, documentación)
+- **Tiempo estimado de revisión:** 60-90 minutos
+- **Tiempo estimado de pruebas:** 40-60 minutos
+
+### Desglose por Funcionalidad:
+- **Sincronización de productos:** ~1,074 líneas
+- **Extracción de PDF con IA:** ~2,400 líneas
+- **Documentación:** ~500 líneas
 
 ---
 
@@ -324,6 +378,31 @@ Si encuentras problemas durante la integración:
 3. ✅ **Menos errores:** Validación mejorada de precios previene problemas
 4. ✅ **Código más limpio:** Warnings de React corregidos
 5. ✅ **Mejor mantenibilidad:** Código documentado y estructurado
+6. ✅ **Automatización:** Extracción automática de productos desde PDFs con IA
+7. ✅ **Validación inteligente:** Validación automática contra WooCommerce Escolar
+8. ✅ **Ahorro de tiempo:** No es necesario ingresar productos manualmente desde PDFs
+
+---
+
+## 🔑 Variables de Entorno Requeridas
+
+Agregar en `.env.local`:
+
+```env
+# Gemini AI (requerida para extracción de PDF)
+GEMINI_API_KEY=AIzaSyAhX5ME_MGEwIaMsvO0Ab7SnkA38BuEJi0
+
+# WooCommerce (ya existentes)
+NEXT_PUBLIC_WOOCOMMERCE_URL=...
+WOOCOMMERCE_CONSUMER_KEY=...
+WOOCOMMERCE_CONSUMER_SECRET=...
+
+# Strapi (ya existentes)
+NEXT_PUBLIC_STRAPI_URL=...
+STRAPI_API_TOKEN=...
+```
+
+**Nota:** La API key de Gemini está hardcodeada como fallback, pero se recomienda usar la variable de entorno.
 
 ---
 
