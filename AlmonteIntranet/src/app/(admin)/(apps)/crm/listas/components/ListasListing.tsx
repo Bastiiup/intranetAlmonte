@@ -14,6 +14,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge } from 'react-bootstrap'
 import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw } from 'react-icons/lu'
@@ -56,6 +57,7 @@ interface ListasListingProps {
 }
 
 export default function ListasListing({ listas: listasProp, error }: ListasListingProps) {
+  const router = useRouter()
   const [showModal, setShowModal] = useState(false)
   const [editingLista, setEditingLista] = useState<ListaType | null>(null)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
@@ -166,7 +168,48 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
       header: 'Curso',
       cell: ({ row }) => {
         const nombre = row.original.curso?.nombre || row.original.nombre || '-'
-        return nombre
+        // Priorizar documentId si existe, sino usar id numérico
+        const listaId = row.original.documentId || row.original.id
+        
+        console.log('[ListasListing] Curso clickeado:', {
+          nombre,
+          id: row.original.id,
+          documentId: row.original.documentId,
+          listaIdUsado: listaId,
+          rowOriginal: row.original
+        })
+        
+        if (!listaId) {
+          console.warn('[ListasListing] ⚠️ No hay ID disponible para el curso:', nombre)
+          return <span>{nombre}</span>
+        }
+        
+        return (
+          <Link 
+            href={`/crm/listas/${listaId}/validacion`}
+            className="link-reset fw-semibold"
+            style={{ 
+              cursor: 'pointer',
+              color: '#667eea',
+              textDecoration: 'none'
+            }}
+            onClick={(e) => {
+              console.log('[ListasListing] Navegando a validación con ID:', listaId)
+              // Permitir que el clic navegue normalmente
+              e.stopPropagation()
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.textDecoration = 'underline'
+              e.currentTarget.style.color = '#764ba2'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.textDecoration = 'none'
+              e.currentTarget.style.color = '#667eea'
+            }}
+          >
+            {nombre}
+          </Link>
+        )
       },
     },
     {
