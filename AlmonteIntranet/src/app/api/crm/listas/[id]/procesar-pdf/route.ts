@@ -15,8 +15,8 @@ import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-// Obtener API key de Gemini
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyDeibOMGmbVhKrrggR2ROAjn38WuK02IFI'
+// Obtener API key de Gemini (debe estar configurada como variable de entorno)
+// La validación se hace dentro de la función POST para devolver respuesta HTTP adecuada
 
 // Modelos disponibles (en orden de preferencia)
 const MODELOS_DISPONIBLES = [
@@ -56,6 +56,19 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Validar API key de Gemini
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY
+    if (!GEMINI_API_KEY) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'GEMINI_API_KEY no está configurada. Por favor, configura esta variable de entorno en Railway o .env.local',
+          detalles: 'La API key de Google Gemini es necesaria para procesar los PDFs. Consulta la documentación en docs/COMO-OBTENER-API-KEY-GEMINI.md'
+        },
+        { status: 500 }
+      )
+    }
+
     const { id } = await params
 
     if (!id) {
@@ -218,7 +231,8 @@ export async function POST(
     // ============================================
     console.log('[Procesar PDF] 🤖 Procesando con Gemini AI...')
     
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY)
+    // GEMINI_API_KEY ya está validada arriba
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY!)
     
     const prompt = `Eres un experto en analizar listas de útiles escolares de Chile.
 

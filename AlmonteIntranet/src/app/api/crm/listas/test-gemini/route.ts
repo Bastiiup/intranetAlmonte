@@ -9,7 +9,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyAhX5ME_MGEwIaMsvO0Ab7SnkA38BuEJi0'
+// Validación de API key se hace dentro de la función GET
 
 // Modelos principales (fallbacks si la API no retorna modelos)
 const MODELOS_PRINCIPALES = [
@@ -21,6 +21,19 @@ const MODELOS_PRINCIPALES = [
 
 export async function GET(request: NextRequest) {
   try {
+    // Validar API key de Gemini
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY
+    if (!GEMINI_API_KEY) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'GEMINI_API_KEY no está configurada. Por favor, configura esta variable de entorno en Railway o .env.local',
+          detalles: 'La API key de Google Gemini es necesaria para procesar los PDFs. Consulta la documentación en docs/COMO-OBTENER-API-KEY-GEMINI.md'
+        },
+        { status: 500 }
+      )
+    }
+
     // Primero intentar listar modelos disponibles usando la API REST
     let modelosDesdeAPI: string[] = []
     let modelosDisponiblesAPI: any[] = []
@@ -60,7 +73,8 @@ export async function GET(request: NextRequest) {
       ...MODELOS_PRINCIPALES.filter(m => !modelosDesdeAPI.includes(m))
     ]
     
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY)
+    // GEMINI_API_KEY ya está validada arriba
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY!)
     const resultados: Array<{ modelo: string; disponible: boolean; error?: string }> = []
     
     // Probar todos los modelos
