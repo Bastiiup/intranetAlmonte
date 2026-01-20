@@ -24,19 +24,8 @@ const PDFViewer = dynamic(() => import('./PDFViewer'), {
   ),
 })
 
-interface MaterialItem {
-  relacion_orden?: string
-  asignatura: string
-  relacion_orden_num?: number
-  cantidad: string
-  categoria: string
-  imagen?: string
-  item: string
-  marca: string
-  isbn?: string
-  notas?: string
-  boton?: string
-}
+// MaterialItem está definido en MaterialesForm.tsx
+import type { MaterialItem } from './MaterialesForm'
 
 interface ListaDetailDrawerProps {
   show: boolean
