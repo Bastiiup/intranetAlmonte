@@ -66,6 +66,7 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
   const [loading, setLoading] = useState(false)
   const [processingPDF, setProcessingPDF] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<string | number | null>(null)
+  const [tabActivo, setTabActivo] = useState<'todos' | 'disponibles' | 'no-disponibles'>('todos')
   
   // Productos identificados
   const [productos, setProductos] = useState<ProductoIdentificado[]>([])
@@ -127,28 +128,50 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
         totalVersiones: versiones.length,
         ultimaVersion: ultimaVersion ? 'sí' : 'no',
         totalMateriales: materiales.length,
-        materiales: materiales.slice(0, 3).map((m: any) => m.nombre || m.nombre_producto)
+        materiales: materiales.slice(0, 3).map((m: any) => ({
+          nombre: m.nombre,
+          nombre_producto: m.nombre_producto,
+          todas_las_keys: Object.keys(m)
+        }))
       })
       
       // Transformar materiales a productos identificados
-      const productosTransformados: ProductoIdentificado[] = materiales.map((material: any, index: number) => ({
-        id: material.id || `producto-${index + 1}`,
-        validado: material.validado || false,
-        imagen: material.imagen || undefined,
-        isbn: material.isbn || material.sku || material.woocommerce_sku || undefined,
-        nombre: material.nombre || material.nombre_producto || 'Producto sin nombre',
-        marca: material.marca || material.editorial || undefined,
-        cantidad: material.cantidad || 1,
-        comprar: material.comprar !== false,
-        disponibilidad: material.disponibilidad === 'no_disponible' ? 'no_disponible' : 'disponible',
-        precio: parseFloat(material.precio || 0),
-        precio_woocommerce: material.precio_woocommerce ? parseFloat(material.precio_woocommerce) : undefined,
-        asignatura: material.asignatura || material.materia || undefined,
-        woocommerce_id: material.woocommerce_id || undefined,
-        woocommerce_sku: material.woocommerce_sku || undefined,
-        stock_quantity: material.stock_quantity || undefined,
-        encontrado_en_woocommerce: material.encontrado_en_woocommerce !== undefined ? material.encontrado_en_woocommerce : undefined,
-      }))
+      const productosTransformados: ProductoIdentificado[] = materiales.map((material: any, index: number) => {
+        // Intentar obtener el nombre de múltiples campos posibles
+        const nombreProducto = material.nombre || 
+                              material.nombre_producto || 
+                              material.NOMBRE || 
+                              material.Nombre || 
+                              material.producto_nombre ||
+                              material.descripcion || // Fallback a descripción si no hay nombre
+                              `Producto ${index + 1}`
+        
+        console.log(`[ValidacionLista] Producto ${index + 1}:`, {
+          nombre_original: material.nombre,
+          nombre_producto: material.nombre_producto,
+          nombre_final: nombreProducto,
+          todas_las_keys: Object.keys(material)
+        })
+        
+        return {
+          id: material.id || `producto-${index + 1}`,
+          validado: material.validado || false,
+          imagen: material.imagen || undefined,
+          isbn: material.isbn || material.sku || material.woocommerce_sku || undefined,
+          nombre: nombreProducto,
+          marca: material.marca || material.editorial || undefined,
+          cantidad: material.cantidad || 1,
+          comprar: material.comprar !== false,
+          disponibilidad: material.disponibilidad === 'no_disponible' ? 'no_disponible' : 'disponible',
+          precio: parseFloat(material.precio || 0),
+          precio_woocommerce: material.precio_woocommerce ? parseFloat(material.precio_woocommerce) : undefined,
+          asignatura: material.asignatura || material.materia || undefined,
+          woocommerce_id: material.woocommerce_id || undefined,
+          woocommerce_sku: material.woocommerce_sku || undefined,
+          stock_quantity: material.stock_quantity || undefined,
+          encontrado_en_woocommerce: material.encontrado_en_woocommerce !== undefined ? material.encontrado_en_woocommerce : undefined,
+        }
+      })
 
       setProductos(productosTransformados)
     } catch (err: any) {
@@ -340,12 +363,28 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
     ))
   }
 
+  // Separar productos por disponibilidad
+  const productosDisponibles = productos.filter(p => 
+    p.encontrado_en_woocommerce === true && p.disponibilidad === 'disponible'
+  )
+  const productosNoDisponibles = productos.filter(p => 
+    p.encontrado_en_woocommerce === false || p.disponibilidad !== 'disponible'
+  )
+  
   const totalProductos = productos.length
+  const disponibles = productosDisponibles.length
+  const noDisponibles = productosNoDisponibles.length
   const paraComprar = productos.filter(p => p.comprar).length
-  const disponibles = productos.filter(p => p.disponibilidad === 'disponible').length
   const validados = productos.filter(p => p.validado).length
   const encontradosEnWooCommerce = productos.filter(p => p.encontrado_en_woocommerce === true).length
   const noEncontradosEnWooCommerce = productos.filter(p => p.encontrado_en_woocommerce === false).length
+  
+  // Productos a mostrar según el tab
+  const productosAMostrar = tabActivo === 'disponibles' 
+    ? productosDisponibles 
+    : tabActivo === 'no-disponibles' 
+    ? productosNoDisponibles 
+    : productos
 
   if (error) {
     return (
@@ -478,28 +517,68 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                 </div>
               ) : (
                 <>
+                  {/* Tabs de filtrado */}
+                  <div style={{ 
+                    padding: '0.75rem 1rem', 
+                    borderBottom: '1px solid #dee2e6',
+                    background: '#f8f9fa'
+                  }}>
+                    <div className="btn-group" role="group">
+                      <button
+                        type="button"
+                        className={`btn btn-sm ${tabActivo === 'todos' ? 'btn-primary' : 'btn-outline-primary'}`}
+                        onClick={() => setTabActivo('todos')}
+                      >
+                        Todos ({productos.length})
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn btn-sm ${tabActivo === 'disponibles' ? 'btn-success' : 'btn-outline-success'}`}
+                        onClick={() => setTabActivo('disponibles')}
+                      >
+                        Disponibles ({disponibles})
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn btn-sm ${tabActivo === 'no-disponibles' ? 'btn-warning' : 'btn-outline-warning'}`}
+                        onClick={() => setTabActivo('no-disponibles')}
+                      >
+                        No Disponibles ({noDisponibles})
+                      </button>
+                    </div>
+                  </div>
+                  
                   <div style={{ 
                     overflowY: 'auto', 
                     flexGrow: 1,
-                    maxHeight: 'calc(100vh - 250px)'
+                    maxHeight: 'calc(100vh - 300px)'
                   }}>
                     <Table hover responsive className="mb-0">
                       <thead style={{ position: 'sticky', top: 0, background: 'white', zIndex: 10 }}>
                         <tr>
                           <th style={{ width: '50px' }}>Validado</th>
-                          <th style={{ width: '80px' }}>Imagen</th>
+                          <th style={{ width: '100px' }}>Imagen</th>
                           <th>ISBN</th>
                           <th>Nombre Producto</th>
                           <th>Marca</th>
                           <th style={{ width: '80px' }}>Cantidad</th>
                           <th style={{ width: '100px' }}>Comprar</th>
-                          <th style={{ width: '120px' }}>Disponibilidad</th>
+                          <th style={{ width: '140px' }}>Disponibilidad</th>
                           <th style={{ width: '100px' }}>Precio</th>
                           <th>Asignatura</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {productos.map((producto) => (
+                        {productosAMostrar.length === 0 ? (
+                          <tr>
+                            <td colSpan={10} className="text-center py-4">
+                              <Alert variant="info" className="mb-0">
+                                No hay productos en esta categoría
+                              </Alert>
+                            </td>
+                          </tr>
+                        ) : (
+                          productosAMostrar.map((producto) => (
                           <tr 
                             key={producto.id}
                             onClick={() => handleProductoClick(producto.id)}
@@ -517,21 +596,58 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                             </td>
                             <td>
                               {producto.imagen ? (
-                                <img 
-                                  src={producto.imagen} 
-                                  alt={producto.nombre}
-                                  style={{ width: '50px', height: '50px', objectFit: 'cover' }}
-                                />
+                                <div 
+                                  style={{ 
+                                    position: 'relative',
+                                    width: '80px', 
+                                    height: '80px',
+                                    cursor: 'pointer',
+                                    borderRadius: '4px',
+                                    overflow: 'hidden',
+                                    border: '1px solid #dee2e6'
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    window.open(producto.imagen, '_blank')
+                                  }}
+                                  title="Click para ver imagen completa"
+                                >
+                                  <img 
+                                    src={producto.imagen} 
+                                    alt={producto.nombre}
+                                    style={{ 
+                                      width: '100%', 
+                                      height: '100%', 
+                                      objectFit: 'cover',
+                                      transition: 'transform 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.transform = 'scale(1.1)'
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.transform = 'scale(1)'
+                                    }}
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none'
+                                      const parent = e.currentTarget.parentElement
+                                      if (parent) {
+                                        parent.innerHTML = '<div style="width: 100%; height: 100%; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: #999;">Sin imagen</div>'
+                                      }
+                                    }}
+                                  />
+                                </div>
                               ) : (
                                 <div style={{ 
-                                  width: '50px', 
-                                  height: '50px', 
+                                  width: '80px', 
+                                  height: '80px', 
                                   background: '#f0f0f0',
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
-                                  fontSize: '0.75rem',
-                                  color: '#999'
+                                  fontSize: '0.7rem',
+                                  color: '#999',
+                                  borderRadius: '4px',
+                                  border: '1px solid #dee2e6'
                                 }}>
                                   Sin imagen
                                 </div>
@@ -547,14 +663,16 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                               </Badge>
                             </td>
                             <td>
-                              {producto.encontrado_en_woocommerce === false ? (
-                                <Badge bg="warning" text="dark">
-                                  No encontrado
+                              {producto.encontrado_en_woocommerce === true ? (
+                                <Badge bg={producto.disponibilidad === 'disponible' ? 'success' : 'danger'}>
+                                  {producto.disponibilidad === 'disponible' ? '✅ Disponible' : '❌ No disponible'}
+                                  {producto.stock_quantity !== undefined && producto.stock_quantity > 0 && (
+                                    <span className="ms-1">({producto.stock_quantity})</span>
+                                  )}
                                 </Badge>
                               ) : (
-                                <Badge bg={producto.disponibilidad === 'disponible' ? 'success' : 'danger'}>
-                                  {producto.disponibilidad === 'disponible' ? 'disponible' : 'no disponible'}
-                                  {producto.stock_quantity !== undefined && ` (${producto.stock_quantity})`}
+                                <Badge bg="warning" text="dark">
+                                  ⚠️ No encontrado
                                 </Badge>
                               )}
                             </td>
@@ -576,7 +694,8 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                             </td>
                             <td>{producto.asignatura || '-'}</td>
                           </tr>
-                        ))}
+                          ))
+                        )}
                       </tbody>
                     </Table>
                   </div>

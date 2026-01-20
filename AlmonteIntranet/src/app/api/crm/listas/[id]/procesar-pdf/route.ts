@@ -14,6 +14,8 @@ import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+// Aumentar timeout para PDFs grandes (máximo 5 minutos)
+export const maxDuration = 300
 
 // Obtener API key de Gemini (debe estar configurada como variable de entorno)
 // La validación se hace dentro de la función POST para devolver respuesta HTTP adecuada
@@ -225,6 +227,18 @@ export async function POST(
     // 3. CONVERTIR PDF A BASE64 PARA GEMINI
     // ============================================
     const pdfBase64 = Buffer.from(pdfBuffer).toString('base64')
+    const pdfSizeMB = (pdfBuffer.byteLength / (1024 * 1024)).toFixed(2)
+    
+    console.log('[Procesar PDF] 📊 Información del PDF:', {
+      tamañoBytes: pdfBuffer.byteLength,
+      tamañoMB: `${pdfSizeMB} MB`,
+      tamañoBase64: `${(pdfBase64.length / (1024 * 1024)).toFixed(2)} MB`,
+    })
+    
+    // Advertencia si el PDF es muy grande (>20MB)
+    if (pdfBuffer.byteLength > 20 * 1024 * 1024) {
+      console.warn('[Procesar PDF] ⚠️ PDF muy grande, puede tardar más tiempo en procesarse')
+    }
 
     // ============================================
     // 4. PROCESAR PDF DIRECTAMENTE CON GEMINI
@@ -234,9 +248,15 @@ export async function POST(
     // GEMINI_API_KEY ya está validada arriba
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY!)
     
+    // Prompt optimizado para PDFs grandes
     const prompt = `Eres un experto en analizar listas de útiles escolares de Chile.
 
 Tu tarea es extraer TODOS los productos/útiles mencionados en este PDF.
+
+⚠️ IMPORTANTE PARA PDFs LARGOS:
+- Si el PDF es extenso, enfócate en las secciones de productos/útiles
+- Ignora páginas de portada, índice, instrucciones generales
+- Extrae productos de TODAS las páginas que contengan listas de útiles
 
 FORMATO DE LISTAS ESCOLARES TÍPICAS:
 - Pueden tener formato de tabla
@@ -258,6 +278,7 @@ ITEMS QUE DEBES IGNORAR:
 ❌ Instrucciones generales (ej: "Marcar con nombre")
 ❌ Información del colegio
 ❌ Fechas y encabezados
+❌ Páginas de portada o índice
 
 REGLAS:
 1. Si ves un número al inicio, es la cantidad
@@ -300,6 +321,7 @@ FORMATO DE RESPUESTA (JSON puro, SIN markdown, SIN backticks):
 - NO agregues texto antes o después del JSON
 - NO uses markdown
 - El JSON debe empezar con { y terminar con }
+- Si el PDF es largo, tómate tu tiempo pero extrae TODOS los productos
 
 Ahora analiza este PDF y extrae TODOS los productos:`
 
@@ -312,89 +334,136 @@ Ahora analiza este PDF y extrae TODOS los productos:`
       try {
         console.log(`[Procesar PDF] Probando modelo: ${nombreModelo}`)
         
-        const model = genAI.getGenerativeModel({ model: nombreModelo })
+        const model = genAI.getGenerativeModel({ 
+          model: nombreModelo,
+          generationConfig: {
+            temperature: 0.1, // Más determinista para extracción estructurada
+            topP: 0.8,
+            topK: 40,
+          }
+        })
         
-        // Enviar PDF directamente a Gemini
+        // Enviar PDF directamente a Gemini con timeout
         console.log(`[Procesar PDF] Enviando PDF a Gemini (${nombreModelo})...`)
-        const result = await model.generateContent([
-          prompt,
-          {
-            inlineData: {
-              data: pdfBase64,
-              mimeType: 'application/pdf'
+        console.log(`[Procesar PDF] Tamaño del PDF: ${pdfSizeMB} MB`)
+        
+        // Crear AbortController para timeout (4 minutos para PDFs grandes)
+        const controller = new AbortController()
+        const timeoutMs = 240000 // 4 minutos
+        let timeoutId: NodeJS.Timeout | null = null
+        
+        try {
+          timeoutId = setTimeout(() => {
+            controller.abort()
+          }, timeoutMs)
+        
+          const result = await Promise.race([
+          model.generateContent([
+            prompt,
+            {
+              inlineData: {
+                data: pdfBase64,
+                mimeType: 'application/pdf'
+              }
+            }
+          ]),
+          new Promise((_, reject) => {
+            controller.signal.addEventListener('abort', () => {
+              reject(new Error(`Timeout: El procesamiento tardó más de ${timeoutMs / 1000} segundos. El PDF puede ser muy grande.`))
+            })
+          })
+        ]) as any
+        
+          if (timeoutId) clearTimeout(timeoutId)
+          
+          if (!result || !result.response) {
+            throw new Error('Respuesta inválida de Gemini')
+          }
+          
+          const textoRespuesta = result.response.text()
+          
+          // ⭐ LOG COMPLETO DE LA RESPUESTA
+          console.log(`[Procesar PDF] 📝 Respuesta completa de Gemini (${nombreModelo}):`)
+          console.log(textoRespuesta)
+          console.log('[Procesar PDF] Fin de respuesta')
+          console.log(`[Procesar PDF] Longitud de respuesta: ${textoRespuesta.length} caracteres`)
+          
+          // Verificar si la respuesta parece ser JSON
+          let textoParaParsear = textoRespuesta.trim()
+          
+          if (!textoParaParsear.startsWith('{')) {
+            console.log('[Procesar PDF] ⚠️ La respuesta no empieza con {, intentando extraer JSON...')
+            
+            // Buscar JSON dentro del texto
+            const jsonMatch = textoParaParsear.match(/\{[\s\S]*\}/)
+            
+            if (jsonMatch) {
+              textoParaParsear = jsonMatch[0]
+              console.log('[Procesar PDF] ✅ JSON extraído del texto')
+            } else {
+              throw new Error(`Gemini no devolvió JSON válido. Respuesta: ${textoParaParsear.substring(0, 200)}`)
             }
           }
-        ])
-        
-        const textoRespuesta = result.response.text()
-        
-        // ⭐ LOG COMPLETO DE LA RESPUESTA
-        console.log(`[Procesar PDF] 📝 Respuesta completa de Gemini (${nombreModelo}):`)
-        console.log(textoRespuesta)
-        console.log('[Procesar PDF] Fin de respuesta')
-        console.log(`[Procesar PDF] Longitud de respuesta: ${textoRespuesta.length} caracteres`)
-        
-        // Verificar si la respuesta parece ser JSON
-        let textoParaParsear = textoRespuesta.trim()
-        
-        if (!textoParaParsear.startsWith('{')) {
-          console.log('[Procesar PDF] ⚠️ La respuesta no empieza con {, intentando extraer JSON...')
           
-          // Buscar JSON dentro del texto
-          const jsonMatch = textoParaParsear.match(/\{[\s\S]*\}/)
+          // Limpiar respuesta
+          let jsonLimpio = textoParaParsear
+            .replace(/```json\s*/g, '')
+            .replace(/```\s*/g, '')
+            .trim()
           
-          if (jsonMatch) {
-            textoParaParsear = jsonMatch[0]
-            console.log('[Procesar PDF] ✅ JSON extraído del texto')
-          } else {
-            throw new Error(`Gemini no devolvió JSON válido. Respuesta: ${textoParaParsear.substring(0, 200)}`)
+          console.log('[Procesar PDF] JSON limpio para parsear:')
+          console.log(jsonLimpio.substring(0, 500) + (jsonLimpio.length > 500 ? '...' : ''))
+          
+          // Intentar parsear JSON
+          resultado = JSON.parse(jsonLimpio)
+          
+          console.log('[Procesar PDF] JSON parseado exitosamente:')
+          console.log(JSON.stringify(resultado, null, 2).substring(0, 1000) + '...')
+          
+          // ⭐ VERIFICAR que tenga productos
+          if (!resultado.productos || !Array.isArray(resultado.productos)) {
+            console.log('[Procesar PDF] ⚠️ Respuesta no tiene array de productos')
+            console.log('[Procesar PDF] Estructura recibida:', Object.keys(resultado))
+            throw new Error('La respuesta no contiene un array de productos')
           }
+          
+          if (resultado.productos.length === 0) {
+            console.log('[Procesar PDF] ⚠️ Array de productos está vacío')
+            throw new Error('No se encontraron productos en el PDF')
+          }
+          
+          modeloUsado = nombreModelo
+          
+          console.log(`[Procesar PDF] ✅ Éxito con: ${nombreModelo}`)
+          console.log(`[Procesar PDF] Productos extraídos: ${resultado.productos.length}`)
+          console.log('[Procesar PDF] Primeros productos:', resultado.productos.slice(0, 3).map((p: any) => ({
+            cantidad: p.cantidad,
+            nombre: p.nombre,
+            descripcion: p.descripcion?.substring(0, 50)
+          })))
+          
+          break // Salir si funcionó
+          
+        } catch (innerError: any) {
+          if (timeoutId) clearTimeout(timeoutId)
+          throw innerError
         }
-        
-        // Limpiar respuesta
-        let jsonLimpio = textoParaParsear
-          .replace(/```json\s*/g, '')
-          .replace(/```\s*/g, '')
-          .trim()
-        
-        console.log('[Procesar PDF] JSON limpio para parsear:')
-        console.log(jsonLimpio.substring(0, 500) + (jsonLimpio.length > 500 ? '...' : ''))
-        
-        // Intentar parsear JSON
-        resultado = JSON.parse(jsonLimpio)
-        
-        console.log('[Procesar PDF] JSON parseado exitosamente:')
-        console.log(JSON.stringify(resultado, null, 2).substring(0, 1000) + '...')
-        
-        // ⭐ VERIFICAR que tenga productos
-        if (!resultado.productos || !Array.isArray(resultado.productos)) {
-          console.log('[Procesar PDF] ⚠️ Respuesta no tiene array de productos')
-          console.log('[Procesar PDF] Estructura recibida:', Object.keys(resultado))
-          throw new Error('La respuesta no contiene un array de productos')
-        }
-        
-        if (resultado.productos.length === 0) {
-          console.log('[Procesar PDF] ⚠️ Array de productos está vacío')
-          throw new Error('No se encontraron productos en el PDF')
-        }
-        
-        modeloUsado = nombreModelo
-        
-        console.log(`[Procesar PDF] ✅ Éxito con: ${nombreModelo}`)
-        console.log(`[Procesar PDF] Productos extraídos: ${resultado.productos.length}`)
-        console.log('[Procesar PDF] Primeros productos:', resultado.productos.slice(0, 3).map((p: any) => ({
-          cantidad: p.cantidad,
-          nombre: p.nombre,
-          descripcion: p.descripcion?.substring(0, 50)
-        })))
-        
-        break // Salir si funcionó
         
       } catch (error: any) {
         const errorMsg = error.message || String(error)
         console.log(`[Procesar PDF] ❌ Modelo ${nombreModelo} falló:`, errorMsg)
         console.log('[Procesar PDF] Stack del error:', error.stack)
-        errorModelos.push({ modelo: nombreModelo, error: errorMsg })
+        
+        // Detectar errores de timeout específicamente
+        if (errorMsg.includes('Timeout') || errorMsg.includes('timeout')) {
+          console.error('[Procesar PDF] ⏱️ Error de timeout detectado')
+          errorModelos.push({ 
+            modelo: nombreModelo, 
+            error: `Timeout: El PDF es muy grande (${pdfSizeMB} MB). Intenta con un PDF más pequeño o divide el contenido.` 
+          })
+        } else {
+          errorModelos.push({ modelo: nombreModelo, error: errorMsg })
+        }
         continue // Intentar siguiente
       }
     }
@@ -404,16 +473,24 @@ Ahora analiza este PDF y extrae TODOS los productos:`
       console.error('[Procesar PDF] ❌ Ningún modelo funcionó o no se encontraron productos')
       console.error('[Procesar PDF] Errores de todos los modelos:', JSON.stringify(errorModelos, null, 2))
       
+      // Detectar si todos los errores son de timeout
+      const todosTimeouts = errorModelos.every(e => e.error.includes('Timeout') || e.error.includes('timeout'))
+      
       return NextResponse.json(
         {
           success: false,
-          error: 'No se pudieron extraer productos del PDF',
+          error: todosTimeouts 
+            ? 'El PDF es muy grande y el procesamiento excedió el tiempo límite'
+            : 'No se pudieron extraer productos del PDF',
           details: errorModelos.length > 0 
             ? `Errores: ${errorModelos.map(e => `${e.modelo}: ${e.error}`).join(', ')}`
             : 'Gemini procesó el PDF pero no encontró productos válidos. El PDF puede estar vacío o no contener una lista de útiles reconocible.',
-          sugerencia: 'Verifica que el PDF contenga una lista de útiles escolares válida y que tu API key de Gemini tenga acceso a los modelos. Puede que necesites habilitar la API en Google Cloud Console: https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com',
+          sugerencia: todosTimeouts
+            ? `El PDF es muy grande (${pdfSizeMB} MB). Intenta: 1) Dividir el PDF en partes más pequeñas, 2) Usar un PDF con menos páginas, 3) Optimizar el PDF reduciendo su tamaño.`
+            : 'Verifica que el PDF contenga una lista de útiles escolares válida y que tu API key de Gemini tenga acceso a los modelos. Puede que necesites habilitar la API en Google Cloud Console: https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com',
+          pdfSizeMB: parseFloat(pdfSizeMB),
         },
-        { status: 500 }
+        { status: todosTimeouts ? 504 : 500 }
       )
     }
     
