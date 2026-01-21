@@ -274,8 +274,12 @@ Ahora analiza este PDF y extrae TODOS los productos:`
           cursoData
         )
 
-        const cursoCreado = cursoResponse.data
-        const cursoId = cursoCreado?.id || cursoCreado?.documentId
+        // Manejar respuesta que puede ser objeto único o array
+        const cursoCreado = Array.isArray(cursoResponse.data) 
+          ? cursoResponse.data[0] 
+          : cursoResponse.data
+        
+        const cursoId = cursoCreado?.id || cursoCreado?.documentId || null
 
         resultados.push({
           archivo: nombreArchivo,
