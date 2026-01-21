@@ -756,7 +756,8 @@ Ahora analiza este PDF y extrae TODOS los productos:`
               console.log(`[API /crm/listas/[id]/procesar-pdf] 🔢 Similitud [${index + 1}/${productosPorNombre.length}]: "${p.name}" = ${(similitud * 100).toFixed(1)}%`)
               
               if (similitud > 0.5) { // Solo considerar si similitud > 50%
-                if (!mejorMatch || similitud > mejorMatch.similitud) {
+                const currentMatch = mejorMatch as { producto: WooCommerceProduct; similitud: number } | null
+                if (!currentMatch || similitud > currentMatch.similitud) {
                   mejorMatch = { producto: p, similitud }
                   console.log(`[API /crm/listas/[id]/procesar-pdf] ⭐ Nuevo mejor match: "${p.name}" (${(similitud * 100).toFixed(1)}%)`)
                 }
@@ -782,7 +783,8 @@ Ahora analiza este PDF y extrae TODOS los productos:`
         }
 
         // 3. Si no se encontró, intentar búsqueda por palabras clave
-        if (!mejorMatch || mejorMatch.similitud < 0.7) {
+        const matchActual = mejorMatch as { producto: WooCommerceProduct; similitud: number } | null
+        if (!matchActual || matchActual.similitud < 0.7) {
           const palabrasClave = extraerPalabrasClave(nombreBusqueda)
           console.log(`[API /crm/listas/[id]/procesar-pdf] 🔑 Palabras clave extraídas de "${nombreBusqueda}":`, palabrasClave)
           
@@ -806,7 +808,8 @@ Ahora analiza este PDF y extrae TODOS los productos:`
                   console.log(`[API /crm/listas/[id]/procesar-pdf] 🔢 Similitud por palabra clave [${index + 1}/${productosPorPalabra.length}]: "${p.name}" = ${(similitud * 100).toFixed(1)}%`)
                   
                   if (similitud > 0.5) {
-                    if (!mejorMatch || similitud > mejorMatch.similitud) {
+                    const currentMatch = mejorMatch as { producto: WooCommerceProduct; similitud: number } | null
+                    if (!currentMatch || similitud > currentMatch.similitud) {
                       mejorMatch = { producto: p, similitud }
                       console.log(`[API /crm/listas/[id]/procesar-pdf] ⭐ Nuevo mejor match por palabra clave: "${p.name}" (${(similitud * 100).toFixed(1)}%)`)
                     }
@@ -832,10 +835,11 @@ Ahora analiza este PDF y extrae TODOS los productos:`
         }
 
         // Si no se encontró nada
-        if (!mejorMatch) {
+        const finalMatch = mejorMatch as { producto: WooCommerceProduct; similitud: number } | null
+        if (!finalMatch) {
           console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ NO encontrado: ${producto.nombre}${producto.isbn ? ` (ISBN: ${producto.isbn})` : ''}`)
         } else {
-          console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Mejor match encontrado pero similitud baja (${(mejorMatch.similitud * 100).toFixed(0)}%): ${producto.nombre} -> ${mejorMatch.producto.name}`)
+          console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Mejor match encontrado pero similitud baja (${(finalMatch.similitud * 100).toFixed(0)}%): ${producto.nombre} -> ${finalMatch.producto.name}`)
         }
 
         return null
