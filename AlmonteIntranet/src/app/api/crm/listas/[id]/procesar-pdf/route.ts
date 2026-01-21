@@ -871,7 +871,9 @@ Ahora analiza este PDF y extrae TODOS los productos:`
           let imagenUrl: string | undefined = undefined
           if (productoWooCommerce.images && Array.isArray(productoWooCommerce.images) && productoWooCommerce.images.length > 0) {
             const primeraImagen = productoWooCommerce.images[0]
-            imagenUrl = primeraImagen.src || primeraImagen.url || primeraImagen.image || undefined
+            // Type assertion para permitir propiedades adicionales que pueden venir de la API
+            const imagen = primeraImagen as { src?: string; url?: string; image?: string }
+            imagenUrl = imagen.src || imagen.url || imagen.image || undefined
             
             // Log para debugging
             if (imagenUrl) {
