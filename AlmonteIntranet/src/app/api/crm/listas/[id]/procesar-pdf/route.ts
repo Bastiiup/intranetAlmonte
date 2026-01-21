@@ -969,12 +969,13 @@ Ahora analiza este PDF y extrae TODOS los productos:`
             encontrado_en_woocommerce: true,
             imagen: imagenUrl,
           }
-        } else {
+          } else {
           console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ NO encontrado en WooCommerce: ${producto.nombre}`)
           return {
             ...producto,
             encontrado_en_woocommerce: false,
             disponibilidad: 'no_encontrado',
+          }
           }
         })
       )

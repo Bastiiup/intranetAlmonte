@@ -92,6 +92,22 @@ const nextConfig: NextConfig = {
   },
   // Typed routes (movido fuera de experimental en Next.js 16)
   typedRoutes: false,
+  // Configuración de webpack para resolver problemas con pdfjs-dist y canvas
+  webpack: (config, { isServer }) => {
+    // Ignorar el módulo 'canvas' en el cliente (solo se necesita en el servidor)
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        canvas: false,
+      };
+    }
+    // Ignorar canvas también en el servidor para evitar problemas de build
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      canvas: false,
+    };
+    return config;
+  },
   // Headers CSP únicos para Stream Chat (necesita unsafe-eval)
   // IMPORTANTE: Solo debe haber un CSP, configurado aquí en next.config.ts
   async headers() {
