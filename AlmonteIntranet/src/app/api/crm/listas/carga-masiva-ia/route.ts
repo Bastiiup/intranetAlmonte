@@ -279,7 +279,7 @@ Ahora analiza este PDF y extrae TODOS los productos:`
           ? cursoResponse.data[0] 
           : cursoResponse.data
         
-        const cursoId = cursoCreado?.id || cursoCreado?.documentId || null
+        const cursoId = cursoCreado?.id || cursoCreado?.documentId || undefined
 
         resultados.push({
           archivo: nombreArchivo,
