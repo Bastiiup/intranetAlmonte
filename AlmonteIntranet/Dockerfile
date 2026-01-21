@@ -16,10 +16,15 @@ ENV SKIP_ENV_VALIDATION=1
 # Optimizaciones adicionales para build más rápido
 ENV CI=true
 ENV NEXT_PRIVATE_SKIP_LINT=true
-ENV NEXT_PRIVATE_SKIP_TYPE_CHECK=1
+# Deshabilitar type checking durante build (se hace en desarrollo)
+ENV SKIP_TYPE_CHECK=true
+ENV NEXT_PRIVATE_SKIP_TYPE_CHECK=true
 # Deshabilitar validaciones y checks innecesarios
-ENV NEXT_PRIVATE_SKIP_VALIDATION=1
+ENV NEXT_PRIVATE_SKIP_VALIDATION=true
+# Habilitar Turbopack para builds más rápidos
 ENV TURBOPACK=1
+# Habilitar cache de build
+ENV NEXT_PRIVATE_BUILD_CACHE=true
 
 # Copiar archivos de dependencias primero (para mejor cache de Docker)
 COPY package*.json ./
@@ -38,8 +43,9 @@ COPY . .
 # Los archivos innecesarios ya están excluidos por .dockerignore
 
 # Construir la aplicación con optimizaciones
+# Usar variables de entorno para saltar type checking (ya se hace en CI/local)
 # Next.js ya tiene las optimizaciones habilitadas por las variables de entorno
-RUN npm run build
+RUN SKIP_TYPE_CHECK=true NEXT_PRIVATE_SKIP_TYPE_CHECK=true npm run build
 
 # Exponer el puerto (Railway usa variable PORT)
 EXPOSE 3000
