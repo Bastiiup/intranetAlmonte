@@ -920,61 +920,62 @@ Ahora analiza este PDF y extrae TODOS los productos:`
           const productoWooCommerce = await buscarProductoEnWooCommerce(producto)
           
           if (productoWooCommerce) {
-          const precioWoo = parseFloat(productoWooCommerce.price || productoWooCommerce.regular_price || '0')
-          const stockWoo = productoWooCommerce.stock_quantity || 0
-          const manageStock = productoWooCommerce.manage_stock === true
-          
-          // Determinar disponibilidad: 
-          // - Si no maneja stock (manage_stock = false), está disponible
-          // - Si maneja stock, debe estar 'instock' o 'onbackorder', o tener stock_quantity > 0
-          const disponibleWoo = !manageStock || 
-                                productoWooCommerce.stock_status === 'instock' || 
-                                productoWooCommerce.stock_status === 'onbackorder' ||
-                                (manageStock && stockWoo > 0)
-          
-          // Obtener imagen (verificar múltiples formatos posibles)
-          let imagenUrl: string | undefined = undefined
-          if (productoWooCommerce.images && Array.isArray(productoWooCommerce.images) && productoWooCommerce.images.length > 0) {
-            const primeraImagen = productoWooCommerce.images[0]
-            // Type assertion para permitir propiedades adicionales que pueden venir de la API
-            const imagen = primeraImagen as { src?: string; url?: string; image?: string }
-            imagenUrl = imagen.src || imagen.url || imagen.image || undefined
+            const precioWoo = parseFloat(productoWooCommerce.price || productoWooCommerce.regular_price || '0')
+            const stockWoo = productoWooCommerce.stock_quantity || 0
+            const manageStock = productoWooCommerce.manage_stock === true
             
-            // Log para debugging
-            if (imagenUrl) {
-              console.log(`[API /crm/listas/[id]/procesar-pdf] 🖼️ Imagen encontrada para ${producto.nombre}:`, imagenUrl)
+            // Determinar disponibilidad: 
+            // - Si no maneja stock (manage_stock = false), está disponible
+            // - Si maneja stock, debe estar 'instock' o 'onbackorder', o tener stock_quantity > 0
+            const disponibleWoo = !manageStock || 
+                                  productoWooCommerce.stock_status === 'instock' || 
+                                  productoWooCommerce.stock_status === 'onbackorder' ||
+                                  (manageStock && stockWoo > 0)
+            
+            // Obtener imagen (verificar múltiples formatos posibles)
+            let imagenUrl: string | undefined = undefined
+            if (productoWooCommerce.images && Array.isArray(productoWooCommerce.images) && productoWooCommerce.images.length > 0) {
+              const primeraImagen = productoWooCommerce.images[0]
+              // Type assertion para permitir propiedades adicionales que pueden venir de la API
+              const imagen = primeraImagen as { src?: string; url?: string; image?: string }
+              imagenUrl = imagen.src || imagen.url || imagen.image || undefined
+              
+              // Log para debugging
+              if (imagenUrl) {
+                console.log(`[API /crm/listas/[id]/procesar-pdf] 🖼️ Imagen encontrada para ${producto.nombre}:`, imagenUrl)
+              } else {
+                console.warn(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Imagen sin URL válida para ${producto.nombre}:`, primeraImagen)
+              }
             } else {
-              console.warn(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Imagen sin URL válida para ${producto.nombre}:`, primeraImagen)
+              console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Producto ${producto.nombre} no tiene imágenes en WooCommerce`)
+            }
+            
+            console.log(`[API /crm/listas/[id]/procesar-pdf] ✅ Producto validado: ${producto.nombre}`, {
+              stock_status: productoWooCommerce.stock_status,
+              stock_quantity: stockWoo,
+              manage_stock: manageStock,
+              disponible: disponibleWoo,
+              tiene_imagen: !!imagenUrl,
+            })
+            
+            return {
+              ...producto,
+              woocommerce_id: productoWooCommerce.id,
+              woocommerce_sku: productoWooCommerce.sku || producto.isbn,
+              precio: precioWoo > 0 ? precioWoo : producto.precio,
+              precio_woocommerce: precioWoo,
+              stock_quantity: stockWoo,
+              disponibilidad: disponibleWoo ? 'disponible' : 'no_disponible',
+              encontrado_en_woocommerce: true,
+              imagen: imagenUrl,
             }
           } else {
-            console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Producto ${producto.nombre} no tiene imágenes en WooCommerce`)
-          }
-          
-          console.log(`[API /crm/listas/[id]/procesar-pdf] ✅ Producto validado: ${producto.nombre}`, {
-            stock_status: productoWooCommerce.stock_status,
-            stock_quantity: stockWoo,
-            manage_stock: manageStock,
-            disponible: disponibleWoo,
-            tiene_imagen: !!imagenUrl,
-          })
-          
-          return {
-            ...producto,
-            woocommerce_id: productoWooCommerce.id,
-            woocommerce_sku: productoWooCommerce.sku || producto.isbn,
-            precio: precioWoo > 0 ? precioWoo : producto.precio,
-            precio_woocommerce: precioWoo,
-            stock_quantity: stockWoo,
-            disponibilidad: disponibleWoo ? 'disponible' : 'no_disponible',
-            encontrado_en_woocommerce: true,
-            imagen: imagenUrl,
-          }
-        } else {
-          console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ NO encontrado en WooCommerce: ${producto.nombre}`)
-          return {
-            ...producto,
-            encontrado_en_woocommerce: false,
-            disponibilidad: 'no_encontrado',
+            console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ NO encontrado en WooCommerce: ${producto.nombre}`)
+            return {
+              ...producto,
+              encontrado_en_woocommerce: false,
+              disponibilidad: 'no_encontrado',
+            }
           }
         })
       )
