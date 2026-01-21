@@ -763,14 +763,15 @@ Ahora analiza este PDF y extrae TODOS los productos:`
               }
             })
             
-            // Type guard para ayudar a TypeScript con el narrowing
-            if (mejorMatch !== null && mejorMatch !== undefined) {
-              const similitud = mejorMatch.similitud
+            // Type guard con type assertion explícito para resolver problema de inferencia de TypeScript
+            if (mejorMatch) {
+              const match = mejorMatch as { producto: WooCommerceProduct; similitud: number }
+              const similitud = match.similitud
               if (similitud >= 0.7) {
-                console.log(`[API /crm/listas/[id]/procesar-pdf] ✅ Encontrado por nombre (similitud ${(similitud * 100).toFixed(0)}%): ${producto.nombre} -> ${mejorMatch.producto.name}`)
-                return mejorMatch.producto
+                console.log(`[API /crm/listas/[id]/procesar-pdf] ✅ Encontrado por nombre (similitud ${(similitud * 100).toFixed(0)}%): ${producto.nombre} -> ${match.producto.name}`)
+                return match.producto
               } else {
-                console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Mejor match encontrado pero similitud insuficiente (${(similitud * 100).toFixed(0)}% < 70%): ${producto.nombre} -> ${mejorMatch.producto.name}`)
+                console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Mejor match encontrado pero similitud insuficiente (${(similitud * 100).toFixed(0)}% < 70%): ${producto.nombre} -> ${match.producto.name}`)
               }
             }
           } else {
@@ -812,14 +813,15 @@ Ahora analiza este PDF y extrae TODOS los productos:`
                   }
                 })
                 
-                // Type guard para ayudar a TypeScript con el narrowing
-                if (mejorMatch !== null && mejorMatch !== undefined) {
-                  const similitud = mejorMatch.similitud
+                // Type guard con type assertion explícito para resolver problema de inferencia de TypeScript
+                if (mejorMatch) {
+                  const match = mejorMatch as { producto: WooCommerceProduct; similitud: number }
+                  const similitud = match.similitud
                   if (similitud >= 0.6) {
-                    console.log(`[API /crm/listas/[id]/procesar-pdf] ✅ Encontrado por palabra clave "${palabraPrincipal}" (similitud ${(similitud * 100).toFixed(0)}%): ${producto.nombre} -> ${mejorMatch.producto.name}`)
-                    return mejorMatch.producto
+                    console.log(`[API /crm/listas/[id]/procesar-pdf] ✅ Encontrado por palabra clave "${palabraPrincipal}" (similitud ${(similitud * 100).toFixed(0)}%): ${producto.nombre} -> ${match.producto.name}`)
+                    return match.producto
                   } else {
-                    console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Mejor match por palabra clave pero similitud insuficiente (${(similitud * 100).toFixed(0)}% < 60%): ${producto.nombre} -> ${mejorMatch.producto.name}`)
+                    console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Mejor match por palabra clave pero similitud insuficiente (${(similitud * 100).toFixed(0)}% < 60%): ${producto.nombre} -> ${match.producto.name}`)
                   }
                 }
               }
