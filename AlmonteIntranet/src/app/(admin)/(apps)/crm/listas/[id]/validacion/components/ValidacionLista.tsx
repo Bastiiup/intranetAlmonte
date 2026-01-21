@@ -56,6 +56,7 @@ interface ProductoIdentificado {
   precio: number
   precio_woocommerce?: number
   asignatura?: string
+  descripcion?: string
   woocommerce_id?: number
   woocommerce_sku?: string
   stock_quantity?: number
@@ -106,7 +107,7 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
   const [productoEditando, setProductoEditando] = useState<ProductoIdentificado | null>(null)
   const [formEditData, setFormEditData] = useState<any>({})
   const [showLogsModal, setShowLogsModal] = useState(false)
-  const [logs, setLogs] = useState<Array<{ timestamp: string; level: string; message: string }>>([])
+  const [logs, setLogs] = useState<Array<{ timestamp: string; level: string; message: string; data?: any }>>([])
   const [loadingLogs, setLoadingLogs] = useState(false)
   
   // Productos identificados
