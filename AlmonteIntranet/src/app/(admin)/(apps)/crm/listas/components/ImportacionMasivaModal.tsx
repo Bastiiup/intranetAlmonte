@@ -767,6 +767,7 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
         try {
           console.log(`[Importación Masiva IA] 🔄 [${index + 1}/${cursosConPDFVerificados.length}] Procesando: ${curso.cursoNombre}`)
 
+          // Obtener documentId del curso
           try {
             const cursoResponse = await fetch(`/api/crm/listas/${curso.cursoId}`)
             const cursoData = await cursoResponse.json()
@@ -785,7 +786,7 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
             throw new Error('No se pudo obtener el ID del curso')
           }
 
-          // Procesar el PDF con IA (sin delay, procesamiento en paralelo)
+          // Procesar el PDF con IA
           console.log(`[Importación Masiva IA] 📄 [${index + 1}/${cursosConPDFVerificados.length}] Procesando PDF de: ${curso.cursoNombre} (ID: ${cursoDocumentId})`)
           
           const startTime = Date.now()
@@ -798,6 +799,8 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
               headers: {
                 'Content-Type': 'application/json',
               },
+              // Timeout más largo para PDFs grandes
+              signal: AbortSignal.timeout(300000), // 5 minutos
             })
 
             const processingTime = ((Date.now() - startTime) / 1000).toFixed(1)
