@@ -36,9 +36,9 @@ const DeleteConfirmationModal = ({
     if (children) return children
 
     if (selectedCount > 1) {
-      return `Are you sure you want to delete these ${selectedCount} ${itemName}s?`
+      return `¿Estás seguro de que deseas eliminar estos ${selectedCount} ${itemName}s? Esta acción no se puede deshacer.`
     }
-    return `Are you sure you want to delete this ${itemName}?`
+    return `¿Estás seguro de que deseas eliminar este ${itemName}? Esta acción no se puede deshacer.`
   }
 
   return (

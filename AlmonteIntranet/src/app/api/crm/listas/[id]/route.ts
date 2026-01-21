@@ -186,3 +186,135 @@ export async function GET(
     )
   }
 }
+
+/**
+ * DELETE /api/crm/listas/[id]
+ * Elimina un curso (lista) específico
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+
+    if (!id) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'ID de lista es requerido',
+        },
+        { status: 400 }
+      )
+    }
+
+    debugLog('[API /crm/listas/[id] DELETE] Eliminando curso:', id)
+    console.log('[API /crm/listas/[id] DELETE] ID recibido:', id, 'Tipo:', typeof id)
+
+    // Intentar encontrar el curso por documentId o id numérico
+    let curso: any = null
+    let cursoIdParaEliminar: string | number | null = null
+
+    // Primero intentar con documentId
+    try {
+      console.log('[API /crm/listas/[id] DELETE] Intentando buscar por documentId:', id)
+      const paramsDocId = new URLSearchParams({
+        'filters[documentId][$eq]': String(id),
+        'publicationState': 'preview',
+      })
+      const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
+        `/api/cursos?${paramsDocId.toString()}`
+      )
+      
+      if (cursoResponse.data && Array.isArray(cursoResponse.data) && cursoResponse.data.length > 0) {
+        curso = cursoResponse.data[0]
+        cursoIdParaEliminar = curso.documentId || curso.id
+        console.log('[API /crm/listas/[id] DELETE] ✅ Curso encontrado por documentId:', cursoIdParaEliminar)
+      } else if (cursoResponse.data && !Array.isArray(cursoResponse.data)) {
+        curso = cursoResponse.data
+        cursoIdParaEliminar = curso.documentId || curso.id
+        console.log('[API /crm/listas/[id] DELETE] ✅ Curso encontrado por documentId (no array)')
+      }
+    } catch (docIdError: any) {
+      console.error('[API /crm/listas/[id] DELETE] ⚠️ Error al buscar por documentId:', docIdError.message)
+    }
+
+    // Si no se encontró con documentId, intentar con id numérico
+    if (!curso) {
+      const isNumeric = /^\d+$/.test(String(id))
+      console.log('[API /crm/listas/[id] DELETE] ID es numérico?', isNumeric)
+      
+      if (isNumeric) {
+        try {
+          console.log('[API /crm/listas/[id] DELETE] Intentando buscar por id numérico:', id)
+          const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+            `/api/cursos/${id}?publicationState=preview`
+          )
+          
+          if (cursoResponse.data) {
+            curso = Array.isArray(cursoResponse.data) ? cursoResponse.data[0] : cursoResponse.data
+            cursoIdParaEliminar = curso.documentId || curso.id || id
+            console.log('[API /crm/listas/[id] DELETE] ✅ Curso encontrado por id numérico:', cursoIdParaEliminar)
+          }
+        } catch (idError: any) {
+          console.error('[API /crm/listas/[id] DELETE] ⚠️ Error al buscar por id numérico:', idError.message)
+        }
+      }
+    }
+
+    if (!curso || !cursoIdParaEliminar) {
+      console.error('[API /crm/listas/[id] DELETE] ❌ Curso no encontrado. ID buscado:', id)
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Curso no encontrado',
+          details: `No se pudo encontrar el curso con ID: ${id}`,
+        },
+        { status: 404 }
+      )
+    }
+
+    // Eliminar el curso usando documentId si está disponible, sino usar id numérico
+    try {
+      console.log('[API /crm/listas/[id] DELETE] 🗑️ Eliminando curso con ID:', cursoIdParaEliminar)
+      
+      // Strapi usa documentId para DELETE si está disponible
+      const deleteId = curso.documentId || curso.id || cursoIdParaEliminar
+      
+      await strapiClient.delete<StrapiResponse<StrapiEntity<any>>>(
+        `/api/cursos/${deleteId}`
+      )
+
+      debugLog('[API /crm/listas/[id] DELETE] ✅ Curso eliminado exitosamente')
+      console.log('[API /crm/listas/[id] DELETE] ✅ Curso eliminado exitosamente:', deleteId)
+
+      return NextResponse.json({
+        success: true,
+        message: 'Curso eliminado exitosamente',
+        deletedId: deleteId,
+      }, { status: 200 })
+    } catch (deleteError: any) {
+      console.error('[API /crm/listas/[id] DELETE] ❌ Error al eliminar curso:', deleteError)
+      debugLog('[API /crm/listas/[id] DELETE] ❌ Error:', deleteError)
+      
+      return NextResponse.json(
+        {
+          success: false,
+          error: deleteError.message || 'Error al eliminar el curso',
+          details: deleteError.response?.data || deleteError.data,
+        },
+        { status: deleteError.status || 500 }
+      )
+    }
+  } catch (error: any) {
+    debugLog('[API /crm/listas/[id] DELETE] ❌ Error:', error)
+    console.error('[API /crm/listas/[id] DELETE] ❌ Error general:', error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message || 'Error al eliminar la lista',
+      },
+      { status: 500 }
+    )
+  }
+}

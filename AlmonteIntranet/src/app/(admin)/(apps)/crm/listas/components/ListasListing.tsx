@@ -1097,6 +1097,10 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                 : Object.keys(selectedRowIds).length
             }
             itemName="curso"
+            modalTitle="Confirmar Eliminación"
+            confirmButtonText="Eliminar"
+            cancelButtonText="Cancelar"
+            loading={loading}
           />
         </Card>
 
