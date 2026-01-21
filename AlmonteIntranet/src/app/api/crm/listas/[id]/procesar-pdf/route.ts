@@ -763,12 +763,14 @@ Ahora analiza este PDF y extrae TODOS los productos:`
               }
             })
             
-            if (mejorMatch) {
-              if (mejorMatch.similitud >= 0.7) {
-                console.log(`[API /crm/listas/[id]/procesar-pdf] ✅ Encontrado por nombre (similitud ${(mejorMatch.similitud * 100).toFixed(0)}%): ${producto.nombre} -> ${mejorMatch.producto.name}`)
+            // Type guard para ayudar a TypeScript con el narrowing
+            if (mejorMatch !== null && mejorMatch !== undefined) {
+              const similitud = mejorMatch.similitud
+              if (similitud >= 0.7) {
+                console.log(`[API /crm/listas/[id]/procesar-pdf] ✅ Encontrado por nombre (similitud ${(similitud * 100).toFixed(0)}%): ${producto.nombre} -> ${mejorMatch.producto.name}`)
                 return mejorMatch.producto
               } else {
-                console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Mejor match encontrado pero similitud insuficiente (${(mejorMatch.similitud * 100).toFixed(0)}% < 70%): ${producto.nombre} -> ${mejorMatch.producto.name}`)
+                console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Mejor match encontrado pero similitud insuficiente (${(similitud * 100).toFixed(0)}% < 70%): ${producto.nombre} -> ${mejorMatch.producto.name}`)
               }
             }
           } else {
@@ -810,12 +812,14 @@ Ahora analiza este PDF y extrae TODOS los productos:`
                   }
                 })
                 
-                if (mejorMatch) {
-                  if (mejorMatch.similitud >= 0.6) {
-                    console.log(`[API /crm/listas/[id]/procesar-pdf] ✅ Encontrado por palabra clave "${palabraPrincipal}" (similitud ${(mejorMatch.similitud * 100).toFixed(0)}%): ${producto.nombre} -> ${mejorMatch.producto.name}`)
+                // Type guard para ayudar a TypeScript con el narrowing
+                if (mejorMatch !== null && mejorMatch !== undefined) {
+                  const similitud = mejorMatch.similitud
+                  if (similitud >= 0.6) {
+                    console.log(`[API /crm/listas/[id]/procesar-pdf] ✅ Encontrado por palabra clave "${palabraPrincipal}" (similitud ${(similitud * 100).toFixed(0)}%): ${producto.nombre} -> ${mejorMatch.producto.name}`)
                     return mejorMatch.producto
                   } else {
-                    console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Mejor match por palabra clave pero similitud insuficiente (${(mejorMatch.similitud * 100).toFixed(0)}% < 60%): ${producto.nombre} -> ${mejorMatch.producto.name}`)
+                    console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Mejor match por palabra clave pero similitud insuficiente (${(similitud * 100).toFixed(0)}% < 60%): ${producto.nombre} -> ${mejorMatch.producto.name}`)
                   }
                 }
               }
