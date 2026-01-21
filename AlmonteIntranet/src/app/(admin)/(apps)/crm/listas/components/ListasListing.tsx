@@ -46,6 +46,7 @@ interface ListaType {
     direccion?: string
     comuna?: string
     region?: string
+    telefono?: string
   }
   curso?: {
     id: number | string
@@ -189,13 +190,28 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
           <div>
             <div className="fw-semibold">{colegio.nombre || '-'}</div>
             {colegio.direccion && (
-              <small className="text-muted d-block">{colegio.direccion}</small>
+              <small className="text-muted d-block">
+                <span className="me-1">📍</span>
+                {colegio.direccion}
+              </small>
             )}
             {(colegio.comuna || colegio.region) && (
               <small className="text-muted d-block">
                 {colegio.comuna && colegio.region 
                   ? `${colegio.comuna}, ${colegio.region}`
                   : colegio.comuna || colegio.region}
+              </small>
+            )}
+            {colegio.telefono && (
+              <small className="text-muted d-block">
+                <span className="me-1">📞</span>
+                {colegio.telefono}
+              </small>
+            )}
+            {colegio.rbd && (
+              <small className="text-muted d-block">
+                <span className="me-1">🔢</span>
+                RBD: {colegio.rbd}
               </small>
             )}
           </div>

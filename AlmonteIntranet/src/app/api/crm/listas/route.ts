@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
     // Populate y fields necesarios - Mejorado para incluir más datos
     filters.push('populate[colegio][populate][comuna]=true')
     filters.push('populate[colegio][populate][direcciones]=true')
+    filters.push('populate[colegio][populate][telefonos]=true')
     filters.push('populate[colegio][fields][0]=colegio_nombre')
     filters.push('populate[colegio][fields][1]=rbd')
     filters.push('populate[colegio][fields][2]=region')
@@ -159,16 +160,31 @@ export async function GET(request: NextRequest) {
       const colegioData = attrs.colegio?.data || attrs.colegio
       const colegioAttrs = colegioData?.attributes || colegioData
       
-      // Obtener datos del colegio (dirección, comuna, región)
+      // Obtener datos del colegio (dirección, comuna, región, teléfono)
       const comunaData = colegioAttrs?.comuna?.data || colegioAttrs?.comuna
       const comunaAttrs = comunaData?.attributes || comunaData
       const direcciones = colegioAttrs?.direcciones || []
       const direccionPrincipal = direcciones.find((d: any) => 
         d.tipo_direccion === 'Principal' || d.tipo_direccion === 'Colegio'
       ) || direcciones[0]
-      const direccionStr = direccionPrincipal?.direccion || ''
+      
+      // Construir dirección completa
+      let direccionStr = ''
+      if (direccionPrincipal) {
+        const nombreCalle = direccionPrincipal.nombre_calle || ''
+        const numeroCalle = direccionPrincipal.numero_calle || ''
+        const complemento = direccionPrincipal.complemento_direccion || ''
+        const partes = [nombreCalle, numeroCalle, complemento].filter(Boolean)
+        direccionStr = partes.join(' ').trim()
+      }
+      
       const comunaNombre = comunaAttrs?.comuna_nombre || ''
       const regionNombre = colegioAttrs?.region || comunaAttrs?.region_nombre || ''
+      
+      // Obtener teléfono principal
+      const telefonos = colegioAttrs?.telefonos || []
+      const telefonoPrincipal = telefonos.find((t: any) => t.principal === true) || telefonos[0]
+      const telefonoStr = telefonoPrincipal?.telefono_raw || telefonoPrincipal?.telefono_norm || ''
       
       // Obtener fechas
       const createdAt = curso.createdAt || attrs.createdAt || null
@@ -223,6 +239,7 @@ export async function GET(request: NextRequest) {
           direccion: direccionStr,
           comuna: comunaNombre,
           region: regionNombre,
+          telefono: telefonoStr,
         } : null,
         createdAt: createdAt,
         updatedAt: updatedAt,
