@@ -760,12 +760,13 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
     try {
       // Función para procesar un curso individual
       const procesarCurso = async (curso: typeof cursosConPDFVerificados[0], index: number): Promise<void> => {
+        // Obtener el documentId del curso (ya verificamos que tiene PDF antes)
+        // Declarar fuera del try para que esté disponible en el catch
+        let cursoDocumentId: string | number | null = null
+        
         try {
           console.log(`[Importación Masiva IA] 🔄 [${index + 1}/${cursosConPDFVerificados.length}] Procesando: ${curso.cursoNombre}`)
 
-          // Obtener el documentId del curso (ya verificamos que tiene PDF antes)
-          let cursoDocumentId: string | number | null = null
-          
           try {
             const cursoResponse = await fetch(`/api/crm/listas/${curso.cursoId}`)
             const cursoData = await cursoResponse.json()
