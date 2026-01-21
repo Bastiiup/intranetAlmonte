@@ -771,13 +771,13 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
             const cursoData = await cursoResponse.json()
             
             if (cursoData.success && cursoData.data) {
-              cursoDocumentId = cursoData.data.documentId || cursoData.data.id || curso.cursoId
+              cursoDocumentId = cursoData.data.documentId || cursoData.data.id || curso.cursoId || null
             } else {
-              cursoDocumentId = curso.cursoId
+              cursoDocumentId = curso.cursoId || null
             }
           } catch (err: any) {
             console.warn(`[Importación Masiva IA] ⚠️ No se pudo obtener documentId, usando cursoId:`, err.message)
-            cursoDocumentId = curso.cursoId
+            cursoDocumentId = curso.cursoId || null
           }
 
           if (!cursoDocumentId) {
