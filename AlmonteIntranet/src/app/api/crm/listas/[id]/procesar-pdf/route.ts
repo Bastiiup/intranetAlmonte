@@ -690,6 +690,47 @@ Ahora analiza este PDF y extrae TODOS los productos:`
         .slice(0, 5) // Máximo 5 palabras clave
     }
     
+    // Función helper para hacer llamadas a WooCommerce con retry y delays
+    const wooCommerceGetWithRetry = async <T>(
+      path: string, 
+      params: Record<string, any>,
+      retries = 3,
+      baseDelay = 500
+    ): Promise<T> => {
+      for (let attempt = 0; attempt < retries; attempt++) {
+        try {
+          // Delay antes de cada intento (excepto el primero)
+          if (attempt > 0) {
+            const delay = baseDelay * Math.pow(2, attempt - 1) // Exponential backoff
+            console.log(`[API /crm/listas/[id]/procesar-pdf] ⏳ Esperando ${delay}ms antes de reintentar (intento ${attempt + 1}/${retries})...`)
+            await new Promise(resolve => setTimeout(resolve, delay))
+          }
+          
+          // Delay base entre todas las llamadas para evitar saturar la API
+          if (attempt === 0) {
+            await new Promise(resolve => setTimeout(resolve, 200)) // 200ms entre búsquedas
+          }
+          
+          return await wooCommerceClient.get<T>(path, params)
+        } catch (error: any) {
+          const is429 = error.status === 429 || error.message?.includes('429') || error.message?.includes('Too Many Requests')
+          
+          if (is429 && attempt < retries - 1) {
+            const retryAfter = error.message?.match(/retry.*?(\d+)/i)?.[1] || '5'
+            const delay = parseInt(retryAfter) * 1000 || baseDelay * Math.pow(2, attempt)
+            console.warn(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Error 429 (intento ${attempt + 1}/${retries}), esperando ${delay}ms...`)
+            await new Promise(resolve => setTimeout(resolve, delay))
+            continue
+          }
+          
+          // Si no es 429 o es el último intento, lanzar el error
+          throw error
+        }
+      }
+      
+      throw new Error('Max retries exceeded')
+    }
+    
     const buscarProductoEnWooCommerce = async (producto: ProductoIdentificado): Promise<WooCommerceProduct | null> => {
       try {
         console.log(`[API /crm/listas/[id]/procesar-pdf] 🔍 Buscando producto: "${producto.nombre}"${producto.isbn ? ` (ISBN: ${producto.isbn})` : ''}`)
@@ -700,7 +741,7 @@ Ahora analiza este PDF y extrae TODOS los productos:`
             // Limpiar ISBN (quitar guiones, espacios, etc.)
             const isbnLimpio = producto.isbn.replace(/[-\s]/g, '')
             
-            const productosPorSKU = await wooCommerceClient.get<WooCommerceProduct[]>('products', {
+            const productosPorSKU = await wooCommerceGetWithRetry<WooCommerceProduct[]>('products', {
               sku: producto.isbn,
               per_page: 20, // Aumentar para tener más opciones
               status: 'publish',
@@ -722,7 +763,12 @@ Ahora analiza este PDF y extrae TODOS los productos:`
               }
             }
           } catch (skuError: any) {
-            console.warn(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Error buscando por SKU ${producto.isbn}:`, skuError.message)
+            const is429 = skuError.status === 429 || skuError.message?.includes('429')
+            if (is429) {
+              console.warn(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Error 429 buscando por SKU ${producto.isbn}, continuando con búsqueda por nombre...`)
+            } else {
+              console.warn(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Error buscando por SKU ${producto.isbn}:`, skuError.message)
+            }
           }
         }
 
@@ -734,7 +780,7 @@ Ahora analiza este PDF y extrae TODOS los productos:`
           console.log(`[API /crm/listas/[id]/procesar-pdf] 🔎 Buscando por nombre completo: "${nombreBusqueda}"`)
           
           // Primero intentar búsqueda exacta
-          const productosPorNombre = await wooCommerceClient.get<WooCommerceProduct[]>('products', {
+          const productosPorNombre = await wooCommerceGetWithRetry<WooCommerceProduct[]>('products', {
             search: nombreBusqueda,
             per_page: 50, // Aumentar para tener más opciones
             status: 'publish',
@@ -779,7 +825,12 @@ Ahora analiza este PDF y extrae TODOS los productos:`
             console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ No se encontraron productos en WooCommerce para: "${nombreBusqueda}"`)
           }
         } catch (nombreError: any) {
-          console.warn(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Error buscando por nombre ${producto.nombre}:`, nombreError.message)
+          const is429 = nombreError.status === 429 || nombreError.message?.includes('429')
+          if (is429) {
+            console.warn(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Error 429 buscando por nombre ${producto.nombre}, continuando con búsqueda por palabras clave...`)
+          } else {
+            console.warn(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Error buscando por nombre ${producto.nombre}:`, nombreError.message)
+          }
         }
 
         // 3. Si no se encontró, intentar búsqueda por palabras clave
@@ -794,7 +845,7 @@ Ahora analiza este PDF y extrae TODOS los productos:`
             console.log(`[API /crm/listas/[id]/procesar-pdf] 🔍 Buscando por palabra clave principal: "${palabraPrincipal}"`)
             
             try {
-              const productosPorPalabra = await wooCommerceClient.get<WooCommerceProduct[]>('products', {
+              const productosPorPalabra = await wooCommerceGetWithRetry<WooCommerceProduct[]>('products', {
                 search: palabraPrincipal,
                 per_page: 50,
                 status: 'publish',
@@ -829,7 +880,12 @@ Ahora analiza este PDF y extrae TODOS los productos:`
                 }
               }
             } catch (palabraError: any) {
-              console.warn(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Error buscando por palabra clave:`, palabraError.message)
+              const is429 = palabraError.status === 429 || palabraError.message?.includes('429')
+              if (is429) {
+                console.warn(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Error 429 buscando por palabra clave, continuando...`)
+              } else {
+                console.warn(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Error buscando por palabra clave:`, palabraError.message)
+              }
             }
           }
         }
@@ -849,12 +905,21 @@ Ahora analiza este PDF y extrae TODOS los productos:`
       }
     }
 
-    // Validar cada producto
-    const productosValidados = await Promise.all(
-      productosNormalizados.map(async (producto) => {
-        const productoWooCommerce = await buscarProductoEnWooCommerce(producto)
-        
-        if (productoWooCommerce) {
+    // Validar cada producto en lotes para evitar saturar la API de WooCommerce
+    const BATCH_SIZE = 5 // Procesar 5 productos a la vez
+    const productosValidados: any[] = []
+    
+    for (let i = 0; i < productosNormalizados.length; i += BATCH_SIZE) {
+      const batch = productosNormalizados.slice(i, i + BATCH_SIZE)
+      const batchNumber = Math.floor(i / BATCH_SIZE) + 1
+      const totalBatches = Math.ceil(productosNormalizados.length / BATCH_SIZE)
+      console.log(`[API /crm/listas/[id]/procesar-pdf] 📦 Procesando lote ${batchNumber}/${totalBatches} (${batch.length} productos)`)
+      
+      const batchResults = await Promise.all(
+        batch.map(async (producto) => {
+          const productoWooCommerce = await buscarProductoEnWooCommerce(producto)
+          
+          if (productoWooCommerce) {
           const precioWoo = parseFloat(productoWooCommerce.price || productoWooCommerce.regular_price || '0')
           const stockWoo = productoWooCommerce.stock_quantity || 0
           const manageStock = productoWooCommerce.manage_stock === true
@@ -911,9 +976,16 @@ Ahora analiza este PDF y extrae TODOS los productos:`
             encontrado_en_woocommerce: false,
             disponibilidad: 'no_encontrado',
           }
-        }
-      })
-    )
+        })
+      )
+      
+      productosValidados.push(...batchResults)
+      
+      // Delay entre lotes para evitar saturar la API (excepto en el último lote)
+      if (i + BATCH_SIZE < productosNormalizados.length) {
+        await new Promise(resolve => setTimeout(resolve, 300)) // 300ms entre lotes
+      }
+    }
 
     const productosEncontrados = productosValidados.filter(p => p.encontrado_en_woocommerce).length
     const productosNoEncontrados = productosValidados.filter(p => !p.encontrado_en_woocommerce).length
