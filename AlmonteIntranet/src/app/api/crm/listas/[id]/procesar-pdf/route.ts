@@ -21,14 +21,20 @@ export const maxDuration = 300
 // La validación se hace dentro de la función POST para devolver respuesta HTTP adecuada
 
 // Modelos disponibles (en orden de preferencia)
+// Solo modelos que realmente existen y están disponibles
 const MODELOS_DISPONIBLES = [
-  'gemini-2.5-flash',      // Más rápido y eficiente
-  'gemini-flash-latest',   // Siempre el último Flash
-  'gemini-2.5-pro',        // Más potente
-  'gemini-pro-latest',     // Siempre el último Pro
-  'gemini-1.5-flash',      // Fallback
-  'gemini-1.5-pro'         // Fallback
+  'gemini-2.5-flash',      // Más rápido y eficiente (límite: 20 req/día en plan gratuito)
+  'gemini-2.5-flash-lite', // Versión lite (puede tener más cuota)
+  // NOTA: gemini-1.5-flash y gemini-1.5-pro ya no existen (404)
+  // NOTA: gemini-2.5-pro y gemini-pro-latest requieren plan de pago (límite: 0 en gratuito)
 ]
+
+interface CoordenadasProducto {
+  pagina: number
+  posicion_x?: number // Posición horizontal aproximada (0-100 como porcentaje del ancho de página)
+  posicion_y?: number // Posición vertical aproximada (0-100 como porcentaje del alto de página)
+  region?: string // Descripción de la región (ej: "superior", "medio", "inferior", "izquierda", "derecha")
+}
 
 interface ProductoIdentificado {
   id: string | number
@@ -47,6 +53,7 @@ interface ProductoIdentificado {
   woocommerce_sku?: string
   stock_quantity?: number
   encontrado_en_woocommerce?: boolean
+  coordenadas?: CoordenadasProducto
 }
 
 /**
@@ -283,11 +290,30 @@ ITEMS QUE DEBES IGNORAR:
 REGLAS:
 1. Si ves un número al inicio, es la cantidad
 2. Si no hay número, la cantidad es 1
-3. Incluye marca/características en "descripcion"
-4. Normaliza nombres similares (ej: "cuaderno" = "Cuaderno")
-5. Si hay ISBN o código, extráelo en "isbn"
-6. Si hay precio mencionado, extráelo como número (sin símbolos) en "precio"
-7. Si hay asignatura o materia mencionada, extráela en "asignatura"
+3. **CRÍTICO - EXTRACCIÓN DE NOMBRES:**
+   - El campo "nombre" debe contener el NOMBRE COMPLETO Y ESPECÍFICO del producto
+   - NO uses nombres genéricos como "Libro", "Cuaderno", "Lápiz" a menos que sea realmente genérico
+   - Si el producto tiene un título específico (ej: "El laberinto de la soledad", "Biología PAES"), ese título completo va en "nombre"
+   - Si hay subtítulo o edición (ej: "6ª Edición 2026"), puede ir en "descripcion" pero el nombre principal debe ser específico
+   - Ejemplos CORRECTOS:
+     * nombre: "El laberinto de la soledad" (NO "Libro")
+     * nombre: "Biología PAES" (NO "Libro")
+     * nombre: "Cuaderno universitario" (SÍ, es genérico pero específico)
+     * nombre: "Lápiz grafito N°2" (SÍ, es específico)
+4. Incluye marca/características/edición en "descripcion" solo si no es parte del nombre principal
+5. Normaliza nombres similares (ej: "cuaderno" = "Cuaderno")
+6. Si hay ISBN o código, extráelo en "isbn"
+7. Si hay precio mencionado, extráelo como número (sin símbolos) en "precio"
+8. Si hay asignatura o materia mencionada, extráela en "asignatura"
+9. **IMPORTANTE:** Para cada producto, identifica en qué página del PDF aparece y su posición aproximada
+
+COORDENADAS (OBLIGATORIO Y CRÍTICO):
+- "pagina": Número de página donde aparece el producto (empezando desde 1)
+- "posicion_x": Posición horizontal del CENTRO del título/nombre del producto como porcentaje (0-100), donde 0 es el borde izquierdo y 100 el derecho. DEBE ser la posición exacta del centro del texto del título.
+- "posicion_y": Posición vertical del CENTRO del título/nombre del producto como porcentaje (0-100), donde 0 es la parte superior y 100 la inferior. DEBE ser la posición exacta del centro del texto del título.
+- "region": Descripción opcional de la región (ej: "superior-izquierda", "medio-derecha", "inferior")
+
+⚠️ IMPORTANTE: Las coordenadas posicion_x y posicion_y deben apuntar al CENTRO del texto del título/nombre del producto en el PDF, no a una región general. Esto es crítico para el resaltado preciso.
 
 FORMATO DE RESPUESTA (JSON puro, SIN markdown, SIN backticks):
 {
@@ -300,17 +326,45 @@ FORMATO DE RESPUESTA (JSON puro, SIN markdown, SIN backticks):
       "comprar": true,
       "precio": 0,
       "asignatura": null,
-      "descripcion": "100 hojas cuadriculado"
+      "descripcion": "100 hojas cuadriculado",
+      "coordenadas": {
+        "pagina": 2,
+        "posicion_x": 15,
+        "posicion_y": 30,
+        "region": "superior-izquierda"
+      }
     },
     {
       "cantidad": 1,
-      "nombre": "Lápiz grafito",
+      "nombre": "El laberinto de la soledad",
       "isbn": null,
       "marca": null,
       "comprar": true,
       "precio": 0,
       "asignatura": null,
-      "descripcion": "N°2 HB"
+      "descripcion": null,
+      "coordenadas": {
+        "pagina": 1,
+        "posicion_x": 50,
+        "posicion_y": 40,
+        "region": "medio"
+      }
+    },
+    {
+      "cantidad": 1,
+      "nombre": "Biología PAES",
+      "isbn": null,
+      "marca": null,
+      "comprar": true,
+      "precio": 0,
+      "asignatura": null,
+      "descripcion": "6ª Edición 2026",
+      "coordenadas": {
+        "pagina": 1,
+        "posicion_x": 50,
+        "posicion_y": 50,
+        "region": "medio"
+      }
     }
   ]
 }
@@ -454,12 +508,33 @@ Ahora analiza este PDF y extrae TODOS los productos:`
         console.log(`[Procesar PDF] ❌ Modelo ${nombreModelo} falló:`, errorMsg)
         console.log('[Procesar PDF] Stack del error:', error.stack)
         
-        // Detectar errores de timeout específicamente
+        // Detectar tipos de errores específicamente
         if (errorMsg.includes('Timeout') || errorMsg.includes('timeout')) {
           console.error('[Procesar PDF] ⏱️ Error de timeout detectado')
           errorModelos.push({ 
             modelo: nombreModelo, 
             error: `Timeout: El PDF es muy grande (${pdfSizeMB} MB). Intenta con un PDF más pequeño o divide el contenido.` 
+          })
+        } else if (errorMsg.includes('429') || errorMsg.includes('quota') || errorMsg.includes('Quota') || errorMsg.includes('Too Many Requests')) {
+          // Error de cuota excedida
+          console.error('[Procesar PDF] ⚠️ Error de cuota detectado')
+          const retryAfter = errorMsg.match(/retry in (\d+\.?\d*)s/i)?.[1] || '20'
+          errorModelos.push({ 
+            modelo: nombreModelo, 
+            error: `Cuota excedida: Has alcanzado el límite de solicitudes del plan gratuito. Espera ${retryAfter} segundos o actualiza a un plan de pago.` 
+          })
+          // Si es error de cuota, esperar un poco antes de intentar el siguiente modelo
+          if (MODELOS_DISPONIBLES.indexOf(nombreModelo) < MODELOS_DISPONIBLES.length - 1) {
+            const waitTime = Math.min(parseFloat(retryAfter) * 1000 || 20000, 30000) // Máximo 30 segundos
+            console.log(`[Procesar PDF] ⏳ Esperando ${waitTime / 1000}s antes de probar siguiente modelo...`)
+            await new Promise(resolve => setTimeout(resolve, waitTime))
+          }
+        } else if (errorMsg.includes('404') || errorMsg.includes('Not Found') || errorMsg.includes('not found')) {
+          // Modelo no existe
+          console.warn(`[Procesar PDF] ⚠️ Modelo ${nombreModelo} no existe o no está disponible`)
+          errorModelos.push({ 
+            modelo: nombreModelo, 
+            error: `Modelo no disponible: Este modelo ya no existe o no está disponible en la API v1beta.` 
           })
         } else {
           errorModelos.push({ modelo: nombreModelo, error: errorMsg })
@@ -473,24 +548,41 @@ Ahora analiza este PDF y extrae TODOS los productos:`
       console.error('[Procesar PDF] ❌ Ningún modelo funcionó o no se encontraron productos')
       console.error('[Procesar PDF] Errores de todos los modelos:', JSON.stringify(errorModelos, null, 2))
       
-      // Detectar si todos los errores son de timeout
+      // Detectar tipos de errores
       const todosTimeouts = errorModelos.every(e => e.error.includes('Timeout') || e.error.includes('timeout'))
+      const todosQuotas = errorModelos.every(e => e.error.includes('Cuota') || e.error.includes('quota') || e.error.includes('Quota'))
+      const todos404 = errorModelos.every(e => e.error.includes('404') || e.error.includes('Not Found') || e.error.includes('no existe'))
+      
+      let errorMessage = 'No se pudieron extraer productos del PDF'
+      let sugerencia = 'Verifica que el PDF contenga una lista de útiles escolares válida y que tu API key de Gemini tenga acceso a los modelos.'
+      let statusCode = 500
+      
+      if (todosQuotas) {
+        errorMessage = 'Cuota de API excedida: Has alcanzado el límite de solicitudes del plan gratuito de Gemini'
+        sugerencia = `El plan gratuito de Gemini tiene límites estrictos (20 solicitudes/día para gemini-2.5-flash). Opciones:\n1) Esperar hasta mañana para que se reinicie la cuota\n2) Actualizar a un plan de pago en Google Cloud Console\n3) Usar una API key diferente con cuota disponible\n\nVer detalles: https://ai.google.dev/gemini-api/docs/rate-limits`
+        statusCode = 429
+      } else if (todosTimeouts) {
+        errorMessage = 'El PDF es muy grande y el procesamiento excedió el tiempo límite'
+        sugerencia = `El PDF es muy grande (${pdfSizeMB} MB). Intenta: 1) Dividir el PDF en partes más pequeñas, 2) Usar un PDF con menos páginas, 3) Optimizar el PDF reduciendo su tamaño.`
+        statusCode = 504
+      } else if (todos404) {
+        errorMessage = 'Modelos de Gemini no disponibles'
+        sugerencia = 'Los modelos configurados ya no están disponibles. Verifica la lista de modelos disponibles en: https://ai.google.dev/gemini-api/docs/models'
+        statusCode = 503
+      }
       
       return NextResponse.json(
         {
           success: false,
-          error: todosTimeouts 
-            ? 'El PDF es muy grande y el procesamiento excedió el tiempo límite'
-            : 'No se pudieron extraer productos del PDF',
+          error: errorMessage,
           details: errorModelos.length > 0 
-            ? `Errores: ${errorModelos.map(e => `${e.modelo}: ${e.error}`).join(', ')}`
+            ? `Errores de modelos: ${errorModelos.map(e => `${e.modelo}: ${e.error.substring(0, 100)}`).join(' | ')}`
             : 'Gemini procesó el PDF pero no encontró productos válidos. El PDF puede estar vacío o no contener una lista de útiles reconocible.',
-          sugerencia: todosTimeouts
-            ? `El PDF es muy grande (${pdfSizeMB} MB). Intenta: 1) Dividir el PDF en partes más pequeñas, 2) Usar un PDF con menos páginas, 3) Optimizar el PDF reduciendo su tamaño.`
-            : 'Verifica que el PDF contenga una lista de útiles escolares válida y que tu API key de Gemini tenga acceso a los modelos. Puede que necesites habilitar la API en Google Cloud Console: https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com',
+          sugerencia: sugerencia,
           pdfSizeMB: parseFloat(pdfSizeMB),
+          erroresModelos: errorModelos, // Incluir todos los errores para debugging
         },
-        { status: todosTimeouts ? 504 : 500 }
+        { status: statusCode }
       )
     }
     
@@ -503,20 +595,44 @@ Ahora analiza este PDF y extrae TODOS los productos:`
     // ============================================
     // 7. NORMALIZAR PRODUCTOS
     // ============================================
-    const productosNormalizados: ProductoIdentificado[] = productos.map((producto: any, index: number) => ({
-      id: `producto-${index + 1}`,
-      validado: false,
-      nombre: producto.nombre || `Producto ${index + 1}`,
-      isbn: producto.isbn || null,
-      marca: producto.marca || null,
-      cantidad: parseInt(String(producto.cantidad)) || 1,
-      comprar: producto.comprar !== false,
-      precio: parseFloat(String(producto.precio)) || 0,
-      asignatura: producto.asignatura || null,
-      descripcion: producto.descripcion || null,
-      disponibilidad: 'disponible',
-      encontrado_en_woocommerce: false,
-    }))
+    const productosNormalizados: ProductoIdentificado[] = productos.map((producto: any, index: number) => {
+      // Normalizar coordenadas
+      let coordenadas: CoordenadasProducto | undefined = undefined
+      
+      if (producto.coordenadas) {
+        coordenadas = {
+          pagina: parseInt(String(producto.coordenadas.pagina)) || 1,
+          posicion_x: producto.coordenadas.posicion_x !== undefined 
+            ? parseFloat(String(producto.coordenadas.posicion_x)) 
+            : undefined,
+          posicion_y: producto.coordenadas.posicion_y !== undefined 
+            ? parseFloat(String(producto.coordenadas.posicion_y)) 
+            : undefined,
+          region: producto.coordenadas.region || undefined,
+        }
+      } else if (producto.pagina !== undefined) {
+        // Fallback: si viene como campo directo "pagina"
+        coordenadas = {
+          pagina: parseInt(String(producto.pagina)) || 1,
+        }
+      }
+      
+      return {
+        id: `producto-${index + 1}`,
+        validado: false,
+        nombre: producto.nombre || `Producto ${index + 1}`,
+        isbn: producto.isbn || null,
+        marca: producto.marca || null,
+        cantidad: parseInt(String(producto.cantidad)) || 1,
+        comprar: producto.comprar !== false,
+        precio: parseFloat(String(producto.precio)) || 0,
+        asignatura: producto.asignatura || null,
+        descripcion: producto.descripcion || null,
+        disponibilidad: 'disponible',
+        encontrado_en_woocommerce: false,
+        coordenadas: coordenadas,
+      }
+    })
 
     // ============================================
     // 8. VALIDAR PRODUCTOS CONTRA WOOCOMMERCE
@@ -525,21 +641,83 @@ Ahora analiza este PDF y extrae TODOS los productos:`
     
     const wooCommerceClient = createWooCommerceClient('woo_escolar')
     
+    // Función para normalizar nombres (quitar acentos, espacios extra, etc.)
+    const normalizarNombre = (nombre: string): string => {
+      if (!nombre) return ''
+      
+      return nombre
+        .toLowerCase()
+        .normalize('NFD') // Normalizar a NFD (descomponer acentos)
+        .replace(/[\u0300-\u036f]/g, '') // Quitar diacríticos (acentos)
+        .replace(/[^\w\s]/g, '') // Quitar caracteres especiales excepto letras, números y espacios
+        .replace(/\s+/g, ' ') // Normalizar espacios múltiples a uno solo
+        .trim()
+    }
+    
+    // Función para calcular similitud entre dos nombres (0-1)
+    const calcularSimilitud = (nombre1: string, nombre2: string): number => {
+      const n1 = normalizarNombre(nombre1)
+      const n2 = normalizarNombre(nombre2)
+      
+      // Coincidencia exacta
+      if (n1 === n2) return 1.0
+      
+      // Una contiene a la otra
+      if (n1.includes(n2) || n2.includes(n1)) return 0.9
+      
+      // Calcular palabras en común
+      const palabras1 = n1.split(' ').filter(p => p.length > 2) // Ignorar palabras muy cortas
+      const palabras2 = n2.split(' ').filter(p => p.length > 2)
+      
+      if (palabras1.length === 0 || palabras2.length === 0) return 0
+      
+      const palabrasComunes = palabras1.filter(p => palabras2.includes(p))
+      const similitud = palabrasComunes.length / Math.max(palabras1.length, palabras2.length)
+      
+      return similitud
+    }
+    
+    // Función para extraer palabras clave importantes del nombre
+    const extraerPalabrasClave = (nombre: string): string[] => {
+      const normalizado = normalizarNombre(nombre)
+      const palabras = normalizado.split(' ')
+      
+      // Filtrar palabras comunes que no son útiles para búsqueda
+      const palabrasComunes = ['el', 'la', 'los', 'las', 'de', 'del', 'y', 'o', 'a', 'en', 'un', 'una', 'con', 'por', 'para']
+      
+      return palabras
+        .filter(p => p.length > 2 && !palabrasComunes.includes(p))
+        .slice(0, 5) // Máximo 5 palabras clave
+    }
+    
     const buscarProductoEnWooCommerce = async (producto: ProductoIdentificado): Promise<WooCommerceProduct | null> => {
       try {
-        // 1. Buscar por SKU/ISBN primero
+        console.log(`[API /crm/listas/[id]/procesar-pdf] 🔍 Buscando producto: "${producto.nombre}"${producto.isbn ? ` (ISBN: ${producto.isbn})` : ''}`)
+        
+        // 1. Buscar por SKU/ISBN primero (más preciso)
         if (producto.isbn) {
           try {
+            // Limpiar ISBN (quitar guiones, espacios, etc.)
+            const isbnLimpio = producto.isbn.replace(/[-\s]/g, '')
+            
             const productosPorSKU = await wooCommerceClient.get<WooCommerceProduct[]>('products', {
               sku: producto.isbn,
-              per_page: 1,
+              per_page: 20, // Aumentar para tener más opciones
               status: 'publish',
             })
             
             if (Array.isArray(productosPorSKU) && productosPorSKU.length > 0) {
-              const encontrado = productosPorSKU.find(p => p.sku?.toLowerCase() === producto.isbn?.toLowerCase())
+              // Buscar coincidencia exacta o parcial del SKU
+              const encontrado = productosPorSKU.find(p => {
+                const skuWoo = (p.sku || '').replace(/[-\s]/g, '').toLowerCase()
+                const isbnBusqueda = isbnLimpio.toLowerCase()
+                return skuWoo === isbnBusqueda || 
+                       skuWoo.includes(isbnBusqueda) || 
+                       isbnBusqueda.includes(skuWoo)
+              })
+              
               if (encontrado) {
-                console.log(`[API /crm/listas/[id]/procesar-pdf] ✅ Encontrado por SKU: ${producto.nombre} (SKU: ${producto.isbn})`)
+                console.log(`[API /crm/listas/[id]/procesar-pdf] ✅ Encontrado por SKU/ISBN: ${producto.nombre} (SKU: ${encontrado.sku})`)
                 return encontrado
               }
             }
@@ -548,31 +726,106 @@ Ahora analiza este PDF y extrae TODOS los productos:`
           }
         }
 
-        // 2. Buscar por nombre
+        // 2. Buscar por nombre completo
         const nombreBusqueda = producto.nombre.trim()
+        let mejorMatch: { producto: WooCommerceProduct; similitud: number } | null = null
+        
         try {
+          console.log(`[API /crm/listas/[id]/procesar-pdf] 🔎 Buscando por nombre completo: "${nombreBusqueda}"`)
+          
+          // Primero intentar búsqueda exacta
           const productosPorNombre = await wooCommerceClient.get<WooCommerceProduct[]>('products', {
             search: nombreBusqueda,
-            per_page: 10,
+            per_page: 50, // Aumentar para tener más opciones
             status: 'publish',
           })
 
+          console.log(`[API /crm/listas/[id]/procesar-pdf] 📦 Productos encontrados en WooCommerce para "${nombreBusqueda}": ${Array.isArray(productosPorNombre) ? productosPorNombre.length : 0}`)
+
           if (Array.isArray(productosPorNombre) && productosPorNombre.length > 0) {
-            const nombreLower = nombreBusqueda.toLowerCase()
-            const encontrado = productosPorNombre.find(p => {
-              const nombreWooLower = p.name.toLowerCase()
-              return nombreWooLower === nombreLower || 
-                     nombreWooLower.includes(nombreLower) || 
-                     nombreLower.includes(nombreWooLower)
+            // Mostrar los primeros 5 productos encontrados para debugging
+            console.log(`[API /crm/listas/[id]/procesar-pdf] 📋 Primeros productos encontrados:`, productosPorNombre.slice(0, 5).map((p: any) => ({
+              id: p.id,
+              nombre: p.name,
+              sku: p.sku
+            })))
+            
+            // Calcular similitud para cada producto
+            productosPorNombre.forEach((p, index) => {
+              const similitud = calcularSimilitud(nombreBusqueda, p.name)
+              console.log(`[API /crm/listas/[id]/procesar-pdf] 🔢 Similitud [${index + 1}/${productosPorNombre.length}]: "${p.name}" = ${(similitud * 100).toFixed(1)}%`)
+              
+              if (similitud > 0.5) { // Solo considerar si similitud > 50%
+                if (!mejorMatch || similitud > mejorMatch.similitud) {
+                  mejorMatch = { producto: p, similitud }
+                  console.log(`[API /crm/listas/[id]/procesar-pdf] ⭐ Nuevo mejor match: "${p.name}" (${(similitud * 100).toFixed(1)}%)`)
+                }
+              }
             })
             
-            if (encontrado) {
-              console.log(`[API /crm/listas/[id]/procesar-pdf] ✅ Encontrado por nombre: ${producto.nombre}`)
-              return encontrado
+            if (mejorMatch && mejorMatch.similitud >= 0.7) {
+              console.log(`[API /crm/listas/[id]/procesar-pdf] ✅ Encontrado por nombre (similitud ${(mejorMatch.similitud * 100).toFixed(0)}%): ${producto.nombre} -> ${mejorMatch.producto.name}`)
+              return mejorMatch.producto
+            } else if (mejorMatch) {
+              console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Mejor match encontrado pero similitud insuficiente (${(mejorMatch.similitud * 100).toFixed(0)}% < 70%): ${producto.nombre} -> ${mejorMatch.producto.name}`)
             }
+          } else {
+            console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ No se encontraron productos en WooCommerce para: "${nombreBusqueda}"`)
           }
         } catch (nombreError: any) {
           console.warn(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Error buscando por nombre ${producto.nombre}:`, nombreError.message)
+        }
+
+        // 3. Si no se encontró, intentar búsqueda por palabras clave
+        if (!mejorMatch || mejorMatch.similitud < 0.7) {
+          const palabrasClave = extraerPalabrasClave(nombreBusqueda)
+          console.log(`[API /crm/listas/[id]/procesar-pdf] 🔑 Palabras clave extraídas de "${nombreBusqueda}":`, palabrasClave)
+          
+          if (palabrasClave.length > 0) {
+            // Buscar por la palabra clave más importante (la más larga)
+            const palabraPrincipal = palabrasClave.sort((a, b) => b.length - a.length)[0]
+            console.log(`[API /crm/listas/[id]/procesar-pdf] 🔍 Buscando por palabra clave principal: "${palabraPrincipal}"`)
+            
+            try {
+              const productosPorPalabra = await wooCommerceClient.get<WooCommerceProduct[]>('products', {
+                search: palabraPrincipal,
+                per_page: 50,
+                status: 'publish',
+              })
+
+              console.log(`[API /crm/listas/[id]/procesar-pdf] 📦 Productos encontrados por palabra clave "${palabraPrincipal}": ${Array.isArray(productosPorPalabra) ? productosPorPalabra.length : 0}`)
+
+              if (Array.isArray(productosPorPalabra) && productosPorPalabra.length > 0) {
+                productosPorPalabra.forEach((p, index) => {
+                  const similitud = calcularSimilitud(nombreBusqueda, p.name)
+                  console.log(`[API /crm/listas/[id]/procesar-pdf] 🔢 Similitud por palabra clave [${index + 1}/${productosPorPalabra.length}]: "${p.name}" = ${(similitud * 100).toFixed(1)}%`)
+                  
+                  if (similitud > 0.5) {
+                    if (!mejorMatch || similitud > mejorMatch.similitud) {
+                      mejorMatch = { producto: p, similitud }
+                      console.log(`[API /crm/listas/[id]/procesar-pdf] ⭐ Nuevo mejor match por palabra clave: "${p.name}" (${(similitud * 100).toFixed(1)}%)`)
+                    }
+                  }
+                })
+                
+                if (mejorMatch && mejorMatch.similitud >= 0.6) {
+                  console.log(`[API /crm/listas/[id]/procesar-pdf] ✅ Encontrado por palabra clave "${palabraPrincipal}" (similitud ${(mejorMatch.similitud * 100).toFixed(0)}%): ${producto.nombre} -> ${mejorMatch.producto.name}`)
+                  return mejorMatch.producto
+                } else if (mejorMatch) {
+                  console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Mejor match por palabra clave pero similitud insuficiente (${(mejorMatch.similitud * 100).toFixed(0)}% < 60%): ${producto.nombre} -> ${mejorMatch.producto.name}`)
+                }
+              }
+            } catch (palabraError: any) {
+              console.warn(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Error buscando por palabra clave:`, palabraError.message)
+            }
+          }
+        }
+
+        // Si no se encontró nada
+        if (!mejorMatch) {
+          console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ NO encontrado: ${producto.nombre}${producto.isbn ? ` (ISBN: ${producto.isbn})` : ''}`)
+        } else {
+          console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Mejor match encontrado pero similitud baja (${(mejorMatch.similitud * 100).toFixed(0)}%): ${producto.nombre} -> ${mejorMatch.producto.name}`)
         }
 
         return null
@@ -590,7 +843,39 @@ Ahora analiza este PDF y extrae TODOS los productos:`
         if (productoWooCommerce) {
           const precioWoo = parseFloat(productoWooCommerce.price || productoWooCommerce.regular_price || '0')
           const stockWoo = productoWooCommerce.stock_quantity || 0
-          const disponibleWoo = productoWooCommerce.stock_status === 'instock'
+          const manageStock = productoWooCommerce.manage_stock === true
+          
+          // Determinar disponibilidad: 
+          // - Si no maneja stock (manage_stock = false), está disponible
+          // - Si maneja stock, debe estar 'instock' o 'onbackorder', o tener stock_quantity > 0
+          const disponibleWoo = !manageStock || 
+                                productoWooCommerce.stock_status === 'instock' || 
+                                productoWooCommerce.stock_status === 'onbackorder' ||
+                                (manageStock && stockWoo > 0)
+          
+          // Obtener imagen (verificar múltiples formatos posibles)
+          let imagenUrl: string | undefined = undefined
+          if (productoWooCommerce.images && Array.isArray(productoWooCommerce.images) && productoWooCommerce.images.length > 0) {
+            const primeraImagen = productoWooCommerce.images[0]
+            imagenUrl = primeraImagen.src || primeraImagen.url || primeraImagen.image || undefined
+            
+            // Log para debugging
+            if (imagenUrl) {
+              console.log(`[API /crm/listas/[id]/procesar-pdf] 🖼️ Imagen encontrada para ${producto.nombre}:`, imagenUrl)
+            } else {
+              console.warn(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Imagen sin URL válida para ${producto.nombre}:`, primeraImagen)
+            }
+          } else {
+            console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ Producto ${producto.nombre} no tiene imágenes en WooCommerce`)
+          }
+          
+          console.log(`[API /crm/listas/[id]/procesar-pdf] ✅ Producto validado: ${producto.nombre}`, {
+            stock_status: productoWooCommerce.stock_status,
+            stock_quantity: stockWoo,
+            manage_stock: manageStock,
+            disponible: disponibleWoo,
+            tiene_imagen: !!imagenUrl,
+          })
           
           return {
             ...producto,
@@ -601,9 +886,7 @@ Ahora analiza este PDF y extrae TODOS los productos:`
             stock_quantity: stockWoo,
             disponibilidad: disponibleWoo ? 'disponible' : 'no_disponible',
             encontrado_en_woocommerce: true,
-            imagen: productoWooCommerce.images && productoWooCommerce.images.length > 0 
-              ? productoWooCommerce.images[0].src 
-              : undefined,
+            imagen: imagenUrl,
           }
         } else {
           console.log(`[API /crm/listas/[id]/procesar-pdf] ⚠️ NO encontrado en WooCommerce: ${producto.nombre}`)
@@ -668,6 +951,7 @@ Ahora analiza este PDF y extrae TODOS los productos:`
         disponibilidad: p.disponibilidad || 'disponible',
         encontrado_en_woocommerce: p.encontrado_en_woocommerce || false,
         imagen: p.imagen || null,
+        coordenadas: p.coordenadas || null,
       }))
       
       console.log('[Procesar PDF] Productos preparados para guardar:', productosParaGuardar.length)

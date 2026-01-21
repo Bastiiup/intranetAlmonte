@@ -17,7 +17,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge } from 'react-bootstrap'
-import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw } from 'react-icons/lu'
+import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw, LuFileCode } from 'react-icons/lu'
 import { TbEdit, TbTrash } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
@@ -32,6 +32,7 @@ interface ListaType {
   nombre: string
   nivel: 'Basica' | 'Media'
   grado: number
+  paralelo?: string
   año?: number
   descripcion?: string
   activo: boolean
@@ -41,12 +42,19 @@ interface ListaType {
   colegio?: {
     id: number | string
     nombre: string
+    rbd?: string | number
+    direccion?: string
+    comuna?: string
+    region?: string
   }
   curso?: {
     id: number | string
     nombre: string
   }
   materiales?: any[]
+  createdAt?: string
+  updatedAt?: string
+  versiones?: number
 }
 
 const columnHelper = createColumnHelper<ListaType>()
@@ -76,6 +84,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
       nombre: lista.nombre || '',
       nivel: lista.nivel || 'Basica',
       grado: lista.grado || 1,
+      paralelo: lista.paralelo || '',
       año: lista.año || lista.ano || new Date().getFullYear(),
       descripcion: lista.descripcion || '',
       activo: lista.activo !== false,
@@ -85,6 +94,9 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
       colegio: lista.colegio || undefined,
       curso: lista.curso || undefined,
       materiales: lista.materiales || [],
+      createdAt: lista.createdAt || null,
+      updatedAt: lista.updatedAt || null,
+      versiones: lista.versiones || 0,
     } as ListaType))
   }, [listasProp])
 
@@ -146,6 +158,15 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
       cell: ({ row }) => `${row.original.grado}°`,
     },
     {
+      id: 'paralelo',
+      header: 'Paralelo',
+      accessorKey: 'paralelo',
+      enableSorting: true,
+      enableColumnFilter: true,
+      filterFn: 'equalsString',
+      cell: ({ row }) => row.original.paralelo || '-',
+    },
+    {
       id: 'año',
       header: 'Año',
       accessorKey: 'año',
@@ -161,7 +182,25 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
       enableSorting: true,
       enableColumnFilter: true,
       filterFn: 'includesString',
-      cell: ({ row }) => row.original.colegio?.nombre || '-',
+      cell: ({ row }) => {
+        const colegio = row.original.colegio
+        if (!colegio) return '-'
+        return (
+          <div>
+            <div className="fw-semibold">{colegio.nombre || '-'}</div>
+            {colegio.direccion && (
+              <small className="text-muted d-block">{colegio.direccion}</small>
+            )}
+            {(colegio.comuna || colegio.region) && (
+              <small className="text-muted d-block">
+                {colegio.comuna && colegio.region 
+                  ? `${colegio.comuna}, ${colegio.region}`
+                  : colegio.comuna || colegio.region}
+              </small>
+            )}
+          </div>
+        )
+      },
     },
     {
       id: 'curso',
@@ -238,6 +277,46 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
           {row.original.activo ? 'Activo' : 'Inactivo'}
         </Badge>
       ),
+    },
+    {
+      id: 'fechas',
+      header: 'Fechas',
+      enableSorting: true,
+      accessorFn: (row) => row.updatedAt || row.createdAt || '',
+      cell: ({ row }) => {
+        const updatedAt = row.original.updatedAt
+        const createdAt = row.original.createdAt
+        
+        const formatDate = (dateStr: string | null | undefined) => {
+          if (!dateStr) return '-'
+          try {
+            const date = new Date(dateStr)
+            return date.toLocaleDateString('es-CL', { 
+              day: '2-digit', 
+              month: '2-digit', 
+              year: 'numeric' 
+            })
+          } catch {
+            return '-'
+          }
+        }
+        
+        return (
+          <div className="small">
+            {updatedAt && (
+              <div>
+                <span className="text-muted">Mod:</span> {formatDate(updatedAt)}
+              </div>
+            )}
+            {createdAt && (
+              <div>
+                <span className="text-muted">Creado:</span> {formatDate(createdAt)}
+              </div>
+            )}
+            {!updatedAt && !createdAt && '-'}
+          </div>
+        )
+      },
     },
     {
       id: 'acciones',
@@ -506,6 +585,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               nombre: lista.nombre || '',
               nivel: lista.nivel || 'Basica',
               grado: lista.grado || 1,
+              paralelo: lista.paralelo || '',
               año: lista.año || lista.ano || new Date().getFullYear(),
               descripcion: lista.descripcion || '',
               activo: lista.activo !== false,
@@ -515,6 +595,9 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               colegio: lista.colegio || undefined,
               curso: lista.curso || undefined,
               materiales: lista.materiales || [],
+              createdAt: lista.createdAt || null,
+              updatedAt: lista.updatedAt || null,
+              versiones: lista.versiones || 0,
             } as ListaType))
             
             console.log('[ListasListing] ✅ Datos recargados desde API:', nuevasListas.length, 'cursos')
@@ -647,6 +730,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
           nombre: lista.nombre || '',
           nivel: lista.nivel || 'Basica',
           grado: lista.grado || 1,
+          paralelo: lista.paralelo || '',
           año: lista.año || lista.ano || new Date().getFullYear(),
           descripcion: lista.descripcion || '',
           activo: lista.activo !== false,
@@ -656,6 +740,9 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
           colegio: lista.colegio || undefined,
           curso: lista.curso || undefined,
           materiales: lista.materiales || [],
+          createdAt: lista.createdAt || null,
+          updatedAt: lista.updatedAt || null,
+          versiones: lista.versiones || 0,
         } as ListaType))
         
         console.log('[ListasListing] ✅ Listas actualizadas en la UI:', nuevasListas.length, 'listas')
@@ -779,7 +866,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               </div>
             </div>
 
-            <div className="d-flex align-items-center gap-2">
+            <div className="d-flex align-items-center gap-2 flex-wrap">
               <div className="app-search">
                 <select
                   className="form-select form-control my-1 my-md-0"
@@ -788,10 +875,24 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                     const value = e.target.value
                     table.getColumn('colegio')?.setFilterValue(value === '' ? undefined : value)
                   }}>
-                  <option value="">Colegio</option>
+                  <option value="">Todos los Colegios</option>
                   {Array.from(new Set(data.map(l => l.colegio?.nombre).filter(Boolean))).sort().map((nombre) => (
                     <option key={nombre} value={nombre}>{nombre}</option>
                   ))}
+                </select>
+              </div>
+
+              <div className="app-search">
+                <select
+                  className="form-select form-control my-1 my-md-0"
+                  value={(table.getColumn('nivel')?.getFilterValue() as string) ?? ''}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    table.getColumn('nivel')?.setFilterValue(value === '' ? undefined : value)
+                  }}>
+                  <option value="">Todos los Niveles</option>
+                  <option value="Basica">Básica</option>
+                  <option value="Media">Media</option>
                 </select>
               </div>
 
@@ -802,10 +903,43 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                   onChange={(e) =>
                     table.getColumn('año')?.setFilterValue(e.target.value === '' ? undefined : e.target.value)
                   }>
-                  <option value="">Año</option>
+                  <option value="">Todos los Años</option>
                   {Array.from(new Set(data.map(l => l.año).filter(Boolean))).sort((a, b) => (b || 0) - (a || 0)).map((año) => (
                     <option key={año} value={String(año)}>{año}</option>
                   ))}
+                </select>
+              </div>
+
+              <div className="app-search">
+                <select
+                  className="form-select form-control my-1 my-md-0"
+                  value={(table.getColumn('paralelo')?.getFilterValue() as string) ?? ''}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    table.getColumn('paralelo')?.setFilterValue(value === '' ? undefined : value)
+                  }}>
+                  <option value="">Todos los Paralelos</option>
+                  {Array.from(new Set(data.map(l => l.paralelo).filter(Boolean))).sort().map((paralelo) => (
+                    <option key={paralelo} value={paralelo}>{paralelo}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="app-search">
+                <select
+                  className="form-select form-control my-1 my-md-0"
+                  value={(table.getColumn('activo')?.getFilterValue() as string) ?? ''}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    if (value === '') {
+                      table.getColumn('activo')?.setFilterValue(undefined)
+                    } else {
+                      table.getColumn('activo')?.setFilterValue(value === 'true')
+                    }
+                  }}>
+                  <option value="">Todos los Estados</option>
+                  <option value="true">Activo</option>
+                  <option value="false">Inactivo</option>
                 </select>
               </div>
 
@@ -902,6 +1036,11 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               <Button variant="primary" onClick={() => setShowModal(true)}>
                 <LuPlus className="fs-sm me-2" /> Agregar Lista
               </Button>
+              <Link href="/crm/listas/logs">
+                <Button variant="outline-info" title="Ver logs de procesamiento">
+                  <LuFileCode className="fs-sm me-2" /> Ver Logs
+                </Button>
+              </Link>
             </div>
           </CardHeader>
 

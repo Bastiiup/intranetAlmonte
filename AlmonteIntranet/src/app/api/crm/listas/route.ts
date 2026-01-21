@@ -54,9 +54,12 @@ export async function GET(request: NextRequest) {
       filters.push(`filters[año][$eq]=${año}`)
     }
 
-    // Populate y fields necesarios
+    // Populate y fields necesarios - Mejorado para incluir más datos
+    filters.push('populate[colegio][populate][comuna]=true')
+    filters.push('populate[colegio][populate][direcciones]=true')
     filters.push('populate[colegio][fields][0]=colegio_nombre')
     filters.push('populate[colegio][fields][1]=rbd')
+    filters.push('populate[colegio][fields][2]=region')
     filters.push('fields[0]=nombre_curso')
     filters.push('fields[1]=nivel')
     filters.push('fields[2]=grado')
@@ -64,6 +67,8 @@ export async function GET(request: NextRequest) {
     filters.push('fields[4]=paralelo')
     filters.push('fields[5]=versiones_materiales') // Campo JSON, no relación
     filters.push('fields[6]=activo')
+    filters.push('fields[7]=createdAt')
+    filters.push('fields[8]=updatedAt')
     // colegio es una relación, se incluye con populate, no con fields
     filters.push('publicationState=preview')
 
@@ -153,10 +158,51 @@ export async function GET(request: NextRequest) {
 
       const colegioData = attrs.colegio?.data || attrs.colegio
       const colegioAttrs = colegioData?.attributes || colegioData
+      
+      // Obtener datos del colegio (dirección, comuna, región)
+      const comunaData = colegioAttrs?.comuna?.data || colegioAttrs?.comuna
+      const comunaAttrs = comunaData?.attributes || comunaData
+      const direcciones = colegioAttrs?.direcciones || []
+      const direccionPrincipal = direcciones.find((d: any) => 
+        d.tipo_direccion === 'Principal' || d.tipo_direccion === 'Colegio'
+      ) || direcciones[0]
+      const direccionStr = direccionPrincipal?.direccion || ''
+      const comunaNombre = comunaAttrs?.comuna_nombre || ''
+      const regionNombre = colegioAttrs?.region || comunaAttrs?.region_nombre || ''
+      
+      // Obtener fechas
+      const createdAt = curso.createdAt || attrs.createdAt || null
+      const updatedAt = curso.updatedAt || attrs.updatedAt || null
 
-      const nombreCurso = attrs.nombre_curso || attrs.curso_nombre || 'Sin nombre'
-      const paralelo = attrs.paralelo ? ` ${attrs.paralelo}` : ''
-      const nombreCompleto = `${nombreCurso}${paralelo}`
+      // Corregir problema de doble letra: verificar si el nombre_curso ya incluye el paralelo
+      let nombreCurso = attrs.nombre_curso || attrs.curso_nombre || 'Sin nombre'
+      const paralelo = attrs.paralelo || ''
+      
+      // Si el nombre_curso ya termina con el paralelo, no agregarlo de nuevo
+      // Ejemplo: si nombre_curso = "1° Basica A" y paralelo = "A", no agregar "A" de nuevo
+      const nombreLimpio = nombreCurso.trim()
+      const paraleloLimpio = paralelo.trim()
+      
+      // Verificar si el nombre ya termina con el paralelo (con o sin espacio)
+      const nombreTerminaConParalelo = paraleloLimpio && (
+        nombreLimpio.endsWith(` ${paraleloLimpio}`) || 
+        nombreLimpio.endsWith(paraleloLimpio) ||
+        nombreLimpio.endsWith(`${paraleloLimpio} ${paraleloLimpio}`) // Caso de doble letra
+      )
+      
+      // Si hay doble letra, limpiar el nombre
+      if (nombreTerminaConParalelo && paraleloLimpio) {
+        // Remover el paralelo duplicado del final
+        nombreCurso = nombreLimpio.replace(new RegExp(`\\s*${paraleloLimpio}\\s*${paraleloLimpio}\\s*$`, 'i'), ` ${paraleloLimpio}`)
+        nombreCurso = nombreCurso.replace(new RegExp(`\\s*${paraleloLimpio}\\s*$`, 'i'), '').trim()
+      }
+      
+      // Construir nombre completo solo si el paralelo no está ya incluido
+      const nombreCompleto = nombreTerminaConParalelo 
+        ? nombreCurso.trim() 
+        : paraleloLimpio 
+          ? `${nombreCurso.trim()} ${paraleloLimpio}` 
+          : nombreCurso.trim()
 
       return {
         id: curso.id || curso.documentId,
@@ -173,7 +219,13 @@ export async function GET(request: NextRequest) {
         colegio: colegioData ? {
           id: colegioData.id || colegioData.documentId,
           nombre: colegioAttrs?.colegio_nombre || '',
+          rbd: colegioAttrs?.rbd || null,
+          direccion: direccionStr,
+          comuna: comunaNombre,
+          region: regionNombre,
         } : null,
+        createdAt: createdAt,
+        updatedAt: updatedAt,
         curso: {
           id: curso.id || curso.documentId,
           nombre: nombreCompleto,

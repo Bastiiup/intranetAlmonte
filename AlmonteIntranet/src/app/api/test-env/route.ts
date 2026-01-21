@@ -29,10 +29,16 @@ export async function GET() {
     hasShipitEmail: !!process.env.SHIPIT_API_EMAIL,
     shipitUrl: process.env.SHIPIT_API_URL || 'https://api.shipit.cl/v4',
     
-    // Todas las variables que empiezan con STRAPI, WOOCOMMERCE o SHIPIT
+    // Variables de Gemini
+    hasGeminiApiKey: !!process.env.GEMINI_API_KEY,
+    geminiApiKeyLength: process.env.GEMINI_API_KEY?.length || 0,
+    geminiApiKeyPreview: process.env.GEMINI_API_KEY ? `${process.env.GEMINI_API_KEY.substring(0, 10)}...` : 'No configurada',
+    
+    // Todas las variables que empiezan con STRAPI, WOOCOMMERCE, SHIPIT o GEMINI
     allStrapiVars: Object.keys(process.env).filter(key => key.includes('STRAPI')),
     allWooCommerceVars: Object.keys(process.env).filter(key => key.includes('WOOCOMMERCE')),
     allShipitVars: Object.keys(process.env).filter(key => key.includes('SHIPIT')),
+    allGeminiVars: Object.keys(process.env).filter(key => key.includes('GEMINI')),
   }, {
     headers: {
       'Content-Type': 'application/json',

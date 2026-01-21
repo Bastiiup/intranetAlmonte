@@ -18,8 +18,10 @@ import {
   ProgressBar,
   Table,
   Badge,
+  Spinner,
 } from 'react-bootstrap'
 import { LuUpload, LuFileText, LuCheck, LuX, LuDownload } from 'react-icons/lu'
+import { TbSparkles } from 'react-icons/tb'
 import * as XLSX from 'xlsx'
 import Select from 'react-select'
 
@@ -64,6 +66,9 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
   const [colegios, setColegios] = useState<ColegioOption[]>([])
   const [selectedColegio, setSelectedColegio] = useState<ColegioOption | null>(null)
   const [loadingColegios, setLoadingColegios] = useState(false)
+  const [processingIA, setProcessingIA] = useState(false)
+  const [progressIA, setProgressIA] = useState(0)
+  const [iaResults, setIaResults] = useState<Array<{ cursoId: string | number; cursoNombre: string; success: boolean; message: string }>>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pdfInputsRef = useRef<{ [key: number]: HTMLInputElement }>({})
 
@@ -694,9 +699,403 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
     }
   }
 
+  // Función para procesar todos los PDFs con IA
+  const handleProcesarTodoConIA = async () => {
+    if (!results || results.length === 0) {
+      alert('No hay cursos procesados para aplicar IA')
+      return
+    }
+
+    // Filtrar solo los cursos que se crearon exitosamente
+    const cursosExitosos = results.filter(r => r.success && r.cursoId)
+    
+    if (cursosExitosos.length === 0) {
+      alert('No hay cursos creados exitosamente para procesar con IA')
+      return
+    }
+
+    // Verificar cuáles cursos tienen PDF antes de procesar
+    console.log('[Importación Masiva IA] 🔍 Verificando cursos con PDF...')
+    const cursosConPDFVerificados: typeof cursosExitosos = []
+    
+    for (const curso of cursosExitosos) {
+      try {
+        const cursoResponse = await fetch(`/api/crm/listas/${curso.cursoId}`)
+        const cursoData = await cursoResponse.json()
+        
+        if (cursoData.success && cursoData.data) {
+          const attrs = cursoData.data.attributes || cursoData.data
+          const versiones = attrs?.versiones_materiales || []
+          const tienePDF = versiones.some((v: any) => v.pdf_id || v.pdf_url)
+          
+          if (tienePDF) {
+            cursosConPDFVerificados.push(curso)
+          } else {
+            console.log(`[Importación Masiva IA] ⚠️ Curso ${curso.cursoNombre} no tiene PDF asignado`)
+          }
+        }
+      } catch (err: any) {
+        console.warn(`[Importación Masiva IA] ⚠️ No se pudo verificar PDF del curso ${curso.cursoNombre}:`, err.message)
+        // Incluir de todas formas, la verificación se hará durante el procesamiento
+        cursosConPDFVerificados.push(curso)
+      }
+    }
+
+    if (cursosConPDFVerificados.length === 0) {
+      alert('⚠️ Ninguno de los cursos creados tiene PDF asignado. Por favor, asigna PDFs a los cursos antes de procesar con IA.')
+      return
+    }
+
+    if (!confirm(`¿Deseas procesar ${cursosConPDFVerificados.length} curso(s) con IA? Esto puede tardar varios minutos.\n\nCursos sin PDF serán omitidos automáticamente.`)) {
+      return
+    }
+
+    setProcessingIA(true)
+    setProgressIA(0)
+    setIaResults([])
+    setError(null)
+
+    const iaResultsArray: Array<{ cursoId: string | number; cursoNombre: string; success: boolean; message: string }> = []
+
+    try {
+      // Función para procesar un curso individual
+      const procesarCurso = async (curso: typeof cursosConPDFVerificados[0], index: number): Promise<void> => {
+        try {
+          console.log(`[Importación Masiva IA] 🔄 [${index + 1}/${cursosConPDFVerificados.length}] Procesando: ${curso.cursoNombre}`)
+
+          // Obtener el documentId del curso (ya verificamos que tiene PDF antes)
+          let cursoDocumentId: string | number | null = null
+          
+          try {
+            const cursoResponse = await fetch(`/api/crm/listas/${curso.cursoId}`)
+            const cursoData = await cursoResponse.json()
+            
+            if (cursoData.success && cursoData.data) {
+              cursoDocumentId = cursoData.data.documentId || cursoData.data.id || curso.cursoId
+            } else {
+              cursoDocumentId = curso.cursoId
+            }
+          } catch (err: any) {
+            console.warn(`[Importación Masiva IA] ⚠️ No se pudo obtener documentId, usando cursoId:`, err.message)
+            cursoDocumentId = curso.cursoId
+          }
+
+          if (!cursoDocumentId) {
+            throw new Error('No se pudo obtener el ID del curso')
+          }
+
+          // Procesar el PDF con IA (sin delay, procesamiento en paralelo)
+          console.log(`[Importación Masiva IA] 📄 [${index + 1}/${cursosConPDFVerificados.length}] Procesando PDF de: ${curso.cursoNombre} (ID: ${cursoDocumentId})`)
+          
+          const startTime = Date.now()
+          let iaResponse: Response
+          let iaData: any = {}
+          
+          try {
+            iaResponse = await fetch(`/api/crm/listas/${cursoDocumentId}/procesar-pdf`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            })
+
+            const processingTime = ((Date.now() - startTime) / 1000).toFixed(1)
+            
+            // Verificar si la respuesta es JSON válido
+            const contentType = iaResponse.headers.get('content-type')
+            if (!contentType || !contentType.includes('application/json')) {
+              const textResponse = await iaResponse.text()
+              console.error(`[Importación Masiva IA] ❌ [${index + 1}/${cursosConPDFVerificados.length}] Respuesta no es JSON:`, {
+                status: iaResponse.status,
+                statusText: iaResponse.statusText,
+                contentType,
+                responseText: textResponse.substring(0, 500),
+              })
+              throw new Error(`Error del servidor (${iaResponse.status}): ${textResponse.substring(0, 200)}`)
+            }
+
+            // Intentar parsear JSON
+            try {
+              iaData = await iaResponse.json()
+            } catch (jsonError: any) {
+              const textResponse = await iaResponse.text()
+              console.error(`[Importación Masiva IA] ❌ [${index + 1}/${cursosConPDFVerificados.length}] Error al parsear JSON:`, {
+                status: iaResponse.status,
+                statusText: iaResponse.statusText,
+                jsonError: jsonError.message,
+                responseText: textResponse.substring(0, 500),
+              })
+              throw new Error(`Error al parsear respuesta del servidor: ${jsonError.message}`)
+            }
+
+            // Log detallado de la respuesta
+            console.log(`[Importación Masiva IA] 📊 [${index + 1}/${cursosConPDFVerificados.length}] Respuesta de API (${processingTime}s):`, {
+              ok: iaResponse.ok,
+              success: iaData?.success,
+              status: iaResponse.status,
+              statusText: iaResponse.statusText,
+              tieneProductos: !!iaData?.data?.productos,
+              cantidadProductos: iaData?.data?.productos?.length || 0,
+              error: iaData?.error,
+              details: iaData?.details,
+              sugerencia: iaData?.sugerencia,
+              pdfSizeMB: iaData?.pdfSizeMB,
+              responseKeys: Object.keys(iaData || {}),
+            })
+
+          } catch (fetchError: any) {
+            // Error de red o al hacer fetch
+            console.error(`[Importación Masiva IA] ❌ [${index + 1}/${cursosConPDFVerificados.length}] Error de red/fetch:`, {
+              curso: curso.cursoNombre,
+              cursoId: cursoDocumentId,
+              error: fetchError.message,
+              stack: fetchError.stack,
+            })
+            throw new Error(`Error de conexión: ${fetchError.message}`)
+          }
+
+          if (!iaResponse.ok || !iaData?.success) {
+            const errorMsg = iaData?.error || iaData?.details || iaData?.message || `Error HTTP ${iaResponse.status}: ${iaResponse.statusText}` || 'Error al procesar con IA'
+            const sugerencia = iaData?.sugerencia || ''
+            const pdfSizeMB = iaData?.pdfSizeMB
+            const details = iaData?.details || ''
+            
+            // Construir mensaje de error más descriptivo
+            let mensajeErrorCompleto = errorMsg
+            if (sugerencia) {
+              mensajeErrorCompleto += ` | ${sugerencia}`
+            }
+            if (pdfSizeMB) {
+              mensajeErrorCompleto += ` (PDF: ${pdfSizeMB.toFixed(2)} MB)`
+            }
+            
+            // Log completo de la respuesta para debugging
+            console.error(`[Importación Masiva IA] ❌ [${index + 1}/${cursosConPDFVerificados.length}] Error detallado:`, {
+              curso: curso.cursoNombre,
+              cursoId: cursoDocumentId,
+              status: iaResponse.status,
+              statusText: iaResponse.statusText,
+              error: errorMsg,
+              details: details,
+              sugerencia,
+              pdfSizeMB,
+              responseData: JSON.stringify(iaData, null, 2), // Log completo como string para evitar problemas de serialización
+              responseKeys: Object.keys(iaData || {}),
+            })
+            
+            // Crear un error con más información
+            const error = new Error(mensajeErrorCompleto) as any
+            error.details = details
+            error.sugerencia = sugerencia
+            error.pdfSizeMB = pdfSizeMB
+            error.status = iaResponse.status
+            error.statusText = iaResponse.statusText
+            error.responseData = iaData
+            throw error
+          }
+
+          const productosExtraidos = iaData.data?.productos?.length || 0
+          const productosEncontrados = iaData.data?.productos?.filter((p: any) => p.encontrado_en_woocommerce).length || 0
+
+          if (productosExtraidos === 0) {
+            // Si no se extrajeron productos pero la API respondió OK, es un warning, no un error crítico
+            console.warn(`[Importación Masiva IA] ⚠️ [${index + 1}/${cursosConPDFVerificados.length}] PDF procesado pero sin productos: ${curso.cursoNombre}`)
+            iaResultsArray.push({
+              cursoId: curso.cursoId!,
+              cursoNombre: curso.cursoNombre || 'Sin nombre',
+              success: false,
+              message: '⚠️ PDF procesado pero no se encontraron productos'
+            })
+          } else {
+            iaResultsArray.push({
+              cursoId: curso.cursoId!,
+              cursoNombre: curso.cursoNombre || 'Sin nombre',
+              success: true,
+              message: `✅ ${productosExtraidos} productos extraídos, ${productosEncontrados} encontrados en WooCommerce`
+            })
+
+            console.log(`[Importación Masiva IA] ✅ [${index + 1}/${cursosConPDFVerificados.length}] Completado: ${curso.cursoNombre} (${productosExtraidos} productos)`)
+          }
+        } catch (err: any) {
+          // Log completo del error con toda la información disponible
+          const errorInfo: any = {
+            error: err?.message || 'Error desconocido',
+            errorType: err?.constructor?.name || typeof err,
+            curso: curso.cursoNombre,
+            cursoId: curso.cursoId,
+            cursoDocumentId: cursoDocumentId,
+          }
+          
+          // Agregar información adicional si está disponible
+          if (err?.status) errorInfo.status = err.status
+          if (err?.statusText) errorInfo.statusText = err.statusText
+          if (err?.details) errorInfo.details = err.details
+          if (err?.sugerencia) errorInfo.sugerencia = err.sugerencia
+          if (err?.pdfSizeMB) errorInfo.pdfSizeMB = err.pdfSizeMB
+          if (err?.stack) errorInfo.stack = err.stack
+          if (err?.responseData) {
+            // Log responseData como string para evitar problemas de serialización
+            try {
+              errorInfo.responseData = JSON.stringify(err.responseData, null, 2)
+            } catch {
+              errorInfo.responseData = String(err.responseData)
+            }
+          }
+          
+          console.error(`[Importación Masiva IA] ❌ [${index + 1}/${cursosConPDFVerificados.length}] Error en ${curso.cursoNombre}:`, errorInfo)
+          
+          let mensajeError = err?.message || 'Error desconocido'
+          
+          // Intentar obtener más detalles del error si está disponible
+          let errorDetails = ''
+          if (err?.details) {
+            errorDetails = ` | ${err.details}`
+          }
+          if (err?.sugerencia) {
+            errorDetails += ` | ${err.sugerencia}`
+          }
+          
+          // Categorizar y simplificar mensajes de error
+          if (mensajeError.includes('PDF') || mensajeError.includes('no tiene PDF') || mensajeError.includes('no tiene PDF asociado')) {
+            mensajeError = '⚠️ Sin PDF asignado'
+          } else if (mensajeError.includes('No se pudieron extraer productos') || mensajeError.includes('no se encontraron productos') || mensajeError.includes('no contiene un array de productos')) {
+            // Mensaje más descriptivo para este caso común
+            mensajeError = '⚠️ PDF sin productos reconocibles'
+            if (errorDetails) {
+              mensajeError += errorDetails.substring(0, 80) // Limitar longitud
+            }
+          } else if (mensajeError.includes('timeout') || mensajeError.includes('Timeout') || mensajeError.includes('tiempo límite') || mensajeError.includes('excedió el tiempo')) {
+            mensajeError = '⏱️ PDF muy grande - procesar individualmente'
+            if (err.pdfSizeMB) {
+              mensajeError += ` (${err.pdfSizeMB} MB)`
+            }
+          } else if (mensajeError.includes('API key') || mensajeError.includes('GEMINI_API_KEY') || mensajeError.includes('no está configurada')) {
+            mensajeError = '🔑 Error de configuración API'
+          } else if (mensajeError.includes('No se pudo obtener el ID') || mensajeError.includes('Lista no encontrada')) {
+            mensajeError = '⚠️ Error al obtener ID del curso'
+          } else if (mensajeError.includes('Error al descargar')) {
+            mensajeError = '⚠️ Error al descargar PDF desde Strapi'
+          } else {
+            // Truncar mensajes muy largos pero mantener información útil
+            if (mensajeError.length > 80) {
+              mensajeError = mensajeError.substring(0, 77) + '...'
+            }
+            // Agregar detalles si están disponibles y el mensaje es corto
+            if (errorDetails && mensajeError.length < 60) {
+              mensajeError += errorDetails.substring(0, 40)
+            }
+          }
+          
+          iaResultsArray.push({
+            cursoId: curso.cursoId!,
+            cursoNombre: curso.cursoNombre || 'Sin nombre',
+            success: false,
+            message: mensajeError
+          })
+        } finally {
+          // Actualizar progreso
+          const completados = iaResultsArray.length
+          setProgressIA(Math.round((completados / cursosConPDFVerificados.length) * 100))
+        }
+      }
+
+      // Procesar en paralelo con límite de concurrencia (3 a la vez para no sobrecargar)
+      const CONCURRENCY_LIMIT = 3
+      const chunks: Array<Array<typeof cursosConPDFVerificados[0]>> = []
+      
+      for (let i = 0; i < cursosConPDFVerificados.length; i += CONCURRENCY_LIMIT) {
+        chunks.push(cursosConPDFVerificados.slice(i, i + CONCURRENCY_LIMIT))
+      }
+
+      console.log(`[Importación Masiva IA] 🚀 Procesando ${cursosConPDFVerificados.length} cursos en ${chunks.length} lotes (${CONCURRENCY_LIMIT} en paralelo)`)
+
+      // Procesar cada lote
+      for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+        const chunk = chunks[chunkIndex]
+        
+        // Procesar todos los cursos del lote en paralelo
+        await Promise.all(
+          chunk.map((curso, indexInChunk) => 
+            procesarCurso(curso, chunkIndex * CONCURRENCY_LIMIT + indexInChunk)
+          )
+        )
+
+        // Pequeño delay entre lotes (solo 200ms) para no sobrecargar el servidor
+        if (chunkIndex < chunks.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 200))
+        }
+      }
+
+      setIaResults(iaResultsArray)
+      
+      const exitosos = iaResultsArray.filter(r => r.success).length
+      const fallidos = iaResultsArray.filter(r => !r.success).length
+      const total = iaResultsArray.length
+      
+      // Mensaje más detallado
+      let mensajeResumen = `✅ Procesamiento con IA completado:\n\n`
+      mensajeResumen += `📊 Total: ${total} curso(s)\n`
+      mensajeResumen += `✅ Exitosos: ${exitosos}\n`
+      mensajeResumen += `❌ Fallidos: ${fallidos}\n\n`
+      
+      if (fallidos > 0) {
+        mensajeResumen += `Cursos con problemas:\n`
+        iaResultsArray
+          .filter(r => !r.success)
+          .slice(0, 5) // Mostrar máximo 5
+          .forEach((r, i) => {
+            mensajeResumen += `${i + 1}. ${r.cursoNombre}: ${r.message}\n`
+          })
+        if (fallidos > 5) {
+          mensajeResumen += `... y ${fallidos - 5} más\n`
+        }
+        mensajeResumen += `\n💡 Recomendaciones:\n`
+        mensajeResumen += `- Revisa los logs del servidor para más detalles\n`
+        mensajeResumen += `- Verifica que los PDFs contengan listas de útiles válidas\n`
+        mensajeResumen += `- Puedes procesar los cursos fallidos individualmente desde la lista\n`
+        if (fallidos === total) {
+          mensajeResumen += `\n⚠️ Todos los cursos fallaron. Posibles causas:\n`
+          mensajeResumen += `- PDFs vacíos o sin productos reconocibles\n`
+          mensajeResumen += `- Problema con la API de Gemini (verifica la API key)\n`
+          mensajeResumen += `- PDFs muy grandes (timeout)\n`
+        }
+      }
+      
+      console.log(`[Importación Masiva IA] 📊 Resumen final:`, {
+        total,
+        exitosos,
+        fallidos,
+        porcentajeExito: total > 0 ? ((exitosos / total) * 100).toFixed(1) + '%' : '0%',
+      })
+      
+      alert(mensajeResumen)
+      
+      // Actualizar los resultados originales con la información de IA
+      const resultadosActualizados = results.map(r => {
+        const iaResult = iaResultsArray.find(ia => String(ia.cursoId) === String(r.cursoId))
+        if (iaResult) {
+          return {
+            ...r,
+            message: `${r.message} | ${iaResult.message}`
+          }
+        }
+        return r
+      })
+      setResults(resultadosActualizados)
+
+    } catch (err: any) {
+      console.error('[Importación Masiva IA] ❌ Error general:', err)
+      setError('Error al procesar con IA: ' + err.message)
+    } finally {
+      setProcessingIA(false)
+    }
+  }
+
   const handleReset = () => {
     setStep('upload')
     setExcelFile(null)
+    setIaResults([])
+    setProgressIA(0)
     setImportData([])
     setResults([])
     setError(null)
@@ -965,16 +1364,34 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
 
         {step === 'results' && (
           <>
-            <Button variant="secondary" onClick={handleReset}>
+            <Button variant="secondary" onClick={handleReset} disabled={processingIA}>
               Nueva Importación
             </Button>
+            {successCount > 0 && !processingIA && (
+              <Button
+                variant="primary"
+                onClick={handleProcesarTodoConIA}
+                disabled={processingIA}
+                className="d-flex align-items-center"
+              >
+                <TbSparkles className="me-2" />
+                Procesar Todo con IA
+              </Button>
+            )}
+            {processingIA && (
+              <Button variant="primary" disabled>
+                <Spinner animation="border" size="sm" className="me-2" />
+                Procesando con IA... ({progressIA}%)
+              </Button>
+            )}
             <Button
-              variant="primary"
+              variant="secondary"
               onClick={() => {
                 handleReset()
                 // onSuccess ya se llamó después de procesar, no llamarlo de nuevo
                 onHide()
               }}
+              disabled={processingIA}
             >
               Cerrar
             </Button>
