@@ -308,26 +308,27 @@ export async function GET(
     
     const trayectorias = trayectoriasArray
       .map((t: any) => {
-        const tAttrs = t.attributes || t
-        const colegioData = tAttrs.colegio?.data || tAttrs.colegio
-        const colegioAttrs = colegioData?.attributes || colegioData
-        const cursoData = tAttrs.curso?.data || tAttrs.curso
-        const cursoAttrs = cursoData?.attributes || cursoData
-        const asignaturaData = tAttrs.asignatura?.data || tAttrs.asignatura
-        const asignaturaAttrs = asignaturaData?.attributes || asignaturaData
-        const comunaData = colegioAttrs?.comuna?.data || colegioAttrs?.comuna
-        const comunaAttrs = comunaData?.attributes || comunaData
+        try {
+          const tAttrs = t.attributes || t
+          const colegioData = tAttrs.colegio?.data || tAttrs.colegio
+          const colegioAttrs = colegioData?.attributes || colegioData
+          const cursoData = tAttrs.curso?.data || tAttrs.curso
+          const cursoAttrs = cursoData?.attributes || cursoData
+          const asignaturaData = tAttrs.asignatura?.data || tAttrs.asignatura
+          const asignaturaAttrs = asignaturaData?.attributes || asignaturaData
+          const comunaData = colegioAttrs?.comuna?.data || colegioAttrs?.comuna
+          const comunaAttrs = comunaData?.attributes || comunaData
 
-        return {
-          id: t.id || t.documentId,
-          documentId: t.documentId || String(t.id || ''),
-          cargo: tAttrs.cargo || '',
-          anio: tAttrs.anio || null,
-          is_current: tAttrs.is_current || false,
-          activo: tAttrs.activo !== undefined ? tAttrs.activo : true,
-          fecha_inicio: tAttrs.fecha_inicio || null,
-          fecha_fin: tAttrs.fecha_fin || null,
-          colegio: {
+          return {
+            id: t.id || t.documentId,
+            documentId: t.documentId || String(t.id || ''),
+            cargo: tAttrs.cargo || '',
+            anio: tAttrs.anio || null,
+            is_current: tAttrs.is_current || false,
+            activo: tAttrs.activo !== undefined ? tAttrs.activo : true,
+            fecha_inicio: tAttrs.fecha_inicio || null,
+            fecha_fin: tAttrs.fecha_fin || null,
+          colegio: colegioData ? {
             id: colegioData?.id || colegioData?.documentId,
             documentId: colegioData?.documentId || String(colegioData?.id || ''),
             nombre: colegioAttrs?.colegio_nombre || '',
@@ -335,17 +336,22 @@ export async function GET(
             dependencia: colegioAttrs?.dependencia || '',
             region: colegioAttrs?.region || comunaAttrs?.region_nombre || '',
             comuna: comunaAttrs?.comuna_nombre || comunaAttrs?.nombre || '',
-          },
-          curso: {
+          } : null,
+          curso: cursoData ? {
             id: cursoData?.id || cursoData?.documentId,
             nombre: cursoAttrs?.nombre || '',
-          },
-          asignatura: {
+          } : null,
+          asignatura: asignaturaData ? {
             id: asignaturaData?.id || asignaturaData?.documentId,
             nombre: asignaturaAttrs?.nombre || '',
-          },
+          } : null,
+        }
+        } catch (error: any) {
+          console.warn('[API /crm/contacts/[id] GET] Error procesando trayectoria individual:', error.message, t)
+          return null
         }
       })
+      .filter((t: any) => t !== null) // Filtrar trayectorias que fallaron al procesar
 
     const actividadesNormalizadas = actividades.map((act: any) => {
       const actAttrs = act.attributes || act
