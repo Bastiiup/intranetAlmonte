@@ -96,9 +96,17 @@ export async function GET(
       'populate[trayectorias][populate][colegio][populate][comuna]': 'true',
       'populate[trayectorias][populate][curso]': 'true',
       'populate[trayectorias][populate][asignatura]': 'true',
-      'populate[empresa_contactos]': 'true',
-      'populate[empresa_contactos][populate][empresa]': 'true',
     })
+    
+    // Intentar agregar populate de empresa_contactos (puede no existir en algunos schemas)
+    // Si falla, lo manejaremos en el catch
+    try {
+      personaParamsBase.append('populate[empresa_contactos]', 'true')
+      personaParamsBase.append('populate[empresa_contactos][populate][empresa]', 'true')
+    } catch (e) {
+      // Ignorar si no se puede agregar
+      console.warn('[API /crm/contacts/[id] GET] No se pudo agregar populate de empresa_contactos')
+    }
 
     // Parámetros con equipos (intentar primero)
     const personaParamsConEquipos = new URLSearchParams(personaParamsBase)
@@ -274,36 +282,49 @@ export async function GET(
       }
     })
 
-    // PASO 4: Normalizar empresa_contactos
+    // PASO 4: Normalizar empresa_contactos (manejar casos donde puede no existir o estar vacío)
     let empresaContactosArray: any[] = []
-    if (personaAttrs.empresa_contactos) {
-      if (Array.isArray(personaAttrs.empresa_contactos)) {
-        empresaContactosArray = personaAttrs.empresa_contactos
-      } else if ((personaAttrs.empresa_contactos as any).data && Array.isArray((personaAttrs.empresa_contactos as any).data)) {
-        empresaContactosArray = (personaAttrs.empresa_contactos as any).data
-      } else if ((personaAttrs.empresa_contactos as any).id || (personaAttrs.empresa_contactos as any).documentId) {
-        empresaContactosArray = [personaAttrs.empresa_contactos]
+    if (usarEmpresaContactos) {
+      try {
+        if (personaAttrs.empresa_contactos) {
+          if (Array.isArray(personaAttrs.empresa_contactos)) {
+            empresaContactosArray = personaAttrs.empresa_contactos
+          } else if ((personaAttrs.empresa_contactos as any).data && Array.isArray((personaAttrs.empresa_contactos as any).data)) {
+            empresaContactosArray = (personaAttrs.empresa_contactos as any).data
+          } else if ((personaAttrs.empresa_contactos as any).id || (personaAttrs.empresa_contactos as any).documentId) {
+            empresaContactosArray = [personaAttrs.empresa_contactos]
+          }
+        }
+      } catch (error: any) {
+        console.warn('[API /crm/contacts/[id] GET] Error normalizando empresa_contactos:', error.message)
+        empresaContactosArray = []
       }
     }
     
     const empresaContactos = empresaContactosArray
       .map((ec: any) => {
-        const ecAttrs = ec.attributes || ec
-        const empresaData = ecAttrs.empresa?.data || ecAttrs.empresa
-        const empresaAttrs = empresaData?.attributes || empresaData
+        try {
+          const ecAttrs = ec.attributes || ec
+          const empresaData = ecAttrs.empresa?.data || ecAttrs.empresa
+          const empresaAttrs = empresaData?.attributes || empresaData
 
-        return {
-          id: ec.id || ec.documentId,
-          documentId: ec.documentId || String(ec.id || ''),
-          cargo: ecAttrs.cargo || '',
-          empresa: {
-            id: empresaData?.id || empresaData?.documentId,
-            documentId: empresaData?.documentId || String(empresaData?.id || ''),
-            empresa_nombre: empresaAttrs?.empresa_nombre || empresaAttrs?.nombre || '',
-            nombre: empresaAttrs?.empresa_nombre || empresaAttrs?.nombre || '',
-          },
+          return {
+            id: ec.id || ec.documentId,
+            documentId: ec.documentId || String(ec.id || ''),
+            cargo: ecAttrs.cargo || '',
+            empresa: {
+              id: empresaData?.id || empresaData?.documentId,
+              documentId: empresaData?.documentId || String(empresaData?.id || ''),
+              empresa_nombre: empresaAttrs?.empresa_nombre || empresaAttrs?.nombre || '',
+              nombre: empresaAttrs?.empresa_nombre || empresaAttrs?.nombre || '',
+            },
+          }
+        } catch (error: any) {
+          console.warn('[API /crm/contacts/[id] GET] Error procesando empresa_contacto individual:', error.message)
+          return null
         }
       })
+      .filter((ec: any) => ec !== null) // Filtrar elementos que fallaron al procesar
 
     // PASO 5: Obtener colegios únicos de las trayectorias
     const colegiosUnicos = Array.from(
