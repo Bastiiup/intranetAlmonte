@@ -125,7 +125,8 @@ export async function GET(
       )
     } catch (error: any) {
       // Si el error es por campo "equipos" inválido, intentar sin equipos
-      if (error.status === 400 && (error.details?.key === 'equipos' || error.message?.includes('equipos'))) {
+      // También manejar errores 500 que pueden ocurrir con populate
+      if ((error.status === 400 || error.status === 500) && (error.details?.key === 'equipos' || error.message?.includes('equipos'))) {
         console.warn('[API /crm/contacts/[id] GET] Campo equipos no existe en Persona, intentando sin equipos')
         usarEquipos = false
         try {
@@ -134,7 +135,8 @@ export async function GET(
           )
         } catch (retryError: any) {
           // Si el error es por campo "empresa_contactos" inválido, intentar sin empresa_contactos
-          if (retryError.status === 400 && (retryError.details?.key === 'empresa_contactos' || retryError.message?.includes('empresa_contactos'))) {
+          // También manejar errores 500 que pueden ocurrir con populate
+          if ((retryError.status === 400 || retryError.status === 500) && (retryError.details?.key === 'empresa_contactos' || retryError.message?.includes('empresa_contactos'))) {
             console.warn('[API /crm/contacts/[id] GET] Campo empresa_contactos no existe en Persona, intentando sin empresa_contactos')
             usarEmpresaContactos = false
             const personaParamsSinEmpresa = new URLSearchParams({
@@ -189,9 +191,9 @@ export async function GET(
             }
           }
         }
-      } else if (error.status === 400 && (error.details?.key === 'empresa_contactos' || error.message?.includes('empresa_contactos'))) {
-        // Si el error es por campo "empresa_contactos" inválido, intentar sin empresa_contactos
-        console.warn('[API /crm/contacts/[id] GET] Campo empresa_contactos no existe en Persona, intentando sin empresa_contactos')
+      } else if ((error.status === 400 || error.status === 500) && (error.details?.key === 'empresa_contactos' || error.message?.includes('empresa_contactos'))) {
+        // Si el error es por campo "empresa_contactos" inválido o error 500, intentar sin empresa_contactos
+        console.warn('[API /crm/contacts/[id] GET] Error con empresa_contactos (status:', error.status, '), intentando sin empresa_contactos')
         usarEmpresaContactos = false
         const personaParamsSinEmpresa = new URLSearchParams({
           'populate[emails]': 'true',
