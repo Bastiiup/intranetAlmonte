@@ -128,7 +128,10 @@ export async function PUT(
       updateData.data.productos = { connect: body.productos.map((id: any) => Number(id)) }
     }
     
-    const response = await strapiClient.put(`/api/rfqs/${id}`, updateData)
+    const response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
+      `/api/rfqs/${id}`,
+      updateData
+    )
     
     return NextResponse.json({
       success: true,
@@ -160,7 +163,7 @@ export async function DELETE(
     const { id } = await params
     
     // Soft delete: marcar como inactiva
-    await strapiClient.put(`/api/rfqs/${id}`, {
+    await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(`/api/rfqs/${id}`, {
       data: {
         activo: false,
       },
