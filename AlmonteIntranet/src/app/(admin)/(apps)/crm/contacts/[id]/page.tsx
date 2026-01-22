@@ -173,9 +173,10 @@ const ContactDetailPage = () => {
           return colegio?.id || colegio?.documentId
         })
         
-        // Verificar empresa_contactos - usar datos normalizados de la API
-        const empresaContactos = contactData.empresa_contactos || attrs.empresa_contactos?.data || attrs.empresa_contactos || []
-        const empresaContactosArray = Array.isArray(empresaContactos) ? empresaContactos : [empresaContactos]
+        // Verificar empresa_contactos - usar datos normalizados de la API (ya vienen normalizados)
+        // La API normaliza empresa_contactos, así que contactData.empresa_contactos ya debería ser un array normalizado
+        const empresaContactos = contactData.empresa_contactos || []
+        const empresaContactosArray = Array.isArray(empresaContactos) ? empresaContactos : []
         
         console.log('[ContactDetailPage] 🔍 Verificando empresa_contactos:', {
           empresaContactosArrayLength: empresaContactosArray.length,
@@ -300,10 +301,19 @@ const ContactDetailPage = () => {
               </thead>
               <tbody>
                 {empresaContactos.map((ec: any) => {
-                  const empresa = ec.empresa || (ec.attributes?.empresa?.data || ec.attributes?.empresa)
+                  // Los datos ya vienen normalizados de la API, así que ec.empresa debería estar disponible directamente
+                  const empresa = ec.empresa
                   const empresaNombre = empresa?.empresa_nombre || empresa?.nombre || 'Sin nombre'
                   const empresaId = empresa?.documentId || empresa?.id
-                  const cargo = ec.cargo || ec.attributes?.cargo || '-'
+                  const cargo = ec.cargo || '-'
+                  
+                  console.log('[ContactDetailPage] 🏢 Renderizando empresa_contacto:', {
+                    ecId: ec.id || ec.documentId,
+                    empresaId,
+                    empresaNombre,
+                    cargo,
+                    tieneEmpresa: !!empresa,
+                  })
                   
                   return (
                     <tr key={ec.id || ec.documentId}>
