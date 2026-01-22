@@ -525,9 +525,14 @@ export default function RFQsPage() {
         show={deleteModal.open}
         onHide={() => setDeleteModal({ open: false, rfq: null })}
         onConfirm={handleDelete}
-        title="Eliminar RFQ"
-        message="¿Está seguro de eliminar esta solicitud de cotización? Esta acción no se puede deshacer."
-      />
+        selectedCount={1}
+        itemName="RFQ"
+        modalTitle="Eliminar RFQ"
+        confirmButtonText="Eliminar"
+        cancelButtonText="Cancelar"
+      >
+        ¿Está seguro de eliminar esta solicitud de cotización? Esta acción no se puede deshacer.
+      </DeleteConfirmationModal>
     </Container>
   )
 }
