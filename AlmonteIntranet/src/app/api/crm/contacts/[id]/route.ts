@@ -100,19 +100,24 @@ export async function GET(
     })
     
     // Intentar agregar populate de empresa_contactos (puede no existir en algunos schemas)
-    // Si falla, lo manejaremos en el catch
+    // En Strapi v5, el formato de populate anidado cambió
+    // Usamos el formato: populate[empresa_contactos][populate][0]=empresa
     try {
       personaParamsBase.append('populate[empresa_contactos]', 'true')
-      personaParamsBase.append('populate[empresa_contactos][populate][empresa]', 'true')
+      // En Strapi v5, para populate anidado usamos el formato de array
+      personaParamsBase.append('populate[empresa_contactos][populate]', 'empresa')
     } catch (e) {
       // Ignorar si no se puede agregar
       console.warn('[API /crm/contacts/[id] GET] No se pudo agregar populate de empresa_contactos')
     }
 
     // Parámetros con equipos (intentar primero)
+    // En Strapi v5, el formato de populate anidado cambió
     const personaParamsConEquipos = new URLSearchParams(personaParamsBase)
-    personaParamsConEquipos.append('populate[equipos][populate][colegio]', 'true')
-    personaParamsConEquipos.append('populate[equipos][populate][lider][populate][imagen]', 'true')
+    personaParamsConEquipos.append('populate[equipos]', 'true')
+    personaParamsConEquipos.append('populate[equipos][populate]', 'colegio')
+    personaParamsConEquipos.append('populate[equipos][populate]', 'lider')
+    personaParamsConEquipos.append('populate[equipos][populate][lider][populate]', 'imagen')
 
     let personaResponse: StrapiResponse<StrapiEntity<PersonaAttributes>>
     let usarEquipos = true // Flag para saber si intentar con equipos
