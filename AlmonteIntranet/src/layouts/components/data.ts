@@ -111,23 +111,9 @@ export const menuItems: MenuItemType[] = [
     label: 'CRM',
     icon: LuHandshake,
     children: [
-      {
-        key: 'almonte',
-        label: 'Almonte',
-        icon: LuBuilding2,
-        children: [
-          { key: 'almonte-opportunities', label: 'Oportunidades', url: '/crm/opportunities' },
-          { key: 'almonte-leads', label: 'Leads', url: '/crm/leads' },
-          { key: 'almonte-pipeline', label: 'Embudo', url: '/crm/pipeline' },
-          { key: 'almonte-campaign', label: 'Campaña', url: '/crm/campaign' },
-          { key: 'almonte-proposals', label: 'Propuestas', url: '/crm/proposals' },
-          { key: 'almonte-activities', label: 'Actividades', url: '/crm/activities' },
-        ],
-      },
       { key: 'crm-estimations', label: 'Cotizaciones', url: '/crm/estimations' },
     ],
   },
-  { key: 'colegios-section', label: 'COLEGIOS', isTitle: true },
   {
     key: 'colegios',
     label: 'Colegios',
@@ -137,7 +123,19 @@ export const menuItems: MenuItemType[] = [
       { key: 'colegios-contacts', label: 'Contactos de Colegios', url: '/crm/contacts/colegios' },
     ],
   },
-  { key: 'inventario-section', label: 'INVENTARIO/PROVEEDORES', isTitle: true },
+  {
+    key: 'almonte',
+    label: 'Almonte',
+    icon: LuBuilding2,
+    children: [
+      { key: 'almonte-opportunities', label: 'Oportunidades', url: '/crm/opportunities' },
+      { key: 'almonte-leads', label: 'Leads', url: '/crm/leads' },
+      { key: 'almonte-pipeline', label: 'Embudo', url: '/crm/pipeline' },
+      { key: 'almonte-campaign', label: 'Campaña', url: '/crm/campaign' },
+      { key: 'almonte-proposals', label: 'Propuestas', url: '/crm/proposals' },
+      { key: 'almonte-activities', label: 'Actividades', url: '/crm/activities' },
+    ],
+  },
   {
     key: 'inventario-proveedores',
     label: 'Inventario/Proveedores',
