@@ -481,10 +481,14 @@ export async function GET(
     const colegiosUnicos = Array.from(
       new Map(
         trayectorias
-          .filter((t): t is typeof t & { colegio: NonNullable<typeof t.colegio> } => 
-            t.colegio !== null && t.colegio !== undefined && (t.colegio.id || t.colegio.documentId)
-          )
-          .map(t => [t.colegio.id || t.colegio.documentId, t.colegio])
+          .filter((t) => {
+            const colegio = t.colegio
+            return colegio !== null && colegio !== undefined && (colegio.id || colegio.documentId)
+          })
+          .map((t) => {
+            const colegio = t.colegio!
+            return [colegio.id || colegio.documentId, colegio]
+          })
       ).values()
     )
 
