@@ -89,15 +89,20 @@ export async function GET(
 
     // PASO 1: Obtener el contacto (persona) con todas sus relaciones
     // Parámetros base (sin equipos, por si el campo no existe aún en Strapi)
+    // En Strapi v5, el formato de populate anidado cambió - usar formato simplificado
     const personaParamsBase = new URLSearchParams({
       'populate[emails]': 'true',
       'populate[telefonos]': 'true',
       'populate[imagen]': 'true',
       'populate[tags]': 'true',
-      'populate[trayectorias][populate][colegio][populate][comuna]': 'true',
-      'populate[trayectorias][populate][curso]': 'true',
-      'populate[trayectorias][populate][asignatura]': 'true',
+      'populate[trayectorias]': 'true',
     })
+    // Agregar populate anidado de trayectorias usando formato Strapi v5
+    personaParamsBase.append('populate[trayectorias][populate]', 'colegio')
+    personaParamsBase.append('populate[trayectorias][populate]', 'curso')
+    personaParamsBase.append('populate[trayectorias][populate]', 'asignatura')
+    // Para populate más profundo (colegio.comuna), usar formato de objeto
+    personaParamsBase.append('populate[trayectorias][populate][colegio][populate]', 'comuna')
     
     // Intentar agregar populate de empresa_contactos (puede no existir en algunos schemas)
     // En Strapi v5, el formato de populate anidado cambió
