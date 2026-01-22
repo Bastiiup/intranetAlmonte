@@ -89,7 +89,10 @@ export async function PUT(
       updateData.data.orden_despacho = { connect: [Number(body.orden_despacho_id)] }
     }
     
-    const response = await strapiClient.put(`/api/ordenes-compra/${id}`, updateData)
+    const response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
+      `/api/ordenes-compra/${id}`,
+      updateData
+    )
     
     return NextResponse.json({
       success: true,
