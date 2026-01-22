@@ -146,6 +146,13 @@ export async function GET(request: Request) {
       params.append('filters[nivel_confianza][$eq]', confidence)
     }
 
+    // CRÍTICO: Excluir colaboradores (personas que tienen un registro en colaboradores)
+    // Los colaboradores son usuarios internos de la intranet, no contactos externos
+    // Necesitamos filtrar personas que NO tienen un colaborador asociado
+    // Nota: La relación es oneToOne desde colaboradores hacia personas
+    // Intentamos usar el filtro de relación inversa, pero si no funciona, lo haremos en el servidor
+    // params.append('filters[colaborador][$null]', 'true') // Comentado porque puede no funcionar si la relación inversa no está configurada
+
     // Filtro por tipo: colegio o empresa
     if (tipo === 'colegio') {
       // Filtrar personas que tienen trayectorias con colegio
@@ -162,11 +169,47 @@ export async function GET(request: Request) {
     try {
       const response = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(url)
 
+      // CRÍTICO: Excluir colaboradores (personas que tienen un registro en colaboradores)
+      // Primero filtramos colaboradores, luego aplicamos filtros de tipo
+      let dataArray = Array.isArray(response.data) ? response.data : [response.data]
+      
+      // Obtener IDs de personas que son colaboradores
+      // Necesitamos hacer una consulta separada para obtener los IDs de colaboradores
+      let colaboradorPersonaIds: Set<number | string> = new Set()
+      try {
+        const colaboradoresResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+          '/api/colaboradores?pagination[pageSize]=1000&populate[persona][fields]=id'
+        )
+        const colaboradoresData = Array.isArray(colaboradoresResponse.data) 
+          ? colaboradoresResponse.data 
+          : [colaboradoresResponse.data]
+        
+        colaboradoresData.forEach((col: any) => {
+          const attrs = col.attributes || col
+          const persona = attrs.persona?.data || attrs.persona
+          if (persona) {
+            const personaId = persona.id || persona.documentId
+            if (personaId) {
+              colaboradorPersonaIds.add(personaId)
+            }
+          }
+        })
+        
+        console.log(`[API /crm/contacts] Excluyendo ${colaboradorPersonaIds.size} colaboradores de los contactos`)
+      } catch (error: any) {
+        console.warn('[API /crm/contacts] ⚠️ No se pudo obtener lista de colaboradores para filtrar:', error.message)
+        // Continuar sin filtrar si hay error
+      }
+      
+      // Filtrar personas que NO son colaboradores
+      let filteredData = dataArray.filter((persona: any) => {
+        const personaId = persona.id || persona.documentId || (persona.attributes?.id || persona.attributes?.documentId)
+        return !colaboradorPersonaIds.has(personaId)
+      })
+      
       // Filtrar por tipo empresa si es necesario (ya que Strapi no puede filtrar directamente por relaciones many-to-many)
-      let filteredData = response.data
       if (tipo === 'empresa') {
-        const dataArray = Array.isArray(response.data) ? response.data : [response.data]
-        filteredData = dataArray.filter((persona: any) => {
+        filteredData = filteredData.filter((persona: any) => {
           const attrs = persona.attributes || persona
           // Verificar si tiene empresa_contactos con al menos una empresa
           const empresaContactos = attrs.empresa_contactos || []
@@ -181,8 +224,7 @@ export async function GET(request: Request) {
         })
       } else if (tipo === 'colegio') {
         // Asegurar que solo incluimos personas con trayectorias que tengan colegio
-        const dataArray = Array.isArray(response.data) ? response.data : [response.data]
-        filteredData = dataArray.filter((persona: any) => {
+        filteredData = filteredData.filter((persona: any) => {
           const attrs = persona.attributes || persona
           const trayectorias = attrs.trayectorias || []
           const trayectoriasArray = Array.isArray(trayectorias) ? trayectorias : (trayectorias.data || [])
