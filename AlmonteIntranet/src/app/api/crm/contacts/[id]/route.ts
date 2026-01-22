@@ -361,35 +361,72 @@ export async function GET(
     let empresaContactosArray: any[] = []
     if (usarEmpresaContactos) {
       try {
+        console.log('[API /crm/contacts/[id] GET] 🔍 Verificando empresa_contactos en personaAttrs:', {
+          tieneEmpresaContactos: !!personaAttrs.empresa_contactos,
+          tipo: typeof personaAttrs.empresa_contactos,
+          esArray: Array.isArray(personaAttrs.empresa_contactos),
+          tieneData: !!(personaAttrs.empresa_contactos as any)?.data,
+        })
+        
         if (personaAttrs.empresa_contactos) {
           if (Array.isArray(personaAttrs.empresa_contactos)) {
             empresaContactosArray = personaAttrs.empresa_contactos
+            console.log('[API /crm/contacts/[id] GET] ✅ empresa_contactos es array directo:', empresaContactosArray.length)
           } else if ((personaAttrs.empresa_contactos as any).data && Array.isArray((personaAttrs.empresa_contactos as any).data)) {
             empresaContactosArray = (personaAttrs.empresa_contactos as any).data
+            console.log('[API /crm/contacts/[id] GET] ✅ empresa_contactos viene en .data:', empresaContactosArray.length)
           } else if ((personaAttrs.empresa_contactos as any).id || (personaAttrs.empresa_contactos as any).documentId) {
             empresaContactosArray = [personaAttrs.empresa_contactos]
+            console.log('[API /crm/contacts/[id] GET] ✅ empresa_contactos es objeto único')
           }
+        } else {
+          console.log('[API /crm/contacts/[id] GET] ⚠️ personaAttrs.empresa_contactos es null/undefined')
         }
       } catch (error: any) {
         console.warn('[API /crm/contacts/[id] GET] Error normalizando empresa_contactos:', error.message)
         empresaContactosArray = []
       }
-    } else {
-      // Si no se usó populate de empresa_contactos, inicializar como array vacío
-      empresaContactosArray = []
+    }
+    
+    // FALLBACK: Si no se obtuvieron empresa_contactos del populate, intentar obtenerlos directamente
+    if (empresaContactosArray.length === 0 && personaIdNum) {
+      console.log('[API /crm/contacts/[id] GET] 🔄 Fallback: Obteniendo empresa_contactos directamente desde API')
+      try {
+        const empresaContactosResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+          `/api/empresa-contactos?filters[persona][id][$eq]=${personaIdNum}&populate[empresa]=true`
+        )
+        
+        if (empresaContactosResponse.data) {
+          const empresaContactosRaw = Array.isArray(empresaContactosResponse.data) 
+            ? empresaContactosResponse.data 
+            : [empresaContactosResponse.data]
+          
+          empresaContactosArray = empresaContactosRaw
+          console.log('[API /crm/contacts/[id] GET] ✅ Obtenidos', empresaContactosArray.length, 'empresa_contactos desde API directa')
+        }
+      } catch (fallbackError: any) {
+        console.warn('[API /crm/contacts/[id] GET] ⚠️ Error en fallback de empresa_contactos:', fallbackError.message)
+      }
     }
     
     const empresaContactos = empresaContactosArray
       .map((ec: any) => {
         try {
           const ecAttrs = ec.attributes || ec
-          const empresaData = ecAttrs.empresa?.data || ecAttrs.empresa
+          const empresaData = ecAttrs.empresa?.data || ecAttrs.empresa || ec.empresa?.data || ec.empresa
           const empresaAttrs = empresaData?.attributes || empresaData
+
+          console.log('[API /crm/contacts/[id] GET] 🔍 Procesando empresa_contacto:', {
+            ecId: ec.id || ec.documentId,
+            tieneEmpresa: !!empresaData,
+            empresaId: empresaData?.id || empresaData?.documentId,
+            empresaNombre: empresaAttrs?.empresa_nombre || empresaAttrs?.nombre,
+          })
 
           return {
             id: ec.id || ec.documentId,
             documentId: ec.documentId || String(ec.id || ''),
-            cargo: ecAttrs.cargo || '',
+            cargo: ecAttrs.cargo || ec.cargo || '',
             empresa: {
               id: empresaData?.id || empresaData?.documentId,
               documentId: empresaData?.documentId || String(empresaData?.id || ''),
@@ -398,11 +435,11 @@ export async function GET(
             },
           }
         } catch (error: any) {
-          console.warn('[API /crm/contacts/[id] GET] Error procesando empresa_contacto individual:', error.message)
+          console.warn('[API /crm/contacts/[id] GET] Error procesando empresa_contacto individual:', error.message, ec)
           return null
         }
       })
-      .filter((ec: any) => ec !== null) // Filtrar elementos que fallaron al procesar
+      .filter((ec: any) => ec !== null && ec.empresa && (ec.empresa.id || ec.empresa.documentId)) // Filtrar elementos que fallaron o no tienen empresa válida
 
     // PASO 5: Obtener colegios únicos de las trayectorias
     const colegiosUnicos = Array.from(
