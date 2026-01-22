@@ -115,9 +115,10 @@ export async function GET(
 
     let personaResponse: StrapiResponse<StrapiEntity<PersonaAttributes>>
     let usarEquipos = true // Flag para saber si intentar con equipos
+    let usarEmpresaContactos = true // Flag para saber si intentar con empresa_contactos
     
     try {
-      // Intentar primero con equipos
+      // Intentar primero con todos los campos
       personaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
         `/api/personas/${contactId}?${personaParamsConEquipos.toString()}`
       )
@@ -131,11 +132,85 @@ export async function GET(
             `/api/personas/${contactId}?${personaParamsBase.toString()}`
           )
         } catch (retryError: any) {
+          // Si el error es por campo "empresa_contactos" inválido, intentar sin empresa_contactos
+          if (retryError.status === 400 && (retryError.details?.key === 'empresa_contactos' || retryError.message?.includes('empresa_contactos'))) {
+            console.warn('[API /crm/contacts/[id] GET] Campo empresa_contactos no existe en Persona, intentando sin empresa_contactos')
+            usarEmpresaContactos = false
+            const personaParamsSinEmpresa = new URLSearchParams({
+              'populate[emails]': 'true',
+              'populate[telefonos]': 'true',
+              'populate[imagen]': 'true',
+              'populate[tags]': 'true',
+              'populate[trayectorias][populate][colegio][populate][comuna]': 'true',
+              'populate[trayectorias][populate][curso]': 'true',
+              'populate[trayectorias][populate][asignatura]': 'true',
+            })
+            try {
+              personaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
+                `/api/personas/${contactId}?${personaParamsSinEmpresa.toString()}`
+              )
+            } catch (retryError2: any) {
+              // Si falla con documentId, intentar buscar por id numérico
+              if (retryError2.status === 404) {
+                const searchParams = new URLSearchParams({
+                  'filters[id][$eq]': contactId,
+                  ...Object.fromEntries(personaParamsSinEmpresa.entries()),
+                })
+                const searchResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
+                  `/api/personas?${searchParams.toString()}`
+                )
+                if (Array.isArray(searchResponse.data) && searchResponse.data.length > 0) {
+                  personaResponse = { ...searchResponse, data: searchResponse.data[0] }
+                } else {
+                  throw new Error('Contacto no encontrado')
+                }
+              } else {
+                throw retryError2
+              }
+            }
+          } else {
+            // Si falla con documentId, intentar buscar por id numérico
+            if (retryError.status === 404) {
+              const searchParams = new URLSearchParams({
+                'filters[id][$eq]': contactId,
+                ...Object.fromEntries(personaParamsBase.entries()),
+              })
+              const searchResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
+                `/api/personas?${searchParams.toString()}`
+              )
+              if (Array.isArray(searchResponse.data) && searchResponse.data.length > 0) {
+                personaResponse = { ...searchResponse, data: searchResponse.data[0] }
+              } else {
+                throw new Error('Contacto no encontrado')
+              }
+            } else {
+              throw retryError
+            }
+          }
+        }
+      } else if (error.status === 400 && (error.details?.key === 'empresa_contactos' || error.message?.includes('empresa_contactos'))) {
+        // Si el error es por campo "empresa_contactos" inválido, intentar sin empresa_contactos
+        console.warn('[API /crm/contacts/[id] GET] Campo empresa_contactos no existe en Persona, intentando sin empresa_contactos')
+        usarEmpresaContactos = false
+        const personaParamsSinEmpresa = new URLSearchParams({
+          'populate[emails]': 'true',
+          'populate[telefonos]': 'true',
+          'populate[imagen]': 'true',
+          'populate[tags]': 'true',
+          'populate[trayectorias][populate][colegio][populate][comuna]': 'true',
+          'populate[trayectorias][populate][curso]': 'true',
+          'populate[trayectorias][populate][asignatura]': 'true',
+        })
+        try {
+          personaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
+            `/api/personas/${contactId}?${personaParamsSinEmpresa.toString()}`
+          )
+        } catch (retryError: any) {
           // Si falla con documentId, intentar buscar por id numérico
           if (retryError.status === 404) {
             const searchParams = new URLSearchParams({
               'filters[id][$eq]': contactId,
-              ...Object.fromEntries(personaParamsBase.entries()),
+              ...Object.fromEntries(personaParamsSinEmpresa.entries()),
             })
             const searchResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
               `/api/personas?${searchParams.toString()}`
@@ -299,6 +374,9 @@ export async function GET(
         console.warn('[API /crm/contacts/[id] GET] Error normalizando empresa_contactos:', error.message)
         empresaContactosArray = []
       }
+    } else {
+      // Si no se usó populate de empresa_contactos, inicializar como array vacío
+      empresaContactosArray = []
     }
     
     const empresaContactos = empresaContactosArray
