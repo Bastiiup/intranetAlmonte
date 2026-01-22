@@ -34,7 +34,11 @@ export async function POST(
       )
     }
 
-    const cotizacion = cotizacionResponse.data
+    // Extraer cotización única (puede ser array o objeto)
+    const cotizacion: StrapiEntity<any> = Array.isArray(cotizacionResponse.data) 
+      ? cotizacionResponse.data[0] 
+      : cotizacionResponse.data
+    
     const attrs = cotizacion.attributes || cotizacion
     const empresas = attrs.empresas?.data || attrs.empresas || []
 
