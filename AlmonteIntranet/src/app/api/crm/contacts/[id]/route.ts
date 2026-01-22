@@ -378,9 +378,10 @@ export async function GET(
 
     // PASO 4: Normalizar empresa_contactos (manejar casos donde puede no existir o estar vacío)
     let empresaContactosArray: any[] = []
+    let empresaContactosRaw: any = null
     if (usarEmpresaContactos) {
       try {
-        const empresaContactosRaw = (personaAttrs as any).empresa_contactos
+        empresaContactosRaw = (personaAttrs as any).empresa_contactos
         console.log('[API /crm/contacts/[id] GET] 🔍 Verificando empresa_contactos en personaAttrs:', {
           tieneEmpresaContactos: !!empresaContactosRaw,
           tipo: typeof empresaContactosRaw,
