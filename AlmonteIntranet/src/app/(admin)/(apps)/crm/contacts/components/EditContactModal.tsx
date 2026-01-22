@@ -16,7 +16,7 @@ interface ColegioOption {
 }
 
 interface EmpresaOption {
-  id: number
+  id: number | string
   documentId?: string
   empresa_nombre?: string
   nombre?: string
