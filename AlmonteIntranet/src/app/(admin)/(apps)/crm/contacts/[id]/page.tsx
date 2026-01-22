@@ -94,6 +94,17 @@ interface ContactDetailData {
     region?: string
     comuna?: string
   }>
+  empresa_contactos: Array<{
+    id: string | number
+    documentId: string
+    cargo?: string
+    empresa: {
+      id: string | number
+      documentId: string
+      empresa_nombre?: string
+      nombre?: string
+    }
+  }>
   actividades: Array<{
     id: string | number
     documentId: string
@@ -140,15 +151,32 @@ const ContactDetailPage = () => {
         const contactData = result.data
         setContact(contactData)
         
-        // Detectar tipo de contacto
+        // Detectar tipo de contacto de manera más precisa
         const attrs = contactData.attributes || contactData
-        const hasTrayectorias = (attrs.trayectorias?.data || attrs.trayectorias || []).length > 0
-        const hasEmpresaContactos = (attrs.empresa_contactos?.data || attrs.empresa_contactos || []).length > 0
         
-        if (hasTrayectorias) {
-          setContactType('colegio')
-        } else if (hasEmpresaContactos) {
+        // Verificar trayectorias con colegio válido
+        const trayectorias = attrs.trayectorias?.data || attrs.trayectorias || []
+        const trayectoriasArray = Array.isArray(trayectorias) ? trayectorias : [trayectorias]
+        const hasTrayectorias = trayectoriasArray.some((t: any) => {
+          const tAttrs = t.attributes || t
+          const colegio = tAttrs.colegio?.data || tAttrs.colegio || t.colegio
+          return colegio?.id || colegio?.documentId
+        })
+        
+        // Verificar empresa_contactos con empresa válida
+        const empresaContactos = attrs.empresa_contactos?.data || attrs.empresa_contactos || []
+        const empresaContactosArray = Array.isArray(empresaContactos) ? empresaContactos : [empresaContactos]
+        const hasEmpresaContactos = empresaContactosArray.some((ec: any) => {
+          const ecAttrs = ec.attributes || ec
+          const empresa = ecAttrs.empresa?.data || ecAttrs.empresa
+          return empresa?.id || empresa?.documentId
+        })
+        
+        // Determinar tipo: priorizar empresa si tiene empresa-contactos, sino colegio si tiene trayectorias
+        if (hasEmpresaContactos) {
           setContactType('empresa')
+        } else if (hasTrayectorias) {
+          setContactType('colegio')
         } else {
           setContactType(null)
         }
@@ -216,16 +244,76 @@ const ContactDetailPage = () => {
   const renderEquipoTab = () => {
     if (!contact) return null
 
-    const trayectoriasActivas = contact.trayectorias.filter(t => t.activo && t.is_current)
-    const trayectoriasHistoricas = contact.trayectorias.filter(t => !t.is_current || !t.activo)
+    const trayectoriasActivas = contact.trayectorias?.filter(t => t.activo && t.is_current) || []
+    const trayectoriasHistoricas = contact.trayectorias?.filter(t => !t.is_current || !t.activo) || []
+    const empresaContactos = contact.empresa_contactos || []
 
     return (
       <div>
-        <h5 className="mb-3">Equipo de Trabajo</h5>
+        <h5 className="mb-3">Relaciones Laborales</h5>
         
+        {/* Sección de Empresas */}
+        {empresaContactos.length > 0 && (
+          <div className="mb-4">
+            <h6 className="text-muted mb-3">
+              <LuBuilding2 className="me-2" />
+              Empresas
+            </h6>
+            <Table responsive striped hover>
+              <thead>
+                <tr>
+                  <th>Empresa</th>
+                  <th>Cargo</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {empresaContactos.map((ec: any) => {
+                  const empresa = ec.empresa || (ec.attributes?.empresa?.data || ec.attributes?.empresa)
+                  const empresaNombre = empresa?.empresa_nombre || empresa?.nombre || 'Sin nombre'
+                  const empresaId = empresa?.documentId || empresa?.id
+                  const cargo = ec.cargo || ec.attributes?.cargo || '-'
+                  
+                  return (
+                    <tr key={ec.id || ec.documentId}>
+                      <td>
+                        {empresaId ? (
+                          <Link 
+                            href={`/crm/empresas/${empresaId}`}
+                            className="text-decoration-none"
+                          >
+                            <strong>{empresaNombre}</strong>
+                          </Link>
+                        ) : (
+                          <strong>{empresaNombre}</strong>
+                        )}
+                      </td>
+                      <td>{cargo}</td>
+                      <td>
+                        {empresaId && (
+                          <Link 
+                            href={`/crm/empresas/${empresaId}`}
+                            className="btn btn-sm btn-outline-primary"
+                          >
+                            Ver Empresa
+                          </Link>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </Table>
+          </div>
+        )}
+        
+        {/* Sección de Colegios */}
         {trayectoriasActivas.length > 0 && (
           <div className="mb-4">
-            <h6 className="text-muted mb-3">Trayectorias Activas</h6>
+            <h6 className="text-muted mb-3">
+              <LuGraduationCap className="me-2" />
+              Trayectorias Activas en Colegios
+            </h6>
             <Table responsive striped hover>
               <thead>
                 <tr>
@@ -271,7 +359,10 @@ const ContactDetailPage = () => {
 
         {trayectoriasHistoricas.length > 0 && (
           <div>
-            <h6 className="text-muted mb-3">Historial de Trayectorias</h6>
+            <h6 className="text-muted mb-3">
+              <LuGraduationCap className="me-2" />
+              Historial de Trayectorias en Colegios
+            </h6>
             <Table responsive striped hover>
               <thead>
                 <tr>

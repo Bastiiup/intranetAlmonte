@@ -154,15 +154,13 @@ export async function GET(request: Request) {
     // params.append('filters[colaborador][$null]', 'true') // Comentado porque puede no funcionar si la relación inversa no está configurada
 
     // Filtro por tipo: colegio o empresa
-    if (tipo === 'colegio') {
-      // Filtrar personas que tienen trayectorias con colegio
-      params.append('filters[trayectorias][colegio][$notNull]', 'true')
-    } else if (tipo === 'empresa') {
-      // Filtrar personas que tienen relaciones con empresas a través de empresa-contactos
-      // Esto requiere una consulta más compleja, por ahora usamos populate y filtramos después
-      params.append('populate[empresa_contactos]', 'true')
-      params.append('populate[empresa_contactos][populate][empresa]', 'true')
-    }
+    // IMPORTANTE: Siempre populamos ambos para poder filtrar correctamente
+    // Necesitamos trayectorias para filtrar por colegio
+    // Necesitamos empresa_contactos para excluir contactos de empresas cuando filtramos por colegio
+    params.append('populate[trayectorias]', 'true')
+    params.append('populate[trayectorias][populate][colegio]', 'true')
+    params.append('populate[empresa_contactos]', 'true')
+    params.append('populate[empresa_contactos][populate][empresa]', 'true')
 
     const url = `/api/personas?${params.toString()}`
     
@@ -207,31 +205,77 @@ export async function GET(request: Request) {
         return !colaboradorPersonaIds.has(personaId)
       })
       
-      // Filtrar por tipo empresa si es necesario (ya que Strapi no puede filtrar directamente por relaciones many-to-many)
+      // Filtrar por tipo de contacto de manera estricta
+      // REGLA: Un contacto solo aparece en su tipo específico, a menos que tenga ambos tipos explícitamente
       if (tipo === 'empresa') {
+        // Para contactos de empresas: deben tener empresa_contactos Y NO tener trayectorias (a menos que se indique explícitamente)
         filteredData = filteredData.filter((persona: any) => {
           const attrs = persona.attributes || persona
-          // Verificar si tiene empresa_contactos con al menos una empresa
+          
+          // Verificar empresa_contactos
           const empresaContactos = attrs.empresa_contactos || []
-          if (Array.isArray(empresaContactos)) {
-            return empresaContactos.length > 0
+          const empresaContactosArray = Array.isArray(empresaContactos) 
+            ? empresaContactos 
+            : (empresaContactos.data || [])
+          
+          const hasEmpresaContactos = empresaContactosArray.length > 0 && 
+            empresaContactosArray.some((ec: any) => {
+              const ecAttrs = ec.attributes || ec
+              const empresa = ecAttrs.empresa?.data || ecAttrs.empresa
+              return empresa?.id || empresa?.documentId
+            })
+          
+          if (!hasEmpresaContactos) {
+            return false // No tiene empresa-contactos, no es contacto de empresa
           }
-          // Si viene como objeto con data
-          if (empresaContactos.data && Array.isArray(empresaContactos.data)) {
-            return empresaContactos.data.length > 0
-          }
-          return false
-        })
-      } else if (tipo === 'colegio') {
-        // Asegurar que solo incluimos personas con trayectorias que tengan colegio
-        filteredData = filteredData.filter((persona: any) => {
-          const attrs = persona.attributes || persona
+          
+          // Verificar trayectorias
           const trayectorias = attrs.trayectorias || []
           const trayectoriasArray = Array.isArray(trayectorias) ? trayectorias : (trayectorias.data || [])
-          return trayectoriasArray.some((t: any) => {
+          const hasTrayectorias = trayectoriasArray.some((t: any) => {
             const tAttrs = t.attributes || t
             return tAttrs.colegio || t.colegio
           })
+          
+          // Si tiene trayectorias también, solo incluirlo si tiene ambos tipos explícitamente
+          // Por ahora, excluimos los que tienen ambos para mantener la separación estricta
+          // TODO: Agregar flag explícito para permitir ambos tipos
+          return !hasTrayectorias // Solo incluir si NO tiene trayectorias (contacto exclusivo de empresa)
+        })
+      } else if (tipo === 'colegio') {
+        // Para contactos de colegios: deben tener trayectorias con colegio Y NO tener empresa_contactos (a menos que se indique explícitamente)
+        filteredData = filteredData.filter((persona: any) => {
+          const attrs = persona.attributes || persona
+          
+          // Verificar trayectorias
+          const trayectorias = attrs.trayectorias || []
+          const trayectoriasArray = Array.isArray(trayectorias) ? trayectorias : (trayectorias.data || [])
+          const hasTrayectorias = trayectoriasArray.some((t: any) => {
+            const tAttrs = t.attributes || t
+            const colegio = tAttrs.colegio?.data || tAttrs.colegio || t.colegio
+            return colegio?.id || colegio?.documentId
+          })
+          
+          if (!hasTrayectorias) {
+            return false // No tiene trayectorias, no es contacto de colegio
+          }
+          
+          // Verificar empresa_contactos
+          const empresaContactos = attrs.empresa_contactos || []
+          const empresaContactosArray = Array.isArray(empresaContactos) 
+            ? empresaContactos 
+            : (empresaContactos.data || [])
+          const hasEmpresaContactos = empresaContactosArray.length > 0 && 
+            empresaContactosArray.some((ec: any) => {
+              const ecAttrs = ec.attributes || ec
+              const empresa = ecAttrs.empresa?.data || ecAttrs.empresa
+              return empresa?.id || empresa?.documentId
+            })
+          
+          // Si tiene empresa_contactos también, solo incluirlo si tiene ambos tipos explícitamente
+          // Por ahora, excluimos los que tienen ambos para mantener la separación estricta
+          // TODO: Agregar flag explícito para permitir ambos tipos
+          return !hasEmpresaContactos // Solo incluir si NO tiene empresa-contactos (contacto exclusivo de colegio)
         })
       }
 

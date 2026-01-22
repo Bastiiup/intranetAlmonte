@@ -96,6 +96,8 @@ export async function GET(
       'populate[trayectorias][populate][colegio][populate][comuna]': 'true',
       'populate[trayectorias][populate][curso]': 'true',
       'populate[trayectorias][populate][asignatura]': 'true',
+      'populate[empresa_contactos]': 'true',
+      'populate[empresa_contactos][populate][empresa]': 'true',
     })
 
     // Parámetros con equipos (intentar primero)
@@ -272,7 +274,38 @@ export async function GET(
       }
     })
 
-    // PASO 4: Obtener colegios únicos de las trayectorias
+    // PASO 4: Normalizar empresa_contactos
+    let empresaContactosArray: any[] = []
+    if (personaAttrs.empresa_contactos) {
+      if (Array.isArray(personaAttrs.empresa_contactos)) {
+        empresaContactosArray = personaAttrs.empresa_contactos
+      } else if ((personaAttrs.empresa_contactos as any).data && Array.isArray((personaAttrs.empresa_contactos as any).data)) {
+        empresaContactosArray = (personaAttrs.empresa_contactos as any).data
+      } else if ((personaAttrs.empresa_contactos as any).id || (personaAttrs.empresa_contactos as any).documentId) {
+        empresaContactosArray = [personaAttrs.empresa_contactos]
+      }
+    }
+    
+    const empresaContactos = empresaContactosArray
+      .map((ec: any) => {
+        const ecAttrs = ec.attributes || ec
+        const empresaData = ecAttrs.empresa?.data || ecAttrs.empresa
+        const empresaAttrs = empresaData?.attributes || empresaData
+
+        return {
+          id: ec.id || ec.documentId,
+          documentId: ec.documentId || String(ec.id || ''),
+          cargo: ecAttrs.cargo || '',
+          empresa: {
+            id: empresaData?.id || empresaData?.documentId,
+            documentId: empresaData?.documentId || String(empresaData?.id || ''),
+            empresa_nombre: empresaAttrs?.empresa_nombre || empresaAttrs?.nombre || '',
+            nombre: empresaAttrs?.empresa_nombre || empresaAttrs?.nombre || '',
+          },
+        }
+      })
+
+    // PASO 5: Obtener colegios únicos de las trayectorias
     const colegiosUnicos = Array.from(
       new Map(
         trayectorias
@@ -337,6 +370,7 @@ export async function GET(
         tags: personaAttrs.tags || [],
         trayectorias,
         colegios: colegiosUnicos,
+        empresa_contactos: empresaContactos,
         equipos,
         actividades: actividadesNormalizadas,
       },
