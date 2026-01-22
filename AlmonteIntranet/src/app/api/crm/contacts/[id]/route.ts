@@ -143,9 +143,7 @@ export async function GET(
               'populate[telefonos]': 'true',
               'populate[imagen]': 'true',
               'populate[tags]': 'true',
-              'populate[trayectorias][populate][colegio][populate][comuna]': 'true',
-              'populate[trayectorias][populate][curso]': 'true',
-              'populate[trayectorias][populate][asignatura]': 'true',
+              'populate[trayectorias]': '*', // Usar * para populate completo en Strapi v5
             })
             try {
               personaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
