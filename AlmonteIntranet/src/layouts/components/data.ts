@@ -54,6 +54,7 @@ import {
   LuUsers,
   LuBuilding2,
   LuBriefcase,
+  LuGraduationCap,
 } from 'react-icons/lu'
 
 type UserDropdownItemType = {
@@ -104,37 +105,46 @@ export const menuItems: MenuItemType[] = [
       { key: 'dashboard-v2', label: 'Dashboard 2', url: '/dashboard2' },
     ],
   },
-  { key: 'comercial', label: 'COMERCIAL', isTitle: true },
+  { key: 'crm-section', label: 'CRM', isTitle: true },
   {
     key: 'crm',
     label: 'CRM',
     icon: LuHandshake,
     children: [
-      { key: 'crm-contacts-colegios', label: 'Contactos de Colegios', url: '/crm/contacts/colegios' },
-      { key: 'crm-contacts-empresas', label: 'Contactos de Empresas', url: '/crm/contacts/empresas' },
-      { key: 'crm-colegios', label: 'Colegios', url: '/crm/colegios' },
+      {
+        key: 'almonte',
+        label: 'Almonte',
+        icon: LuBuilding2,
+        children: [
+          { key: 'almonte-opportunities', label: 'Oportunidades', url: '/crm/opportunities' },
+          { key: 'almonte-leads', label: 'Leads', url: '/crm/leads' },
+          { key: 'almonte-pipeline', label: 'Embudo', url: '/crm/pipeline' },
+          { key: 'almonte-campaign', label: 'Campaña', url: '/crm/campaign' },
+          { key: 'almonte-proposals', label: 'Propuestas', url: '/crm/proposals' },
+          { key: 'almonte-activities', label: 'Actividades', url: '/crm/activities' },
+        ],
+      },
       { key: 'crm-estimations', label: 'Cotizaciones', url: '/crm/estimations' },
     ],
   },
+  { key: 'colegios-section', label: 'COLEGIOS', isTitle: true },
   {
-    key: 'almonte',
-    label: 'Almonte',
-    icon: LuBuilding2,
+    key: 'colegios',
+    label: 'Colegios',
+    icon: LuGraduationCap,
     children: [
-      { key: 'almonte-opportunities', label: 'Oportunidades', url: '/crm/opportunities' },
-      { key: 'almonte-leads', label: 'Leads', url: '/crm/leads' },
-      { key: 'almonte-pipeline', label: 'Embudo', url: '/crm/pipeline' },
-      { key: 'almonte-campaign', label: 'Campaña', url: '/crm/campaign' },
-      { key: 'almonte-proposals', label: 'Propuestas', url: '/crm/proposals' },
-      { key: 'almonte-activities', label: 'Actividades', url: '/crm/activities' },
+      { key: 'colegios-listing', label: 'Colegios', url: '/crm/colegios' },
+      { key: 'colegios-contacts', label: 'Contactos de Colegios', url: '/crm/contacts/colegios' },
     ],
   },
+  { key: 'inventario-section', label: 'INVENTARIO/PROVEEDORES', isTitle: true },
   {
     key: 'inventario-proveedores',
     label: 'Inventario/Proveedores',
     icon: LuShoppingBag,
     children: [
       { key: 'inventario-empresas', label: 'Empresas', url: '/crm/empresas' },
+      { key: 'inventario-contacts', label: 'Contactos de Empresas', url: '/crm/contacts/empresas' },
       { key: 'inventario-rfqs', label: 'Solicitudes de Cotización', url: '/crm/compras/rfqs' },
       { key: 'inventario-cotizaciones-recibidas', label: 'Cotizaciones Recibidas', url: '/crm/compras/cotizaciones' },
       { key: 'inventario-ordenes-compra', label: 'Órdenes de Compra', url: '/crm/compras/ordenes-compra' },
