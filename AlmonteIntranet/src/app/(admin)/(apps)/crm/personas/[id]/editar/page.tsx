@@ -336,7 +336,7 @@ const EditarPersonaPage = () => {
       if (trayectoriaActual?.colegioId) {
         router.push(`/crm/colegios/${trayectoriaActual.colegioId}`)
       } else {
-        router.push(`/crm/personas/${personaId}`)
+        router.push(`/crm/contacts/${personaId}`)
       }
     } catch (err: any) {
       console.error('Error al actualizar contacto:', err)
@@ -346,7 +346,7 @@ const EditarPersonaPage = () => {
   }
 
   const handleCancel = () => {
-    router.push(`/crm/personas/${personaId}`)
+    router.push(`/crm/contacts/${personaId}`)
   }
 
   if (loadingData) {

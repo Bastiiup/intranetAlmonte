@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Container, Card, CardHeader, CardBody, Alert, Spinner, Row, Col, Badge, Table, Nav, NavItem, NavLink } from 'react-bootstrap'
+import { Container, Card, CardHeader, CardBody, Alert, Spinner, Row, Col, Badge, Table, Nav, NavItem, NavLink, Button } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { LuArrowLeft, LuUsers, LuBuilding2, LuHistory, LuFileText, LuMail, LuPhone, LuMapPin, LuGraduationCap, LuBookOpen, LuCalendar, LuUser } from 'react-icons/lu'
+import { LuArrowLeft, LuUsers, LuBuilding2, LuHistory, LuFileText, LuMail, LuPhone, LuMapPin, LuGraduationCap, LuBookOpen, LuCalendar, LuUser, LuPencil } from 'react-icons/lu'
 import Link from 'next/link'
+import EditContactModal from '../components/EditContactModal'
+import type { ContactType } from '@/app/(admin)/(apps)/crm/types'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import Image from 'next/image'
@@ -118,6 +120,7 @@ const ContactDetailPage = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabType>('equipo')
+  const [editModal, setEditModal] = useState(false)
 
   useEffect(() => {
     const fetchContact = async () => {
@@ -596,11 +599,21 @@ const ContactDetailPage = () => {
     <Container fluid>
       <PageBreadcrumb title="Detalle de Contacto" subtitle="CRM" />
       
-      <div className="mb-3">
+      <div className="mb-3 d-flex justify-content-between align-items-center">
         <Link href="/crm/contacts" className="btn btn-outline-secondary btn-sm">
           <LuArrowLeft className="me-1" />
           Volver a Contactos
         </Link>
+        {contact && (
+          <Button 
+            variant="primary" 
+            size="sm"
+            onClick={() => setEditModal(true)}
+          >
+            <LuPencil className="me-1" />
+            Editar Contacto
+          </Button>
+        )}
       </div>
 
       {/* Información Principal del Contacto */}
@@ -892,6 +905,29 @@ const ContactDetailPage = () => {
           {activeTab === 'logs' && renderLogsTab()}
         </CardBody>
       </Card>
+
+      {contact && (
+        <EditContactModal
+          show={editModal}
+          onHide={() => setEditModal(false)}
+          contact={contact as unknown as ContactType}
+          onSuccess={() => {
+            // Recargar datos del contacto después de editar
+            const fetchContact = async () => {
+              try {
+                const response = await fetch(`/api/crm/contacts/${contactId}`)
+                const result = await response.json()
+                if (result.success) {
+                  setContact(result.data)
+                }
+              } catch (err) {
+                console.error('Error al recargar contacto:', err)
+              }
+            }
+            fetchContact()
+          }}
+        />
+      )}
     </Container>
   )
 }

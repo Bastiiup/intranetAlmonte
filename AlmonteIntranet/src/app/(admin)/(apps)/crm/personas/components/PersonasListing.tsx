@@ -144,7 +144,7 @@ const PersonasListing = ({ personas: initialPersonas, error: initialError }: { p
             <div className="d-flex align-items-center">
               <LuUser className="me-2 text-muted" size={18} />
               <h5 className="mb-0">
-                <Link href={`/crm/personas/${row.original.id}`} className="link-reset fw-semibold">
+                <Link href={`/crm/contacts/${row.original.id}`} className="link-reset fw-semibold">
                   {nombre}
                 </Link>
               </h5>
@@ -195,7 +195,7 @@ const PersonasListing = ({ personas: initialPersonas, error: initialError }: { p
         header: 'ACCIONES',
         cell: ({ row }) => (
           <div className="d-flex gap-1">
-            <Link href={`/crm/personas/${row.original.id}`} passHref>
+            <Link href={`/crm/contacts/${row.original.id}`} passHref>
               <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver detalle">
                 <TbEye className="fs-lg" />
               </Button>

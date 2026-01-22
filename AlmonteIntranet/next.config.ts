@@ -108,6 +108,9 @@ const nextConfig: NextConfig = {
     };
     return config;
   },
+  // Configuración de Turbopack para silenciar warning en desarrollo local
+  // En producción (Railway) se usa webpack, así que esto no afecta el build
+  turbopack: {},
   // Headers CSP únicos para Stream Chat (necesita unsafe-eval)
   // IMPORTANTE: Solo debe haber un CSP, configurado aquí en next.config.ts
   async headers() {

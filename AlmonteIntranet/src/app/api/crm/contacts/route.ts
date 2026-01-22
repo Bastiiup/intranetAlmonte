@@ -101,8 +101,8 @@ export async function GET(request: Request) {
     params.append('populate[trayectorias][populate][colegio][populate][direcciones]', 'true')
     // Nota: website es un campo directo, se trae automáticamente con populate[colegio]
 
-    // Filtros
-    params.append('filters[activo][$eq]', 'true')
+    // Filtros - Remover filtro de activo si causa problemas
+    // params.append('filters[activo][$eq]', 'true')
 
     // Búsqueda
     if (search) {
@@ -128,13 +128,67 @@ export async function GET(request: Request) {
     }
 
     const url = `/api/personas?${params.toString()}`
-    const response = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(url)
+    
+    try {
+      const response = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(url)
 
-    return NextResponse.json({
-      success: true,
-      data: response.data,
-      meta: response.meta,
-    }, { status: 200 })
+      return NextResponse.json({
+        success: true,
+        data: response.data,
+        meta: response.meta,
+      }, { status: 200 })
+    } catch (strapiError: any) {
+      // Si falla con populate anidado, intentar con populate más simple
+      if (strapiError.status === 500 || strapiError.status === 400) {
+        console.warn('[API /crm/contacts] Error con populate completo, intentando populate simplificado')
+        
+        // Simplificar populate
+        const simpleParams = new URLSearchParams({
+          'pagination[page]': page,
+          'pagination[pageSize]': pageSize,
+          'sort[0]': 'updatedAt:desc',
+        })
+        
+        simpleParams.append('populate[emails]', 'true')
+        simpleParams.append('populate[telefonos]', 'true')
+        simpleParams.append('populate[imagen]', 'true')
+        simpleParams.append('populate[trayectorias][populate][colegio]', 'true')
+        
+        // Agregar filtros
+        if (search) {
+          if (search.match(/^\d{1,2}\.\d{3}\.\d{3}-[\dkK]$/)) {
+            simpleParams.append('filters[rut][$eq]', search)
+          } else {
+            simpleParams.append('filters[$or][0][nombre_completo][$containsi]', search)
+            simpleParams.append('filters[$or][1][emails][email][$containsi]', search)
+            simpleParams.append('filters[$or][2][rut][$containsi]', search)
+          }
+        }
+        
+        if (origin) {
+          simpleParams.append('filters[origen][$eq]', origin)
+        }
+        
+        if (confidence) {
+          simpleParams.append('filters[nivel_confianza][$eq]', confidence)
+        }
+        
+        try {
+          const simpleResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
+            `/api/personas?${simpleParams.toString()}`
+          )
+          
+          return NextResponse.json({
+            success: true,
+            data: simpleResponse.data,
+            meta: simpleResponse.meta,
+          }, { status: 200 })
+        } catch (retryError: any) {
+          throw strapiError // Lanzar el error original si el retry también falla
+        }
+      }
+      throw strapiError
+    }
   } catch (error: any) {
     console.error('[API /crm/contacts] Error al obtener contactos:', {
       message: error.message,

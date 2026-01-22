@@ -143,7 +143,7 @@ const NuevaPersonaPage = () => {
       
       // Redirigir a la ficha del contacto creado después de un breve delay
       setTimeout(() => {
-        router.push(`/crm/personas/${personaId}`)
+        router.push(`/crm/contacts/${personaId}`)
       }, 1000)
     } catch (err: any) {
       console.error('Error al crear contacto:', err)
@@ -153,7 +153,7 @@ const NuevaPersonaPage = () => {
   }
 
   const handleCancel = () => {
-    router.push('/crm/personas')
+    router.push('/crm/contacts')
   }
 
   return (

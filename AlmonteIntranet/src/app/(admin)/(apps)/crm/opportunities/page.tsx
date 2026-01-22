@@ -91,7 +91,7 @@ const Opportunities = () => {
       cell: ({ row }) => (
         <div className="d-flex align-items-center">
           <div className="avatar-sm border flex-shrink-0 border-dashed rounded me-2 justify-content-center d-flex align-items-center">
-            <Image src={row.original.productLogo} alt="Producto" height="20" />
+            <Image src={row.original.productLogo} alt="Producto" width={20} height={20} />
           </div>
           <div>
             <p className="mb-0 fw-medium">
@@ -110,7 +110,7 @@ const Opportunities = () => {
       cell: ({ row }) => (
         <div className="d-flex align-items-center">
           <div className="avatar-sm me-2">
-            <Image src={row.original.customerAvatar} alt="Contacto" className="img-fluid rounded-circle" />
+            <Image src={row.original.customerAvatar} alt="Contacto" width={40} height={40} className="img-fluid rounded-circle" />
           </div>
           <div>
             <p className="mb-0 fw-medium">

@@ -28,6 +28,8 @@ export function middleware(request: NextRequest) {
     '/not-found',
     '/favicon.ico',
     '/icon.svg',
+    '/cotizacion', // Página pública de cotizaciones (acceso por token)
+    '/quote-reply', // Página pública para responder RFQ (acceso por token)
   ]
 
   // Los endpoints de API manejan su propia autenticación mediante headers

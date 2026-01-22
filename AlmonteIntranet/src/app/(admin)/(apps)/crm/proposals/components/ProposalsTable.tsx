@@ -53,7 +53,7 @@ const ProposalsTable = () => {
             enableColumnFilter: false,
         },
         columnHelper.accessor('id', {
-            header: 'Estimate ID',
+            header: 'ID Propuesta',
             cell: ({ row }) => (
                 <Link href="" className="fw-semibold link-reset">
                     {row.original.id}
@@ -61,10 +61,10 @@ const ProposalsTable = () => {
             ),
         }),
 
-        columnHelper.accessor('subject', { header: 'Subject' }),
+        columnHelper.accessor('subject', { header: 'Asunto' }),
 
         columnHelper.accessor('sendTo', {
-            header: 'Send To'
+            header: 'Enviado a'
             , cell: ({ row }) => (
                 <div className="d-flex align-items-center">
                     <div className="avatar-sm border flex-shrink-0 border-dashed rounded-circle me-2 justify-content-center d-flex align-items-center">
@@ -77,10 +77,10 @@ const ProposalsTable = () => {
             ),
         }),
 
-        columnHelper.accessor('value', { header: 'Value' }),
+        columnHelper.accessor('value', { header: 'Valor' }),
 
         columnHelper.accessor('created', {
-            header: 'Created'
+            header: 'Creada'
             , cell: ({ row }) => (
                 <>
                     {row.original.created} <small className="text-muted">{row.original.createdTime}</small>
@@ -88,7 +88,7 @@ const ProposalsTable = () => {
             ),
         }),
         columnHelper.accessor('openTill', {
-            header: 'Open Till'
+            header: 'Válida hasta'
             , cell: ({ row }) => (
                 <>
                     {row.original.openTill} <small className="text-muted">{row.original.openTillTime}</small>
@@ -96,7 +96,7 @@ const ProposalsTable = () => {
             ),
         }),
         columnHelper.accessor('status', {
-            header: 'Status',
+            header: 'Estado',
             cell: ({ row }) => {
                 const color =
                     row.original.status === 'Declined'
@@ -113,7 +113,7 @@ const ProposalsTable = () => {
         }),
 
         {
-            header: 'Actions',
+            header: 'Acciones',
             cell: ({ row }: { row: TableRow<ProposalType> }) => (
                 <div className="d-flex  gap-1">
                     <Button variant="default" size="sm" className="btn btn-default btn-icon btn-sm rounded">
@@ -192,7 +192,7 @@ const ProposalsTable = () => {
                         <input
                             type="text"
                             className="form-control"
-                            placeholder="Search clients..."
+                            placeholder="Buscar propuestas..."
                             value={globalFilter ?? ''}
                             onChange={(e) => setGlobalFilter(e.target.value)}
                         />
