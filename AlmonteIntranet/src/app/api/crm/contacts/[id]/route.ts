@@ -58,6 +58,7 @@ interface PersonaAttributes {
     }
   }>
   equipos?: any // Relation many-to-many con Equipos
+  empresa_contactos?: any // Relation one-to-many con empresa-contacto (puede venir como array, data, o objeto)
 }
 
 interface ActividadAttributes {
@@ -379,11 +380,12 @@ export async function GET(
     let empresaContactosArray: any[] = []
     if (usarEmpresaContactos) {
       try {
+        const empresaContactosRaw = (personaAttrs as any).empresa_contactos
         console.log('[API /crm/contacts/[id] GET] 🔍 Verificando empresa_contactos en personaAttrs:', {
-          tieneEmpresaContactos: !!personaAttrs.empresa_contactos,
-          tipo: typeof personaAttrs.empresa_contactos,
-          esArray: Array.isArray(personaAttrs.empresa_contactos),
-          tieneData: !!(personaAttrs.empresa_contactos as any)?.data,
+          tieneEmpresaContactos: !!empresaContactosRaw,
+          tipo: typeof empresaContactosRaw,
+          esArray: Array.isArray(empresaContactosRaw),
+          tieneData: !!empresaContactosRaw?.data,
         })
         
         if (personaAttrs.empresa_contactos) {
