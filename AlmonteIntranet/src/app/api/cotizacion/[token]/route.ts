@@ -230,8 +230,13 @@ export async function POST(
           )
         }
 
-        const cotizacionDocId = cotizacionResponse.data.documentId || cotizacionResponse.data.id || cotizacionId
-        const attrs = cotizacionResponse.data.attributes || cotizacionResponse.data
+        // Extraer cotización única (puede ser array o objeto)
+        const cotizacion: StrapiEntity<any> = Array.isArray(cotizacionResponse.data) 
+          ? cotizacionResponse.data[0] 
+          : cotizacionResponse.data
+
+        const cotizacionDocId = cotizacion.documentId || cotizacion.id || cotizacionId
+        const attrs = cotizacion.attributes || cotizacion
         const respuestasExistentes = attrs.respuestas_empresas || []
         
         const nuevaRespuesta = {
