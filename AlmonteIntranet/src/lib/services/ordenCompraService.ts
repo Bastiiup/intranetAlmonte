@@ -132,11 +132,23 @@ export async function createPOFromCotizacion(
       poData
     )
     
+    // Extraer PO única (puede ser array o objeto)
+    const po: StrapiEntity<any> = Array.isArray(poResponse.data) 
+      ? poResponse.data[0] 
+      : poResponse.data
+    
+    if (!po) {
+      return {
+        success: false,
+        error: 'No se pudo crear la Orden de Compra',
+      }
+    }
+    
     // Actualizar estado de cotización a "convertida"
     await strapiClient.put(`/api/cotizaciones-recibidas/${cotizacionRecibidaId}`, {
       data: {
         estado: 'convertida',
-        orden_compra: { connect: [poResponse.data.id || poResponse.data.documentId] },
+        orden_compra: { connect: [po.id || po.documentId] },
       },
     })
     
@@ -167,11 +179,11 @@ export async function createPOFromCotizacion(
     }
     
     // Enviar email al proveedor con detalles de la PO
-    await sendPOEmailToProvider(poResponse.data, empresaAttrs)
+    await sendPOEmailToProvider(po, empresaAttrs)
     
     return {
       success: true,
-      data: poResponse.data,
+      data: po,
     }
   } catch (error: any) {
     console.error('[OrdenCompraService] Error al crear PO:', error)
