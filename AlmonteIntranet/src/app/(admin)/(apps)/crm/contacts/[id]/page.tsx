@@ -7,6 +7,8 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { LuArrowLeft, LuUsers, LuBuilding2, LuHistory, LuFileText, LuMail, LuPhone, LuMapPin, LuGraduationCap, LuBookOpen, LuCalendar, LuUser, LuPencil } from 'react-icons/lu'
 import Link from 'next/link'
 import EditContactModal from '../components/EditContactModal'
+import EditContactColegioModal from '../components/EditContactColegioModal'
+import EditContactEmpresaModal from '../components/EditContactEmpresaModal'
 import type { ContactType } from '@/app/(admin)/(apps)/crm/types'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -121,6 +123,7 @@ const ContactDetailPage = () => {
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabType>('equipo')
   const [editModal, setEditModal] = useState(false)
+  const [contactType, setContactType] = useState<'colegio' | 'empresa' | null>(null)
 
   useEffect(() => {
     const fetchContact = async () => {
@@ -134,7 +137,21 @@ const ContactDetailPage = () => {
           throw new Error(result.error || 'Error al cargar contacto')
         }
 
-        setContact(result.data)
+        const contactData = result.data
+        setContact(contactData)
+        
+        // Detectar tipo de contacto
+        const attrs = contactData.attributes || contactData
+        const hasTrayectorias = (attrs.trayectorias?.data || attrs.trayectorias || []).length > 0
+        const hasEmpresaContactos = (attrs.empresa_contactos?.data || attrs.empresa_contactos || []).length > 0
+        
+        if (hasTrayectorias) {
+          setContactType('colegio')
+        } else if (hasEmpresaContactos) {
+          setContactType('empresa')
+        } else {
+          setContactType(null)
+        }
       } catch (err: any) {
         console.error('Error fetching contact:', err)
         setError(err.message || 'Error al cargar contacto')
@@ -907,26 +924,69 @@ const ContactDetailPage = () => {
       </Card>
 
       {contact && (
-        <EditContactModal
-          show={editModal}
-          onHide={() => setEditModal(false)}
-          contact={contact as unknown as ContactType}
-          onSuccess={() => {
-            // Recargar datos del contacto después de editar
-            const fetchContact = async () => {
-              try {
-                const response = await fetch(`/api/crm/contacts/${contactId}`)
-                const result = await response.json()
-                if (result.success) {
-                  setContact(result.data)
+        <>
+          {contactType === 'colegio' ? (
+            <EditContactColegioModal
+              show={editModal}
+              onHide={() => setEditModal(false)}
+              contact={contact as unknown as ContactType}
+              onSuccess={() => {
+                const fetchContact = async () => {
+                  try {
+                    const response = await fetch(`/api/crm/contacts/${contactId}`)
+                    const result = await response.json()
+                    if (result.success) {
+                      setContact(result.data)
+                    }
+                  } catch (err) {
+                    console.error('Error al recargar contacto:', err)
+                  }
                 }
-              } catch (err) {
-                console.error('Error al recargar contacto:', err)
-              }
-            }
-            fetchContact()
-          }}
-        />
+                fetchContact()
+              }}
+            />
+          ) : contactType === 'empresa' ? (
+            <EditContactEmpresaModal
+              show={editModal}
+              onHide={() => setEditModal(false)}
+              contact={contact as unknown as ContactType}
+              onSuccess={() => {
+                const fetchContact = async () => {
+                  try {
+                    const response = await fetch(`/api/crm/contacts/${contactId}`)
+                    const result = await response.json()
+                    if (result.success) {
+                      setContact(result.data)
+                    }
+                  } catch (err) {
+                    console.error('Error al recargar contacto:', err)
+                  }
+                }
+                fetchContact()
+              }}
+            />
+          ) : (
+            <EditContactModal
+              show={editModal}
+              onHide={() => setEditModal(false)}
+              contact={contact as unknown as ContactType}
+              onSuccess={() => {
+                const fetchContact = async () => {
+                  try {
+                    const response = await fetch(`/api/crm/contacts/${contactId}`)
+                    const result = await response.json()
+                    if (result.success) {
+                      setContact(result.data)
+                    }
+                  } catch (err) {
+                    console.error('Error al recargar contacto:', err)
+                  }
+                }
+                fetchContact()
+              }}
+            />
+          )}
+        </>
       )}
     </Container>
   )

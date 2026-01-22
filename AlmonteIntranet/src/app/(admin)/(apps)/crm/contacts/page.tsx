@@ -27,7 +27,11 @@ import TablePagination from '@/components/table/TablePagination'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import AddContactModal from './components/AddContactModal'
+import AddContactColegioModal from './components/AddContactColegioModal'
+import AddContactEmpresaModal from './components/AddContactEmpresaModal'
 import EditContactModal from './components/EditContactModal'
+import EditContactColegioModal from './components/EditContactColegioModal'
+import EditContactEmpresaModal from './components/EditContactEmpresaModal'
 import { useRouter } from 'next/navigation'
 import { REGIONES } from '@/app/(admin)/(apps)/crm/colegios/components/ColegiosListing'
 import { communesInfo } from '@/lib/shipit/communes'
@@ -939,29 +943,74 @@ const Contacts = () => {
         </Col>
       </Row>
 
-      {/* Modales */}
-      <AddContactModal
-        show={addModal}
-        onHide={() => setAddModal(false)}
-        onSuccess={() => {
-          setAddModal(false)
-          // Forzar recarga de datos
-          setTimeout(() => {
-            router.refresh()
-            loadContacts()
-          }, 500)
-        }}
-      />
-
-      <EditContactModal
-        show={editModal.open}
-        onHide={() => setEditModal({ open: false, contact: null })}
-        contact={editModal.contact}
-        onSuccess={() => {
-          // Recargar contactos sin refresh completo del router para evitar 404s
-          loadContacts()
-        }}
-      />
+      {/* Modales - Usar modales específicos según el tipo */}
+      {tipoContacto === 'colegio' ? (
+        <>
+          <AddContactColegioModal
+            show={addModal}
+            onHide={() => setAddModal(false)}
+            onSuccess={() => {
+              setAddModal(false)
+              setTimeout(() => {
+                router.refresh()
+                loadContacts()
+              }, 500)
+            }}
+          />
+          <EditContactColegioModal
+            show={editModal.open}
+            onHide={() => setEditModal({ open: false, contact: null })}
+            contact={editModal.contact}
+            onSuccess={() => {
+              loadContacts()
+            }}
+          />
+        </>
+      ) : tipoContacto === 'empresa' ? (
+        <>
+          <AddContactEmpresaModal
+            show={addModal}
+            onHide={() => setAddModal(false)}
+            onSuccess={() => {
+              setAddModal(false)
+              setTimeout(() => {
+                router.refresh()
+                loadContacts()
+              }, 500)
+            }}
+          />
+          <EditContactEmpresaModal
+            show={editModal.open}
+            onHide={() => setEditModal({ open: false, contact: null })}
+            contact={editModal.contact}
+            onSuccess={() => {
+              loadContacts()
+            }}
+          />
+        </>
+      ) : (
+        <>
+          <AddContactModal
+            show={addModal}
+            onHide={() => setAddModal(false)}
+            onSuccess={() => {
+              setAddModal(false)
+              setTimeout(() => {
+                router.refresh()
+                loadContacts()
+              }, 500)
+            }}
+          />
+          <EditContactModal
+            show={editModal.open}
+            onHide={() => setEditModal({ open: false, contact: null })}
+            contact={editModal.contact}
+            onSuccess={() => {
+              loadContacts()
+            }}
+          />
+        </>
+      )}
     </Container>
   )
 }
