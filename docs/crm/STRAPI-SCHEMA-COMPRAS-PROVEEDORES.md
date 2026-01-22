@@ -411,3 +411,4 @@ module.exports = {
 5. **Integración con Facturación:** Conectar con sistema de facturación electrónica (Haulmer)
 6. **Dashboard:** Vista de resumen con métricas de compras
 
+

@@ -243,6 +243,15 @@ export default function CotizacionesRecibidasPage() {
     pageCount: Math.ceil(totalRows / pagination.pageSize),
   })
   
+  const pageIndex = table.getState().pagination.pageIndex
+  const pageSize = table.getState().pagination.pageSize
+  const start = pageIndex * pageSize + 1
+  const end = Math.min(start + pageSize - 1, totalRows)
+  
+  const setPageIndex = (index: number) => {
+    setPagination({ ...pagination, pageIndex: index })
+  }
+  
   return (
     <Container fluid>
       <PageBreadcrumb 
@@ -311,7 +320,20 @@ export default function CotizacionesRecibidasPage() {
           ) : (
             <>
               <DataTable table={table} />
-              <TablePagination table={table} totalRows={totalRows} />
+              <TablePagination
+                totalItems={totalRows}
+                start={start}
+                end={end}
+                itemsName="cotizaciones"
+                showInfo
+                previousPage={table.previousPage}
+                canPreviousPage={table.getCanPreviousPage()}
+                pageCount={table.getPageCount()}
+                pageIndex={pageIndex}
+                setPageIndex={setPageIndex}
+                nextPage={table.nextPage}
+                canNextPage={table.getCanNextPage()}
+              />
             </>
           )}
         </CardBody>
