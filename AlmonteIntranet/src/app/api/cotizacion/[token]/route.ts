@@ -150,7 +150,7 @@ export async function POST(
         `/api/cotizaciones?filters[token_acceso][$eq]=${encodeURIComponent(token)}`
       )
       
-      let cotizacion
+      let cotizacion: StrapiEntity<any> | null = null
       if (cotizacionResponse.data && Array.isArray(cotizacionResponse.data) && cotizacionResponse.data.length > 0) {
         cotizacion = cotizacionResponse.data[0]
       } else if (cotizacionResponse.data && !Array.isArray(cotizacionResponse.data)) {
@@ -159,7 +159,9 @@ export async function POST(
         cotizacionResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
           `/api/cotizaciones/${cotizacionId}`
         )
-        cotizacion = cotizacionResponse.data
+        if (cotizacionResponse.data) {
+          cotizacion = Array.isArray(cotizacionResponse.data) ? cotizacionResponse.data[0] : cotizacionResponse.data
+        }
       }
 
       if (!cotizacion) {
