@@ -151,11 +151,21 @@ const ContactDetailPage = () => {
         const contactData = result.data
         setContact(contactData)
         
+        // Debug: Log para verificar estructura de datos
+        console.log('[ContactDetailPage] 📥 Datos del contacto recibidos:', {
+          id: contactData.id,
+          documentId: contactData.documentId,
+          nombre: contactData.nombre_completo,
+          tieneEmpresaContactos: !!contactData.empresa_contactos,
+          empresaContactosLength: contactData.empresa_contactos?.length || 0,
+          empresaContactos: contactData.empresa_contactos,
+        })
+        
         // Detectar tipo de contacto de manera más precisa
         const attrs = contactData.attributes || contactData
         
         // Verificar trayectorias con colegio válido
-        const trayectorias = attrs.trayectorias?.data || attrs.trayectorias || []
+        const trayectorias = attrs.trayectorias?.data || attrs.trayectorias || contactData.trayectorias || []
         const trayectoriasArray = Array.isArray(trayectorias) ? trayectorias : [trayectorias]
         const hasTrayectorias = trayectoriasArray.some((t: any) => {
           const tAttrs = t.attributes || t
@@ -163,13 +173,34 @@ const ContactDetailPage = () => {
           return colegio?.id || colegio?.documentId
         })
         
-        // Verificar empresa_contactos con empresa válida
-        const empresaContactos = attrs.empresa_contactos?.data || attrs.empresa_contactos || []
+        // Verificar empresa_contactos - usar datos normalizados de la API
+        const empresaContactos = contactData.empresa_contactos || attrs.empresa_contactos?.data || attrs.empresa_contactos || []
         const empresaContactosArray = Array.isArray(empresaContactos) ? empresaContactos : [empresaContactos]
+        
+        console.log('[ContactDetailPage] 🔍 Verificando empresa_contactos:', {
+          empresaContactosArrayLength: empresaContactosArray.length,
+          empresaContactosArray: empresaContactosArray,
+        })
+        
         const hasEmpresaContactos = empresaContactosArray.some((ec: any) => {
-          const ecAttrs = ec.attributes || ec
-          const empresa = ecAttrs.empresa?.data || ecAttrs.empresa
-          return empresa?.id || empresa?.documentId
+          // La API ya normaliza los datos, así que ec.empresa debería estar disponible directamente
+          const empresa = ec.empresa || (ec.attributes?.empresa?.data || ec.attributes?.empresa)
+          const tieneEmpresa = empresa && (empresa.id || empresa.documentId)
+          
+          console.log('[ContactDetailPage] 🔍 Verificando empresa_contacto individual:', {
+            ecId: ec.id || ec.documentId,
+            tieneEmpresa,
+            empresaId: empresa?.id || empresa?.documentId,
+            empresaNombre: empresa?.empresa_nombre || empresa?.nombre,
+          })
+          
+          return tieneEmpresa
+        })
+        
+        console.log('[ContactDetailPage] ✅ Resultado de verificación:', {
+          hasTrayectorias,
+          hasEmpresaContactos,
+          tipoDeterminado: hasEmpresaContactos ? 'empresa' : (hasTrayectorias ? 'colegio' : null),
         })
         
         // Determinar tipo: priorizar empresa si tiene empresa-contactos, sino colegio si tiene trayectorias
