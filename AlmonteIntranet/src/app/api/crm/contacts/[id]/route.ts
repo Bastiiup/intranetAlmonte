@@ -425,11 +425,11 @@ export async function GET(
           )
           
           if (empresaContactosResponse.data) {
-            const empresaContactosRaw = Array.isArray(empresaContactosResponse.data) 
+            const empresaContactosFromApi = Array.isArray(empresaContactosResponse.data) 
               ? empresaContactosResponse.data 
               : [empresaContactosResponse.data]
             
-            empresaContactosArray = empresaContactosRaw
+            empresaContactosArray = empresaContactosFromApi
             console.log('[API /crm/contacts/[id] GET] ✅ Obtenidos', empresaContactosArray.length, 'empresa_contactos desde API directa')
           }
         } else {
