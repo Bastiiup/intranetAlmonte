@@ -408,8 +408,12 @@ const ContactDetailPage = () => {
           </div>
         )}
 
-        {contact.trayectorias.length === 0 && (
-          <Alert variant="info">No hay trayectorias registradas para este contacto.</Alert>
+        {/* Mensaje cuando no hay relaciones */}
+        {empresaContactos.length === 0 && trayectoriasActivas.length === 0 && trayectoriasHistoricas.length === 0 && (
+          <Alert variant="info">
+            <LuUsers className="me-2" />
+            Este contacto no tiene relaciones laborales registradas (empresas o colegios).
+          </Alert>
         )}
       </div>
     )
