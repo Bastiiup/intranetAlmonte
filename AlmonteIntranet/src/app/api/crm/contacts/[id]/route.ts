@@ -89,40 +89,29 @@ export async function GET(
 
     // PASO 1: Obtener el contacto (persona) con todas sus relaciones
     // Parámetros base (sin equipos, por si el campo no existe aún en Strapi)
-    // En Strapi v5, el formato de populate anidado cambió - usar formato simplificado
+    // En Strapi v5, usar populate=* o formato de objeto para populate anidado
+    // Simplificamos usando populate=* para trayectorias y luego filtramos en el código
     const personaParamsBase = new URLSearchParams({
       'populate[emails]': 'true',
       'populate[telefonos]': 'true',
       'populate[imagen]': 'true',
       'populate[tags]': 'true',
-      'populate[trayectorias]': 'true',
+      'populate[trayectorias]': '*', // Usar * para populate completo en Strapi v5
     })
-    // Agregar populate anidado de trayectorias usando formato Strapi v5
-    personaParamsBase.append('populate[trayectorias][populate]', 'colegio')
-    personaParamsBase.append('populate[trayectorias][populate]', 'curso')
-    personaParamsBase.append('populate[trayectorias][populate]', 'asignatura')
-    // Para populate más profundo (colegio.comuna), usar formato de objeto
-    personaParamsBase.append('populate[trayectorias][populate][colegio][populate]', 'comuna')
     
     // Intentar agregar populate de empresa_contactos (puede no existir en algunos schemas)
-    // En Strapi v5, el formato de populate anidado cambió
-    // Usamos el formato: populate[empresa_contactos][populate][0]=empresa
+    // En Strapi v5, usar populate=* para populate completo
     try {
-      personaParamsBase.append('populate[empresa_contactos]', 'true')
-      // En Strapi v5, para populate anidado usamos el formato de array
-      personaParamsBase.append('populate[empresa_contactos][populate]', 'empresa')
+      personaParamsBase.append('populate[empresa_contactos]', '*') // Usar * para populate completo
     } catch (e) {
       // Ignorar si no se puede agregar
       console.warn('[API /crm/contacts/[id] GET] No se pudo agregar populate de empresa_contactos')
     }
 
     // Parámetros con equipos (intentar primero)
-    // En Strapi v5, el formato de populate anidado cambió
+    // En Strapi v5, usar populate=* para populate completo
     const personaParamsConEquipos = new URLSearchParams(personaParamsBase)
-    personaParamsConEquipos.append('populate[equipos]', 'true')
-    personaParamsConEquipos.append('populate[equipos][populate]', 'colegio')
-    personaParamsConEquipos.append('populate[equipos][populate]', 'lider')
-    personaParamsConEquipos.append('populate[equipos][populate][lider][populate]', 'imagen')
+    personaParamsConEquipos.append('populate[equipos]', '*') // Usar * para populate completo
 
     let personaResponse: StrapiResponse<StrapiEntity<PersonaAttributes>>
     let usarEquipos = true // Flag para saber si intentar con equipos
@@ -210,9 +199,7 @@ export async function GET(
           'populate[telefonos]': 'true',
           'populate[imagen]': 'true',
           'populate[tags]': 'true',
-          'populate[trayectorias][populate][colegio][populate][comuna]': 'true',
-          'populate[trayectorias][populate][curso]': 'true',
-          'populate[trayectorias][populate][asignatura]': 'true',
+          'populate[trayectorias]': '*', // Usar * para populate completo en Strapi v5
         })
         try {
           personaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
