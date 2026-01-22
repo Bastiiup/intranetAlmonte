@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
+import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -82,7 +83,10 @@ export async function POST(
       updateData.data.orden_despacho = uploadedFile.id
     }
     
-    const response = await strapiClient.put(`/api/ordenes-compra/${id}`, updateData)
+    const response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
+      `/api/ordenes-compra/${id}`,
+      updateData
+    )
     
     return NextResponse.json({
       success: true,
