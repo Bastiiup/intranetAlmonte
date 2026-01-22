@@ -255,7 +255,19 @@ export async function GET(
     }
 
     const personaAttrs = personaData.attributes || personaData
-    const personaIdNum = personaData.id
+    const personaIdNum = personaData.id || personaData.documentId
+
+    // Validar que tenemos un ID válido
+    if (!personaIdNum) {
+      console.error('[API /crm/contacts/[id] GET] ❌ No se pudo obtener ID de persona:', {
+        personaDataId: personaData.id,
+        personaDataDocumentId: personaData.documentId,
+      })
+      return NextResponse.json(
+        { success: false, error: 'No se pudo obtener ID válido del contacto' },
+        { status: 400 }
+      )
+    }
 
     // PASO 2: Obtener actividades relacionadas con este contacto
     let actividades: any[] = []
@@ -392,20 +404,36 @@ export async function GET(
     if (empresaContactosArray.length === 0 && personaIdNum) {
       console.log('[API /crm/contacts/[id] GET] 🔄 Fallback: Obteniendo empresa_contactos directamente desde API')
       try {
-        const empresaContactosResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-          `/api/empresa-contactos?filters[persona][id][$eq]=${personaIdNum}&populate[empresa]=true`
-        )
+        // Asegurar que personaIdNum sea un número para el filtro
+        const personaIdNumForFilter = typeof personaIdNum === 'number' 
+          ? personaIdNum 
+          : (typeof personaIdNum === 'string' && /^\d+$/.test(personaIdNum) 
+            ? parseInt(personaIdNum) 
+            : null)
         
-        if (empresaContactosResponse.data) {
-          const empresaContactosRaw = Array.isArray(empresaContactosResponse.data) 
-            ? empresaContactosResponse.data 
-            : [empresaContactosResponse.data]
+        if (personaIdNumForFilter) {
+          const empresaContactosResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+            `/api/empresa-contactos?filters[persona][id][$eq]=${personaIdNumForFilter}&populate[empresa]=true`
+          )
           
-          empresaContactosArray = empresaContactosRaw
-          console.log('[API /crm/contacts/[id] GET] ✅ Obtenidos', empresaContactosArray.length, 'empresa_contactos desde API directa')
+          if (empresaContactosResponse.data) {
+            const empresaContactosRaw = Array.isArray(empresaContactosResponse.data) 
+              ? empresaContactosResponse.data 
+              : [empresaContactosResponse.data]
+            
+            empresaContactosArray = empresaContactosRaw
+            console.log('[API /crm/contacts/[id] GET] ✅ Obtenidos', empresaContactosArray.length, 'empresa_contactos desde API directa')
+          }
+        } else {
+          console.warn('[API /crm/contacts/[id] GET] ⚠️ personaIdNum no es un número válido para el fallback:', personaIdNum)
         }
       } catch (fallbackError: any) {
-        console.warn('[API /crm/contacts/[id] GET] ⚠️ Error en fallback de empresa_contactos:', fallbackError.message)
+        console.warn('[API /crm/contacts/[id] GET] ⚠️ Error en fallback de empresa_contactos:', {
+          message: fallbackError.message,
+          status: fallbackError.status,
+          details: fallbackError.details,
+        })
+        // Continuar sin empresa_contactos si el fallback falla
       }
     }
     
