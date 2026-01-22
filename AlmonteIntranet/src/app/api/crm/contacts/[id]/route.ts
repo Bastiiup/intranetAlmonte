@@ -388,15 +388,16 @@ export async function GET(
           tieneData: !!empresaContactosRaw?.data,
         })
         
-        if (personaAttrs.empresa_contactos) {
-          if (Array.isArray(personaAttrs.empresa_contactos)) {
-            empresaContactosArray = personaAttrs.empresa_contactos
+        const empresaContactosRaw = (personaAttrs as any).empresa_contactos
+        if (empresaContactosRaw) {
+          if (Array.isArray(empresaContactosRaw)) {
+            empresaContactosArray = empresaContactosRaw
             console.log('[API /crm/contacts/[id] GET] ✅ empresa_contactos es array directo:', empresaContactosArray.length)
-          } else if ((personaAttrs.empresa_contactos as any).data && Array.isArray((personaAttrs.empresa_contactos as any).data)) {
-            empresaContactosArray = (personaAttrs.empresa_contactos as any).data
+          } else if (empresaContactosRaw.data && Array.isArray(empresaContactosRaw.data)) {
+            empresaContactosArray = empresaContactosRaw.data
             console.log('[API /crm/contacts/[id] GET] ✅ empresa_contactos viene en .data:', empresaContactosArray.length)
-          } else if ((personaAttrs.empresa_contactos as any).id || (personaAttrs.empresa_contactos as any).documentId) {
-            empresaContactosArray = [personaAttrs.empresa_contactos]
+          } else if (empresaContactosRaw.id || empresaContactosRaw.documentId) {
+            empresaContactosArray = [empresaContactosRaw]
             console.log('[API /crm/contacts/[id] GET] ✅ empresa_contactos es objeto único')
           }
         } else {
