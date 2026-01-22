@@ -473,8 +473,8 @@ export async function GET(
     const colegiosUnicos = Array.from(
       new Map(
         trayectorias
-          .filter(t => t.colegio.id)
-          .map(t => [t.colegio.id, t.colegio])
+          .filter(t => t.colegio && (t.colegio.id || t.colegio.documentId))
+          .map(t => [t.colegio.id || t.colegio.documentId, t.colegio])
       ).values()
     )
 
