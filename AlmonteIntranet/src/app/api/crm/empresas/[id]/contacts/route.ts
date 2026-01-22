@@ -121,11 +121,23 @@ export async function GET(
           // Extraer las personas de las relaciones
           contactos = empresaContactos
             .map((ec: any) => {
-              const persona = ec.attributes?.persona?.data || ec.persona
+              // Manejar diferentes estructuras de respuesta de Strapi
+              const ecAttrs = ec.attributes || ec
+              let persona = ecAttrs.persona?.data || ecAttrs.persona || ec.persona?.data || ec.persona
+              
+              // Si persona es un array, tomar el primero
+              if (Array.isArray(persona) && persona.length > 0) {
+                persona = persona[0]
+              }
+              
               if (persona) {
+                // Extraer attributes si existen
+                const personaAttrs = persona.attributes || persona
                 return {
-                  ...persona,
-                  _cargo: ec.attributes?.cargo || ec.cargo,
+                  ...personaAttrs,
+                  id: persona.id || personaAttrs.id,
+                  documentId: persona.documentId || personaAttrs.documentId,
+                  _cargo: ecAttrs.cargo || ec.cargo,
                 }
               }
               return null

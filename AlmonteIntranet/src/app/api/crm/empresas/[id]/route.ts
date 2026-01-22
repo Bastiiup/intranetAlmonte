@@ -78,7 +78,10 @@ export async function GET(
       )
       
       if (response.data) {
-        empresa = response.data
+        // Extraer objeto único si es array
+        empresa = Array.isArray(response.data) 
+          ? (response.data.length > 0 ? response.data[0] : null)
+          : response.data
         debugLog('[API /crm/empresas/[id] GET] Empresa encontrada directamente')
       }
     } catch (directError: any) {
@@ -267,6 +270,11 @@ export async function PUT(
       empresaData
     )
 
+    // Extraer objeto único de la respuesta
+    const updatedData = Array.isArray(response.data) 
+      ? (response.data.length > 0 ? response.data[0] : response.data)
+      : response.data
+
     // Revalidar para sincronización bidireccional
     revalidatePath('/crm/empresas')
     revalidatePath(`/crm/empresas/${id}`)
@@ -275,7 +283,7 @@ export async function PUT(
 
     return NextResponse.json({
       success: true,
-      data: response.data,
+      data: updatedData,
       message: 'Empresa actualizada exitosamente',
     }, { status: 200 })
   } catch (error: any) {

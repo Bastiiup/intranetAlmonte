@@ -240,6 +240,11 @@ export async function POST(request: Request) {
       empresaData
     )
 
+    // Extraer objeto único de la respuesta
+    const createdData = Array.isArray(response.data) 
+      ? (response.data.length > 0 ? response.data[0] : response.data)
+      : response.data
+
     // Revalidar para sincronización bidireccional
     revalidatePath('/crm/empresas')
     revalidatePath('/crm/empresas/[id]', 'page')
@@ -247,7 +252,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      data: response.data,
+      data: createdData,
       message: 'Empresa creada exitosamente',
     }, { status: 201 })
   } catch (error: any) {

@@ -96,13 +96,15 @@ export async function POST(request: NextRequest) {
         `/api/empresa-contactos?filters[persona][id][$eq]=${personaIdNum}&filters[empresa][id][$eq]=${empresaIdNum}`
       )
 
+      // Extraer objeto único de la respuesta
       const existing = Array.isArray(existingResponse.data) 
-        ? existingResponse.data[0] 
+        ? (existingResponse.data.length > 0 ? existingResponse.data[0] : null)
         : existingResponse.data
 
       if (existing) {
-        // Actualizar relación existente
-        const existingId = existing.documentId || existing.id
+        // Extraer ID del objeto (puede estar en attributes o directamente)
+        const existingAttrs = existing.attributes || existing
+        const existingId = existingAttrs.documentId || existingAttrs.id || existing.documentId || existing.id
         const updateData: any = {
           data: {
             persona: { connect: [personaIdNum] },
@@ -138,9 +140,14 @@ export async function POST(request: NextRequest) {
       createData
     )
 
+    // Extraer objeto único de la respuesta
+    const createdData = Array.isArray(response.data) 
+      ? (response.data.length > 0 ? response.data[0] : response.data)
+      : response.data
+
     return NextResponse.json({
       success: true,
-      data: response.data,
+      data: createdData,
       message: 'Relación empresa-contacto creada',
     }, { status: 201 })
   } catch (error: any) {

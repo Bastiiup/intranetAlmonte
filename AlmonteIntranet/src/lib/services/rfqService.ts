@@ -240,7 +240,19 @@ export async function sendRFQToProviders(
       }
     }
     
-    const rfq = rfqResponse.data
+    // Extraer RFQ única (puede ser array o objeto)
+    const rfq: StrapiEntity<any> = Array.isArray(rfqResponse.data) 
+      ? rfqResponse.data[0] 
+      : rfqResponse.data
+    
+    if (!rfq) {
+      return {
+        success: false,
+        resultados: [],
+        error: 'RFQ no encontrada',
+      }
+    }
+    
     const attrs = rfq.attributes || rfq
     let empresas = attrs.empresas?.data || attrs.empresas || []
     
