@@ -29,7 +29,25 @@ interface ColegioAttributes {
  * - comuna: Filtro por comuna (ID de relación)
  */
 export async function GET(request: Request) {
+  // Importar configuración de Strapi
+  const { STRAPI_API_TOKEN } = await import('@/lib/strapi/config')
+  
   try {
+    // Validar que el token esté configurado
+    if (!STRAPI_API_TOKEN) {
+      console.error('[API /crm/colegios] ❌ STRAPI_API_TOKEN no está configurado')
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Token de Strapi no configurado. Verifica tu archivo .env.local',
+          details: {
+            hint: 'Asegúrate de tener STRAPI_API_TOKEN_LOCAL o STRAPI_API_TOKEN configurado en .env.local',
+          },
+        },
+        { status: 500 }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const page = searchParams.get('page') || '1'
     const pageSize = searchParams.get('pagination[pageSize]') || searchParams.get('pageSize') || '25'
@@ -99,6 +117,26 @@ export async function GET(request: Request) {
       meta: response.meta,
     }, { status: 200 })
   } catch (error: any) {
+    // Manejar errores de autenticación
+    if (error.status === 401 || error.status === 403) {
+      console.error('[API /crm/colegios] ❌ Error de autenticación:', {
+        status: error.status,
+        message: error.message,
+        tieneToken: !!STRAPI_API_TOKEN,
+      })
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Error de autenticación con Strapi. Verifica tu token en .env.local',
+          details: {
+            status: error.status,
+            hint: 'Asegúrate de tener STRAPI_API_TOKEN_LOCAL configurado en .env.local si usas Strapi local',
+          },
+        },
+        { status: 401 }
+      )
+    }
+    
     console.error('[API /crm/colegios] Error al obtener colegios:', {
       message: error.message,
       status: error.status,

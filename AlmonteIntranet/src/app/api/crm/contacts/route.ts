@@ -69,7 +69,25 @@ interface PersonaAttributes {
  * - confidence: Filtro por nivel_confianza (baja, media, alta)
  */
 export async function GET(request: Request) {
+  // Importar configuración de Strapi
+  const { STRAPI_API_TOKEN } = await import('@/lib/strapi/config')
+  
   try {
+    // Validar que el token esté configurado
+    if (!STRAPI_API_TOKEN) {
+      console.error('[API /crm/contacts] ❌ STRAPI_API_TOKEN no está configurado')
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Token de Strapi no configurado. Verifica tu archivo .env.local',
+          details: {
+            hint: 'Asegúrate de tener STRAPI_API_TOKEN_LOCAL o STRAPI_API_TOKEN configurado en .env.local',
+          },
+        },
+        { status: 500 }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const page = searchParams.get('page') || '1'
     const pageSize = searchParams.get('pageSize') || '50'
@@ -138,6 +156,26 @@ export async function GET(request: Request) {
         meta: response.meta,
       }, { status: 200 })
     } catch (strapiError: any) {
+      // Manejar errores de autenticación
+      if (strapiError.status === 401 || strapiError.status === 403) {
+        console.error('[API /crm/contacts] ❌ Error de autenticación:', {
+          status: strapiError.status,
+          message: strapiError.message,
+          tieneToken: !!STRAPI_API_TOKEN,
+        })
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Error de autenticación con Strapi. Verifica tu token en .env.local',
+            details: {
+              status: strapiError.status,
+              hint: 'Asegúrate de tener STRAPI_API_TOKEN_LOCAL configurado en .env.local si usas Strapi local',
+            },
+          },
+          { status: 401 }
+        )
+      }
+      
       // Si falla con populate anidado, intentar con populate más simple
       if (strapiError.status === 500 || strapiError.status === 400) {
         console.warn('[API /crm/contacts] Error con populate completo, intentando populate simplificado')
