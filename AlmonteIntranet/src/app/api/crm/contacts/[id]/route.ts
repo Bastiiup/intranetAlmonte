@@ -387,8 +387,6 @@ export async function GET(
           esArray: Array.isArray(empresaContactosRaw),
           tieneData: !!empresaContactosRaw?.data,
         })
-        
-        const empresaContactosRaw = (personaAttrs as any).empresa_contactos
         if (empresaContactosRaw) {
           if (Array.isArray(empresaContactosRaw)) {
             empresaContactosArray = empresaContactosRaw
@@ -401,7 +399,7 @@ export async function GET(
             console.log('[API /crm/contacts/[id] GET] ✅ empresa_contactos es objeto único')
           }
         } else {
-          console.log('[API /crm/contacts/[id] GET] ⚠️ personaAttrs.empresa_contactos es null/undefined')
+          console.log('[API /crm/contacts/[id] GET] ⚠️ empresa_contactos es null/undefined')
         }
       } catch (error: any) {
         console.warn('[API /crm/contacts/[id] GET] Error normalizando empresa_contactos:', error.message)
