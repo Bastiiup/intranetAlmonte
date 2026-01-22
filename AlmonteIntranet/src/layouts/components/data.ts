@@ -52,6 +52,8 @@ import {
   LuTable,
   LuTag,
   LuUsers,
+  LuBuilding2,
+  LuBriefcase,
 } from 'react-icons/lu'
 
 type UserDropdownItemType = {
@@ -92,23 +94,39 @@ export const userDropdownItems: UserDropdownItemType[] = [
 ]
 
 export const menuItems: MenuItemType[] = [
+  { key: 'dashboards-section', label: 'DASHBOARDS', isTitle: true },
+  {
+    key: 'dashboards',
+    label: 'Dashboards',
+    icon: TbLayoutDashboard,
+    children: [
+      { key: 'dashboard-v1', label: 'Dashboard 1', url: '/dashboard' },
+      { key: 'dashboard-v2', label: 'Dashboard 2', url: '/dashboard2' },
+    ],
+  },
   { key: 'comercial', label: 'COMERCIAL', isTitle: true },
   {
     key: 'crm',
     label: 'CRM',
     icon: LuHandshake,
     children: [
-      { key: 'crm-contacts', label: 'Contactos', url: '/crm/contacts' },
+      { key: 'crm-contacts-colegios', label: 'Contactos de Colegios', url: '/crm/contacts/colegios' },
+      { key: 'crm-contacts-empresas', label: 'Contactos de Empresas', url: '/crm/contacts/empresas' },
       { key: 'crm-colegios', label: 'Colegios', url: '/crm/colegios' },
-      { key: 'crm-opportunities', label: 'Oportunidades', url: '/crm/opportunities' },
-      { key: 'crm-leads', label: 'Leads', url: '/crm/leads' },
-      { key: 'crm-pipeline', label: 'Embudo', url: '/crm/pipeline' },
-      { key: 'crm-campaign', label: 'Campaña', url: '/crm/campaign' },
-      { key: 'crm-proposals', label: 'Propuestas', url: '/crm/proposals' },
       { key: 'crm-estimations', label: 'Cotizaciones', url: '/crm/estimations' },
-      { key: 'crm-customers', label: 'Clientes', url: '/crm/customers' },
-      { key: 'crm-activities', label: 'Actividades', url: '/crm/activities' },
-      { key: 'crm-automatizaciones', label: 'Automatizaciones', url: '/crm/automatizaciones' },
+    ],
+  },
+  {
+    key: 'almonte',
+    label: 'Almonte',
+    icon: LuBuilding2,
+    children: [
+      { key: 'almonte-opportunities', label: 'Oportunidades', url: '/crm/opportunities' },
+      { key: 'almonte-leads', label: 'Leads', url: '/crm/leads' },
+      { key: 'almonte-pipeline', label: 'Embudo', url: '/crm/pipeline' },
+      { key: 'almonte-campaign', label: 'Campaña', url: '/crm/campaign' },
+      { key: 'almonte-proposals', label: 'Propuestas', url: '/crm/proposals' },
+      { key: 'almonte-activities', label: 'Actividades', url: '/crm/activities' },
     ],
   },
   {
@@ -308,17 +326,23 @@ export const horizontalMenuItems: MenuItemType[] = [
         label: 'CRM',
         icon: LuHandshake,
         children: [
-          { key: 'crm-contacts', label: 'Contactos', url: '/crm/contacts' },
+          { key: 'crm-contacts-colegios', label: 'Contactos de Colegios', url: '/crm/contacts/colegios' },
+          { key: 'crm-contacts-empresas', label: 'Contactos de Empresas', url: '/crm/contacts/empresas' },
           { key: 'crm-colegios', label: 'Colegios', url: '/crm/colegios' },
-          { key: 'crm-opportunities', label: 'Oportunidades', url: '/crm/opportunities' },
-          { key: 'crm-leads', label: 'Leads', url: '/crm/leads' },
-          { key: 'crm-pipeline', label: 'Embudo', url: '/crm/pipeline' },
-          { key: 'crm-campaign', label: 'Campaña', url: '/crm/campaign' },
-          { key: 'crm-proposals', label: 'Propuestas', url: '/crm/proposals' },
           { key: 'crm-estimations', label: 'Cotizaciones', url: '/crm/estimations' },
-          { key: 'crm-customers', label: 'Clientes', url: '/crm/customers' },
-          { key: 'crm-activities', label: 'Actividades', url: '/crm/activities' },
-          { key: 'crm-automatizaciones', label: 'Automatizaciones', url: '/crm/automatizaciones' },
+        ],
+      },
+      {
+        key: 'almonte',
+        label: 'Almonte',
+        icon: LuBuilding2,
+        children: [
+          { key: 'almonte-opportunities', label: 'Oportunidades', url: '/crm/opportunities' },
+          { key: 'almonte-leads', label: 'Leads', url: '/crm/leads' },
+          { key: 'almonte-pipeline', label: 'Embudo', url: '/crm/pipeline' },
+          { key: 'almonte-campaign', label: 'Campaña', url: '/crm/campaign' },
+          { key: 'almonte-proposals', label: 'Propuestas', url: '/crm/proposals' },
+          { key: 'almonte-activities', label: 'Actividades', url: '/crm/activities' },
         ],
       },
       {

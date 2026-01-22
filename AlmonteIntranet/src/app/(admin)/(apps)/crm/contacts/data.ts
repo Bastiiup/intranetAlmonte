@@ -71,6 +71,7 @@ export type ContactsQuery = {
   search?: string
   origin?: string[]
   confidence?: string
+  tipo?: 'colegio' | 'empresa' // Filtro por tipo de contacto
 }
 
 export type ContactsResult = {
@@ -437,7 +438,11 @@ export async function getContacts(query: ContactsQuery = {}): Promise<ContactsRe
   if (query.confidence) {
     params.append('confidence', query.confidence)
   }
-  
+
+  if (query.tipo) {
+    params.append('tipo', query.tipo)
+  }
+
   // Llamar a la API route del servidor
   const response = await fetch(`/api/crm/contacts?${params.toString()}`)
   

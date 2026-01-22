@@ -15,7 +15,7 @@ import {
 } from '@tanstack/react-table'
 import { Alert, Button, Card, CardBody, CardFooter, CardHeader, Col, Container, OverlayTrigger, Row, Spinner, Tooltip } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { TbEdit, TbEye, TbMail, TbPhone, TbWorld } from 'react-icons/tb'
+import { TbEdit, TbEye, TbMail, TbPhone, TbWorld, TbLayoutGrid, TbList } from 'react-icons/tb'
 import { LuSearch, LuShuffle, LuPlus, LuMapPin, LuX, LuUsers, LuCalendar } from 'react-icons/lu'
 import { getContacts, type ContactsQuery } from './data'
 import type { ContactType } from '@/app/(admin)/(apps)/crm/types'
@@ -86,12 +86,16 @@ const COMUNAS_UNICAS = (() => {
 
 const Contacts = () => {
   const router = useRouter()
+  // Obtener tipo desde la URL
+  const [tipoContacto, setTipoContacto] = useState<'colegio' | 'empresa' | ''>('')
+  
   // Estados de datos
   const [contactsData, setContactsData] = useState<ContactType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [totalRows, setTotalRows] = useState(0)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('grid') // Vista grid por defecto
   
   // Estados de modales
   const [addModal, setAddModal] = useState(false)
@@ -504,6 +508,15 @@ const Contacts = () => {
     setColumnFilters(filters)
   }, [filtroRegion, filtroComuna, filtroCargo, filtroConfianza, filtroOrigen, filtroFechaDesde, filtroFechaHasta])
 
+  // Obtener tipo desde la URL al montar
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const tipo = params.get('tipo') as 'colegio' | 'empresa' | null
+    if (tipo === 'colegio' || tipo === 'empresa') {
+      setTipoContacto(tipo)
+    }
+  }, [])
+
   // Función para cargar contactos
   const loadContacts = useCallback(async () => {
     setLoading(true)
@@ -515,6 +528,7 @@ const Contacts = () => {
         search: globalFilter || undefined,
         origin: filtroOrigen ? [filtroOrigen] : undefined,
         confidence: filtroConfianza || undefined,
+        tipo: tipoContacto || undefined,
       }
       
       const result = await getContacts(query)
@@ -526,7 +540,7 @@ const Contacts = () => {
     } finally {
       setLoading(false)
     }
-  }, [pagination.pageIndex, pagination.pageSize, globalFilter, filtroOrigen, filtroConfianza])
+  }, [pagination.pageIndex, pagination.pageSize, globalFilter, filtroOrigen, filtroConfianza, tipoContacto])
 
   // Cargar datos cuando cambian los filtros o paginación
   useEffect(() => {
@@ -601,12 +615,19 @@ const Contacts = () => {
     )
   }
 
+  const pageTitle = tipoContacto === 'colegio' ? 'Contactos de Colegios' : tipoContacto === 'empresa' ? 'Contactos de Empresas' : 'Contactos'
+  const pageInfo = tipoContacto === 'colegio' 
+    ? "Contactos relacionados con colegios. Aquí puedes gestionar toda la información de contacto de personas asociadas a instituciones educativas."
+    : tipoContacto === 'empresa'
+    ? "Contactos relacionados con empresas. Aquí puedes gestionar toda la información de contacto de personas asociadas a empresas proveedoras."
+    : "Los Contactos son personas o instituciones con las que tu empresa tiene relación. Aquí puedes gestionar toda la información de contacto, incluyendo emails, teléfonos, direcciones y datos adicionales. Los contactos pueden estar relacionados con colegios, personas o ser independientes."
+
   return (
     <Container fluid>
       <PageBreadcrumb 
-        title={'Contactos'} 
+        title={pageTitle} 
         subtitle={'CRM'} 
-        infoText="Los Contactos son personas o instituciones con las que tu empresa tiene relación. Aquí puedes gestionar toda la información de contacto, incluyendo emails, teléfonos, direcciones y datos adicionales. Los contactos pueden estar relacionados con colegios, personas o ser independientes."
+        infoText={pageInfo}
       />
 
       {successMessage && (
@@ -624,7 +645,7 @@ const Contacts = () => {
         <Col xs={12}>
           <Card>
             <CardHeader className="border-light justify-content-between">
-              <div className="d-flex gap-2">
+              <div className="d-flex gap-2 align-items-center">
                 <div className="app-search">
                   <input
                     type="search"
@@ -643,6 +664,24 @@ const Contacts = () => {
                   <LuPlus size={18} />
                   Agregar Contacto
                 </Button>
+                <div className="btn-group" role="group">
+                  <Button
+                    variant={viewMode === 'grid' ? 'primary' : 'outline-secondary'}
+                    size="sm"
+                    onClick={() => setViewMode('grid')}
+                    title="Vista Grid"
+                  >
+                    <TbLayoutGrid size={18} />
+                  </Button>
+                  <Button
+                    variant={viewMode === 'table' ? 'primary' : 'outline-secondary'}
+                    size="sm"
+                    onClick={() => setViewMode('table')}
+                    title="Vista Tabla"
+                  >
+                    <TbList size={18} />
+                  </Button>
+                </div>
               </div>
 
               <div className="d-flex align-items-center gap-2">
@@ -778,15 +817,107 @@ const Contacts = () => {
               </div>
             </CardHeader>
 
-            <CardBody className="p-0">
-              <DataTable<ContactType>
-                table={table}
-                emptyMessage="No se encontraron contactos"
-                onColumnOrderChange={setColumnOrder}
-              />
+            <CardBody className={viewMode === 'grid' ? 'p-3' : 'p-0'}>
+              {viewMode === 'grid' ? (
+                <Row className="g-3">
+                  {contactsData.length === 0 ? (
+                    <Col xs={12}>
+                      <div className="text-center py-5">
+                        <p className="text-muted">No se encontraron contactos</p>
+                      </div>
+                    </Col>
+                  ) : (
+                    contactsData.map((contact) => {
+                      const contactId = (contact as any).documentId || contact.id
+                      return (
+                        <Col key={contactId} xs={12} sm={6} md={4} lg={3} xl={2}>
+                          <Card className="h-100">
+                            <CardBody className="text-center">
+                              {contact.avatar ? (
+                                <Image
+                                  src={typeof contact.avatar === 'string' ? contact.avatar : contact.avatar}
+                                  alt={contact.name}
+                                  className="rounded-circle mb-2"
+                                  width="80"
+                                  height="80"
+                                />
+                              ) : (
+                                <div className="avatar-lg rounded-circle mx-auto mb-2 bg-secondary-subtle d-flex align-items-center justify-content-center">
+                                  <span className="avatar-title text-secondary fw-semibold fs-18">
+                                    {generateInitials(contact.name)}
+                                  </span>
+                                </div>
+                              )}
+                              <h6 className="mb-1">
+                                <Link 
+                                  href={`/crm/contacts/${contactId}`}
+                                  className="text-decoration-none"
+                                >
+                                  {contact.name}
+                                </Link>
+                              </h6>
+                              {contact.cargo && (
+                                <p className="text-muted fs-xs mb-2">{contact.cargo}</p>
+                              )}
+                              {contact.empresa && (
+                                <p className="text-muted fs-xs mb-2">{contact.empresa}</p>
+                              )}
+                              {contact.email && (
+                                <div className="mb-1">
+                                  <a href={`mailto:${contact.email}`} className="text-decoration-none">
+                                    <TbMail size={14} className="me-1" />
+                                    <span className="fs-xs">{contact.email}</span>
+                                  </a>
+                                </div>
+                              )}
+                              {contact.phone && (
+                                <div className="mb-1">
+                                  <a href={`tel:${contact.phone}`} className="text-decoration-none">
+                                    <TbPhone size={14} className="me-1" />
+                                    <span className="fs-xs">{contact.phone}</span>
+                                  </a>
+                                </div>
+                              )}
+                              {contact.label && (
+                                <span className={`badge badge-soft-${contact.label.variant} mb-2`}>
+                                  {contact.label.text}
+                                </span>
+                              )}
+                              <div className="d-flex gap-1 justify-content-center mt-2">
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => router.push(`/crm/contacts/${contactId}`)}
+                                  title="Ver detalle"
+                                >
+                                  <TbEye size={16} />
+                                </Button>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => setEditModal({ open: true, contact })}
+                                  title="Editar"
+                                >
+                                  <TbEdit size={16} />
+                                </Button>
+                              </div>
+                            </CardBody>
+                          </Card>
+                        </Col>
+                      )
+                    })
+                  )}
+                </Row>
+              ) : (
+                <DataTable<ContactType>
+                  table={table}
+                  emptyMessage="No se encontraron contactos"
+                  onColumnOrderChange={setColumnOrder}
+                />
+              )}
             </CardBody>
 
-            {table.getRowModel().rows.length > 0 && (
+            {(viewMode === 'table' ? table.getRowModel().rows.length > 0 : contactsData.length > 0) && (
               <CardFooter className="border-0">
                 <TablePagination
                   totalItems={totalRows}

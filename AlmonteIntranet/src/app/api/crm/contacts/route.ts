@@ -94,6 +94,7 @@ export async function GET(request: Request) {
     const search = searchParams.get('search') || ''
     const origin = searchParams.get('origin') || ''
     const confidence = searchParams.get('confidence') || ''
+    const tipo = searchParams.get('tipo') || '' // 'colegio' o 'empresa'
 
     // Construir parámetros de query
     const params = new URLSearchParams({
@@ -145,15 +146,63 @@ export async function GET(request: Request) {
       params.append('filters[nivel_confianza][$eq]', confidence)
     }
 
+    // Filtro por tipo: colegio o empresa
+    if (tipo === 'colegio') {
+      // Filtrar personas que tienen trayectorias con colegio
+      params.append('filters[trayectorias][colegio][$notNull]', 'true')
+    } else if (tipo === 'empresa') {
+      // Filtrar personas que tienen relaciones con empresas a través de empresa-contactos
+      // Esto requiere una consulta más compleja, por ahora usamos populate y filtramos después
+      params.append('populate[empresa_contactos]', 'true')
+      params.append('populate[empresa_contactos][populate][empresa]', 'true')
+    }
+
     const url = `/api/personas?${params.toString()}`
     
     try {
       const response = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(url)
 
+      // Filtrar por tipo empresa si es necesario (ya que Strapi no puede filtrar directamente por relaciones many-to-many)
+      let filteredData = response.data
+      if (tipo === 'empresa') {
+        const dataArray = Array.isArray(response.data) ? response.data : [response.data]
+        filteredData = dataArray.filter((persona: any) => {
+          const attrs = persona.attributes || persona
+          // Verificar si tiene empresa_contactos con al menos una empresa
+          const empresaContactos = attrs.empresa_contactos || []
+          if (Array.isArray(empresaContactos)) {
+            return empresaContactos.length > 0
+          }
+          // Si viene como objeto con data
+          if (empresaContactos.data && Array.isArray(empresaContactos.data)) {
+            return empresaContactos.data.length > 0
+          }
+          return false
+        })
+      } else if (tipo === 'colegio') {
+        // Asegurar que solo incluimos personas con trayectorias que tengan colegio
+        const dataArray = Array.isArray(response.data) ? response.data : [response.data]
+        filteredData = dataArray.filter((persona: any) => {
+          const attrs = persona.attributes || persona
+          const trayectorias = attrs.trayectorias || []
+          const trayectoriasArray = Array.isArray(trayectorias) ? trayectorias : (trayectorias.data || [])
+          return trayectoriasArray.some((t: any) => {
+            const tAttrs = t.attributes || t
+            return tAttrs.colegio || t.colegio
+          })
+        })
+      }
+
       return NextResponse.json({
         success: true,
-        data: response.data,
-        meta: response.meta,
+        data: filteredData,
+        meta: {
+          ...response.meta,
+          pagination: {
+            ...response.meta?.pagination,
+            total: Array.isArray(filteredData) ? filteredData.length : (filteredData ? 1 : 0),
+          },
+        },
       }, { status: 200 })
     } catch (strapiError: any) {
       // Manejar errores de autenticación
