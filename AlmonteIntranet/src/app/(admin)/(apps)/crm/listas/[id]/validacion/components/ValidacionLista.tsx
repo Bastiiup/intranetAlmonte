@@ -156,6 +156,7 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
   }>>([])
   const [procesandoExcel, setProcesandoExcel] = useState(false)
   const [versionSeleccionada, setVersionSeleccionada] = useState<number | null>(null)
+  const [mostrarTodosLosProductos, setMostrarTodosLosProductos] = useState(false) // Opción para mostrar todos los productos juntos
   
   // Productos identificados
   const [productos, setProductos] = useState<ProductoIdentificado[]>([])
