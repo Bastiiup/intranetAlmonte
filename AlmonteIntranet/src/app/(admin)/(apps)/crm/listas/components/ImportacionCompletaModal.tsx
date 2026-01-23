@@ -66,6 +66,8 @@ interface AgrupadoPorLista {
     rbd?: number
     comuna?: string
     orden?: number
+    existe?: boolean
+    datosCompletos?: any
   }
   curso: {
     nombre: string
