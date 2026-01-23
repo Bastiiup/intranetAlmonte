@@ -794,9 +794,13 @@ export default function ImportacionCompletaModal({
               if (cursoExistente) {
                 // Priorizar documentId sobre id numérico (Strapi v5 usa documentId)
                 cursoId = cursoExistente.documentId || cursoExistente.id
-                // Guardar en el mapa para reutilizar en siguientes grupos
-                cursosProcesadosMap.set(cursoKey, cursoId)
-                console.log(`[Importación Completa] ✅ Curso existente encontrado. ID: ${cursoId} (documentId: ${cursoExistente.documentId}, id: ${cursoExistente.id})`)
+                // Guardar en el mapa para reutilizar en siguientes grupos (solo si cursoId no es null)
+                if (cursoId) {
+                  cursosProcesadosMap.set(cursoKey, cursoId)
+                  console.log(`[Importación Completa] ✅ Curso existente encontrado. ID: ${cursoId} (documentId: ${cursoExistente.documentId}, id: ${cursoExistente.id})`)
+                } else {
+                  console.warn(`[Importación Completa] ⚠️ Curso existente encontrado pero sin ID válido (documentId: ${cursoExistente.documentId}, id: ${cursoExistente.id})`)
+                }
               }
             }
           }
