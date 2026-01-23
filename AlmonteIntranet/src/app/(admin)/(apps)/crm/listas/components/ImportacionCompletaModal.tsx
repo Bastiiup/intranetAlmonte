@@ -257,7 +257,7 @@ export default function ImportacionCompletaModal({
         }
 
         // Detectar formato del Excel (nuevo formato compacto o formato completo)
-        const primeraFila = jsonData[0] || {}
+        const primeraFila = (jsonData[0] || {}) as Record<string, any>
         const tieneFormatoCompacto = primeraFila.nombre_curso || primeraFila['nombre_curso'] || 
                                      primeraFila.rbd || primeraFila['rbd'] ||
                                      primeraFila.Producto || primeraFila['Producto'] ||
