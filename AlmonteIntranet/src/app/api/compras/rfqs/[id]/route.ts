@@ -156,10 +156,58 @@ export async function PUT(
       updateData.data.productos = { connect: body.productos.map((id: any) => Number(id)) }
     }
     
-    const response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
-      `/api/rfqs/${id}`,
-      updateData
-    )
+    // Intentar primero con el ID recibido
+    let response: StrapiResponse<StrapiEntity<any>>
+    try {
+      response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
+        `/api/rfqs/${id}`,
+        updateData
+      )
+    } catch (putError: any) {
+      // Si falla con 404, buscar la RFQ para obtener el ID correcto
+      if (putError.status === 404) {
+        console.warn('[API /compras/rfqs/[id] PUT] Error 404 con ID, buscando RFQ para obtener ID correcto:', id)
+        try {
+          // Intentar buscar por documentId si el ID no es numérico, o por id si es numérico
+          const isNumericId = /^\d+$/.test(id)
+          let searchResponse: StrapiResponse<StrapiEntity<any>>
+          
+          if (isNumericId) {
+            // Si es numérico, buscar por documentId
+            searchResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+              `/api/rfqs?filters[documentId][$eq]=${id}`
+            )
+          } else {
+            // Si no es numérico, buscar por id numérico
+            searchResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+              `/api/rfqs?filters[id][$eq]=${id}`
+            )
+          }
+          
+          if (searchResponse.data) {
+            const rfqData = Array.isArray(searchResponse.data) ? searchResponse.data[0] : searchResponse.data
+            if (rfqData) {
+              // Usar documentId si está disponible, sino usar id
+              const correctId = rfqData.documentId || rfqData.id || id
+              console.log('[API /compras/rfqs/[id] PUT] RFQ encontrada, usando ID correcto:', correctId)
+              response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
+                `/api/rfqs/${correctId}`,
+                updateData
+              )
+            } else {
+              throw putError
+            }
+          } else {
+            throw putError
+          }
+        } catch (searchError: any) {
+          console.error('[API /compras/rfqs/[id] PUT] Error al buscar RFQ:', searchError)
+          throw putError
+        }
+      } else {
+        throw putError
+      }
+    }
     
     return NextResponse.json({
       success: true,
@@ -209,11 +257,54 @@ export async function DELETE(
     const { id } = await params
     
     // Soft delete: marcar como inactiva
-    await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(`/api/rfqs/${id}`, {
-      data: {
-        activo: false,
-      },
-    })
+    try {
+      await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(`/api/rfqs/${id}`, {
+        data: {
+          activo: false,
+        },
+      })
+    } catch (deleteError: any) {
+      // Si falla con 404, buscar la RFQ para obtener el ID correcto
+      if (deleteError.status === 404) {
+        console.warn('[API /compras/rfqs/[id] DELETE] Error 404 con ID, buscando RFQ para obtener ID correcto:', id)
+        try {
+          const isNumericId = /^\d+$/.test(id)
+          let searchResponse: StrapiResponse<StrapiEntity<any>>
+          
+          if (isNumericId) {
+            searchResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+              `/api/rfqs?filters[documentId][$eq]=${id}`
+            )
+          } else {
+            searchResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+              `/api/rfqs?filters[id][$eq]=${id}`
+            )
+          }
+          
+          if (searchResponse.data) {
+            const rfqData = Array.isArray(searchResponse.data) ? searchResponse.data[0] : searchResponse.data
+            if (rfqData) {
+              const correctId = rfqData.documentId || rfqData.id || id
+              console.log('[API /compras/rfqs/[id] DELETE] RFQ encontrada, usando ID correcto:', correctId)
+              await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(`/api/rfqs/${correctId}`, {
+                data: {
+                  activo: false,
+                },
+              })
+            } else {
+              throw deleteError
+            }
+          } else {
+            throw deleteError
+          }
+        } catch (searchError: any) {
+          console.error('[API /compras/rfqs/[id] DELETE] Error al buscar RFQ:', searchError)
+          throw deleteError
+        }
+      } else {
+        throw deleteError
+      }
+    }
     
     return NextResponse.json({
       success: true,
