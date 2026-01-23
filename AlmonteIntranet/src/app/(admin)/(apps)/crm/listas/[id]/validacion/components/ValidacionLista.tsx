@@ -2800,7 +2800,8 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
               type="file"
               accept=".xlsx,.xls,.csv"
               onChange={(e) => {
-                const file = e.target.files?.[0]
+                const target = e.target as HTMLInputElement
+                const file = target.files?.[0]
                 if (file) {
                   setExcelFile(file)
                   handleProcesarExcel(file)
@@ -2920,7 +2921,8 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
               type="file"
               accept=".xlsx,.xls,.csv"
               onChange={(e) => {
-                const file = e.target.files?.[0]
+                const target = e.target as HTMLInputElement
+                const file = target.files?.[0]
                 if (file) {
                   setExcelFile(file)
                   handleProcesarExcel(file)
