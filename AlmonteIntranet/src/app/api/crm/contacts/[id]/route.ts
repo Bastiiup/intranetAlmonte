@@ -84,8 +84,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let contactId: string | undefined
   try {
-    const { id: contactId } = await params
+    const paramsResolved = await params
+    contactId = paramsResolved.id
 
     // PASO 1: Obtener el contacto (persona) con todas sus relaciones
     // Parámetros base (sin equipos, por si el campo no existe aún en Strapi)
@@ -579,7 +581,7 @@ export async function GET(
         {
           success: false,
           error: 'Contacto no encontrado',
-          details: `No se encontró un contacto con el ID: ${contactId}`,
+          details: `No se encontró un contacto con el ID: ${contactId ?? 'desconocido'}`,
         },
         { status: 404 }
       )
