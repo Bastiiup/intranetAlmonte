@@ -425,7 +425,8 @@ export default function ImportacionCompletaModal({
               if (row.Curso) {
                 const gradoMatch = row.Curso.match(/(\d+)/)
                 if (gradoMatch) {
-                grado = parseInt(gradoMatch[1]) || 1
+                  grado = parseInt(gradoMatch[1]) || 1
+                }
               }
             }
 
