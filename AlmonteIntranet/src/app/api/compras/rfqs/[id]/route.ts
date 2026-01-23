@@ -19,13 +19,32 @@ export async function GET(
     
     // Intentar primero con el endpoint directo
     try {
-      // En Strapi v5, populates anidados profundos deben usar '*' en lugar de 'true'
-      const response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-        `/api/rfqs/${id}?populate[empresas]=*&populate[productos]=true&populate[creado_por][populate][persona]=*&populate[cotizaciones_recibidas][populate][empresa]=*&populate[cotizaciones_recibidas][populate][contacto_responsable]=*`
-      )
-      
-      if (response.data) {
-        rfq = response.data
+      // Primero intentar con populate completo de empresas
+      try {
+        const response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+          `/api/rfqs/${id}?populate[empresas]=true&populate[productos]=true&populate[creado_por][populate][persona]=true&populate[cotizaciones_recibidas][populate][empresa]=true&populate[cotizaciones_recibidas][populate][contacto_responsable]=true`
+        )
+        
+        if (response.data) {
+          rfq = response.data
+        }
+      } catch (populateError: any) {
+        // Si falla por error de populate (como comuna), intentar sin populatear empresas completamente
+        // Solo populatear emails que es lo que realmente necesitamos
+        const errorMessage = populateError.message || populateError.response?.data?.error?.message || ''
+        const errorDetails = populateError.response?.data?.error?.details || {}
+        if (populateError.status === 400 && (errorMessage.includes('comuna') || errorDetails.path?.includes('comuna'))) {
+          console.warn('[API /compras/rfqs/[id] GET] Error con populate completo, intentando populate simplificado')
+          const response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+            `/api/rfqs/${id}?populate[empresas][populate][emails]=true&populate[productos]=true&populate[creado_por][populate][persona]=true&populate[cotizaciones_recibidas][populate][empresa][populate][emails]=true&populate[cotizaciones_recibidas][populate][contacto_responsable]=true`
+          )
+          
+          if (response.data) {
+            rfq = response.data
+          }
+        } else {
+          throw populateError
+        }
       }
     } catch (directError: any) {
       // Si falla, intentar buscar por documentId
@@ -33,35 +52,67 @@ export async function GET(
         const isDocumentId = /^[a-zA-Z0-9_-]+$/.test(id) && !/^\d+$/.test(id)
         
         let filterParams: URLSearchParams
+        // Intentar primero con populate completo, si falla usar populate simplificado
         if (isDocumentId) {
           filterParams = new URLSearchParams({
             'filters[documentId][$eq]': id,
-            'populate[empresas]': '*',
+            'populate[empresas]': 'true',
             'populate[productos]': 'true',
-            'populate[creado_por][populate][persona]': '*',
-            'populate[cotizaciones_recibidas][populate][empresa]': '*',
-            'populate[cotizaciones_recibidas][populate][contacto_responsable]': '*',
+            'populate[creado_por][populate][persona]': 'true',
+            'populate[cotizaciones_recibidas][populate][empresa]': 'true',
+            'populate[cotizaciones_recibidas][populate][contacto_responsable]': 'true',
           })
         } else {
           filterParams = new URLSearchParams({
             'filters[id][$eq]': id.toString(),
-            'populate[empresas]': '*',
+            'populate[empresas]': 'true',
             'populate[productos]': 'true',
-            'populate[creado_por][populate][persona]': '*',
-            'populate[cotizaciones_recibidas][populate][empresa]': '*',
-            'populate[cotizaciones_recibidas][populate][contacto_responsable]': '*',
+            'populate[creado_por][populate][persona]': 'true',
+            'populate[cotizaciones_recibidas][populate][empresa]': 'true',
+            'populate[cotizaciones_recibidas][populate][contacto_responsable]': 'true',
           })
         }
         
-        const filterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-          `/api/rfqs?${filterParams.toString()}`
-        )
-        
-        if (filterResponse.data) {
-          if (Array.isArray(filterResponse.data) && filterResponse.data.length > 0) {
-            rfq = filterResponse.data[0]
-          } else if (!Array.isArray(filterResponse.data)) {
-            rfq = filterResponse.data
+        try {
+          const filterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+            `/api/rfqs?${filterParams.toString()}`
+          )
+          
+          if (filterResponse.data) {
+            if (Array.isArray(filterResponse.data) && filterResponse.data.length > 0) {
+              rfq = filterResponse.data[0]
+            } else if (!Array.isArray(filterResponse.data)) {
+              rfq = filterResponse.data
+            }
+          }
+        } catch (filterError: any) {
+          // Si falla por error de populate (como comuna), intentar sin populatear empresas completamente
+          const filterErrorMessage = filterError.message || filterError.response?.data?.error?.message || ''
+          const filterErrorDetails = filterError.response?.data?.error?.details || {}
+          if (filterError.status === 400 && (filterErrorMessage.includes('comuna') || filterErrorDetails.path?.includes('comuna'))) {
+            console.warn('[API /compras/rfqs/[id] GET] Error con populate completo en filtro, intentando populate simplificado')
+            const simpleFilterParams = new URLSearchParams({
+              ...(isDocumentId ? { 'filters[documentId][$eq]': id } : { 'filters[id][$eq]': id.toString() }),
+              'populate[empresas][populate][emails]': 'true',
+              'populate[productos]': 'true',
+              'populate[creado_por][populate][persona]': 'true',
+              'populate[cotizaciones_recibidas][populate][empresa][populate][emails]': 'true',
+              'populate[cotizaciones_recibidas][populate][contacto_responsable]': 'true',
+            })
+            
+            const simpleFilterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+              `/api/rfqs?${simpleFilterParams.toString()}`
+            )
+            
+            if (simpleFilterResponse.data) {
+              if (Array.isArray(simpleFilterResponse.data) && simpleFilterResponse.data.length > 0) {
+                rfq = simpleFilterResponse.data[0]
+              } else if (!Array.isArray(simpleFilterResponse.data)) {
+                rfq = simpleFilterResponse.data
+              }
+            }
+          } else {
+            throw filterError
           }
         }
       } catch (filterError: any) {
