@@ -222,7 +222,24 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
         }
       }
 
-      const materiales = versionParaUsar?.materiales || listaActualizada?.materiales || []
+      // Si mostrarTodosLosProductos está activado, juntar productos de todas las versiones
+      let materiales: any[] = []
+      
+      if (mostrarTodosLosProductos && versionesOrdenadas.length > 1) {
+        // Juntar todos los productos de todas las versiones
+        materiales = versionesOrdenadas.flatMap((version: any) => version.materiales || [])
+        console.log('[ValidacionLista] Mostrando TODOS los productos de todas las versiones:', {
+          totalVersiones: versionesOrdenadas.length,
+          totalMateriales: materiales.length,
+          materialesPorVersion: versionesOrdenadas.map((v: any) => ({
+            version: v.tipo_lista || v.nombre || 'Sin nombre',
+            count: v.materiales?.length || 0
+          }))
+        })
+      } else {
+        // Mostrar solo productos de la versión seleccionada (comportamiento actual)
+        materiales = versionParaUsar?.materiales || listaActualizada?.materiales || []
+      }
       
       console.log('[ValidacionLista] Materiales encontrados:', {
         totalVersiones: versiones.length,
