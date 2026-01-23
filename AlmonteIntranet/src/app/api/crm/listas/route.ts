@@ -65,7 +65,6 @@ export async function GET(request: NextRequest) {
     filters.push('fields[1]=nivel')
     filters.push('fields[2]=grado')
     filters.push('fields[3]=año')
-    filters.push('fields[4]=paralelo')
     filters.push('fields[5]=versiones_materiales') // Campo JSON, no relación
     filters.push('fields[6]=activo')
     filters.push('fields[7]=createdAt')
@@ -190,35 +189,8 @@ export async function GET(request: NextRequest) {
       const createdAt = curso.createdAt || attrs.createdAt || null
       const updatedAt = curso.updatedAt || attrs.updatedAt || null
 
-      // Corregir problema de doble letra: verificar si el nombre_curso ya incluye el paralelo
-      let nombreCurso = attrs.nombre_curso || attrs.curso_nombre || 'Sin nombre'
-      const paralelo = attrs.paralelo || ''
-      
-      // Si el nombre_curso ya termina con el paralelo, no agregarlo de nuevo
-      // Ejemplo: si nombre_curso = "1° Basica A" y paralelo = "A", no agregar "A" de nuevo
-      const nombreLimpio = nombreCurso.trim()
-      const paraleloLimpio = paralelo.trim()
-      
-      // Verificar si el nombre ya termina con el paralelo (con o sin espacio)
-      const nombreTerminaConParalelo = paraleloLimpio && (
-        nombreLimpio.endsWith(` ${paraleloLimpio}`) || 
-        nombreLimpio.endsWith(paraleloLimpio) ||
-        nombreLimpio.endsWith(`${paraleloLimpio} ${paraleloLimpio}`) // Caso de doble letra
-      )
-      
-      // Si hay doble letra, limpiar el nombre
-      if (nombreTerminaConParalelo && paraleloLimpio) {
-        // Remover el paralelo duplicado del final
-        nombreCurso = nombreLimpio.replace(new RegExp(`\\s*${paraleloLimpio}\\s*${paraleloLimpio}\\s*$`, 'i'), ` ${paraleloLimpio}`)
-        nombreCurso = nombreCurso.replace(new RegExp(`\\s*${paraleloLimpio}\\s*$`, 'i'), '').trim()
-      }
-      
-      // Construir nombre completo solo si el paralelo no está ya incluido
-      const nombreCompleto = nombreTerminaConParalelo 
-        ? nombreCurso.trim() 
-        : paraleloLimpio 
-          ? `${nombreCurso.trim()} ${paraleloLimpio}` 
-          : nombreCurso.trim()
+      // Simplificar: usar solo el nombre del curso sin paralelo
+      const nombreCompleto = (attrs.nombre_curso || attrs.curso_nombre || 'Sin nombre').trim()
 
       return {
         id: curso.id || curso.documentId,
@@ -226,7 +198,6 @@ export async function GET(request: NextRequest) {
         nombre: nombreCompleto,
         nivel: attrs.nivel || 'Basica',
         grado: parseInt(attrs.grado) || 1,
-        paralelo: attrs.paralelo || '',
         año: attrs.año || attrs.ano || new Date().getFullYear(),
         descripcion: `Curso: ${nombreCompleto}`,
         activo: attrs.activo !== false,

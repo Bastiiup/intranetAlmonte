@@ -15,12 +15,17 @@ export const runtime = 'nodejs'
 export const maxDuration = 600 // 10 minutos para procesar múltiples PDFs
 
 // Modelos disponibles (en orden de preferencia)
-// Solo modelos que realmente existen y están disponibles
+// Actualizado para usar modelos 2.0 y 2.5 que están disponibles
+// El modelo gemini-2.5-flash está verificado como funcional
 const MODELOS_DISPONIBLES = [
-  'gemini-2.5-flash',      // Más rápido y eficiente (límite: 20 req/día en plan gratuito)
-  'gemini-2.5-flash-lite', // Versión lite (puede tener más cuota)
-  // NOTA: gemini-1.5-flash y gemini-1.5-pro ya no existen (404)
-  // NOTA: gemini-2.5-pro y gemini-pro-latest requieren plan de pago (límite: 0 en gratuito)
+  'gemini-2.5-flash',      // ✅ VERIFICADO: Modelo flash más reciente y funcional
+  'gemini-2.0-flash',      // Modelo flash 2.0 (fallback)
+  'gemini-2.0-flash-001',  // Modelo flash 2.0 con versión específica
+  'gemini-2.5-pro',        // Modelo pro más reciente (disponible)
+  'gemini-2.0-flash-lite', // Modelo flash lite (más rápido)
+  'gemini-flash-latest',   // Última versión flash (alias)
+  // NOTA: Los modelos 1.5 ya no están disponibles (404)
+  // NOTA: gemini-2.5-flash está verificado como funcional
 ]
 
 interface ArchivoPDF {

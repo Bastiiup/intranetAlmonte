@@ -25,6 +25,8 @@ import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
 import ListaModal from './ListaModal'
 import ImportacionMasivaModal from './ImportacionMasivaModal'
+import ImportacionMasivaColegiosModal from './ImportacionMasivaColegiosModal'
+import ImportacionCompletaModal from './ImportacionCompletaModal'
 
 interface ListaType {
   id: number | string
@@ -32,7 +34,6 @@ interface ListaType {
   nombre: string
   nivel: 'Basica' | 'Media'
   grado: number
-  paralelo?: string
   año?: number
   descripcion?: string
   activo: boolean
@@ -74,6 +75,8 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
+  const [showImportColegiosModal, setShowImportColegiosModal] = useState(false)
+  const [showImportCompletaModal, setShowImportCompletaModal] = useState(false)
 
   // Los datos ya vienen transformados desde la API /api/crm/listas
   const mappedListas = useMemo(() => {
@@ -85,14 +88,16 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
       nombre: lista.nombre || '',
       nivel: lista.nivel || 'Basica',
       grado: lista.grado || 1,
-      paralelo: lista.paralelo || '',
       año: lista.año || lista.ano || new Date().getFullYear(),
       descripcion: lista.descripcion || '',
       activo: lista.activo !== false,
       pdf_id: lista.pdf_id || undefined,
       pdf_url: lista.pdf_url || undefined,
       pdf_nombre: lista.pdf_nombre || undefined,
-      colegio: lista.colegio || undefined,
+      colegio: lista.colegio ? {
+        ...lista.colegio,
+        rbd: lista.colegio.rbd || lista.colegio.RBD || undefined, // Asegurar que RBD esté presente (case-insensitive)
+      } : undefined,
       curso: lista.curso || undefined,
       materiales: lista.materiales || [],
       createdAt: lista.createdAt || null,
@@ -157,15 +162,6 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
       accessorKey: 'grado',
       enableSorting: true,
       cell: ({ row }) => `${row.original.grado}°`,
-    },
-    {
-      id: 'paralelo',
-      header: 'Paralelo',
-      accessorKey: 'paralelo',
-      enableSorting: true,
-      enableColumnFilter: true,
-      filterFn: 'equalsString',
-      cell: ({ row }) => row.original.paralelo || '-',
     },
     {
       id: 'año',
@@ -341,18 +337,16 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
         <div className="d-flex gap-1">
           {row.original.pdf_id && (
             <>
-              <Button
-                variant="outline-primary"
-                size="sm"
-                className="btn-icon rounded-circle"
-                onClick={() => {
-                  const pdfUrl = `/api/crm/cursos/pdf/${row.original.pdf_id}`
-                  window.open(pdfUrl, '_blank')
-                }}
-                title="Visualizar PDF"
-              >
-                <LuEye className="fs-lg" />
-              </Button>
+              <Link href={`/crm/listas/${row.original.documentId || row.original.id}/validacion`}>
+                <Button
+                  variant="outline-primary"
+                  size="sm"
+                  className="btn-icon rounded-circle"
+                  title="Ver detalle y validación"
+                >
+                  <LuEye className="fs-lg" />
+                </Button>
+              </Link>
               <Button
                 variant="outline-success"
                 size="sm"
@@ -415,6 +409,39 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
     setData(mappedListas)
   }, [mappedListas])
 
+  // Función de filtro global personalizada que busca en nombre, colegio.nombre y colegio.rbd
+  const globalFilterFn = (row: any, columnId: string, filterValue: string) => {
+    if (!filterValue) return true
+    
+    // Normalizar el valor de búsqueda: eliminar espacios y convertir a minúsculas
+    const searchValue = String(filterValue).toLowerCase().trim().replace(/\s+/g, '')
+    
+    if (!searchValue) return true
+    
+    // Buscar en nombre de la lista (normalizado)
+    const nombre = String(row.original.nombre || '').toLowerCase().trim().replace(/\s+/g, '')
+    if (nombre.includes(searchValue)) return true
+    
+    // Buscar en nombre del colegio (normalizado)
+    const colegioNombre = String(row.original.colegio?.nombre || '').toLowerCase().trim().replace(/\s+/g, '')
+    if (colegioNombre.includes(searchValue)) return true
+    
+    // Buscar en RBD del colegio (normalizado, sin espacios)
+    const rbd = row.original.colegio?.rbd
+    if (rbd !== undefined && rbd !== null) {
+      // Convertir a string, eliminar espacios y convertir a minúsculas
+      const rbdStr = String(rbd).trim().replace(/\s+/g, '').toLowerCase()
+      // También buscar coincidencia exacta o parcial
+      if (rbdStr === searchValue || rbdStr.includes(searchValue)) return true
+    }
+    
+    // Buscar en nombre del curso (normalizado)
+    const cursoNombre = String(row.original.curso?.nombre || '').toLowerCase().trim().replace(/\s+/g, '')
+    if (cursoNombre.includes(searchValue)) return true
+    
+    return false
+  }
+
   const table = useReactTable<ListaType>({
     data,
     columns,
@@ -429,7 +456,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    globalFilterFn: 'includesString',
+    globalFilterFn: globalFilterFn as any,
     enableColumnFilters: true,
     enableRowSelection: true,
   })
@@ -601,7 +628,6 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               nombre: lista.nombre || '',
               nivel: lista.nivel || 'Basica',
               grado: lista.grado || 1,
-              paralelo: lista.paralelo || '',
               año: lista.año || lista.ano || new Date().getFullYear(),
               descripcion: lista.descripcion || '',
               activo: lista.activo !== false,
@@ -874,7 +900,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                 <input
                   type="search"
                   className="form-control"
-                  placeholder="Buscar por nombre..."
+                  placeholder="Buscar por nombre, colegio o RBD..."
                   value={globalFilter ?? ''}
                   onChange={(e) => setGlobalFilter(e.target.value)}
                 />
@@ -926,20 +952,6 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                 </select>
               </div>
 
-              <div className="app-search">
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('paralelo')?.getFilterValue() as string) ?? ''}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    table.getColumn('paralelo')?.setFilterValue(value === '' ? undefined : value)
-                  }}>
-                  <option value="">Todos los Paralelos</option>
-                  {Array.from(new Set(data.map(l => l.paralelo).filter(Boolean))).sort().map((paralelo) => (
-                    <option key={paralelo} value={paralelo}>{paralelo}</option>
-                  ))}
-                </select>
-              </div>
 
               <div className="app-search">
                 <select
@@ -1052,9 +1064,24 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               <Button variant="primary" onClick={() => setShowModal(true)}>
                 <LuPlus className="fs-sm me-2" /> Agregar Lista
               </Button>
+              <Button variant="outline-primary" onClick={() => setShowImportColegiosModal(true)}>
+                <LuUpload className="fs-sm me-2" /> Importar Colegios y Cursos
+              </Button>
+              <Link href="/crm/listas/importacion-completa-logs" className="btn btn-outline-info me-2">
+                <LuFileCode className="me-1" />
+                Logs Importación
+              </Link>
+              <Button variant="outline-success" onClick={() => setShowImportCompletaModal(true)}>
+                <LuUpload className="fs-sm me-2" /> Importación Completa (Plantilla)
+              </Button>
               <Link href="/crm/listas/logs">
                 <Button variant="outline-info" title="Ver logs de procesamiento">
                   <LuFileCode className="fs-sm me-2" /> Ver Logs
+                </Button>
+              </Link>
+              <Link href="/crm/listas/importacion-completa-logs">
+                <Button variant="outline-warning" title="Ver logs de importación completa">
+                  <LuFileCode className="fs-sm me-2" /> Logs Importación Completa
                 </Button>
               </Link>
             </div>
@@ -1114,6 +1141,29 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
         <ImportacionMasivaModal
           show={showImportModal}
           onHide={() => setShowImportModal(false)}
+          onSuccess={handleModalSuccess}
+        />
+
+        <ImportacionMasivaColegiosModal
+          show={showImportColegiosModal}
+          onHide={() => setShowImportColegiosModal(false)}
+          onSuccess={handleModalSuccess}
+        />
+
+        <ImportacionCompletaModal
+          show={showImportCompletaModal}
+          onHide={() => setShowImportCompletaModal(false)}
+          onSuccess={() => {
+            console.log('[ListasListing] ✅ Importación completa exitosa, recargando listas...')
+            // Recargar listas después de un pequeño delay para dar tiempo a Strapi
+            setTimeout(() => {
+              recargarListas()
+            }, 1000)
+            // Recargar de nuevo después de más tiempo para asegurar que se reflejen todos los cambios
+            setTimeout(() => {
+              recargarListas()
+            }, 3000)
+          }}
           onSuccess={handleModalSuccess}
         />
       </Col>

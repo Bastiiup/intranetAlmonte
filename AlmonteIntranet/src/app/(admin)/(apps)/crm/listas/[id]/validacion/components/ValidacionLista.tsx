@@ -3,7 +3,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { Button, Card, CardBody, Col, Row, Badge, Table, FormCheck, Spinner, Alert, Container, Modal, Form } from 'react-bootstrap'
-import { TbArrowLeft, TbArrowRight, TbZoomIn, TbZoomOut, TbCheck, TbX, TbSparkles, TbRefresh, TbChecklist, TbEdit, TbTrash, TbFileText } from 'react-icons/tb'
+import { TbArrowLeft, TbArrowRight, TbZoomIn, TbZoomOut, TbCheck, TbX, TbSparkles, TbRefresh, TbChecklist, TbEdit, TbTrash, TbFileText, TbFileSpreadsheet, TbDownload } from 'react-icons/tb'
+import * as XLSX from 'xlsx'
 import { Document, Page as PDFPage, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css'
 import 'react-pdf/dist/esm/Page/TextLayer.css'
@@ -109,12 +110,58 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
   const [showLogsModal, setShowLogsModal] = useState(false)
   const [logs, setLogs] = useState<Array<{ timestamp: string; level: string; message: string; data?: any }>>([])
   const [loadingLogs, setLoadingLogs] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [formAddData, setFormAddData] = useState<any>({
+    nombre: '',
+    cantidad: 1,
+    isbn: '',
+    marca: '',
+    precio: 0,
+    asignatura: '',
+    descripcion: '',
+    comprar: true,
+  })
+  const [productoSugerencias, setProductoSugerencias] = useState<any[]>([])
+  const [buscandoProductos, setBuscandoProductos] = useState(false)
+  const [mostrarSugerencias, setMostrarSugerencias] = useState(false)
+  const [productosAgregadosEnSesion, setProductosAgregadosEnSesion] = useState(0)
+  const [ultimoProductoAgregado, setUltimoProductoAgregado] = useState<string | null>(null)
+  const [productosPendientes, setProductosPendientes] = useState<Array<{
+    nombre: string
+    cantidad: number
+    precio: number
+    isbn: string
+    marca: string
+    asignatura: string
+    descripcion: string
+    comprar: boolean
+    _woocommerce_id?: number
+    _stock_status?: string
+    _stock_quantity?: number
+    _encontrado_en_woocommerce?: boolean
+  }>>([])
+  const [showExcelModal, setShowExcelModal] = useState(false)
+  const [excelFile, setExcelFile] = useState<File | null>(null)
+  const [productosExcel, setProductosExcel] = useState<Array<{
+    nombre: string
+    identificador?: string
+    cantidad: number
+    precio?: number
+    isbn?: string
+    marca?: string
+    asignatura?: string
+    descripcion?: string
+    encontrado?: boolean
+    productoWooCommerce?: any
+  }>>([])
+  const [procesandoExcel, setProcesandoExcel] = useState(false)
+  const [versionSeleccionada, setVersionSeleccionada] = useState<number | null>(null)
   
   // Productos identificados
   const [productos, setProductos] = useState<ProductoIdentificado[]>([])
 
   // Función para cargar productos desde la lista
-  const cargarProductos = async (forzarRecarga: boolean = false) => {
+  const cargarProductos = async (forzarRecarga: boolean = false, versionIndex: number | null = null) => {
     if (!lista && !listaIdFromUrl) {
       console.warn('[ValidacionLista] No hay lista ni ID para cargar productos')
       return
@@ -155,16 +202,26 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
         versiones = lista?.versiones_materiales || []
       }
       
-      // Obtener materiales de la última versión
-      const ultimaVersion = versiones.length > 0 
-        ? versiones.sort((a: any, b: any) => {
-            const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
-            const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
-            return fechaB - fechaA
-          })[0]
-        : null
+      // Ordenar versiones por fecha (más reciente primero)
+      const versionesOrdenadas = [...versiones].sort((a: any, b: any) => {
+        const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
+        const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
+        return fechaB - fechaA
+      })
+      
+      // Determinar qué versión usar
+      let versionParaUsar: any = null
+      const indexParaUsar = versionIndex !== null ? versionIndex : (versionSeleccionada !== null ? versionSeleccionada : 0)
+      
+      if (versionesOrdenadas.length > 0) {
+        if (indexParaUsar >= 0 && indexParaUsar < versionesOrdenadas.length) {
+          versionParaUsar = versionesOrdenadas[indexParaUsar]
+        } else {
+          versionParaUsar = versionesOrdenadas[0] // Fallback a la primera
+        }
+      }
 
-      const materiales = ultimaVersion?.materiales || listaActualizada?.materiales || []
+      const materiales = versionParaUsar?.materiales || listaActualizada?.materiales || []
       
       console.log('[ValidacionLista] Materiales encontrados:', {
         totalVersiones: versiones.length,
@@ -291,8 +348,10 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
       return
     }
 
-    if (!lista?.pdf_id) {
-      alert('No se puede procesar: la lista no tiene PDF asociado')
+    const pdfIdParaProcesar = versionActual?.pdf_id || lista?.pdf_id
+    
+    if (!pdfIdParaProcesar) {
+      alert('No se puede procesar: la versión seleccionada no tiene PDF asociado')
       return
     }
 
@@ -383,9 +442,48 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
     }
   }
 
-  const pdfUrl = lista?.pdf_id 
-    ? `/api/crm/listas/pdf/${lista.pdf_id}`
-    : lista?.pdf_url || null
+  // Obtener versiones ordenadas
+  const versionesOrdenadas = useMemo(() => {
+    const versiones = lista?.versiones_materiales || []
+    return [...versiones].sort((a: any, b: any) => {
+      const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
+      const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
+      return fechaB - fechaA
+    })
+  }, [lista?.versiones_materiales])
+
+  // Determinar versión actual
+  const versionActual = useMemo(() => {
+    if (versionSeleccionada !== null && versionSeleccionada >= 0 && versionSeleccionada < versionesOrdenadas.length) {
+      return versionesOrdenadas[versionSeleccionada]
+    }
+    return versionesOrdenadas.length > 0 ? versionesOrdenadas[0] : null
+  }, [versionSeleccionada, versionesOrdenadas])
+
+  // Obtener URL del PDF de la versión actual
+  const pdfUrl = useMemo(() => {
+    if (versionActual?.pdf_id) {
+      return `/api/crm/listas/pdf/${versionActual.pdf_id}`
+    }
+    if (versionActual?.pdf_url) {
+      return versionActual.pdf_url
+    }
+    // Fallback a PDF de la lista principal
+    if (lista?.pdf_id) {
+      return `/api/crm/listas/pdf/${lista.pdf_id}`
+    }
+    return lista?.pdf_url || null
+  }, [versionActual, lista])
+
+  // Función para cambiar de versión
+  const cambiarVersion = (index: number) => {
+    setVersionSeleccionada(index)
+    setPageNumber(1) // Resetear a la primera página
+    setSelectedProduct(null) // Limpiar selección
+    setSelectedProductData(null)
+    // Recargar productos de la nueva versión
+    cargarProductos(false, index)
+  }
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }): void {
     setNumPages(numPages)
@@ -633,11 +731,25 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
 
     setLoading(true)
     try {
+      // Encontrar el índice del producto en la lista actual
+      const productoIndex = productos.findIndex(p => p.id === producto.id)
+      
+      console.log('[ValidacionLista] 🗑️ Eliminando producto:', {
+        productoId: producto.id,
+        productoNombre: producto.nombre,
+        productoIndex,
+        totalProductos: productos.length,
+      })
+
       const response = await fetch(`/api/crm/listas/${idParaUsar}/productos/${producto.id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          nombre: producto.nombre,
+          index: productoIndex,
+        }),
       })
 
       const data = await response.json()
@@ -673,6 +785,465 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
       alert(`Error al cargar logs: ${error.message}`)
     } finally {
       setLoadingLogs(false)
+    }
+  }
+
+  // Búsqueda de productos en WooCommerce con debounce
+  useEffect(() => {
+    if (!formAddData.nombre || formAddData.nombre.trim().length < 3) {
+      setProductoSugerencias([])
+      setMostrarSugerencias(false)
+      return
+    }
+
+    const timeoutId = setTimeout(async () => {
+      setBuscandoProductos(true)
+      try {
+        const response = await fetch(`/api/woocommerce/products?search=${encodeURIComponent(formAddData.nombre)}&per_page=5&platform=escolar`)
+        const data = await response.json()
+        
+        if (data.success && Array.isArray(data.data)) {
+          setProductoSugerencias(data.data)
+          setMostrarSugerencias(data.data.length > 0)
+        } else {
+          setProductoSugerencias([])
+          setMostrarSugerencias(false)
+        }
+      } catch (error) {
+        console.error('[ValidacionLista] Error al buscar productos:', error)
+        setProductoSugerencias([])
+        setMostrarSugerencias(false)
+      } finally {
+        setBuscandoProductos(false)
+      }
+    }, 500) // Debounce de 500ms
+
+    return () => clearTimeout(timeoutId)
+  }, [formAddData.nombre])
+
+  const seleccionarProducto = (producto: any) => {
+    const precio = parseFloat(producto.price || producto.regular_price || '0')
+    const stockStatus = producto.stock_status === 'instock' ? 'disponible' : 'no_disponible'
+    const stockQuantity = producto.stock_quantity || 0
+    
+    // Extraer todos los atributos disponibles
+    const marcaAttr = producto.attributes?.find((attr: any) => 
+      attr.name?.toLowerCase() === 'marca' || 
+      attr.name?.toLowerCase() === 'editorial' ||
+      attr.name?.toLowerCase() === 'brand'
+    )
+    const asignaturaAttr = producto.attributes?.find((attr: any) => 
+      attr.name?.toLowerCase() === 'asignatura' || 
+      attr.name?.toLowerCase() === 'subject' ||
+      attr.name?.toLowerCase() === 'materia'
+    )
+    const categoriaAttr = producto.categories?.[0]?.name || ''
+    
+    setFormAddData({
+      nombre: producto.name,
+      cantidad: 1, // Resetear cantidad a 1
+      precio: precio,
+      isbn: producto.sku || producto.id?.toString() || '',
+      marca: marcaAttr?.options?.[0] || marcaAttr?.option || '',
+      asignatura: asignaturaAttr?.options?.[0] || asignaturaAttr?.option || categoriaAttr || '',
+      descripcion: producto.short_description || producto.description || '',
+      comprar: true,
+      // Auto-completar disponibilidad
+      _woocommerce_id: producto.id,
+      _stock_status: stockStatus,
+      _stock_quantity: stockQuantity,
+      _encontrado_en_woocommerce: true,
+    })
+    setMostrarSugerencias(false)
+    setProductoSugerencias([])
+  }
+
+  const handleAgregarProducto = () => {
+    setFormAddData({
+      nombre: '',
+      cantidad: 1,
+      isbn: '',
+      marca: '',
+      precio: 0,
+      asignatura: '',
+      descripcion: '',
+      comprar: true,
+    })
+    setProductoSugerencias([])
+    setMostrarSugerencias(false)
+    setProductosAgregadosEnSesion(0)
+    setUltimoProductoAgregado(null)
+    setProductosPendientes([])
+    setShowAddModal(true)
+  }
+
+  const handleAgregarALista = () => {
+    if (!formAddData.nombre || !formAddData.nombre.trim()) {
+      alert('El nombre del producto es obligatorio')
+      return
+    }
+
+    // Agregar a la lista de pendientes
+    setProductosPendientes(prev => [...prev, {
+      nombre: formAddData.nombre,
+      cantidad: formAddData.cantidad || 1,
+      precio: formAddData.precio || 0,
+      isbn: formAddData.isbn || '',
+      marca: formAddData.marca || '',
+      asignatura: formAddData.asignatura || '',
+      descripcion: formAddData.descripcion || '',
+      comprar: formAddData.comprar !== false,
+      _woocommerce_id: formAddData._woocommerce_id,
+      _stock_status: formAddData._stock_status,
+      _stock_quantity: formAddData._stock_quantity,
+      _encontrado_en_woocommerce: formAddData._encontrado_en_woocommerce,
+    }])
+
+    // Limpiar formulario
+    setFormAddData({
+      nombre: '',
+      cantidad: 1,
+      isbn: '',
+      marca: '',
+      precio: 0,
+      asignatura: '',
+      descripcion: '',
+      comprar: true,
+    })
+    setProductoSugerencias([])
+    setMostrarSugerencias(false)
+  }
+
+  const handleEliminarPendiente = (index: number) => {
+    setProductosPendientes(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleProcesarExcel = async (file: File) => {
+    setProcesandoExcel(true)
+    try {
+      const reader = new FileReader()
+      reader.onload = async (e) => {
+        try {
+          const data = e.target?.result
+          const workbook = XLSX.read(data, { type: 'binary' })
+          const sheetName = workbook.SheetNames[0]
+          const worksheet = workbook.Sheets[sheetName]
+          const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[]
+
+          if (jsonData.length === 0) {
+            alert('El archivo Excel está vacío')
+            setProcesandoExcel(false)
+            return
+          }
+
+          // Buscar columnas: nombre, identificador (SKU/ISBN), cantidad
+          const primeraFila = jsonData[0]
+          const columnas = Object.keys(primeraFila)
+          
+          // Intentar encontrar columnas por nombre (case insensitive)
+          const colNombre = columnas.find(c => 
+            c.toLowerCase().includes('nombre') || 
+            c.toLowerCase().includes('producto') ||
+            c.toLowerCase().includes('libro')
+          )
+          const colIdentificador = columnas.find(c => 
+            c.toLowerCase().includes('sku') || 
+            c.toLowerCase().includes('isbn') ||
+            c.toLowerCase().includes('codigo') ||
+            c.toLowerCase().includes('identificador')
+          )
+          const colCantidad = columnas.find(c => 
+            c.toLowerCase().includes('cantidad') || 
+            c.toLowerCase().includes('qty')
+          )
+
+          if (!colNombre && !colIdentificador) {
+            alert('El Excel debe tener al menos una columna "Nombre" o "Identificador" (SKU/ISBN)')
+            setProcesandoExcel(false)
+            return
+          }
+
+          // Procesar cada fila
+          const productosProcesados: typeof productosExcel = []
+          
+          for (const fila of jsonData) {
+            const nombre = colNombre ? String(fila[colNombre] || '').trim() : ''
+            const identificador = colIdentificador ? String(fila[colIdentificador] || '').trim() : ''
+            const cantidad = colCantidad ? Number(fila[colCantidad] || 1) : 1
+
+            if (!nombre && !identificador) continue
+
+            // Buscar producto en WooCommerce
+            let productoEncontrado: any = null
+            let encontrado = false
+
+            try {
+              const searchTerm = nombre || identificador
+              const response = await fetch(
+                `/api/woocommerce/products?search=${encodeURIComponent(searchTerm)}&per_page=10&platform=escolar`
+              )
+              const data = await response.json()
+              
+              if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+                // Buscar match exacto por nombre o SKU
+                productoEncontrado = data.data.find((p: any) => 
+                  p.name.toLowerCase() === nombre.toLowerCase() ||
+                  p.sku === identificador ||
+                  p.id.toString() === identificador
+                ) || data.data[0] // Si no hay match exacto, usar el primero
+                encontrado = true
+              }
+            } catch (err) {
+              console.warn('Error al buscar producto:', err)
+            }
+
+            productosProcesados.push({
+              nombre: nombre || productoEncontrado?.name || identificador,
+              identificador: identificador || productoEncontrado?.sku,
+              cantidad: cantidad || 1,
+              precio: productoEncontrado ? parseFloat(productoEncontrado.price || productoEncontrado.regular_price || '0') : undefined,
+              isbn: identificador || productoEncontrado?.sku,
+              marca: productoEncontrado?.attributes?.find((attr: any) => 
+                attr.name?.toLowerCase() === 'marca' || 
+                attr.name?.toLowerCase() === 'editorial'
+              )?.options?.[0] || '',
+              asignatura: productoEncontrado?.attributes?.find((attr: any) => 
+                attr.name?.toLowerCase() === 'asignatura' || 
+                attr.name?.toLowerCase() === 'subject'
+              )?.options?.[0] || productoEncontrado?.categories?.[0]?.name || '',
+              descripcion: productoEncontrado?.short_description || productoEncontrado?.description || '',
+              encontrado: encontrado,
+              productoWooCommerce: productoEncontrado,
+            })
+          }
+
+          setProductosExcel(productosProcesados)
+        } catch (err: any) {
+          console.error('Error al procesar Excel:', err)
+          alert(`Error al procesar el archivo Excel: ${err.message}`)
+        } finally {
+          setProcesandoExcel(false)
+        }
+      }
+      reader.readAsBinaryString(file)
+    } catch (err: any) {
+      console.error('Error al leer Excel:', err)
+      alert(`Error al leer el archivo: ${err.message}`)
+      setProcesandoExcel(false)
+    }
+  }
+
+  const handleDescargarPlantilla = () => {
+    // Crear datos de ejemplo para la plantilla
+    const datosEjemplo = [
+      {
+        'Nombre': 'Biología PAES | 6ª Edición 2026',
+        'Identificador': '9789566430346',
+        'Cantidad': 1
+      },
+      {
+        'Nombre': 'Matemáticas 1° Medio',
+        'SKU': 'MAT-001',
+        'Cantidad': 2
+      },
+      {
+        'Nombre': 'Lenguaje y Comunicación',
+        'ISBN': '978-84-376-0501-8',
+        'Cantidad': 1
+      }
+    ]
+
+    // Crear workbook
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.json_to_sheet(datosEjemplo)
+
+    // Ajustar ancho de columnas
+    ws['!cols'] = [
+      { wch: 40 }, // Nombre
+      { wch: 20 }, // Identificador/SKU/ISBN
+      { wch: 10 }  // Cantidad
+    ]
+
+    // Agregar hoja al workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Productos')
+
+    // Crear hoja de instrucciones
+    const instrucciones = [
+      ['INSTRUCCIONES PARA IMPORTAR PRODUCTOS'],
+      [''],
+      ['El archivo debe contener las siguientes columnas:'],
+      [''],
+      ['COLUMNA REQUERIDA:'],
+      ['- Nombre: Nombre del producto (obligatorio si no hay Identificador)'],
+      ['- Identificador / SKU / ISBN: Código del producto (obligatorio si no hay Nombre)'],
+      [''],
+      ['COLUMNA OPCIONAL:'],
+      ['- Cantidad: Cantidad del producto (por defecto: 1)'],
+      [''],
+      ['NOTAS:'],
+      ['- Puedes usar cualquiera de estos nombres para la columna de código: Identificador, SKU, ISBN, Código'],
+      ['- Puedes usar cualquiera de estos nombres para la columna de nombre: Nombre, Producto, Libro'],
+      ['- Los demás datos (precio, marca, asignatura, etc.) se auto-completarán desde WooCommerce'],
+      ['- Si el producto no se encuentra en WooCommerce, se agregará con los datos básicos proporcionados'],
+      [''],
+      ['EJEMPLO:'],
+      ['Nombre', 'Identificador', 'Cantidad'],
+      ['Biología PAES | 6ª Edición 2026', '9789566430346', '1'],
+      ['Matemáticas 1° Medio', 'MAT-001', '2'],
+    ]
+
+    const wsInstrucciones = XLSX.utils.aoa_to_sheet(instrucciones)
+    wsInstrucciones['!cols'] = [{ wch: 60 }]
+    XLSX.utils.book_append_sheet(wb, wsInstrucciones, 'Instrucciones')
+
+    // Descargar archivo
+    XLSX.writeFile(wb, 'plantilla-productos.xlsx')
+  }
+
+  const handleConfirmarExcel = async () => {
+    if (productosExcel.length === 0) {
+      alert('No hay productos para agregar')
+      return
+    }
+
+    // Convertir productos de Excel a formato de pendientes
+    const productosParaAgregar = productosExcel.map(p => ({
+      nombre: p.nombre,
+      cantidad: p.cantidad || 1,
+      precio: p.precio || 0,
+      isbn: p.isbn || p.identificador || '',
+      marca: p.marca || '',
+      asignatura: p.asignatura || '',
+      descripcion: p.descripcion || '',
+      comprar: true,
+      _woocommerce_id: p.productoWooCommerce?.id,
+      _stock_status: p.productoWooCommerce?.stock_status === 'instock' ? 'disponible' : 'no_disponible',
+      _stock_quantity: p.productoWooCommerce?.stock_quantity || 0,
+      _encontrado_en_woocommerce: p.encontrado || false,
+    }))
+
+    // Agregar a la lista de pendientes
+    setProductosPendientes(prev => [...prev, ...productosParaAgregar])
+    
+    // Cerrar modal y limpiar
+    setShowExcelModal(false)
+    setExcelFile(null)
+    setProductosExcel([])
+    
+    // Abrir modal de agregar para mostrar la lista completa
+    setShowAddModal(true)
+  }
+
+  const handleGuardarTodos = async () => {
+    if (productosPendientes.length === 0) {
+      alert('No hay productos pendientes para guardar')
+      return
+    }
+
+    const idParaUsar = listaIdFromUrl || lista?.id || lista?.documentId
+    if (!idParaUsar) {
+      alert('No se puede agregar: ID de lista no encontrado')
+      return
+    }
+
+    setLoading(true)
+    try {
+      // Obtener la última versión de materiales
+      const response = await fetch(`/api/crm/listas/${idParaUsar}`)
+      const data = await response.json()
+      
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Error al obtener la lista')
+      }
+
+      const versiones = data.data.versiones_materiales || []
+      const ultimaVersion = versiones.length > 0 
+        ? versiones.sort((a: any, b: any) => {
+            const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
+            const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
+            return fechaB - fechaA
+          })[0]
+        : null
+
+      if (!ultimaVersion) {
+        throw new Error('No se encontró una versión de materiales para agregar los productos')
+      }
+
+      // Convertir productos pendientes a formato de materiales
+      const nuevosMateriales = productosPendientes.map(p => ({
+        nombre: p.nombre,
+        nombre_producto: p.nombre,
+        cantidad: p.cantidad || 1,
+        isbn: p.isbn || '',
+        marca: p.marca || '',
+        precio: p.precio || 0,
+        asignatura: p.asignatura || '',
+        descripcion: p.descripcion || '',
+        comprar: p.comprar !== false,
+        disponibilidad: p._stock_status || (p._encontrado_en_woocommerce ? 'disponible' : 'no_encontrado'),
+        encontrado_en_woocommerce: p._encontrado_en_woocommerce || false,
+        woocommerce_id: p._woocommerce_id || undefined,
+        stock_quantity: p._stock_quantity || undefined,
+        precio_woocommerce: p.precio || undefined,
+      }))
+
+      // Agregar todos los productos a los materiales
+      const materialesFinales = [
+        ...(ultimaVersion.materiales || []),
+        ...nuevosMateriales
+      ]
+
+      // Actualizar la versión
+      const updateResponse = await fetch(`/api/crm/listas/${idParaUsar}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          versiones_materiales: versiones.map((v: any) => 
+            v.id === ultimaVersion.id || v.documentId === ultimaVersion.documentId
+              ? { ...v, materiales: materialesFinales }
+              : v
+          ),
+        }),
+      })
+
+      const updateData = await updateResponse.json()
+
+      if (!updateResponse.ok || !updateData.success) {
+        throw new Error(updateData.error || 'Error al agregar los productos')
+      }
+
+      const cantidadAgregada = productosPendientes.length
+      
+      // Limpiar todo
+      setProductosPendientes([])
+      setProductosAgregadosEnSesion(prev => prev + cantidadAgregada)
+      
+      // Recargar datos
+      await cargarProductos(true)
+      
+      // Cerrar modal
+      setShowAddModal(false)
+      setFormAddData({
+        nombre: '',
+        cantidad: 1,
+        isbn: '',
+        marca: '',
+        precio: 0,
+        asignatura: '',
+        descripcion: '',
+        comprar: true,
+      })
+      setProductoSugerencias([])
+      setMostrarSugerencias(false)
+      
+      alert(`✅ ${cantidadAgregada} producto${cantidadAgregada > 1 ? 's' : ''} agregado${cantidadAgregada > 1 ? 's' : ''} exitosamente`)
+    } catch (error: any) {
+      console.error('[ValidacionLista] ❌ Error al agregar productos:', error)
+      alert(`Error al agregar los productos: ${error.message}`)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -861,10 +1432,13 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
           display: 'flex', 
           flexDirection: 'column', 
           overflow: 'hidden',
-          borderRight: '1px solid #dee2e6'
+          borderRight: '1px solid #dee2e6',
+          position: 'relative',
+          zIndex: 10,
+          backgroundColor: 'white'
         }}>
-          <Card className="h-100 border-0 rounded-0">
-            <CardBody className="d-flex flex-column h-100 p-0">
+          <Card className="h-100 border-0 rounded-0" style={{ position: 'relative', zIndex: 10, backgroundColor: 'white' }}>
+            <CardBody className="d-flex flex-column h-100 p-0" style={{ position: 'relative', zIndex: 10 }}>
               <div style={{ 
                 padding: '1rem', 
                 borderBottom: '1px solid #dee2e6',
@@ -879,25 +1453,49 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                       Selecciona un producto para ver su ubicación en el PDF
                     </p>
                   </div>
-                  <Button 
-                    variant="outline-primary" 
-                    size="sm"
-                    onClick={() => cargarProductos(true)}
-                    disabled={loading}
-                    className="d-flex align-items-center"
-                  >
-                    {loading ? (
-                      <>
-                        <Spinner size="sm" className="me-2" />
-                        Cargando...
-                      </>
-                    ) : (
-                      <>
-                        <TbRefresh className="me-2" />
-                        Recargar
-                      </>
-                    )}
-                  </Button>
+                  <div className="d-flex gap-2">
+                    <Button 
+                      variant="success" 
+                      size="sm"
+                      onClick={handleAgregarProducto}
+                      disabled={loading}
+                      className="d-flex align-items-center"
+                      title="Agregar producto manualmente"
+                    >
+                      <TbCheck className="me-2" />
+                      Agregar Producto
+                    </Button>
+                    <Button 
+                      variant="info" 
+                      size="sm"
+                      onClick={() => setShowExcelModal(true)}
+                      disabled={loading}
+                      className="d-flex align-items-center"
+                      title="Agregar productos desde plantilla Excel"
+                    >
+                      <TbFileSpreadsheet className="me-2" />
+                      Agregar con Excel
+                    </Button>
+                    <Button 
+                      variant="outline-primary" 
+                      size="sm"
+                      onClick={() => cargarProductos(true)}
+                      disabled={loading}
+                      className="d-flex align-items-center"
+                    >
+                      {loading ? (
+                        <>
+                          <Spinner size="sm" className="me-2" />
+                          Cargando...
+                        </>
+                      ) : (
+                        <>
+                          <TbRefresh className="me-2" />
+                          Recargar
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </div>
 
@@ -947,10 +1545,13 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                   <div style={{ 
                     overflowY: 'auto', 
                     flexGrow: 1,
-                    maxHeight: 'calc(100vh - 300px)'
+                    maxHeight: 'calc(100vh - 300px)',
+                    position: 'relative',
+                    zIndex: 10,
+                    backgroundColor: 'white'
                   }}>
-                    <Table hover responsive className="mb-0">
-                      <thead style={{ position: 'sticky', top: 0, background: 'white', zIndex: 10 }}>
+                    <Table hover responsive className="mb-0" style={{ position: 'relative', zIndex: 10 }}>
+                      <thead style={{ position: 'sticky', top: 0, background: 'white', zIndex: 11 }}>
                         <tr>
                           <th style={{ width: '50px' }}>Validado</th>
                           <th style={{ width: '100px' }}>Imagen</th>
@@ -1220,20 +1821,63 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
           display: 'flex', 
           flexDirection: 'column', 
           overflow: 'hidden',
-          background: '#f5f5f5'
+          background: '#f5f5f5',
+          position: 'relative',
+          zIndex: 0
         }}>
           <Card className="h-100 border-0 rounded-0">
             <CardBody className="d-flex flex-column h-100 p-0">
-              <div style={{ 
-                padding: '1rem', 
+              <div style={{
+                padding: '1rem',
                 borderBottom: '1px solid #dee2e6',
                 background: 'white'
               }}>
                 <div className="d-flex justify-content-between align-items-start mb-2">
-                  <div>
-                    <h5 className="mb-1">Lista de Útiles Original (PDF)</h5>
+                  <div style={{ flex: 1 }}>
+                    {versionesOrdenadas.length > 1 ? (
+                      <div className="mb-2">
+                        <Form.Label className="mb-1 fw-bold">Seleccionar Lista de Materiales:</Form.Label>
+                        <Form.Select
+                          value={versionSeleccionada !== null ? versionSeleccionada : 0}
+                          onChange={(e) => cambiarVersion(parseInt(e.target.value, 10))}
+                          style={{ maxWidth: '400px' }}
+                        >
+                          {versionesOrdenadas.map((version: any, index: number) => {
+                            const fecha = version.fecha_subida || version.fecha_actualizacion
+                            const fechaFormateada = fecha 
+                              ? new Date(fecha).toLocaleDateString('es-CL', { 
+                                  year: 'numeric', 
+                                  month: 'long', 
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })
+                              : 'Sin fecha'
+                            const nombreArchivo = version.nombre_archivo || version.metadata?.nombre || `Lista ${index + 1}`
+                            const tipoLista = version.tipo_lista || version.nombre || 'Lista de Útiles'
+                            const productosCount = version.materiales?.length || 0
+                            
+                            return (
+                              <option key={index} value={index}>
+                                {tipoLista} - {nombreArchivo} ({productosCount} productos) - {fechaFormateada}
+                              </option>
+                            )
+                          })}
+                        </Form.Select>
+                      </div>
+                    ) : null}
+                    <h5 className="mb-1">
+                      {versionActual?.tipo_lista || versionActual?.nombre || 'Lista de Útiles Original (PDF)'}
+                    </h5>
                     <p className="text-muted mb-0 small">
-                      Documento proporcionado por el colegio
+                      {versionActual?.nombre_archivo || versionActual?.metadata?.nombre || 'Documento proporcionado por el colegio'}
+                      {versionActual?.fecha_subida && (
+                        <> - Subido: {new Date(versionActual.fecha_subida).toLocaleDateString('es-CL', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })}</>
+                      )}
                     </p>
                   </div>
                   {pdfUrl && (
@@ -1324,16 +1968,22 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                 justifyContent: 'center',
                 alignItems: 'flex-start',
                 padding: '1rem',
-                background: '#e5e5e5'
+                background: '#e5e5e5',
+                position: 'relative',
+                zIndex: 0
               }}>
                 {pdfUrl ? (
                   <div style={{ 
                     background: 'white',
                     padding: '1rem',
                     borderRadius: '4px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    position: 'relative',
+                    display: 'inline-block',
+                    isolation: 'isolate',
+                    overflow: 'hidden'
                   }}>
-                    <div style={{ position: 'relative', display: 'inline-block' }}>
+                    <div style={{ position: 'relative', display: 'inline-block', overflow: 'hidden' }}>
                       <Document
                         file={pdfUrl}
                         onLoadSuccess={onDocumentLoadSuccess}
@@ -1361,7 +2011,7 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                         />
                       </Document>
                       
-                      {/* Overlay para resaltar productos */}
+                      {/* Overlay para resaltar productos - Contenido SOLO dentro del contenedor del PDF */}
                       {selectedProductData?.coordenadas && 
                        selectedProductData.coordenadas.pagina === pageNumber && (
                         <div
@@ -1369,10 +2019,11 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                             position: 'absolute',
                             top: 0,
                             left: 0,
-                            width: '100%',
-                            height: '100%',
+                            right: 0,
+                            bottom: 0,
                             pointerEvents: 'none',
-                            zIndex: 10,
+                            zIndex: 1,
+                            overflow: 'hidden',
                           }}
                         >
                           {/* Resaltado amarillo con coordenadas precisas - Ajustado para apuntar exactamente al título */}
@@ -1397,7 +2048,7 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                                   transform: 'translate(-50%, -50%)', // Centrado exacto en las coordenadas
                                   pointerEvents: 'none',
                                   animation: 'pulse 2s ease-in-out infinite',
-                                  zIndex: 11,
+                                  zIndex: 2,
                                 }}
                               />
                               {/* Etiqueta con nombre del producto - posicionada arriba del resaltado */}
@@ -1418,7 +2069,7 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                                   whiteSpace: 'nowrap',
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
-                                  zIndex: 12,
+                                  zIndex: 3,
                                   border: '2px solid rgba(255, 152, 0, 0.9)',
                                 }}
                                 title={selectedProductData.nombre}
@@ -1438,7 +2089,7 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                                   borderRadius: '50%',
                                   transform: 'translate(-50%, -50%)',
                                   pointerEvents: 'none',
-                                  zIndex: 13,
+                                  zIndex: 4,
                                   boxShadow: '0 0 12px rgba(255, 111, 0, 1), 0 0 6px rgba(255, 193, 7, 0.8)',
                                   animation: 'pulse 1.5s ease-in-out infinite',
                                 }}
@@ -1672,6 +2323,357 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
       </Modal.Footer>
       </Modal>
 
+      {/* Modal para agregar producto */}
+      <Modal show={showAddModal} onHide={() => {
+        setShowAddModal(false)
+        setProductosAgregadosEnSesion(0)
+        setUltimoProductoAgregado(null)
+        setFormAddData({
+          nombre: '',
+          cantidad: 1,
+          isbn: '',
+          marca: '',
+          precio: 0,
+          asignatura: '',
+          descripcion: '',
+          comprar: true,
+        })
+        setProductoSugerencias([])
+        setMostrarSugerencias(false)
+      }} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>
+            Agregar Productos
+            {productosPendientes.length > 0 && (
+              <Badge bg="warning" className="ms-2">
+                {productosPendientes.length} pendiente{productosPendientes.length > 1 ? 's' : ''}
+              </Badge>
+            )}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {productosPendientes.length > 0 && (
+            <Alert variant="info" className="mb-3">
+              <strong>📋 Productos pendientes ({productosPendientes.length}):</strong>
+              <div style={{ maxHeight: '150px', overflowY: 'auto', marginTop: '8px' }}>
+                <Table size="sm" striped>
+                  <thead>
+                    <tr>
+                      <th>Nombre</th>
+                      <th>Cantidad</th>
+                      <th>Precio</th>
+                      <th style={{ width: '50px' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productosPendientes.map((p, index) => (
+                      <tr key={index}>
+                        <td>{p.nombre}</td>
+                        <td>{p.cantidad}</td>
+                        <td>${p.precio.toLocaleString('es-CL')}</td>
+                        <td>
+                          <Button
+                            variant="outline-danger"
+                            size="sm"
+                            onClick={() => handleEliminarPendiente(index)}
+                          >
+                            <TbTrash />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
+            </Alert>
+          )}
+          <Form>
+            <Form.Group className="mb-3" style={{ position: 'relative' }}>
+              <Form.Label>Nombre del Producto *</Form.Label>
+              <Form.Control
+                type="text"
+                value={formAddData.nombre}
+                onChange={(e) => {
+                  setFormAddData({ ...formAddData, nombre: e.target.value })
+                  setMostrarSugerencias(true)
+                }}
+                onFocus={() => {
+                  if (productoSugerencias.length > 0) {
+                    setMostrarSugerencias(true)
+                  }
+                }}
+                onBlur={() => {
+                  // Delay para permitir click en sugerencias
+                  setTimeout(() => setMostrarSugerencias(false), 200)
+                }}
+                placeholder="Escribe el nombre del producto (se buscará automáticamente en WooCommerce)"
+                required
+                autoComplete="off"
+              />
+              {buscandoProductos && (
+                <div style={{ position: 'absolute', right: '10px', top: '38px' }}>
+                  <Spinner size="sm" />
+                </div>
+              )}
+              {mostrarSugerencias && productoSugerencias.length > 0 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    zIndex: 1000,
+                    background: 'white',
+                    border: '1px solid #dee2e6',
+                    borderRadius: '4px',
+                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                    maxHeight: '300px',
+                    overflowY: 'auto',
+                    marginTop: '4px',
+                  }}
+                >
+                  {productoSugerencias.map((producto, index) => {
+                    const precio = parseFloat(producto.price || producto.regular_price || '0')
+                    const stockStatus = producto.stock_status === 'instock'
+                    const stockQuantity = producto.stock_quantity || 0
+                    
+                    return (
+                      <div
+                        key={producto.id || index}
+                        onClick={() => seleccionarProducto(producto)}
+                        style={{
+                          padding: '12px',
+                          cursor: 'pointer',
+                          borderBottom: index < productoSugerencias.length - 1 ? '1px solid #f0f0f0' : 'none',
+                          transition: 'background-color 0.2s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#f8f9fa'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'white'
+                        }}
+                      >
+                        <div className="d-flex justify-content-between align-items-start">
+                          <div style={{ flex: 1 }}>
+                            <strong style={{ fontSize: '0.95rem', display: 'block', marginBottom: '4px' }}>
+                              {producto.name}
+                            </strong>
+                            {producto.sku && (
+                              <small className="text-muted d-block">SKU: {producto.sku}</small>
+                            )}
+                            {precio > 0 && (
+                              <div style={{ marginTop: '4px' }}>
+                                <Badge bg="info" style={{ fontSize: '0.85rem' }}>
+                                  ${precio.toLocaleString('es-CL')}
+                                </Badge>
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ marginLeft: '12px', textAlign: 'right' }}>
+                            <Badge bg={stockStatus ? 'success' : 'danger'} style={{ fontSize: '0.75rem' }}>
+                              {stockStatus ? '✅ Disponible' : '❌ No disponible'}
+                            </Badge>
+                            {stockStatus && stockQuantity > 0 && (
+                              <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '4px' }}>
+                                Stock: {stockQuantity}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              {mostrarSugerencias && productoSugerencias.length === 0 && formAddData.nombre.length >= 3 && !buscandoProductos && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    zIndex: 1000,
+                    background: 'white',
+                    border: '1px solid #dee2e6',
+                    borderRadius: '4px',
+                    padding: '12px',
+                    marginTop: '4px',
+                    fontSize: '0.9rem',
+                    color: '#666',
+                  }}
+                >
+                  No se encontraron productos en WooCommerce
+                </div>
+              )}
+            </Form.Group>
+
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Cantidad</Form.Label>
+                  <Form.Control
+                    type="number"
+                    min="1"
+                    value={formAddData.cantidad}
+                    onChange={(e) => setFormAddData({ ...formAddData, cantidad: parseInt(e.target.value) || 1 })}
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Precio</Form.Label>
+                  <Form.Control
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formAddData.precio}
+                    onChange={(e) => setFormAddData({ ...formAddData, precio: parseFloat(e.target.value) || 0 })}
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>ISBN / SKU</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={formAddData.isbn}
+                    onChange={(e) => setFormAddData({ ...formAddData, isbn: e.target.value })}
+                    placeholder="Opcional"
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Marca</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={formAddData.marca}
+                    onChange={(e) => setFormAddData({ ...formAddData, marca: e.target.value })}
+                    placeholder="Opcional"
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Asignatura</Form.Label>
+              <Form.Control
+                type="text"
+                value={formAddData.asignatura}
+                onChange={(e) => setFormAddData({ ...formAddData, asignatura: e.target.value })}
+                placeholder="Ej: Lenguaje, Matemáticas, Ciencias"
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Descripción</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={3}
+                value={formAddData.descripcion}
+                onChange={(e) => setFormAddData({ ...formAddData, descripcion: e.target.value })}
+                placeholder="Descripción adicional del producto (opcional)"
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Check
+                type="checkbox"
+                label="Marcar para comprar"
+                checked={formAddData.comprar !== false}
+                onChange={(e) => setFormAddData({ ...formAddData, comprar: e.target.checked })}
+              />
+            </Form.Group>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <div className="d-flex justify-content-between align-items-center w-100">
+            <div>
+              {productosPendientes.length > 0 && (
+                <span className="text-muted small">
+                  {productosPendientes.length} producto{productosPendientes.length > 1 ? 's' : ''} en lista
+                </span>
+              )}
+            </div>
+            <div className="d-flex gap-2">
+              <Button variant="outline-secondary" onClick={() => {
+                // Limpiar formulario sin cerrar modal
+                setFormAddData({
+                  nombre: '',
+                  cantidad: 1,
+                  isbn: '',
+                  marca: '',
+                  precio: 0,
+                  asignatura: '',
+                  descripcion: '',
+                  comprar: true,
+                })
+                setProductoSugerencias([])
+                setMostrarSugerencias(false)
+              }}>
+                Limpiar
+              </Button>
+              {productosPendientes.length > 0 && (
+                <Button 
+                  variant="outline-danger" 
+                  onClick={() => setProductosPendientes([])}
+                  disabled={loading}
+                >
+                  Limpiar Lista
+                </Button>
+              )}
+              <Button variant="secondary" onClick={() => {
+                setShowAddModal(false)
+                setProductosPendientes([])
+                setProductosAgregadosEnSesion(0)
+                setUltimoProductoAgregado(null)
+                setFormAddData({
+                  nombre: '',
+                  cantidad: 1,
+                  isbn: '',
+                  marca: '',
+                  precio: 0,
+                  asignatura: '',
+                  descripcion: '',
+                  comprar: true,
+                })
+                setProductoSugerencias([])
+                setMostrarSugerencias(false)
+              }}>
+                Cerrar
+              </Button>
+              <Button 
+                variant="outline-primary" 
+                onClick={handleAgregarALista} 
+                disabled={loading || !formAddData.nombre?.trim()}
+              >
+                <TbCheck className="me-2" />
+                Agregar Manual
+              </Button>
+              {productosPendientes.length > 0 && (
+                <Button variant="success" onClick={handleGuardarTodos} disabled={loading}>
+                  {loading ? (
+                    <>
+                      <Spinner size="sm" className="me-2" />
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <TbCheck className="me-2" />
+                      Guardar Todos ({productosPendientes.length})
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          </div>
+        </Modal.Footer>
+      </Modal>
+
       {/* Modal para ver logs */}
       <Modal show={showLogsModal} onHide={() => setShowLogsModal(false)} size="xl">
         <Modal.Header closeButton>
@@ -1750,6 +2752,248 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
               </>
             )}
           </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Modal para agregar productos desde Excel */}
+      <Modal show={showExcelModal} onHide={() => {
+        setShowExcelModal(false)
+        setExcelFile(null)
+        setProductosExcel([])
+      }} size="xl">
+        <Modal.Header closeButton>
+          <Modal.Title>
+            <TbFileSpreadsheet className="me-2" />
+            Agregar Productos desde Excel
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Alert variant="info" className="mb-3">
+            <div className="d-flex justify-content-between align-items-start">
+              <div style={{ flex: 1 }}>
+                <strong>📋 Formato requerido:</strong>
+                <ul className="mb-0 mt-2">
+                  <li><strong>Nombre</strong> o <strong>Producto</strong>: Nombre del producto (obligatorio si no hay identificador)</li>
+                  <li><strong>Identificador</strong>, <strong>SKU</strong> o <strong>ISBN</strong>: Código del producto (obligatorio si no hay nombre)</li>
+                  <li><strong>Cantidad</strong>: Cantidad del producto (opcional, por defecto 1)</li>
+                </ul>
+                <small className="text-muted">
+                  Los demás datos (precio, marca, asignatura, etc.) se auto-completarán desde WooCommerce si el producto existe.
+                </small>
+              </div>
+              <Button 
+                variant="outline-primary" 
+                size="sm"
+                onClick={handleDescargarPlantilla}
+                className="ms-3"
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                <TbDownload className="me-2" />
+                Descargar Plantilla
+              </Button>
+            </div>
+          </Alert>
+
+          <Form.Group className="mb-3">
+            <Form.Label>Seleccionar archivo Excel (.xlsx, .xls, .csv)</Form.Label>
+            <Form.Control
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  setExcelFile(file)
+                  handleProcesarExcel(file)
+                }
+              }}
+              disabled={procesandoExcel}
+            />
+            {procesandoExcel && (
+              <div className="mt-2">
+                <Spinner size="sm" className="me-2" />
+                Procesando archivo...
+              </div>
+            )}
+          </Form.Group>
+
+          {productosExcel.length > 0 && (
+            <div className="mt-4">
+              <h6>Vista Previa ({productosExcel.length} productos)</h6>
+              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                <Table striped bordered hover size="sm">
+                  <thead>
+                    <tr>
+                      <th>Nombre</th>
+                      <th>Identificador</th>
+                      <th>Cantidad</th>
+                      <th>Precio</th>
+                      <th>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productosExcel.map((p, index) => (
+                      <tr key={index}>
+                        <td>{p.nombre}</td>
+                        <td>{p.identificador || '-'}</td>
+                        <td>{p.cantidad}</td>
+                        <td>
+                          {p.precio ? `$${p.precio.toLocaleString('es-CL')}` : '-'}
+                        </td>
+                        <td>
+                          {p.encontrado ? (
+                            <Badge bg="success">✅ Encontrado</Badge>
+                          ) : (
+                            <Badge bg="warning">⚠️ No encontrado</Badge>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
+              <Alert variant="warning" className="mt-3">
+                <strong>⚠️ Atención:</strong> {productosExcel.filter(p => !p.encontrado).length} producto(s) no se encontraron en WooCommerce. 
+                Se agregarán con los datos básicos proporcionados.
+              </Alert>
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => {
+            setShowExcelModal(false)
+            setExcelFile(null)
+            setProductosExcel([])
+          }}>
+            Cancelar
+          </Button>
+          {productosExcel.length > 0 && (
+            <Button variant="success" onClick={handleConfirmarExcel} disabled={procesandoExcel}>
+              <TbCheck className="me-2" />
+              Confirmar y Agregar ({productosExcel.length})
+            </Button>
+          )}
+        </Modal.Footer>
+      </Modal>
+
+      {/* Modal para agregar productos desde Excel */}
+      <Modal show={showExcelModal} onHide={() => {
+        setShowExcelModal(false)
+        setExcelFile(null)
+        setProductosExcel([])
+      }} size="xl">
+        <Modal.Header closeButton>
+          <Modal.Title>
+            <TbFileSpreadsheet className="me-2" />
+            Agregar Productos desde Excel
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Alert variant="info" className="mb-3">
+            <div className="d-flex justify-content-between align-items-start">
+              <div style={{ flex: 1 }}>
+                <strong>📋 Formato requerido:</strong>
+                <ul className="mb-0 mt-2">
+                  <li><strong>Nombre</strong> o <strong>Producto</strong>: Nombre del producto (obligatorio si no hay identificador)</li>
+                  <li><strong>Identificador</strong>, <strong>SKU</strong> o <strong>ISBN</strong>: Código del producto (obligatorio si no hay nombre)</li>
+                  <li><strong>Cantidad</strong>: Cantidad del producto (opcional, por defecto 1)</li>
+                </ul>
+                <small className="text-muted">
+                  Los demás datos (precio, marca, asignatura, etc.) se auto-completarán desde WooCommerce si el producto existe.
+                </small>
+              </div>
+              <Button 
+                variant="outline-primary" 
+                size="sm"
+                onClick={handleDescargarPlantilla}
+                className="ms-3"
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                <TbDownload className="me-2" />
+                Descargar Plantilla
+              </Button>
+            </div>
+          </Alert>
+
+          <Form.Group className="mb-3">
+            <Form.Label>Seleccionar archivo Excel (.xlsx, .xls, .csv)</Form.Label>
+            <Form.Control
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  setExcelFile(file)
+                  handleProcesarExcel(file)
+                }
+              }}
+              disabled={procesandoExcel}
+            />
+            {procesandoExcel && (
+              <div className="mt-2">
+                <Spinner size="sm" className="me-2" />
+                Procesando archivo...
+              </div>
+            )}
+          </Form.Group>
+
+          {productosExcel.length > 0 && (
+            <div className="mt-4">
+              <h6>Vista Previa ({productosExcel.length} productos)</h6>
+              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                <Table striped bordered hover size="sm">
+                  <thead>
+                    <tr>
+                      <th>Nombre</th>
+                      <th>Identificador</th>
+                      <th>Cantidad</th>
+                      <th>Precio</th>
+                      <th>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productosExcel.map((p, index) => (
+                      <tr key={index}>
+                        <td>{p.nombre}</td>
+                        <td>{p.identificador || '-'}</td>
+                        <td>{p.cantidad}</td>
+                        <td>
+                          {p.precio ? `$${p.precio.toLocaleString('es-CL')}` : '-'}
+                        </td>
+                        <td>
+                          {p.encontrado ? (
+                            <Badge bg="success">✅ Encontrado</Badge>
+                          ) : (
+                            <Badge bg="warning">⚠️ No encontrado</Badge>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
+              {productosExcel.filter(p => !p.encontrado).length > 0 && (
+                <Alert variant="warning" className="mt-3">
+                  <strong>⚠️ Atención:</strong> {productosExcel.filter(p => !p.encontrado).length} producto(s) no se encontraron en WooCommerce. 
+                  Se agregarán con los datos básicos proporcionados.
+                </Alert>
+              )}
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => {
+            setShowExcelModal(false)
+            setExcelFile(null)
+            setProductosExcel([])
+          }}>
+            Cancelar
+          </Button>
+          {productosExcel.length > 0 && (
+            <Button variant="success" onClick={handleConfirmarExcel} disabled={procesandoExcel}>
+              <TbCheck className="me-2" />
+              Confirmar y Agregar ({productosExcel.length})
+            </Button>
+          )}
         </Modal.Footer>
       </Modal>
     </div>

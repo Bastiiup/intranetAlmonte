@@ -40,14 +40,6 @@ const GRADOS_MEDIA = Array.from({ length: 4 }, (_, i) => ({
   label: `${i + 1}° Media`,
 }))
 
-const PARALELOS = [
-  { value: 'A', label: 'A' },
-  { value: 'B', label: 'B' },
-  { value: 'C', label: 'C' },
-  { value: 'D', label: 'D' },
-  { value: 'E', label: 'E' },
-  { value: 'F', label: 'F' },
-]
 
 const getAñosDisponibles = () => {
   const añoActual = new Date().getFullYear()
@@ -75,7 +67,6 @@ export default function CrearCursoModal({
   const [formData, setFormData] = useState({
     nivel: 'Basica' as 'Basica' | 'Media',
     grado: '1',
-    paralelo: '',
     año: new Date().getFullYear(),
     activo: true,
   })
@@ -85,7 +76,6 @@ export default function CrearCursoModal({
       setFormData({
         nivel: 'Basica',
         grado: '1',
-        paralelo: '',
         año: new Date().getFullYear(),
         activo: true,
       })
@@ -108,9 +98,8 @@ export default function CrearCursoModal({
     }
     const nivelLabel = NIVELES.find((n) => n.value === formData.nivel)?.label || formData.nivel
     const gradoText = `${formData.grado}°`
-    const paraleloText = formData.paralelo ? ` ${formData.paralelo}` : ''
-    return `${gradoText} ${nivelLabel}${paraleloText}`
-  }, [formData.nivel, formData.grado, formData.paralelo])
+    return `${gradoText} ${nivelLabel}`
+  }, [formData.nivel, formData.grado])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -136,9 +125,6 @@ export default function CrearCursoModal({
         activo: formData.activo,
       }
 
-      if (formData.paralelo) {
-        payload.paralelo = formData.paralelo
-      }
 
       const response = await fetch(`/api/crm/colegios/${colegioId}/cursos`, {
         method: 'POST',
@@ -190,36 +176,17 @@ export default function CrearCursoModal({
             />
           </FormGroup>
 
-          <Row>
-            <Col md={6}>
-              <FormGroup className="mb-3">
-                <FormLabel>Grado *</FormLabel>
-                <Select
-                  options={gradosDisponibles}
-                  value={gradosDisponibles.find((g) => g.value === formData.grado)}
-                  onChange={(option) =>
-                    setFormData((prev) => ({ ...prev, grado: option?.value || '1' }))
-                  }
-                  isSearchable={false}
-                />
-              </FormGroup>
-            </Col>
-            <Col md={6}>
-              <FormGroup className="mb-3">
-                <FormLabel>Paralelo</FormLabel>
-                <Select
-                  options={PARALELOS}
-                  value={PARALELOS.find((p) => p.value === formData.paralelo)}
-                  onChange={(option) =>
-                    setFormData((prev) => ({ ...prev, paralelo: option?.value || '' }))
-                  }
-                  isClearable
-                  isSearchable={false}
-                  placeholder="Opcional"
-                />
-              </FormGroup>
-            </Col>
-          </Row>
+          <FormGroup className="mb-3">
+            <FormLabel>Grado *</FormLabel>
+            <Select
+              options={gradosDisponibles}
+              value={gradosDisponibles.find((g) => g.value === formData.grado)}
+              onChange={(option) =>
+                setFormData((prev) => ({ ...prev, grado: option?.value || '1' }))
+              }
+              isSearchable={false}
+            />
+          </FormGroup>
 
           <FormGroup className="mb-3">
             <FormLabel>Año *</FormLabel>

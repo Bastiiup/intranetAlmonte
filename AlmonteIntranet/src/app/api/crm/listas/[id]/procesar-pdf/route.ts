@@ -21,12 +21,18 @@ export const maxDuration = 300
 // La validación se hace dentro de la función POST para devolver respuesta HTTP adecuada
 
 // Modelos disponibles (en orden de preferencia)
-// Solo modelos que realmente existen y están disponibles
+// Actualizado para usar modelos 2.0 y 2.5 que están disponibles en la API
+// El modelo gemini-2.5-flash está verificado como funcional
 const MODELOS_DISPONIBLES = [
-  'gemini-2.5-flash',      // Más rápido y eficiente (límite: 20 req/día en plan gratuito)
-  'gemini-2.5-flash-lite', // Versión lite (puede tener más cuota)
-  // NOTA: gemini-1.5-flash y gemini-1.5-pro ya no existen (404)
-  // NOTA: gemini-2.5-pro y gemini-pro-latest requieren plan de pago (límite: 0 en gratuito)
+  'gemini-2.5-flash',      // ✅ VERIFICADO: Modelo flash más reciente y funcional
+  'gemini-2.0-flash',      // Modelo flash 2.0 (fallback)
+  'gemini-2.0-flash-001',  // Modelo flash 2.0 con versión específica
+  'gemini-2.5-pro',        // Modelo pro más reciente (disponible)
+  'gemini-2.0-flash-lite', // Modelo flash lite (más rápido)
+  'gemini-flash-latest',   // Última versión flash (alias)
+  'gemini-pro-latest',     // Última versión pro (alias)
+  // NOTA: Los modelos 1.5 ya no están disponibles (404)
+  // NOTA: gemini-2.5-flash está verificado como funcional con la nueva API key
 ]
 
 interface CoordenadasProducto {
@@ -255,67 +261,30 @@ export async function POST(
     // GEMINI_API_KEY ya está validada arriba
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY!)
     
-    // Prompt optimizado para PDFs grandes
-    const prompt = `Eres un experto en analizar listas de útiles escolares de Chile.
-
-Tu tarea es extraer TODOS los productos/útiles mencionados en este PDF.
-
-⚠️ IMPORTANTE PARA PDFs LARGOS:
-- Si el PDF es extenso, enfócate en las secciones de productos/útiles
-- Ignora páginas de portada, índice, instrucciones generales
-- Extrae productos de TODAS las páginas que contengan listas de útiles
-
-FORMATO DE LISTAS ESCOLARES TÍPICAS:
-- Pueden tener formato de tabla
-- Pueden tener viñetas o números
-- Pueden incluir cantidad seguida del producto
-- Pueden agrupar por categorías (ej: "Matemáticas", "Lenguaje", "Arte")
-
-EJEMPLOS DE ITEMS QUE DEBES EXTRAER:
-✅ "2 Cuadernos universitarios 100 hojas cuadriculado"
-✅ "1 Caja de lápices de colores 12 unidades"
-✅ "Lápiz grafito N°2" (sin cantidad = asume 1)
-✅ "3 Gomas de borrar blancas"
-✅ "1 Regla de 30 cm"
-✅ "Tijeras punta roma"
-
-ITEMS QUE DEBES IGNORAR:
-❌ Títulos de secciones (ej: "ÚTILES ESCOLARES 2024")
-❌ Nombres de asignaturas (ej: "Matemáticas", "Lenguaje")
-❌ Instrucciones generales (ej: "Marcar con nombre")
-❌ Información del colegio
-❌ Fechas y encabezados
-❌ Páginas de portada o índice
+    // ============================================
+    // 3.5. MODELOS PARA PROCESAR (OPTIMIZADO)
+    // ============================================
+    
+    // OPTIMIZACIÓN: Usar directamente la lista predeterminada sin consultar API
+    // Esto ahorra ~200-500ms por request. El modelo gemini-2.5-flash está verificado como funcional.
+    const modelosParaProbar = MODELOS_DISPONIBLES.slice(0, 3) // Solo probar los 3 primeros (más rápidos)
+    
+    // OPTIMIZACIÓN: Prompt más conciso (reduce tokens y tiempo de procesamiento)
+    const prompt = `Extrae TODOS los productos de esta lista de útiles escolares chilena.
 
 REGLAS:
-1. Si ves un número al inicio, es la cantidad
-2. Si no hay número, la cantidad es 1
-3. **CRÍTICO - EXTRACCIÓN DE NOMBRES:**
-   - El campo "nombre" debe contener el NOMBRE COMPLETO Y ESPECÍFICO del producto
-   - NO uses nombres genéricos como "Libro", "Cuaderno", "Lápiz" a menos que sea realmente genérico
-   - Si el producto tiene un título específico (ej: "El laberinto de la soledad", "Biología PAES"), ese título completo va en "nombre"
-   - Si hay subtítulo o edición (ej: "6ª Edición 2026"), puede ir en "descripcion" pero el nombre principal debe ser específico
-   - Ejemplos CORRECTOS:
-     * nombre: "El laberinto de la soledad" (NO "Libro")
-     * nombre: "Biología PAES" (NO "Libro")
-     * nombre: "Cuaderno universitario" (SÍ, es genérico pero específico)
-     * nombre: "Lápiz grafito N°2" (SÍ, es específico)
-4. Incluye marca/características/edición en "descripcion" solo si no es parte del nombre principal
-5. Normaliza nombres similares (ej: "cuaderno" = "Cuaderno")
-6. Si hay ISBN o código, extráelo en "isbn"
-7. Si hay precio mencionado, extráelo como número (sin símbolos) en "precio"
-8. Si hay asignatura o materia mencionada, extráela en "asignatura"
-9. **IMPORTANTE:** Para cada producto, identifica en qué página del PDF aparece y su posición aproximada
+- Número al inicio = cantidad (si no hay, cantidad = 1)
+- "nombre" = nombre COMPLETO y específico (NO genéricos como "Libro")
+- Ignora: títulos, asignaturas, instrucciones, portadas, índices
+- Extrae: ISBN, precio, asignatura si están presentes
+- Coordenadas: página (1+), posicion_x (centro horizontal 0-100), posicion_y (centro vertical 0-100)
 
-COORDENADAS (OBLIGATORIO Y CRÍTICO):
-- "pagina": Número de página donde aparece el producto (empezando desde 1)
-- "posicion_x": Posición horizontal del CENTRO del título/nombre del producto como porcentaje (0-100), donde 0 es el borde izquierdo y 100 el derecho. DEBE ser la posición exacta del centro del texto del título.
-- "posicion_y": Posición vertical del CENTRO del título/nombre del producto como porcentaje (0-100), donde 0 es la parte superior y 100 la inferior. DEBE ser la posición exacta del centro del texto del título.
-- "region": Descripción opcional de la región (ej: "superior-izquierda", "medio-derecha", "inferior")
+EJEMPLOS:
+✅ "2 Cuadernos universitarios" → cantidad: 2, nombre: "Cuaderno universitario"
+✅ "El laberinto de la soledad" → cantidad: 1, nombre: "El laberinto de la soledad"
+✅ "Lápiz grafito N°2" → cantidad: 1, nombre: "Lápiz grafito N°2"
 
-⚠️ IMPORTANTE: Las coordenadas posicion_x y posicion_y deben apuntar al CENTRO del texto del título/nombre del producto en el PDF, no a una región general. Esto es crítico para el resaltado preciso.
-
-FORMATO DE RESPUESTA (JSON puro, SIN markdown, SIN backticks):
+FORMATO JSON (sin markdown, sin backticks):
 {
   "productos": [
     {
@@ -330,70 +299,31 @@ FORMATO DE RESPUESTA (JSON puro, SIN markdown, SIN backticks):
       "coordenadas": {
         "pagina": 2,
         "posicion_x": 15,
-        "posicion_y": 30,
-        "region": "superior-izquierda"
-      }
-    },
-    {
-      "cantidad": 1,
-      "nombre": "El laberinto de la soledad",
-      "isbn": null,
-      "marca": null,
-      "comprar": true,
-      "precio": 0,
-      "asignatura": null,
-      "descripcion": null,
-      "coordenadas": {
-        "pagina": 1,
-        "posicion_x": 50,
-        "posicion_y": 40,
-        "region": "medio"
-      }
-    },
-    {
-      "cantidad": 1,
-      "nombre": "Biología PAES",
-      "isbn": null,
-      "marca": null,
-      "comprar": true,
-      "precio": 0,
-      "asignatura": null,
-      "descripcion": "6ª Edición 2026",
-      "coordenadas": {
-        "pagina": 1,
-        "posicion_x": 50,
-        "posicion_y": 50,
-        "region": "medio"
+        "posicion_y": 30
       }
     }
   ]
 }
 
-⚠️ MUY IMPORTANTE:
-- Responde SOLO con el JSON
-- NO uses backticks (\`\`\`)
-- NO agregues texto antes o después del JSON
-- NO uses markdown
-- El JSON debe empezar con { y terminar con }
-- Si el PDF es largo, tómate tu tiempo pero extrae TODOS los productos
-
-Ahora analiza este PDF y extrae TODOS los productos:`
+Responde SOLO con JSON válido.`
 
     let resultado: any = null
     let modeloUsado: string | null = null
     let errorModelos: Array<{ modelo: string; error: string }> = []
     
     // Probar modelos en orden hasta que uno funcione
-    for (const nombreModelo of MODELOS_DISPONIBLES) {
+    console.log(`[Procesar PDF] 🔍 Modelos disponibles para probar:`, modelosParaProbar.length > 0 ? modelosParaProbar : MODELOS_DISPONIBLES)
+    for (const nombreModelo of (modelosParaProbar.length > 0 ? modelosParaProbar : MODELOS_DISPONIBLES)) {
       try {
-        console.log(`[Procesar PDF] Probando modelo: ${nombreModelo}`)
+        console.log(`[Procesar PDF] 🔄 Probando modelo: ${nombreModelo}`)
         
         const model = genAI.getGenerativeModel({ 
           model: nombreModelo,
           generationConfig: {
-            temperature: 0.1, // Más determinista para extracción estructurada
-            topP: 0.8,
-            topK: 40,
+            temperature: 0.0, // OPTIMIZACIÓN: Más determinista = más rápido
+            topP: 0.7, // OPTIMIZACIÓN: Reducido para respuestas más rápidas
+            topK: 20, // OPTIMIZACIÓN: Reducido para respuestas más rápidas
+            maxOutputTokens: 8192, // OPTIMIZACIÓN: Límite razonable para evitar respuestas muy largas
           }
         })
         
@@ -401,9 +331,9 @@ Ahora analiza este PDF y extrae TODOS los productos:`
         console.log(`[Procesar PDF] Enviando PDF a Gemini (${nombreModelo})...`)
         console.log(`[Procesar PDF] Tamaño del PDF: ${pdfSizeMB} MB`)
         
-        // Crear AbortController para timeout (4 minutos para PDFs grandes)
+        // OPTIMIZACIÓN: Reducir timeout a 3 minutos (gemini-2.5-flash es más rápido)
         const controller = new AbortController()
-        const timeoutMs = 240000 // 4 minutos
+        const timeoutMs = 180000 // 3 minutos (reducido de 4)
         let timeoutId: NodeJS.Timeout | null = null
         
         try {
@@ -505,8 +435,9 @@ Ahora analiza este PDF y extrae TODOS los productos:`
         
       } catch (error: any) {
         const errorMsg = error.message || String(error)
-        console.log(`[Procesar PDF] ❌ Modelo ${nombreModelo} falló:`, errorMsg)
-        console.log('[Procesar PDF] Stack del error:', error.stack)
+        console.error(`[Procesar PDF] ❌ Modelo ${nombreModelo} falló:`, errorMsg)
+        console.error('[Procesar PDF] Stack del error:', error.stack)
+        console.error('[Procesar PDF] Error completo:', JSON.stringify(error, Object.getOwnPropertyNames(error)))
         
         // Detectar tipos de errores específicamente
         if (errorMsg.includes('Timeout') || errorMsg.includes('timeout')) {
@@ -559,15 +490,19 @@ Ahora analiza este PDF y extrae TODOS los productos:`
       
       if (todosQuotas) {
         errorMessage = 'Cuota de API excedida: Has alcanzado el límite de solicitudes del plan gratuito de Gemini'
-        sugerencia = `El plan gratuito de Gemini tiene límites estrictos (20 solicitudes/día para gemini-2.5-flash). Opciones:\n1) Esperar hasta mañana para que se reinicie la cuota\n2) Actualizar a un plan de pago en Google Cloud Console\n3) Usar una API key diferente con cuota disponible\n\nVer detalles: https://ai.google.dev/gemini-api/docs/rate-limits`
+        sugerencia = `El plan gratuito de Gemini tiene límites estrictos. Opciones:\n1) Esperar hasta mañana para que se reinicie la cuota\n2) Actualizar a un plan de pago en Google Cloud Console\n3) Usar una API key diferente con cuota disponible\n\nVer detalles: https://ai.google.dev/gemini-api/docs/rate-limits`
         statusCode = 429
       } else if (todosTimeouts) {
         errorMessage = 'El PDF es muy grande y el procesamiento excedió el tiempo límite'
         sugerencia = `El PDF es muy grande (${pdfSizeMB} MB). Intenta: 1) Dividir el PDF en partes más pequeñas, 2) Usar un PDF con menos páginas, 3) Optimizar el PDF reduciendo su tamaño.`
         statusCode = 504
+      } else if (errorModelos.some(e => e.error.includes('403') || e.error.includes('Forbidden') || e.error.includes('leaked'))) {
+        errorMessage = 'API key de Gemini reportada como filtrada (403)'
+        sugerencia = `Tu API key fue reportada como "leaked" (filtrada) y Google la ha deshabilitado.\n\n🔑 SOLUCIÓN:\n1) Ve a: https://aistudio.google.com/apikey\n2) Elimina la API key actual (si es necesario)\n3) Genera una NUEVA API key\n4) Actualiza GEMINI_API_KEY en Railway o .env.local con la nueva key\n\n⚠️ IMPORTANTE:\n- No compartas tu API key públicamente\n- No la subas a repositorios públicos\n- Usa variables de entorno para almacenarla`
+        statusCode = 403
       } else if (todos404) {
-        errorMessage = 'Modelos de Gemini no disponibles'
-        sugerencia = 'Los modelos configurados ya no están disponibles. Verifica la lista de modelos disponibles en: https://ai.google.dev/gemini-api/docs/models'
+        errorMessage = 'Modelos de Gemini no disponibles (404)'
+        sugerencia = `Todos los modelos probados dieron error 404. Esto puede indicar:\n\n1) La API key de Gemini no está configurada o es inválida\n   - Verifica que GEMINI_API_KEY esté en Railway o .env.local\n   - Verifica que la API key sea válida en: https://aistudio.google.com/apikey\n\n2) La API "Generative Language API" no está habilitada\n   - Ve a: https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com\n   - Habilita la API si no está habilitada\n\n3) Los nombres de los modelos pueden haber cambiado\n   - Prueba el endpoint de diagnóstico: /api/crm/listas/diagnostico-gemini\n   - Verifica modelos disponibles en: https://ai.google.dev/gemini-api/docs/models`
         statusCode = 503
       }
       
@@ -708,7 +643,7 @@ Ahora analiza este PDF y extrae TODOS los productos:`
           
           // Delay base entre todas las llamadas para evitar saturar la API
           if (attempt === 0) {
-            await new Promise(resolve => setTimeout(resolve, 200)) // 200ms entre búsquedas
+            await new Promise(resolve => setTimeout(resolve, 100)) // OPTIMIZACIÓN: Reducido a 100ms entre búsquedas
           }
           
           return await wooCommerceClient.get<T>(path, params)
@@ -984,7 +919,7 @@ Ahora analiza este PDF y extrae TODOS los productos:`
       
       // Delay entre lotes para evitar saturar la API (excepto en el último lote)
       if (i + BATCH_SIZE < productosNormalizados.length) {
-        await new Promise(resolve => setTimeout(resolve, 300)) // 300ms entre lotes
+        await new Promise(resolve => setTimeout(resolve, 150)) // OPTIMIZACIÓN: Reducido a 150ms entre lotes
       }
     }
 

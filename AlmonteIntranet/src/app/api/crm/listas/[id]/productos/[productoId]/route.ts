@@ -361,7 +361,21 @@ export async function DELETE(
       )
     }
 
-    console.log('[Eliminar Producto] 🗑️ Eliminando producto...', { id, productoId })
+    // Obtener datos adicionales del body si están disponibles
+    let requestBody: any = {}
+    try {
+      const bodyText = await request.text()
+      if (bodyText) {
+        requestBody = JSON.parse(bodyText)
+      }
+    } catch (e) {
+      // Si no hay body o no es JSON válido, continuar sin él
+    }
+    
+    const nombreProducto = requestBody.nombre
+    const indexFromBody = requestBody.index
+
+    console.log('[Eliminar Producto] 🗑️ Eliminando producto...', { id, productoId, nombreProducto, indexFromBody })
 
     // Obtener curso desde Strapi
     let curso: any = null
@@ -431,18 +445,98 @@ export async function DELETE(
 
     const materiales = ultimaVersion.materiales || []
     
-    // Buscar el producto
-    let materialIndex = materiales.findIndex((m: any) => 
-      m.id === productoId || 
-      String(m.id) === String(productoId) ||
-      m.nombre === productoId
-    )
+    console.log('[Eliminar Producto] 🔍 Buscando producto:', {
+      productoId,
+      nombreProducto,
+      indexFromBody,
+      totalMateriales: materiales.length,
+      primerosMateriales: materiales.slice(0, 3).map((m: any, idx: number) => ({
+        index: idx,
+        id: m.id || m._id || m.documentId,
+        nombre: m.nombre || m.nombre_producto,
+      }))
+    })
+    
+    // Buscar el producto - intentar múltiples formas de match
+    let materialIndex = -1
+    
+    // 1. Si se proporciona el índice en el body, usarlo directamente (más confiable)
+    if (indexFromBody !== undefined && indexFromBody !== null) {
+      const idx = Number(indexFromBody)
+      if (!isNaN(idx) && idx >= 0 && idx < materiales.length) {
+        materialIndex = idx
+        console.log('[Eliminar Producto] ✅ Producto encontrado por índice del body:', idx)
+      }
+    }
+    
+    // 2. Intentar por ID directo
+    if (materialIndex === -1) {
+      materialIndex = materiales.findIndex((m: any) => {
+        const mId = m.id || m._id || m.documentId
+        return mId === productoId || 
+               String(mId) === String(productoId) ||
+               mId?.toString() === productoId?.toString()
+      })
+      if (materialIndex !== -1) {
+        console.log('[Eliminar Producto] ✅ Producto encontrado por ID:', productoId)
+      }
+    }
+    
+    // 3. Si el productoId parece ser un índice generado (producto-X), extraer el número
+    if (materialIndex === -1 && String(productoId).startsWith('producto-')) {
+      const match = String(productoId).match(/producto-(\d+)/)
+      if (match) {
+        const idx = parseInt(match[1], 10) - 1 // Restar 1 porque los índices empiezan en 0
+        if (idx >= 0 && idx < materiales.length) {
+          materialIndex = idx
+          console.log('[Eliminar Producto] ✅ Producto encontrado por ID generado (producto-X):', idx)
+        }
+      }
+    }
+    
+    // 4. Si el ID es numérico, intentar usarlo como índice
+    if (materialIndex === -1 && /^\d+$/.test(String(productoId))) {
+      const indexNum = parseInt(String(productoId), 10)
+      if (indexNum >= 0 && indexNum < materiales.length) {
+        materialIndex = indexNum
+        console.log('[Eliminar Producto] ✅ Producto encontrado por ID numérico como índice:', indexNum)
+      }
+    }
+    
+    // 5. Si aún no se encuentra, intentar por nombre
+    if (materialIndex === -1 && nombreProducto) {
+      materialIndex = materiales.findIndex((m: any) => 
+        m.nombre === nombreProducto || 
+        m.nombre_producto === nombreProducto ||
+        (m.nombre && m.nombre.toLowerCase() === nombreProducto.toLowerCase())
+      )
+      if (materialIndex !== -1) {
+        console.log('[Eliminar Producto] ✅ Producto encontrado por nombre:', nombreProducto)
+      }
+    }
 
     if (materialIndex === -1) {
+      console.error('[Eliminar Producto] ❌ Producto no encontrado:', {
+        productoId,
+        materialesIds: materiales.map((m: any, idx: number) => ({
+          index: idx,
+          id: m.id || m._id || m.documentId,
+          nombre: m.nombre || m.nombre_producto,
+        }))
+      })
       return NextResponse.json(
         {
           success: false,
           error: 'Producto no encontrado en la lista',
+          debug: process.env.NODE_ENV === 'development' ? {
+            productoId,
+            totalMateriales: materiales.length,
+            materialesIds: materiales.map((m: any, idx: number) => ({
+              index: idx,
+              id: m.id || m._id || m.documentId,
+              nombre: m.nombre || m.nombre_producto,
+            }))
+          } : undefined,
         },
         { status: 404 }
       )

@@ -295,6 +295,17 @@ export async function PUT(
       }
     }
 
+    // Actualizar versiones_materiales si se proporcionan (para importación completa)
+    if (body.versiones_materiales !== undefined) {
+      if (Array.isArray(body.versiones_materiales)) {
+        cursoData.data.versiones_materiales = body.versiones_materiales
+        debugLog('[API /crm/cursos/[id] PUT] Actualizando versiones_materiales:', body.versiones_materiales.length, 'versiones')
+      } else {
+        // Si es null o undefined, mantener el valor actual (no actualizar)
+        debugLog('[API /crm/cursos/[id] PUT] versiones_materiales no es un array, ignorando')
+      }
+    }
+
     // Actualizar materiales adicionales si se proporcionan
     if (body.materiales !== undefined) {
       if (Array.isArray(body.materiales) && body.materiales.length > 0) {

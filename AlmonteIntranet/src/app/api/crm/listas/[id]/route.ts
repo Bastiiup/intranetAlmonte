@@ -141,9 +141,7 @@ export async function GET(
     const colegioData = attrs.colegio?.data || attrs.colegio
     const colegioAttrs = colegioData?.attributes || colegioData
 
-    const nombreCurso = attrs.nombre_curso || attrs.curso_nombre || 'Sin nombre'
-    const paralelo = attrs.paralelo ? ` ${attrs.paralelo}` : ''
-    const nombreCompleto = `${nombreCurso}${paralelo}`
+    const nombreCompleto = (attrs.nombre_curso || attrs.curso_nombre || 'Sin nombre').trim()
 
     const lista = {
       id: curso.id || curso.documentId,
@@ -151,7 +149,6 @@ export async function GET(
       nombre: nombreCompleto,
       nivel: attrs.nivel || 'Basica',
       grado: parseInt(attrs.grado) || 1,
-      paralelo: attrs.paralelo || '',
       año: attrs.año || attrs.ano || new Date().getFullYear(),
       descripcion: `Curso: ${nombreCompleto}`,
       activo: attrs.activo !== false,
@@ -181,6 +178,112 @@ export async function GET(
       {
         success: false,
         error: error.message || 'Error al obtener la lista',
+      },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * PUT /api/crm/listas/[id]
+ * Actualiza un curso (lista) específico
+ */
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const body = await request.json()
+
+    if (!id) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'ID de lista es requerido',
+        },
+        { status: 400 }
+      )
+    }
+
+    debugLog('[API /crm/listas/[id] PUT] Actualizando curso:', id)
+
+    // Intentar obtener el curso
+    let curso: any = null
+    let cursoId: number | string | null = null
+
+    // Intentar con documentId primero
+    try {
+      const response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+        `/api/cursos?filters[documentId][$eq]=${id}&publicationState=preview`
+      )
+      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+        curso = response.data[0]
+        cursoId = curso.documentId
+      }
+    } catch (err) {
+      debugLog('[API /crm/listas/[id] PUT] No se encontró por documentId, intentando por id numérico')
+    }
+
+    // Si no se encontró, intentar con id numérico
+    if (!curso && /^\d+$/.test(String(id))) {
+      try {
+        const response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+          `/api/cursos/${id}?publicationState=preview`
+        )
+        curso = Array.isArray(response.data) ? response.data[0] : response.data
+        cursoId = curso?.id || curso?.documentId
+      } catch (err) {
+        debugLog('[API /crm/listas/[id] PUT] No se encontró por id numérico')
+      }
+    }
+
+    if (!curso || !cursoId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Curso no encontrado',
+        },
+        { status: 404 }
+      )
+    }
+
+    // Preparar datos de actualización
+    const updateData: any = {
+      data: {},
+    }
+
+    // Actualizar versiones_materiales si se proporciona
+    if (body.versiones_materiales !== undefined) {
+      updateData.data.versiones_materiales = body.versiones_materiales
+    }
+
+    // Actualizar otros campos si se proporcionan
+    if (body.nombre_curso) updateData.data.nombre_curso = body.nombre_curso
+    if (body.nivel) updateData.data.nivel = body.nivel
+    if (body.grado) updateData.data.grado = body.grado
+    if (body.año !== undefined) updateData.data.año = body.año
+    if (body.activo !== undefined) updateData.data.activo = body.activo
+
+    // Actualizar en Strapi
+    const response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
+      `/api/cursos/${cursoId}`,
+      updateData
+    )
+
+    debugLog('[API /crm/listas/[id] PUT] ✅ Curso actualizado exitosamente')
+
+    return NextResponse.json({
+      success: true,
+      data: response.data,
+      message: 'Curso actualizado exitosamente',
+    }, { status: 200 })
+  } catch (error: any) {
+    debugLog('[API /crm/listas/[id] PUT] ❌ Error:', error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message || 'Error al actualizar la lista',
       },
       { status: 500 }
     )

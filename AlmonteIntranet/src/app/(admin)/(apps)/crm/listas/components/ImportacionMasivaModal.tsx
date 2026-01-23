@@ -41,7 +41,6 @@ interface ImportRow {
   nombre_curso: string
   nivel: 'Basica' | 'Media'
   grado: number
-  paralelo?: string
   año?: number
   pdf?: File | null
   _cursoIdNum?: number
@@ -184,7 +183,6 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
             nombre_curso: String(normalizedRow.nombre_curso || normalizedRow.curso || normalizedRow.curso_nombre || ''),
             nivel: normalizeNivel(normalizedRow.nivel), // ✅ Normalizar correctamente
             grado: parseInt(normalizedRow.grado) || 1,
-            paralelo: normalizedRow.paralelo ? String(normalizedRow.paralelo) : undefined,
             año: normalizedRow.año || normalizedRow.ano || normalizedRow.agno ? parseInt(normalizedRow.año || normalizedRow.ano || normalizedRow.agno) : new Date().getFullYear(),
             pdf: null,
           }
@@ -294,14 +292,12 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
             const cursoExistente = cursosResult.data.find((curso: any) => {
               const attrs = curso.attributes || curso
               const nombreCurso = attrs.nombre_curso || attrs.curso_nombre || ''
-              const paralelo = attrs.paralelo || ''
               const grado = String(attrs.grado || '') // grado es string en Strapi
               const nivel = attrs.nivel || ''
               const año = attrs.año || attrs.ano || 0
 
               return (
                 nombreCurso.toLowerCase().trim() === row.nombre_curso.toLowerCase().trim() &&
-                (paralelo || '') === (row.paralelo || '') &&
                 grado === String(row.grado || '') && // Comparar como strings
                 nivel === row.nivel &&
                 (año || 0) === (row.año || 0)
@@ -316,7 +312,7 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
           // Si no existe, crear el curso
           if (!cursoId) {
             // Generar nombre del curso como en CrearCursoModal
-            const nombreCursoGenerado = row.nombre_curso || `${row.nivel} ${row.grado}°${row.paralelo ? ` ${row.paralelo}` : ''}`
+            const nombreCursoGenerado = row.nombre_curso || `${row.nivel} ${row.grado}°`
             
             const payload: any = {
               nombre_curso: nombreCursoGenerado,
@@ -331,9 +327,6 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
               colegioId: colegioId, // Log para debugging
             })
 
-            if (row.paralelo) {
-              payload.paralelo = row.paralelo
-            }
 
             console.log(`[Importación Masiva] Creando curso:`, payload)
 
@@ -401,7 +394,6 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
                 nivel: payload.nivel,
                 grado: payload.grado,
                 año: payload.año,
-                paralelo: payload.paralelo,
               }
               
               console.error(`[Importación Masiva] ❌ Error HTTP al crear curso:`, errorDetails)
@@ -1117,7 +1109,6 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
         nombre_curso: 'Nombre del Curso',
         nivel: 'Basica',
         grado: 1,
-        paralelo: 'A',
         año: new Date().getFullYear(),
       },
     ]
@@ -1155,7 +1146,6 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
                     <li><strong>nombre_curso:</strong> Nombre del curso (ej: "Matemáticas", "Lenguaje")</li>
                     <li><strong>nivel:</strong> "Basica" o "Media" (exactamente así)</li>
                     <li><strong>grado:</strong> Número como texto (ej: "1", "2", "3")</li>
-                    <li><strong>paralelo:</strong> Letra del paralelo (ej: "A", "B") o dejar vacío</li>
                     <li><strong>año:</strong> Año del curso (ej: 2026)</li>
                   </ul>
                 </li>
@@ -1242,7 +1232,6 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
                     <th>Curso</th>
                     <th>Nivel</th>
                     <th>Grado</th>
-                    <th>Paralelo</th>
                     <th>Año</th>
                     <th>PDF</th>
                   </tr>
@@ -1259,7 +1248,6 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
                         </Badge>
                       </td>
                       <td>{row.grado}°</td>
-                      <td>{row.paralelo || '-'}</td>
                       <td>{row.año || new Date().getFullYear()}</td>
                       <td>
                         <FormControl
