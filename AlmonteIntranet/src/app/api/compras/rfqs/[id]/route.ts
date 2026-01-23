@@ -29,70 +29,78 @@ export async function GET(
         rfq = response.data
       }
     } catch (directError: any) {
-      // Si falla, intentar buscar por documentId
-      try {
-        const isDocumentId = /^[a-zA-Z0-9_-]+$/.test(id) && !/^\d+$/.test(id)
-        
-        let filterParams: URLSearchParams
-        // Usar populate específico para evitar errores con comuna y asegurar que traiga emails
-        if (isDocumentId) {
-          filterParams = new URLSearchParams({
-            'filters[documentId][$eq]': id,
-            'populate[empresas][populate][emails]': 'true',
-            'populate[productos]': 'true',
-            'populate[creado_por][populate][persona]': 'true',
-            'populate[cotizaciones_recibidas][populate][empresa][populate][emails]': 'true',
-            'populate[cotizaciones_recibidas][populate][contacto_responsable]': 'true',
-          })
-        } else {
-          filterParams = new URLSearchParams({
-            'filters[id][$eq]': id.toString(),
-            'populate[empresas][populate][emails]': 'true',
-            'populate[productos]': 'true',
-            'populate[creado_por][populate][persona]': 'true',
-            'populate[cotizaciones_recibidas][populate][empresa][populate][emails]': 'true',
-            'populate[cotizaciones_recibidas][populate][contacto_responsable]': 'true',
-          })
-        }
-        
+      // Si falla con 404, intentar buscar por documentId o id alternativo
+      if (directError.status === 404) {
+        console.warn('[API /compras/rfqs/[id] GET] Error 404 con ID directo, buscando por filtros alternativos:', id)
         try {
-          const filterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-            `/api/rfqs?${filterParams.toString()}`
-          )
+          const isNumericId = /^\d+$/.test(id)
           
-          if (filterResponse.data) {
-            if (Array.isArray(filterResponse.data) && filterResponse.data.length > 0) {
-              rfq = filterResponse.data[0]
-            } else if (!Array.isArray(filterResponse.data)) {
-              rfq = filterResponse.data
+          // Intentar buscar por documentId si el ID es numérico, o por id si no lo es
+          let searchParams: URLSearchParams
+          if (isNumericId) {
+            // Si es numérico, buscar por documentId
+            searchParams = new URLSearchParams({
+              'filters[documentId][$eq]': id,
+              'populate[empresas][populate][emails]': 'true',
+              'populate[productos]': 'true',
+              'populate[creado_por][populate][persona]': 'true',
+              'populate[cotizaciones_recibidas][populate][empresa][populate][emails]': 'true',
+              'populate[cotizaciones_recibidas][populate][contacto_responsable]': 'true',
+            })
+          } else {
+            // Si no es numérico, buscar por id numérico
+            searchParams = new URLSearchParams({
+              'filters[id][$eq]': id.toString(),
+              'populate[empresas][populate][emails]': 'true',
+              'populate[productos]': 'true',
+              'populate[creado_por][populate][persona]': 'true',
+              'populate[cotizaciones_recibidas][populate][empresa][populate][emails]': 'true',
+              'populate[cotizaciones_recibidas][populate][contacto_responsable]': 'true',
+            })
+          }
+          
+          try {
+            const filterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+              `/api/rfqs?${searchParams.toString()}`
+            )
+            
+            if (filterResponse.data) {
+              if (Array.isArray(filterResponse.data) && filterResponse.data.length > 0) {
+                rfq = filterResponse.data[0]
+              } else if (!Array.isArray(filterResponse.data)) {
+                rfq = filterResponse.data
+              }
+            }
+          } catch (filterError: any) {
+            // Si aún falla, intentar con el filtro alternativo
+            console.warn('[API /compras/rfqs/[id] GET] Error con primer filtro, intentando filtro alternativo')
+            const altSearchParams = new URLSearchParams({
+              ...(isNumericId ? { 'filters[id][$eq]': id } : { 'filters[documentId][$eq]': id }),
+              'populate[empresas][populate][emails]': 'true',
+              'populate[productos]': 'true',
+              'populate[creado_por][populate][persona]': 'true',
+              'populate[cotizaciones_recibidas][populate][empresa][populate][emails]': 'true',
+              'populate[cotizaciones_recibidas][populate][contacto_responsable]': 'true',
+            })
+            
+            const altFilterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+              `/api/rfqs?${altSearchParams.toString()}`
+            )
+            
+            if (altFilterResponse.data) {
+              if (Array.isArray(altFilterResponse.data) && altFilterResponse.data.length > 0) {
+                rfq = altFilterResponse.data[0]
+              } else if (!Array.isArray(altFilterResponse.data)) {
+                rfq = altFilterResponse.data
+              }
             }
           }
-        } catch (filterError: any) {
-          // Si falla, intentar con populate más simple
-          console.warn('[API /compras/rfqs/[id] GET] Error con populate específico en filtro, intentando populate más simple')
-          const simpleFilterParams = new URLSearchParams({
-            ...(isDocumentId ? { 'filters[documentId][$eq]': id } : { 'filters[id][$eq]': id.toString() }),
-            'populate[empresas][populate][emails]': 'true',
-            'populate[productos]': 'true',
-            'populate[creado_por][populate][persona]': 'true',
-            'populate[cotizaciones_recibidas][populate][empresa][populate][emails]': 'true',
-            'populate[cotizaciones_recibidas][populate][contacto_responsable]': 'true',
-          })
-          
-          const simpleFilterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-            `/api/rfqs?${simpleFilterParams.toString()}`
-          )
-          
-          if (simpleFilterResponse.data) {
-            if (Array.isArray(simpleFilterResponse.data) && simpleFilterResponse.data.length > 0) {
-              rfq = simpleFilterResponse.data[0]
-            } else if (!Array.isArray(simpleFilterResponse.data)) {
-              rfq = simpleFilterResponse.data
-            }
-          }
+        } catch (searchError: any) {
+          console.error('[API /compras/rfqs/[id] GET] Error en búsqueda por filtros alternativos:', searchError.message)
         }
-      } catch (filterError: any) {
-        console.error('[API /compras/rfqs/[id] GET] Error en búsqueda por filtro:', filterError.message)
+      } else {
+        // Si no es 404, lanzar el error original
+        throw directError
       }
     }
     
@@ -222,7 +230,8 @@ export async function PUT(
     let statusCode = error.status || 500
     
     if (error.status === 404) {
-      errorMessage = 'El content type "rfqs" no existe en Strapi. Por favor, créalo primero según la documentación en docs/crm/STRAPI-SCHEMA-COMPRAS-PROVEEDORES.md'
+      // Un 404 puede significar que la RFQ no se encontró con ese ID, no necesariamente que el content type no existe
+      errorMessage = `RFQ no encontrada con ID: ${id}. Verifica que el ID sea correcto (puede ser id numérico o documentId).`
       statusCode = 404
     } else if (error.response?.data) {
       // Intentar extraer mensaje de error de Strapi
@@ -318,7 +327,8 @@ export async function DELETE(
     let statusCode = error.status || 500
     
     if (error.status === 404) {
-      errorMessage = 'El content type "rfqs" no existe en Strapi. Por favor, créalo primero según la documentación en docs/crm/STRAPI-SCHEMA-COMPRAS-PROVEEDORES.md'
+      // Un 404 puede significar que la RFQ no se encontró con ese ID, no necesariamente que el content type no existe
+      errorMessage = `RFQ no encontrada con ID: ${id}. Verifica que el ID sea correcto (puede ser id numérico o documentId).`
       statusCode = 404
     } else if (error.response?.data) {
       // Intentar extraer mensaje de error de Strapi
