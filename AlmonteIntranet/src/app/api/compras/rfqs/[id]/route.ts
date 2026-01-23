@@ -19,10 +19,10 @@ export async function GET(
     
     // Intentar primero con el endpoint directo
     try {
-      // Usar populate específico para evitar errores con comuna y asegurar que traiga emails y datos básicos
-      // Traer campos básicos de empresas y emails, pero evitar populatear comuna
+      // Usar populate específico para evitar errores con comuna y asegurar que traiga emails
+      // Populatear empresas y emails, pero evitar populatear comuna usando populate anidado específico
       const response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-        `/api/rfqs/${id}?populate[empresas][fields][0]=empresa_nombre&populate[empresas][fields][1]=nombre&populate[empresas][fields][2]=rut&populate[empresas][populate][emails]=true&populate[productos][fields][0]=nombre_libro&populate[productos][fields][1]=nombre&populate[productos][fields][2]=sku&populate[creado_por][populate][persona]=true&populate[cotizaciones_recibidas][populate][empresa][fields][0]=empresa_nombre&populate[cotizaciones_recibidas][populate][empresa][fields][1]=nombre&populate[cotizaciones_recibidas][populate][empresa][populate][emails]=true&populate[cotizaciones_recibidas][populate][contacto_responsable]=true`
+        `/api/rfqs/${id}?populate[empresas][populate][emails]=true&populate[productos]=true&populate[creado_por][populate][persona]=true&populate[cotizaciones_recibidas][populate][empresa][populate][emails]=true&populate[cotizaciones_recibidas][populate][contacto_responsable]=true`
       )
       
       if (response.data) {
@@ -34,36 +34,22 @@ export async function GET(
         const isDocumentId = /^[a-zA-Z0-9_-]+$/.test(id) && !/^\d+$/.test(id)
         
         let filterParams: URLSearchParams
-        // Usar populate específico para evitar errores con comuna y asegurar que traiga emails y datos básicos
+        // Usar populate específico para evitar errores con comuna y asegurar que traiga emails
         if (isDocumentId) {
           filterParams = new URLSearchParams({
             'filters[documentId][$eq]': id,
-            'populate[empresas][fields][0]': 'empresa_nombre',
-            'populate[empresas][fields][1]': 'nombre',
-            'populate[empresas][fields][2]': 'rut',
             'populate[empresas][populate][emails]': 'true',
-            'populate[productos][fields][0]': 'nombre_libro',
-            'populate[productos][fields][1]': 'nombre',
-            'populate[productos][fields][2]': 'sku',
+            'populate[productos]': 'true',
             'populate[creado_por][populate][persona]': 'true',
-            'populate[cotizaciones_recibidas][populate][empresa][fields][0]': 'empresa_nombre',
-            'populate[cotizaciones_recibidas][populate][empresa][fields][1]': 'nombre',
             'populate[cotizaciones_recibidas][populate][empresa][populate][emails]': 'true',
             'populate[cotizaciones_recibidas][populate][contacto_responsable]': 'true',
           })
         } else {
           filterParams = new URLSearchParams({
             'filters[id][$eq]': id.toString(),
-            'populate[empresas][fields][0]': 'empresa_nombre',
-            'populate[empresas][fields][1]': 'nombre',
-            'populate[empresas][fields][2]': 'rut',
             'populate[empresas][populate][emails]': 'true',
-            'populate[productos][fields][0]': 'nombre_libro',
-            'populate[productos][fields][1]': 'nombre',
-            'populate[productos][fields][2]': 'sku',
+            'populate[productos]': 'true',
             'populate[creado_por][populate][persona]': 'true',
-            'populate[cotizaciones_recibidas][populate][empresa][fields][0]': 'empresa_nombre',
-            'populate[cotizaciones_recibidas][populate][empresa][fields][1]': 'nombre',
             'populate[cotizaciones_recibidas][populate][empresa][populate][emails]': 'true',
             'populate[cotizaciones_recibidas][populate][contacto_responsable]': 'true',
           })
