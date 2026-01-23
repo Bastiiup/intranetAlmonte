@@ -604,6 +604,10 @@ export default function ImportacionCompletaModal({
       console.log(`[Importación Completa] 🚀 Iniciando procesamiento de ${gruposArray.length} grupos...`)
       let procesados = 0
 
+      // Mapa para cachear cursos ya procesados: clave = colegioId|nombreCurso|nivel|grado|año -> cursoId
+      // Esto evita duplicar cursos cuando el mismo curso aparece con diferentes asignaturas/PDFs
+      const cursosProcesadosMap = new Map<string, number | string>()
+
       // Procesar cada grupo (colegio + curso + asignatura + lista) en orden
       for (const grupo of gruposArray) {
         const progreso = Math.round((procesados / gruposArray.length) * 100)
@@ -818,6 +822,12 @@ export default function ImportacionCompletaModal({
                 tipoCursoId: typeof cursoId,
               })
               console.log(`[Importación Completa] 📋 Respuesta completa de creación:`, JSON.stringify(createCursoResult, null, 2))
+              
+              // Guardar en el mapa para reutilizar en siguientes grupos con el mismo curso
+              if (cursoId) {
+                cursosProcesadosMap.set(cursoKey, cursoId)
+                console.log(`[Importación Completa] 💾 Curso guardado en mapa de cache (clave: ${cursoKey}) para reutilización`)
+              }
               
               // Esperar un momento para que Strapi procese el curso recién creado
               // Aumentar el tiempo de espera para dar más tiempo a Strapi
