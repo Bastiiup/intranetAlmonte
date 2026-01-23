@@ -1148,11 +1148,12 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
           onSuccess={handleModalSuccess}
         />
 
-        <ImportacionMasivaColegiosModal
+        {/* Ocultado: Modal de Importación Masiva de Colegios */}
+        {/* <ImportacionMasivaColegiosModal
           show={showImportColegiosModal}
           onHide={() => setShowImportColegiosModal(false)}
           onSuccess={handleModalSuccess}
-        />
+        /> */}
 
         <ImportacionCompletaModal
           show={showImportCompletaModal}
