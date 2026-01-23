@@ -113,8 +113,8 @@ export default function ImportacionCompletaModal({
     // Guardar referencias originales solo si no están ya guardadas
     if (!(window as any).__importacionCompletaOriginalLog) {
       (window as any).__importacionCompletaOriginalLog = console.log
-      (window as any).__importacionCompletaOriginalError = console.error
-      (window as any).__importacionCompletaOriginalWarn = console.warn
+      ;(window as any).__importacionCompletaOriginalError = console.error as (...args: any[]) => void
+      ;(window as any).__importacionCompletaOriginalWarn = console.warn
     }
 
     const originalLog = (window as any).__importacionCompletaOriginalLog
