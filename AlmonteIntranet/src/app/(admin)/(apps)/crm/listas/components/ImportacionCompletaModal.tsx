@@ -53,6 +53,11 @@ interface ImportRow {
   Libro_cantidad?: number
   Libro_observaciones?: string
   Libro_mes_uso?: string
+  nivel?: string
+  grado?: number
+  Nivel?: string
+  Grado?: number
+  [key: string]: any // Permitir propiedades dinámicas adicionales
 }
 
 interface AgrupadoPorLista {
