@@ -1854,12 +1854,15 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                   <div style={{ flex: 1 }}>
                     {versionesOrdenadas.length > 1 ? (
                       <div className="mb-2">
-                        <Form.Label className="mb-1 fw-bold">Seleccionar Lista de Materiales:</Form.Label>
-                        <Form.Select
-                          value={versionSeleccionada !== null ? versionSeleccionada : 0}
-                          onChange={(e) => cambiarVersion(parseInt(e.target.value, 10))}
-                          style={{ maxWidth: '400px' }}
-                        >
+                        <div className="d-flex align-items-center gap-3 mb-2">
+                          <div style={{ flex: 1 }}>
+                            <Form.Label className="mb-1 fw-bold">Seleccionar Lista de Materiales:</Form.Label>
+                            <Form.Select
+                              value={versionSeleccionada !== null ? versionSeleccionada : 0}
+                              onChange={(e) => cambiarVersion(parseInt(e.target.value, 10))}
+                              style={{ maxWidth: '400px' }}
+                              disabled={mostrarTodosLosProductos}
+                            >
                           {versionesOrdenadas.map((version: any, index: number) => {
                             const fecha = version.fecha_subida || version.fecha_actualizacion
                             const fechaFormateada = fecha 
@@ -1881,7 +1884,27 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                               </option>
                             )
                           })}
-                        </Form.Select>
+                            </Form.Select>
+                          </div>
+                          <div className="mt-4">
+                            <FormCheck
+                              type="switch"
+                              id="mostrar-todos-productos"
+                              label="Ver todos los productos juntos"
+                              checked={mostrarTodosLosProductos}
+                              onChange={(e) => {
+                                setMostrarTodosLosProductos(e.target.checked)
+                                // Recargar productos cuando cambia el switch
+                                setTimeout(() => cargarProductos(true), 100)
+                              }}
+                            />
+                          </div>
+                        </div>
+                        {mostrarTodosLosProductos && (
+                          <Alert variant="info" className="mb-2" style={{ fontSize: '0.875rem' }}>
+                            <strong>📋 Vista combinada:</strong> Mostrando todos los productos de todas las versiones ({versionesOrdenadas.reduce((total: number, v: any) => total + (v.materiales?.length || 0), 0)} productos en total)
+                          </Alert>
+                        )}
                       </div>
                     ) : null}
                     <h5 className="mb-1">
