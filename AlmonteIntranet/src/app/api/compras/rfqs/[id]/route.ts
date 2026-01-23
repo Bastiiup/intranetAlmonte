@@ -192,13 +192,31 @@ export async function PUT(
     }, { status: 200 })
   } catch (error: any) {
     console.error('[API /compras/rfqs/[id] PUT] Error:', error)
+    
+    // Manejar errores de Strapi
+    let errorMessage = error.message || 'Error al actualizar RFQ'
+    let statusCode = error.status || 500
+    
+    if (error.status === 404) {
+      errorMessage = 'El content type "rfqs" no existe en Strapi. Por favor, créalo primero según la documentación en docs/crm/STRAPI-SCHEMA-COMPRAS-PROVEEDORES.md'
+      statusCode = 404
+    } else if (error.response?.data) {
+      // Intentar extraer mensaje de error de Strapi
+      const strapiError = error.response.data
+      if (strapiError.error?.message) {
+        errorMessage = strapiError.error.message
+      } else if (typeof strapiError === 'string') {
+        errorMessage = strapiError
+      }
+    }
+    
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Error al actualizar RFQ',
-        status: error.status || 500,
+        error: errorMessage,
+        status: statusCode,
       },
-      { status: error.status || 500 }
+      { status: statusCode }
     )
   }
 }
@@ -227,13 +245,31 @@ export async function DELETE(
     }, { status: 200 })
   } catch (error: any) {
     console.error('[API /compras/rfqs/[id] DELETE] Error:', error)
+    
+    // Manejar errores de Strapi
+    let errorMessage = error.message || 'Error al eliminar RFQ'
+    let statusCode = error.status || 500
+    
+    if (error.status === 404) {
+      errorMessage = 'El content type "rfqs" no existe en Strapi. Por favor, créalo primero según la documentación en docs/crm/STRAPI-SCHEMA-COMPRAS-PROVEEDORES.md'
+      statusCode = 404
+    } else if (error.response?.data) {
+      // Intentar extraer mensaje de error de Strapi
+      const strapiError = error.response.data
+      if (strapiError.error?.message) {
+        errorMessage = strapiError.error.message
+      } else if (typeof strapiError === 'string') {
+        errorMessage = strapiError
+      }
+    }
+    
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Error al eliminar RFQ',
-        status: error.status || 500,
+        error: errorMessage,
+        status: statusCode,
       },
-      { status: error.status || 500 }
+      { status: statusCode }
     )
   }
 }
