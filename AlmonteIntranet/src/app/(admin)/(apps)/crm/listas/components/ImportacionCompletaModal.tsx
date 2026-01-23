@@ -478,7 +478,7 @@ export default function ImportacionCompletaModal({
                 datosCompletos: colegioDatosCompletos, // Guardar datos completos para uso posterior
               },
               curso: {
-                nombre: row.Curso,
+                nombre: row.Curso || '',
                 año: row.Año_curso,
                 orden: row.Orden_curso,
               },
