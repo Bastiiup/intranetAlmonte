@@ -766,26 +766,38 @@ export default function ImportacionCompletaModal({
           const nivel = nivelMatch ? (nivelMatch[0].toLowerCase().includes('basica') ? 'Basica' : 'Media') : 'Basica'
           const grado = gradoMatch ? parseInt(gradoMatch[1]) : 1
 
-          const cursosResponse = await fetch(`/api/crm/colegios/${colegioId}/cursos`)
-          const cursosResult = await cursosResponse.json()
+          // Crear clave única para el curso: colegioId|nombreCurso|nivel|grado|año
+          // Esto permite reutilizar el mismo curso cuando aparece con diferentes asignaturas/PDFs
+          const cursoKey = `${colegioId}|${grupo.curso.nombre.toLowerCase().trim()}|${nivel}|${grado}|${grupo.curso.año || new Date().getFullYear()}`
           
-          let cursoId: number | string | null = null
+          // Verificar si ya procesamos este curso en un grupo anterior
+          let cursoId: number | string | null = cursosProcesadosMap.get(cursoKey) || null
           
-          if (cursosResult.success && Array.isArray(cursosResult.data)) {
-            const cursoExistente = cursosResult.data.find((curso: any) => {
-              const attrs = curso.attributes || curso
-              return (
-                (attrs.nombre_curso || '').toLowerCase().trim() === grupo.curso.nombre.toLowerCase().trim() &&
-                attrs.nivel === nivel &&
-                String(attrs.grado || '') === String(grado) &&
-                (attrs.año || 0) === (grupo.curso.año || 0)
-              )
-            })
+          if (cursoId) {
+            console.log(`[Importación Completa] ♻️ Reutilizando curso ya procesado: ${grupo.curso.nombre} (ID: ${cursoId})`)
+          } else {
+            // Buscar curso existente en Strapi
+            const cursosResponse = await fetch(`/api/crm/colegios/${colegioId}/cursos`)
+            const cursosResult = await cursosResponse.json()
             
-            if (cursoExistente) {
-              // Priorizar documentId sobre id numérico (Strapi v5 usa documentId)
-              cursoId = cursoExistente.documentId || cursoExistente.id
-              console.log(`[Importación Completa] ✅ Curso existente encontrado. ID: ${cursoId} (documentId: ${cursoExistente.documentId}, id: ${cursoExistente.id})`)
+            if (cursosResult.success && Array.isArray(cursosResult.data)) {
+              const cursoExistente = cursosResult.data.find((curso: any) => {
+                const attrs = curso.attributes || curso
+                return (
+                  (attrs.nombre_curso || '').toLowerCase().trim() === grupo.curso.nombre.toLowerCase().trim() &&
+                  attrs.nivel === nivel &&
+                  String(attrs.grado || '') === String(grado) &&
+                  (attrs.año || 0) === (grupo.curso.año || 0)
+                )
+              })
+              
+              if (cursoExistente) {
+                // Priorizar documentId sobre id numérico (Strapi v5 usa documentId)
+                cursoId = cursoExistente.documentId || cursoExistente.id
+                // Guardar en el mapa para reutilizar en siguientes grupos
+                cursosProcesadosMap.set(cursoKey, cursoId)
+                console.log(`[Importación Completa] ✅ Curso existente encontrado. ID: ${cursoId} (documentId: ${cursoExistente.documentId}, id: ${cursoExistente.id})`)
+              }
             }
           }
 
