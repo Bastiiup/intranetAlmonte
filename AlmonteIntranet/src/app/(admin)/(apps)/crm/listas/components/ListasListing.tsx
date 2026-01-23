@@ -918,9 +918,16 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                     table.getColumn('colegio')?.setFilterValue(value === '' ? undefined : value)
                   }}>
                   <option value="">Todos los Colegios</option>
-                  {Array.from(new Set(data.map(l => l.colegio?.nombre).filter(Boolean))).sort().map((nombre) => (
-                    <option key={nombre} value={nombre}>{nombre}</option>
-                  ))}
+                  {Array.from(new Set(data.map(l => l.colegio?.nombre).filter(Boolean))).sort().map((nombre) => {
+                    // Contar listas por colegio en los datos filtrados actuales
+                    const filteredRows = table.getFilteredRowModel().rows
+                    const count = filteredRows.filter(row => row.original.colegio?.nombre === nombre).length
+                    return (
+                      <option key={nombre} value={nombre}>
+                        {nombre} {count > 0 ? `(${count} ${count === 1 ? 'lista' : 'listas'})` : ''}
+                      </option>
+                    )
+                  })}
                 </select>
               </div>
 
