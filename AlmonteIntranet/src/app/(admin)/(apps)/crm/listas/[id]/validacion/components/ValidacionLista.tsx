@@ -225,7 +225,7 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
       
       console.log('[ValidacionLista] Materiales encontrados:', {
         totalVersiones: versiones.length,
-        ultimaVersion: ultimaVersion ? 'sí' : 'no',
+        versionParaUsar: versionParaUsar ? 'sí' : 'no',
         totalMateriales: materiales.length,
         materiales: materiales.slice(0, 3).map((m: any) => ({
           nombre: m.nombre,
