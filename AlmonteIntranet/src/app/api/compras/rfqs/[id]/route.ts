@@ -139,8 +139,10 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let id: string | undefined
   try {
-    const { id } = await params
+    const paramsResolved = await params
+    id = paramsResolved.id
     const body = await request.json()
     
     const updateData: any = {
@@ -231,7 +233,7 @@ export async function PUT(
     
     if (error.status === 404) {
       // Un 404 puede significar que la RFQ no se encontró con ese ID, no necesariamente que el content type no existe
-      errorMessage = `RFQ no encontrada con ID: ${id}. Verifica que el ID sea correcto (puede ser id numérico o documentId).`
+      errorMessage = `RFQ no encontrada con ID: ${id ?? 'desconocido'}. Verifica que el ID sea correcto (puede ser id numérico o documentId).`
       statusCode = 404
     } else if (error.response?.data) {
       // Intentar extraer mensaje de error de Strapi
@@ -262,8 +264,10 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let id: string | undefined
   try {
-    const { id } = await params
+    const paramsResolved = await params
+    id = paramsResolved.id
     
     // Soft delete: marcar como inactiva
     try {
@@ -328,7 +332,7 @@ export async function DELETE(
     
     if (error.status === 404) {
       // Un 404 puede significar que la RFQ no se encontró con ese ID, no necesariamente que el content type no existe
-      errorMessage = `RFQ no encontrada con ID: ${id}. Verifica que el ID sea correcto (puede ser id numérico o documentId).`
+      errorMessage = `RFQ no encontrada con ID: ${id ?? 'desconocido'}. Verifica que el ID sea correcto (puede ser id numérico o documentId).`
       statusCode = 404
     } else if (error.response?.data) {
       // Intentar extraer mensaje de error de Strapi
