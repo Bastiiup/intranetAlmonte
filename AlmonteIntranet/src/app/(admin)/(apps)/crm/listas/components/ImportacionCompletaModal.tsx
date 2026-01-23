@@ -422,8 +422,9 @@ export default function ImportacionCompletaModal({
               grado = parseInt(String(row.grado || row.Grado)) || 1
             } else {
               // Extraer del nombre del curso
-              const gradoMatch = row.Curso.match(/(\d+)/)
-              if (gradoMatch) {
+              if (row.Curso) {
+                const gradoMatch = row.Curso.match(/(\d+)/)
+                if (gradoMatch) {
                 grado = parseInt(gradoMatch[1]) || 1
               }
             }
