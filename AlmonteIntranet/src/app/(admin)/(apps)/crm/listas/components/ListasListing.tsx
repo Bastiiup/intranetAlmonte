@@ -1064,26 +1064,30 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               <Button variant="primary" onClick={() => setShowModal(true)}>
                 <LuPlus className="fs-sm me-2" /> Agregar Lista
               </Button>
-              <Button variant="outline-primary" onClick={() => setShowImportColegiosModal(true)}>
+              {/* Ocultado: Importar Colegios y Cursos */}
+              {/* <Button variant="outline-primary" onClick={() => setShowImportColegiosModal(true)}>
                 <LuUpload className="fs-sm me-2" /> Importar Colegios y Cursos
-              </Button>
-              <Link href="/crm/listas/importacion-completa-logs" className="btn btn-outline-info me-2">
+              </Button> */}
+              {/* Ocultado: Logs Importación */}
+              {/* <Link href="/crm/listas/importacion-completa-logs" className="btn btn-outline-info me-2">
                 <LuFileCode className="me-1" />
                 Logs Importación
-              </Link>
+              </Link> */}
               <Button variant="outline-success" onClick={() => setShowImportCompletaModal(true)}>
                 <LuUpload className="fs-sm me-2" /> Importación Completa (Plantilla)
               </Button>
-              <Link href="/crm/listas/logs">
+              {/* Ocultado: Ver Logs */}
+              {/* <Link href="/crm/listas/logs">
                 <Button variant="outline-info" title="Ver logs de procesamiento">
                   <LuFileCode className="fs-sm me-2" /> Ver Logs
                 </Button>
-              </Link>
-              <Link href="/crm/listas/importacion-completa-logs">
+              </Link> */}
+              {/* Ocultado: Logs Importación Completa */}
+              {/* <Link href="/crm/listas/importacion-completa-logs">
                 <Button variant="outline-warning" title="Ver logs de importación completa">
                   <LuFileCode className="fs-sm me-2" /> Logs Importación Completa
                 </Button>
-              </Link>
+              </Link> */}
             </div>
           </CardHeader>
 
