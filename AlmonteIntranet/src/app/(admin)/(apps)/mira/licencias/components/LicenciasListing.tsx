@@ -155,7 +155,7 @@ export default function LicenciasListing({ licencias: licenciasProp, error }: Li
       id: 'estudiante',
       header: 'Estudiante',
       accessorFn: (row) => {
-        const persona = row.original.estudiante?.persona
+        const persona = row.estudiante?.persona
         if (!persona) return ''
         return `${persona.nombres} ${persona.primer_apellido} ${persona.segundo_apellido || ''}`.trim()
       },
