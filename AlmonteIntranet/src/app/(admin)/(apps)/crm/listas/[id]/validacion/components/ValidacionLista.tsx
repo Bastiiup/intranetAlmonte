@@ -354,7 +354,7 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lista?.id, lista?.versiones_materiales?.length])
+  }, [lista?.id, lista?.versiones_materiales?.length, mostrarTodosLosProductos])
 
   // Función para procesar PDF con Gemini AI
   const procesarPDFConGemini = async () => {
