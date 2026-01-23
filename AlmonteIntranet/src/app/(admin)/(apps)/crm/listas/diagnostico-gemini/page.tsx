@@ -38,7 +38,7 @@ export default function DiagnosticoGeminiPage() {
 
   return (
     <>
-      <PageBreadcrumb title="Diagnóstico de Gemini AI" subName="CRM" />
+      <PageBreadcrumb title="Diagnóstico de Gemini AI" subtitle="CRM" />
       
       <div className="container-fluid">
         <Card>

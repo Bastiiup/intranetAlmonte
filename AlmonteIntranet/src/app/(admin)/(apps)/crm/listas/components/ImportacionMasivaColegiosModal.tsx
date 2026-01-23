@@ -217,10 +217,12 @@ export default function ImportacionMasivaColegiosModal({
                 colegioId = nuevoColegio.id || nuevoColegio.documentId
                 
                 // Actualizar mapas
-                colegiosMap.set(colegioId, { id: colegioId, nombre: nombreColegio, rbd: rbdNum })
-                colegiosByRBD.set(rbdNum, { id: colegioId, nombre: nombreColegio })
-                const normalizedName = nombreColegio.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                colegiosByName.set(normalizedName, { id: colegioId, nombre: nombreColegio, rbd: rbdNum })
+                if (colegioId) {
+                  colegiosMap.set(colegioId, { id: colegioId, nombre: nombreColegio, rbd: rbdNum })
+                  colegiosByRBD.set(rbdNum, { id: colegioId, nombre: nombreColegio })
+                  const normalizedName = nombreColegio.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                  colegiosByName.set(normalizedName, { id: colegioId, nombre: nombreColegio, rbd: rbdNum })
+                }
               } else {
                 results.push({
                   success: false,
@@ -298,8 +300,8 @@ export default function ImportacionMasivaColegiosModal({
             success: true,
             message: `Curso "${row.nombre_curso}" procesado correctamente`,
             rowIndex: i,
-            colegioId,
-            cursoId,
+            colegioId: colegioId || undefined,
+            cursoId: cursoId || undefined,
           })
 
         } catch (err: any) {

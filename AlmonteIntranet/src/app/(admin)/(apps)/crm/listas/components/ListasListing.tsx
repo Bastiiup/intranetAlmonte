@@ -1164,7 +1164,6 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               recargarListas()
             }, 3000)
           }}
-          onSuccess={handleModalSuccess}
         />
       </Col>
     </Row>

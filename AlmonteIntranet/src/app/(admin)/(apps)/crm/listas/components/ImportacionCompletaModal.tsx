@@ -483,11 +483,11 @@ export default function ImportacionCompletaModal({
                 orden: row.Orden_curso,
               },
               asignatura: {
-                nombre: row.Asignatura,
+                nombre: row.Asignatura || '',
                 orden: row.Orden_asignatura,
               },
               lista: {
-                nombre: listaNombre,
+                nombre: listaNombre || '',
                 año: row.Año_lista || row.Año_curso,
                 fecha_actualizacion: row.Fecha_actualizacion,
                 fecha_publicacion: row.Fecha_publicacion,
@@ -621,7 +621,7 @@ export default function ImportacionCompletaModal({
           let colegioExistente: any = null
           
           // Prioridad 1: Buscar por RBD (más confiable)
-          if (grupo.colegio.rbd !== null && grupo.colegio.rbd !== undefined && grupo.colegio.rbd !== '') {
+          if (grupo.colegio.rbd !== null && grupo.colegio.rbd !== undefined) {
             const rbdNum = Number(grupo.colegio.rbd)
             if (!isNaN(rbdNum)) {
               const colegio = colegiosMap.get(rbdNum)
@@ -707,23 +707,27 @@ export default function ImportacionCompletaModal({
                 colegioId = nuevoColegio.id || nuevoColegio.documentId
                 
                 // Guardar datos completos del nuevo colegio
-                colegiosCompletosMap.set(colegioId, nuevoColegio)
+                if (colegioId) {
+                  colegiosCompletosMap.set(colegioId, nuevoColegio)
+                }
                 
                 // Agregar a ambos mapas para futuras búsquedas
-                if (grupo.colegio.rbd) {
+                if (grupo.colegio.rbd && colegioId) {
                   const rbdNum = Number(grupo.colegio.rbd)
                   if (!isNaN(rbdNum)) {
                     colegiosMap.set(rbdNum, { id: colegioId, nombre: grupo.colegio.nombre, datosCompletos: nuevoColegio })
                   }
                 }
                 
-                const normalizedName = grupo.colegio.nombre
-                  .toLowerCase()
-                  .trim()
-                  .replace(/\s+/g, ' ')
-                  .normalize('NFD')
-                  .replace(/[\u0300-\u036f]/g, '')
-                colegiosByName.set(normalizedName, { id: colegioId, nombre: grupo.colegio.nombre, rbd: grupo.colegio.rbd, datosCompletos: nuevoColegio })
+                if (colegioId) {
+                  const normalizedName = grupo.colegio.nombre
+                    .toLowerCase()
+                    .trim()
+                    .replace(/\s+/g, ' ')
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                  colegiosByName.set(normalizedName, { id: colegioId, nombre: grupo.colegio.nombre, rbd: grupo.colegio.rbd, datosCompletos: nuevoColegio })
+                }
                 
                 results.push({
                   success: true,
@@ -1638,7 +1642,8 @@ export default function ImportacionCompletaModal({
                               accept=".pdf"
                               size="sm"
                               onChange={(e) => {
-                                const file = e.target.files?.[0] || null
+                                const target = e.target as HTMLInputElement
+                                const file = target.files?.[0] || null
                                 handlePDFUpload(grupoKey, file)
                               }}
                             />

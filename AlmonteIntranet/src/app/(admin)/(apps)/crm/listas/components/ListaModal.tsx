@@ -317,7 +317,9 @@ export default function ListaModal({ show, onHide, lista, onSuccess }: ListaModa
                       const label = option.label.toLowerCase()
                       const search = searchText.toLowerCase()
                       // Buscar por nombre o RBD
-                      return label.includes(search) || (option.data?.rbd && String(option.data.rbd).includes(search))
+                      const matchNombre = label.includes(search)
+                      const matchRBD = option.data?.rbd ? String(option.data.rbd).includes(search) : false
+                      return matchNombre || matchRBD
                     }}
                     noOptionsMessage={({ inputValue }) => 
                       inputValue ? `No se encontró colegio con "${inputValue}". Puede crear uno nuevo desde el módulo de Colegios.` : 'No hay colegios disponibles'
