@@ -29,14 +29,15 @@ export async function GET(
           rfq = response.data
         }
       } catch (populateError: any) {
-        // Si falla por error de populate (como comuna), intentar sin populatear empresas completamente
-        // Solo populatear emails que es lo que realmente necesitamos
+        // Si falla por error de populate (como comuna), intentar con populate específico
+        // Traer campos básicos de empresas y emails, pero evitar populatear comuna
         const errorMessage = populateError.message || populateError.response?.data?.error?.message || ''
         const errorDetails = populateError.response?.data?.error?.details || {}
         if (populateError.status === 400 && (errorMessage.includes('comuna') || errorDetails.path?.includes('comuna'))) {
-          console.warn('[API /compras/rfqs/[id] GET] Error con populate completo, intentando populate simplificado')
+          console.warn('[API /compras/rfqs/[id] GET] Error con populate completo, intentando populate específico sin comuna')
+          // Usar populate específico: traer empresas con sus campos básicos y emails, pero sin comuna
           const response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-            `/api/rfqs/${id}?populate[empresas][populate][emails]=true&populate[productos]=true&populate[creado_por][populate][persona]=true&populate[cotizaciones_recibidas][populate][empresa][populate][emails]=true&populate[cotizaciones_recibidas][populate][contacto_responsable]=true`
+            `/api/rfqs/${id}?populate[empresas][fields][0]=empresa_nombre&populate[empresas][fields][1]=nombre&populate[empresas][fields][2]=rut&populate[empresas][populate][emails]=true&populate[productos]=true&populate[creado_por][populate][persona]=true&populate[cotizaciones_recibidas][populate][empresa][fields][0]=empresa_nombre&populate[cotizaciones_recibidas][populate][empresa][fields][1]=nombre&populate[cotizaciones_recibidas][populate][empresa][populate][emails]=true&populate[cotizaciones_recibidas][populate][contacto_responsable]=true`
           )
           
           if (response.data) {
@@ -86,16 +87,21 @@ export async function GET(
             }
           }
         } catch (filterError: any) {
-          // Si falla por error de populate (como comuna), intentar sin populatear empresas completamente
+          // Si falla por error de populate (como comuna), intentar con populate específico
           const filterErrorMessage = filterError.message || filterError.response?.data?.error?.message || ''
           const filterErrorDetails = filterError.response?.data?.error?.details || {}
           if (filterError.status === 400 && (filterErrorMessage.includes('comuna') || filterErrorDetails.path?.includes('comuna'))) {
-            console.warn('[API /compras/rfqs/[id] GET] Error con populate completo en filtro, intentando populate simplificado')
+            console.warn('[API /compras/rfqs/[id] GET] Error con populate completo en filtro, intentando populate específico sin comuna')
             const simpleFilterParams = new URLSearchParams({
               ...(isDocumentId ? { 'filters[documentId][$eq]': id } : { 'filters[id][$eq]': id.toString() }),
+              'populate[empresas][fields][0]': 'empresa_nombre',
+              'populate[empresas][fields][1]': 'nombre',
+              'populate[empresas][fields][2]': 'rut',
               'populate[empresas][populate][emails]': 'true',
               'populate[productos]': 'true',
               'populate[creado_por][populate][persona]': 'true',
+              'populate[cotizaciones_recibidas][populate][empresa][fields][0]': 'empresa_nombre',
+              'populate[cotizaciones_recibidas][populate][empresa][fields][1]': 'nombre',
               'populate[cotizaciones_recibidas][populate][empresa][populate][emails]': 'true',
               'populate[cotizaciones_recibidas][populate][contacto_responsable]': 'true',
             })

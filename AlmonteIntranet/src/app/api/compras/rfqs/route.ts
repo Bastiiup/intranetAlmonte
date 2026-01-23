@@ -18,12 +18,18 @@ export async function GET(request: NextRequest) {
     const estado = searchParams.get('estado') || ''
     const empresaId = searchParams.get('empresaId') || ''
     
+    // Usar populate específico para evitar errores con comuna en empresas
+    // Traer campos básicos de empresas y emails, pero evitar populatear comuna
     const params = new URLSearchParams({
       'pagination[page]': page,
       'pagination[pageSize]': pageSize,
       'sort[0]': 'createdAt:desc',
-      'populate[empresas]': 'true',
-      'populate[productos]': 'true',
+      'populate[empresas][fields][0]': 'empresa_nombre',
+      'populate[empresas][fields][1]': 'nombre',
+      'populate[empresas][populate][emails]': 'true',
+      'populate[productos][fields][0]': 'nombre_libro',
+      'populate[productos][fields][1]': 'nombre',
+      'populate[productos][fields][2]': 'sku',
       'populate[creado_por][populate][persona]': 'true',
       'populate[cotizaciones_recibidas]': 'true',
     })
