@@ -51,8 +51,9 @@ export async function createPOFromCotizacion(
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
     // Obtener cotización recibida con relaciones
+    // En Strapi v5, populates anidados profundos deben usar '*' en lugar de 'true'
     const cotizacionResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-      `/api/cotizaciones-recibidas/${cotizacionRecibidaId}?populate[rfq]=true&populate[empresa][populate][datos_facturacion]=true&populate[empresa][populate][emails]=true`
+      `/api/cotizaciones-recibidas/${cotizacionRecibidaId}?populate[rfq]=true&populate[empresa]=*`
     )
     
     if (!cotizacionResponse.data) {

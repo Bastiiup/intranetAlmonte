@@ -19,8 +19,9 @@ export async function GET(
     
     // Intentar primero con el endpoint directo
     try {
+      // En Strapi v5, populates anidados profundos deben usar '*' en lugar de 'true'
       const response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-        `/api/rfqs/${id}?populate[empresas][populate][emails]=true&populate[productos]=true&populate[creado_por][populate][persona]=true&populate[cotizaciones_recibidas][populate][empresa]=true&populate[cotizaciones_recibidas][populate][contacto_responsable]=true`
+        `/api/rfqs/${id}?populate[empresas]=*&populate[productos]=true&populate[creado_por][populate][persona]=*&populate[cotizaciones_recibidas][populate][empresa]=*&populate[cotizaciones_recibidas][populate][contacto_responsable]=*`
       )
       
       if (response.data) {
@@ -35,20 +36,20 @@ export async function GET(
         if (isDocumentId) {
           filterParams = new URLSearchParams({
             'filters[documentId][$eq]': id,
-            'populate[empresas][populate][emails]': 'true',
+            'populate[empresas]': '*',
             'populate[productos]': 'true',
-            'populate[creado_por][populate][persona]': 'true',
-            'populate[cotizaciones_recibidas][populate][empresa]': 'true',
-            'populate[cotizaciones_recibidas][populate][contacto_responsable]': 'true',
+            'populate[creado_por][populate][persona]': '*',
+            'populate[cotizaciones_recibidas][populate][empresa]': '*',
+            'populate[cotizaciones_recibidas][populate][contacto_responsable]': '*',
           })
         } else {
           filterParams = new URLSearchParams({
             'filters[id][$eq]': id.toString(),
-            'populate[empresas][populate][emails]': 'true',
+            'populate[empresas]': '*',
             'populate[productos]': 'true',
-            'populate[creado_por][populate][persona]': 'true',
-            'populate[cotizaciones_recibidas][populate][empresa]': 'true',
-            'populate[cotizaciones_recibidas][populate][contacto_responsable]': 'true',
+            'populate[creado_por][populate][persona]': '*',
+            'populate[cotizaciones_recibidas][populate][empresa]': '*',
+            'populate[cotizaciones_recibidas][populate][contacto_responsable]': '*',
           })
         }
         

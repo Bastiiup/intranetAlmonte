@@ -15,8 +15,9 @@ export async function GET(
   try {
     const { id } = await params
     
+    // En Strapi v5, populates anidados profundos deben usar '*' en lugar de 'true'
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-      `/api/ordenes-compra/${id}?populate[empresa]=true&populate[cotizacion_recibida][populate][rfq]=true&populate[creado_por][populate][persona]=true&populate[factura]=true&populate[orden_despacho]=true`
+      `/api/ordenes-compra/${id}?populate[empresa]=true&populate[cotizacion_recibida][populate][rfq]=*&populate[creado_por][populate][persona]=*&populate[factura]=true&populate[orden_despacho]=true`
     )
     
     if (!response.data) {

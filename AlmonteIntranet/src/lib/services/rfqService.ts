@@ -228,8 +228,9 @@ export async function sendRFQToProviders(
 ): Promise<{ success: boolean; resultados: Array<{ empresa: string; success: boolean; error?: string }>; error?: string }> {
   try {
     // Obtener RFQ con relaciones
+    // En Strapi v5, populates anidados profundos deben usar '*' en lugar de 'true'
     const rfqResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-      `/api/rfqs/${rfqId}?populate[empresas][populate][emails]=true&populate[productos]=true&populate[creado_por][populate][persona]=true`
+      `/api/rfqs/${rfqId}?populate[empresas]=*&populate[productos]=true&populate[creado_por][populate][persona]=*`
     )
     
     if (!rfqResponse.data) {

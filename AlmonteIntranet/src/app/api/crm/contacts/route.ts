@@ -112,17 +112,14 @@ export async function GET(request: Request) {
     
     // Nivel 2: Trayectorias con populate completo del colegio
     // ⚠️ IMPORTANTE: Necesitamos traer todos los datos del colegio para mostrar en la tabla
+    // En Strapi v5, los populates anidados profundos deben usar '*' o un objeto
     params.append('populate[trayectorias]', 'true')
-    params.append('populate[trayectorias][populate][colegio]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][comuna]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][telefonos]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][emails]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][direcciones]', 'true')
+    params.append('populate[trayectorias][populate][colegio]', '*')
     // Nota: website es un campo directo, se trae automáticamente con populate[colegio]
     
     // Nivel 3: Empresa contactos con populate de empresa (necesario para filtrar por tipo)
     params.append('populate[empresa_contactos]', 'true')
-    params.append('populate[empresa_contactos][populate][empresa]', 'true')
+    params.append('populate[empresa_contactos][populate][empresa]', '*')
 
     // Filtros - Remover filtro de activo si causa problemas
     // params.append('filters[activo][$eq]', 'true')
