@@ -1,4 +1,8 @@
 /**
+ * @jest-environment node
+ */
+
+/**
  * Pruebas de integración para /api/woocommerce/customers/[id]
  */
 

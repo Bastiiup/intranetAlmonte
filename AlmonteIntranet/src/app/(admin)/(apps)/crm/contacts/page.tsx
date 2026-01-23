@@ -619,12 +619,8 @@ const Contacts = () => {
     )
   }
 
-  const pageTitle = tipoContacto === 'colegio' ? 'Contactos de Colegios' : tipoContacto === 'empresa' ? 'Contactos de Empresas' : 'Contactos'
-  const pageInfo = tipoContacto === 'colegio' 
-    ? "Contactos relacionados con colegios. Aquí puedes gestionar toda la información de contacto de personas asociadas a instituciones educativas."
-    : tipoContacto === 'empresa'
-    ? "Contactos relacionados con empresas. Aquí puedes gestionar toda la información de contacto de personas asociadas a empresas proveedoras."
-    : "Los Contactos son personas o instituciones con las que tu empresa tiene relación. Aquí puedes gestionar toda la información de contacto, incluyendo emails, teléfonos, direcciones y datos adicionales. Los contactos pueden estar relacionados con colegios, personas o ser independientes."
+  const pageTitle = 'Contactos'
+  const pageInfo = "Los Contactos son personas o instituciones con las que tu empresa tiene relación. Aquí puedes gestionar toda la información de contacto, incluyendo emails, teléfonos, direcciones y datos adicionales. Los contactos pueden estar relacionados con colegios, empresas o ser independientes."
 
   return (
     <Container fluid>

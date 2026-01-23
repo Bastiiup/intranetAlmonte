@@ -15,8 +15,8 @@ import {
 import Link from 'next/link'
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Button, Card, CardFooter, CardHeader, CardBody, Col, Row, Alert, ProgressBar } from 'react-bootstrap'
-import { LuSearch, LuPhone, LuMail, LuUsers, LuPlus, LuTrendingUp, LuShoppingCart } from 'react-icons/lu'
-import { TbEye, TbEdit, TbTrash, TbList, TbArrowUp, TbArrowDown, TbCurrencyDollar } from 'react-icons/tb'
+import { LuSearch, LuPhone, LuMail, LuUsers, LuPlus, LuTrendingUp, LuShoppingCart, LuGlobe, LuBriefcase } from 'react-icons/lu'
+import { TbEye, TbEdit, TbTrash, TbList, TbArrowUp, TbArrowDown, TbCurrencyDollar, TbWorld } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
@@ -207,11 +207,28 @@ const EmpresasListing = ({ empresas: initialEmpresas, error: initialError }: { e
         }
       }
       
-      // Obtener dirección
+      // Obtener dirección - obtener la dirección principal o la primera disponible
       let direccionStr = ''
       if (Array.isArray(data.direcciones) && data.direcciones.length > 0) {
-        const primeraDireccion = data.direcciones[0]
-        direccionStr = `${primeraDireccion.nombre_calle || ''} ${primeraDireccion.numero_calle || ''}`.trim()
+        // Buscar dirección principal primero
+        const direccionPrincipal = data.direcciones.find((d: any) => 
+          d.direccion_principal_envio_facturacion || d.tipo_direccion === 'Principal'
+        ) || data.direcciones[0]
+        
+        const partes = []
+        if (direccionPrincipal.nombre_calle) {
+          partes.push(direccionPrincipal.nombre_calle)
+        }
+        if (direccionPrincipal.numero_calle) {
+          partes.push(direccionPrincipal.numero_calle)
+        }
+        if (direccionPrincipal.complemento_direccion) {
+          partes.push(direccionPrincipal.complemento_direccion)
+        }
+        
+        direccionStr = partes.join(' ').trim()
+        
+        // Si no hay dirección pero hay comuna, usar comuna
         if (!direccionStr && comunaNombre) {
           direccionStr = comunaNombre
         }
@@ -311,21 +328,47 @@ const EmpresasListing = ({ empresas: initialEmpresas, error: initialError }: { e
         const empresa = row.original
         const emails = empresa.emails?.filter(e => e) || []
         const telefonos = empresa.telefonos?.filter(t => t) || []
+        const emailPrincipal = emails[0] || ''
+        const telefonoPrincipal = telefonos[0] || ''
+        
         return (
           <div className="fs-xs">
-            {emails.length > 0 && (
+            {emailPrincipal && (
               <div className="mb-1 d-flex align-items-center">
                 <LuMail className="me-1" size={12} />
-                <span>{emails.join(', ')}</span>
+                <Link href={`mailto:${emailPrincipal}`} className="text-decoration-none">
+                  {emailPrincipal}
+                </Link>
+                {emails.length > 1 && (
+                  <span className="text-muted ms-1">(+{emails.length - 1})</span>
+                )}
               </div>
             )}
-            {telefonos.length > 0 && (
-              <div className="d-flex align-items-center">
+            {telefonoPrincipal && (
+              <div className="mb-1 d-flex align-items-center">
                 <LuPhone className="me-1" size={12} />
-                <span>{telefonos.join(', ')}</span>
+                <Link href={`tel:${telefonoPrincipal}`} className="text-decoration-none">
+                  {telefonoPrincipal}
+                </Link>
+                {telefonos.length > 1 && (
+                  <span className="text-muted ms-1">(+{telefonos.length - 1})</span>
+                )}
               </div>
             )}
-            {emails.length === 0 && telefonos.length === 0 && (
+            {empresa.website && (
+              <div className="d-flex align-items-center">
+                <TbWorld className="me-1" size={12} />
+                <Link 
+                  href={empresa.website.startsWith('http') ? empresa.website : `https://${empresa.website}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-decoration-none"
+                >
+                  {empresa.website.replace(/^https?:\/\//, '')}
+                </Link>
+              </div>
+            )}
+            {emails.length === 0 && telefonos.length === 0 && !empresa.website && (
               <span className="text-muted">-</span>
             )}
           </div>
@@ -342,7 +385,7 @@ const EmpresasListing = ({ empresas: initialEmpresas, error: initialError }: { e
         return (
           <div className="fs-xs">
             {empresa.direccion && (
-              <div>{empresa.direccion}</div>
+              <div className="mb-1">{empresa.direccion}</div>
             )}
             {empresa.comuna && (
               <div className="text-muted">{empresa.comuna}</div>
@@ -355,6 +398,23 @@ const EmpresasListing = ({ empresas: initialEmpresas, error: initialError }: { e
       },
     },
     {
+      id: 'giro',
+      header: 'GIRO',
+      accessorKey: 'giro',
+      filterFn: 'includesString',
+      enableColumnFilter: true,
+      cell: ({ row }) => {
+        const empresa = row.original
+        return empresa.giro ? (
+          <div className="fs-xs">
+            <span>{empresa.giro}</span>
+          </div>
+        ) : (
+          <span className="text-muted">-</span>
+        )
+      },
+    },
+    {
       id: 'region',
       header: 'REGIÓN',
       accessorKey: 'region',
@@ -363,9 +423,32 @@ const EmpresasListing = ({ empresas: initialEmpresas, error: initialError }: { e
       cell: ({ row }) => {
         const empresa = row.original
         return empresa.region ? (
-          <span>{empresa.region}</span>
+          <span className="fs-xs">{empresa.region}</span>
         ) : (
           <span className="text-muted">-</span>
+        )
+      },
+    },
+    {
+      id: 'estado',
+      header: 'ESTADO',
+      accessorKey: 'estado',
+      filterFn: 'includesString',
+      enableColumnFilter: true,
+      cell: ({ row }) => {
+        const empresa = row.original
+        const estado = empresa.estado || 'Activa'
+        const variantMap: Record<string, string> = {
+          'Activa': 'success',
+          'Inactiva': 'secondary',
+          'Pendiente': 'warning',
+          'Suspendida': 'danger',
+        }
+        const variant = variantMap[estado] || 'secondary'
+        return (
+          <span className={`badge badge-soft-${variant}`}>
+            {estado}
+          </span>
         )
       },
     },

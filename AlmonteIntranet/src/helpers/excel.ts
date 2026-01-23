@@ -94,7 +94,7 @@ export async function exportarMaterialesAExcel(
  * @param listaUtiles - Objeto con nombre, nivel, grado y materiales
  * @param nombreArchivo - Nombre del archivo (sin extensión)
  */
-export function exportarListaUtilesAExcel(
+export async function exportarListaUtilesAExcel(
   listaUtiles: {
     nombre: string
     nivel?: string
@@ -114,5 +114,5 @@ export function exportarListaUtilesAExcel(
     ? `${nombre}_${listaUtiles.grado}°_${listaUtiles.nivel}`
     : nombre
 
-  exportarMaterialesAExcel(listaUtiles.materiales, nombreArchivoCompleto)
+  await exportarMaterialesAExcel(listaUtiles.materiales, nombreArchivoCompleto)
 }

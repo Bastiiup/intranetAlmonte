@@ -96,7 +96,11 @@ export async function GET(
       'populate[telefonos]': 'true',
       'populate[imagen]': 'true',
       'populate[tags]': 'true',
-      'populate[trayectorias]': '*', // Usar * para populate completo en Strapi v5
+      'populate[trayectorias]': 'true',
+      'populate[trayectorias][populate][colegio]': 'true',
+      'populate[trayectorias][populate][colegio][populate][comuna]': 'true',
+      'populate[trayectorias][populate][curso]': 'true',
+      'populate[trayectorias][populate][asignatura]': 'true',
     })
     
     // Intentar agregar populate de empresa_contactos (puede no existir en algunos schemas)
@@ -143,7 +147,11 @@ export async function GET(
               'populate[telefonos]': 'true',
               'populate[imagen]': 'true',
               'populate[tags]': 'true',
-              'populate[trayectorias]': '*', // Usar * para populate completo en Strapi v5
+              'populate[trayectorias]': 'true',
+              'populate[trayectorias][populate][colegio]': 'true',
+              'populate[trayectorias][populate][colegio][populate][comuna]': 'true',
+              'populate[trayectorias][populate][curso]': 'true',
+              'populate[trayectorias][populate][asignatura]': 'true',
             })
             try {
               personaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
@@ -197,7 +205,11 @@ export async function GET(
           'populate[telefonos]': 'true',
           'populate[imagen]': 'true',
           'populate[tags]': 'true',
-          'populate[trayectorias]': '*', // Usar * para populate completo en Strapi v5
+          'populate[trayectorias]': 'true',
+          'populate[trayectorias][populate][colegio]': 'true',
+          'populate[trayectorias][populate][colegio][populate][comuna]': 'true',
+          'populate[trayectorias][populate][curso]': 'true',
+          'populate[trayectorias][populate][asignatura]': 'true',
         })
         try {
           personaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
@@ -552,16 +564,54 @@ export async function GET(
       },
     }, { status: 200 })
   } catch (error: any) {
-    console.error('[API /crm/contacts/[id] GET] Error:', {
+    console.error('[API /crm/contacts/[id] GET] Error completo:', {
       message: error.message,
       status: error.status,
       details: error.details,
+      contactId,
+      stack: error.stack,
+      response: error.response?.data || error.response,
     })
+    
+    // Si es un error 404, devolver mensaje más claro
+    if (error.status === 404 || error.message?.includes('not found') || error.message?.includes('no encontrado')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Contacto no encontrado',
+          details: `No se encontró un contacto con el ID: ${contactId}`,
+        },
+        { status: 404 }
+      )
+    }
+    
+    // Si es un error 500, intentar dar más información
+    if (error.status === 500 || !error.status) {
+      const errorMessage = error.message || 'Error interno del servidor'
+      const errorDetails = error.details || error.response?.data || {}
+      
+      console.error('[API /crm/contacts/[id] GET] Error 500 - Detalles:', {
+        errorMessage,
+        errorDetails,
+        contactId,
+      })
+      
+      return NextResponse.json(
+        {
+          success: false,
+          error: errorMessage,
+          details: typeof errorDetails === 'object' ? errorDetails : { message: String(errorDetails) },
+          status: 500,
+        },
+        { status: 500 }
+      )
+    }
+    
     return NextResponse.json(
       {
         success: false,
-        error: 'Error obteniendo contacto',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        error: error.message || 'Error obteniendo contacto',
+        details: error.details || (error instanceof Error ? error.message : 'Unknown error'),
         status: error.status || 500,
       },
       { status: error.status || 500 }

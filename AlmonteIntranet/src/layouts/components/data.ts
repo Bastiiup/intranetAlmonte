@@ -95,32 +95,14 @@ export const userDropdownItems: UserDropdownItemType[] = [
 ]
 
 export const menuItems: MenuItemType[] = [
-  { key: 'dashboards-section', label: 'DASHBOARDS', isTitle: true },
-  {
-    key: 'dashboards',
-    label: 'Dashboards',
-    icon: TbLayoutDashboard,
-    children: [
-      { key: 'dashboard-v1', label: 'Dashboard 1', url: '/dashboard' },
-      { key: 'dashboard-v2', label: 'Dashboard 2', url: '/dashboard2' },
-    ],
-  },
   { key: 'crm-section', label: 'CRM', isTitle: true },
   {
     key: 'crm',
     label: 'CRM',
     icon: LuHandshake,
     children: [
-      { key: 'crm-estimations', label: 'Cotizaciones', url: '/crm/estimations' },
-    ],
-  },
-  {
-    key: 'colegios',
-    label: 'Colegios',
-    icon: LuGraduationCap,
-    children: [
+      { key: 'crm-contacts', label: 'Contactos', url: '/crm/contacts' },
       { key: 'colegios-listing', label: 'Colegios', url: '/crm/colegios' },
-      { key: 'colegios-contacts', label: 'Contactos de Colegios', url: '/crm/contacts/colegios' },
     ],
   },
   {
@@ -142,7 +124,6 @@ export const menuItems: MenuItemType[] = [
     icon: LuShoppingBag,
     children: [
       { key: 'inventario-empresas', label: 'Empresas', url: '/crm/empresas' },
-      { key: 'inventario-contacts', label: 'Contactos de Empresas', url: '/crm/contacts/empresas' },
       { key: 'inventario-rfqs', label: 'Solicitudes de Cotización', url: '/crm/compras/rfqs' },
       { key: 'inventario-cotizaciones-recibidas', label: 'Cotizaciones Recibidas', url: '/crm/compras/cotizaciones' },
       { key: 'inventario-ordenes-compra', label: 'Órdenes de Compra', url: '/crm/compras/ordenes-compra' },
@@ -249,16 +230,6 @@ export const menuItems: MenuItemType[] = [
 
 export const horizontalMenuItems: MenuItemType[] = [
   {
-    key: 'dashboards',
-    label: 'Dashboards',
-    icon: TbLayoutDashboard,
-    children: [
-      { key: 'dashboard-v1', label: 'Dashboard 1', url: '/dashboard' },
-      { key: 'dashboard-v2', label: 'Dashboard 2', url: '/dashboard2' },
-
-    ],
-  },
-  {
     key: 'apps',
     label: 'Apps',
     icon: TbApps,
@@ -334,10 +305,8 @@ export const horizontalMenuItems: MenuItemType[] = [
         label: 'CRM',
         icon: LuHandshake,
         children: [
-          { key: 'crm-contacts-colegios', label: 'Contactos de Colegios', url: '/crm/contacts/colegios' },
-          { key: 'crm-contacts-empresas', label: 'Contactos de Empresas', url: '/crm/contacts/empresas' },
+          { key: 'crm-contacts', label: 'Contactos', url: '/crm/contacts' },
           { key: 'crm-colegios', label: 'Colegios', url: '/crm/colegios' },
-          { key: 'crm-estimations', label: 'Cotizaciones', url: '/crm/estimations' },
         ],
       },
       {

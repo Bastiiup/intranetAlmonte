@@ -1,4 +1,7 @@
 /**
+ * @jest-environment node
+ */
+/**
  * Pruebas unitarias para utilidades comunes de API
  */
 

@@ -8,8 +8,8 @@ const createJestConfig = nextJest({
 // Add any custom config to be passed to Jest
 const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
-  // Usar 'node' por defecto para APIs, pero permitir override con @jest-environment
-  testEnvironment: 'node',
+  // Usar 'jsdom' por defecto para componentes React, pero permitir override con @jest-environment
+  testEnvironment: 'jsdom',
   testEnvironmentOptions: {
     customExportConditions: [''],
   },

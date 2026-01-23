@@ -142,13 +142,23 @@ const ContactDetailPage = () => {
       setError(null)
       try {
         const response = await fetch(`/api/crm/contacts/${contactId}`)
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || `Error ${response.status}: ${response.statusText}`)
+        }
+        
         const result = await response.json()
 
         if (!result.success) {
-          throw new Error(result.error || 'Error al cargar contacto')
+          throw new Error(result.error || result.details || 'Error al cargar contacto')
         }
 
         const contactData = result.data
+        if (!contactData) {
+          throw new Error('No se recibieron datos del contacto')
+        }
+        
         setContact(contactData)
         
         // Debug: Log para verificar estructura de datos
