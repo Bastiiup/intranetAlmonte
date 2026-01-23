@@ -409,9 +409,11 @@ export default function ImportacionCompletaModal({
               nivel = nivelStr.includes('media') ? 'Media' : 'Basica'
             } else {
               // Extraer del nombre del curso
-              const nivelMatch = row.Curso.match(/(Básica|Basica|Media)/i)
-              if (nivelMatch) {
-                nivel = nivelMatch[0].toLowerCase().includes('basica') ? 'Basica' : 'Media'
+              if (row.Curso) {
+                const nivelMatch = row.Curso.match(/(Básica|Basica|Media)/i)
+                if (nivelMatch) {
+                  nivel = nivelMatch[0].toLowerCase().includes('basica') ? 'Basica' : 'Media'
+                }
               }
             }
             
