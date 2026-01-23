@@ -145,6 +145,14 @@ export const menuItems: MenuItemType[] = [
       { key: 'qr-listing', label: 'Listado de PDFs', url: '/comercial/etiquetas-qr' },
     ],
   },
+  {
+    key: 'mira',
+    label: 'Mira',
+    icon: LuGraduationCap,
+    children: [
+      { key: 'mira-licencias', label: 'Licencias de libros', url: '/mira/licencias' },
+    ],
+  },
   // { key: 'atencion-clientes', label: 'ATENCIÓN CLIENTES', isTitle: true },
   // {
   //   key: 'support-center',
