@@ -82,6 +82,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
   const [error, setError] = useState<string | null>(initialError)
   const [loading, setLoading] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [exportandoId, setExportandoId] = useState<string | number | null>(null)
   
   // Estados de búsqueda y filtros
   const [globalFilter, setGlobalFilter] = useState('')
