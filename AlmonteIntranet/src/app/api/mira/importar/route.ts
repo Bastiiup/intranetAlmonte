@@ -104,20 +104,22 @@ export async function POST(request: NextRequest) {
             if (isbnRaw) {
               const isbnNormalizado = String(isbnRaw).trim().replace(/\s+/g, '')
               if (isbnNormalizado) {
+                // En Strapi v5, puede usar id o documentId
+                const libroMiraId = libroMira.id || libroMira.documentId
                 mapaLibros.set(isbnNormalizado, {
-                  libroMiraId: libroMira.id,
+                  libroMiraId: libroMiraId,
                   libroNombre: nombreRaw || 'N/A',
                 })
                 librosAgregados++
-                console.log(`[IMPORTAR] ISBN "${isbnNormalizado}" agregado al mapa para libro-mira ${libroMira.id}`)
+                console.log(`[IMPORTAR] ISBN "${isbnNormalizado}" agregado al mapa para libro-mira ID: ${libroMiraId} (tipo: ${typeof libroMiraId})`)
               } else {
-                console.warn(`[IMPORTAR] ISBN vacio despues de normalizar para libro-mira ${libroMira.id}`)
+                console.warn(`[IMPORTAR] ISBN vacio despues de normalizar para libro-mira ${libroMira.id || libroMira.documentId}`)
               }
             } else {
-              console.warn(`[IMPORTAR] No se encontro ISBN para libro-mira ${libroMira.id}. Estructura del libro:`, JSON.stringify(libro, null, 2))
+              console.warn(`[IMPORTAR] No se encontro ISBN para libro-mira ${libroMira.id || libroMira.documentId}. Estructura del libro:`, JSON.stringify(libro, null, 2))
             }
           } else {
-            console.warn(`[IMPORTAR] No se encontro relacion libro para libro-mira ${libroMira.id}`)
+            console.warn(`[IMPORTAR] No se encontro relacion libro para libro-mira ${libroMira.id || libroMira.documentId}`)
           }
         }
         
@@ -274,16 +276,19 @@ export async function POST(request: NextRequest) {
           console.log(`[IMPORTAR] Creando licencia: codigo="${licencia.codigo}", libroMiraId=${licencia.libroMiraId}, ISBN=${licencia.isbn}`)
           const licenciaUrl = getStrapiUrl('/api/licencias-estudiantes')
           
+          // En Strapi v5, las relaciones pueden requerir el ID directamente o como objeto
+          // Intentar primero con el ID directo, si falla probar con objeto
           const payload = {
             data: {
               codigo_activacion: licencia.codigo,
-              libro_mira: licencia.libroMiraId,
+              libro_mira: licencia.libroMiraId, // ID directo
               activa: true,
               fecha_vencimiento: '2026-12-31',
             },
           }
           
           console.log(`[IMPORTAR] Payload para licencia:`, JSON.stringify(payload))
+          console.log(`[IMPORTAR] Tipo de libroMiraId:`, typeof licencia.libroMiraId, 'Valor:', licencia.libroMiraId)
           
           const licenciaResponse = await fetch(licenciaUrl, {
             method: 'POST',
@@ -294,10 +299,17 @@ export async function POST(request: NextRequest) {
             body: JSON.stringify(payload),
           })
 
+          const responseText = await licenciaResponse.text()
           console.log(`[IMPORTAR] Respuesta de Strapi para codigo "${licencia.codigo}":`, licenciaResponse.status, licenciaResponse.statusText)
+          console.log(`[IMPORTAR] Body de respuesta (primeros 500 chars):`, responseText.substring(0, 500))
 
           if (!licenciaResponse.ok) {
-            const errorData = await licenciaResponse.json().catch(() => ({ error: { message: 'Error desconocido' } }))
+            let errorData
+            try {
+              errorData = JSON.parse(responseText)
+            } catch (e) {
+              errorData = { error: { message: 'Error desconocido' } }
+            }
             console.error(`[IMPORTAR] ERROR al crear licencia "${licencia.codigo}":`, errorData)
             
             if (licenciaResponse.status === 400 || errorData.error?.message?.includes('unique') || errorData.error?.message?.includes('duplicate')) {
@@ -310,8 +322,25 @@ export async function POST(request: NextRequest) {
               return { success: false, reason: 'error' }
             }
           } else {
-            const responseData = await licenciaResponse.json().catch(() => ({}))
-            console.log(`[IMPORTAR] Licencia creada exitosamente:`, responseData)
+            let responseData
+            try {
+              responseData = JSON.parse(responseText)
+            } catch (e) {
+              console.error(`[IMPORTAR] Error parseando respuesta JSON:`, e)
+              responseData = { data: { id: 'unknown' } }
+            }
+            console.log(`[IMPORTAR] Licencia creada exitosamente:`, JSON.stringify(responseData, null, 2).substring(0, 1000))
+            
+            // Verificar si la relación se estableció correctamente
+            const libroMiraEnRespuesta = responseData.data?.attributes?.libro_mira?.data || responseData.data?.attributes?.libro_mira || responseData.data?.libro_mira
+            if (!libroMiraEnRespuesta) {
+              console.warn(`[IMPORTAR] ADVERTENCIA: La licencia se creo pero la relacion libro_mira no esta en la respuesta`)
+              console.warn(`[IMPORTAR] Estructura completa de respuesta:`, JSON.stringify(responseData, null, 2))
+              logs.push({ type: 'warning', message: `[ADVERTENCIA] Fila ${licencia.rowNum} (${licencia.sheetName}): Licencia creada pero relacion libro_mira puede no estar establecida. Verificar en Strapi.` })
+            } else {
+              console.log(`[IMPORTAR] Relacion libro_mira confirmada en respuesta:`, JSON.stringify(libroMiraEnRespuesta, null, 2))
+            }
+            
             logs.push({ type: 'success', message: `[OK] Fila ${licencia.rowNum} (${licencia.sheetName}): Licencia creada - ${licencia.libroNombre} (${licencia.codigo})` })
             successCount++
             return { success: true }
