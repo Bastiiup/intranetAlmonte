@@ -15,8 +15,9 @@ import {
 import Link from 'next/link'
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Button, Card, CardFooter, CardHeader, CardBody, Col, Row, Alert, Form } from 'react-bootstrap'
-import { LuSearch, LuMapPin, LuPhone, LuMail, LuUsers, LuPlus, LuX, LuCalendar } from 'react-icons/lu'
+import { LuSearch, LuMapPin, LuPhone, LuMail, LuUsers, LuPlus, LuX, LuCalendar, LuDownload } from 'react-icons/lu'
 import { TbEye, TbEdit, TbTrash, TbLayoutGrid, TbList } from 'react-icons/tb'
+import { exportarListasColegioAExcel } from '@/helpers/excel'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
@@ -490,10 +491,37 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
       header: 'ACCIONES',
       cell: ({ row }: { row: TableRow<ColegioType> }) => {
         const colegio = row.original
+        const estaExportando = exportandoId === colegio.id
+        
+        const handleExportar = async () => {
+          setExportandoId(colegio.id)
+          try {
+            const response = await fetch(`/api/crm/listas/exportar-colegio?colegioId=${colegio.id}`)
+            const result = await response.json()
+
+            if (!result.success) {
+              alert(`Error al obtener datos: ${result.error}`)
+              return
+            }
+
+            if (!result.data.datosExcel || result.data.datosExcel.length === 0) {
+              alert('No hay productos para exportar en este colegio')
+              return
+            }
+
+            await exportarListasColegioAExcel(result.data)
+          } catch (error: any) {
+            console.error('Error al exportar:', error)
+            alert(`Error al exportar: ${error.message || 'Error desconocido'}`)
+          } finally {
+            setExportandoId(null)
+          }
+        }
+        
         return (
           <div className="d-flex gap-1">
             <Link href={`/crm/colegios/${colegio.id}`}>
-              <Button variant="default" size="sm" className="btn-icon rounded-circle">
+              <Button variant="default" size="sm" className="btn-icon rounded-circle" title="Ver detalle">
                 <TbEye className="fs-lg" />
               </Button>
             </Link>
@@ -517,6 +545,16 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
               variant="default"
               size="sm"
               className="btn-icon rounded-circle"
+              title="Exportar listas a Excel"
+              onClick={handleExportar}
+              disabled={estaExportando}
+            >
+              <LuDownload className={`fs-lg ${estaExportando ? 'spinning' : ''}`} style={estaExportando ? { animation: 'spin 1s linear infinite' } : {}} />
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              className="btn-icon rounded-circle"
               title="Eliminar"
               onClick={() => {
                 const originalColegio = colegios.find((c: any) => {
@@ -532,7 +570,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
         )
       },
     },
-  ], [colegios])
+  ], [colegios, exportandoId])
 
   const table = useReactTable<ColegioType>({
     data: mappedColegios,

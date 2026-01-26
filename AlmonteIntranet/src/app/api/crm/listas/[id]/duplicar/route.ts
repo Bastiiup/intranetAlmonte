@@ -61,7 +61,8 @@ export async function POST(
         'filters[documentId][$eq]': String(id),
         'publicationState': 'preview',
         'populate[colegio]': 'true',
-        'populate[versiones_materiales]': 'true',
+        // NO usar populate[versiones_materiales] - es un campo JSON, no una relación
+        // 'populate[versiones_materiales]': 'true',
       })
       const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
         `/api/cursos?${paramsDocId.toString()}`
@@ -84,7 +85,8 @@ export async function POST(
       if (isNumeric) {
         try {
           const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-            `/api/cursos/${id}?publicationState=preview&populate[colegio]=true&populate[versiones_materiales]=true`
+            `/api/cursos/${id}?publicationState=preview&populate[colegio]=true`
+            // NO usar populate[versiones_materiales] - es un campo JSON, se devuelve automáticamente
           )
 
           if (cursoResponse.data) {

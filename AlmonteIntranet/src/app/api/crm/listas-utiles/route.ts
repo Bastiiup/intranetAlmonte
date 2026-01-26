@@ -40,7 +40,8 @@ export async function GET(request: NextRequest) {
       filters.push(`filters[grado][$eq]=${grado}`)
     }
     if (año) {
-      filters.push(`filters[año][$eq]=${año}`)
+      // Strapi rechaza 'año' con acento en filtros, usar 'ano' sin acento
+      filters.push(`filters[ano][$eq]=${año}`)
     }
     if (activo !== null) {
       filters.push(`filters[activo][$eq]=${activo === 'true'}`)

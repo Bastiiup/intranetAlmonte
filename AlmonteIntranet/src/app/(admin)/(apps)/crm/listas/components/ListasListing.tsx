@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge } from 'react-bootstrap'
 import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw, LuFileCode } from 'react-icons/lu'
+import { exportarListasColegioAExcel } from '@/helpers/excel'
 import { TbEdit, TbTrash } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
@@ -77,6 +78,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
   const [showImportModal, setShowImportModal] = useState(false)
   const [showImportColegiosModal, setShowImportColegiosModal] = useState(false)
   const [showImportCompletaModal, setShowImportCompletaModal] = useState(false)
+  const [exportando, setExportando] = useState(false)
 
   // Los datos ya vienen transformados desde la API /api/crm/listas
   const mappedListas = useMemo(() => {
@@ -878,6 +880,45 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
     setTimeout(() => forzarRecarga(), 5000)   // 5 segundos (última recarga)
   }
 
+  const handleExportarColegio = async () => {
+    const colegioFiltro = table.getColumn('colegio')?.getFilterValue() as string | undefined
+    if (!colegioFiltro) {
+      alert('Por favor, selecciona un colegio del filtro para exportar')
+      return
+    }
+
+    // Buscar el colegio en los datos para obtener su ID
+    const colegioEncontrado = data.find(lista => lista.colegio?.nombre === colegioFiltro)
+    if (!colegioEncontrado || !colegioEncontrado.colegio?.id) {
+      alert('No se pudo encontrar el ID del colegio seleccionado')
+      return
+    }
+
+    setExportando(true)
+    try {
+      const colegioId = colegioEncontrado.colegio.id
+      const response = await fetch(`/api/crm/listas/exportar-colegio?colegioId=${colegioId}`)
+      const result = await response.json()
+
+      if (!result.success) {
+        alert(`Error al obtener datos: ${result.error}`)
+        return
+      }
+
+      if (!result.data.datosExcel || result.data.datosExcel.length === 0) {
+        alert('No hay productos para exportar en este colegio')
+        return
+      }
+
+      await exportarListasColegioAExcel(result.data)
+    } catch (error: any) {
+      console.error('Error al exportar:', error)
+      alert(`Error al exportar: ${error.message || 'Error desconocido'}`)
+    } finally {
+      setExportando(false)
+    }
+  }
+
   if (error && mappedListas.length === 0) {
     return (
       <Row>
@@ -1027,6 +1068,25 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
             </div>
 
             <div className="d-flex gap-1">
+              <Button
+                variant="outline-info"
+                onClick={() => router.push('/crm/listas/debug-exportacion')}
+                title="Debug de exportación"
+              >
+                <LuFileCode className="fs-sm me-2" />
+                Debug Export
+              </Button>
+              {table.getColumn('colegio')?.getFilterValue() && (
+                <Button 
+                  variant="outline-primary" 
+                  onClick={handleExportarColegio}
+                  disabled={exportando}
+                  title="Exportar listas del colegio filtrado a Excel"
+                >
+                  <LuDownload className={`fs-sm me-2 ${exportando ? 'spinning' : ''}`} style={exportando ? { animation: 'spin 1s linear infinite' } : {}} /> 
+                  {exportando ? 'Exportando...' : 'Exportar Colegio'}
+                </Button>
+              )}
               {data.length > 0 && (
                 <Button 
                   variant="outline-danger" 

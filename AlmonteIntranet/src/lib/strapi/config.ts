@@ -11,6 +11,16 @@ export const STRAPI_API_URL = process.env.NEXT_PUBLIC_STRAPI_URL || 'https://str
 // Token de API de Strapi (solo disponible en el servidor)
 export const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN
 
+// Log en desarrollo para verificar configuración
+if (process.env.NODE_ENV !== 'production') {
+  console.log('[Strapi Config] 🔍 Configuración:', {
+    url: process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl',
+    tieneToken: !!STRAPI_API_TOKEN,
+    tokenLength: STRAPI_API_TOKEN?.length || 0,
+    tokenPreview: STRAPI_API_TOKEN ? `${STRAPI_API_TOKEN.substring(0, 20)}...` : 'NO CONFIGURADO',
+  })
+}
+
 // Validar que el token exista en producción
 if (process.env.NODE_ENV === 'production' && !STRAPI_API_TOKEN) {
   console.warn('⚠️  STRAPI_API_TOKEN no está configurado. Algunas peticiones pueden fallar.')

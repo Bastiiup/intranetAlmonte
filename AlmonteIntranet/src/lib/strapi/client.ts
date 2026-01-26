@@ -68,7 +68,11 @@ async function handleResponse<T>(response: Response): Promise<T> {
     
     // No loguear 404 como errores críticos (son esperados)
     if (response.status !== 404) {
-      console.error('[Strapi Client] ❌ Error response:', errorText)
+      console.error('[Strapi Client] ❌ Error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorText: errorText.substring(0, 500),
+      })
     }
     
     let errorData
@@ -164,12 +168,14 @@ const strapiClient = {
       
       // Log respuesta antes de manejar errores (solo si no es 404, que es esperado para algunos endpoints)
       if (!response.ok && response.status !== 404) {
+        const responseText = await response.clone().text()
         console.error('[Strapi Client GET] ❌ Error en respuesta:', {
           url,
           status: response.status,
           statusText: response.statusText,
-          headers: Object.fromEntries(response.headers.entries()),
           tieneToken: !!STRAPI_API_TOKEN,
+          tokenPreview: STRAPI_API_TOKEN ? `${STRAPI_API_TOKEN.substring(0, 20)}...` : 'NO TOKEN',
+          responseBody: responseText.substring(0, 500),
         })
       }
       

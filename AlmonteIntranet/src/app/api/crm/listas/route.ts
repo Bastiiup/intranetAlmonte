@@ -50,9 +50,11 @@ export async function GET(request: NextRequest) {
     if (grado) {
       filters.push(`filters[grado][$eq]=${grado}`)
     }
-    if (año) {
-      filters.push(`filters[año][$eq]=${año}`)
-    }
+    // NO filtrar por año en Strapi - causa error "Invalid key año"
+    // Filtrar por año en el código después de obtener los datos
+    // if (año) {
+    //   filters.push(`filters[año][$eq]=${año}`)
+    // }
 
     // Populate y fields necesarios - Mejorado para incluir más datos
     filters.push('populate[colegio][populate][comuna]=true')
@@ -61,18 +63,17 @@ export async function GET(request: NextRequest) {
     filters.push('populate[colegio][fields][0]=colegio_nombre')
     filters.push('populate[colegio][fields][1]=rbd')
     filters.push('populate[colegio][fields][2]=region')
-    filters.push('fields[0]=nombre_curso')
-    filters.push('fields[1]=nivel')
-    filters.push('fields[2]=grado')
-    filters.push('fields[3]=año')
-    filters.push('fields[5]=versiones_materiales') // Campo JSON, no relación
-    filters.push('fields[6]=activo')
-    filters.push('fields[7]=createdAt')
-    filters.push('fields[8]=updatedAt')
+    // NO usar fields específicos - dejar que Strapi devuelva todos los campos
+    // Esto evita errores con campos como 'año' y 'versiones_materiales'
+    // filters.push('fields[0]=nombre_curso')
+    // filters.push('fields[1]=nivel')
+    // filters.push('fields[2]=grado')
+    // Strapi devolverá todos los campos automáticamente
     // colegio es una relación, se incluye con populate, no con fields
     filters.push('publicationState=preview')
 
-    const queryString = filters.length > 0 ? `?${filters.join('&')}` : '?populate[colegio]=true&fields[0]=versiones_materiales&publicationState=preview'
+    // NO incluir versiones_materiales en el queryString por defecto - causa error
+    const queryString = filters.length > 0 ? `?${filters.join('&')}` : '?populate[colegio]=true&publicationState=preview'
 
     debugLog('[API /crm/listas GET] Query:', queryString)
 
@@ -114,6 +115,18 @@ export async function GET(request: NextRequest) {
     
     debugLog('[API /crm/listas GET] Total de cursos obtenidos de Strapi:', cursos.length)
     debugLog('[API /crm/listas GET] IDs de cursos obtenidos:', cursos.map((c: any) => c.id || c.documentId))
+    
+    // Debug: Ver estructura del primer curso para entender qué campos tiene
+    if (cursos.length > 0) {
+      const primerCurso = cursos[0]
+      const attrs = primerCurso.attributes || primerCurso
+      debugLog('[API /crm/listas GET] 🔍 Estructura del primer curso:', {
+        tieneAttributes: !!primerCurso.attributes,
+        keys: Object.keys(attrs).slice(0, 15),
+        tieneVersionesMateriales: 'versiones_materiales' in attrs,
+        versionesMateriales: attrs.versiones_materiales ? (Array.isArray(attrs.versiones_materiales) ? `${attrs.versiones_materiales.length} elementos` : `tipo: ${typeof attrs.versiones_materiales}`) : 'no existe',
+      })
+    }
 
     // Filtrar solo los cursos que tienen al menos una versión de materiales (PDF)
     // También verificar que el curso tenga un ID válido (los eliminados pueden no tenerlo)
@@ -127,14 +140,19 @@ export async function GET(request: NextRequest) {
       const attrs = curso.attributes || curso
       const versiones = attrs.versiones_materiales || []
       
+      // Verificar si versiones_materiales es un array válido con elementos
       const tienePDFs = Array.isArray(versiones) && versiones.length > 0
       
-      // Solo loggear cursos CON PDFs para reducir ruido
-      if (tienePDFs) {
-        debugLog('[API /crm/listas GET] ✅ Curso CON PDFs:', {
+      // Log detallado para debugging (solo primeros cursos para no saturar)
+      if (cursos.length <= 10) {
+        debugLog('[API /crm/listas GET] Curso analizado:', {
           id: curso.id || curso.documentId,
-          nombre: attrs.nombre_curso,
-          cantidadVersiones: versiones.length,
+          nombre: attrs.nombre_curso || attrs.curso_nombre,
+          tieneVersiones: 'versiones_materiales' in attrs,
+          tipoVersiones: typeof attrs.versiones_materiales,
+          esArray: Array.isArray(versiones),
+          cantidad: Array.isArray(versiones) ? versiones.length : 'N/A',
+          tienePDFs: tienePDFs,
         })
       }
       
@@ -144,8 +162,22 @@ export async function GET(request: NextRequest) {
     debugLog('[API /crm/listas GET] ✅ Cursos con PDFs encontrados:', cursosConPDFs.length)
     debugLog('[API /crm/listas GET] IDs de cursos con PDFs:', cursosConPDFs.map((c: any) => c.id || c.documentId))
 
+    // Filtrar por año en el código si se proporciona (no en Strapi para evitar error "Invalid key año")
+    let cursosFiltrados = cursosConPDFs
+    if (año) {
+      const añoNum = parseInt(año)
+      if (!isNaN(añoNum)) {
+        cursosFiltrados = cursosConPDFs.filter((curso: any) => {
+          const attrs = curso.attributes || curso
+          const cursoAño = attrs.año || attrs.ano
+          return cursoAño === añoNum || cursoAño === año
+        })
+        debugLog('[API /crm/listas GET] Cursos filtrados por año:', añoNum, 'Total:', cursosFiltrados.length)
+      }
+    }
+
     // Transformar a formato de "lista" para el frontend
-    const listas = cursosConPDFs.map((curso: any) => {
+    const listas = cursosFiltrados.map((curso: any) => {
       const attrs = curso.attributes || curso
       const versiones = attrs.versiones_materiales || []
       const ultimaVersion = versiones.length > 0 
