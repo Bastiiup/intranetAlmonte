@@ -11,12 +11,13 @@ export async function GET(request: NextRequest) {
     const pageSize = parseInt(searchParams.get('pageSize') || '25')
     
     // Construir query con populate profundo para libro_mira.libro
-    // Especificar campos explícitamente para evitar errores de validación con relaciones de media
+    // Especificar campos explícitamente para evitar errores con relaciones de media
+    // IMPORTANTE: Incluir nombre_libro e isbn_libro que son los campos necesarios para mostrar en la tabla
     const queryParams = new URLSearchParams({
       'populate[libro_mira][populate][libro][fields][0]': 'nombre_libro',
       'populate[libro_mira][populate][libro][fields][1]': 'isbn_libro',
       'populate[libro_mira][populate][libro][fields][2]': 'subtitulo_libro',
-      // NO incluir portada_libro aquí porque causa error de validación en Strapi
+      // NO incluir portada_libro porque causa error de validación en Strapi
       'populate[libro_mira][fields][0]': 'activo',
       'populate[libro_mira][fields][1]': 'tiene_omr',
       'populate[estudiante][populate][persona][fields][0]': 'nombres',
@@ -31,6 +32,8 @@ export async function GET(request: NextRequest) {
       'pagination[pageSize]': pageSize.toString(),
       'sort': 'createdAt:desc',
     })
+    
+    console.log('[API /api/mira/licencias] Query params:', queryParams.toString())
     
     const url = `${getStrapiUrl('/api/licencias-estudiantes')}?${queryParams.toString()}`
     

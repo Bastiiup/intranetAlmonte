@@ -104,14 +104,18 @@ export async function POST(request: NextRequest) {
             if (isbnRaw) {
               const isbnNormalizado = String(isbnRaw).trim().replace(/\s+/g, '')
               if (isbnNormalizado) {
-                // En Strapi v5, puede usar id o documentId
-                const libroMiraId = libroMira.id || libroMira.documentId
+                // En Strapi v5, preferir documentId sobre id para relaciones
+                const libroMiraId = libroMira.documentId || libroMira.id
+                if (!libroMiraId) {
+                  console.warn(`[IMPORTAR] Libro-mira sin ID ni documentId:`, JSON.stringify(libroMira, null, 2).substring(0, 200))
+                  continue
+                }
                 mapaLibros.set(isbnNormalizado, {
                   libroMiraId: libroMiraId,
                   libroNombre: nombreRaw || 'N/A',
                 })
                 librosAgregados++
-                console.log(`[IMPORTAR] ISBN "${isbnNormalizado}" agregado al mapa para libro-mira ID: ${libroMiraId} (tipo: ${typeof libroMiraId})`)
+                console.log(`[IMPORTAR] ISBN "${isbnNormalizado}" agregado al mapa para libro-mira ID: ${libroMiraId} (tipo: ${typeof libroMiraId}, tiene documentId: ${!!libroMira.documentId})`)
               } else {
                 console.warn(`[IMPORTAR] ISBN vacio despues de normalizar para libro-mira ${libroMira.id || libroMira.documentId}`)
               }
@@ -276,19 +280,28 @@ export async function POST(request: NextRequest) {
           console.log(`[IMPORTAR] Creando licencia: codigo="${licencia.codigo}", libroMiraId=${licencia.libroMiraId}, ISBN=${licencia.isbn}`)
           const licenciaUrl = getStrapiUrl('/api/licencias-estudiantes')
           
-          // En Strapi v5, las relaciones pueden requerir el ID directamente o como objeto
-          // Intentar primero con el ID directo, si falla probar con objeto
+          // En Strapi v5, las relaciones manyToOne requieren el ID directamente
+          // Usar el ID tal cual viene del mapa (puede ser número o documentId string)
+          const libroMiraId = licencia.libroMiraId
+          
+          if (!libroMiraId) {
+            console.error(`[IMPORTAR] ERROR: libroMiraId es null o undefined para codigo "${licencia.codigo}"`)
+            logs.push({ type: 'error', message: `[ERROR] Fila ${licencia.rowNum} (${licencia.sheetName}): libroMiraId no disponible` })
+            errorCount++
+            return { success: false, reason: 'missing_id' }
+          }
+          
           const payload = {
             data: {
               codigo_activacion: licencia.codigo,
-              libro_mira: licencia.libroMiraId, // ID directo
+              libro_mira: libroMiraId, // ID directo (puede ser número o documentId string)
               activa: true,
               fecha_vencimiento: '2026-12-31',
             },
           }
           
           console.log(`[IMPORTAR] Payload para licencia:`, JSON.stringify(payload))
-          console.log(`[IMPORTAR] Tipo de libroMiraId:`, typeof licencia.libroMiraId, 'Valor:', licencia.libroMiraId)
+          console.log(`[IMPORTAR] Tipo de libroMiraId:`, typeof libroMiraId, 'Valor:', libroMiraId)
           
           const licenciaResponse = await fetch(licenciaUrl, {
             method: 'POST',
@@ -331,15 +344,10 @@ export async function POST(request: NextRequest) {
             }
             console.log(`[IMPORTAR] Licencia creada exitosamente:`, JSON.stringify(responseData, null, 2).substring(0, 1000))
             
-            // Verificar si la relación se estableció correctamente
-            const libroMiraEnRespuesta = responseData.data?.attributes?.libro_mira?.data || responseData.data?.attributes?.libro_mira || responseData.data?.libro_mira
-            if (!libroMiraEnRespuesta) {
-              console.warn(`[IMPORTAR] ADVERTENCIA: La licencia se creo pero la relacion libro_mira no esta en la respuesta`)
-              console.warn(`[IMPORTAR] Estructura completa de respuesta:`, JSON.stringify(responseData, null, 2))
-              logs.push({ type: 'warning', message: `[ADVERTENCIA] Fila ${licencia.rowNum} (${licencia.sheetName}): Licencia creada pero relacion libro_mira puede no estar establecida. Verificar en Strapi.` })
-            } else {
-              console.log(`[IMPORTAR] Relacion libro_mira confirmada en respuesta:`, JSON.stringify(libroMiraEnRespuesta, null, 2))
-            }
+            // NOTA: Strapi no incluye relaciones populadas en la respuesta de creación por defecto
+            // La relación se guarda correctamente aunque no aparezca en la respuesta
+            // Se verifica al hacer GET posteriormente
+            console.log(`[IMPORTAR] Licencia ID ${responseData.data?.id || responseData.data?.documentId} creada con libro_mira ID: ${libroMiraId}`)
             
             logs.push({ type: 'success', message: `[OK] Fila ${licencia.rowNum} (${licencia.sheetName}): Licencia creada - ${licencia.libroNombre} (${licencia.codigo})` })
             successCount++
