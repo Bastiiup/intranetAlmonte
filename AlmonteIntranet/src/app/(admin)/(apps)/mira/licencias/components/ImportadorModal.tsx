@@ -11,8 +11,6 @@ import {
   Alert,
 } from 'react-bootstrap'
 import { LuUpload, LuX } from 'react-icons/lu'
-import * as XLSX from 'xlsx'
-import strapiClient from '@/lib/strapi/client'
 
 interface ImportadorModalProps {
   show: boolean
@@ -98,115 +96,39 @@ export default function ImportadorModal({
     setSummary(null)
 
     try {
-      // Leer el archivo
-      const arrayBuffer = await file.arrayBuffer()
-      const workbook = XLSX.read(arrayBuffer, { type: 'array' })
-      const firstSheetName = workbook.SheetNames[0]
-      const worksheet = workbook.Sheets[firstSheetName]
-      const data = XLSX.utils.sheet_to_json(worksheet) as any[]
+      // Subir archivo a la API del servidor
+      const formData = new FormData()
+      formData.append('file', file)
 
-      if (data.length === 0) {
-        addLog('error', '❌ El archivo está vacío')
-        setIsProcessing(false)
-        return
+      addLog('info', '📤 Subiendo archivo al servidor...')
+
+      const response = await fetch('/api/mira/importar', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }))
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
       }
 
-      addLog('info', `📊 Total de filas encontradas: ${data.length}`)
-      addLog('info', '🚀 Iniciando procesamiento...')
+      const result = await response.json()
 
-      let successCount = 0
-      let errorCount = 0
-      let warningCount = 0
-
-      // Procesar cada fila
-      for (let i = 0; i < data.length; i++) {
-        const row = data[i]
-        const rowNum = i + 1
-
-        addLog('info', `⏳ Procesando fila ${rowNum}/${data.length}...`)
-
-        try {
-          // 1. Limpieza de datos
-          const isbnRaw = row.isbn || row.ISBN || row.Isbn
-          const codigoRaw = row.Códigos || row.codigos || row.CODIGOS || row['Código'] || row.codigo
-
-          if (!isbnRaw || !codigoRaw) {
-            addLog('warning', `⚠️ Fila ${rowNum}: Faltan datos (ISBN o Código)`)
-            warningCount++
-            continue
-          }
-
-          const isbn = String(isbnRaw).trim()
-          const codigo = String(codigoRaw).trim()
-
-          if (!isbn || !codigo) {
-            addLog('warning', `⚠️ Fila ${rowNum}: ISBN o Código vacío después de limpiar`)
-            warningCount++
-            continue
-          }
-
-          // 2. Buscar libro-mira por ISBN
-          try {
-            const libroResponse = await strapiClient.get<{
-              data: Array<{ id: number | string }>
-            }>(`/api/libros-mira?filters[libro][isbn_libro][$eq]=${encodeURIComponent(isbn)}&fields[0]=id`)
-
-            if (!libroResponse.data || libroResponse.data.length === 0) {
-              addLog('warning', `⚠️ Fila ${rowNum}: ISBN ${isbn} no encontrado en MIRA`)
-              warningCount++
-              continue
-            }
-
-            const libroMiraId = libroResponse.data[0].id
-
-            // 3. Crear licencia
-            try {
-              await strapiClient.post('/api/licencias-estudiantes', {
-                data: {
-                  codigo_activacion: codigo,
-                  libro_mira: libroMiraId,
-                  activa: true,
-                  fecha_vencimiento: '2026-12-31',
-                },
-              })
-
-              const libroNombre = row.Libro || 'N/A'
-              addLog('success', `✅ Fila ${rowNum}: Licencia creada - ${libroNombre} (${codigo})`)
-              successCount++
-            } catch (createError: any) {
-              if (createError.status === 400 || createError.message?.includes('unique') || createError.message?.includes('duplicate')) {
-                addLog('error', `❌ Fila ${rowNum}: Código ${codigo} ya existe`)
-                errorCount++
-              } else {
-                addLog('error', `❌ Fila ${rowNum}: Error al crear licencia - ${createError.message || 'Error desconocido'}`)
-                errorCount++
-              }
-            }
-          } catch (libroError: any) {
-            addLog('error', `❌ Fila ${rowNum}: Error al buscar libro - ${libroError.message || 'Error desconocido'}`)
-            errorCount++
-          }
-        } catch (rowError: any) {
-          addLog('error', `❌ Fila ${rowNum}: Error procesando fila - ${rowError.message || 'Error desconocido'}`)
-          errorCount++
-        }
+      if (!result.success) {
+        throw new Error(result.error || 'Error al procesar archivo')
       }
 
-      // Resumen final
-      const finalSummary = {
-        total: data.length,
-        success: successCount,
-        errors: errorCount,
-        warnings: warningCount,
+      // Mostrar logs recibidos del servidor
+      if (result.logs && Array.isArray(result.logs)) {
+        result.logs.forEach((log: LogEntry) => {
+          addLog(log.type, log.message)
+        })
       }
-      setSummary(finalSummary)
 
-      addLog('info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-      addLog('info', `📊 RESUMEN FINAL:`)
-      addLog('info', `   Total procesados: ${finalSummary.total}`)
-      addLog('success', `   ✅ Exitosos: ${finalSummary.success}`)
-      addLog('warning', `   ⚠️ Advertencias: ${finalSummary.warnings}`)
-      addLog('error', `   ❌ Errores: ${finalSummary.errors}`)
+      // Mostrar resumen
+      if (result.summary) {
+        setSummary(result.summary)
+      }
 
       if (onImportComplete) {
         onImportComplete()
