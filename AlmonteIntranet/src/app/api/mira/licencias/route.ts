@@ -11,11 +11,12 @@ export async function GET(request: NextRequest) {
     const pageSize = parseInt(searchParams.get('pageSize') || '25')
     
     // Construir query con populate optimizado
+    // En Strapi v4, el populate anidado debe usar '*' o un objeto, no 'true'
     const queryParams = new URLSearchParams({
-      'populate[libro_mira][populate][libro]': 'true',
-      'populate[libro_mira][populate][libro][populate][portada_libro]': 'true',
-      'populate[estudiante][populate][persona]': 'true',
-      'populate[estudiante][populate][colegio]': 'true',
+      'populate[libro_mira][populate][libro]': '*',
+      'populate[libro_mira][populate][libro][populate][portada_libro]': '*',
+      'populate[estudiante][populate][persona]': '*',
+      'populate[estudiante][populate][colegio]': '*',
       'pagination[page]': page.toString(),
       'pagination[pageSize]': pageSize.toString(),
       'sort': 'createdAt:desc',
