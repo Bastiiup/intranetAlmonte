@@ -10,13 +10,22 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('pageSize') || '25')
     
-    // Construir query con populate optimizado
-    // En Strapi v4, el populate anidado debe usar '*' o un objeto, no 'true'
+    // Construir query con populate simplificado - solo campos necesarios
+    // Evitar populate anidado complejo que causa errores de validación
     const queryParams = new URLSearchParams({
-      'populate[libro_mira][populate][libro]': '*',
-      'populate[libro_mira][populate][libro][populate][portada_libro]': '*',
-      'populate[estudiante][populate][persona]': '*',
-      'populate[estudiante][populate][colegio]': '*',
+      'populate[libro_mira][populate][libro][fields][0]': 'nombre_libro',
+      'populate[libro_mira][populate][libro][fields][1]': 'isbn_libro',
+      'populate[libro_mira][populate][libro][populate][portada_libro][fields][0]': 'url',
+      'populate[libro_mira][fields][0]': 'activo',
+      'populate[libro_mira][fields][1]': 'tiene_omr',
+      'populate[estudiante][populate][persona][fields][0]': 'nombres',
+      'populate[estudiante][populate][persona][fields][1]': 'primer_apellido',
+      'populate[estudiante][populate][persona][fields][2]': 'segundo_apellido',
+      'populate[estudiante][populate][colegio][fields][0]': 'colegio_nombre',
+      'populate[estudiante][fields][0]': 'email',
+      'populate[estudiante][fields][1]': 'nivel',
+      'populate[estudiante][fields][2]': 'curso',
+      'populate[estudiante][fields][3]': 'activo',
       'pagination[page]': page.toString(),
       'pagination[pageSize]': pageSize.toString(),
       'sort': 'createdAt:desc',
