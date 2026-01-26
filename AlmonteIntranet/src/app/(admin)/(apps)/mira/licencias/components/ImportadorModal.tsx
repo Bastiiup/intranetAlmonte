@@ -88,7 +88,14 @@ export default function ImportadorModal({
 
   const processFile = async () => {
     if (!file) {
-      addLog('error', '❌ No hay archivo seleccionado')
+      addLog('error', '[ERROR] No hay archivo seleccionado')
+      return
+    }
+
+    // Validar tamaño del archivo (max 10MB)
+    const maxSize = 10 * 1024 * 1024 // 10MB
+    if (file.size > maxSize) {
+      addLog('error', `[ERROR] El archivo es demasiado grande (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximo permitido: 10MB`)
       return
     }
 
@@ -101,41 +108,58 @@ export default function ImportadorModal({
       const formData = new FormData()
       formData.append('file', file)
 
-      addLog('info', '📤 Subiendo archivo al servidor...')
+      addLog('info', '[INFO] Subiendo archivo al servidor...')
+      addLog('info', `[INFO] Tamaño del archivo: ${(file.size / 1024).toFixed(2)} KB`)
 
-      const response = await fetch('/api/mira/importar', {
-        method: 'POST',
-        body: formData,
-      })
+      // Crear AbortController para timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10 * 60 * 1000) // 10 minutos timeout
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }))
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
-      }
-
-      const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || 'Error al procesar archivo')
-      }
-
-      // Mostrar logs recibidos del servidor
-      if (result.logs && Array.isArray(result.logs)) {
-        result.logs.forEach((log: LogEntry) => {
-          addLog(log.type, log.message)
+      try {
+        const response = await fetch('/api/mira/importar', {
+          method: 'POST',
+          body: formData,
+          signal: controller.signal,
         })
-      }
 
-      // Mostrar resumen
-      if (result.summary) {
-        setSummary(result.summary)
-      }
+        clearTimeout(timeoutId)
 
-      if (onImportComplete) {
-        onImportComplete()
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }))
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const result = await response.json()
+
+        if (!result.success) {
+          throw new Error(result.error || 'Error al procesar archivo')
+        }
+
+        // Mostrar logs recibidos del servidor
+        if (result.logs && Array.isArray(result.logs)) {
+          result.logs.forEach((log: LogEntry) => {
+            addLog(log.type, log.message)
+          })
+        }
+
+        // Mostrar resumen
+        if (result.summary) {
+          setSummary(result.summary)
+        }
+
+        if (onImportComplete) {
+          onImportComplete()
+        }
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId)
+        if (fetchError.name === 'AbortError') {
+          throw new Error('La importacion tardo mas de 10 minutos y fue cancelada. Intenta con un archivo mas pequeno o dividido en partes.')
+        }
+        throw fetchError
       }
     } catch (error: any) {
-      addLog('error', `❌ Error fatal al procesar archivo: ${error.message || 'Error desconocido'}`)
+      addLog('error', `[ERROR] Error fatal al procesar archivo: ${error.message || 'Error desconocido'}`)
+      console.error('Error en importacion:', error)
     } finally {
       setIsProcessing(false)
     }

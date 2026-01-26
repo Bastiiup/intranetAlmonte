@@ -35,15 +35,18 @@ export async function POST(request: NextRequest) {
     logs.push({ type: 'info', message: `[LIBROS] Total de hojas encontradas: ${workbook.SheetNames.length}` })
     
     // PASO 0: Pre-cargar todos los libros-mira en memoria (CACHÉ)
-    logs.push({ type: 'info', message: '[CACHE] Cargando catalogo de libros-mira desde Strapi...' })
+    logs.push({ type: 'info', message: '[CACHE] Iniciando carga de catalogo de libros-mira desde Strapi...' })
     const mapaLibros = new Map<string, { libroMiraId: number; libroNombre: string }>()
     
     try {
       let page = 1
       let hasMore = true
       let totalLibrosCargados = 0
+      const startTime = Date.now()
       
       while (hasMore) {
+        logs.push({ type: 'info', message: `[CACHE] Cargando pagina ${page} de libros-mira...` })
+        
         const librosMiraUrl = `${getStrapiUrl('/api/libros-mira')}?fields[0]=id&populate[libro][fields][0]=isbn_libro&populate[libro][fields][1]=nombre_libro&pagination[page]=${page}&pagination[pageSize]=100`
         
         const librosMiraResponse = await fetch(librosMiraUrl, {
@@ -65,6 +68,7 @@ export async function POST(request: NextRequest) {
         }
         
         // Procesar cada libro-mira y agregarlo al mapa
+        let librosAgregados = 0
         for (const libroMira of librosMiraData.data) {
           const libro = libroMira.attributes?.libro?.data
           if (libro && libro.attributes?.isbn_libro) {
@@ -74,11 +78,13 @@ export async function POST(request: NextRequest) {
                 libroMiraId: libroMira.id,
                 libroNombre: libro.attributes.nombre_libro || 'N/A',
               })
+              librosAgregados++
             }
           }
         }
         
         totalLibrosCargados += librosMiraData.data.length
+        logs.push({ type: 'info', message: `[CACHE] Pagina ${page}: ${librosMiraData.data.length} libros-mira procesados, ${librosAgregados} ISBNs agregados al mapa` })
         
         // Verificar si hay más páginas
         const pagination = librosMiraData.meta?.pagination
@@ -89,7 +95,8 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      logs.push({ type: 'success', message: `[CACHE] Catalogo cargado: ${totalLibrosCargados} libros-mira en memoria (${mapaLibros.size} ISBNs unicos)` })
+      const loadTime = ((Date.now() - startTime) / 1000).toFixed(2)
+      logs.push({ type: 'success', message: `[CACHE] Catalogo cargado exitosamente: ${totalLibrosCargados} libros-mira en memoria (${mapaLibros.size} ISBNs unicos) en ${loadTime}s` })
     } catch (cacheError: any) {
       logs.push({ type: 'error', message: `[ERROR] Error al cargar catalogo: ${cacheError.message || 'Error desconocido'}` })
       return NextResponse.json(
