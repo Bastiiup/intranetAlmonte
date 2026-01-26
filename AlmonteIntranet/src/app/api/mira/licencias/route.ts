@@ -68,9 +68,18 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    console.log('[API /api/mira/licencias] Total licencias recibidas:', licencias.data.length)
+    if (licencias.data.length > 0) {
+      console.log('[API /api/mira/licencias] Ejemplo de estructura de licencia:', JSON.stringify(licencias.data[0], null, 2).substring(0, 1000))
+    }
+
     // Transformar datos para la interfaz
     const transformedData = licencias.data.map((licencia: any) => {
       const attributes = licencia.attributes || licencia
+      
+      console.log('[API /api/mira/licencias] Procesando licencia ID:', licencia.id)
+      console.log('[API /api/mira/licencias] Estructura libro_mira:', JSON.stringify(attributes.libro_mira, null, 2).substring(0, 500))
+      console.log('[API /api/mira/licencias] Estructura estudiante:', JSON.stringify(attributes.estudiante, null, 2).substring(0, 500))
       
       return {
         id: licencia.id,
@@ -87,28 +96,35 @@ export async function GET(request: NextRequest) {
               tiene_omr: attributes.libro_mira.data.attributes?.tiene_omr || false,
               libro: (() => {
                 // Intentar múltiples formas de acceder a la relación libro
+                const libroMiraData = attributes.libro_mira.data
                 const libroData = 
-                  attributes.libro_mira.data.attributes?.libro?.data ||
-                  attributes.libro_mira.data.attributes?.libro ||
-                  attributes.libro_mira.data.libro?.data ||
-                  attributes.libro_mira.data.libro ||
+                  libroMiraData?.attributes?.libro?.data ||
+                  libroMiraData?.attributes?.libro ||
+                  libroMiraData?.libro?.data ||
+                  libroMiraData?.libro ||
                   null
+                
+                console.log('[API /api/mira/licencias] libroData extraido:', JSON.stringify(libroData, null, 2).substring(0, 300))
                 
                 if (!libroData) {
                   console.warn('[API /api/mira/licencias] Libro no encontrado en libro_mira:', {
-                    libroMiraId: attributes.libro_mira.data.id,
-                    estructura: JSON.stringify(attributes.libro_mira.data, null, 2).substring(0, 500)
+                    libroMiraId: libroMiraData?.id,
+                    estructuraLibroMira: JSON.stringify(libroMiraData, null, 2).substring(0, 500)
                   })
                   return null
                 }
                 
                 // Manejar tanto estructura con .attributes como sin ella
                 const libroAttrs = libroData.attributes || libroData
+                const nombreLibro = libroAttrs.nombre_libro || ''
+                const isbnLibro = libroAttrs.isbn_libro || ''
+                
+                console.log('[API /api/mira/licencias] Nombre libro extraido:', nombreLibro, 'ISBN:', isbnLibro)
                 
                 return {
                   id: libroData.id || libroData.documentId,
-                  isbn_libro: libroAttrs.isbn_libro || '',
-                  nombre_libro: libroAttrs.nombre_libro || '',
+                  isbn_libro: isbnLibro,
+                  nombre_libro: nombreLibro,
                   // portada_libro no se incluye porque no se puede popular en este nivel de anidación
                   // Si se necesita, se debe hacer una petición separada o usar populate más específico
                   portada_libro: null,
@@ -116,29 +132,45 @@ export async function GET(request: NextRequest) {
               })(),
             }
           : null,
-        estudiante: attributes.estudiante?.data
-          ? {
-              id: attributes.estudiante.data.id,
-              email: attributes.estudiante.data.attributes?.email || '',
-              activo: attributes.estudiante.data.attributes?.activo !== false,
-              nivel: attributes.estudiante.data.attributes?.nivel || '',
-              curso: attributes.estudiante.data.attributes?.curso || '',
-              persona: attributes.estudiante.data.attributes?.persona?.data
-                ? {
-                    id: attributes.estudiante.data.attributes.persona.data.id,
-                    nombres: attributes.estudiante.data.attributes.persona.data.attributes?.nombres || '',
-                    primer_apellido: attributes.estudiante.data.attributes.persona.data.attributes?.primer_apellido || '',
-                    segundo_apellido: attributes.estudiante.data.attributes.persona.data.attributes?.segundo_apellido || '',
-                  }
-                : null,
-              colegio: attributes.estudiante.data.attributes?.colegio?.data
-                ? {
-                    id: attributes.estudiante.data.attributes.colegio.data.id,
-                    nombre: attributes.estudiante.data.attributes.colegio.data.attributes?.colegio_nombre || '',
-                  }
-                : null,
-            }
-          : null,
+        estudiante: (() => {
+          const estudianteData = attributes.estudiante?.data
+          if (!estudianteData) {
+            console.log('[API /api/mira/licencias] No hay estudiante en licencia ID:', licencia.id)
+            return null
+          }
+          
+          const estudianteAttrs = estudianteData.attributes || estudianteData
+          const personaData = estudianteAttrs.persona?.data || estudianteAttrs.persona
+          const personaAttrs = personaData?.attributes || personaData
+          
+          console.log('[API /api/mira/licencias] Persona extraida:', {
+            nombres: personaAttrs?.nombres,
+            primer_apellido: personaAttrs?.primer_apellido,
+            segundo_apellido: personaAttrs?.segundo_apellido
+          })
+          
+          return {
+            id: estudianteData.id,
+            email: estudianteAttrs.email || '',
+            activo: estudianteAttrs.activo !== false,
+            nivel: estudianteAttrs.nivel || '',
+            curso: estudianteAttrs.curso || '',
+            persona: personaAttrs
+              ? {
+                  id: personaData.id || personaData.documentId,
+                  nombres: personaAttrs.nombres || '',
+                  primer_apellido: personaAttrs.primer_apellido || '',
+                  segundo_apellido: personaAttrs.segundo_apellido || '',
+                }
+              : null,
+            colegio: estudianteAttrs.colegio?.data
+              ? {
+                  id: estudianteAttrs.colegio.data.id,
+                  nombre: estudianteAttrs.colegio.data.attributes?.colegio_nombre || '',
+                }
+              : null,
+          }
+        })(),
         createdAt: attributes.createdAt || null,
         updatedAt: attributes.updatedAt || null,
       }
