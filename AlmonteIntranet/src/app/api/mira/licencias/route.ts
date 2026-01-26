@@ -11,9 +11,12 @@ export async function GET(request: NextRequest) {
     const pageSize = parseInt(searchParams.get('pageSize') || '25')
     
     // Construir query con populate profundo para libro_mira.libro
-    // Usar populate=* para la relación libro para obtener todos los campos necesarios
+    // Especificar campos explícitamente para evitar errores de validación con relaciones de media
     const queryParams = new URLSearchParams({
-      'populate[libro_mira][populate][libro]': '*',
+      'populate[libro_mira][populate][libro][fields][0]': 'nombre_libro',
+      'populate[libro_mira][populate][libro][fields][1]': 'isbn_libro',
+      'populate[libro_mira][populate][libro][fields][2]': 'subtitulo_libro',
+      // NO incluir portada_libro aquí porque causa error de validación en Strapi
       'populate[libro_mira][fields][0]': 'activo',
       'populate[libro_mira][fields][1]': 'tiene_omr',
       'populate[estudiante][populate][persona][fields][0]': 'nombres',
@@ -106,15 +109,9 @@ export async function GET(request: NextRequest) {
                   id: libroData.id || libroData.documentId,
                   isbn_libro: libroAttrs.isbn_libro || '',
                   nombre_libro: libroAttrs.nombre_libro || '',
-                  portada_libro: libroAttrs.portada_libro?.data
-                    ? {
-                        url: libroAttrs.portada_libro.data.attributes?.url || libroAttrs.portada_libro.data.url || '',
-                      }
-                    : libroAttrs.portada_libro?.url
-                    ? {
-                        url: libroAttrs.portada_libro.url,
-                      }
-                    : null,
+                  // portada_libro no se incluye porque no se puede popular en este nivel de anidación
+                  // Si se necesita, se debe hacer una petición separada o usar populate más específico
+                  portada_libro: null,
                 }
               })(),
             }
