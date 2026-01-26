@@ -25,140 +25,185 @@ export async function POST(request: NextRequest) {
     // Leer el archivo
     const arrayBuffer = await file.arrayBuffer()
     const workbook = XLSX.read(arrayBuffer, { type: 'array' })
-    const firstSheetName = workbook.SheetNames[0]
-    const worksheet = workbook.Sheets[firstSheetName]
-    const data = XLSX.utils.sheet_to_json(worksheet) as any[]
-
-    if (data.length === 0) {
-      return NextResponse.json(
-        { success: false, error: 'El archivo está vacío' },
-        { status: 400 }
-      )
-    }
-
+    
     const logs: LogEntry[] = []
     let successCount = 0
     let errorCount = 0
     let warningCount = 0
+    const librosNoEncontrados = new Set<string>() // Para rastrear ISBNs no encontrados
 
-    logs.push({ type: 'info', message: `📊 Total de filas encontradas: ${data.length}` })
-    logs.push({ type: 'info', message: '🚀 Iniciando procesamiento...' })
+    logs.push({ type: 'info', message: `📚 Total de hojas encontradas: ${workbook.SheetNames.length}` })
+    
+    // Procesar TODAS las hojas del Excel
+    let totalFilas = 0
+    for (const sheetName of workbook.SheetNames) {
+      const worksheet = workbook.Sheets[sheetName]
+      const data = XLSX.utils.sheet_to_json(worksheet) as any[]
+      
+      if (data.length === 0) {
+        logs.push({ type: 'info', message: `📄 Hoja "${sheetName}": Vacía, saltando...` })
+        continue
+      }
+      
+      logs.push({ type: 'info', message: `📄 Procesando hoja "${sheetName}": ${data.length} filas` })
+      totalFilas += data.length
 
-    // Procesar cada fila
-    for (let i = 0; i < data.length; i++) {
-      const row = data[i]
-      const rowNum = i + 1
+      // Procesar cada fila de esta hoja
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i]
+        const rowNum = i + 1
 
-      logs.push({ type: 'info', message: `⏳ Procesando fila ${rowNum}/${data.length}...` })
+        logs.push({ type: 'info', message: `⏳ Procesando fila ${rowNum}/${data.length}...` })
 
-      try {
-        // 1. Limpieza de datos
-        const isbnRaw = row.isbn || row.ISBN || row.Isbn
-        const codigoRaw = row.Códigos || row.codigos || row.CODIGOS || row['Código'] || row.codigo
-
-        if (!isbnRaw || !codigoRaw) {
-          logs.push({ type: 'warning', message: `⚠️ Fila ${rowNum}: Faltan datos (ISBN o Código)` })
-          warningCount++
-          continue
-        }
-
-        const isbn = String(isbnRaw).trim()
-        const codigo = String(codigoRaw).trim()
-
-        if (!isbn || !codigo) {
-          logs.push({ type: 'warning', message: `⚠️ Fila ${rowNum}: ISBN o Código vacío después de limpiar` })
-          warningCount++
-          continue
-        }
-
-        // 2. Buscar libro-mira por ISBN
         try {
-          const libroUrl = `${getStrapiUrl('/api/libros-mira')}?filters[libro][isbn_libro][$eq]=${encodeURIComponent(isbn)}&fields[0]=id`
-          
-          const libroResponse = await fetch(libroUrl, {
-            headers: {
-              'Authorization': `Bearer ${STRAPI_API_TOKEN}`,
-              'Content-Type': 'application/json',
-            },
-          })
+          // 1. Limpieza de datos
+          const isbnRaw = row.isbn || row.ISBN || row.Isbn
+          const codigoRaw = row.Códigos || row.codigos || row.CODIGOS || row['Código'] || row.codigo
 
-          if (!libroResponse.ok) {
-            throw new Error(`HTTP ${libroResponse.status}`)
-          }
-
-          const libroData = await libroResponse.json()
-
-          if (!libroData.data || libroData.data.length === 0) {
-            logs.push({ type: 'warning', message: `⚠️ Fila ${rowNum}: ISBN ${isbn} no encontrado en MIRA` })
+          if (!isbnRaw || !codigoRaw) {
+            logs.push({ type: 'warning', message: `⚠️ Fila ${rowNum}: Faltan datos (ISBN o Código)` })
             warningCount++
             continue
           }
 
-          const libroMiraId = libroData.data[0].id
+          const isbn = String(isbnRaw).trim()
+          const codigo = String(codigoRaw).trim()
 
-          // 3. Crear licencia
+          if (!isbn || !codigo) {
+            logs.push({ type: 'warning', message: `⚠️ Fila ${rowNum}: ISBN o Código vacío después de limpiar` })
+            warningCount++
+            continue
+          }
+
+          // 2. Buscar libro-mira por ISBN
+          // Primero buscar el libro por ISBN, luego buscar el libro-mira relacionado
           try {
-            const licenciaUrl = getStrapiUrl('/api/licencias-estudiantes')
-            const licenciaResponse = await fetch(licenciaUrl, {
-              method: 'POST',
+            // Paso 2a: Buscar el libro por ISBN
+            const libroUrl = `${getStrapiUrl('/api/libros')}?filters[isbn_libro][$eq]=${encodeURIComponent(isbn)}&fields[0]=id&fields[1]=nombre_libro`
+            
+            const libroResponse = await fetch(libroUrl, {
               headers: {
                 'Authorization': `Bearer ${STRAPI_API_TOKEN}`,
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({
-                data: {
-                  codigo_activacion: codigo,
-                  libro_mira: libroMiraId,
-                  activa: true,
-                  fecha_vencimiento: '2026-12-31',
-                },
-              }),
             })
 
-            if (!licenciaResponse.ok) {
-              const errorData = await licenciaResponse.json().catch(() => ({ error: { message: 'Error desconocido' } }))
-              if (licenciaResponse.status === 400 || errorData.error?.message?.includes('unique') || errorData.error?.message?.includes('duplicate')) {
-                logs.push({ type: 'error', message: `❌ Fila ${rowNum}: Código ${codigo} ya existe` })
-                errorCount++
-              } else {
-                logs.push({ type: 'error', message: `❌ Fila ${rowNum}: Error al crear licencia - ${errorData.error?.message || 'Error desconocido'}` })
-                errorCount++
-              }
-            } else {
-              const libroNombre = row.Libro || 'N/A'
-              logs.push({ type: 'success', message: `✅ Fila ${rowNum}: Licencia creada - ${libroNombre} (${codigo})` })
-              successCount++
+            if (!libroResponse.ok) {
+              throw new Error(`HTTP ${libroResponse.status} al buscar libro`)
             }
-          } catch (createError: any) {
-            logs.push({ type: 'error', message: `❌ Fila ${rowNum}: Error al crear licencia - ${createError.message || 'Error desconocido'}` })
+
+            const libroData = await libroResponse.json()
+
+            if (!libroData.data || libroData.data.length === 0) {
+              librosNoEncontrados.add(isbn)
+              logs.push({ type: 'warning', message: `⚠️ Fila ${rowNum}: Libro con ISBN ${isbn} no existe en Strapi` })
+              warningCount++
+              continue // NO crear licencia si no existe el libro
+            }
+
+            const libroId = libroData.data[0].id
+            const libroNombre = libroData.data[0].attributes?.nombre_libro || row.Libro || 'N/A'
+
+            // Paso 2b: Buscar el libro-mira relacionado con este libro
+            const libroMiraUrl = `${getStrapiUrl('/api/libros-mira')}?filters[libro][id][$eq]=${libroId}&fields[0]=id`
+            
+            const libroMiraResponse = await fetch(libroMiraUrl, {
+              headers: {
+                'Authorization': `Bearer ${STRAPI_API_TOKEN}`,
+                'Content-Type': 'application/json',
+              },
+            })
+
+            if (!libroMiraResponse.ok) {
+              throw new Error(`HTTP ${libroMiraResponse.status} al buscar libro-mira`)
+            }
+
+            const libroMiraData = await libroMiraResponse.json()
+
+            if (!libroMiraData.data || libroMiraData.data.length === 0) {
+              librosNoEncontrados.add(isbn)
+              logs.push({ type: 'warning', message: `⚠️ Fila ${rowNum}: Libro "${libroNombre}" (ISBN: ${isbn}) no está activado en MIRA` })
+              warningCount++
+              continue // NO crear licencia si no existe el libro-mira
+            }
+
+            const libroMiraId = libroMiraData.data[0].id
+
+            // 3. Crear licencia SOLO si existe el libro-mira
+            try {
+              const licenciaUrl = getStrapiUrl('/api/licencias-estudiantes')
+              const licenciaResponse = await fetch(licenciaUrl, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${STRAPI_API_TOKEN}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  data: {
+                    codigo_activacion: codigo,
+                    libro_mira: libroMiraId,
+                    activa: true,
+                    fecha_vencimiento: '2026-12-31',
+                  },
+                }),
+              })
+
+              if (!licenciaResponse.ok) {
+                const errorData = await licenciaResponse.json().catch(() => ({ error: { message: 'Error desconocido' } }))
+                if (licenciaResponse.status === 400 || errorData.error?.message?.includes('unique') || errorData.error?.message?.includes('duplicate')) {
+                  logs.push({ type: 'error', message: `❌ Fila ${rowNum}: Código ${codigo} ya existe` })
+                  errorCount++
+                } else {
+                  logs.push({ type: 'error', message: `❌ Fila ${rowNum}: Error al crear licencia - ${errorData.error?.message || 'Error desconocido'}` })
+                  errorCount++
+                }
+              } else {
+                logs.push({ type: 'success', message: `✅ Fila ${rowNum}: Licencia creada - ${libroNombre} (${codigo})` })
+                successCount++
+              }
+            } catch (createError: any) {
+              logs.push({ type: 'error', message: `❌ Fila ${rowNum}: Error al crear licencia - ${createError.message || 'Error desconocido'}` })
+              errorCount++
+            }
+          } catch (libroError: any) {
+            logs.push({ type: 'error', message: `❌ Fila ${rowNum}: Error al buscar libro - ${libroError.message || 'Error desconocido'}` })
             errorCount++
           }
-        } catch (libroError: any) {
-          logs.push({ type: 'error', message: `❌ Fila ${rowNum}: Error al buscar libro - ${libroError.message || 'Error desconocido'}` })
+        } catch (rowError: any) {
+          logs.push({ type: 'error', message: `❌ Fila ${rowNum}: Error procesando fila - ${rowError.message || 'Error desconocido'}` })
           errorCount++
         }
-      } catch (rowError: any) {
-        logs.push({ type: 'error', message: `❌ Fila ${rowNum}: Error procesando fila - ${rowError.message || 'Error desconocido'}` })
-        errorCount++
       }
+    }
     }
 
     // Resumen final
     logs.push({ type: 'info', message: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━' })
     logs.push({ type: 'info', message: `📊 RESUMEN FINAL:` })
-    logs.push({ type: 'info', message: `   Total procesados: ${data.length}` })
+    logs.push({ type: 'info', message: `   Total procesados: ${totalFilas}` })
     logs.push({ type: 'success', message: `   ✅ Exitosos: ${successCount}` })
     logs.push({ type: 'warning', message: `   ⚠️ Advertencias: ${warningCount}` })
     logs.push({ type: 'error', message: `   ❌ Errores: ${errorCount}` })
+
+    // Mostrar libros no encontrados
+    if (librosNoEncontrados.size > 0) {
+      logs.push({ type: 'info', message: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━' })
+      logs.push({ type: 'warning', message: `📚 LIBROS NO ENCONTRADOS EN MIRA (${librosNoEncontrados.size} ISBN único(s)):` })
+      Array.from(librosNoEncontrados).forEach((isbn) => {
+        logs.push({ type: 'warning', message: `   ⚠️ ISBN: ${isbn}` })
+      })
+      logs.push({ type: 'info', message: '💡 Estos libros no están activados en MIRA. Actívalos primero antes de importar sus licencias.' })
+    }
 
     return NextResponse.json({
       success: true,
       logs,
       summary: {
-        total: data.length,
+        total: totalFilas,
         success: successCount,
         errors: errorCount,
         warnings: warningCount,
+        librosNoEncontrados: Array.from(librosNoEncontrados),
       },
     })
   } catch (error: any) {

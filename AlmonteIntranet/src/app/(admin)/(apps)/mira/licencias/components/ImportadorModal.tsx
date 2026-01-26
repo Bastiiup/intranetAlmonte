@@ -37,6 +37,7 @@ export default function ImportadorModal({
     success: number
     errors: number
     warnings: number
+    librosNoEncontrados?: string[]
   } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const logsEndRef = useRef<HTMLDivElement>(null)
@@ -231,11 +232,31 @@ export default function ImportadorModal({
 
         {/* Resumen */}
         {summary && (
-          <Alert variant="info" className="mt-3">
-            <strong>Resumen:</strong> Total: {summary.total} | ✅ Exitosos:{' '}
-            {summary.success} | ⚠️ Advertencias: {summary.warnings} | ❌ Errores:{' '}
-            {summary.errors}
-          </Alert>
+          <div className="mt-3">
+            <Alert variant="info">
+              <strong>Resumen:</strong> Total: {summary.total} | ✅ Exitosos:{' '}
+              {summary.success} | ⚠️ Advertencias: {summary.warnings} | ❌ Errores:{' '}
+              {summary.errors}
+            </Alert>
+            
+            {/* Recuadro de libros no encontrados */}
+            {summary.librosNoEncontrados && summary.librosNoEncontrados.length > 0 && (
+              <Alert variant="warning" className="mt-2">
+                <strong>⚠️ Libros no encontrados en MIRA:</strong>
+                <p className="mb-2">
+                  Los siguientes ISBNs no están activados en MIRA. Actívalos primero antes de importar sus licencias:
+                </p>
+                <ul className="mb-0">
+                  {summary.librosNoEncontrados.map((isbn, idx) => (
+                    <li key={idx}><code>{isbn}</code></li>
+                  ))}
+                </ul>
+                <p className="mt-2 mb-0 small">
+                  <strong>Total:</strong> {summary.librosNoEncontrados.length} ISBN(s) único(s) no encontrado(s)
+                </p>
+              </Alert>
+            )}
+          </div>
         )}
 
         {/* Consola de logs */}
