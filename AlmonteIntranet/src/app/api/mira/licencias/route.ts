@@ -73,16 +73,15 @@ export async function GET(request: NextRequest) {
 
     console.log('[API /api/mira/licencias] Total licencias recibidas:', licencias.data.length)
     if (licencias.data.length > 0) {
-      console.log('[API /api/mira/licencias] Ejemplo de estructura de licencia:', JSON.stringify(licencias.data[0], null, 2).substring(0, 1000))
+      console.log('[API /api/mira/licencias] Ejemplo de estructura completa de licencia:', JSON.stringify(licencias.data[0], null, 2).substring(0, 2000))
     }
 
     // Transformar datos para la interfaz
     const transformedData = licencias.data.map((licencia: any) => {
       const attributes = licencia.attributes || licencia
       
-      console.log('[API /api/mira/licencias] Procesando licencia ID:', licencia.id)
-      console.log('[API /api/mira/licencias] Estructura libro_mira:', JSON.stringify(attributes.libro_mira, null, 2).substring(0, 500))
-      console.log('[API /api/mira/licencias] Estructura estudiante:', JSON.stringify(attributes.estudiante, null, 2).substring(0, 500))
+      console.log('[API /api/mira/licencias] ===== Procesando licencia ID:', licencia.id, '=====')
+      console.log('[API /api/mira/licencias] Estructura completa libro_mira:', JSON.stringify(attributes.libro_mira, null, 2))
       
       return {
         id: licencia.id,
@@ -100,6 +99,9 @@ export async function GET(request: NextRequest) {
               libro: (() => {
                 // Intentar múltiples formas de acceder a la relación libro
                 const libroMiraData = attributes.libro_mira.data
+                console.log('[API /api/mira/licencias] libroMiraData completo:', JSON.stringify(libroMiraData, null, 2))
+                
+                // Intentar todas las formas posibles de acceder al libro
                 const libroData = 
                   libroMiraData?.attributes?.libro?.data ||
                   libroMiraData?.attributes?.libro ||
@@ -107,22 +109,26 @@ export async function GET(request: NextRequest) {
                   libroMiraData?.libro ||
                   null
                 
-                console.log('[API /api/mira/licencias] libroData extraido:', JSON.stringify(libroData, null, 2).substring(0, 300))
+                console.log('[API /api/mira/licencias] libroData extraido (completo):', JSON.stringify(libroData, null, 2))
                 
                 if (!libroData) {
-                  console.warn('[API /api/mira/licencias] Libro no encontrado en libro_mira:', {
-                    libroMiraId: libroMiraData?.id,
-                    estructuraLibroMira: JSON.stringify(libroMiraData, null, 2).substring(0, 500)
-                  })
+                  console.error('[API /api/mira/licencias] ERROR: Libro no encontrado en libro_mira')
+                  console.error('[API /api/mira/licencias] Estructura libroMiraData:', JSON.stringify(libroMiraData, null, 2))
                   return null
                 }
                 
                 // Manejar tanto estructura con .attributes como sin ella
                 const libroAttrs = libroData.attributes || libroData
-                const nombreLibro = libroAttrs.nombre_libro || ''
-                const isbnLibro = libroAttrs.isbn_libro || ''
+                const nombreLibro = libroAttrs.nombre_libro || libroAttrs.nombre || ''
+                const isbnLibro = libroAttrs.isbn_libro || libroAttrs.isbn || ''
                 
-                console.log('[API /api/mira/licencias] Nombre libro extraido:', nombreLibro, 'ISBN:', isbnLibro)
+                console.log('[API /api/mira/licencias] ✅ Nombre libro extraido:', nombreLibro)
+                console.log('[API /api/mira/licencias] ✅ ISBN libro extraido:', isbnLibro)
+                
+                if (!nombreLibro) {
+                  console.error('[API /api/mira/licencias] ERROR: nombre_libro está vacío!')
+                  console.error('[API /api/mira/licencias] libroAttrs completo:', JSON.stringify(libroAttrs, null, 2))
+                }
                 
                 return {
                   id: libroData.id || libroData.documentId,
