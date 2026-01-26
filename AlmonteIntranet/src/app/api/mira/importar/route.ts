@@ -175,7 +175,6 @@ export async function POST(request: NextRequest) {
         }
       }
     }
-    }
 
     // Resumen final
     logs.push({ type: 'info', message: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━' })
