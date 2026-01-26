@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     let warningCount = 0
     const librosNoEncontrados = new Set<string>() // Para rastrear ISBNs no encontrados
 
-    logs.push({ type: 'info', message: `📚 Total de hojas encontradas: ${workbook.SheetNames.length}` })
+    logs.push({ type: 'info', message: `[LIBROS] Total de hojas encontradas: ${workbook.SheetNames.length}` })
     
     // Procesar TODAS las hojas del Excel
     let totalFilas = 0
@@ -41,11 +41,11 @@ export async function POST(request: NextRequest) {
       const data = XLSX.utils.sheet_to_json(worksheet) as any[]
       
       if (data.length === 0) {
-        logs.push({ type: 'info', message: `📄 Hoja "${sheetName}": Vacía, saltando...` })
+        logs.push({ type: 'info', message: `[HOJA] Hoja "${sheetName}": Vacia, saltando...` })
         continue
       }
       
-      logs.push({ type: 'info', message: `📄 Procesando hoja "${sheetName}": ${data.length} filas` })
+      logs.push({ type: 'info', message: `[HOJA] Procesando hoja "${sheetName}": ${data.length} filas` })
       totalFilas += data.length
 
       // Procesar cada fila de esta hoja
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
         const row = data[i]
         const rowNum = i + 1
 
-        logs.push({ type: 'info', message: `⏳ Procesando fila ${rowNum}/${data.length}...` })
+        logs.push({ type: 'info', message: `[PROCESANDO] Procesando fila ${rowNum}/${data.length}...` })
 
         try {
           // 1. Limpieza de datos
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
           const codigoRaw = row.Códigos || row.codigos || row.CODIGOS || row['Código'] || row.codigo
 
           if (!isbnRaw || !codigoRaw) {
-            logs.push({ type: 'warning', message: `⚠️ Fila ${rowNum}: Faltan datos (ISBN o Código)` })
+            logs.push({ type: 'warning', message: `[ADVERTENCIA] Fila ${rowNum}: Faltan datos (ISBN o Codigo)` })
             warningCount++
             continue
           }
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
           const codigo = String(codigoRaw).trim()
 
           if (!isbn || !codigo) {
-            logs.push({ type: 'warning', message: `⚠️ Fila ${rowNum}: ISBN o Código vacío después de limpiar` })
+            logs.push({ type: 'warning', message: `[ADVERTENCIA] Fila ${rowNum}: ISBN o Codigo vacio despues de limpiar` })
             warningCount++
             continue
           }
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
 
             if (!libroData.data || libroData.data.length === 0) {
               librosNoEncontrados.add(isbn)
-              logs.push({ type: 'warning', message: `⚠️ Fila ${rowNum}: Libro con ISBN ${isbn} no existe en Strapi` })
+              logs.push({ type: 'warning', message: `[ADVERTENCIA] Fila ${rowNum}: Libro con ISBN ${isbn} no existe en Strapi` })
               warningCount++
               continue // NO crear licencia si no existe el libro
             }
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
 
             if (!libroMiraData.data || libroMiraData.data.length === 0) {
               librosNoEncontrados.add(isbn)
-              logs.push({ type: 'warning', message: `⚠️ Fila ${rowNum}: Libro "${libroNombre}" (ISBN: ${isbn}) no está activado en MIRA` })
+              logs.push({ type: 'warning', message: `[ADVERTENCIA] Fila ${rowNum}: Libro "${libroNombre}" (ISBN: ${isbn}) no esta activado en MIRA` })
               warningCount++
               continue // NO crear licencia si no existe el libro-mira
             }
@@ -151,47 +151,47 @@ export async function POST(request: NextRequest) {
               if (!licenciaResponse.ok) {
                 const errorData = await licenciaResponse.json().catch(() => ({ error: { message: 'Error desconocido' } }))
                 if (licenciaResponse.status === 400 || errorData.error?.message?.includes('unique') || errorData.error?.message?.includes('duplicate')) {
-                  logs.push({ type: 'error', message: `❌ Fila ${rowNum}: Código ${codigo} ya existe` })
+                  logs.push({ type: 'error', message: `[ERROR] Fila ${rowNum}: Codigo ${codigo} ya existe` })
                   errorCount++
                 } else {
-                  logs.push({ type: 'error', message: `❌ Fila ${rowNum}: Error al crear licencia - ${errorData.error?.message || 'Error desconocido'}` })
+                  logs.push({ type: 'error', message: `[ERROR] Fila ${rowNum}: Error al crear licencia - ${errorData.error?.message || 'Error desconocido'}` })
                   errorCount++
                 }
               } else {
-                logs.push({ type: 'success', message: `✅ Fila ${rowNum}: Licencia creada - ${libroNombre} (${codigo})` })
+                logs.push({ type: 'success', message: `[OK] Fila ${rowNum}: Licencia creada - ${libroNombre} (${codigo})` })
                 successCount++
               }
             } catch (createError: any) {
-              logs.push({ type: 'error', message: `❌ Fila ${rowNum}: Error al crear licencia - ${createError.message || 'Error desconocido'}` })
+              logs.push({ type: 'error', message: `[ERROR] Fila ${rowNum}: Error al crear licencia - ${createError.message || 'Error desconocido'}` })
               errorCount++
             }
           } catch (libroError: any) {
-            logs.push({ type: 'error', message: `❌ Fila ${rowNum}: Error al buscar libro - ${libroError.message || 'Error desconocido'}` })
+            logs.push({ type: 'error', message: `[ERROR] Fila ${rowNum}: Error al buscar libro - ${libroError.message || 'Error desconocido'}` })
             errorCount++
           }
         } catch (rowError: any) {
-          logs.push({ type: 'error', message: `❌ Fila ${rowNum}: Error procesando fila - ${rowError.message || 'Error desconocido'}` })
+          logs.push({ type: 'error', message: `[ERROR] Fila ${rowNum}: Error procesando fila - ${rowError.message || 'Error desconocido'}` })
           errorCount++
         }
       }
     }
 
     // Resumen final
-    logs.push({ type: 'info', message: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━' })
-    logs.push({ type: 'info', message: `📊 RESUMEN FINAL:` })
+    logs.push({ type: 'info', message: '==========================================' })
+    logs.push({ type: 'info', message: `[RESUMEN] RESUMEN FINAL:` })
     logs.push({ type: 'info', message: `   Total procesados: ${totalFilas}` })
-    logs.push({ type: 'success', message: `   ✅ Exitosos: ${successCount}` })
-    logs.push({ type: 'warning', message: `   ⚠️ Advertencias: ${warningCount}` })
-    logs.push({ type: 'error', message: `   ❌ Errores: ${errorCount}` })
+    logs.push({ type: 'success', message: `   [OK] Exitosos: ${successCount}` })
+    logs.push({ type: 'warning', message: `   [ADVERTENCIA] Advertencias: ${warningCount}` })
+    logs.push({ type: 'error', message: `   [ERROR] Errores: ${errorCount}` })
 
     // Mostrar libros no encontrados
     if (librosNoEncontrados.size > 0) {
-      logs.push({ type: 'info', message: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━' })
-      logs.push({ type: 'warning', message: `📚 LIBROS NO ENCONTRADOS EN MIRA (${librosNoEncontrados.size} ISBN único(s)):` })
+      logs.push({ type: 'info', message: '==========================================' })
+      logs.push({ type: 'warning', message: `[LIBROS] LIBROS NO ENCONTRADOS EN MIRA (${librosNoEncontrados.size} ISBN unico(s)):` })
       Array.from(librosNoEncontrados).forEach((isbn) => {
-        logs.push({ type: 'warning', message: `   ⚠️ ISBN: ${isbn}` })
+        logs.push({ type: 'warning', message: `   [ADVERTENCIA] ISBN: ${isbn}` })
       })
-      logs.push({ type: 'info', message: '💡 Estos libros no están activados en MIRA. Actívalos primero antes de importar sus licencias.' })
+      logs.push({ type: 'info', message: '[INFO] Estos libros no estan activados en MIRA. Activarlos primero antes de importar sus licencias.' })
     }
 
     return NextResponse.json({
