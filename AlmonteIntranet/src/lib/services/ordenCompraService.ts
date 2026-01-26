@@ -46,28 +46,110 @@ export async function generatePONumber(): Promise<string> {
  * Crea una Orden de Compra desde una cotización recibida
  */
 export async function createPOFromCotizacion(
-  cotizacionRecibidaId: number,
-  creadoPorId?: number
+  cotizacionRecibidaId: number | string,
+  creadoPorId?: number,
+  empresaPropiaId?: number | string
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
-    // Obtener cotización recibida con relaciones
-    // En Strapi v5, populates anidados profundos deben usar '*' en lugar de 'true'
-    const cotizacionResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-      `/api/cotizaciones-recibidas/${cotizacionRecibidaId}?populate[rfq]=true&populate[empresa]=*`
-    )
+    console.log('[OrdenCompraService] Iniciando creación de PO:', {
+      cotizacionRecibidaId,
+      cotizacionRecibidaIdType: typeof cotizacionRecibidaId,
+      empresaPropiaId,
+      creadoPorId,
+    })
     
-    if (!cotizacionResponse.data) {
-      return {
-        success: false,
-        error: 'Cotización recibida no encontrada',
+    // Obtener cotización recibida con relaciones
+    // IMPORTANTE: No poblar comuna en empresa para evitar errores de validación
+    const cotizacionIdStr = String(cotizacionRecibidaId)
+    const isNumericId = /^\d+$/.test(cotizacionIdStr)
+    
+    let cotizacionResponse: StrapiResponse<StrapiEntity<any>>
+    let cotizacion: StrapiEntity<any> | null = null
+    
+    // Intentar primero con el endpoint directo
+    try {
+      const cotizacionUrl = `/api/cotizaciones-recibidas/${cotizacionRecibidaId}?populate[rfq]=true&populate[empresa][populate][datos_facturacion]=true&populate[empresa][populate][emails]=true`
+      console.log('[OrdenCompraService] Obteniendo cotización desde:', cotizacionUrl)
+      
+      cotizacionResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(cotizacionUrl)
+      
+      if (cotizacionResponse.data) {
+        cotizacion = Array.isArray(cotizacionResponse.data) 
+          ? cotizacionResponse.data[0] 
+          : cotizacionResponse.data
+        console.log('[OrdenCompraService] ✅ Cotización encontrada directamente')
+      }
+    } catch (directError: any) {
+      console.warn('[OrdenCompraService] ⚠️ Error con endpoint directo:', {
+        error: directError.message,
+        status: directError.status,
+        cotizacionRecibidaId,
+      })
+      
+      // Si falla con 404, intentar buscar por filtros
+      if (directError.status === 404) {
+        console.log('[OrdenCompraService] 🔄 Intentando buscar por filtros alternativos...')
+        try {
+          const searchParams = new URLSearchParams({
+            ...(isNumericId ? { 'filters[id][$eq]': cotizacionIdStr } : { 'filters[documentId][$eq]': cotizacionIdStr }),
+            'populate[rfq]': 'true',
+            'populate[empresa][populate][datos_facturacion]': 'true',
+            'populate[empresa][populate][emails]': 'true',
+          })
+          
+          const searchResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+            `/api/cotizaciones-recibidas?${searchParams.toString()}`
+          )
+          
+          if (searchResponse.data) {
+            const cotizaciones = Array.isArray(searchResponse.data) ? searchResponse.data : [searchResponse.data]
+            if (cotizaciones.length > 0) {
+              cotizacion = cotizaciones[0]
+              console.log('[OrdenCompraService] ✅ Cotización encontrada por filtro alternativo')
+            }
+          }
+          
+          // Si aún no se encontró, intentar con el filtro inverso
+          if (!cotizacion) {
+            const altSearchParams = new URLSearchParams({
+              ...(isNumericId ? { 'filters[documentId][$eq]': cotizacionIdStr } : { 'filters[id][$eq]': cotizacionIdStr }),
+              'populate[rfq]': 'true',
+              'populate[empresa][populate][datos_facturacion]': 'true',
+              'populate[empresa][populate][emails]': 'true',
+            })
+            
+            const altSearchResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+              `/api/cotizaciones-recibidas?${altSearchParams.toString()}`
+            )
+            
+            if (altSearchResponse.data) {
+              const cotizaciones = Array.isArray(altSearchResponse.data) ? altSearchResponse.data : [altSearchResponse.data]
+              if (cotizaciones.length > 0) {
+                cotizacion = cotizaciones[0]
+                console.log('[OrdenCompraService] ✅ Cotización encontrada con filtro inverso')
+              }
+            }
+          }
+        } catch (searchError: any) {
+          console.error('[OrdenCompraService] ❌ Error en búsqueda alternativa:', searchError.message)
+        }
+      } else {
+        // Si no es 404, lanzar el error original
+        throw directError
       }
     }
     
-    // Extraer cotización única (puede ser array o objeto)
-    const cotizacion: StrapiEntity<any> = Array.isArray(cotizacionResponse.data) 
-      ? cotizacionResponse.data[0] 
-      : cotizacionResponse.data
+    if (!cotizacion) {
+      return {
+        success: false,
+        error: `Cotización recibida no encontrada con ID: ${cotizacionRecibidaId}. Verifica que el ID sea correcto (puede ser id numérico o documentId).`,
+      }
+    }
     
+    // Crear respuesta simulada para mantener compatibilidad
+    cotizacionResponse = { data: cotizacion } as StrapiResponse<StrapiEntity<any>>
+    
+    // La cotización ya fue extraída arriba
     const cotizacionAttrs = cotizacion.attributes || cotizacion
     
     // Validar que la cotización esté aprobada
@@ -86,21 +168,93 @@ export async function createPOFromCotizacion(
       }
     }
     
-    const empresa = cotizacionAttrs.empresa?.data || cotizacionAttrs.empresa
-    const empresaAttrs = empresa?.attributes || empresa
+    const empresaProveedora = cotizacionAttrs.empresa?.data || cotizacionAttrs.empresa
+    const empresaProveedoraAttrs = empresaProveedora?.attributes || empresaProveedora
     const rfq = cotizacionAttrs.rfq?.data || cotizacionAttrs.rfq
     const rfqAttrs = rfq?.attributes || rfq
     
     // Generar número único de PO
     const numeroPO = await generatePONumber()
     
-    // Preparar datos de facturación y despacho desde la empresa
-    const datosFacturacion = empresaAttrs.datos_facturacion || {}
+    // Obtener empresa propia (compradora) para datos de facturación
+    let empresaPropia: any = null
+    
+    if (empresaPropiaId) {
+      // Si se proporciona un ID específico, buscar esa empresa
+      try {
+        console.log('[OrdenCompraService] Buscando empresa propia por ID:', empresaPropiaId)
+        const empresaPropiaUrl = `/api/empresas/${empresaPropiaId}?populate[datos_facturacion]=true&populate[emails]=true`
+        const empresaPropiaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(empresaPropiaUrl)
+        
+        if (empresaPropiaResponse.data) {
+          empresaPropia = Array.isArray(empresaPropiaResponse.data)
+            ? empresaPropiaResponse.data[0]
+            : empresaPropiaResponse.data
+          
+          const empresaPropiaAttrs = empresaPropia?.attributes || empresaPropia
+          // Validar que sea una empresa propia
+          if (empresaPropiaAttrs?.es_empresa_propia !== true) {
+            console.warn('[OrdenCompraService] ⚠️ La empresa seleccionada no está marcada como propia. Continuando de todas formas.')
+          }
+          
+          console.log('[OrdenCompraService] ✅ Empresa propia seleccionada para datos de facturación:', {
+            id: empresaPropia.id,
+            documentId: empresaPropia.documentId,
+            nombre: empresaPropiaAttrs?.empresa_nombre || empresaPropiaAttrs?.nombre,
+          })
+        } else {
+          console.warn('[OrdenCompraService] ⚠️ Empresa propia no encontrada con ID proporcionado, buscando automáticamente...')
+        }
+      } catch (error: any) {
+        console.error('[OrdenCompraService] ❌ Error al buscar empresa propia por ID:', {
+          error: error.message,
+          status: error.status,
+          empresaPropiaId,
+          empresaPropiaIdType: typeof empresaPropiaId,
+        })
+        console.warn('[OrdenCompraService] ⚠️ Intentando buscar automáticamente...')
+        // Continuar para buscar automáticamente
+      }
+    }
+    
+    // Si no se proporcionó ID o no se encontró, buscar automáticamente
+    if (!empresaPropia) {
+      try {
+        const empresasPropiasResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+          `/api/empresas?filters[es_empresa_propia][$eq]=true&populate[datos_facturacion]=true&populate[emails]=true&pagination[pageSize]=10`
+        )
+        
+        if (empresasPropiasResponse.data) {
+          const empresasPropias = Array.isArray(empresasPropiasResponse.data)
+            ? empresasPropiasResponse.data
+            : [empresasPropiasResponse.data]
+          
+          if (empresasPropias.length > 0) {
+            // Usar la primera empresa propia encontrada
+            empresaPropia = empresasPropias[0]
+            console.log('[OrdenCompraService] ✅ Empresa propia encontrada automáticamente para datos de facturación:', {
+              id: empresaPropia.id,
+              documentId: empresaPropia.documentId,
+              nombre: (empresaPropia.attributes || empresaPropia).empresa_nombre || (empresaPropia.attributes || empresaPropia).nombre,
+            })
+          } else {
+            console.warn('[OrdenCompraService] ⚠️ No se encontraron empresas propias. Usando datos vacíos para facturación.')
+          }
+        }
+      } catch (error: any) {
+        console.error('[OrdenCompraService] ❌ Error al buscar empresas propias:', error.message)
+        console.warn('[OrdenCompraService] ⚠️ Continuando con datos de facturación vacíos')
+      }
+    }
+    
+    // Preparar datos de facturación y despacho desde la empresa propia (compradora)
+    const empresaPropiaAttrs = empresaPropia?.attributes || empresaPropia || {}
+    const datosFacturacion = empresaPropiaAttrs.datos_facturacion || {}
     const direccionFacturacion = {
       first_name: datosFacturacion.first_name || '',
       last_name: datosFacturacion.last_name || '',
-      company: datosFacturacion.company || empresaAttrs.empresa_nombre || empresaAttrs.nombre || '',
-      email: datosFacturacion.email || empresaAttrs.emails?.[0]?.email || '',
+      company: datosFacturacion.company || empresaPropiaAttrs.empresa_nombre || empresaPropiaAttrs.nombre || '',
+      email: datosFacturacion.email || empresaPropiaAttrs.emails?.[0]?.email || '',
       phone: datosFacturacion.phone || '',
       address_1: datosFacturacion.address_1 || '',
       address_2: datosFacturacion.address_2 || '',
@@ -123,7 +277,7 @@ export async function createPOFromCotizacion(
         direccion_despacho: direccionFacturacion, // Por defecto igual a facturación
         // Relaciones
         cotizacion_recibida: { connect: [cotizacionRecibidaId] },
-        empresa: { connect: [empresa.id || empresa.documentId] },
+        empresa: { connect: [empresaProveedora.id || empresaProveedora.documentId] }, // Empresa proveedora (la que vende)
         ...(creadoPorId && { creado_por: { connect: [creadoPorId] } }),
       },
     }
@@ -146,7 +300,15 @@ export async function createPOFromCotizacion(
     }
     
     // Actualizar estado de cotización a "convertida"
-    await strapiClient.put(`/api/cotizaciones-recibidas/${cotizacionRecibidaId}`, {
+    // Usar documentId si está disponible, de lo contrario usar id
+    const cotizacionIdParaUpdate = cotizacion.documentId || cotizacion.id || cotizacionRecibidaId
+    console.log('[OrdenCompraService] Actualizando cotización:', {
+      cotizacionIdParaUpdate,
+      poId: po.id,
+      poDocumentId: po.documentId,
+    })
+    
+    await strapiClient.put(`/api/cotizaciones-recibidas/${cotizacionIdParaUpdate}`, {
       data: {
         estado: 'convertida',
         orden_compra: { connect: [po.id || po.documentId] },
@@ -180,7 +342,7 @@ export async function createPOFromCotizacion(
     }
     
     // Enviar email al proveedor con detalles de la PO
-    await sendPOEmailToProvider(po, empresaAttrs)
+    await sendPOEmailToProvider(po, empresaProveedoraAttrs)
     
     return {
       success: true,
@@ -289,7 +451,7 @@ async function sendPOEmailToProvider(po: any, empresa: any): Promise<void> {
  * Aprobar una cotización recibida
  */
 export async function aprobarCotizacion(
-  cotizacionId: number
+  cotizacionId: number | string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await strapiClient.put(`/api/cotizaciones-recibidas/${cotizacionId}`, {
@@ -312,7 +474,7 @@ export async function aprobarCotizacion(
  * Rechazar una cotización recibida
  */
 export async function rechazarCotizacion(
-  cotizacionId: number,
+  cotizacionId: number | string,
   motivo?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
