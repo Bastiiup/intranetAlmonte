@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       'sort': 'createdAt:desc',
     })
     
-    const url = `${getStrapiUrl('/api/licencia-estudiantes')}?${queryParams.toString()}`
+    const url = `${getStrapiUrl('/api/licencias-estudiantes')}?${queryParams.toString()}`
     
     // Usar fetch directamente con timeout más largo (60 segundos)
     const controller = new AbortController()
