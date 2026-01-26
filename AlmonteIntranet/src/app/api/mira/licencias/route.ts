@@ -10,12 +10,10 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('pageSize') || '25')
     
-    // Construir query con populate simplificado - solo campos necesarios
-    // Evitar populate anidado complejo que causa errores de validación
+    // Construir query con populate profundo para libro_mira.libro
+    // Usar populate=* para la relación libro para obtener todos los campos necesarios
     const queryParams = new URLSearchParams({
-      'populate[libro_mira][populate][libro][fields][0]': 'nombre_libro',
-      'populate[libro_mira][populate][libro][fields][1]': 'isbn_libro',
-      'populate[libro_mira][populate][libro][populate][portada_libro][fields][0]': 'url',
+      'populate[libro_mira][populate][libro]': '*',
       'populate[libro_mira][fields][0]': 'activo',
       'populate[libro_mira][fields][1]': 'tiene_omr',
       'populate[estudiante][populate][persona][fields][0]': 'nombres',
@@ -80,22 +78,45 @@ export async function GET(request: NextRequest) {
         fecha_vencimiento: attributes.fecha_vencimiento || null,
         libro_mira: attributes.libro_mira?.data
           ? {
-              id: attributes.libro_mira.data.id,
-              documentId: attributes.libro_mira.data.documentId,
+              id: attributes.libro_mira.data.id || attributes.libro_mira.data.documentId,
+              documentId: attributes.libro_mira.data.documentId || String(attributes.libro_mira.data.id || ''),
               activo: attributes.libro_mira.data.attributes?.activo !== false,
               tiene_omr: attributes.libro_mira.data.attributes?.tiene_omr || false,
-              libro: attributes.libro_mira.data.attributes?.libro?.data
-                ? {
-                    id: attributes.libro_mira.data.attributes.libro.data.id,
-                    isbn_libro: attributes.libro_mira.data.attributes.libro.data.attributes?.isbn_libro || '',
-                    nombre_libro: attributes.libro_mira.data.attributes.libro.data.attributes?.nombre_libro || '',
-                    portada_libro: attributes.libro_mira.data.attributes.libro.data.attributes?.portada_libro?.data
-                      ? {
-                          url: attributes.libro_mira.data.attributes.libro.data.attributes.portada_libro.data.attributes?.url || '',
-                        }
-                      : null,
-                  }
-                : null,
+              libro: (() => {
+                // Intentar múltiples formas de acceder a la relación libro
+                const libroData = 
+                  attributes.libro_mira.data.attributes?.libro?.data ||
+                  attributes.libro_mira.data.attributes?.libro ||
+                  attributes.libro_mira.data.libro?.data ||
+                  attributes.libro_mira.data.libro ||
+                  null
+                
+                if (!libroData) {
+                  console.warn('[API /api/mira/licencias] Libro no encontrado en libro_mira:', {
+                    libroMiraId: attributes.libro_mira.data.id,
+                    estructura: JSON.stringify(attributes.libro_mira.data, null, 2).substring(0, 500)
+                  })
+                  return null
+                }
+                
+                // Manejar tanto estructura con .attributes como sin ella
+                const libroAttrs = libroData.attributes || libroData
+                
+                return {
+                  id: libroData.id || libroData.documentId,
+                  isbn_libro: libroAttrs.isbn_libro || '',
+                  nombre_libro: libroAttrs.nombre_libro || '',
+                  portada_libro: libroAttrs.portada_libro?.data
+                    ? {
+                        url: libroAttrs.portada_libro.data.attributes?.url || libroAttrs.portada_libro.data.url || '',
+                      }
+                    : libroAttrs.portada_libro?.url
+                    ? {
+                        url: libroAttrs.portada_libro.url,
+                      }
+                    : null,
+                }
+              })(),
             }
           : null,
         estudiante: attributes.estudiante?.data
