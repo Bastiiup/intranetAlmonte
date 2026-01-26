@@ -21,6 +21,7 @@ import { TbEdit, TbTrash } from 'react-icons/tb'
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
+import ImportadorModal from './ImportadorModal'
 
 interface LicenciaType {
   id: number | string
@@ -530,10 +531,7 @@ export default function LicenciasListing({ licencias: licenciasProp, error }: Li
               </Button>
               <Button 
                 variant="success" 
-                onClick={() => {
-                  // TODO: Implementar importación masiva
-                  alert('Importación masiva - Próximamente')
-                }}
+                onClick={() => setShowImportModal(true)}
               >
                 <LuUpload className="fs-sm me-2" /> Importación Masiva
               </Button>
@@ -577,6 +575,15 @@ export default function LicenciasListing({ licencias: licenciasProp, error }: Li
                 : Object.keys(selectedRowIds).length
             }
             itemName="licencia"
+          />
+
+          <ImportadorModal
+            show={showImportModal}
+            onHide={() => setShowImportModal(false)}
+            onImportComplete={() => {
+              setShowImportModal(false)
+              recargarLicencias()
+            }}
           />
         </Card>
       </Col>
