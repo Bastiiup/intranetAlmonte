@@ -56,7 +56,10 @@ export async function POST(request: NextRequest) {
       while (hasMore) {
         logs.push({ type: 'info', message: `[CACHE] Cargando pagina ${page} de libros-mira...` })
         
+        // Usar populate completo para la relación libro
         const librosMiraUrl = `${getStrapiUrl('/api/libros-mira')}?fields[0]=id&populate[libro][fields][0]=isbn_libro&populate[libro][fields][1]=nombre_libro&pagination[page]=${page}&pagination[pageSize]=100`
+        
+        console.log(`[IMPORTAR] URL de libros-mira:`, librosMiraUrl)
         
         const librosMiraResponse = await fetch(librosMiraUrl, {
           headers: {
@@ -66,12 +69,17 @@ export async function POST(request: NextRequest) {
         })
         
         if (!librosMiraResponse.ok) {
+          const errorText = await librosMiraResponse.text()
+          console.error(`[IMPORTAR] Error HTTP ${librosMiraResponse.status}:`, errorText)
           throw new Error(`HTTP ${librosMiraResponse.status} al cargar catalogo de libros-mira`)
         }
         
         const librosMiraData = await librosMiraResponse.json()
         
+        console.log(`[IMPORTAR] Respuesta de libros-mira (pagina ${page}):`, JSON.stringify(librosMiraData, null, 2).substring(0, 1000))
+        
         if (!librosMiraData.data || librosMiraData.data.length === 0) {
+          console.log(`[IMPORTAR] No hay mas datos en pagina ${page}`)
           hasMore = false
           break
         }
@@ -79,20 +87,42 @@ export async function POST(request: NextRequest) {
         // Procesar cada libro-mira y agregarlo al mapa
         let librosAgregados = 0
         for (const libroMira of librosMiraData.data) {
-          const libro = libroMira.attributes?.libro?.data
-          if (libro && libro.attributes?.isbn_libro) {
-            const isbnNormalizado = String(libro.attributes.isbn_libro).trim()
-            if (isbnNormalizado) {
-              mapaLibros.set(isbnNormalizado, {
-                libroMiraId: libroMira.id,
-                libroNombre: libro.attributes.nombre_libro || 'N/A',
-              })
-              librosAgregados++
+          console.log(`[IMPORTAR] Procesando libro-mira ID ${libroMira.id}:`, JSON.stringify(libroMira, null, 2).substring(0, 500))
+          
+          // Intentar diferentes formas de acceder a la relación libro
+          const libro = libroMira.attributes?.libro?.data || libroMira.libro?.data || libroMira.attributes?.libro || libroMira.libro
+          
+          console.log(`[IMPORTAR] Libro extraido para libro-mira ${libroMira.id}:`, JSON.stringify(libro, null, 2).substring(0, 500))
+          
+          if (libro) {
+            // Intentar diferentes formas de acceder al ISBN
+            const isbnRaw = libro.attributes?.isbn_libro || libro.isbn_libro || (typeof libro === 'object' && 'isbn_libro' in libro ? libro.isbn_libro : null)
+            const nombreRaw = libro.attributes?.nombre_libro || libro.nombre_libro || (typeof libro === 'object' && 'nombre_libro' in libro ? libro.nombre_libro : 'N/A')
+            
+            console.log(`[IMPORTAR] ISBN raw:`, isbnRaw, 'Nombre raw:', nombreRaw)
+            
+            if (isbnRaw) {
+              const isbnNormalizado = String(isbnRaw).trim().replace(/\s+/g, '')
+              if (isbnNormalizado) {
+                mapaLibros.set(isbnNormalizado, {
+                  libroMiraId: libroMira.id,
+                  libroNombre: nombreRaw || 'N/A',
+                })
+                librosAgregados++
+                console.log(`[IMPORTAR] ISBN "${isbnNormalizado}" agregado al mapa para libro-mira ${libroMira.id}`)
+              } else {
+                console.warn(`[IMPORTAR] ISBN vacio despues de normalizar para libro-mira ${libroMira.id}`)
+              }
+            } else {
+              console.warn(`[IMPORTAR] No se encontro ISBN para libro-mira ${libroMira.id}. Estructura del libro:`, JSON.stringify(libro, null, 2))
             }
+          } else {
+            console.warn(`[IMPORTAR] No se encontro relacion libro para libro-mira ${libroMira.id}`)
           }
         }
         
         totalLibrosCargados += librosMiraData.data.length
+        console.log(`[IMPORTAR] Pagina ${page}: ${librosMiraData.data.length} libros-mira procesados, ${librosAgregados} ISBNs agregados al mapa. Total en mapa: ${mapaLibros.size}`)
         logs.push({ type: 'info', message: `[CACHE] Pagina ${page}: ${librosMiraData.data.length} libros-mira procesados, ${librosAgregados} ISBNs agregados al mapa` })
         
         // Verificar si hay más páginas
