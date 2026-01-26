@@ -1076,7 +1076,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                 <LuFileCode className="fs-sm me-2" />
                 Debug Export
               </Button>
-              {table.getColumn('colegio')?.getFilterValue() && (
+              {(table.getColumn('colegio')?.getFilterValue() as string | undefined) && (
                 <Button 
                   variant="outline-primary" 
                   onClick={handleExportarColegio}
