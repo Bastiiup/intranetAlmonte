@@ -145,14 +145,6 @@ export const menuItems: MenuItemType[] = [
       { key: 'qr-listing', label: 'Listado de PDFs', url: '/comercial/etiquetas-qr' },
     ],
   },
-  {
-    key: 'mira',
-    label: 'Mira',
-    icon: LuGraduationCap,
-    children: [
-      { key: 'mira-licencias', label: 'Licencias de libros', url: '/mira/licencias' },
-    ],
-  },
   // { key: 'atencion-clientes', label: 'ATENCIÓN CLIENTES', isTitle: true },
   // {
   //   key: 'support-center',
@@ -206,6 +198,15 @@ export const menuItems: MenuItemType[] = [
       { key: 'add-pedido', label: 'Agregar Pedido', url: '/atributos/pedidos/agregar' },
     ],
     roles: ['super_admin', 'supervisor', 'soporte'],
+  },
+  { key: 'mira-section', label: 'MIRA', isTitle: true },
+  {
+    key: 'mira',
+    label: 'Mira',
+    icon: LuGraduationCap,
+    children: [
+      { key: 'mira-licencias', label: 'Licencias de libros', url: '/mira/licencias' },
+    ],
   },
   { key: 'aplicaciones', label: 'APLICACIONES', isTitle: true },
   { key: 'chat', label: 'Chat', icon: LuMessageSquareDot, url: '/chat' },

@@ -22,9 +22,15 @@ export default async function Page() {
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
     const baseUrl = `${protocol}://${host}`
     
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 50000) // 50 segundos
+    
     const response = await fetch(`${baseUrl}/api/mira/licencias`, {
       cache: 'no-store',
+      signal: controller.signal,
     })
+    
+    clearTimeout(timeoutId)
     
     const data = await response.json()
     

@@ -1,17 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server'
-import strapiClient from '@/lib/strapi/client'
+import { getStrapiUrl, STRAPI_API_TOKEN } from '@/lib/strapi/config'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60 // Aumentar timeout a 60 segundos
 
 export async function GET(request: NextRequest) {
   try {
-    // Obtener licencias con populate de libro_mira y estudiante
-    const licencias = await strapiClient.get<{
-      data: any[]
-      meta?: any
-    }>(
-      '/api/licencia-estudiantes?populate[libro_mira][populate][libro][populate][portada_libro]=true&populate[estudiante][populate][persona]=true&populate[estudiante][populate][colegio]=true&sort=createdAt:desc'
-    )
+    const searchParams = request.nextUrl.searchParams
+    const page = parseInt(searchParams.get('page') || '1')
+    const pageSize = parseInt(searchParams.get('pageSize') || '25')
+    
+    // Construir query con populate optimizado
+    const queryParams = new URLSearchParams({
+      'populate[libro_mira][populate][libro]': 'true',
+      'populate[libro_mira][populate][libro][populate][portada_libro]': 'true',
+      'populate[estudiante][populate][persona]': 'true',
+      'populate[estudiante][populate][colegio]': 'true',
+      'pagination[page]': page.toString(),
+      'pagination[pageSize]': pageSize.toString(),
+      'sort': 'createdAt:desc',
+    })
+    
+    const url = `${getStrapiUrl('/api/licencia-estudiantes')}?${queryParams.toString()}`
+    
+    // Usar fetch directamente con timeout más largo (60 segundos)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 60000)
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    }
+    
+    if (STRAPI_API_TOKEN) {
+      headers['Authorization'] = `Bearer ${STRAPI_API_TOKEN}`
+    }
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers,
+      signal: controller.signal,
+    })
+    
+    clearTimeout(timeoutId)
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Error ${response.status}: ${errorText}`)
+    }
+    
+    const licencias = await response.json()
 
     if (!licencias.data || !Array.isArray(licencias.data)) {
       return NextResponse.json(
@@ -86,6 +123,18 @@ export async function GET(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('[API /api/mira/licencias] Error:', error)
+    
+    // Detectar timeout específicamente
+    if (error.name === 'AbortError' || error.message?.includes('timeout') || error.message?.includes('Timeout')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Timeout: La petición a Strapi tardó más de 60 segundos. Intenta con paginación más pequeña.',
+        },
+        { status: 504 }
+      )
+    }
+    
     return NextResponse.json(
       {
         success: false,
