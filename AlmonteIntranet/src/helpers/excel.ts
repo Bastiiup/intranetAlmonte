@@ -4,6 +4,8 @@
  * NOTA: Esta función solo funciona en el cliente (browser)
  */
 
+import * as XLSX from 'xlsx'
+
 interface MaterialExport {
   Material: string
   Tipo: string
@@ -34,9 +36,6 @@ export async function exportarMaterialesAExcel(
   }
 
   try {
-    // Importar dinámicamente xlsx solo cuando se necesite
-    const XLSX = await import('xlsx')
-
     // Mapear materiales al formato Excel
     const datosExport: MaterialExport[] = materiales.map((m) => {
       const tipoLabel =
@@ -161,9 +160,6 @@ export async function exportarListasColegioAExcel(
   }
 
   try {
-    // Importar dinámicamente xlsx solo cuando se necesite
-    const XLSX = await import('xlsx')
-
     if (!datosExportacion.datosExcel || datosExportacion.datosExcel.length === 0) {
       alert('No hay productos para exportar')
       return
