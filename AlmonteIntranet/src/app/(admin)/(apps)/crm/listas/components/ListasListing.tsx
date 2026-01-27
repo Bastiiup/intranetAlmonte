@@ -294,10 +294,14 @@ export default function ListasListing({ listas: listasProp, error: initialError 
               />
             </DropdownToggle>
             <DropdownMenu 
+              onClick={(e) => {
+                e.stopPropagation()
+              }}
               style={{ 
                 minWidth: '220px',
                 padding: '8px',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                zIndex: 1050,
               }}
             >
               <div className="px-2 py-1 mb-2 border-bottom">
