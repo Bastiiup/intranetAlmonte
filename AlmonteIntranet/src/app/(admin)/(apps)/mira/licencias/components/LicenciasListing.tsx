@@ -16,14 +16,14 @@ import {
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge } from 'react-bootstrap'
 import { LuSearch, LuRefreshCw, LuUpload } from 'react-icons/lu'
-import { TbEdit, TbTrash } from 'react-icons/tb'
+import { TbEdit } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
-import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
 import ImportadorModal from './ImportadorModal'
+import EditLicenciaModal from './EditLicenciaModal'
 
-interface LicenciaType {
+export interface LicenciaType {
   id: number | string
   documentId?: string
   numeral?: number | null
@@ -74,11 +74,11 @@ interface LicenciasListingProps {
 }
 
 export default function LicenciasListing({ licencias: licenciasProp, error }: LicenciasListingProps) {
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [selectedLicenciaId, setSelectedLicenciaId] = useState<string | number | null>(null)
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [selectedLicencia, setSelectedLicencia] = useState<LicenciaType | null>(null)
 
   // Los datos ya vienen transformados desde la API /api/mira/licencias
   const mappedLicencias = useMemo(() => {
@@ -328,25 +328,12 @@ export default function LicenciasListing({ licencias: licenciasProp, error }: Li
             size="sm"
             className="btn-icon rounded-circle"
             onClick={() => {
-              // TODO: Implementar edición
-              alert('Edición de licencia - Próximamente')
+              setSelectedLicencia(row.original)
+              setShowEditModal(true)
             }}
             title="Editar"
           >
             <TbEdit className="fs-lg" />
-          </Button>
-          <Button
-            variant="outline-danger"
-            size="sm"
-            className="btn-icon rounded-circle"
-            onClick={() => {
-              setSelectedRowIds({})
-              setSelectedLicenciaId(row.original.id)
-              setShowDeleteModal(true)
-            }}
-            title="Eliminar"
-          >
-            <TbTrash className="fs-lg" />
           </Button>
         </div>
       ),
@@ -390,40 +377,6 @@ export default function LicenciasListing({ licencias: licenciasProp, error }: Li
 
   const start = pageIndex * pageSize + 1
   const end = Math.min(start + pageSize - 1, totalItems)
-
-  const handleDelete = async () => {
-    const selectedIds: (string | number)[] = []
-    
-    if (selectedLicenciaId) {
-      selectedIds.push(selectedLicenciaId)
-    } else {
-      const selectedRows = table.getSelectedRowModel().rows
-      if (selectedRows.length > 0) {
-        selectedIds.push(...selectedRows.map(row => row.original.id))
-      }
-    }
-
-    if (selectedIds.length === 0) {
-      alert('No hay licencias seleccionadas para eliminar')
-      setShowDeleteModal(false)
-      return
-    }
-
-    setLoading(true)
-    try {
-      // TODO: Implementar eliminación
-      alert('Eliminación de licencias - Próximamente')
-      setShowDeleteModal(false)
-      setSelectedLicenciaId(null)
-      setSelectedRowIds({})
-    } catch (error: any) {
-      console.error('Error al eliminar licencia(s):', error)
-      alert('Error al eliminar licencia(s): ' + error.message)
-      setShowDeleteModal(false)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const recargarLicencias = async () => {
     setLoading(true)
@@ -534,17 +487,6 @@ export default function LicenciasListing({ licencias: licenciasProp, error }: Li
             </div>
 
             <div className="d-flex gap-1">
-              {Object.keys(selectedRowIds).length > 0 && (
-                <Button 
-                  variant="danger" 
-                  onClick={() => {
-                    setSelectedLicenciaId(null)
-                    setShowDeleteModal(true)
-                  }}
-                >
-                  <TbTrash className="fs-sm me-2" /> Eliminar Seleccionadas ({Object.keys(selectedRowIds).length})
-                </Button>
-              )}
               <Button 
                 variant="outline-secondary" 
                 onClick={() => recargarLicencias()}
@@ -587,19 +529,16 @@ export default function LicenciasListing({ licencias: licenciasProp, error }: Li
             </CardFooter>
           )}
 
-          <DeleteConfirmationModal
-            show={showDeleteModal}
+          <EditLicenciaModal
+            show={showEditModal}
             onHide={() => {
-              setShowDeleteModal(false)
-              setSelectedLicenciaId(null)
+              setShowEditModal(false)
+              setSelectedLicencia(null)
             }}
-            onConfirm={handleDelete}
-            selectedCount={
-              selectedLicenciaId 
-                ? 1 
-                : Object.keys(selectedRowIds).length
-            }
-            itemName="licencia"
+            licencia={selectedLicencia}
+            onSuccess={() => {
+              recargarLicencias()
+            }}
           />
 
           <ImportadorModal
