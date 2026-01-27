@@ -1021,22 +1021,24 @@ export default function ImportacionCompletaModal({
                             const colegioEncontradoAPI = searchResult.data[0]
                             colegioId = colegioEncontradoAPI.id || colegioEncontradoAPI.documentId
                             colegioExistente = colegioEncontradoAPI
-                            colegioEncontrado = { 
-                              id: colegioId, 
-                              nombre: colegioEncontradoAPI.colegio_nombre || colegioEncontradoAPI.nombre || grupo.colegio.nombre, 
-                              rbd: rbdNum 
+                            if (colegioId !== null && colegioId !== undefined) {
+                              colegioEncontrado = { 
+                                id: colegioId, 
+                                nombre: colegioEncontradoAPI.colegio_nombre || colegioEncontradoAPI.nombre || grupo.colegio.nombre, 
+                                rbd: rbdNum 
+                              }
+                              
+                              // Actualizar nombre
+                              if (!grupo.colegio.nombre || grupo.colegio.nombre.startsWith('Colegio RBD')) {
+                                grupo.colegio.nombre = colegioEncontrado.nombre
+                              }
+                              
+                              // Agregar al mapa para futuras búsquedas
+                              colegiosMap.set(rbdNum, { id: colegioId, nombre: colegioEncontrado.nombre, datosCompletos: colegioEncontradoAPI })
+                              colegiosCompletosMap.set(colegioId, colegioEncontradoAPI)
+                              
+                              console.log(`[Importación Completa] ✅ Colegio existente encontrado por RBD en API: ${colegioEncontrado.nombre} (ID: ${colegioId})`)
                             }
-                            
-                            // Actualizar nombre
-                            if (!grupo.colegio.nombre || grupo.colegio.nombre.startsWith('Colegio RBD')) {
-                              grupo.colegio.nombre = colegioEncontrado.nombre
-                            }
-                            
-                            // Agregar al mapa para futuras búsquedas
-                            colegiosMap.set(rbdNum, { id: colegioId, nombre: colegioEncontrado.nombre, datosCompletos: colegioEncontradoAPI })
-                            colegiosCompletosMap.set(colegioId, colegioEncontradoAPI)
-                            
-                            console.log(`[Importación Completa] ✅ Colegio existente encontrado por RBD en API: ${colegioEncontrado.nombre} (ID: ${colegioId})`)
                           } else {
                             // Intentar buscar por nombre como último recurso
                             const nombreBusqueda = grupo.colegio.nombre.trim().toLowerCase()
