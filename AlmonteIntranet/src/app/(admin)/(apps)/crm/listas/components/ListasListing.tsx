@@ -230,21 +230,83 @@ export default function ListasListing({ listas: listasProp, error: initialError 
       cell: ({ row }) => {
         const colegio = row.original
         const total = colegio.totalListas
+        
+        const handleAñoClick = (año: number, e: React.MouseEvent) => {
+          e.stopPropagation()
+          // Navegar a las listas del colegio con filtro por año
+          setSelectedColegio(colegio)
+          // Scroll a la sección del año correspondiente después de cargar
+          setTimeout(() => {
+            const añoElement = document.getElementById(`listas-${año}`)
+            if (añoElement) {
+              añoElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }
+          }, 500)
+        }
+
         return (
-          <div 
-            className="d-flex align-items-center gap-2 cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation()
-              setColegioParaEstadisticas(colegio)
-              setShowEstadisticasModal(true)
-            }}
-            style={{ cursor: 'pointer' }}
-            title="Click para ver desglose por año"
-          >
-            <Badge bg={total > 0 ? 'primary' : 'secondary'} className="px-3 py-2" style={{ fontSize: '13px', fontWeight: '600' }}>
-              {total} {total === 1 ? 'lista' : 'listas'}
-            </Badge>
-            <LuInfo size={16} className="text-primary" />
+          <div className="d-flex flex-column gap-2">
+            {/* Total de listas - más destacado */}
+            <div 
+              className="d-flex align-items-center gap-2 cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation()
+                setColegioParaEstadisticas(colegio)
+                setShowEstadisticasModal(true)
+              }}
+              style={{ cursor: 'pointer' }}
+              title="Click para ver estadísticas detalladas"
+            >
+              <Badge 
+                bg={total > 0 ? 'primary' : 'secondary'} 
+                className="px-3 py-2" 
+                style={{ 
+                  fontSize: '14px', 
+                  fontWeight: '700',
+                  minWidth: '80px',
+                  textAlign: 'center'
+                }}
+              >
+                {total} {total === 1 ? 'lista' : 'listas'}
+              </Badge>
+              <LuInfo size={16} className="text-primary" style={{ opacity: 0.7 }} />
+            </div>
+            
+            {/* Años individuales - clickeables */}
+            <div className="d-flex flex-wrap gap-2">
+              {[
+                { año: 2024, count: colegio.listas2024, color: 'primary' },
+                { año: 2025, count: colegio.listas2025, color: 'warning' },
+                { año: 2026, count: colegio.listas2026, color: 'info' },
+                { año: 2027, count: colegio.listas2027, color: 'success' },
+              ].map(({ año, count, color }) => (
+                <div
+                  key={año}
+                  onClick={(e) => handleAñoClick(año, e)}
+                  className={`badge bg-${count > 0 ? color : 'secondary'} px-2 py-1`}
+                  style={{
+                    cursor: count > 0 ? 'pointer' : 'default',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    transition: 'all 0.2s ease',
+                    opacity: count > 0 ? 1 : 0.6,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (count > 0) {
+                      e.currentTarget.style.transform = 'scale(1.1)'
+                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)'
+                    e.currentTarget.style.boxShadow = 'none'
+                  }}
+                  title={count > 0 ? `Click para ver ${count} ${count === 1 ? 'lista' : 'listas'} de ${año}` : `No hay listas para ${año}`}
+                >
+                  {año}: {count}
+                </div>
+              ))}
+            </div>
           </div>
         )
       },
@@ -422,7 +484,7 @@ export default function ListasListing({ listas: listasProp, error: initialError 
 
                 {/* Panel 2027 */}
                 <Col md={6}>
-                  <Card className="mb-3">
+                  <Card className="mb-3" id="listas-2027">
                     <CardHeader className="bg-success text-white">
                       <h6 className="mb-0">Listas 2027 ({cursos2027.length})</h6>
                     </CardHeader>
@@ -494,7 +556,7 @@ export default function ListasListing({ listas: listasProp, error: initialError 
                 <Row className="mt-3">
                   {cursos2025.length > 0 && (
                     <Col md={6}>
-                      <Card className="mb-3">
+                      <Card className="mb-3" id="listas-2025">
                         <CardHeader className="bg-warning text-dark">
                           <h6 className="mb-0">Listas 2025 ({cursos2025.length})</h6>
                         </CardHeader>
@@ -558,7 +620,7 @@ export default function ListasListing({ listas: listasProp, error: initialError 
                   )}
                   {cursos2024.length > 0 && (
                     <Col md={6}>
-                      <Card className="mb-3">
+                      <Card className="mb-3" id="listas-2024">
                         <CardHeader className="bg-secondary text-white">
                           <h6 className="mb-0">Listas 2024 ({cursos2024.length})</h6>
                         </CardHeader>
