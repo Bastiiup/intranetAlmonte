@@ -256,43 +256,38 @@ export default function ListasListing({ listas: listasProp, error: initialError 
         ]
 
         return (
-          <Dropdown
-            show={isOpen}
-            onToggle={(isOpen) => {
-              setDropdownAbierto((prev) => ({ ...prev, [colegioId]: isOpen }))
-            }}
-            onClick={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
-            }}
-          >
-            <DropdownToggle
-              as={Button}
-              variant={total > 0 ? 'primary' : 'secondary'}
-              className="d-flex align-items-center gap-2"
-              style={{
-                fontSize: '14px',
-                fontWeight: '600',
-                padding: '8px 16px',
-                border: 'none',
-                boxShadow: isOpen ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
-                transition: 'all 0.2s ease',
-              }}
-              onClick={(e) => {
-                e.stopPropagation()
-                e.preventDefault()
-                setDropdownAbierto((prev) => ({ ...prev, [colegioId]: !prev[colegioId] }))
+          <div onClick={(e) => e.stopPropagation()}>
+            <Dropdown
+              show={isOpen}
+              onToggle={(isOpen) => {
+                setDropdownAbierto((prev) => ({ ...prev, [colegioId]: isOpen }))
               }}
             >
-              <span>{total} {total === 1 ? 'lista' : 'listas'}</span>
-              <LuChevronDown 
-                size={16} 
-                style={{ 
-                  transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.2s ease'
-                }} 
-              />
-            </DropdownToggle>
+              <DropdownToggle
+                as={Button}
+                variant={total > 0 ? 'primary' : 'secondary'}
+                className="d-flex align-items-center gap-2"
+                style={{
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  padding: '8px 16px',
+                  border: 'none',
+                  boxShadow: isOpen ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
+                  transition: 'all 0.2s ease',
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                }}
+              >
+                <span>{total} {total === 1 ? 'lista' : 'listas'}</span>
+                <LuChevronDown 
+                  size={16} 
+                  style={{ 
+                    transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s ease'
+                  }} 
+                />
+              </DropdownToggle>
             <DropdownMenu 
               onClick={(e) => {
                 e.stopPropagation()
@@ -386,6 +381,7 @@ export default function ListasListing({ listas: listasProp, error: initialError 
               </div>
             </DropdownMenu>
           </Dropdown>
+          </div>
         )
       },
     },
