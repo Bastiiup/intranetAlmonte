@@ -147,16 +147,28 @@ export default function LicenciasListing({ licencias: licenciasProp, error }: Li
     {
       id: 'libro',
       header: 'Libro',
-      accessorFn: (row) => row.libro_mira?.libro?.nombre_libro || '',
+      accessorFn: (row) => {
+        // RUTA CRÍTICA: Licencia -> LibroMira -> Libro -> Nombre
+        const libroMira = row.libro_mira
+        const libro = libroMira?.libro
+        return libro?.nombre_libro || ''
+      },
       enableSorting: true,
       enableColumnFilter: true,
       filterFn: 'includesString',
       cell: ({ row }) => {
-        const libro = row.original.libro_mira?.libro
-        if (!libro) return '-'
+        // RUTA CRÍTICA: Licencia -> LibroMira -> Libro -> Nombre
+        // Usar optional chaining para evitar errores si falta algún nivel
+        const libroMira = row.original.libro_mira
+        const libro = libroMira?.libro
+        
+        if (!libro || !libro.nombre_libro) {
+          return <span className="text-muted">Nombre no encontrado</span>
+        }
+        
         return (
           <div>
-            <div className="fw-semibold">{libro.nombre_libro || '-'}</div>
+            <div className="fw-semibold">{libro.nombre_libro}</div>
             {libro.isbn_libro && (
               <small className="text-muted d-block">ISBN: {libro.isbn_libro}</small>
             )}

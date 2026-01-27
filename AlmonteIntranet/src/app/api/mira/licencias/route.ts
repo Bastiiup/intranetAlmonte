@@ -11,19 +11,13 @@ export async function GET(request: NextRequest) {
     const pageSize = parseInt(searchParams.get('pageSize') || '25')
     
     // Construir query con populate profundo para libro_mira.libro
-    // Especificar campos explícitamente para evitar errores con relaciones de media
-    // IMPORTANTE: Incluir nombre_libro e isbn_libro que son los campos necesarios para mostrar en la tabla
+    // Usar populate=true para traer todos los campos del libro (más confiable que especificar campos individuales)
     const queryParams = new URLSearchParams({
-      'populate[libro_mira][populate][libro][fields][0]': 'nombre_libro',
-      'populate[libro_mira][populate][libro][fields][1]': 'isbn_libro',
-      'populate[libro_mira][populate][libro][fields][2]': 'subtitulo_libro',
-      // NO incluir portada_libro porque causa error de validación en Strapi
+      'populate[libro_mira][populate][libro]': 'true',
       'populate[libro_mira][fields][0]': 'activo',
       'populate[libro_mira][fields][1]': 'tiene_omr',
-      'populate[estudiante][populate][persona][fields][0]': 'nombres',
-      'populate[estudiante][populate][persona][fields][1]': 'primer_apellido',
-      'populate[estudiante][populate][persona][fields][2]': 'segundo_apellido',
-      'populate[estudiante][populate][colegio][fields][0]': 'colegio_nombre',
+      'populate[estudiante][populate][persona]': 'true',
+      'populate[estudiante][populate][colegio]': 'true',
       'populate[estudiante][fields][0]': 'email',
       'populate[estudiante][fields][1]': 'nivel',
       'populate[estudiante][fields][2]': 'curso',
@@ -73,21 +67,43 @@ export async function GET(request: NextRequest) {
 
     console.log('[API /api/mira/licencias] Total licencias recibidas:', licencias.data.length)
 
-    // Construir un mapa libro_mira (por documentId) -> datos de libro (nombre_libro, isbn_libro)
+    // Intentar extraer el nombre_libro directamente de la respuesta de Strapi
+    // Si el populate profundo funcionó, debería estar en licencia.attributes.libro_mira.data.attributes.libro.data.attributes.nombre_libro
+    // Si no, haremos una segunda petición como fallback
     const libroMiraDocumentIds = new Set<string>()
+    const mapaLibrosDesdePopulate = new Map<string, { nombre_libro: string; isbn_libro: string }>()
+    
+    // Primero, intentar extraer datos del populate directo
     for (const licencia of licencias.data) {
       const attributes = licencia.attributes || licencia
       const libroMiraData = attributes.libro_mira?.data || attributes.libro_mira
-      if (libroMiraData?.documentId || libroMiraData?.id) {
-        const key = String(libroMiraData.documentId || libroMiraData.id)
-        libroMiraDocumentIds.add(key)
+      if (!libroMiraData) continue
+      
+      const libroMiraKey = String(libroMiraData.documentId || libroMiraData.id)
+      libroMiraDocumentIds.add(libroMiraKey)
+      
+      // Intentar extraer libro desde el populate directo
+      const libroMiraAttrs = libroMiraData.attributes || libroMiraData
+      const libroData = libroMiraAttrs.libro?.data || libroMiraAttrs.libro
+      
+      if (libroData) {
+        const libroAttrs = libroData.attributes || libroData
+        const nombreLibro = libroAttrs.nombre_libro || ''
+        const isbnLibro = libroAttrs.isbn_libro || ''
+        
+        if (nombreLibro || isbnLibro) {
+          mapaLibrosDesdePopulate.set(libroMiraKey, { nombre_libro: nombreLibro, isbn_libro: isbnLibro })
+          console.log(`[API /api/mira/licencias] Libro extraído desde populate: ${libroMiraKey} → ${nombreLibro}`)
+        }
       }
     }
 
-    const mapaLibros = new Map<string, { nombre_libro: string; isbn_libro: string }>()
+    // Si faltan libros, hacer segunda petición como fallback
+    const mapaLibros = new Map<string, { nombre_libro: string; isbn_libro: string }>(mapaLibrosDesdePopulate)
+    const librosFaltantes = Array.from(libroMiraDocumentIds).filter(key => !mapaLibros.has(key))
 
-    if (libroMiraDocumentIds.size > 0) {
-      const docIdsArray = Array.from(libroMiraDocumentIds)
+    if (librosFaltantes.length > 0) {
+      console.log(`[API /api/mira/licencias] Haciendo petición fallback para ${librosFaltantes.length} libros faltantes`)
       const librosParams = new URLSearchParams({
         'fields[0]': 'id',
         'fields[1]': 'documentId',
@@ -95,11 +111,10 @@ export async function GET(request: NextRequest) {
         'populate[libro][fields][1]': 'isbn_libro',
         'pagination[pageSize]': '1000',
       })
-      // Filtro por documentIds de libro_mira usados en las licencias
-      librosParams.append('filters[documentId][$in]', docIdsArray.join(','))
+      librosParams.append('filters[documentId][$in]', librosFaltantes.join(','))
 
       const librosUrl = `${getStrapiUrl('/api/libros-mira')}?${librosParams.toString()}`
-      console.log('[API /api/mira/licencias] Cargando libros-mira relacionados desde:', librosUrl)
+      console.log('[API /api/mira/licencias] Cargando libros-mira faltantes desde:', librosUrl)
 
       const librosResponse = await fetch(librosUrl, {
         method: 'GET',
@@ -115,11 +130,11 @@ export async function GET(request: NextRequest) {
 
       if (!librosResponse.ok) {
         const errorText = await librosResponse.text()
-        console.error('[API /api/mira/licencias] Error al cargar libros-mira relacionados:', errorText)
+        console.error('[API /api/mira/licencias] Error al cargar libros-mira faltantes:', errorText)
       } else {
         const librosData = await librosResponse.json()
         console.log(
-          '[API /api/mira/licencias] Total libros-mira relacionados recibidos:',
+          '[API /api/mira/licencias] Total libros-mira faltantes recibidos:',
           librosData.data?.length ?? 0
         )
 
@@ -155,21 +170,46 @@ export async function GET(request: NextRequest) {
         fecha_vencimiento: attributes.fecha_vencimiento || null,
         libro_mira: (() => {
           const libroMiraData = attributes.libro_mira?.data || attributes.libro_mira
-          if (!libroMiraData) return null
+          if (!libroMiraData) {
+            console.log(`[API /api/mira/licencias] Licencia ${licencia.id}: No tiene libro_mira`)
+            return null
+          }
 
           const key = String(libroMiraData.documentId || libroMiraData.id)
           const libroInfo = mapaLibros.get(key)
+
+          // Intentar también extraer directamente desde el populate si no está en el mapa
+          let nombreLibroFinal = libroInfo?.nombre_libro || ''
+          let isbnLibroFinal = libroInfo?.isbn_libro || ''
+          
+          if (!nombreLibroFinal) {
+            // Intentar extraer desde la estructura anidada de Strapi
+            const libroMiraAttrs = libroMiraData.attributes || libroMiraData
+            const libroDataDirecto = libroMiraAttrs.libro?.data || libroMiraAttrs.libro
+            if (libroDataDirecto) {
+              const libroAttrsDirecto = libroDataDirecto.attributes || libroDataDirecto
+              nombreLibroFinal = libroAttrsDirecto.nombre_libro || ''
+              isbnLibroFinal = libroAttrsDirecto.isbn_libro || ''
+              console.log(`[API /api/mira/licencias] Licencia ${licencia.id}: Libro extraído directamente desde populate: ${nombreLibroFinal}`)
+            }
+          }
+
+          if (nombreLibroFinal) {
+            console.log(`[API /api/mira/licencias] Licencia ${licencia.id}: Nombre libro encontrado: ${nombreLibroFinal}`)
+          } else {
+            console.warn(`[API /api/mira/licencias] Licencia ${licencia.id}: NO se encontró nombre_libro para libro_mira ${key}`)
+          }
 
           return {
             id: libroMiraData.id || libroMiraData.documentId,
             documentId: libroMiraData.documentId || String(libroMiraData.id || ''),
             activo: libroMiraData.attributes?.activo !== false,
             tiene_omr: libroMiraData.attributes?.tiene_omr || false,
-            libro: libroInfo
+            libro: nombreLibroFinal || isbnLibroFinal
               ? {
                   id: key,
-                  isbn_libro: libroInfo.isbn_libro,
-                  nombre_libro: libroInfo.nombre_libro,
+                  isbn_libro: isbnLibroFinal,
+                  nombre_libro: nombreLibroFinal,
                   portada_libro: null,
                 }
               : null,
