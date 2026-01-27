@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Filtrar solo cursos que tienen versiones de materiales
+    // Filtrar cursos que tienen versiones con materiales O PDFs
     const cursosConMateriales = cursos.filter((curso: any) => {
       const attrs = curso.attributes || curso
       const versiones = attrs.versiones_materiales || []
@@ -126,15 +126,23 @@ export async function GET(request: NextRequest) {
           versiones: Array.isArray(versiones) && versiones.length > 0 ? versiones.map((v: any) => ({
             tieneMateriales: !!(v.materiales && Array.isArray(v.materiales)),
             cantidadMateriales: v.materiales && Array.isArray(v.materiales) ? v.materiales.length : 0,
+            tienePDF: !!(v.pdf_id || v.pdf_url),
           })) : 'sin versiones',
         })
       }
       
-      // Verificar que tenga versiones y que al menos una versión tenga materiales
+      // Verificar que tenga versiones
       const tieneVersiones = Array.isArray(versiones) && versiones.length > 0
-      const tieneMateriales = tieneVersiones && versiones.some((v: any) => v.materiales && Array.isArray(v.materiales) && v.materiales.length > 0)
+      if (!tieneVersiones) return false
       
-      return tieneMateriales
+      // Verificar que al menos una versión tenga materiales O PDF
+      const tieneMateriales = versiones.some((v: any) => 
+        v.materiales && Array.isArray(v.materiales) && v.materiales.length > 0
+      )
+      const tienePDF = versiones.some((v: any) => v.pdf_id || v.pdf_url)
+      
+      // Incluir si tiene materiales O PDF
+      return tieneMateriales || tienePDF
     })
 
     debugLog('[API /crm/listas/exportar-colegio] Cursos con materiales:', cursosConMateriales.length)
@@ -220,16 +228,33 @@ export async function GET(request: NextRequest) {
       const todosLosProductos: any[] = []
       versiones.forEach((version: any, index: number) => {
         const materiales = version.materiales || []
-        const versionNombre = version.nombre_lista || version.tipo_lista || `Versión ${index + 1}`
+        const versionNombre = version.nombre_lista || version.tipo_lista || version.nombre_archivo || `Versión ${index + 1}`
         const fechaVersion = version.fecha_actualizacion || version.fecha_subida || ''
+        const tienePDF = !!(version.pdf_id || version.pdf_url)
         
-        materiales.forEach((material: any) => {
+        // Si tiene materiales, agregarlos
+        if (materiales.length > 0) {
+          materiales.forEach((material: any) => {
+            todosLosProductos.push({
+              ...material,
+              version_nombre: versionNombre,
+              fecha_version: fechaVersion,
+            })
+          })
+        } 
+        // Si no tiene materiales pero tiene PDF, crear una entrada indicando que hay PDF
+        else if (tienePDF) {
           todosLosProductos.push({
-            ...material,
+            nombre: `PDF: ${versionNombre}`,
             version_nombre: versionNombre,
             fecha_version: fechaVersion,
+            tiene_pdf: true,
+            pdf_id: version.pdf_id,
+            pdf_url: version.pdf_url,
+            cantidad: 0,
+            precio: 0,
           })
-        })
+        }
       })
 
       return {
@@ -249,35 +274,87 @@ export async function GET(request: NextRequest) {
     const datosExcel: any[] = []
     
     listasParaExportar.forEach((lista) => {
-      if (lista.productos.length === 0) return
-
-      lista.productos.forEach((producto: any) => {
-        datosExcel.push({
-          Colegio: colegioNombre,
-          RBD: colegioRBD || '',
-          Curso: lista.curso_nombre,
-          Paralelo: lista.paralelo || '',
-          Nivel: lista.nivel,
-          Grado: lista.grado,
-          Año: lista.año,
-          Versión: producto.version_nombre || '',
-          Fecha_Versión: producto.fecha_version ? new Date(producto.fecha_version).toLocaleDateString('es-CL') : '',
-          Producto: producto.nombre || '',
-          ISBN: producto.isbn || producto.woocommerce_sku || '',
-          Marca: producto.marca || '',
-          Cantidad: producto.cantidad || 1,
-          Precio: producto.precio || producto.precio_woocommerce || 0,
-          Precio_WooCommerce: producto.precio_woocommerce || '',
-          Asignatura: producto.asignatura || '',
-          Descripción: producto.descripcion || '',
-          Comprar: producto.comprar ? 'Sí' : 'No',
-          Disponibilidad: producto.disponibilidad === 'disponible' ? 'Disponible' : 
-                          producto.disponibilidad === 'no_disponible' ? 'No Disponible' : 
-                          producto.encontrado_en_woocommerce === false ? 'No Encontrado' : '',
-          Stock: producto.stock_quantity || '',
-          Validado: producto.validado ? 'Sí' : 'No',
+      // Si tiene productos, exportarlos normalmente
+      if (lista.productos.length > 0) {
+        lista.productos.forEach((producto: any) => {
+          // Saltar entradas que son solo marcadores de PDF sin productos
+          if (producto.tiene_pdf && !producto.nombre?.startsWith('PDF:')) {
+            return
+          }
+          
+          datosExcel.push({
+            Colegio: colegioNombre,
+            RBD: colegioRBD || '',
+            Curso: lista.curso_nombre,
+            Paralelo: lista.paralelo || '',
+            Nivel: lista.nivel,
+            Grado: lista.grado,
+            Año: lista.año,
+            Versión: producto.version_nombre || '',
+            Fecha_Versión: producto.fecha_version ? new Date(producto.fecha_version).toLocaleDateString('es-CL') : '',
+            Producto: producto.nombre || '',
+            ISBN: producto.isbn || producto.woocommerce_sku || '',
+            Marca: producto.marca || '',
+            Cantidad: producto.cantidad || 1,
+            Precio: producto.precio || producto.precio_woocommerce || 0,
+            Precio_WooCommerce: producto.precio_woocommerce || '',
+            Asignatura: producto.asignatura || '',
+            Descripción: producto.descripcion || '',
+            Comprar: producto.comprar ? 'Sí' : 'No',
+            Disponibilidad: producto.disponibilidad === 'disponible' ? 'Disponible' : 
+                            producto.disponibilidad === 'no_disponible' ? 'No Disponible' : 
+                            producto.encontrado_en_woocommerce === false ? 'No Encontrado' : '',
+            Stock: producto.stock_quantity || '',
+            Validado: producto.validado ? 'Sí' : 'No',
+          })
         })
-      })
+      }
+      // Si no tiene productos pero tiene PDFs, crear una entrada indicando que hay PDF disponible
+      else {
+        // Buscar versiones con PDF
+        const curso = cursosConMateriales.find((c: any) => {
+          const attrs = c.attributes || c
+          const nombreCompleto = (attrs.nombre_curso || attrs.curso_nombre || '').trim()
+          return nombreCompleto === lista.curso_nombre
+        })
+        
+        if (curso) {
+          const attrs = curso.attributes || curso
+          const versiones = attrs.versiones_materiales || []
+          const versionesConPDF = versiones.filter((v: any) => v.pdf_id || v.pdf_url)
+          
+          if (versionesConPDF.length > 0) {
+            versionesConPDF.forEach((version: any) => {
+              const versionNombre = version.nombre_archivo || version.nombre_lista || version.tipo_lista || 'Versión con PDF'
+              const fechaVersion = version.fecha_actualizacion || version.fecha_subida || ''
+              
+              datosExcel.push({
+                Colegio: colegioNombre,
+                RBD: colegioRBD || '',
+                Curso: lista.curso_nombre,
+                Paralelo: lista.paralelo || '',
+                Nivel: lista.nivel,
+                Grado: lista.grado,
+                Año: lista.año,
+                Versión: versionNombre,
+                Fecha_Versión: fechaVersion ? new Date(fechaVersion).toLocaleDateString('es-CL') : '',
+                Producto: `PDF disponible: ${versionNombre}`,
+                ISBN: '',
+                Marca: '',
+                Cantidad: 0,
+                Precio: 0,
+                Precio_WooCommerce: '',
+                Asignatura: '',
+                Descripción: 'Lista de útiles en formato PDF. Los productos aún no han sido extraídos.',
+                Comprar: 'No',
+                Disponibilidad: '',
+                Stock: '',
+                Validado: 'No',
+              })
+            })
+          }
+        }
+      }
     })
 
     debugLog('[API /crm/listas/exportar-colegio] Datos preparados para Excel:', datosExcel.length, 'filas')

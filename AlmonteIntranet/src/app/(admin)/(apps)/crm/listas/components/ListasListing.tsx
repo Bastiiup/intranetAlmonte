@@ -1393,7 +1393,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                   title="Exportar listas del colegio filtrado a Excel"
                 >
                   <LuDownload className={`fs-sm me-2 ${exportando ? 'spinning' : ''}`} style={exportando ? { animation: 'spin 1s linear infinite' } : {}} /> 
-                  {exportando ? 'Exportando...' : 'Exportar Colegio'}
+                  {exportando ? 'Exportando...' : 'Exportar para Escolar'}
                 </Button>
               )}
               {data.length > 0 && (
