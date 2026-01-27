@@ -156,7 +156,15 @@ export async function POST(request: NextRequest) {
     
     // PASO 1: Procesar TODAS las hojas del Excel y preparar datos para creación en lotes
     let totalFilas = 0
-    const licenciasParaCrear: Array<{ isbn: string; codigo: string; libroMiraId: number; libroNombre: string; rowNum: number; sheetName: string }> = []
+    const licenciasParaCrear: Array<{
+      isbn: string
+      codigo: string
+      libroMiraId: number | string
+      libroNombre: string
+      numeral: number | null
+      rowNum: number
+      sheetName: string
+    }> = []
     
     for (const sheetName of workbook.SheetNames) {
       const worksheet = workbook.Sheets[sheetName]
@@ -189,9 +197,25 @@ export async function POST(request: NextRequest) {
           
           // 1. Limpieza de datos - Intentar múltiples variantes de nombres de columnas
           const isbnRaw = row.isbn || row.ISBN || row.Isbn || row['isbn'] || row['ISBN']
-          const codigoRaw = row.Códigos || row.codigos || row.CODIGOS || row['Códigos'] || row['Código'] || row.codigo || row.Codigo || row.CODIGO
+          const codigoRaw =
+            row.Códigos ||
+            row.codigos ||
+            row.CODIGOS ||
+            row['Códigos'] ||
+            row['Código'] ||
+            row.codigo ||
+            row.Codigo ||
+            row.CODIGO
+          const numeralRaw = row.N ?? row['N']
 
-          console.log(`[IMPORTAR] Fila ${rowNum}: ISBN raw =`, isbnRaw, 'Codigo raw =', codigoRaw)
+          console.log(
+            `[IMPORTAR] Fila ${rowNum}: ISBN raw =`,
+            isbnRaw,
+            'Codigo raw =',
+            codigoRaw,
+            'N raw =',
+            numeralRaw
+          )
 
           if (!isbnRaw || !codigoRaw) {
             const mensaje = `[ADVERTENCIA] Fila ${rowNum} (${sheetName}): Faltan datos - ISBN: ${isbnRaw ? 'OK' : 'FALTA'}, Codigo: ${codigoRaw ? 'OK' : 'FALTA'}`
@@ -203,8 +227,18 @@ export async function POST(request: NextRequest) {
 
           const isbn = String(isbnRaw).trim().replace(/\s+/g, '') // Eliminar espacios
           const codigo = String(codigoRaw).trim()
+          const numeral =
+            numeralRaw !== undefined && numeralRaw !== null && String(numeralRaw).trim() !== ''
+              ? (() => {
+                  const n = parseInt(String(numeralRaw).trim(), 10)
+                  return Number.isNaN(n) ? null : n
+                })()
+              : null
 
-          console.log(`[IMPORTAR] Fila ${rowNum}: ISBN normalizado = "${isbn}", Codigo normalizado = "${codigo}"`)
+          console.log(
+            `[IMPORTAR] Fila ${rowNum}: ISBN normalizado = "${isbn}", Codigo normalizado = "${codigo}", Numeral =`,
+            numeral
+          )
 
           if (!isbn || !codigo) {
             const mensaje = `[ADVERTENCIA] Fila ${rowNum} (${sheetName}): ISBN o Codigo vacio despues de limpiar - ISBN: "${isbn}", Codigo: "${codigo}"`
@@ -246,6 +280,7 @@ export async function POST(request: NextRequest) {
             codigo,
             libroMiraId: libroInfo.libroMiraId,
             libroNombre: libroInfo.libroNombre,
+            numeral,
             rowNum,
             sheetName,
           })
@@ -295,6 +330,7 @@ export async function POST(request: NextRequest) {
             data: {
               codigo_activacion: licencia.codigo,
               libro_mira: libroMiraId, // ID directo (puede ser número o documentId string)
+              numeral: licencia.numeral ?? 0,
               activa: true,
               fecha_vencimiento: '2026-12-31',
             },
