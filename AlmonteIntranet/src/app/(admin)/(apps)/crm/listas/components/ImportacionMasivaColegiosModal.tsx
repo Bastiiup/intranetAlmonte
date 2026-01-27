@@ -181,7 +181,7 @@ export default function ImportacionMasivaColegiosModal({
             }
           }
 
-          // Si no existe el colegio, crearlo
+          // Si no existe el colegio, verificar nuevamente antes de crear
           if (!colegioId) {
             const nombreColegio = row.nombre_colegio || row.colegio_nombre || 'Colegio sin nombre'
             const rbdNum = row.rbd ? parseInt(String(row.rbd)) : null
@@ -189,47 +189,85 @@ export default function ImportacionMasivaColegiosModal({
             if (!rbdNum) {
               results.push({
                 success: false,
-                message: `No se puede crear colegio sin RBD`,
+                message: `No se puede crear colegio sin RBD. El colegio "${nombreColegio}" necesita un RBD válido.`,
                 rowIndex: i,
               })
               continue
             }
 
-            // Verificar que el RBD no exista
+            // Verificar una vez más que el RBD no exista (por si se creó en otra iteración)
             if (colegiosByRBD.has(rbdNum)) {
               const colegioExistente = colegiosByRBD.get(rbdNum)!
               colegioId = colegioExistente.id
+              console.log(`[Importación Masiva] ✅ Colegio encontrado por RBD ${rbdNum}: ${colegioExistente.nombre}`)
             } else {
-              // Crear nuevo colegio
-              const createColegioResponse = await fetch('/api/crm/colegios', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  colegio_nombre: nombreColegio,
-                  rbd: rbdNum,
-                }),
-              })
-
-              const createColegioResult = await createColegioResponse.json()
-              
-              if (createColegioResponse.ok && createColegioResult.success) {
-                const nuevoColegio = createColegioResult.data
-                colegioId = nuevoColegio.id || nuevoColegio.documentId
+              // Verificar también por nombre normalizado (por si el RBD no está en el CSV pero el colegio existe)
+              const normalizedName = nombreColegio.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+              if (colegiosByName.has(normalizedName)) {
+                const colegioExistente = colegiosByName.get(normalizedName)!
+                colegioId = colegioExistente.id
+                console.log(`[Importación Masiva] ✅ Colegio encontrado por nombre "${nombreColegio}": ${colegioExistente.nombre} (ID: ${colegioId})`)
                 
-                // Actualizar mapas
-                if (colegioId) {
-                  colegiosMap.set(colegioId, { id: colegioId, nombre: nombreColegio, rbd: rbdNum })
+                // Actualizar el mapa de RBD si el colegio encontrado no tenía RBD
+                if (colegioId && !colegiosByRBD.has(rbdNum)) {
                   colegiosByRBD.set(rbdNum, { id: colegioId, nombre: nombreColegio })
-                  const normalizedName = nombreColegio.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                  colegiosByName.set(normalizedName, { id: colegioId, nombre: nombreColegio, rbd: rbdNum })
                 }
               } else {
-                results.push({
-                  success: false,
-                  message: `Error al crear colegio: ${createColegioResult.error || 'Error desconocido'}`,
-                  rowIndex: i,
+                // Solo crear si realmente no existe ni por RBD ni por nombre
+                console.log(`[Importación Masiva] 📝 Creando nuevo colegio: ${nombreColegio} (RBD: ${rbdNum})`)
+                
+                const createColegioResponse = await fetch('/api/crm/colegios', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    colegio_nombre: nombreColegio,
+                    rbd: rbdNum,
+                  }),
                 })
-                continue
+
+                const createColegioResult = await createColegioResponse.json()
+                
+                if (createColegioResponse.ok && createColegioResult.success) {
+                  const nuevoColegio = createColegioResult.data
+                  colegioId = nuevoColegio.id || nuevoColegio.documentId
+                  
+                  // Actualizar mapas
+                  if (colegioId) {
+                    colegiosMap.set(colegioId, { id: colegioId, nombre: nombreColegio, rbd: rbdNum })
+                    colegiosByRBD.set(rbdNum, { id: colegioId, nombre: nombreColegio })
+                    colegiosByName.set(normalizedName, { id: colegioId, nombre: nombreColegio, rbd: rbdNum })
+                    console.log(`[Importación Masiva] ✅ Colegio creado exitosamente: ${nombreColegio} (ID: ${colegioId}, RBD: ${rbdNum})`)
+                  }
+                } else {
+                  // Si el error es que el RBD ya existe, intentar buscarlo nuevamente
+                  if (createColegioResult.error && createColegioResult.error.includes('RBD') && createColegioResult.error.includes('existe')) {
+                    console.log(`[Importación Masiva] ⚠️ El RBD ${rbdNum} ya existe, buscando colegio...`)
+                    // Recargar colegios para obtener el actualizado
+                    const refreshResponse = await fetch('/api/crm/colegios?page=1&pageSize=10000')
+                    const refreshResult = await refreshResponse.json()
+                    if (refreshResult.success && Array.isArray(refreshResult.data)) {
+                      const colegioExistente = refreshResult.data.find((c: any) => c.rbd === rbdNum)
+                      if (colegioExistente) {
+                        colegioId = colegioExistente.id || colegioExistente.documentId
+                        const id = colegioId
+                        const nombre = colegioExistente.colegio_nombre || colegioExistente.nombre || nombreColegio
+                        colegiosMap.set(id, { id, nombre, rbd: rbdNum })
+                        colegiosByRBD.set(rbdNum, { id, nombre })
+                        colegiosByName.set(normalizedName, { id, nombre, rbd: rbdNum })
+                        console.log(`[Importación Masiva] ✅ Colegio encontrado después del error: ${nombre} (ID: ${id})`)
+                      }
+                    }
+                  }
+                  
+                  if (!colegioId) {
+                    results.push({
+                      success: false,
+                      message: `Error al crear colegio: ${createColegioResult.error || 'Error desconocido'}`,
+                      rowIndex: i,
+                    })
+                    continue
+                  }
+                }
               }
             }
           }

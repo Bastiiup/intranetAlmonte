@@ -155,6 +155,38 @@ export async function POST(request: Request) {
       )
     }
 
+    // Verificar si el colegio ya existe por RBD
+    try {
+      const existingColegiosResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
+        `/api/colegios?filters[rbd][$eq]=${rbdNumber}&publicationState=preview`
+      )
+      
+      const existingColegios = Array.isArray(existingColegiosResponse.data) 
+        ? existingColegiosResponse.data 
+        : (existingColegiosResponse.data ? [existingColegiosResponse.data] : [])
+      
+      if (existingColegios.length > 0) {
+        const colegioExistente = existingColegios[0]
+        const attrs = (colegioExistente as any)?.attributes || colegioExistente
+        const nombreExistente = attrs?.colegio_nombre || attrs?.nombre || colegioExistente?.colegio_nombre || colegioExistente?.nombre
+        
+        console.log(`[API /crm/colegios POST] ⚠️ Colegio con RBD ${rbdNumber} ya existe: ${nombreExistente} (ID: ${colegioExistente.id || colegioExistente.documentId})`)
+        
+        return NextResponse.json(
+          {
+            success: false,
+            error: `El colegio con RBD ${rbdNumber} ya existe: "${nombreExistente}"`,
+            data: colegioExistente,
+            existing: true,
+          },
+          { status: 409 } // 409 Conflict
+        )
+      }
+    } catch (checkError: any) {
+      // Si hay error al verificar, continuar con la creación (puede ser que no haya colegios aún)
+      console.log(`[API /crm/colegios POST] ⚠️ No se pudo verificar colegios existentes: ${checkError.message}`)
+    }
+
     // Preparar datos para Strapi
     const colegioData: any = {
       data: {
