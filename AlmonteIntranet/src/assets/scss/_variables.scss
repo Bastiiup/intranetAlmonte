@@ -1815,6 +1815,7 @@ $carousel-caption-padding-y:         1.25rem;
 $carousel-caption-spacer:            1.25rem;
 
 $carousel-control-icon-width:        2rem;
+$carousel-control-icon-filter:       null;
 
 $carousel-control-prev-icon-bg:      url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='#{$carousel-control-color}'><path d='M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z'/></svg>");
 $carousel-control-next-icon-bg:      url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='#{$carousel-control-color}'><path d='M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z'/></svg>");
@@ -1860,6 +1861,8 @@ $btn-close-hover-opacity:    .8;
 $btn-close-focus-opacity:    1;
 $btn-close-disabled-opacity: .25;
 $btn-close-white-filter:     invert(1) grayscale(100%) brightness(200%);
+// Variable requerida por Bootstrap 5.3; si no existe, _close.scss rompe el build.
+$btn-close-filter:           null;
 // scss-docs-end close-variables
 
 
