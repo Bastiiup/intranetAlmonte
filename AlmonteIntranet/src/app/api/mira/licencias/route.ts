@@ -148,6 +148,7 @@ export async function GET(request: NextRequest) {
       return {
         id: licencia.id,
         documentId: licencia.documentId || String(licencia.id),
+        numeral: attributes.numeral ?? null,
         codigo_activacion: attributes.codigo_activacion || '',
         fecha_activacion: attributes.fecha_activacion || null,
         activa: attributes.activa !== false,

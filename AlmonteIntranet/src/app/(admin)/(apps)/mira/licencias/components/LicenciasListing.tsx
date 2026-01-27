@@ -26,6 +26,7 @@ import ImportadorModal from './ImportadorModal'
 interface LicenciaType {
   id: number | string
   documentId?: string
+  numeral?: number | null
   codigo_activacion: string
   fecha_activacion: string | null
   activa: boolean
@@ -86,6 +87,7 @@ export default function LicenciasListing({ licencias: licenciasProp, error }: Li
     return licenciasProp.map((licencia: any) => ({
       id: licencia.id || licencia.documentId,
       documentId: licencia.documentId || String(licencia.id || ''),
+      numeral: typeof licencia.numeral === 'number' ? licencia.numeral : licencia.numeral != null ? Number(licencia.numeral) : null,
       codigo_activacion: licencia.codigo_activacion || '',
       fecha_activacion: licencia.fecha_activacion || null,
       activa: licencia.activa !== false,
@@ -131,6 +133,16 @@ export default function LicenciasListing({ licencias: licenciasProp, error }: Li
           <h6 className="mb-0">{row.original.codigo_activacion || 'Sin código'}</h6>
         </div>
       ),
+    },
+    {
+      id: 'numeral',
+      header: 'Numeral',
+      accessorKey: 'numeral',
+      enableSorting: true,
+      cell: ({ row }) => {
+        const valor = row.original.numeral
+        return valor != null ? valor : '-'
+      },
     },
     {
       id: 'libro',
@@ -425,6 +437,7 @@ export default function LicenciasListing({ licencias: licenciasProp, error }: Li
         const nuevasLicencias = result.data.map((licencia: any) => ({
           id: licencia.id || licencia.documentId,
           documentId: licencia.documentId || String(licencia.id || ''),
+          numeral: typeof licencia.numeral === 'number' ? licencia.numeral : licencia.numeral != null ? Number(licencia.numeral) : null,
           codigo_activacion: licencia.codigo_activacion || '',
           fecha_activacion: licencia.fecha_activacion || null,
           activa: licencia.activa !== false,
