@@ -1,4 +1,5 @@
 import { type Metadata } from 'next'
+import { headers } from 'next/headers'
 import { Container, Row, Col, Card, ProgressBar } from 'react-bootstrap'
 import { TbCheck, TbClockHour4, TbKey, TbUserCheck } from 'react-icons/tb'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
@@ -28,11 +29,11 @@ async function getLicenciasResumen(): Promise<{
   usoPorLibro: UsoPorLibro[]
 }> {
   try {
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      (process.env.NODE_ENV === 'production'
-        ? `https://${process.env.VERCEL_URL}`
-        : 'http://localhost:3000')
+    // Construir la URL base igual que en la página de Licencias MIRA
+    const headersList = await headers()
+    const host = headersList.get('host') || 'localhost:3000'
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
+    const baseUrl = `${protocol}://${host}`
 
     const res = await fetch(`${baseUrl}/api/mira/licencias?pageSize=500`, {
       cache: 'no-store',

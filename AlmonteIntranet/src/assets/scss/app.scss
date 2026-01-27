@@ -7,17 +7,41 @@
 
 // Core files
 @import "bootstrap/scss/functions";
-@import "bootstrap/scss/variables";
-// Importar variables-dark DESPUÉS de variables porque necesita las variables definidas ($primary, etc.)
-@import "bootstrap/scss/variables-dark";
 
+// Variables del tema (ya incluyen los mapas y configuraciones necesarias)
 @import "variables";
-@import "variables-dark"; // Necesario para que maps.scss tenga las variables dark definidas
+@import "_variables-dark"; // Necesario para que maps.scss tenga las variables dark definidas
 
 // Bootstrap - Importación directa de componentes para evitar problemas de resolución de rutas
 @import "bootstrap/scss/maps";
-@import "bootstrap/scss/vendor/rfs"; // Necesario para que root.scss funcione
-@import "bootstrap/scss/mixins";
+// RFS (Responsive Font Sizes)
+@import "bootstrap/scss/vendor/rfs";
+// Mixins de Bootstrap: importarlos directamente con rutas absolutas para evitar
+// problemas de resolución de "vendor/rfs" en node_modules/_mixins.scss
+@import "bootstrap/scss/mixins/deprecate";
+@import "bootstrap/scss/mixins/breakpoints";
+@import "bootstrap/scss/mixins/color-mode";
+@import "bootstrap/scss/mixins/color-scheme";
+@import "bootstrap/scss/mixins/image";
+@import "bootstrap/scss/mixins/resize";
+@import "bootstrap/scss/mixins/visually-hidden";
+@import "bootstrap/scss/mixins/reset-text";
+@import "bootstrap/scss/mixins/text-truncate";
+@import "bootstrap/scss/mixins/utilities";
+@import "bootstrap/scss/mixins/backdrop";
+@import "bootstrap/scss/mixins/buttons";
+@import "bootstrap/scss/mixins/caret";
+@import "bootstrap/scss/mixins/pagination";
+@import "bootstrap/scss/mixins/lists";
+@import "bootstrap/scss/mixins/forms";
+@import "bootstrap/scss/mixins/table-variants";
+@import "bootstrap/scss/mixins/border-radius";
+@import "bootstrap/scss/mixins/box-shadow";
+@import "bootstrap/scss/mixins/gradients";
+@import "bootstrap/scss/mixins/transition";
+@import "bootstrap/scss/mixins/clearfix";
+@import "bootstrap/scss/mixins/container";
+@import "bootstrap/scss/mixins/grid";
 @import "bootstrap/scss/utilities";
 @import "bootstrap/scss/root";
 @import "bootstrap/scss/reboot";

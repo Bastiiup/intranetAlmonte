@@ -1,0 +1,9 @@
+// Bridge para que el import `@import "variables-dark"` de Bootstrap funcione
+// correctamente con Turbopack/Sass.
+//
+// 1. Importa las variables dark originales de Bootstrap.
+// 2. Importa nuestras extensiones locales en `_variables-dark.scss`.
+
+@import "../../node_modules/bootstrap/scss/_variables-dark.scss";
+@import "_variables-dark";
+
