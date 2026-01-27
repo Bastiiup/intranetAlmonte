@@ -422,6 +422,39 @@ export default function ListasListing({ listas: listasProp, error: initialError 
       },
     },
     {
+      id: 'ultimaActualizacion',
+      header: 'ÚLTIMA ACTUALIZACIÓN',
+      accessorKey: 'ultimaActualizacion',
+      enableSorting: true,
+      cell: ({ row }) => {
+        const colegio = row.original
+        if (!colegio.ultimaActualizacion) return <span className="text-muted">-</span>
+        
+        try {
+          const fecha = new Date(colegio.ultimaActualizacion)
+          if (isNaN(fecha.getTime())) return <span className="text-muted">-</span>
+          
+          const dateStr = format(fecha, 'dd MMM, yyyy')
+          const timeStr = format(fecha, 'h:mm a')
+          const daysAgo = Math.floor((Date.now() - fecha.getTime()) / (24 * 60 * 60 * 1000))
+          
+          return (
+            <div className="fs-xs">
+              <div className="d-flex align-items-center">
+                <LuCalendar className="me-1 text-muted" size={14} />
+                <span>{dateStr}</span>
+              </div>
+              <div className="text-muted mt-1">
+                {timeStr} {daysAgo === 0 ? '(Hoy)' : daysAgo === 1 ? '(Ayer)' : `(${daysAgo} días)`}
+              </div>
+            </div>
+          )
+        } catch (error) {
+          return <span className="text-muted">-</span>
+        }
+      },
+    },
+    {
       id: 'acciones',
       header: 'ACCIONES',
       enableSorting: false,

@@ -75,6 +75,26 @@ export async function GET(request: NextRequest) {
 
       // Obtener año del curso
       const año = attrs.año || attrs.ano || new Date().getFullYear()
+      
+      // Obtener fecha de actualización del PDF más reciente
+      let fechaPDFMasReciente: string | null = null
+      if (versiones && Array.isArray(versiones) && versiones.length > 0) {
+        const versionesConPDF = versiones.filter((v: any) => v.pdf_id || v.pdf_url)
+        if (versionesConPDF.length > 0) {
+          // Ordenar por fecha de subida o actualización (más reciente primero)
+          const versionesOrdenadas = [...versionesConPDF].sort((a: any, b: any) => {
+            const fechaA = a.fecha_subida || a.updatedAt || a.createdAt || ''
+            const fechaB = b.fecha_subida || b.updatedAt || b.createdAt || ''
+            if (!fechaA && !fechaB) return 0
+            if (!fechaA) return 1
+            if (!fechaB) return -1
+            return new Date(fechaB).getTime() - new Date(fechaA).getTime()
+          })
+          fechaPDFMasReciente = versionesOrdenadas[0].fecha_subida || 
+                                versionesOrdenadas[0].updatedAt || 
+                                versionesOrdenadas[0].createdAt || null
+        }
+      }
 
       if (!colegiosMap.has(colegioId)) {
         // Obtener representante - puede estar en diferentes lugares
@@ -137,27 +157,24 @@ export async function GET(request: NextRequest) {
 
       const colegioInfo = colegiosMap.get(colegioId)!
       
-      // Obtener fecha de actualización del curso
-      const updatedAt = attrs.updatedAt || curso.updatedAt || attrs.createdAt || curso.createdAt
-      
       // Guardar el curso completo con toda su información
       colegioInfo.cursos.push({
         ...curso,
         _año: año,
         _grado: attrs.grado || 1,
         _nivel: attrs.nivel || 'Basica',
-        _updatedAt: updatedAt,
+        _fechaPDF: fechaPDFMasReciente,
       })
       
-      // Actualizar fecha de última actualización del colegio (la más reciente)
-      if (updatedAt) {
-        const fechaCurso = new Date(updatedAt).getTime()
+      // Actualizar fecha de última actualización del colegio (la más reciente de los PDFs)
+      if (fechaPDFMasReciente) {
+        const fechaPDF = new Date(fechaPDFMasReciente).getTime()
         const fechaActual = colegioInfo.colegio.ultimaActualizacion 
           ? new Date(colegioInfo.colegio.ultimaActualizacion).getTime()
           : 0
         
-        if (fechaCurso > fechaActual) {
-          colegioInfo.colegio.ultimaActualizacion = updatedAt
+        if (fechaPDF > fechaActual) {
+          colegioInfo.colegio.ultimaActualizacion = fechaPDFMasReciente
         }
       }
 
