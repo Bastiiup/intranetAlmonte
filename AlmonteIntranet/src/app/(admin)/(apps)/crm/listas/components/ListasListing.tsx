@@ -16,8 +16,8 @@ import {
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
-import { Button, Card, CardHeader, Col, Row, Alert, Badge, Form, Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter } from 'react-bootstrap'
-import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw, LuFileCode, LuChevronLeft, LuMapPin, LuCalendar, LuInfo } from 'react-icons/lu'
+import { Button, Card, CardHeader, Col, Row, Alert, Badge, Form, Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Dropdown, DropdownToggle, DropdownMenu, DropdownItem } from 'react-bootstrap'
+import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw, LuFileCode, LuChevronLeft, LuMapPin, LuCalendar, LuInfo, LuChevronDown } from 'react-icons/lu'
 import { TbEdit, TbTrash } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
@@ -76,6 +76,7 @@ export default function ListasListing({ listas: listasProp, error: initialError 
   const [cursoParaGestionar, setCursoParaGestionar] = useState<{ id: string | number; nombre: string; colegioNombre?: string } | null>(null)
   const [showEstadisticasModal, setShowEstadisticasModal] = useState(false)
   const [colegioParaEstadisticas, setColegioParaEstadisticas] = useState<ColegioConListasType | null>(null)
+  const [dropdownAbierto, setDropdownAbierto] = useState<Record<string, boolean>>({})
 
   // Estados de tabla de colegios
   const [globalFilter, setGlobalFilter] = useState('')
@@ -230,9 +231,12 @@ export default function ListasListing({ listas: listasProp, error: initialError 
       cell: ({ row }) => {
         const colegio = row.original
         const total = colegio.totalListas
+        const colegioId = String(colegio.id || colegio.documentId || '')
+        const isOpen = dropdownAbierto[colegioId] || false
         
         const handleAñoClick = (año: number, e: React.MouseEvent) => {
           e.stopPropagation()
+          setDropdownAbierto({ ...dropdownAbierto, [colegioId]: false })
           // Navegar a las listas del colegio con filtro por año
           setSelectedColegio(colegio)
           // Scroll a la sección del año correspondiente después de cargar
@@ -244,70 +248,135 @@ export default function ListasListing({ listas: listasProp, error: initialError 
           }, 500)
         }
 
+        const años = [
+          { año: 2024, count: colegio.listas2024, color: 'primary', bgClass: 'bg-primary' },
+          { año: 2025, count: colegio.listas2025, color: 'warning', bgClass: 'bg-warning' },
+          { año: 2026, count: colegio.listas2026, color: 'info', bgClass: 'bg-info' },
+          { año: 2027, count: colegio.listas2027, color: 'success', bgClass: 'bg-success' },
+        ]
+
         return (
-          <div className="d-flex flex-column gap-2">
-            {/* Total de listas - más destacado */}
-            <div 
-              className="d-flex align-items-center gap-2 cursor-pointer"
+          <Dropdown
+            show={isOpen}
+            onToggle={(isOpen) => {
+              setDropdownAbierto({ ...dropdownAbierto, [colegioId]: isOpen })
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <DropdownToggle
+              as={Button}
+              variant={total > 0 ? 'primary' : 'secondary'}
+              className="d-flex align-items-center gap-2"
+              style={{
+                fontSize: '14px',
+                fontWeight: '600',
+                padding: '8px 16px',
+                border: 'none',
+                boxShadow: isOpen ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
+                transition: 'all 0.2s ease',
+              }}
               onClick={(e) => {
                 e.stopPropagation()
-                setColegioParaEstadisticas(colegio)
-                setShowEstadisticasModal(true)
               }}
-              style={{ cursor: 'pointer' }}
-              title="Click para ver estadísticas detalladas"
             >
-              <Badge 
-                bg={total > 0 ? 'primary' : 'secondary'} 
-                className="px-3 py-2" 
+              <span>{total} {total === 1 ? 'lista' : 'listas'}</span>
+              <LuChevronDown 
+                size={16} 
                 style={{ 
-                  fontSize: '14px', 
-                  fontWeight: '700',
-                  minWidth: '80px',
-                  textAlign: 'center'
-                }}
-              >
-                {total} {total === 1 ? 'lista' : 'listas'}
-              </Badge>
-              <LuInfo size={16} className="text-primary" style={{ opacity: 0.7 }} />
-            </div>
-            
-            {/* Años individuales - clickeables */}
-            <div className="d-flex flex-wrap gap-2">
-              {[
-                { año: 2024, count: colegio.listas2024, color: 'primary' },
-                { año: 2025, count: colegio.listas2025, color: 'warning' },
-                { año: 2026, count: colegio.listas2026, color: 'info' },
-                { año: 2027, count: colegio.listas2027, color: 'success' },
-              ].map(({ año, count, color }) => (
-                <div
+                  transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s ease'
+                }} 
+              />
+            </DropdownToggle>
+            <DropdownMenu 
+              style={{ 
+                minWidth: '220px',
+                padding: '8px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              }}
+            >
+              <div className="px-2 py-1 mb-2 border-bottom">
+                <small className="text-muted fw-semibold">Desglose por año</small>
+              </div>
+              {años.map(({ año, count, color, bgClass }) => (
+                <DropdownItem
                   key={año}
                   onClick={(e) => handleAñoClick(año, e)}
-                  className={`badge bg-${count > 0 ? color : 'secondary'} px-2 py-1`}
+                  disabled={count === 0}
                   style={{
-                    cursor: count > 0 ? 'pointer' : 'default',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    transition: 'all 0.2s ease',
+                    cursor: count > 0 ? 'pointer' : 'not-allowed',
                     opacity: count > 0 ? 1 : 0.6,
+                    padding: '10px 12px',
+                    borderRadius: '6px',
+                    marginBottom: '4px',
+                    transition: 'all 0.2s ease',
                   }}
                   onMouseEnter={(e) => {
                     if (count > 0) {
-                      e.currentTarget.style.transform = 'scale(1.1)'
-                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)'
+                      e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'
                     }
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'scale(1)'
-                    e.currentTarget.style.boxShadow = 'none'
+                    e.currentTarget.style.backgroundColor = 'transparent'
                   }}
-                  title={count > 0 ? `Click para ver ${count} ${count === 1 ? 'lista' : 'listas'} de ${año}` : `No hay listas para ${año}`}
                 >
-                  {año}: {count}
-                </div>
+                  <div className="d-flex align-items-center justify-content-between">
+                    <div className="d-flex align-items-center gap-2">
+                      <div 
+                        className={`${bgClass} rounded-circle`}
+                        style={{
+                          width: '12px',
+                          height: '12px',
+                          opacity: count > 0 ? 1 : 0.4,
+                        }}
+                      />
+                      <span className="fw-semibold" style={{ fontSize: '14px' }}>
+                        {año}
+                      </span>
+                    </div>
+                    <Badge 
+                      bg={count > 0 ? color : 'secondary'} 
+                      className="px-2 py-1"
+                      style={{ fontSize: '12px', fontWeight: '600' }}
+                    >
+                      {count} {count === 1 ? 'lista' : 'listas'}
+                    </Badge>
+                  </div>
+                </DropdownItem>
               ))}
-            </div>
-          </div>
+              <div className="px-2 py-2 mt-2 border-top">
+                <DropdownItem
+                  as="div"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setDropdownAbierto({ ...dropdownAbierto, [colegioId]: false })
+                    // Usar setTimeout para asegurar que el dropdown se cierre antes de abrir el modal
+                    setTimeout(() => {
+                      setColegioParaEstadisticas(colegio)
+                      setShowEstadisticasModal(true)
+                    }, 100)
+                  }}
+                  style={{ 
+                    cursor: 'pointer',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent'
+                  }}
+                >
+                  <div className="d-flex align-items-center justify-content-between">
+                    <small className="text-primary fw-semibold">Ver estadísticas completas</small>
+                    <LuInfo size={14} className="text-primary" />
+                  </div>
+                </DropdownItem>
+              </div>
+            </DropdownMenu>
+          </Dropdown>
         )
       },
     },
