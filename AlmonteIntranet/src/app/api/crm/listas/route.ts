@@ -414,18 +414,18 @@ export async function GET(request: NextRequest) {
     })
 
     // 🔍 LOG DIAGNÓSTICO: Resumen de listas con RBD
-    const listasConRBD = listas.filter(l => l.colegio?.rbd)
-    const listasSinRBD = listas.filter(l => !l.colegio?.rbd)
+    const listasConRBD = listas.filter((l: any) => l.colegio?.rbd)
+    const listasSinRBD = listas.filter((l: any) => !l.colegio?.rbd)
     diagnosticLog('[API /crm/listas GET] 📊 Resumen de listas:', {
       total: listas.length,
       conRBD: listasConRBD.length,
       sinRBD: listasSinRBD.length,
-      rbdEjemplos: listasConRBD.slice(0, 5).map(l => ({
+      rbdEjemplos: listasConRBD.slice(0, 5).map((l: any) => ({
         curso: l.nombre,
         colegio: l.colegio?.nombre,
         rbd: l.colegio?.rbd,
       })),
-      sinRBDEjemplos: listasSinRBD.slice(0, 3).map(l => ({
+      sinRBDEjemplos: listasSinRBD.slice(0, 3).map((l: any) => ({
         curso: l.nombre,
         colegio: l.colegio?.nombre,
         tieneColegio: !!l.colegio,

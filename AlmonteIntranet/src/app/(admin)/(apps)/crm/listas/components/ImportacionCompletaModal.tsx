@@ -1467,7 +1467,7 @@ export default function ImportacionCompletaModal({
               pdfId = resultadoPDF.pdfId
               
               // Agregar a pdfsSubidosConExito para que se incluya en las versiones
-              if (pdfUrl && pdfId) {
+              if (pdfUrl && pdfId && resultadoPDF.pdfUrl && resultadoPDF.pdfId) {
                 pdfsSubidosConExito.push({
                   pdfUrl: resultadoPDF.pdfUrl,
                   pdfId: resultadoPDF.pdfId,
@@ -2363,7 +2363,8 @@ export default function ImportacionCompletaModal({
             
             if (zipContents) {
               for (const [fileName, file] of Object.entries(zipContents.files)) {
-                if (file.dir) continue
+                const zipFile = file as any
+                if (zipFile.dir) continue
                 
                 // Comparar nombres (case-insensitive, sin extensiones)
                 const zipFileName = fileName.toLowerCase().replace(/\.pdf$/i, '').split('/').pop() || ''
@@ -2371,7 +2372,7 @@ export default function ImportacionCompletaModal({
                 
                 if (zipFileName === searchName || zipFileName.includes(searchName) || searchName.includes(zipFileName)) {
                   // Extraer el archivo
-                  const blob = await file.async('blob')
+                  const blob = await zipFile.async('blob')
                   pdfFile = new File([blob], fileName.split('/').pop() || nombrePDF, { type: 'application/pdf' })
                   break
                 }

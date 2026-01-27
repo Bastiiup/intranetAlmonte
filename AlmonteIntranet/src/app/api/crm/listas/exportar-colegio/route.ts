@@ -98,10 +98,10 @@ export async function GET(request: NextRequest) {
     
     // Debug: Ver estructura del primer curso
     if (cursos.length > 0) {
-      const primerCurso = cursos[0]
-      const attrs = primerCurso.attributes || primerCurso
+      const primerCurso = Array.isArray(cursos) ? cursos[0] : cursos
+      const attrs = (primerCurso as any)?.attributes || primerCurso
       debugLog('[API /crm/listas/exportar-colegio] 🔍 Estructura del primer curso:', {
-        tieneAttributes: !!primerCurso.attributes,
+        tieneAttributes: !!(primerCurso as any)?.attributes,
         keys: Object.keys(attrs).slice(0, 15),
         tieneVersionesMateriales: 'versiones_materiales' in attrs,
         versionesMateriales: attrs.versiones_materiales ? (Array.isArray(attrs.versiones_materiales) ? `${attrs.versiones_materiales.length} elementos` : `tipo: ${typeof attrs.versiones_materiales}`) : 'no existe',
@@ -146,9 +146,9 @@ export async function GET(request: NextRequest) {
     
     if (cursosConMateriales.length > 0) {
       const primerCurso = cursosConMateriales[0]
-      const attrsPrimerCurso = primerCurso.attributes || primerCurso
+      const attrsPrimerCurso = (primerCurso as any)?.attributes || primerCurso
       const colegioData = attrsPrimerCurso.colegio?.data || attrsPrimerCurso.colegio
-      const colegioAttrs = colegioData?.attributes || colegioData
+      const colegioAttrs = (colegioData as any)?.attributes || colegioData
       
       // Intentar múltiples formas de obtener el nombre (según estructura de Strapi)
       colegioNombreDesdeCurso = 

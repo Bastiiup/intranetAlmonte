@@ -357,18 +357,14 @@ export async function PUT(
     )
     
     // 🔍 LOG CRÍTICO: Verificar respuesta de Strapi
+    const responseData = Array.isArray(response.data) ? response.data[0] : response.data
+    const responseAttrs = (responseData as any)?.attributes || responseData
+    const versionesEnRespuesta = responseAttrs?.versiones_materiales || []
+    
     console.log('[API /crm/cursos/[id] PUT] 📥 Respuesta de Strapi:', {
-      status: response.status || 'N/A',
       tieneData: !!response.data,
-      versionesEnRespuesta: response.data?.attributes?.versiones_materiales?.length || 
-                            response.data?.versiones_materiales?.length || 0,
-      versionesCompletas: JSON.stringify(
-        response.data?.attributes?.versiones_materiales || 
-        response.data?.versiones_materiales || 
-        [],
-        null,
-        2
-      ),
+      versionesEnRespuesta: versionesEnRespuesta.length || 0,
+      versionesCompletas: JSON.stringify(versionesEnRespuesta, null, 2),
     })
 
     debugLog('[API /crm/cursos/[id] PUT] Curso actualizado exitosamente')
@@ -381,8 +377,8 @@ export async function PUT(
     
     console.log('[API /crm/cursos/[id] PUT] ✅ Verificación después de actualizar (en respuesta):', {
       totalVersiones: versionesGuardadas.length,
-      versionesConPDF: versionesConPDFGuardadas.length,
-      versionesConPDF: versionesConPDFGuardadas.map((v: any) => ({ 
+      versionesConPDFCount: versionesConPDFGuardadas.length,
+      versionesConPDFDetalle: versionesConPDFGuardadas.map((v: any) => ({ 
         nombre: v.nombre_archivo, 
         pdfUrl: v.pdf_url, 
         pdfId: v.pdf_id 
@@ -396,16 +392,16 @@ export async function PUT(
       const verifyResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
         `/api/cursos/${id}?publicationState=preview`
       )
-      const cursoVerificado = verifyResponse.data
-      const attrsVerificados = cursoVerificado?.attributes || cursoVerificado
+      const cursoVerificado = Array.isArray(verifyResponse.data) ? verifyResponse.data[0] : verifyResponse.data
+      const attrsVerificados = (cursoVerificado as any)?.attributes || cursoVerificado
       const versionesVerificadas = attrsVerificados?.versiones_materiales || []
       const versionesConPDFVerificadas = versionesVerificadas.filter((v: any) => v.pdf_url && v.pdf_id)
       
       console.log('[API /crm/cursos/[id] PUT] ✅ VERIFICACIÓN FINAL - Curso obtenido desde Strapi:', {
         cursoId: id,
         totalVersiones: versionesVerificadas.length,
-        versionesConPDF: versionesConPDFVerificadas.length,
-        versionesConPDF: versionesConPDFVerificadas.map((v: any) => ({ 
+        versionesConPDFCount: versionesConPDFVerificadas.length,
+        versionesConPDFDetalle: versionesConPDFVerificadas.map((v: any) => ({ 
           nombre: v.nombre_archivo, 
           pdfUrl: v.pdf_url ? v.pdf_url.substring(0, 80) + '...' : null, 
           pdfId: v.pdf_id 
