@@ -225,50 +225,26 @@ export default function ListasListing({ listas: listasProp, error: initialError 
     {
       id: 'listasPorAño',
       header: 'LISTAS POR AÑO',
-      enableSorting: false,
+      enableSorting: true,
+      accessorKey: 'totalListas',
       cell: ({ row }) => {
         const colegio = row.original
         const total = colegio.totalListas
         return (
-          <div className="d-flex align-items-center gap-2">
-            <div className="d-flex flex-column gap-1" style={{ minWidth: '120px' }}>
-              <div className="d-flex align-items-center gap-2">
-                <span className="text-muted" style={{ fontSize: '11px', minWidth: '35px' }}>2024:</span>
-                <Badge bg={colegio.listas2024 > 0 ? 'primary' : 'secondary'} className="px-2 py-1" style={{ fontSize: '11px' }}>
-                  {colegio.listas2024}
-                </Badge>
-              </div>
-              <div className="d-flex align-items-center gap-2">
-                <span className="text-muted" style={{ fontSize: '11px', minWidth: '35px' }}>2025:</span>
-                <Badge bg={colegio.listas2025 > 0 ? 'warning' : 'secondary'} className="px-2 py-1" style={{ fontSize: '11px' }}>
-                  {colegio.listas2025}
-                </Badge>
-              </div>
-              <div className="d-flex align-items-center gap-2">
-                <span className="text-muted" style={{ fontSize: '11px', minWidth: '35px' }}>2026:</span>
-                <Badge bg={colegio.listas2026 > 0 ? 'info' : 'secondary'} className="px-2 py-1" style={{ fontSize: '11px' }}>
-                  {colegio.listas2026}
-                </Badge>
-              </div>
-              <div className="d-flex align-items-center gap-2">
-                <span className="text-muted" style={{ fontSize: '11px', minWidth: '35px' }}>2027:</span>
-                <Badge bg={colegio.listas2027 > 0 ? 'success' : 'secondary'} className="px-2 py-1" style={{ fontSize: '11px' }}>
-                  {colegio.listas2027}
-                </Badge>
-              </div>
-            </div>
-            <Button
-              variant="outline-primary"
-              size="sm"
-              className="ms-auto"
-              onClick={() => {
-                setColegioParaEstadisticas(colegio)
-                setShowEstadisticasModal(true)
-              }}
-              title="Ver estadísticas detalladas"
-            >
-              <LuInfo size={14} />
-            </Button>
+          <div 
+            className="d-flex align-items-center gap-2 cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation()
+              setColegioParaEstadisticas(colegio)
+              setShowEstadisticasModal(true)
+            }}
+            style={{ cursor: 'pointer' }}
+            title="Click para ver desglose por año"
+          >
+            <Badge bg={total > 0 ? 'primary' : 'secondary'} className="px-3 py-2" style={{ fontSize: '13px', fontWeight: '600' }}>
+              {total} {total === 1 ? 'lista' : 'listas'}
+            </Badge>
+            <LuInfo size={16} className="text-primary" />
           </div>
         )
       },
