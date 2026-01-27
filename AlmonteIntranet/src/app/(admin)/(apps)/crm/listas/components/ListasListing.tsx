@@ -16,7 +16,7 @@ import {
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
-import { Button, Card, CardHeader, Col, Row, Alert, Badge, Form, Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Dropdown, DropdownToggle, DropdownMenu, DropdownItem } from 'react-bootstrap'
+import { Button, Card, CardHeader, Col, Row, Alert, Badge, Form, Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Dropdown, DropdownToggle, DropdownMenu, DropdownItem, OverlayTrigger, Popover, PopoverBody, PopoverHeader } from 'react-bootstrap'
 import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw, LuFileCode, LuChevronLeft, LuMapPin, LuCalendar, LuInfo, LuChevronDown } from 'react-icons/lu'
 import { TbEdit, TbTrash } from 'react-icons/tb'
 
@@ -255,111 +255,68 @@ export default function ListasListing({ listas: listasProp, error: initialError 
           { año: 2027, count: colegio.listas2027, color: 'success', bgClass: 'bg-success' },
         ]
 
-        return (
-          <div onClick={(e) => e.stopPropagation()}>
-            <Dropdown
-              show={isOpen}
-              onToggle={(isOpen) => {
-                setDropdownAbierto((prev) => ({ ...prev, [colegioId]: isOpen }))
-              }}
-            >
-              <DropdownToggle
-                as={Button}
-                variant={total > 0 ? 'primary' : 'secondary'}
-                className="d-flex align-items-center gap-2"
-                style={{
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  padding: '8px 16px',
-                  border: 'none',
-                  boxShadow: isOpen ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
-                  transition: 'all 0.2s ease',
-                }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                }}
-              >
-                <span>{total} {total === 1 ? 'lista' : 'listas'}</span>
-                <LuChevronDown 
-                  size={16} 
-                  style={{ 
-                    transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.2s ease'
-                  }} 
-                />
-              </DropdownToggle>
-            <DropdownMenu 
-              onClick={(e) => {
-                e.stopPropagation()
-              }}
-              style={{ 
-                minWidth: '220px',
-                padding: '8px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                zIndex: 1050,
-              }}
-            >
-              <div className="px-2 py-1 mb-2 border-bottom">
-                <small className="text-muted fw-semibold">Desglose por año</small>
-              </div>
-              {años.map(({ año, count, color, bgClass }) => (
-                <DropdownItem
-                  key={año}
-                  onClick={(e) => handleAñoClick(año, e)}
-                  disabled={count === 0}
-                  style={{
-                    cursor: count > 0 ? 'pointer' : 'not-allowed',
-                    opacity: count > 0 ? 1 : 0.6,
-                    padding: '10px 12px',
-                    borderRadius: '6px',
-                    marginBottom: '4px',
-                    transition: 'all 0.2s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (count > 0) {
-                      e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent'
-                  }}
-                >
-                  <div className="d-flex align-items-center justify-content-between">
-                    <div className="d-flex align-items-center gap-2">
-                      <div 
-                        className={`${bgClass} rounded-circle`}
-                        style={{
-                          width: '12px',
-                          height: '12px',
-                          opacity: count > 0 ? 1 : 0.4,
-                        }}
-                      />
-                      <span className="fw-semibold" style={{ fontSize: '14px' }}>
-                        {año}
-                      </span>
+        const popover = (
+          <Popover id={`popover-${colegioId}`} style={{ minWidth: '240px' }}>
+            <PopoverHeader as="h6" className="bg-light">
+              Desglose por año
+            </PopoverHeader>
+            <PopoverBody style={{ padding: '8px' }}>
+              <div className="d-flex flex-column gap-2">
+                {años.map(({ año, count, color, bgClass }) => (
+                  <div
+                    key={año}
+                    onClick={(e) => {
+                      if (count > 0) {
+                        handleAñoClick(año, e)
+                      }
+                    }}
+                    style={{
+                      cursor: count > 0 ? 'pointer' : 'not-allowed',
+                      opacity: count > 0 ? 1 : 0.6,
+                      padding: '10px 12px',
+                      borderRadius: '6px',
+                      backgroundColor: 'transparent',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (count > 0) {
+                        e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent'
+                    }}
+                  >
+                    <div className="d-flex align-items-center justify-content-between">
+                      <div className="d-flex align-items-center gap-2">
+                        <div 
+                          className={`${bgClass} rounded-circle`}
+                          style={{
+                            width: '12px',
+                            height: '12px',
+                            opacity: count > 0 ? 1 : 0.4,
+                          }}
+                        />
+                        <span className="fw-semibold" style={{ fontSize: '14px' }}>
+                          {año}
+                        </span>
+                      </div>
+                      <Badge 
+                        bg={count > 0 ? color : 'secondary'} 
+                        className="px-2 py-1"
+                        style={{ fontSize: '12px', fontWeight: '600' }}
+                      >
+                        {count} {count === 1 ? 'lista' : 'listas'}
+                      </Badge>
                     </div>
-                    <Badge 
-                      bg={count > 0 ? color : 'secondary'} 
-                      className="px-2 py-1"
-                      style={{ fontSize: '12px', fontWeight: '600' }}
-                    >
-                      {count} {count === 1 ? 'lista' : 'listas'}
-                    </Badge>
                   </div>
-                </DropdownItem>
-              ))}
-              <div className="px-2 py-2 mt-2 border-top">
-                <DropdownItem
-                  as="div"
+                ))}
+                <div 
+                  className="px-2 py-2 mt-2 border-top"
                   onClick={(e) => {
-                    e.preventDefault()
                     e.stopPropagation()
-                    setDropdownAbierto({ ...dropdownAbierto, [colegioId]: false })
-                    // Usar setTimeout para asegurar que el dropdown se cierre antes de abrir el modal
-                    setTimeout(() => {
-                      setColegioParaEstadisticas(colegio)
-                      setShowEstadisticasModal(true)
-                    }, 100)
+                    setColegioParaEstadisticas(colegio)
+                    setShowEstadisticasModal(true)
                   }}
                   style={{ 
                     cursor: 'pointer',
@@ -377,10 +334,38 @@ export default function ListasListing({ listas: listasProp, error: initialError 
                     <small className="text-primary fw-semibold">Ver estadísticas completas</small>
                     <LuInfo size={14} className="text-primary" />
                   </div>
-                </DropdownItem>
+                </div>
               </div>
-            </DropdownMenu>
-          </Dropdown>
+            </PopoverBody>
+          </Popover>
+        )
+
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <OverlayTrigger
+              trigger="click"
+              placement="bottom-start"
+              overlay={popover}
+              rootClose
+            >
+              <Button
+                variant={total > 0 ? 'primary' : 'secondary'}
+                className="d-flex align-items-center gap-2"
+                style={{
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  padding: '8px 16px',
+                  border: 'none',
+                  transition: 'all 0.2s ease',
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                }}
+              >
+                <span>{total} {total === 1 ? 'lista' : 'listas'}</span>
+                <LuChevronDown size={16} />
+              </Button>
+            </OverlayTrigger>
           </div>
         )
       },
