@@ -259,9 +259,12 @@ export default function ListasListing({ listas: listasProp, error: initialError 
           <Dropdown
             show={isOpen}
             onToggle={(isOpen) => {
-              setDropdownAbierto({ ...dropdownAbierto, [colegioId]: isOpen })
+              setDropdownAbierto((prev) => ({ ...prev, [colegioId]: isOpen }))
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+            }}
           >
             <DropdownToggle
               as={Button}
@@ -277,6 +280,8 @@ export default function ListasListing({ listas: listasProp, error: initialError 
               }}
               onClick={(e) => {
                 e.stopPropagation()
+                e.preventDefault()
+                setDropdownAbierto((prev) => ({ ...prev, [colegioId]: !prev[colegioId] }))
               }}
             >
               <span>{total} {total === 1 ? 'lista' : 'listas'}</span>
