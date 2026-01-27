@@ -16,8 +16,8 @@ import {
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
-import { Button, Card, CardHeader, Col, Row, Alert, Badge, Form } from 'react-bootstrap'
-import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw, LuFileCode, LuChevronLeft, LuMapPin } from 'react-icons/lu'
+import { Button, Card, CardHeader, Col, Row, Alert, Badge, Form, Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter } from 'react-bootstrap'
+import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw, LuFileCode, LuChevronLeft, LuMapPin, LuCalendar, LuInfo } from 'react-icons/lu'
 import { TbEdit, TbTrash } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
@@ -74,6 +74,8 @@ export default function ListasListing({ listas: listasProp, error: initialError 
   const [showImportCompletaModal, setShowImportCompletaModal] = useState(false)
   const [showGestionarVersionesModal, setShowGestionarVersionesModal] = useState(false)
   const [cursoParaGestionar, setCursoParaGestionar] = useState<{ id: string | number; nombre: string; colegioNombre?: string } | null>(null)
+  const [showEstadisticasModal, setShowEstadisticasModal] = useState(false)
+  const [colegioParaEstadisticas, setColegioParaEstadisticas] = useState<ColegioConListasType | null>(null)
 
   // Estados de tabla de colegios
   const [globalFilter, setGlobalFilter] = useState('')
@@ -221,58 +223,53 @@ export default function ListasListing({ listas: listasProp, error: initialError 
       },
     },
     {
-      id: 'listas2024',
-      header: '2024',
-      accessorKey: 'listas2024',
-      enableSorting: true,
+      id: 'listasPorAño',
+      header: 'LISTAS POR AÑO',
+      enableSorting: false,
       cell: ({ row }) => {
-        const count = row.original.listas2024
+        const colegio = row.original
+        const total = colegio.totalListas
         return (
-          <Badge bg={count > 0 ? 'info' : 'secondary'}>
-            {count}
-          </Badge>
-        )
-      },
-    },
-    {
-      id: 'listas2025',
-      header: '2025',
-      accessorKey: 'listas2025',
-      enableSorting: true,
-      cell: ({ row }) => {
-        const count = row.original.listas2025
-        return (
-          <Badge bg={count > 0 ? 'info' : 'secondary'}>
-            {count}
-          </Badge>
-        )
-      },
-    },
-    {
-      id: 'listas2026',
-      header: '2026',
-      accessorKey: 'listas2026',
-      enableSorting: true,
-      cell: ({ row }) => {
-        const count = row.original.listas2026
-        return (
-          <Badge bg={count > 0 ? 'info' : 'secondary'}>
-            {count}
-          </Badge>
-        )
-      },
-    },
-    {
-      id: 'listas2027',
-      header: '2027',
-      accessorKey: 'listas2027',
-      enableSorting: true,
-      cell: ({ row }) => {
-        const count = row.original.listas2027
-        return (
-          <Badge bg={count > 0 ? 'info' : 'secondary'}>
-            {count}
-          </Badge>
+          <div className="d-flex align-items-center gap-2">
+            <div className="d-flex flex-column gap-1" style={{ minWidth: '120px' }}>
+              <div className="d-flex align-items-center gap-2">
+                <span className="text-muted" style={{ fontSize: '11px', minWidth: '35px' }}>2024:</span>
+                <Badge bg={colegio.listas2024 > 0 ? 'primary' : 'secondary'} className="px-2 py-1" style={{ fontSize: '11px' }}>
+                  {colegio.listas2024}
+                </Badge>
+              </div>
+              <div className="d-flex align-items-center gap-2">
+                <span className="text-muted" style={{ fontSize: '11px', minWidth: '35px' }}>2025:</span>
+                <Badge bg={colegio.listas2025 > 0 ? 'warning' : 'secondary'} className="px-2 py-1" style={{ fontSize: '11px' }}>
+                  {colegio.listas2025}
+                </Badge>
+              </div>
+              <div className="d-flex align-items-center gap-2">
+                <span className="text-muted" style={{ fontSize: '11px', minWidth: '35px' }}>2026:</span>
+                <Badge bg={colegio.listas2026 > 0 ? 'info' : 'secondary'} className="px-2 py-1" style={{ fontSize: '11px' }}>
+                  {colegio.listas2026}
+                </Badge>
+              </div>
+              <div className="d-flex align-items-center gap-2">
+                <span className="text-muted" style={{ fontSize: '11px', minWidth: '35px' }}>2027:</span>
+                <Badge bg={colegio.listas2027 > 0 ? 'success' : 'secondary'} className="px-2 py-1" style={{ fontSize: '11px' }}>
+                  {colegio.listas2027}
+                </Badge>
+              </div>
+            </div>
+            <Button
+              variant="outline-primary"
+              size="sm"
+              className="ms-auto"
+              onClick={() => {
+                setColegioParaEstadisticas(colegio)
+                setShowEstadisticasModal(true)
+              }}
+              title="Ver estadísticas detalladas"
+            >
+              <LuInfo size={14} />
+            </Button>
+          </div>
         )
       },
     },
@@ -320,13 +317,13 @@ export default function ListasListing({ listas: listasProp, error: initialError 
       cell: ({ row }) => {
         const colegio = row.original
         return (
-          <Button
+                <Button
             variant="primary"
-            size="sm"
+                  size="sm"
             onClick={() => setSelectedColegio(colegio)}
-          >
+                >
             Ver Listas
-          </Button>
+                </Button>
         )
       },
     },
@@ -378,7 +375,7 @@ export default function ListasListing({ listas: listasProp, error: initialError 
               </Button>
             </CardHeader>
             <div className="p-3">
-              <Row>
+    <Row>
                 {/* Panel 2026 */}
                 <Col md={6}>
                   <Card className="mb-3">
@@ -402,75 +399,7 @@ export default function ListasListing({ listas: listasProp, error: initialError 
                               {cursos2026.map((curso) => (
                                 <tr key={`${curso.id}-2026`}>
                                   <td>
-                                    <strong>{curso.nombre}</strong>
-                                    <br />
-                                    <small className="text-muted">{curso.nivel}</small>
-                                  </td>
-                                  <td>
-                                    <Badge bg={curso.cantidadPDFs && curso.cantidadPDFs > 0 ? 'info' : 'secondary'}>
-                                      {curso.cantidadPDFs || 0} {curso.cantidadPDFs === 1 ? 'PDF' : 'PDFs'}
-                                    </Badge>
-                                  </td>
-                                  <td>
-                                    <div className="d-flex gap-1">
-                                      {curso.pdf_id && (
-                                        <Link href={`/crm/listas/${curso.id}/validacion`}>
-                                          <Button variant="outline-primary" size="sm" title="Ver detalle">
-                                            <LuEye size={14} />
-                                          </Button>
-                                        </Link>
-                                      )}
-                                      <Button
-                                        variant="outline-success"
-                                        size="sm"
-                                        onClick={() => {
-                                          setCursoParaGestionar({
-                                            id: curso.id,
-                                            nombre: curso.nombre,
-                                            colegioNombre: selectedColegio.nombre,
-                                          })
-                                          setShowGestionarVersionesModal(true)
-                                        }}
-                                        title="Gestionar listas"
-                                      >
-                                        <LuFileText size={14} />
-                                      </Button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  </Card>
-                </Col>
-
-                {/* Panel 2027 */}
-                <Col md={6}>
-                  <Card className="mb-3">
-                    <CardHeader className="bg-success text-white">
-                      <h6 className="mb-0">Listas 2027 ({cursos2027.length})</h6>
-                    </CardHeader>
-                    <div className="p-3" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-                      {cursos2027.length === 0 ? (
-                        <Alert variant="info">No hay listas para 2027</Alert>
-                      ) : (
-                        <div className="table-responsive">
-                          <table className="table table-sm">
-                            <thead>
-                              <tr>
-                                <th>Curso</th>
-                                <th>PDFs</th>
-                                <th>Acciones</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {cursos2027.map((curso) => (
-                                <tr key={`${curso.id}-2027`}>
-                                  <td>
-                                    <strong>{curso.nombre.replace(' 2027', '')}</strong>
+                                    <strong>{curso.nombre.replace(` ${curso.año}`, '')}</strong>
                                     <br />
                                     <small className="text-muted">{curso.nivel} - {curso.año}</small>
                                   </td>
@@ -503,15 +432,83 @@ export default function ListasListing({ listas: listasProp, error: initialError 
                                       >
                                         <LuFileText size={14} />
                                       </Button>
-                                    </div>
+              </div>
                                   </td>
                                 </tr>
                               ))}
                             </tbody>
                           </table>
-                        </div>
+              </div>
                       )}
-                    </div>
+              </div>
+                  </Card>
+                </Col>
+
+                {/* Panel 2027 */}
+                <Col md={6}>
+                  <Card className="mb-3">
+                    <CardHeader className="bg-success text-white">
+                      <h6 className="mb-0">Listas 2027 ({cursos2027.length})</h6>
+                    </CardHeader>
+                    <div className="p-3" style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                      {cursos2027.length === 0 ? (
+                        <Alert variant="info">No hay listas para 2027</Alert>
+                      ) : (
+                        <div className="table-responsive">
+                          <table className="table table-sm">
+                            <thead>
+                              <tr>
+                                <th>Curso</th>
+                                <th>PDFs</th>
+                                <th>Acciones</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {cursos2027.map((curso) => (
+                                <tr key={`${curso.id}-2027`}>
+                                  <td>
+                                    <strong>{curso.nombre.replace(` ${curso.año}`, '')}</strong>
+                                    <br />
+                                    <small className="text-muted">{curso.nivel} - {curso.año}</small>
+                                  </td>
+                                  <td>
+                                    <Badge bg={curso.cantidadPDFs && curso.cantidadPDFs > 0 ? 'info' : 'secondary'}>
+                                      {curso.cantidadPDFs || 0} {curso.cantidadPDFs === 1 ? 'PDF' : 'PDFs'}
+                                    </Badge>
+                                  </td>
+                                  <td>
+                                    <div className="d-flex gap-1">
+                                      {curso.pdf_id && (
+                                        <Link href={`/crm/listas/${curso.id}/validacion`}>
+                                          <Button variant="outline-primary" size="sm" title="Ver detalle">
+                                            <LuEye size={14} />
+                                          </Button>
+                                        </Link>
+                                      )}
+                                      <Button
+                                        variant="outline-success"
+                                        size="sm"
+                                        onClick={() => {
+                                          setCursoParaGestionar({
+                                            id: curso.id,
+                                            nombre: curso.nombre,
+                                            colegioNombre: selectedColegio.nombre,
+                                          })
+                                          setShowGestionarVersionesModal(true)
+                                        }}
+                                        title="Gestionar listas"
+                                      >
+                                        <LuFileText size={14} />
+                                      </Button>
+              </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+              </div>
+                      )}
+            </div>
                   </Card>
                 </Col>
               </Row>
@@ -539,7 +536,7 @@ export default function ListasListing({ listas: listasProp, error: initialError 
                                 {cursos2025.map((curso) => (
                                   <tr key={`${curso.id}-2025`}>
                                     <td>
-                                      <strong>{curso.nombre.replace(' 2025', '')}</strong>
+                                      <strong>{curso.nombre.replace(` ${curso.año}`, '')}</strong>
                                       <br />
                                       <small className="text-muted">{curso.nivel} - {curso.año}</small>
                                     </td>
@@ -549,18 +546,18 @@ export default function ListasListing({ listas: listasProp, error: initialError 
                                       </Badge>
                                     </td>
                                     <td>
-                                      <div className="d-flex gap-1">
+            <div className="d-flex gap-1">
                                         {curso.pdf_id && (
                                           <Link href={`/crm/listas/${curso.id}/validacion`}>
                                             <Button variant="outline-primary" size="sm" title="Ver detalle">
                                               <LuEye size={14} />
-                                            </Button>
+                </Button>
                                           </Link>
-                                        )}
-                                        <Button
+              )}
+                <Button 
                                           variant="outline-success"
                                           size="sm"
-                                          onClick={() => {
+                  onClick={() => {
                                             setCursoParaGestionar({
                                               id: curso.id,
                                               nombre: curso.nombre,
@@ -571,7 +568,7 @@ export default function ListasListing({ listas: listasProp, error: initialError 
                                           title="Gestionar listas"
                                         >
                                           <LuFileText size={14} />
-                                        </Button>
+                </Button>
                                       </div>
                                     </td>
                                   </tr>
@@ -603,7 +600,7 @@ export default function ListasListing({ listas: listasProp, error: initialError 
                                 {cursos2024.map((curso) => (
                                   <tr key={`${curso.id}-2024`}>
                                     <td>
-                                      <strong>{curso.nombre.replace(' 2024', '')}</strong>
+                                      <strong>{curso.nombre.replace(` ${curso.año}`, '')}</strong>
                                       <br />
                                       <small className="text-muted">{curso.nivel} - {curso.año}</small>
                                     </td>
@@ -621,10 +618,10 @@ export default function ListasListing({ listas: listasProp, error: initialError 
                                             </Button>
                                           </Link>
                                         )}
-                                        <Button
+                <Button 
                                           variant="outline-success"
                                           size="sm"
-                                          onClick={() => {
+                  onClick={() => {
                                             setCursoParaGestionar({
                                               id: curso.id,
                                               nombre: curso.nombre,
@@ -635,7 +632,7 @@ export default function ListasListing({ listas: listasProp, error: initialError 
                                           title="Gestionar listas"
                                         >
                                           <LuFileText size={14} />
-                                        </Button>
+                </Button>
                                       </div>
                                     </td>
                                   </tr>
@@ -663,13 +660,13 @@ export default function ListasListing({ listas: listasProp, error: initialError 
         <Card>
           <CardHeader className="d-flex align-items-center justify-content-between">
             <h5 className="mb-0">Listas de Útiles por Colegio</h5>
-            <Button
+              <Button 
               variant="outline-success"
               onClick={() => setShowImportCompletaModal(true)}
             >
               <LuUpload className="me-2" />
               Importación Completa (Plantilla)
-            </Button>
+              </Button>
           </CardHeader>
           <div className="p-3">
             {error && (
@@ -722,6 +719,141 @@ export default function ListasListing({ listas: listasProp, error: initialError 
             }}
           />
         )}
+
+        {/* Modal de Estadísticas por Año */}
+        <Modal show={showEstadisticasModal} onHide={() => {
+          setShowEstadisticasModal(false)
+          setColegioParaEstadisticas(null)
+        }} size="lg" centered>
+          <ModalHeader closeButton>
+            <ModalTitle>
+              <div className="d-flex align-items-center gap-2">
+                <LuCalendar />
+                <span>Estadísticas de Listas - {colegioParaEstadisticas?.nombre}</span>
+              </div>
+            </ModalTitle>
+          </ModalHeader>
+          <ModalBody>
+            {colegioParaEstadisticas && (
+              <Row className="g-3">
+                <Col md={6}>
+                  <Card className="border-primary">
+                    <CardHeader className="bg-primary text-white">
+                      <h6 className="mb-0 d-flex align-items-center justify-content-between">
+                        <span>2024</span>
+                        <Badge bg="light" text="dark">{colegioParaEstadisticas.listas2024} listas</Badge>
+                      </h6>
+                    </CardHeader>
+                    <div className="p-3">
+                      <div className="d-flex align-items-center justify-content-between">
+                        <span className="text-muted">Total de listas:</span>
+                        <strong className="fs-4">{colegioParaEstadisticas.listas2024}</strong>
+                      </div>
+                    </div>
+                  </Card>
+                </Col>
+                <Col md={6}>
+                  <Card className="border-warning">
+                    <CardHeader className="bg-warning text-dark">
+                      <h6 className="mb-0 d-flex align-items-center justify-content-between">
+                        <span>2025</span>
+                        <Badge bg="dark">{colegioParaEstadisticas.listas2025} listas</Badge>
+                      </h6>
+                    </CardHeader>
+                    <div className="p-3">
+                      <div className="d-flex align-items-center justify-content-between">
+                        <span className="text-muted">Total de listas:</span>
+                        <strong className="fs-4">{colegioParaEstadisticas.listas2025}</strong>
+                      </div>
+                    </div>
+                  </Card>
+                </Col>
+                <Col md={6}>
+                  <Card className="border-info">
+                    <CardHeader className="bg-info text-white">
+                      <h6 className="mb-0 d-flex align-items-center justify-content-between">
+                        <span>2026</span>
+                        <Badge bg="light" text="dark">{colegioParaEstadisticas.listas2026} listas</Badge>
+                      </h6>
+                    </CardHeader>
+                    <div className="p-3">
+                      <div className="d-flex align-items-center justify-content-between">
+                        <span className="text-muted">Total de listas:</span>
+                        <strong className="fs-4">{colegioParaEstadisticas.listas2026}</strong>
+                      </div>
+                    </div>
+                  </Card>
+                </Col>
+                <Col md={6}>
+                  <Card className="border-success">
+                    <CardHeader className="bg-success text-white">
+                      <h6 className="mb-0 d-flex align-items-center justify-content-between">
+                        <span>2027</span>
+                        <Badge bg="light" text="dark">{colegioParaEstadisticas.listas2027} listas</Badge>
+                      </h6>
+                    </CardHeader>
+                    <div className="p-3">
+                      <div className="d-flex align-items-center justify-content-between">
+                        <span className="text-muted">Total de listas:</span>
+                        <strong className="fs-4">{colegioParaEstadisticas.listas2027}</strong>
+                      </div>
+                    </div>
+                  </Card>
+                </Col>
+                <Col md={12}>
+                  <Card className="border-secondary">
+                    <CardHeader className="bg-secondary text-white">
+                      <h6 className="mb-0">Resumen General</h6>
+                    </CardHeader>
+                    <div className="p-3">
+                      <Row>
+                        <Col md={6}>
+                          <div className="mb-2">
+                            <span className="text-muted">Total de listas:</span>
+                            <strong className="fs-5 ms-2">{colegioParaEstadisticas.totalListas}</strong>
+                          </div>
+                        </Col>
+                        <Col md={6}>
+                          <div className="mb-2">
+                            <span className="text-muted">Años con listas:</span>
+                            <strong className="fs-5 ms-2">
+                              {[
+                                colegioParaEstadisticas.listas2024 > 0 ? '2024' : null,
+                                colegioParaEstadisticas.listas2025 > 0 ? '2025' : null,
+                                colegioParaEstadisticas.listas2026 > 0 ? '2026' : null,
+                                colegioParaEstadisticas.listas2027 > 0 ? '2027' : null,
+                              ].filter(Boolean).join(', ') || 'Ninguno'}
+                            </strong>
+                          </div>
+                        </Col>
+                      </Row>
+                    </div>
+                  </Card>
+                </Col>
+              </Row>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (colegioParaEstadisticas) {
+                  setSelectedColegio(colegioParaEstadisticas)
+                  setShowEstadisticasModal(false)
+                  setColegioParaEstadisticas(null)
+                }
+              }}
+            >
+              Ver Listas Detalladas
+            </Button>
+            <Button variant="secondary" onClick={() => {
+              setShowEstadisticasModal(false)
+              setColegioParaEstadisticas(null)
+            }}>
+              Cerrar
+            </Button>
+          </ModalFooter>
+        </Modal>
       </Col>
     </Row>
   )
