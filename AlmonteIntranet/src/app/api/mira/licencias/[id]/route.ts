@@ -6,10 +6,12 @@ export const maxDuration = 30
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  let id = ''
   try {
-    const { id } = params
+    const resolvedParams = await params
+    id = resolvedParams.id
     const body = await request.json()
 
     if (!id) {
@@ -67,7 +69,7 @@ export async function PUT(
       data: result.data,
     })
   } catch (error: any) {
-    console.error(`[API /api/mira/licencias/${params.id}] Error:`, error)
+    console.error(`[API /api/mira/licencias/${id || 'unknown'}] Error:`, error)
     
     return NextResponse.json(
       {
