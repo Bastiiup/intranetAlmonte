@@ -40,6 +40,7 @@ interface ColegioConListasType {
   listas2027: number
   totalListas: number
   cursos: any[]
+  ultimaActualizacion?: string
 }
 
 interface CursoConListaType {

@@ -123,6 +123,7 @@ export async function GET(request: NextRequest) {
                    colegioData?.comuna?.comuna_nombre || 
                    (typeof colegioData?.comuna === 'string' ? colegioData.comuna : '') || '',
             representante: representante,
+            ultimaActualizacion: '',
           },
           cursos: [],
           listasPorAño: {
@@ -136,13 +137,29 @@ export async function GET(request: NextRequest) {
 
       const colegioInfo = colegiosMap.get(colegioId)!
       
+      // Obtener fecha de actualización del curso
+      const updatedAt = attrs.updatedAt || curso.updatedAt || attrs.createdAt || curso.createdAt
+      
       // Guardar el curso completo con toda su información
       colegioInfo.cursos.push({
         ...curso,
         _año: año,
         _grado: attrs.grado || 1,
         _nivel: attrs.nivel || 'Basica',
+        _updatedAt: updatedAt,
       })
+      
+      // Actualizar fecha de última actualización del colegio (la más reciente)
+      if (updatedAt) {
+        const fechaCurso = new Date(updatedAt).getTime()
+        const fechaActual = colegioInfo.colegio.ultimaActualizacion 
+          ? new Date(colegioInfo.colegio.ultimaActualizacion).getTime()
+          : 0
+        
+        if (fechaCurso > fechaActual) {
+          colegioInfo.colegio.ultimaActualizacion = updatedAt
+        }
+      }
 
       // Contar listas por año (cada curso cuenta como una lista)
       if (año >= 2024 && año <= 2027) {
