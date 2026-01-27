@@ -72,17 +72,77 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('[API /api/mira/licencias] Total licencias recibidas:', licencias.data.length)
-    if (licencias.data.length > 0) {
-      console.log('[API /api/mira/licencias] Ejemplo de estructura completa de licencia:', JSON.stringify(licencias.data[0], null, 2).substring(0, 2000))
+
+    // Construir un mapa libro_mira.id -> datos de libro (nombre_libro, isbn_libro)
+    const libroMiraIds = new Set<string>()
+    for (const licencia of licencias.data) {
+      const attributes = licencia.attributes || licencia
+      const libroMiraData = attributes.libro_mira?.data || attributes.libro_mira
+      if (libroMiraData?.id) {
+        libroMiraIds.add(String(libroMiraData.id))
+      }
+    }
+
+    const mapaLibros = new Map<string, { nombre_libro: string; isbn_libro: string }>()
+
+    if (libroMiraIds.size > 0) {
+      const idsArray = Array.from(libroMiraIds)
+      const librosParams = new URLSearchParams({
+        'fields[0]': 'id',
+        'populate[libro][fields][0]': 'nombre_libro',
+        'populate[libro][fields][1]': 'isbn_libro',
+        'pagination[pageSize]': '1000',
+      })
+      // Filtro por IDs de libro_mira usados en las licencias
+      librosParams.append('filters[id][$in]', idsArray.join(','))
+
+      const librosUrl = `${getStrapiUrl('/api/libros-mira')}?${librosParams.toString()}`
+      console.log('[API /api/mira/licencias] Cargando libros-mira relacionados desde:', librosUrl)
+
+      const librosResponse = await fetch(librosUrl, {
+        method: 'GET',
+        headers: STRAPI_API_TOKEN
+          ? {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+            }
+          : {
+              'Content-Type': 'application/json',
+            },
+      })
+
+      if (!librosResponse.ok) {
+        const errorText = await librosResponse.text()
+        console.error('[API /api/mira/licencias] Error al cargar libros-mira relacionados:', errorText)
+      } else {
+        const librosData = await librosResponse.json()
+        console.log(
+          '[API /api/mira/licencias] Total libros-mira relacionados recibidos:',
+          librosData.data?.length ?? 0
+        )
+
+        if (Array.isArray(librosData.data)) {
+          for (const libroMira of librosData.data) {
+            const libroMiraId = String(libroMira.id)
+            const libroData =
+              libroMira.attributes?.libro?.data || libroMira.attributes?.libro || null
+
+            if (!libroData) continue
+
+            const libroAttrs = libroData.attributes || libroData
+            const nombreLibro = libroAttrs.nombre_libro || ''
+            const isbnLibro = libroAttrs.isbn_libro || ''
+
+            mapaLibros.set(libroMiraId, { nombre_libro: nombreLibro, isbn_libro: isbnLibro })
+          }
+        }
+      }
     }
 
     // Transformar datos para la interfaz
     const transformedData = licencias.data.map((licencia: any) => {
       const attributes = licencia.attributes || licencia
-      
-      console.log('[API /api/mira/licencias] ===== Procesando licencia ID:', licencia.id, '=====')
-      console.log('[API /api/mira/licencias] Estructura completa libro_mira:', JSON.stringify(attributes.libro_mira, null, 2))
-      
+
       return {
         id: licencia.id,
         documentId: licencia.documentId || String(licencia.id),
@@ -90,57 +150,28 @@ export async function GET(request: NextRequest) {
         fecha_activacion: attributes.fecha_activacion || null,
         activa: attributes.activa !== false,
         fecha_vencimiento: attributes.fecha_vencimiento || null,
-        libro_mira: attributes.libro_mira?.data
-          ? {
-              id: attributes.libro_mira.data.id || attributes.libro_mira.data.documentId,
-              documentId: attributes.libro_mira.data.documentId || String(attributes.libro_mira.data.id || ''),
-              activo: attributes.libro_mira.data.attributes?.activo !== false,
-              tiene_omr: attributes.libro_mira.data.attributes?.tiene_omr || false,
-              libro: (() => {
-                // Intentar múltiples formas de acceder a la relación libro
-                const libroMiraData = attributes.libro_mira.data
-                console.log('[API /api/mira/licencias] libroMiraData completo:', JSON.stringify(libroMiraData, null, 2))
-                
-                // Intentar todas las formas posibles de acceder al libro
-                const libroData = 
-                  libroMiraData?.attributes?.libro?.data ||
-                  libroMiraData?.attributes?.libro ||
-                  libroMiraData?.libro?.data ||
-                  libroMiraData?.libro ||
-                  null
-                
-                console.log('[API /api/mira/licencias] libroData extraido (completo):', JSON.stringify(libroData, null, 2))
-                
-                if (!libroData) {
-                  console.error('[API /api/mira/licencias] ERROR: Libro no encontrado en libro_mira')
-                  console.error('[API /api/mira/licencias] Estructura libroMiraData:', JSON.stringify(libroMiraData, null, 2))
-                  return null
-                }
-                
-                // Manejar tanto estructura con .attributes como sin ella
-                const libroAttrs = libroData.attributes || libroData
-                const nombreLibro = libroAttrs.nombre_libro || libroAttrs.nombre || ''
-                const isbnLibro = libroAttrs.isbn_libro || libroAttrs.isbn || ''
-                
-                console.log('[API /api/mira/licencias] ✅ Nombre libro extraido:', nombreLibro)
-                console.log('[API /api/mira/licencias] ✅ ISBN libro extraido:', isbnLibro)
-                
-                if (!nombreLibro) {
-                  console.error('[API /api/mira/licencias] ERROR: nombre_libro está vacío!')
-                  console.error('[API /api/mira/licencias] libroAttrs completo:', JSON.stringify(libroAttrs, null, 2))
-                }
-                
-                return {
-                  id: libroData.id || libroData.documentId,
-                  isbn_libro: isbnLibro,
-                  nombre_libro: nombreLibro,
-                  // portada_libro no se incluye porque no se puede popular en este nivel de anidación
-                  // Si se necesita, se debe hacer una petición separada o usar populate más específico
+        libro_mira: (() => {
+          const libroMiraData = attributes.libro_mira?.data || attributes.libro_mira
+          if (!libroMiraData) return null
+
+          const libroInfo = mapaLibros.get(String(libroMiraData.id))
+
+          return {
+            id: libroMiraData.id || libroMiraData.documentId,
+            documentId:
+              libroMiraData.documentId || String(libroMiraData.id || ''),
+            activo: libroMiraData.attributes?.activo !== false,
+            tiene_omr: libroMiraData.attributes?.tiene_omr || false,
+            libro: libroInfo
+              ? {
+                  id: libroMiraData.id,
+                  isbn_libro: libroInfo.isbn_libro,
+                  nombre_libro: libroInfo.nombre_libro,
                   portada_libro: null,
                 }
-              })(),
-            }
-          : null,
+              : null,
+          }
+        })(),
         estudiante: (() => {
           const estudianteData = attributes.estudiante?.data
           if (!estudianteData) {
