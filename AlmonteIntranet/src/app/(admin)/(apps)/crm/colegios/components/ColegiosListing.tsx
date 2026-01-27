@@ -106,6 +106,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
   const [addModal, setAddModal] = useState(false)
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; colegio: any | null }>({ open: false, colegio: null })
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
+  const [showImportNivelesModal, setShowImportNivelesModal] = useState(false)
 
   // Función para obtener datos
   const fetchColegios = useCallback(async () => {
