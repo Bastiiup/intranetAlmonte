@@ -16,6 +16,7 @@ import {
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
+import { format } from 'date-fns'
 import { Button, Card, CardHeader, Col, Row, Alert, Badge, Form, Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, Dropdown, DropdownToggle, DropdownMenu, DropdownItem, OverlayTrigger, Popover, PopoverBody, PopoverHeader } from 'react-bootstrap'
 import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw, LuFileCode, LuChevronLeft, LuMapPin, LuCalendar, LuInfo, LuChevronDown } from 'react-icons/lu'
 import { TbEdit, TbTrash } from 'react-icons/tb'
@@ -271,7 +272,7 @@ export default function ListasListing({ listas: listasProp, error: initialError 
                         handleAñoClick(año, e)
                       }
                     }}
-                    style={{
+            style={{ 
                       cursor: count > 0 ? 'pointer' : 'not-allowed',
                       opacity: count > 0 ? 1 : 0.6,
                       padding: '10px 12px',
@@ -314,8 +315,8 @@ export default function ListasListing({ listas: listasProp, error: initialError 
                 ))}
                 <div 
                   className="px-2 py-2 mt-2 border-top"
-                  onClick={(e) => {
-                    e.stopPropagation()
+            onClick={(e) => {
+              e.stopPropagation()
                     setColegioParaEstadisticas(colegio)
                     setShowEstadisticasModal(true)
                   }}
@@ -323,11 +324,11 @@ export default function ListasListing({ listas: listasProp, error: initialError 
                     cursor: 'pointer',
                     padding: '8px 12px',
                     borderRadius: '6px',
-                  }}
-                  onMouseEnter={(e) => {
+            }}
+            onMouseEnter={(e) => {
                     e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'
-                  }}
-                  onMouseLeave={(e) => {
+            }}
+            onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = 'transparent'
                   }}
                 >
@@ -341,7 +342,7 @@ export default function ListasListing({ listas: listasProp, error: initialError 
           </Popover>
         )
 
-        return (
+          return (
           <div onClick={(e) => e.stopPropagation()}>
             <OverlayTrigger
               trigger="click"
