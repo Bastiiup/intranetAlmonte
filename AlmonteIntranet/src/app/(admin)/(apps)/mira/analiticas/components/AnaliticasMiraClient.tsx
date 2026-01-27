@@ -178,11 +178,16 @@ const AnaliticasMiraClient = () => {
     }
   }, [])
 
-  const porcentajeUsadas = useMemo(
-    () =>
-      resumen.total > 0 ? Math.round(((resumen.total - resumen.sinUsar) / resumen.total) * 100) : 0,
-    [resumen]
-  )
+  const { porcentajeUsadas, porcentajeSinUsar, porcentajeActivas } = useMemo(() => {
+    if (resumen.total === 0) {
+      return { porcentajeUsadas: 0, porcentajeSinUsar: 0, porcentajeActivas: 0 }
+    }
+    const usadas = resumen.total - resumen.sinUsar
+    const pUsadas = Math.round((usadas / resumen.total) * 100)
+    const pSinUsar = Math.round((resumen.sinUsar / resumen.total) * 100)
+    const pActivas = Math.round((resumen.activas / resumen.total) * 100)
+    return { porcentajeUsadas: pUsadas, porcentajeSinUsar: pSinUsar, porcentajeActivas: pActivas }
+  }, [resumen])
 
   if (loading) {
     return (
@@ -213,6 +218,7 @@ const AnaliticasMiraClient = () => {
                     Licencias totales
                   </div>
                   <div className="fs-24 fw-bold">{resumen.total}</div>
+                  <div className="text-muted fs-12">Total de licencias registradas en MIRA</div>
                 </div>
                 <div className="avatar-sm bg-primary-subtle rounded d-flex align-items-center justify-content-center">
                   <TbKey className="text-primary fs-4" />
@@ -231,6 +237,9 @@ const AnaliticasMiraClient = () => {
                     Licencias activas
                   </div>
                   <div className="fs-24 fw-bold">{resumen.activas}</div>
+                  <div className="text-muted fs-12">
+                    {porcentajeActivas}% del total actualmente activas
+                  </div>
                 </div>
                 <div className="avatar-sm bg-success-subtle rounded d-flex align-items-center justify-content-center">
                   <TbCheck className="text-success fs-4" />
@@ -250,7 +259,7 @@ const AnaliticasMiraClient = () => {
                   </div>
                   <div className="fs-24 fw-bold">{resumen.sinUsar}</div>
                   <div className="text-muted fs-12">
-                    {porcentajeUsadas}% usadas / {100 - porcentajeUsadas}% sin usar
+                    {porcentajeUsadas}% usadas / {porcentajeSinUsar}% sin usar
                   </div>
                 </div>
                 <div className="avatar-sm bg-warning-subtle rounded d-flex align-items-center justify-content-center">
@@ -272,7 +281,9 @@ const AnaliticasMiraClient = () => {
                   <div className="fs-24 fw-bold">
                     {resumen.total - resumen.sinUsar}
                   </div>
-                  <div className="text-muted fs-12">Licencias con fecha de activación</div>
+                  <div className="text-muted fs-12">
+                    {porcentajeUsadas}% de las licencias ya fueron activadas
+                  </div>
                 </div>
                 <div className="avatar-sm bg-info-subtle rounded d-flex align-items-center justify-content-center">
                   <TbUserCheck className="text-info fs-4" />
