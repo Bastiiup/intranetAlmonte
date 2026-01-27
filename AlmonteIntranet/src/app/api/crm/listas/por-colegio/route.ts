@@ -89,11 +89,34 @@ export async function GET(request: NextRequest) {
             documentId: colegioData?.documentId || colegioData?.id,
             nombre: colegioAttrs?.colegio_nombre || colegioAttrs?.nombre || colegioData?.colegio_nombre || colegioData?.nombre || 'Sin nombre',
             rbd: colegioAttrs?.rbd || colegioData?.rbd || '',
-            direccion: colegioAttrs?.direccion || 
-                      colegioData?.direccion || 
-                      (colegioAttrs?.direcciones && Array.isArray(colegioAttrs.direcciones) && colegioAttrs.direcciones.length > 0 
-                        ? colegioAttrs.direcciones[0].direccion 
-                        : '') || '',
+            direccion: (() => {
+              // Intentar obtener dirección de diferentes fuentes
+              // 1. Campo direccion directo
+              if (colegioAttrs?.direccion) return colegioAttrs.direccion
+              if (colegioData?.direccion) return colegioData.direccion
+              
+              // 2. Construir desde array de direcciones
+              const direcciones = colegioAttrs?.direcciones || colegioData?.direcciones
+              if (direcciones && Array.isArray(direcciones) && direcciones.length > 0) {
+                const primeraDireccion = direcciones[0]
+                const attrsDir = (primeraDireccion as any)?.attributes || primeraDireccion
+                
+                // Construir dirección completa desde campos
+                const partes: string[] = []
+                if (attrsDir?.nombre_calle) partes.push(attrsDir.nombre_calle)
+                if (attrsDir?.numero_calle) partes.push(attrsDir.numero_calle)
+                if (attrsDir?.complemento_direccion) partes.push(attrsDir.complemento_direccion)
+                
+                if (partes.length > 0) {
+                  return partes.join(' ')
+                }
+                
+                // Si tiene campo direccion en el objeto
+                if (attrsDir?.direccion) return attrsDir.direccion
+              }
+              
+              return ''
+            })(),
             region: colegioAttrs?.region || colegioData?.region || '',
             comuna: colegioAttrs?.comuna?.comuna_nombre || 
                    (typeof colegioAttrs?.comuna === 'string' ? colegioAttrs.comuna : '') ||
