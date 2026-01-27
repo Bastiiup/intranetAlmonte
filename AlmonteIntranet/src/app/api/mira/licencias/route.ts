@@ -73,28 +73,30 @@ export async function GET(request: NextRequest) {
 
     console.log('[API /api/mira/licencias] Total licencias recibidas:', licencias.data.length)
 
-    // Construir un mapa libro_mira.id -> datos de libro (nombre_libro, isbn_libro)
-    const libroMiraIds = new Set<string>()
+    // Construir un mapa libro_mira (por documentId) -> datos de libro (nombre_libro, isbn_libro)
+    const libroMiraDocumentIds = new Set<string>()
     for (const licencia of licencias.data) {
       const attributes = licencia.attributes || licencia
       const libroMiraData = attributes.libro_mira?.data || attributes.libro_mira
-      if (libroMiraData?.id) {
-        libroMiraIds.add(String(libroMiraData.id))
+      if (libroMiraData?.documentId || libroMiraData?.id) {
+        const key = String(libroMiraData.documentId || libroMiraData.id)
+        libroMiraDocumentIds.add(key)
       }
     }
 
     const mapaLibros = new Map<string, { nombre_libro: string; isbn_libro: string }>()
 
-    if (libroMiraIds.size > 0) {
-      const idsArray = Array.from(libroMiraIds)
+    if (libroMiraDocumentIds.size > 0) {
+      const docIdsArray = Array.from(libroMiraDocumentIds)
       const librosParams = new URLSearchParams({
         'fields[0]': 'id',
+        'fields[1]': 'documentId',
         'populate[libro][fields][0]': 'nombre_libro',
         'populate[libro][fields][1]': 'isbn_libro',
         'pagination[pageSize]': '1000',
       })
-      // Filtro por IDs de libro_mira usados en las licencias
-      librosParams.append('filters[id][$in]', idsArray.join(','))
+      // Filtro por documentIds de libro_mira usados en las licencias
+      librosParams.append('filters[documentId][$in]', docIdsArray.join(','))
 
       const librosUrl = `${getStrapiUrl('/api/libros-mira')}?${librosParams.toString()}`
       console.log('[API /api/mira/licencias] Cargando libros-mira relacionados desde:', librosUrl)
@@ -123,7 +125,7 @@ export async function GET(request: NextRequest) {
 
         if (Array.isArray(librosData.data)) {
           for (const libroMira of librosData.data) {
-            const libroMiraId = String(libroMira.id)
+            const libroMiraKey = String(libroMira.documentId || libroMira.id)
             const libroData =
               libroMira.attributes?.libro?.data || libroMira.attributes?.libro || null
 
@@ -133,7 +135,7 @@ export async function GET(request: NextRequest) {
             const nombreLibro = libroAttrs.nombre_libro || ''
             const isbnLibro = libroAttrs.isbn_libro || ''
 
-            mapaLibros.set(libroMiraId, { nombre_libro: nombreLibro, isbn_libro: isbnLibro })
+            mapaLibros.set(libroMiraKey, { nombre_libro: nombreLibro, isbn_libro: isbnLibro })
           }
         }
       }
@@ -154,17 +156,17 @@ export async function GET(request: NextRequest) {
           const libroMiraData = attributes.libro_mira?.data || attributes.libro_mira
           if (!libroMiraData) return null
 
-          const libroInfo = mapaLibros.get(String(libroMiraData.id))
+          const key = String(libroMiraData.documentId || libroMiraData.id)
+          const libroInfo = mapaLibros.get(key)
 
           return {
             id: libroMiraData.id || libroMiraData.documentId,
-            documentId:
-              libroMiraData.documentId || String(libroMiraData.id || ''),
+            documentId: libroMiraData.documentId || String(libroMiraData.id || ''),
             activo: libroMiraData.attributes?.activo !== false,
             tiene_omr: libroMiraData.attributes?.tiene_omr || false,
             libro: libroInfo
               ? {
-                  id: libroMiraData.id,
+                  id: key,
                   isbn_libro: libroInfo.isbn_libro,
                   nombre_libro: libroInfo.nombre_libro,
                   portada_libro: null,
