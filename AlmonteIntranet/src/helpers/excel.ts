@@ -1,3 +1,5 @@
+'use client'
+
 /**
  * Utilidades para exportar datos a Excel usando xlsx (SheetJS)
  * 
