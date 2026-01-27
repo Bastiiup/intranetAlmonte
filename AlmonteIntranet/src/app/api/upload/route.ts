@@ -56,6 +56,28 @@ export async function POST(request: NextRequest) {
 
     const result = await response.json()
 
+    // 🔍 LOG CRÍTICO: Verificar respuesta de Strapi
+    console.log('[API /upload POST] 📥 Respuesta de Strapi:', {
+      esArray: Array.isArray(result),
+      cantidad: Array.isArray(result) ? result.length : 1,
+      primerArchivo: Array.isArray(result) ? {
+        id: result[0]?.id,
+        url: result[0]?.url,
+        name: result[0]?.name,
+        mime: result[0]?.mime,
+        tieneId: !!result[0]?.id,
+        tieneUrl: !!result[0]?.url,
+      } : {
+        id: result?.id,
+        url: result?.url,
+        name: result?.name,
+        mime: result?.mime,
+        tieneId: !!result?.id,
+        tieneUrl: !!result?.url,
+      },
+      resultadoCompleto: JSON.stringify(result, null, 2),
+    })
+
     // Strapi devuelve un array de archivos subidos
     return NextResponse.json(result, { status: 200 })
   } catch (error: any) {

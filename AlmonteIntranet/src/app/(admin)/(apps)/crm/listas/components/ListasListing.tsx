@@ -26,8 +26,10 @@ import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
 import ListaModal from './ListaModal'
 import ImportacionMasivaModal from './ImportacionMasivaModal'
+import ImportacionMasivaPDFsModal from './ImportacionMasivaPDFsModal'
 import ImportacionMasivaColegiosModal from './ImportacionMasivaColegiosModal'
 import ImportacionCompletaModal from './ImportacionCompletaModal'
+import GestionarVersionesModal from './GestionarVersionesModal'
 
 interface ListaType {
   id: number | string
@@ -58,6 +60,8 @@ interface ListaType {
   createdAt?: string
   updatedAt?: string
   versiones?: number
+  cantidadPDFs?: number
+  cursosAgrupados?: (string | number)[] // IDs de cursos que fueron agrupados
 }
 
 const columnHelper = createColumnHelper<ListaType>()
@@ -78,34 +82,235 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
   const [showImportModal, setShowImportModal] = useState(false)
   const [showImportColegiosModal, setShowImportColegiosModal] = useState(false)
   const [showImportCompletaModal, setShowImportCompletaModal] = useState(false)
+  const [showImportPDFsModal, setShowImportPDFsModal] = useState(false)
   const [exportando, setExportando] = useState(false)
+  const [showGestionarVersionesModal, setShowGestionarVersionesModal] = useState(false)
+  const [cursoParaGestionar, setCursoParaGestionar] = useState<{ id: string | number; nombre: string; colegioNombre?: string } | null>(null)
 
   // Los datos ya vienen transformados desde la API /api/crm/listas
   const mappedListas = useMemo(() => {
     if (!listasProp || !Array.isArray(listasProp)) return []
     
-    return listasProp.map((lista: any) => ({
-      id: lista.id || lista.documentId,
-      documentId: lista.documentId || String(lista.id || ''),
-      nombre: lista.nombre || '',
-      nivel: lista.nivel || 'Basica',
-      grado: lista.grado || 1,
-      año: lista.año || lista.ano || new Date().getFullYear(),
-      descripcion: lista.descripcion || '',
-      activo: lista.activo !== false,
-      pdf_id: lista.pdf_id || undefined,
-      pdf_url: lista.pdf_url || undefined,
-      pdf_nombre: lista.pdf_nombre || undefined,
-      colegio: lista.colegio ? {
-        ...lista.colegio,
-        rbd: lista.colegio.rbd || lista.colegio.RBD || undefined, // Asegurar que RBD esté presente (case-insensitive)
-      } : undefined,
-      curso: lista.curso || undefined,
-      materiales: lista.materiales || [],
-      createdAt: lista.createdAt || null,
-      updatedAt: lista.updatedAt || null,
-      versiones: lista.versiones || 0,
-    } as ListaType))
+    // 🔍 LOG DIAGNÓSTICO: Resumen de listas recibidas
+    const listasConRBD = listasProp.filter((l: any) => l.colegio?.rbd || l.colegio?.RBD)
+    const listasSinRBD = listasProp.filter((l: any) => !l.colegio?.rbd && !l.colegio?.RBD)
+    console.log('[ListasListing] 📊 Resumen de listas recibidas:', {
+      total: listasProp.length,
+      conRBD: listasConRBD.length,
+      sinRBD: listasSinRBD.length,
+      rbdEjemplos: listasConRBD.slice(0, 5).map((l: any) => ({
+        curso: l.nombre,
+        colegio: l.colegio?.nombre,
+        rbd: l.colegio?.rbd || l.colegio?.RBD,
+      })),
+    })
+    
+    // Agrupar cursos por colegio + grado + nivel + año
+    // Esto evita duplicados como "1º Basica A", "1º Basica B" - solo muestra "1º Básico"
+    const gruposMap = new Map<string, any[]>()
+    
+    listasProp.forEach((lista: any) => {
+      // Normalizar colegio ID - usar RBD si está disponible (más confiable), sino ID
+      let colegioId = lista.colegio?.rbd || lista.colegio?.RBD
+      if (!colegioId) {
+        colegioId = lista.colegio?.id || 'sin-colegio'
+      }
+      // Convertir a string para consistencia
+      colegioId = String(colegioId)
+      
+      // Normalizar grado - extraer número del nombre si no está en grado
+      let grado = lista.grado
+      if (!grado || grado === 0 || isNaN(parseInt(String(grado)))) {
+        // Intentar extraer del nombre del curso (ej: "1º Basica A" -> 1)
+        const nombreMatch = (lista.nombre || '').match(/(\d+)/)
+        if (nombreMatch) {
+          grado = parseInt(nombreMatch[1])
+        } else {
+          // Intentar extraer del nombre del curso si está en formato diferente
+          const nombreCurso = lista.curso?.nombre || lista.nombre || ''
+          const matchCurso = nombreCurso.match(/(\d+)/)
+          if (matchCurso) {
+            grado = parseInt(matchCurso[1])
+          } else {
+            grado = 1
+          }
+        }
+      } else {
+        grado = parseInt(String(grado))
+      }
+      
+      // Normalizar nivel - extraer de nombre si no está disponible
+      let nivel = lista.nivel || 'Basica'
+      if (!nivel || nivel === '') {
+        // Intentar extraer del nombre
+        const nombreLower = (lista.nombre || '').toLowerCase()
+        if (nombreLower.includes('media')) {
+          nivel = 'Media'
+        } else {
+          nivel = 'Basica'
+        }
+      } else if (typeof nivel === 'string') {
+        nivel = nivel.toLowerCase()
+        if (nivel.includes('media')) {
+          nivel = 'Media'
+        } else {
+          nivel = 'Basica'
+        }
+      }
+      
+      // Normalizar año
+      let año = lista.año || lista.ano
+      if (!año) {
+        año = new Date().getFullYear()
+      } else {
+        año = parseInt(String(año)) || new Date().getFullYear()
+      }
+      
+      // Crear clave única para agrupar (usar valores normalizados)
+      const claveGrupo = `${colegioId}-${grado}-${nivel}-${año}`
+      
+      if (!gruposMap.has(claveGrupo)) {
+        gruposMap.set(claveGrupo, [])
+      }
+      gruposMap.get(claveGrupo)!.push(lista)
+      
+      // Log para debugging (solo primeros 5)
+      if (listasProp.indexOf(lista) < 5) {
+        console.log('[ListasListing] 🔍 Agrupando curso:', {
+          nombre: lista.nombre,
+          colegioId: colegioId,
+          grado: grado,
+          nivel: nivel,
+          año: año,
+          claveGrupo: claveGrupo,
+        })
+      }
+    })
+    
+    // Procesar cada grupo y combinar versiones
+    const listasAgrupadas: any[] = []
+    
+    console.log('[ListasListing] 📊 Agrupando cursos:', {
+      totalCursos: listasProp.length,
+      totalGrupos: gruposMap.size,
+      grupos: Array.from(gruposMap.entries()).map(([clave, cursos]) => ({
+        clave,
+        cantidad: cursos.length,
+        nombres: cursos.map((c: any) => c.nombre),
+        colegio: cursos[0]?.colegio?.nombre,
+        grado: cursos[0]?.grado,
+        nivel: cursos[0]?.nivel,
+      })),
+    })
+    
+    gruposMap.forEach((cursosDelGrupo: any[], claveGrupo: string) => {
+      // Usar el primer curso como base
+      const cursoBase = cursosDelGrupo[0]
+      
+      if (cursosDelGrupo.length > 1) {
+        console.log(`[ListasListing] 🔗 Agrupando ${cursosDelGrupo.length} cursos en uno:`, {
+          clave: claveGrupo,
+          cursos: cursosDelGrupo.map((c: any) => c.nombre || c.curso?.nombre),
+          colegio: cursoBase.colegio?.nombre,
+          grado: cursoBase.grado,
+          nivel: cursoBase.nivel,
+        })
+      }
+      const rbdFinal = cursoBase.colegio?.rbd || cursoBase.colegio?.RBD || undefined
+      
+      // Combinar todas las versiones_materiales de todos los cursos del grupo
+      const todasLasVersiones: any[] = []
+      cursosDelGrupo.forEach((curso: any) => {
+        const versiones = curso.versiones_materiales || []
+        todasLasVersiones.push(...versiones)
+      })
+      
+      // Eliminar versiones duplicadas (mismo pdf_id o misma fecha + nombre)
+      const versionesUnicas = todasLasVersiones.filter((version, index, self) => {
+        return index === self.findIndex((v) => {
+          // Si tienen pdf_id, comparar por pdf_id
+          if (version.pdf_id && v.pdf_id) {
+            return v.pdf_id === version.pdf_id
+          }
+          // Si no, comparar por fecha y nombre
+          const fechaVersion = version.fecha_subida || version.fecha_actualizacion
+          const fechaV = v.fecha_subida || v.fecha_actualizacion
+          const nombreVersion = version.nombre_archivo || version.metadata?.nombre
+          const nombreV = v.nombre_archivo || v.metadata?.nombre
+          return fechaVersion === fechaV && nombreVersion === nombreV
+        })
+      })
+      
+      // Extraer pdf_id y pdf_url de la versión más reciente
+      let pdf_id: number | undefined = undefined
+      let pdf_url: string | undefined = undefined
+      let pdf_nombre: string | undefined = undefined
+      
+      // Contar versiones con PDF (solo las que tienen pdf_id o pdf_url)
+      const versionesConPDF = versionesUnicas.filter((v: any) => v.pdf_id || v.pdf_url)
+      const cantidadPDFs = versionesConPDF.length
+      
+      // Buscar la última versión con PDF (la más reciente)
+      if (versionesUnicas.length > 0) {
+        // Ordenar por fecha_subida descendente para obtener la más reciente
+        const versionesOrdenadas = [...versionesUnicas].sort((a: any, b: any) => {
+          const fechaA = a.fecha_subida ? new Date(a.fecha_subida).getTime() : 0
+          const fechaB = b.fecha_subida ? new Date(b.fecha_subida).getTime() : 0
+          return fechaB - fechaA
+        })
+        
+        // Buscar la primera versión que tenga pdf_id o pdf_url
+        for (const version of versionesOrdenadas) {
+          if (version.pdf_id || version.pdf_url) {
+            pdf_id = version.pdf_id || undefined
+            pdf_url = version.pdf_url || undefined
+            pdf_nombre = version.nombre_archivo || undefined
+            break
+          }
+        }
+      }
+      
+      // Si no se encontró en versiones_materiales, usar los valores directos del curso base
+      if (!pdf_id && !pdf_url) {
+        pdf_id = cursoBase.pdf_id || undefined
+        pdf_url = cursoBase.pdf_url || undefined
+        pdf_nombre = cursoBase.pdf_nombre || undefined
+      }
+      
+      // Crear nombre simplificado del curso (solo grado + nivel, sin letra)
+      const nombreSimplificado = `${cursoBase.grado || 1}º ${cursoBase.nivel === 'Media' ? 'Media' : 'Básico'}`
+      
+      listasAgrupadas.push({
+        id: cursoBase.id || cursoBase.documentId,
+        documentId: cursoBase.documentId || String(cursoBase.id || ''),
+        nombre: nombreSimplificado,
+        nivel: cursoBase.nivel || 'Basica',
+        grado: cursoBase.grado || 1,
+        año: cursoBase.año || cursoBase.ano || new Date().getFullYear(),
+        descripcion: cursoBase.descripcion || '',
+        activo: cursoBase.activo !== false,
+        pdf_id: pdf_id,
+        pdf_url: pdf_url,
+        pdf_nombre: pdf_nombre,
+        colegio: cursoBase.colegio ? {
+          ...cursoBase.colegio,
+          rbd: rbdFinal,
+        } : undefined,
+        curso: {
+          id: cursoBase.id || cursoBase.documentId,
+          nombre: nombreSimplificado,
+        },
+        materiales: cursoBase.materiales || [],
+        createdAt: cursoBase.createdAt || null,
+        updatedAt: cursoBase.updatedAt || null,
+        versiones: versionesUnicas.length || 0,
+        cantidadPDFs: cantidadPDFs,
+        // Guardar todos los IDs de cursos agrupados para poder gestionarlos
+        cursosAgrupados: cursosDelGrupo.map((c: any) => c.id || c.documentId),
+      } as ListaType)
+    })
+    
+    return listasAgrupadas
   }, [listasProp])
 
   const columns: ColumnDef<ListaType, any>[] = [
@@ -281,6 +486,31 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
       },
     },
     {
+      id: 'cantidadPDFs',
+      header: 'Cantidad de Listas',
+      enableSorting: true,
+      cell: ({ row }) => {
+        const cantidad = row.original.cantidadPDFs || 0
+        if (cantidad === 0) {
+          return (
+            <Badge bg="secondary" className="d-flex align-items-center" style={{ width: 'fit-content', gap: '4px' }}>
+              <LuFileText size={14} />
+              <span>0</span>
+            </Badge>
+          )
+        }
+        return (
+          <Badge bg="info" className="d-flex align-items-center" style={{ width: 'fit-content', gap: '4px' }}>
+            <LuFileText size={14} />
+            <span className="fw-bold">{cantidad}</span>
+            <span className="opacity-75" style={{ fontSize: '0.85em' }}>
+              {cantidad === 1 ? 'PDF' : 'PDFs'}
+            </span>
+          </Badge>
+        )
+      },
+    },
+    {
       id: 'activo',
       header: 'Estado',
       accessorKey: 'activo',
@@ -335,71 +565,104 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
     {
       id: 'acciones',
       header: 'Acciones',
-      cell: ({ row }) => (
-        <div className="d-flex gap-1">
-          {row.original.pdf_id && (
-            <>
-              <Link href={`/crm/listas/${row.original.documentId || row.original.id}/validacion`}>
+      cell: ({ row }) => {
+        const listaId = row.original.documentId || row.original.id
+        const cursoNombre = row.original.nombre || 'Sin nombre'
+        const colegioNombre = row.original.colegio?.nombre
+        
+        return (
+          <div className="d-flex gap-1">
+            <Button
+              variant="outline-info"
+              size="sm"
+              className="btn-icon rounded-circle"
+              onClick={() => {
+                setCursoParaGestionar({
+                  id: listaId,
+                  nombre: cursoNombre,
+                  colegioNombre: colegioNombre,
+                })
+                setShowGestionarVersionesModal(true)
+              }}
+              title="Gestionar listas (agregar/eliminar PDFs)"
+            >
+              <LuFileText className="fs-lg" />
+            </Button>
+            {row.original.pdf_id && (
+              <>
+                <Link href={`/crm/listas/${listaId}/validacion`}>
+                  <Button
+                    variant="outline-primary"
+                    size="sm"
+                    className="btn-icon rounded-circle"
+                    title="Ver detalle y validación"
+                  >
+                    <LuEye className="fs-lg" />
+                  </Button>
+                </Link>
                 <Button
-                  variant="outline-primary"
+                  variant="outline-success"
                   size="sm"
                   className="btn-icon rounded-circle"
-                  title="Ver detalle y validación"
+                  onClick={() => {
+                    const pdfUrl = `/api/crm/cursos/pdf/${row.original.pdf_id}`
+                    const link = document.createElement('a')
+                    link.href = pdfUrl
+                    link.download = row.original.pdf_nombre || `${row.original.nombre}.pdf`
+                    link.target = '_blank'
+                    document.body.appendChild(link)
+                    link.click()
+                    document.body.removeChild(link)
+                  }}
+                  title="Descargar PDF"
                 >
-                  <LuEye className="fs-lg" />
+                  <LuDownload className="fs-lg" />
                 </Button>
-              </Link>
-              <Button
-                variant="outline-success"
-                size="sm"
-                className="btn-icon rounded-circle"
-                onClick={() => {
-                  const pdfUrl = `/api/crm/cursos/pdf/${row.original.pdf_id}`
-                  const link = document.createElement('a')
-                  link.href = pdfUrl
-                  link.download = row.original.pdf_nombre || `${row.original.nombre}.pdf`
-                  link.target = '_blank'
-                  document.body.appendChild(link)
-                  link.click()
-                  document.body.removeChild(link)
-                }}
-                title="Descargar PDF"
-              >
-                <LuDownload className="fs-lg" />
-              </Button>
-            </>
-          )}
-          <Button
-            variant="outline-primary"
-            size="sm"
-            className="btn-icon rounded-circle"
-            onClick={() => {
-              setEditingLista(row.original)
-              setShowModal(true)
-            }}
-            title="Editar"
-          >
-            <TbEdit className="fs-lg" />
-          </Button>
-          <Button
-            variant="outline-danger"
-            size="sm"
-            className="btn-icon rounded-circle"
-            onClick={() => {
-              setSelectedRowIds({}) // Limpiar selección múltiple
-              setSelectedListaId(row.original.id)
-              setShowDeleteModal(true)
-            }}
-            title="Eliminar"
-          >
-            <TbTrash className="fs-lg" />
-          </Button>
-        </div>
-      ),
+              </>
+            )}
+            <Button
+              variant="outline-primary"
+              size="sm"
+              className="btn-icon rounded-circle"
+              onClick={() => {
+                setEditingLista(row.original)
+                setShowModal(true)
+              }}
+              title="Editar"
+            >
+              <TbEdit className="fs-lg" />
+            </Button>
+            <Button
+              variant="outline-danger"
+              size="sm"
+              className="btn-icon rounded-circle"
+              onClick={() => {
+                setSelectedRowIds({}) // Limpiar selección múltiple
+                setSelectedListaId(row.original.id)
+                setShowDeleteModal(true)
+              }}
+              title="Eliminar"
+            >
+              <TbTrash className="fs-lg" />
+            </Button>
+          </div>
+        )
+      },
     },
   ]
 
   const [data, setData] = useState<ListaType[]>([])
+
+  // Verificar si debemos abrir el modal automáticamente al restaurar
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const shouldRestore = localStorage.getItem('importacion-completa-restore-modal') === 'true'
+      if (shouldRestore) {
+        setShowImportCompletaModal(true)
+        localStorage.removeItem('importacion-completa-restore-modal')
+      }
+    }
+  }, [])
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'año', desc: true },
@@ -420,26 +683,80 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
     
     if (!searchValue) return true
     
+    // 🔍 LOG DIAGNÓSTICO: Datos de la fila
+    const cursoId = row.original.id || row.original.documentId
+    const cursoNombre = row.original.nombre || 'Sin nombre'
+    const colegioNombre = row.original.colegio?.nombre || 'Sin colegio'
+    const rbd = row.original.colegio?.rbd
+    
     // Buscar en nombre de la lista (normalizado)
     const nombre = String(row.original.nombre || '').toLowerCase().trim().replace(/\s+/g, '')
-    if (nombre.includes(searchValue)) return true
+    if (nombre.includes(searchValue)) {
+      console.log(`[ListasListing] ✅ Match por nombre de lista: "${cursoNombre}" (ID: ${cursoId})`)
+      return true
+    }
     
     // Buscar en nombre del colegio (normalizado)
-    const colegioNombre = String(row.original.colegio?.nombre || '').toLowerCase().trim().replace(/\s+/g, '')
-    if (colegioNombre.includes(searchValue)) return true
+    const colegioNombreNormalizado = String(row.original.colegio?.nombre || '').toLowerCase().trim().replace(/\s+/g, '')
+    if (colegioNombreNormalizado.includes(searchValue)) {
+      console.log(`[ListasListing] ✅ Match por nombre de colegio: "${colegioNombre}" (ID: ${cursoId})`)
+      return true
+    }
     
     // Buscar en RBD del colegio (normalizado, sin espacios)
-    const rbd = row.original.colegio?.rbd
     if (rbd !== undefined && rbd !== null) {
       // Convertir a string, eliminar espacios y convertir a minúsculas
       const rbdStr = String(rbd).trim().replace(/\s+/g, '').toLowerCase()
-      // También buscar coincidencia exacta o parcial
-      if (rbdStr === searchValue || rbdStr.includes(searchValue)) return true
+      const rbdNum = String(rbd).trim().replace(/\s+/g, '')
+      
+      // 🔍 LOG DIAGNÓSTICO: Comparación de RBD
+      const matchExacto = rbdStr === searchValue
+      const matchParcial = rbdStr.includes(searchValue)
+      const matchNumero = rbdNum === searchValue || rbdNum.includes(searchValue)
+      
+      if (matchExacto || matchParcial || matchNumero) {
+        console.log(`[ListasListing] ✅ Match por RBD: "${rbd}" (ID: ${cursoId}, Curso: ${cursoNombre}, Colegio: ${colegioNombre})`, {
+          rbdOriginal: rbd,
+          rbdTipo: typeof rbd,
+          rbdStr: rbdStr,
+          rbdNum: rbdNum,
+          searchValue: searchValue,
+          matchExacto,
+          matchParcial,
+          matchNumero,
+        })
+        return true
+      } else {
+        // Solo loggear si es numérico (probable búsqueda por RBD)
+        if (/^\d+$/.test(searchValue)) {
+          console.log(`[ListasListing] ❌ No match por RBD: "${rbd}" vs "${searchValue}" (ID: ${cursoId})`, {
+            rbdOriginal: rbd,
+            rbdTipo: typeof rbd,
+            rbdStr: rbdStr,
+            rbdNum: rbdNum,
+            searchValue: searchValue,
+          })
+        }
+      }
+    } else {
+      // 🔍 LOG DIAGNÓSTICO: RBD no disponible (solo si la búsqueda es numérica, probable RBD)
+      if (/^\d+$/.test(searchValue)) {
+        console.log(`[ListasListing] ⚠️ RBD no disponible para curso ${cursoId}:`, {
+          cursoNombre: cursoNombre,
+          colegioNombre: colegioNombre,
+          tieneColegio: !!row.original.colegio,
+          colegioKeys: row.original.colegio ? Object.keys(row.original.colegio) : [],
+          searchValue: searchValue,
+        })
+      }
     }
     
     // Buscar en nombre del curso (normalizado)
-    const cursoNombre = String(row.original.curso?.nombre || '').toLowerCase().trim().replace(/\s+/g, '')
-    if (cursoNombre.includes(searchValue)) return true
+    const cursoNombreNormalizado = String(row.original.curso?.nombre || '').toLowerCase().trim().replace(/\s+/g, '')
+    if (cursoNombreNormalizado.includes(searchValue)) {
+      console.log(`[ListasListing] ✅ Match por nombre de curso: "${row.original.curso?.nombre}" (ID: ${cursoId})`)
+      return true
+    }
     
     return false
   }
@@ -1068,14 +1385,6 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
             </div>
 
             <div className="d-flex gap-1">
-              <Button
-                variant="outline-info"
-                onClick={() => router.push('/crm/listas/debug-exportacion')}
-                title="Debug de exportación"
-              >
-                <LuFileCode className="fs-sm me-2" />
-                Debug Export
-              </Button>
               {(table.getColumn('colegio')?.getFilterValue() as string | undefined) && (
                 <Button 
                   variant="outline-primary" 
@@ -1116,15 +1425,6 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                   <TbTrash className="fs-sm me-2" /> Eliminar Seleccionados ({Object.keys(selectedRowIds).length})
                 </Button>
               )}
-              <Button 
-                variant="outline-secondary" 
-                onClick={() => recargarListas()}
-                disabled={loading}
-                title="Recargar listas"
-              >
-                <LuRefreshCw className={`fs-sm me-2 ${loading ? 'spinning' : ''}`} style={loading ? { animation: 'spin 1s linear infinite' } : {}} /> 
-                {loading ? 'Recargando...' : 'Recargar'}
-              </Button>
               <Button variant="success" onClick={() => setShowImportModal(true)}>
                 <LuUpload className="fs-sm me-2" /> Importación Masiva
               </Button>
@@ -1214,6 +1514,12 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
           onHide={() => setShowImportModal(false)}
           onSuccess={handleModalSuccess}
         />
+        
+        <ImportacionMasivaPDFsModal
+          show={showImportPDFsModal}
+          onHide={() => setShowImportPDFsModal(false)}
+          onSuccess={handleModalSuccess}
+        />
 
         {/* Ocultado: Modal de Importación Masiva de Colegios */}
         {/* <ImportacionMasivaColegiosModal
@@ -1237,6 +1543,25 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
             }, 3000)
           }}
         />
+
+        {cursoParaGestionar && (
+          <GestionarVersionesModal
+            show={showGestionarVersionesModal}
+            onHide={() => {
+              setShowGestionarVersionesModal(false)
+              setCursoParaGestionar(null)
+            }}
+            cursoId={cursoParaGestionar.id}
+            cursoNombre={cursoParaGestionar.nombre}
+            colegioNombre={cursoParaGestionar.colegioNombre}
+            onSuccess={() => {
+              // Recargar listas después de actualizar versiones
+              setTimeout(() => {
+                recargarListas()
+              }, 500)
+            }}
+          />
+        )}
       </Col>
     </Row>
   )

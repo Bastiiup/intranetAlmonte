@@ -9,6 +9,7 @@ interface LogEntry {
   level: 'log' | 'error' | 'warn'
   message: string
   data?: any
+  source?: 'client' | 'server'
 }
 
 export default function ImportacionCompletaLogsViewer() {
@@ -18,6 +19,7 @@ export default function ImportacionCompletaLogsViewer() {
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [levelFilter, setLevelFilter] = useState<'all' | 'log' | 'error' | 'warn'>('all')
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'client' | 'server'>('all')
   const [limit, setLimit] = useState(100)
   const logsEndRef = useRef<HTMLDivElement>(null)
   const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -43,7 +45,12 @@ export default function ImportacionCompletaLogsViewer() {
 
       if (data.success && data.data) {
         const newLogs = data.data.logs || []
-        console.log('[LogsViewer] Logs recibidos:', newLogs.length, 'logs')
+        console.log('[LogsViewer] Logs recibidos:', {
+          total: newLogs.length,
+          cliente: data.data.totalCliente || 0,
+          servidor: data.data.totalServidor || 0,
+          totalGeneral: data.data.total || 0,
+        })
         setLogs(newLogs)
         setFilteredLogs(newLogs)
       } else {
@@ -51,9 +58,15 @@ export default function ImportacionCompletaLogsViewer() {
         if (data.error) {
           console.error('[LogsViewer] Error:', data.error)
         }
+        // Si hay error, mostrar logs vacíos pero no fallar
+        setLogs([])
+        setFilteredLogs([])
       }
     } catch (error: any) {
-      console.error('Error al obtener logs:', error)
+      console.error('[LogsViewer] Error al obtener logs:', error)
+      // En caso de error, mostrar mensaje pero no fallar
+      setLogs([])
+      setFilteredLogs([])
     } finally {
       setLoading(false)
     }
@@ -64,11 +77,22 @@ export default function ImportacionCompletaLogsViewer() {
   }, [limit])
 
   useEffect(() => {
-    // Filtrar logs por nivel
+    // Filtrar logs por nivel y origen
     let filtered = logs
 
     if (levelFilter !== 'all') {
       filtered = filtered.filter(log => log.level === levelFilter)
+    }
+
+    if (sourceFilter !== 'all') {
+      filtered = filtered.filter(log => {
+        if (sourceFilter === 'server') {
+          return log.source === 'server'
+        } else if (sourceFilter === 'client') {
+          return log.source === 'client' || !log.source // Los logs antiguos sin source son del cliente
+        }
+        return true
+      })
     }
 
     if (searchTerm) {
@@ -80,7 +104,7 @@ export default function ImportacionCompletaLogsViewer() {
     }
 
     setFilteredLogs(filtered)
-  }, [logs, levelFilter, searchTerm])
+  }, [logs, levelFilter, sourceFilter, searchTerm])
 
   useEffect(() => {
     // Auto-refresh
@@ -109,10 +133,32 @@ export default function ImportacionCompletaLogsViewer() {
     }
   }, [filteredLogs, autoRefresh])
 
-  const clearLogs = () => {
-    if (confirm('¿Estás seguro de que deseas limpiar los logs? Esto no afecta los logs del servidor, solo la vista.')) {
-      setLogs([])
-      setFilteredLogs([])
+  const clearLogs = async () => {
+    if (confirm('¿Estás seguro de que deseas limpiar TODOS los logs? Esto limpiará tanto la vista como los logs del servidor.')) {
+      try {
+        // Limpiar logs del servidor
+        const response = await fetch('/api/crm/listas/importacion-completa-logs', {
+          method: 'DELETE',
+        })
+        const data = await response.json()
+        
+        if (data.success) {
+          // Limpiar también la vista local
+          setLogs([])
+          setFilteredLogs([])
+          console.log('[LogsViewer] ✅ Logs limpiados:', data.message)
+          alert(`✅ ${data.message}`)
+        } else {
+          console.error('[LogsViewer] Error al limpiar logs:', data.error)
+          alert(`Error al limpiar logs: ${data.error}`)
+        }
+      } catch (error: any) {
+        console.error('[LogsViewer] Error al limpiar logs:', error)
+        // Aún así limpiar la vista local
+        setLogs([])
+        setFilteredLogs([])
+        alert(`Error al limpiar logs del servidor, pero se limpió la vista local.`)
+      }
     }
   }
 
@@ -247,20 +293,36 @@ export default function ImportacionCompletaLogsViewer() {
             <CardBody>
               {/* Filtros y búsqueda */}
               <Row className="mb-3">
-                <Col md={6}>
+                <Col md={4}>
                   <InputGroup>
                     <InputGroup.Text>
                       <LuSearch />
                     </InputGroup.Text>
                     <Form.Control
                       type="text"
-                      placeholder="Buscar en logs..."
+                      placeholder="Buscar en logs (PDF, versión, curso, upload, subir, etc.)..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
+                    <Button
+                      variant="outline-secondary"
+                      size="sm"
+                      onClick={() => setSearchTerm('pdf')}
+                      title="Filtrar solo PDFs"
+                    >
+                      📄 PDFs
+                    </Button>
+                    <Button
+                      variant="outline-secondary"
+                      size="sm"
+                      onClick={() => setSearchTerm('subiendo')}
+                      title="Filtrar subidas de PDFs"
+                    >
+                      📤 Subir
+                    </Button>
                   </InputGroup>
                 </Col>
-                <Col md={3}>
+                <Col md={2}>
                   <InputGroup>
                     <InputGroup.Text>
                       <LuFilter />
@@ -273,6 +335,19 @@ export default function ImportacionCompletaLogsViewer() {
                       <option value="log">Log</option>
                       <option value="warn">Warning</option>
                       <option value="error">Error</option>
+                    </Form.Select>
+                  </InputGroup>
+                </Col>
+                <Col md={3}>
+                  <InputGroup>
+                    <InputGroup.Text>Origen</InputGroup.Text>
+                    <Form.Select
+                      value={sourceFilter}
+                      onChange={(e) => setSourceFilter(e.target.value as any)}
+                    >
+                      <option value="all">Todos</option>
+                      <option value="client">💻 Cliente</option>
+                      <option value="server">🖥️ Servidor</option>
                     </Form.Select>
                   </InputGroup>
                 </Col>
@@ -293,9 +368,15 @@ export default function ImportacionCompletaLogsViewer() {
               </Row>
 
               {/* Estadísticas */}
-              <div className="mb-3 d-flex gap-3">
+              <div className="mb-3 d-flex gap-3 flex-wrap">
                 <Badge bg="secondary">
                   Total: {logs.length}
+                </Badge>
+                <Badge bg="primary">
+                  Cliente: {logs.filter(l => l.source === 'client' || !l.source).length}
+                </Badge>
+                <Badge bg="info">
+                  Servidor: {logs.filter(l => l.source === 'server').length}
                 </Badge>
                 <Badge bg={filteredLogs.length === logs.length ? 'secondary' : 'info'}>
                   Mostrando: {filteredLogs.length}
@@ -305,6 +386,13 @@ export default function ImportacionCompletaLogsViewer() {
                 </Badge>
                 <Badge bg="warning" text="dark">
                   Warnings: {logs.filter(l => l.level === 'warn').length}
+                </Badge>
+                <Badge bg="success">
+                  📄 PDFs: {logs.filter(l => 
+                    l.message.toLowerCase().includes('pdf') || 
+                    l.message.toLowerCase().includes('subiendo') ||
+                    l.message.toLowerCase().includes('subido')
+                  ).length}
                 </Badge>
                 {autoRefresh && (
                   <Badge bg="success">
@@ -355,6 +443,7 @@ export default function ImportacionCompletaLogsViewer() {
                           log.level === 'warn' ? '#ffc107' :
                           '#0dcaf0'
                         }`,
+                        borderTop: log.source === 'server' ? '2px solid #0dcaf0' : 'none',
                       }}
                     >
                       <div className="d-flex align-items-start gap-2 mb-1">
@@ -363,9 +452,16 @@ export default function ImportacionCompletaLogsViewer() {
                         </div>
                         <div className="flex-grow-1">
                           <div className="d-flex justify-content-between align-items-start mb-1">
-                            <span className="text-muted" style={{ fontSize: '11px' }}>
-                              {formatTimestamp(log.timestamp)}
-                            </span>
+                            <div className="d-flex gap-2 align-items-center">
+                              <span className="text-muted" style={{ fontSize: '11px' }}>
+                                {formatTimestamp(log.timestamp)}
+                              </span>
+                              {log.source && (
+                                <Badge bg={log.source === 'server' ? 'info' : 'primary'} style={{ fontSize: '9px' }}>
+                                  {log.source === 'server' ? '🖥️ SERVIDOR' : '💻 CLIENTE'}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                           <div className={getLogLevelColor(log.level)}>
                             {highlightText(log.message, searchTerm)}

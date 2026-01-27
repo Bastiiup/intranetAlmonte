@@ -253,7 +253,12 @@ export async function POST(request: NextRequest) {
     })
 
     // Subir el PDF a Strapi Media Library
-    debugLog('[API /crm/cursos/import-pdf POST] Subiendo PDF a Strapi Media Library...')
+    console.log('[API /crm/cursos/import-pdf POST] 📤 Iniciando subida de PDF a Strapi Media Library...', {
+      nombreArchivo: pdfFile.name,
+      tamaño: pdfFile.size,
+      tipo: pdfFile.type,
+      cursoId: cursoId || cursoDocumentId || cursoIdNum,
+    })
     
     const pdfBuffer = await pdfFile.arrayBuffer()
     const pdfBlob = new Blob([pdfBuffer], { type: 'application/pdf' })
@@ -269,35 +274,74 @@ export async function POST(request: NextRequest) {
       'Authorization': `Bearer ${process.env.STRAPI_API_TOKEN || ''}`,
     }
     
+    console.log('[API /crm/cursos/import-pdf POST] 📤 Enviando PDF a Strapi:', {
+      url: uploadUrl,
+      nombreArchivo: pdfFile.name,
+      tamañoBytes: pdfFile.size,
+      tamañoMB: (pdfFile.size / 1024 / 1024).toFixed(2),
+      tieneToken: !!process.env.STRAPI_API_TOKEN,
+    })
+    
     let pdfUrl: string | null = null
     let pdfId: number | null = null
     
     try {
+      const uploadStartTime = Date.now()
       const uploadResponse = await fetch(uploadUrl, {
         method: 'POST',
         headers: uploadHeaders,
         body: uploadFormData,
       })
+      const uploadDuration = Date.now() - uploadStartTime
+      
+      console.log('[API /crm/cursos/import-pdf POST] 📥 Respuesta de Strapi /api/upload:', {
+        status: uploadResponse.status,
+        statusText: uploadResponse.statusText,
+        duration: `${uploadDuration}ms`,
+        contentType: uploadResponse.headers.get('content-type'),
+      })
       
       if (uploadResponse.ok) {
         const uploadResult = await uploadResponse.json()
+        console.log('[API /crm/cursos/import-pdf POST] 📦 Resultado de subida:', {
+          esArray: Array.isArray(uploadResult),
+          cantidad: Array.isArray(uploadResult) ? uploadResult.length : 1,
+          tieneDatos: !!uploadResult,
+        })
+        
         if (uploadResult && uploadResult.length > 0) {
           const uploadedFile = uploadResult[0]
           pdfId = uploadedFile.id
           // Construir URL completa del PDF
           pdfUrl = uploadedFile.url ? `${strapiUrl}${uploadedFile.url}` : null
-          debugLog('[API /crm/cursos/import-pdf POST] ✅ PDF subido a Strapi:', { pdfId, pdfUrl })
+          
+          console.log('[API /crm/cursos/import-pdf POST] ✅ PDF subido exitosamente a Strapi:', {
+            pdfId,
+            pdfUrl: pdfUrl ? pdfUrl.substring(0, 100) + '...' : null,
+            nombreArchivo: uploadedFile.name || pdfFile.name,
+            tamaño: uploadedFile.size,
+            mime: uploadedFile.mime,
+            duration: `${uploadDuration}ms`,
+          })
+        } else {
+          console.warn('[API /crm/cursos/import-pdf POST] ⚠️ Respuesta de Strapi no contiene archivos:', uploadResult)
         }
       } else {
         const errorText = await uploadResponse.text()
-        debugLog('[API /crm/cursos/import-pdf POST] ⚠️ Error al subir PDF a Strapi:', {
+        console.error('[API /crm/cursos/import-pdf POST] ❌ Error al subir PDF a Strapi:', {
           status: uploadResponse.status,
-          error: errorText,
+          statusText: uploadResponse.statusText,
+          error: errorText.substring(0, 500),
+          duration: `${uploadDuration}ms`,
         })
         // Continuar sin URL del PDF (solo guardamos metadata)
       }
     } catch (uploadError: any) {
-      debugLog('[API /crm/cursos/import-pdf POST] ⚠️ Error al subir PDF a Strapi:', uploadError)
+      console.error('[API /crm/cursos/import-pdf POST] ❌ Excepción al subir PDF a Strapi:', {
+        error: uploadError.message,
+        stack: uploadError.stack,
+        nombreArchivo: pdfFile.name,
+      })
       // Continuar sin URL del PDF (solo guardamos metadata)
     }
     

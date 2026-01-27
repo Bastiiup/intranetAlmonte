@@ -299,7 +299,21 @@ export async function PUT(
     if (body.versiones_materiales !== undefined) {
       if (Array.isArray(body.versiones_materiales)) {
         cursoData.data.versiones_materiales = body.versiones_materiales
-        debugLog('[API /crm/cursos/[id] PUT] Actualizando versiones_materiales:', body.versiones_materiales.length, 'versiones')
+        
+        // 🔍 LOG: Verificar que las versiones tengan PDFs
+        const versionesConPDF = body.versiones_materiales.filter((v: any) => v.pdf_url && v.pdf_id)
+        const versionesSinPDF = body.versiones_materiales.filter((v: any) => !v.pdf_url || !v.pdf_id)
+        
+        debugLog('[API /crm/cursos/[id] PUT] Actualizando versiones_materiales:', {
+          total: body.versiones_materiales.length,
+          conPDF: versionesConPDF.length,
+          sinPDF: versionesSinPDF.length,
+          versionesConPDF: versionesConPDF.map((v: any) => ({ nombre: v.nombre_archivo, pdfUrl: v.pdf_url, pdfId: v.pdf_id })),
+        })
+        
+        // 🔍 LOG: Verificar estructura completa
+        console.log('[API /crm/cursos/[id] PUT] 📦 Versiones recibidas:', JSON.stringify(body.versiones_materiales, null, 2))
+        console.log('[API /crm/cursos/[id] PUT] 📦 Payload completo a enviar a Strapi:', JSON.stringify(cursoData, null, 2))
       } else {
         // Si es null o undefined, mantener el valor actual (no actualizar)
         debugLog('[API /crm/cursos/[id] PUT] versiones_materiales no es un array, ignorando')
@@ -329,12 +343,78 @@ export async function PUT(
       }
     })
 
+    // 🔍 LOG CRÍTICO: Verificar payload antes de enviar
+    console.log('[API /crm/cursos/[id] PUT] 📤 Enviando a Strapi:', {
+      cursoId: id,
+      tieneVersionesMateriales: !!cursoData.data.versiones_materiales,
+      cantidadVersiones: cursoData.data.versiones_materiales?.length || 0,
+      payloadCompleto: JSON.stringify(cursoData, null, 2),
+    })
+    
     const response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
       `/api/cursos/${id}`,
       cursoData
     )
+    
+    // 🔍 LOG CRÍTICO: Verificar respuesta de Strapi
+    console.log('[API /crm/cursos/[id] PUT] 📥 Respuesta de Strapi:', {
+      status: response.status || 'N/A',
+      tieneData: !!response.data,
+      versionesEnRespuesta: response.data?.attributes?.versiones_materiales?.length || 
+                            response.data?.versiones_materiales?.length || 0,
+      versionesCompletas: JSON.stringify(
+        response.data?.attributes?.versiones_materiales || 
+        response.data?.versiones_materiales || 
+        [],
+        null,
+        2
+      ),
+    })
 
     debugLog('[API /crm/cursos/[id] PUT] Curso actualizado exitosamente')
+    
+    // 🔍 LOG: Verificar que las versiones se guardaron correctamente en la respuesta
+    const cursoActualizado = Array.isArray(response.data) ? response.data[0] : response.data
+    const attrsActualizados = cursoActualizado?.attributes || cursoActualizado
+    const versionesGuardadas = attrsActualizados?.versiones_materiales || []
+    const versionesConPDFGuardadas = versionesGuardadas.filter((v: any) => v.pdf_url && v.pdf_id)
+    
+    console.log('[API /crm/cursos/[id] PUT] ✅ Verificación después de actualizar (en respuesta):', {
+      totalVersiones: versionesGuardadas.length,
+      versionesConPDF: versionesConPDFGuardadas.length,
+      versionesConPDF: versionesConPDFGuardadas.map((v: any) => ({ 
+        nombre: v.nombre_archivo, 
+        pdfUrl: v.pdf_url, 
+        pdfId: v.pdf_id 
+      })),
+      todasLasVersiones: JSON.stringify(versionesGuardadas, null, 2),
+    })
+    
+    // 🔍 VERIFICACIÓN CRÍTICA: Obtener el curso nuevamente desde Strapi para confirmar que se guardó
+    try {
+      console.log('[API /crm/cursos/[id] PUT] 🔍 Verificando guardado: Obteniendo curso desde Strapi...')
+      const verifyResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+        `/api/cursos/${id}?publicationState=preview`
+      )
+      const cursoVerificado = verifyResponse.data
+      const attrsVerificados = cursoVerificado?.attributes || cursoVerificado
+      const versionesVerificadas = attrsVerificados?.versiones_materiales || []
+      const versionesConPDFVerificadas = versionesVerificadas.filter((v: any) => v.pdf_url && v.pdf_id)
+      
+      console.log('[API /crm/cursos/[id] PUT] ✅ VERIFICACIÓN FINAL - Curso obtenido desde Strapi:', {
+        cursoId: id,
+        totalVersiones: versionesVerificadas.length,
+        versionesConPDF: versionesConPDFVerificadas.length,
+        versionesConPDF: versionesConPDFVerificadas.map((v: any) => ({ 
+          nombre: v.nombre_archivo, 
+          pdfUrl: v.pdf_url ? v.pdf_url.substring(0, 80) + '...' : null, 
+          pdfId: v.pdf_id 
+        })),
+        todasLasVersiones: JSON.stringify(versionesVerificadas, null, 2),
+      })
+    } catch (verifyError: any) {
+      console.error('[API /crm/cursos/[id] PUT] ⚠️ Error al verificar guardado:', verifyError.message)
+    }
 
     return NextResponse.json({
       success: true,

@@ -1,5 +1,6 @@
 'use client'
 import Loader from '@/components/Loader'
+import ImportacionCompletaMinimizado from '@/components/ImportacionCompletaMinimizado'
 import { useLayoutContext } from '@/context/useLayoutContext'
 import HorizontalLayout from '@/layouts/HorizontalLayout'
 import VerticalLayout from '@/layouts/VerticalLayout'
@@ -21,6 +22,7 @@ const MainLayout = ({ children }: ChildrenType) => {
     <Fragment>
       {orientation === 'vertical' && <VerticalLayout>{children}</VerticalLayout>}
       {orientation === 'horizontal' && <HorizontalLayout>{children}</HorizontalLayout>}
+      <ImportacionCompletaMinimizado />
     </Fragment>
   )
 }

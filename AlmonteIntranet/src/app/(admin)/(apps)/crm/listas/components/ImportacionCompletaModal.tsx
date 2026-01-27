@@ -18,8 +18,9 @@ import {
   Spinner,
   ProgressBar,
 } from 'react-bootstrap'
-import { LuUpload, LuFileText, LuCheck, LuX, LuDownload } from 'react-icons/lu'
+import { LuUpload, LuFileText, LuCheck, LuX, LuDownload, LuFileSpreadsheet, LuMinimize2, LuMaximize2 } from 'react-icons/lu'
 import * as XLSX from 'xlsx'
+import JSZip from 'jszip'
 
 interface ImportacionCompletaModalProps {
   show: boolean
@@ -97,6 +98,154 @@ interface ProcessResult {
   datos?: any
 }
 
+// Funciones de normalización y extracción de componentes (disponibles para todo el componente)
+const normalizeCurso = (nombre: string) => {
+  return nombre
+    .toLowerCase()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Quitar acentos
+    .replace(/[°º°o]/g, '') // Quitar símbolos de grado y "o" después del número
+    .replace(/[^\w]/g, '') // Quitar TODOS los caracteres especiales, dejar solo letras y números
+}
+
+const extractComponents = (nombre: string) => {
+  // Normalización más agresiva para extraer componentes
+  let textoLimpio = nombre
+    .toLowerCase()
+    .trim()
+    .replace(/[-_\.]/g, ' ') // Convertir guiones, guiones bajos y puntos a espacios
+    .replace(/\s+/g, ' ') // Normalizar espacios múltiples
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Quitar acentos
+    .replace(/[°º°]/g, '') // Quitar símbolos de grado
+  
+  // Convertir palabras ordinales a números ANTES de normalizar "o" después de números
+  const ordinales: { [key: string]: string } = {
+    'primero': '1',
+    'primera': '1',
+    'segundo': '2',
+    'segunda': '2',
+    'tercero': '3',
+    'tercera': '3',
+    'cuarto': '4',
+    'cuarta': '4',
+    'quinto': '5',
+    'quinta': '5',
+    'sexto': '6',
+    'sexta': '6',
+    'septimo': '7',
+    'septima': '7',
+    'octavo': '8',
+    'octava': '8',
+    'noveno': '9',
+    'novena': '9',
+    'decimo': '10',
+    'decima': '10',
+  }
+  
+  // Reemplazar palabras ordinales por números
+  for (const [palabra, numero] of Object.entries(ordinales)) {
+    const regex = new RegExp(`\\b${palabra}\\b`, 'gi')
+    textoLimpio = textoLimpio.replace(regex, numero)
+  }
+  
+  // Normalizar "o" después de números (cualquier número: 1o, 2o, 3o, 5o, 10o, etc.)
+  textoLimpio = textoLimpio.replace(/(\d+)\s*[oº°]/gi, '$1')
+  
+  // Normalizar plurales y variaciones de nivel
+  const nivelNormalizado = textoLimpio
+    .replace(/\bbasicos\b/gi, 'basico')
+    .replace(/\bbasicas\b/gi, 'basica')
+    .replace(/\bbasico\b/gi, 'basico')
+    .replace(/\bbasica\b/gi, 'basica')
+    .replace(/\bmedios\b/gi, 'medio')
+    .replace(/\bmedias\b/gi, 'media')
+    .replace(/\bmedio\b/gi, 'medio')
+    .replace(/\bmedia\b/gi, 'media')
+    // Variaciones adicionales
+    .replace(/\bprimaria\b/gi, 'basica')
+    .replace(/\bsecundaria\b/gi, 'media')
+    .replace(/\belemental\b/gi, 'basica')
+  
+  const normalized = normalizeCurso(nombre)
+  
+  // Extraer TODOS los números (grado puede ser cualquier número: 1, 2, 3, 5, 10, etc.)
+  // También buscar números en textoLimpio (que ya tiene ordinales convertidos)
+  const numerosNormalizados = textoLimpio.match(/\d+/g) || []
+  const numeros = normalized.match(/\d+/g) || []
+  // Combinar ambos arrays y eliminar duplicados
+  const todosNumeros = [...new Set([...numerosNormalizados, ...numeros])]
+  
+  // Extraer nivel con múltiples patrones y variaciones
+  let nivel = ''
+  const patronesNivel = [
+    /\b(basica|basico)\w*\b/i,
+    /\b(media|medio)\w*\b/i,
+    /\bprimaria\w*\b/i,
+    /\bsecundaria\w*\b/i,
+    /\belemental\w*\b/i,
+  ]
+  
+  for (const patron of patronesNivel) {
+    const match = nivelNormalizado.match(patron)
+    if (match) {
+      const nivelEncontrado = match[1].toLowerCase()
+      // Normalizar a basico/basica o medio/media
+      if (nivelEncontrado.includes('basic') || nivelEncontrado.includes('primaria') || nivelEncontrado.includes('elemental')) {
+        nivel = nivelEncontrado.startsWith('basico') ? 'basico' : 'basica'
+      } else if (nivelEncontrado.includes('medi') || nivelEncontrado.includes('secundaria')) {
+        nivel = nivelEncontrado.startsWith('medio') ? 'medio' : 'media'
+      } else {
+        nivel = nivelEncontrado
+      }
+      break
+    }
+  }
+  
+  // Si no se encontró nivel, intentar buscar en el texto normalizado completo
+  if (!nivel) {
+    const textoCompleto = normalized
+    if (textoCompleto.includes('basic')) {
+      nivel = 'basico'
+    } else if (textoCompleto.includes('medi')) {
+      nivel = 'medio'
+    }
+  }
+  
+  // Determinar año PRIMERO (número de 4 dígitos entre 2000-2100)
+  const año4Digitos = todosNumeros.find(n => n.length === 4 && parseInt(n) >= 2000 && parseInt(n) <= 2100)
+  const año = año4Digitos || ''
+  
+  // Determinar grado (cualquier número de 1-2 dígitos que NO sea el año)
+  // Priorizar números de 1-2 dígitos como grado (1, 2, 3, 5, 10, etc.)
+  let grado = ''
+  if (todosNumeros.length > 0) {
+    // Filtrar números que NO sean el año y que tengan 1-2 dígitos
+    const posiblesGrados = todosNumeros.filter(n => {
+      const num = parseInt(n)
+      return n.length <= 2 && n !== año && num >= 1 && num <= 12 // Grados típicamente van de 1 a 12
+    })
+    
+    if (posiblesGrados.length > 0) {
+      grado = posiblesGrados[0]
+    } else {
+      // Si no hay números de 1-2 dígitos, tomar el primero que no sea el año
+      const otrosNumeros = todosNumeros.filter(n => n !== año)
+      grado = otrosNumeros[0] || ''
+    }
+  }
+  
+  return {
+    normalized,
+    numeros: todosNumeros,
+    nivel,
+    grado,
+    año,
+    textoOriginal: nombre, // Guardar original para debugging
+  }
+}
+
 export default function ImportacionCompletaModal({
   show,
   onHide,
@@ -108,10 +257,107 @@ export default function ImportacionCompletaModal({
   const [processing, setProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [minimized, setMinimized] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('importacion-completa-minimized')
+      return saved === 'true'
+    }
+    return false
+  })
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default')
   const [processResults, setProcessResults] = useState<ProcessResult[]>([])
+
+  // Solicitar permiso de notificaciones al montar el componente
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then((permission) => {
+        setNotificationPermission(permission)
+      })
+    } else if ('Notification' in window) {
+      setNotificationPermission(Notification.permission)
+    }
+  }, [])
+
+  // Detectar si debemos abrir el modal automáticamente al restaurar
+  useEffect(() => {
+    if (typeof window !== 'undefined' && show) {
+      const shouldRestore = localStorage.getItem('importacion-completa-restore-modal') === 'true'
+      if (shouldRestore) {
+        // Si el modal está abierto y hay un proceso en curso, restaurar el estado minimizado
+        const isMinimized = localStorage.getItem('importacion-completa-minimized') === 'true'
+        if (isMinimized) {
+          setMinimized(false)
+          localStorage.removeItem('importacion-completa-restore-modal')
+        }
+      }
+    }
+  }, [show])
+
+  // Persistir estado de minimización en localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (minimized) {
+        localStorage.setItem('importacion-completa-minimized', 'true')
+        localStorage.setItem('importacion-completa-processing', processing ? 'true' : 'false')
+        localStorage.setItem('importacion-completa-progress', progress.toString())
+      } else {
+        localStorage.removeItem('importacion-completa-minimized')
+        if (!processing) {
+          localStorage.removeItem('importacion-completa-processing')
+          localStorage.removeItem('importacion-completa-progress')
+        }
+      }
+    }
+  }, [minimized, processing, progress])
+
+  // Restaurar estado de procesamiento al montar si estaba minimizado
+  useEffect(() => {
+    if (typeof window !== 'undefined' && minimized) {
+      const wasProcessing = localStorage.getItem('importacion-completa-processing') === 'true'
+      const savedProgress = localStorage.getItem('importacion-completa-progress')
+      
+      if (wasProcessing && savedProgress) {
+        setProcessing(true)
+        setProgress(parseInt(savedProgress, 10))
+        setStep('processing')
+      }
+    }
+  }, [minimized])
+
+  // Función para mostrar notificación
+  const mostrarNotificacion = (titulo: string, mensaje: string, tipo: 'success' | 'error' | 'info' = 'info') => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const icon = tipo === 'success' ? '✅' : tipo === 'error' ? '❌' : 'ℹ️'
+      const notification = new Notification(`${icon} ${titulo}`, {
+        body: mensaje,
+        icon: '/favicon.ico',
+        tag: 'importacion-completa',
+        requireInteraction: false,
+      })
+
+      notification.onclick = () => {
+        window.focus()
+        setMinimized(false)
+        notification.close()
+      }
+
+      // Cerrar automáticamente después de 5 segundos
+      setTimeout(() => {
+        notification.close()
+      }, 5000)
+    }
+  }
+
   const fileInputRef = useRef<HTMLInputElement>(null)
-  // Estado para almacenar PDFs por grupo (clave del grupo -> File)
-  const [pdfsPorGrupo, setPdfsPorGrupo] = useState<Map<string, File>>(new Map())
+  // Estado para almacenar PDFs por grupo (clave del grupo -> File[])
+  // Permite múltiples PDFs por grupo (versiones)
+  const [pdfsPorGrupo, setPdfsPorGrupo] = useState<Map<string, File[]>>(new Map())
+  // Estados para importación masiva de PDFs
+  const [excelPDFsFile, setExcelPDFsFile] = useState<File | null>(null)
+  const [zipPDFsFile, setZipPDFsFile] = useState<File | null>(null)
+  const [loadingPDFsImport, setLoadingPDFsImport] = useState(false)
+  const excelPDFsInputRef = useRef<HTMLInputElement>(null)
+  const zipPDFsInputRef = useRef<HTMLInputElement>(null)
 
   // Interceptar console.log/error/warn para enviar logs al servidor
   // Interceptar console.log para capturar logs de importación completa
@@ -228,7 +474,8 @@ export default function ImportacionCompletaModal({
           
           // Si no se encontró exacto, buscar case-insensitive en todas las keys
           const keys = Object.keys(row)
-          console.log(`[Importación Completa] 🔍 Buscando URL en columnas:`, keys)
+          // Solo loggear en modo debug para reducir verbosidad
+          // console.log(`[Importación Completa] 🔍 Buscando URL en columnas:`, keys)
           
           // Normalizar nombres de columnas para comparación (case-insensitive, normalizar espacios)
           const normalizarNombre = (str: string) => str.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[^\w\s]/g, '')
@@ -259,7 +506,8 @@ export default function ImportacionCompletaModal({
             }
           }
           
-          console.log(`[Importación Completa] ⚠️ No se encontró URL en la fila. Columnas disponibles:`, keys)
+          // No loggear warning si no hay URL - es normal que no todas las filas tengan URL
+          // console.log(`[Importación Completa] ⚠️ No se encontró URL en la fila. Columnas disponibles:`, keys)
           return undefined
         }
 
@@ -740,12 +988,110 @@ export default function ImportacionCompletaModal({
                   datos: { id: colegioId, nombre: grupo.colegio.nombre },
                 })
               } else {
-                results.push({
-                  success: false,
-                  message: `Error al crear colegio: ${createColegioResult.error || 'Error desconocido'}`,
-                  tipo: 'colegio',
-                })
-                continue
+                // Si el error es que el RBD ya existe, buscar el colegio existente y usarlo
+                const errorMessage = createColegioResult.error || ''
+                if (errorMessage.includes('RBD') && (errorMessage.includes('ya existe') || errorMessage.includes('existe'))) {
+                  console.log(`[Importación Completa] ⚠️ RBD ya existe, buscando colegio existente...`)
+                  
+                  // Buscar el colegio por RBD - primero en el mapa, luego en la API
+                  if (grupo.colegio.rbd) {
+                    const rbdNum = Number(grupo.colegio.rbd)
+                    if (!isNaN(rbdNum)) {
+                      // Primero intentar en el mapa en memoria
+                      if (colegiosMap.has(rbdNum)) {
+                        const colegio = colegiosMap.get(rbdNum)!
+                        colegioId = colegio.id
+                        colegioExistente = colegio.datosCompletos || colegiosCompletosMap.get(colegio.id)
+                        colegioEncontrado = { id: colegio.id, nombre: colegio.nombre, rbd: rbdNum }
+                        
+                        // Actualizar nombre si no estaba definido
+                        if (!grupo.colegio.nombre || grupo.colegio.nombre.startsWith('Colegio RBD')) {
+                          grupo.colegio.nombre = colegio.nombre || colegio.datosCompletos?.colegio_nombre || grupo.colegio.nombre
+                        }
+                        
+                        console.log(`[Importación Completa] ✅ Colegio existente encontrado por RBD en mapa: ${colegio.nombre} (ID: ${colegioId})`)
+                      } else {
+                        // Si no está en el mapa, buscar directamente en la API
+                        console.log(`[Importación Completa] 🔍 RBD no encontrado en mapa, buscando en API...`)
+                        try {
+                          const searchResponse = await fetch(`/api/crm/colegios?rbd=${rbdNum}&page=1&pageSize=1`)
+                          const searchResult = await searchResponse.json()
+                          
+                          if (searchResult.success && searchResult.data && searchResult.data.length > 0) {
+                            const colegioEncontradoAPI = searchResult.data[0]
+                            colegioId = colegioEncontradoAPI.id || colegioEncontradoAPI.documentId
+                            colegioExistente = colegioEncontradoAPI
+                            colegioEncontrado = { 
+                              id: colegioId, 
+                              nombre: colegioEncontradoAPI.colegio_nombre || colegioEncontradoAPI.nombre || grupo.colegio.nombre, 
+                              rbd: rbdNum 
+                            }
+                            
+                            // Actualizar nombre
+                            if (!grupo.colegio.nombre || grupo.colegio.nombre.startsWith('Colegio RBD')) {
+                              grupo.colegio.nombre = colegioEncontrado.nombre
+                            }
+                            
+                            // Agregar al mapa para futuras búsquedas
+                            colegiosMap.set(rbdNum, { id: colegioId, nombre: colegioEncontrado.nombre, datosCompletos: colegioEncontradoAPI })
+                            colegiosCompletosMap.set(colegioId, colegioEncontradoAPI)
+                            
+                            console.log(`[Importación Completa] ✅ Colegio existente encontrado por RBD en API: ${colegioEncontrado.nombre} (ID: ${colegioId})`)
+                          } else {
+                            // Intentar buscar por nombre como último recurso
+                            const nombreBusqueda = grupo.colegio.nombre.trim().toLowerCase()
+                            for (const [normalizedName, colegio] of colegiosByName.entries()) {
+                              if (normalizedName === nombreBusqueda || 
+                                  colegio.nombre.toLowerCase().trim() === nombreBusqueda) {
+                                colegioId = colegio.id
+                                colegioExistente = colegio.datosCompletos || colegiosCompletosMap.get(colegio.id)
+                                colegioEncontrado = colegio
+                                console.log(`[Importación Completa] ✅ Colegio existente encontrado por nombre: ${colegio.nombre} (ID: ${colegioId})`)
+                                break
+                              }
+                            }
+                          }
+                        } catch (searchError: any) {
+                          console.warn(`[Importación Completa] ⚠️ Error al buscar colegio en API:`, searchError)
+                          // Intentar buscar por nombre como último recurso
+                          const nombreBusqueda = grupo.colegio.nombre.trim().toLowerCase()
+                          for (const [normalizedName, colegio] of colegiosByName.entries()) {
+                            if (normalizedName === nombreBusqueda || 
+                                colegio.nombre.toLowerCase().trim() === nombreBusqueda) {
+                              colegioId = colegio.id
+                              colegioExistente = colegio.datosCompletos || colegiosCompletosMap.get(colegio.id)
+                              colegioEncontrado = colegio
+                              console.log(`[Importación Completa] ✅ Colegio existente encontrado por nombre: ${colegio.nombre} (ID: ${colegioId})`)
+                              break
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                  
+                  // Si encontramos el colegio, continuar normalmente (no agregar error)
+                  if (colegioId) {
+                    console.log(`[Importación Completa] ✅ Usando colegio existente. Continuando con la importación de listas...`)
+                    // NO hacer continue, simplemente continuar con el flujo normal
+                  } else {
+                    // Si aún no encontramos el colegio, entonces sí es un error
+                    results.push({
+                      success: false,
+                      message: `Error: El RBD ${grupo.colegio.rbd} ya existe pero no se pudo encontrar el colegio. ${createColegioResult.error || 'Error desconocido'}`,
+                      tipo: 'colegio',
+                    })
+                    continue
+                  }
+                } else {
+                  // Otro tipo de error, reportarlo
+                  results.push({
+                    success: false,
+                    message: `Error al crear colegio: ${createColegioResult.error || 'Error desconocido'}`,
+                    tipo: 'colegio',
+                  })
+                  continue
+                }
               }
             }
           }
@@ -814,7 +1160,7 @@ export default function ImportacionCompletaModal({
                 nombre_curso: grupo.curso.nombre,
                 nivel,
                 grado: String(grado),
-                año: grupo.curso.año || new Date().getFullYear(),
+                año: grupo.curso.año || new Date().getFullYear(), // Usar "año" con acento (igual que otros endpoints)
                 activo: true,
               }),
             })
@@ -915,23 +1261,254 @@ export default function ImportacionCompletaModal({
           // Procesar PDF para esta versión
           let pdfUrl: string | null = null
           let pdfId: number | null = null
-          const grupoKey = `${grupo.colegio.nombre}-${grupo.curso.nombre}-${grupo.asignatura.nombre}-${grupo.lista.nombre}`
+          
+          // Generar grupoKey usando la misma lógica que al agrupar (para que coincida con las claves de pdfsPorGrupo)
+          // Usar el identificador del colegio (RBD_xxx o nombre) en lugar del nombre completo
+          const identificadorColegio = grupo.colegio.rbd ? `RBD_${grupo.colegio.rbd}` : (grupo.colegio.nombre || '')
+          const grupoKey = `${identificadorColegio}|${grupo.curso.nombre}|${grupo.asignatura.nombre}|${grupo.lista.nombre}`
+          
+          // También buscar con la clave alternativa (nombre del colegio con guiones) por compatibilidad
+          const grupoKeyAlternativo = `${grupo.colegio.nombre}-${grupo.curso.nombre}-${grupo.asignatura.nombre}-${grupo.lista.nombre}`
+          
+          // Array para guardar todos los PDFs subidos exitosamente (para crear múltiples versiones)
+          const pdfsSubidosConExito: Array<{ pdfUrl: string; pdfId: number; nombre: string; fecha: string }> = []
 
-          // Prioridad 1: PDF subido manualmente para este grupo
-          const pdfSubido = pdfsPorGrupo.get(grupoKey)
-          if (pdfSubido) {
-            const resultadoPDF = await subirPDFaStrapi(pdfSubido, `${grupo.lista.nombre || 'lista'}.pdf`)
-            pdfUrl = resultadoPDF.pdfUrl
-            pdfId = resultadoPDF.pdfId
+          // Prioridad 1: PDF(s) subido(s) manualmente para este grupo
+          // Procesar todos los PDFs (versiones) asignados a este grupo
+          // Buscar en ambas claves posibles
+          const pdfsSubidos = pdfsPorGrupo.get(grupoKey) || pdfsPorGrupo.get(grupoKeyAlternativo) || []
+          
+          console.log(`[Importación Completa] 🔍 Buscando PDFs para grupo:`, {
+            grupoKey,
+            grupoKeyAlternativo,
+            pdfsEnGrupoKey: pdfsPorGrupo.get(grupoKey)?.length || 0,
+            pdfsEnGrupoKeyAlternativo: pdfsPorGrupo.get(grupoKeyAlternativo)?.length || 0,
+            pdfsEncontrados: pdfsSubidos.length,
+            todasLasClaves: Array.from(pdfsPorGrupo.keys()),
+            colegioRBD: grupo.colegio.rbd,
+            colegioNombre: grupo.colegio.nombre,
+            identificadorColegio,
+          })
+          
+          // Enviar log al sistema de logs
+          try {
+            await fetch('/api/crm/listas/importacion-completa-logs', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                level: 'log',
+                message: `[Importación Completa] 🔍 Buscando PDFs para grupo: ${grupoKey}`,
+                data: {
+                  grupoKey,
+                  grupoKeyAlternativo,
+                  pdfsEnGrupoKey: pdfsPorGrupo.get(grupoKey)?.length || 0,
+                  pdfsEnGrupoKeyAlternativo: pdfsPorGrupo.get(grupoKeyAlternativo)?.length || 0,
+                  pdfsEncontrados: pdfsSubidos.length,
+                  colegioRBD: grupo.colegio.rbd,
+                  colegioNombre: grupo.colegio.nombre,
+                  todasLasClaves: Array.from(pdfsPorGrupo.keys()).slice(0, 10), // Solo primeras 10 para no saturar
+                },
+              }),
+            })
+          } catch (e) {
+            // Ignorar errores de logging
           }
+          
+          // 🔍 LOG: Verificar qué PDFs tenemos disponibles
+          const urlListaValue = grupo.lista.url_lista
+          const urlListaTrimmed = urlListaValue ? String(urlListaValue).trim() : ''
+          const tieneURL = !!(urlListaValue && urlListaTrimmed)
+          
+          console.log(`[Importación Completa] 🔍 Verificando PDFs para grupo ${grupoKey}:`)
+          console.log(`  - PDFs subidos manualmente: ${pdfsSubidos.length}`)
+          console.log(`  - URL_lista (raw): ${urlListaValue}`)
+          console.log(`  - URL_lista (trimmed): ${urlListaTrimmed}`)
+          console.log(`  - Tiene URL válida: ${tieneURL}`)
+          console.log(`  - Tipo de url_lista: ${typeof urlListaValue}`)
+          
+          if (pdfsSubidos.length > 0) {
+            console.log(`[Importación Completa] 📄 Subiendo ${pdfsSubidos.length} PDF(s) para el grupo: ${grupoKey}`)
+            
+            // Subir todos los PDFs y guardar sus URLs e IDs
+            for (let i = 0; i < pdfsSubidos.length; i++) {
+              const pdf = pdfsSubidos[i]
+              const nombrePDF = i === 0 
+                ? `${grupo.lista.nombre || 'lista'}.pdf`
+                : `${grupo.lista.nombre || 'lista'}_v${i + 1}.pdf`
+              
+              try {
+                console.log(`[Importación Completa] 📤 Subiendo PDF ${i + 1}/${pdfsSubidos.length}: ${pdf.name}`)
+                const resultadoPDF = await subirPDFaStrapi(pdf, nombrePDF)
+                
+                if (resultadoPDF.pdfUrl && resultadoPDF.pdfId) {
+                  pdfsSubidosConExito.push({
+                    pdfUrl: resultadoPDF.pdfUrl,
+                    pdfId: resultadoPDF.pdfId,
+                    nombre: nombrePDF,
+                    fecha: new Date().toISOString(),
+                  })
+                  console.log(`[Importación Completa] ✅ PDF ${i + 1}/${pdfsSubidos.length} subido exitosamente: ${resultadoPDF.pdfUrl}`)
+                } else {
+                  console.warn(`[Importación Completa] ⚠️ PDF ${i + 1}/${pdfsSubidos.length} no se pudo subir correctamente`)
+                }
+                
+                // Pequeño delay entre subidas para evitar saturar Strapi
+                if (i < pdfsSubidos.length - 1) {
+                  await new Promise(resolve => setTimeout(resolve, 500))
+                }
+              } catch (err: any) {
+                console.error(`[Importación Completa] ❌ Error al subir PDF ${i + 1}/${pdfsSubidos.length}:`, err)
+                // Continuar con los demás PDFs
+              }
+            }
+            
+            // Usar el último PDF subido exitosamente para la versión principal
+            if (pdfsSubidosConExito.length > 0) {
+              const ultimoPDFExitoso = pdfsSubidosConExito[pdfsSubidosConExito.length - 1]
+              pdfUrl = ultimoPDFExitoso.pdfUrl
+              pdfId = ultimoPDFExitoso.pdfId
+              console.log(`[Importación Completa] ✅ ${pdfsSubidosConExito.length} PDF(s) subido(s) exitosamente. Usando el último para versión principal.`)
+              
+              // Enviar log al sistema de logs
+              try {
+                await fetch('/api/crm/listas/importacion-completa-logs', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    level: 'log',
+                    message: `[Importación Completa] ✅ ${pdfsSubidosConExito.length} PDF(s) subido(s) exitosamente para grupo: ${grupoKey}`,
+                    data: {
+                      grupoKey,
+                      cantidadPDFs: pdfsSubidosConExito.length,
+                      pdfsSubidos: pdfsSubidosConExito.map(p => ({
+                        nombre: p.nombre,
+                        pdfId: p.pdfId,
+                        pdfUrl: p.pdfUrl ? p.pdfUrl.substring(0, 100) + '...' : null,
+                      })),
+                      pdfUrlFinal: pdfUrl ? pdfUrl.substring(0, 100) + '...' : null,
+                      pdfIdFinal: pdfId,
+                    },
+                  }),
+                })
+              } catch (e) {
+                // Ignorar errores de logging
+              }
+            } else {
+              console.warn(`[Importación Completa] ⚠️ Ningún PDF se subió exitosamente para el grupo: ${grupoKey}`)
+              
+              // Enviar log de advertencia
+              try {
+                await fetch('/api/crm/listas/importacion-completa-logs', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    level: 'warn',
+                    message: `[Importación Completa] ⚠️ Ningún PDF se subió exitosamente para el grupo: ${grupoKey}`,
+                    data: {
+                      grupoKey,
+                      pdfsSubidos: pdfsSubidos.length,
+                      pdfsSubidosConExito: pdfsSubidosConExito.length,
+                      tieneURL: !!grupo.lista.url_lista,
+                    },
+                  }),
+                })
+              } catch (e) {
+                // Ignorar errores de logging
+              }
+            }
+          }
+          
           // Prioridad 2: URL_lista - descargar y subir automáticamente desde la URL
-          else if (grupo.lista.url_lista && grupo.lista.url_lista.trim()) {
+          // Solo si NO hay PDFs subidos manualmente O si ninguno se subió exitosamente
+          const urlListaParaDescarga = grupo.lista.url_lista
+          const urlListaTrimmedParaDescarga = urlListaParaDescarga ? String(urlListaParaDescarga).trim() : ''
+          const tieneURLParaDescarga = !!(urlListaParaDescarga && urlListaTrimmedParaDescarga && (urlListaTrimmedParaDescarga.startsWith('http://') || urlListaTrimmedParaDescarga.startsWith('https://')))
+          const debeDescargarDesdeURL = pdfsSubidosConExito.length === 0 && tieneURLParaDescarga
+          
+          console.log(`[Importación Completa] 🔍 Evaluando descarga desde URL para grupo ${grupoKey}:`)
+          console.log(`  - PDFs subidos exitosamente: ${pdfsSubidosConExito.length}`)
+          console.log(`  - URL_lista (raw): ${urlListaParaDescarga}`)
+          console.log(`  - URL_lista (trimmed): ${urlListaTrimmedParaDescarga}`)
+          console.log(`  - URL empieza con http:// o https://: ${urlListaTrimmedParaDescarga ? (urlListaTrimmedParaDescarga.startsWith('http://') || urlListaTrimmedParaDescarga.startsWith('https://')) : false}`)
+          console.log(`  - Tiene URL válida: ${tieneURLParaDescarga}`)
+          console.log(`  - Debe descargar desde URL: ${debeDescargarDesdeURL}`)
+          console.log(`  - Condición completa: pdfsSubidosConExito.length (${pdfsSubidosConExito.length}) === 0 && tieneURLParaDescarga (${tieneURLParaDescarga})`)
+          
+          if (debeDescargarDesdeURL) {
             try {
               const nombrePDF = `${grupo.lista.nombre || 'lista'}-${grupo.asignatura.nombre || 'asignatura'}.pdf`
-              console.log(`[Importación Completa] 📥 Descargando PDF desde URL: ${grupo.lista.url_lista}`)
-              const resultadoPDF = await descargarYSubirPDF(grupo.lista.url_lista.trim(), nombrePDF)
+              const urlParaDescargar = urlListaTrimmedParaDescarga
+              console.log(`[Importación Completa] 📥 Descargando PDF desde URL: ${urlParaDescargar}`)
+              console.log(`[Importación Completa] 📥 Nombre del PDF: ${nombrePDF}`)
+              
+              // 🔍 LOG CRÍTICO: Enviar a logs del servidor
+              try {
+                await fetch('/api/crm/listas/importacion-completa-logs', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    level: 'log',
+                    message: `[Importación Completa] 📥 Descargando PDF desde URL: ${grupo.lista.url_lista}`,
+                    data: {
+                      grupo: grupoKey,
+                      url: grupo.lista.url_lista,
+                      nombrePDF,
+                    },
+                  }),
+                })
+              } catch (e) {
+                // Ignorar errores de logging
+              }
+              
+              const resultadoPDF = await descargarYSubirPDF(urlParaDescargar, nombrePDF)
               pdfUrl = resultadoPDF.pdfUrl
               pdfId = resultadoPDF.pdfId
+              
+              // Agregar a pdfsSubidosConExito para que se incluya en las versiones
+              if (pdfUrl && pdfId) {
+                pdfsSubidosConExito.push({
+                  pdfUrl: resultadoPDF.pdfUrl,
+                  pdfId: resultadoPDF.pdfId,
+                  nombre: nombrePDF,
+                  fecha: new Date().toISOString(),
+                })
+                console.log(`[Importación Completa] ✅ PDF descargado y agregado a pdfsSubidosConExito: ${pdfUrl.substring(0, 80)}...`)
+              }
+              
+              // 🔍 LOG CRÍTICO: Resultado de descarga y subida
+              console.log(`[Importación Completa] 📥 Resultado de descarga/subida PDF:`, {
+                url: grupo.lista.url_lista,
+                nombrePDF,
+                pdfUrl: pdfUrl ? pdfUrl.substring(0, 80) + '...' : null,
+                pdfId,
+                tienePDF: !!(pdfUrl && pdfId),
+                agregadoAPdfsSubidos: pdfsSubidosConExito.length,
+              })
+              
+              // 🔍 LOG CRÍTICO: Enviar a logs del servidor
+              try {
+                await fetch('/api/crm/listas/importacion-completa-logs', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    level: pdfUrl && pdfId ? 'log' : 'warn',
+                    message: pdfUrl && pdfId 
+                      ? `[Importación Completa] ✅ PDF descargado y subido correctamente: ${pdfUrl.substring(0, 80)}...`
+                      : `[Importación Completa] ⚠️ No se pudo descargar/subir PDF desde: ${grupo.lista.url_lista}`,
+                    data: {
+                      grupo: grupoKey,
+                      url: grupo.lista.url_lista,
+                      nombrePDF,
+                      pdfUrl,
+                      pdfId,
+                      tienePDF: !!(pdfUrl && pdfId),
+                      agregadoAPdfsSubidos: pdfsSubidosConExito.length,
+                    },
+                  }),
+                })
+              } catch (e) {
+                // Ignorar errores de logging
+              }
               
               if (pdfUrl && pdfId) {
                 console.log(`[Importación Completa] ✅ PDF descargado y subido correctamente: ${pdfUrl}`)
@@ -942,26 +1519,6 @@ export default function ImportacionCompletaModal({
               console.error(`[Importación Completa] ❌ Error al procesar PDF desde URL: ${grupo.lista.url_lista}`, err)
               // Continuar sin PDF (solo se guarda la URL en metadata)
             }
-          }
-
-          // Crear versión de materiales
-          const versionMaterial = {
-            id: 1,
-            nombre_archivo: grupo.lista.nombre || 'Lista de útiles',
-            fecha_subida: grupo.lista.fecha_actualizacion || new Date().toISOString(),
-            fecha_actualizacion: grupo.lista.fecha_actualizacion || new Date().toISOString(),
-            fecha_publicacion: grupo.lista.fecha_publicacion,
-            materiales: materiales,
-            // Incluir PDF si se subió correctamente
-            pdf_url: pdfUrl,
-            pdf_id: pdfId,
-            metadata: {
-              nombre: grupo.lista.nombre,
-              asignatura: grupo.asignatura.nombre,
-              orden_asignatura: grupo.asignatura.orden,
-              url_lista: grupo.lista.url_lista,
-              url_publicacion: grupo.lista.url_publicacion,
-            },
           }
 
           // Obtener curso actual para agregar versión (con retry si falla)
@@ -1027,8 +1584,150 @@ export default function ImportacionCompletaModal({
             }
           }
           
+          // Crear versión de materiales (después de obtener versionesExistentes)
+          // IMPORTANTE: Solo crear versión si hay PDF o materiales
+          if (!pdfUrl && !pdfId && materiales.length === 0) {
+            console.warn(`[Importación Completa] ⚠️ Grupo ${grupoKey} no tiene PDF ni materiales, omitiendo versión`)
+            continue
+          }
+          
+          // 🔍 LOG CRÍTICO: Verificar PDF antes de crear versión
+          console.log(`[Importación Completa] 🔍 Verificando PDF antes de crear versión:`, {
+            grupo: grupoKey,
+            colegio: grupo.colegio.nombre,
+            curso: grupo.curso.nombre,
+            asignatura: grupo.asignatura.nombre,
+            lista: grupo.lista.nombre,
+            url_lista: grupo.lista.url_lista ? grupo.lista.url_lista.substring(0, 80) + '...' : null,
+            pdfUrl: pdfUrl ? pdfUrl.substring(0, 80) + '...' : null,
+            pdfId,
+            tienePDF: !!(pdfUrl && pdfId),
+            pdfsSubidosConExito: pdfsSubidosConExito.length,
+            pdfsSubidos: pdfsSubidosConExito.map(p => ({
+              nombre: p.nombre,
+              pdfId: p.pdfId,
+              pdfUrl: p.pdfUrl ? p.pdfUrl.substring(0, 60) + '...' : null,
+            })),
+          })
+          
+          // 🔍 LOG CRÍTICO: Enviar a logs del servidor
+          try {
+            await fetch('/api/crm/listas/importacion-completa-logs', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                level: 'log',
+                message: `[Importación Completa] 🔍 Verificando PDF antes de crear versión: ${grupoKey}`,
+                data: {
+                  grupo: grupoKey,
+                  colegio: grupo.colegio.nombre,
+                  curso: grupo.curso.nombre,
+                  asignatura: grupo.asignatura.nombre,
+                  lista: grupo.lista.nombre,
+                  url_lista: grupo.lista.url_lista,
+                  pdfUrl: pdfUrl,
+                  pdfId: pdfId,
+                  tienePDF: !!(pdfUrl && pdfId),
+                  pdfsSubidosConExito: pdfsSubidosConExito.length,
+                },
+              }),
+            })
+          } catch (e) {
+            // Ignorar errores de logging
+          }
+          
+          const versionMaterial = {
+            id: versionesExistentes.length + 1,
+            nombre_archivo: grupo.lista.nombre || 'Lista de útiles',
+            fecha_subida: grupo.lista.fecha_actualizacion || new Date().toISOString(),
+            fecha_actualizacion: grupo.lista.fecha_actualizacion || new Date().toISOString(),
+            fecha_publicacion: grupo.lista.fecha_publicacion,
+            materiales: materiales,
+            // Incluir PDF si se subió correctamente (puede ser null si no hay PDF)
+            pdf_url: pdfUrl || null,
+            pdf_id: pdfId || null,
+            metadata: {
+              nombre: grupo.lista.nombre,
+              asignatura: grupo.asignatura.nombre,
+              orden_asignatura: grupo.asignatura.orden,
+              url_lista: grupo.lista.url_lista,
+              url_publicacion: grupo.lista.url_publicacion,
+            },
+          }
+          
+          // 🔍 LOG CRÍTICO: Verificar que la versión tenga PDF antes de agregarla
+          console.log(`[Importación Completa] 📋 Versión de materiales creada:`, {
+            nombre: versionMaterial.nombre_archivo,
+            tienePDF: !!(versionMaterial.pdf_url && versionMaterial.pdf_id),
+            pdf_url: versionMaterial.pdf_url ? versionMaterial.pdf_url.substring(0, 80) + '...' : null,
+            pdf_id: versionMaterial.pdf_id,
+            materiales: versionMaterial.materiales.length,
+            estructuraCompleta: JSON.stringify(versionMaterial, null, 2),
+          })
+          
+          // 🔍 LOG: Verificar que el PDF esté presente
+          console.log(`[Importación Completa] 📋 Versión de materiales creada:`, {
+            nombre: versionMaterial.nombre_archivo,
+            tienePDF: !!(versionMaterial.pdf_url && versionMaterial.pdf_id),
+            pdfUrl: versionMaterial.pdf_url,
+            pdfId: versionMaterial.pdf_id,
+            materiales: versionMaterial.materiales.length,
+            pdfsSubidosConExito: pdfsSubidosConExito.length,
+          })
+          
           // Agregar nueva versión
-          const versionesActualizadas = [...versionesExistentes, versionMaterial]
+          // Si hay múltiples PDFs subidos, crear una versión por cada PDF
+          const versionesParaAgregar: any[] = []
+          
+          // Crear versión principal con el último PDF (o la única versión si solo hay un PDF)
+          versionesParaAgregar.push(versionMaterial)
+          
+          // Si hay múltiples PDFs subidos, crear versiones adicionales para cada uno
+          if (pdfsSubidosConExito.length > 1) {
+            console.log(`[Importación Completa] 📄 Creando ${pdfsSubidosConExito.length - 1} versión(es) adicional(es) para PDFs múltiples`)
+            
+            // Crear una versión por cada PDF adicional (excepto el último que ya está en versionMaterial)
+            for (let i = 0; i < pdfsSubidosConExito.length - 1; i++) {
+              const pdfInfo = pdfsSubidosConExito[i]
+              const versionAdicional = {
+                id: versionesExistentes.length + versionesParaAgregar.length + 1,
+                nombre_archivo: pdfInfo.nombre,
+                fecha_subida: pdfInfo.fecha,
+                fecha_actualizacion: pdfInfo.fecha,
+                fecha_publicacion: grupo.lista.fecha_publicacion,
+                materiales: materiales, // Mismos materiales para todas las versiones
+                pdf_url: pdfInfo.pdfUrl,
+                pdf_id: pdfInfo.pdfId,
+                metadata: {
+                  nombre: grupo.lista.nombre,
+                  asignatura: grupo.asignatura.nombre,
+                  orden_asignatura: grupo.asignatura.orden,
+                  url_lista: grupo.lista.url_lista,
+                  url_publicacion: grupo.lista.url_publicacion,
+                  version: i + 1, // Número de versión
+                },
+              }
+              versionesParaAgregar.push(versionAdicional)
+              console.log(`[Importación Completa] ✅ Versión ${i + 1} creada para PDF: ${pdfInfo.nombre}`)
+            }
+          }
+          
+          const versionesActualizadas = [...versionesExistentes, ...versionesParaAgregar]
+          console.log(`[Importación Completa] 📋 Total de versiones después de agregar: ${versionesActualizadas.length} (existentes: ${versionesExistentes.length}, nuevas: ${versionesParaAgregar.length})`)
+          
+          // 🔍 LOG: Verificar que las versiones tengan PDFs
+          const versionesConPDF = versionesActualizadas.filter(v => v.pdf_url && v.pdf_id)
+          const versionesSinPDF = versionesActualizadas.filter(v => !v.pdf_url || !v.pdf_id)
+          console.log(`[Importación Completa] 📊 Resumen de versiones:`, {
+            total: versionesActualizadas.length,
+            conPDF: versionesConPDF.length,
+            sinPDF: versionesSinPDF.length,
+            versionesConPDF: versionesConPDF.map(v => ({ nombre: v.nombre_archivo, pdfUrl: v.pdf_url, pdfId: v.pdf_id })),
+            versionesSinPDF: versionesSinPDF.map(v => ({ nombre: v.nombre_archivo })),
+          })
+          
+          // 🔍 LOG: Verificar estructura completa de versiones antes de enviar
+          console.log(`[Importación Completa] 📦 Versiones a enviar a Strapi:`, JSON.stringify(versionesActualizadas, null, 2))
 
           // Actualizar curso con nueva versión
           console.log(`[Importación Completa] 💾 Actualizando curso ${cursoId} (tipo: ${typeof cursoId}) con ${versionesActualizadas.length} versión(es) de materiales...`)
@@ -1192,35 +1891,92 @@ export default function ImportacionCompletaModal({
       setProcessResults(results)
       setStep('complete')
       
-      // Llamar a onSuccess inmediatamente después de completar el procesamiento
+      // Restaurar modal si estaba minimizado y limpiar localStorage
+      if (minimized) {
+        setMinimized(false)
+      }
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('importacion-completa-minimized')
+        localStorage.removeItem('importacion-completa-processing')
+        localStorage.removeItem('importacion-completa-progress')
+      }
+      
+      // Llamar a onSuccess una sola vez después de completar el procesamiento
       // para que la tabla se recargue y muestre los nuevos datos
-      console.log('[Importación Completa] ✅ Procesamiento completado, llamando a onSuccess...')
+      console.log('[Importación Completa] ✅ Procesamiento completado')
+      
+      // Mostrar notificación de éxito
+      const successCount = results.filter((r) => r.success).length
+      const errorCount = results.filter((r) => !r.success).length
+      mostrarNotificacion(
+        'Importación Completada',
+        `${successCount} grupos procesados exitosamente${errorCount > 0 ? `, ${errorCount} con errores` : ''}`,
+        errorCount > 0 ? 'error' : 'success'
+      )
+      
+      // Llamar a onSuccess después de un pequeño delay para asegurar que Strapi haya procesado todo
+      // Solo una vez, no múltiples veces
       if (onSuccess) {
-        console.log('[Importación Completa] ✅ onSuccess disponible, llamando inmediatamente...')
-        onSuccess()
-        // Llamar de nuevo después de un delay para asegurar que Strapi haya procesado todo
         setTimeout(() => {
-          console.log('[Importación Completa] ✅ Llamando a onSuccess nuevamente después de 2s...')
-          if (onSuccess) onSuccess()
-        }, 2000)
-        setTimeout(() => {
-          console.log('[Importación Completa] ✅ Llamando a onSuccess nuevamente después de 5s...')
-          if (onSuccess) onSuccess()
-        }, 5000)
+          console.log('[Importación Completa] ✅ Llamando a onSuccess para refrescar la tabla...')
+          onSuccess()
+        }, 1000) // 1 segundo es suficiente
       } else {
         console.warn('[Importación Completa] ⚠️ onSuccess no está disponible')
       }
     } catch (err: any) {
       setError(`Error al procesar: ${err.message}`)
       setStep('review')
+      
+      // Mostrar notificación de error
+      mostrarNotificacion(
+        'Error en Importación',
+        `Error al procesar: ${err.message}`,
+        'error'
+      )
     } finally {
       setProcessing(false)
+      // Limpiar localStorage cuando termine el procesamiento
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('importacion-completa-processing')
+        localStorage.removeItem('importacion-completa-progress')
+        if (!minimized) {
+          localStorage.removeItem('importacion-completa-minimized')
+        }
+      }
     }
   }
 
   // Función para subir PDF a Strapi
   const subirPDFaStrapi = async (pdfFile: File | Blob, nombreArchivo: string): Promise<{ pdfUrl: string | null; pdfId: number | null }> => {
+    const uploadStartTime = Date.now()
     try {
+      const tamañoKB = (pdfFile.size / 1024).toFixed(2)
+      const tamañoMB = (pdfFile.size / 1024 / 1024).toFixed(2)
+      
+      console.log(`[Importación Completa] 📤 Subiendo PDF a Strapi: ${nombreArchivo} (${tamañoKB} KB / ${tamañoMB} MB)`)
+      
+      // Enviar log al sistema de logs
+      try {
+        await fetch('/api/crm/listas/importacion-completa-logs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            level: 'log',
+            message: `[Importación Completa] 📤 Subiendo PDF a Strapi: ${nombreArchivo}`,
+            data: {
+              nombreArchivo,
+              tamañoBytes: pdfFile.size,
+              tamañoKB: parseFloat(tamañoKB),
+              tamañoMB: parseFloat(tamañoMB),
+              tipo: pdfFile instanceof File ? pdfFile.type : 'application/pdf',
+            },
+          }),
+        })
+      } catch (e) {
+        // Ignorar errores de logging
+      }
+      
       const formData = new FormData()
       const file = pdfFile instanceof File ? pdfFile : new File([pdfFile], nombreArchivo, { type: 'application/pdf' })
       formData.append('files', file)
@@ -1230,13 +1986,49 @@ export default function ImportacionCompletaModal({
         body: formData,
       })
 
+      const uploadDuration = Date.now() - uploadStartTime
+
       if (!uploadResponse.ok) {
         const errorData = await uploadResponse.json().catch(() => ({}))
-        console.error('[Importación Completa] Error al subir PDF:', errorData)
+        console.error('[Importación Completa] ❌ Error al subir PDF:', {
+          status: uploadResponse.status,
+          statusText: uploadResponse.statusText,
+          error: errorData,
+          duration: `${uploadDuration}ms`,
+        })
+        
+        // Enviar log de error
+        try {
+          await fetch('/api/crm/listas/importacion-completa-logs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              level: 'error',
+              message: `[Importación Completa] ❌ Error al subir PDF: ${uploadResponse.status} ${uploadResponse.statusText}`,
+              data: {
+                nombreArchivo,
+                status: uploadResponse.status,
+                statusText: uploadResponse.statusText,
+                error: errorData,
+                duration: `${uploadDuration}ms`,
+              },
+            }),
+          })
+        } catch (e) {
+          // Ignorar errores de logging
+        }
+        
         return { pdfUrl: null, pdfId: null }
       }
 
       const uploadResult = await uploadResponse.json()
+      console.log(`[Importación Completa] 📥 Respuesta de /api/upload:`, {
+        esArray: Array.isArray(uploadResult),
+        tieneDatos: !!uploadResult,
+        cantidad: Array.isArray(uploadResult) ? uploadResult.length : 1,
+        duration: `${uploadDuration}ms`,
+      })
+      
       const uploadedFile = Array.isArray(uploadResult) ? uploadResult[0] : uploadResult
 
       if (uploadedFile) {
@@ -1246,12 +2038,74 @@ export default function ImportacionCompletaModal({
           : null
         const pdfId = uploadedFile.id || null
 
+        console.log(`[Importación Completa] ✅ PDF subido exitosamente:`, {
+          nombre: nombreArchivo,
+          pdfId,
+          pdfUrl: pdfUrl ? pdfUrl.substring(0, 80) + '...' : null,
+          tieneId: !!pdfId,
+          tieneUrl: !!pdfUrl,
+          duration: `${uploadDuration}ms`,
+        })
+
+        // Enviar log de éxito
+        try {
+          await fetch('/api/crm/listas/importacion-completa-logs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              level: 'log',
+              message: `[Importación Completa] ✅ PDF subido exitosamente: ${nombreArchivo}`,
+              data: {
+                nombreArchivo,
+                pdfId,
+                pdfUrl: pdfUrl ? pdfUrl.substring(0, 100) + '...' : null,
+                tamañoBytes: pdfFile.size,
+                tamañoKB: parseFloat(tamañoKB),
+                tamañoMB: parseFloat(tamañoMB),
+                duration: `${uploadDuration}ms`,
+                strapiFileId: uploadedFile.id,
+                strapiFileName: uploadedFile.name,
+                strapiFileSize: uploadedFile.size,
+              },
+            }),
+          })
+        } catch (e) {
+          // Ignorar errores de logging
+        }
+
         return { pdfUrl, pdfId }
       }
 
+      console.warn(`[Importación Completa] ⚠️ PDF subido pero sin datos de archivo`)
       return { pdfUrl: null, pdfId: null }
     } catch (err: any) {
-      console.error('[Importación Completa] Error al subir PDF:', err)
+      const uploadDuration = Date.now() - uploadStartTime
+      console.error('[Importación Completa] ❌ Error al subir PDF:', {
+        error: err.message,
+        stack: err.stack?.substring(0, 200),
+        duration: `${uploadDuration}ms`,
+      })
+      
+      // Enviar log de excepción
+      try {
+        await fetch('/api/crm/listas/importacion-completa-logs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            level: 'error',
+            message: `[Importación Completa] ❌ Excepción al subir PDF: ${err.message}`,
+            data: {
+              nombreArchivo,
+              error: err.message,
+              stack: err.stack?.substring(0, 500),
+              duration: `${uploadDuration}ms`,
+            },
+          }),
+        })
+      } catch (e) {
+        // Ignorar errores de logging
+      }
+      
       return { pdfUrl: null, pdfId: null }
     }
   }
@@ -1343,15 +2197,279 @@ export default function ImportacionCompletaModal({
       return
     }
 
-    if (!file.type.includes('pdf')) {
-      setError('El archivo debe ser un PDF')
+    // Validación más flexible para PDFs
+    const esPDF = file.type === 'application/pdf' || 
+                  file.type.includes('pdf') || 
+                  file.name.toLowerCase().endsWith('.pdf') ||
+                  file.type === '' // Algunos navegadores no detectan el tipo correctamente
+    
+    if (!esPDF) {
+      console.error(`[Importación Completa] Archivo rechazado en handlePDFUpload: ${file.name} (tipo: ${file.type})`)
+      setError(`El archivo "${file.name}" no es un PDF válido`)
       return
     }
 
     const nuevosPdfs = new Map(pdfsPorGrupo)
-    nuevosPdfs.set(grupoKey, file)
+    // NO sobrescribir: agregar como nueva versión si ya existe
+    const pdfsExistentes = nuevosPdfs.get(grupoKey) || []
+    nuevosPdfs.set(grupoKey, [...pdfsExistentes, file])
     setPdfsPorGrupo(nuevosPdfs)
     setError(null)
+    console.log(`[Importación Completa] PDF agregado exitosamente: ${file.name} al grupo ${grupoKey}. Total PDFs en grupo: ${nuevosPdfs.get(grupoKey)?.length || 0}`)
+  }
+
+  // Importación masiva de PDFs desde Excel + ZIP (o sin ZIP si se agregan manualmente)
+  const handleImportarPDFsMasivo = async () => {
+    if (!excelPDFsFile) {
+      setError('Por favor, sube un archivo Excel con el mapeo de PDFs')
+      return
+    }
+
+    // El ZIP es opcional - si no hay ZIP, los PDFs se pueden agregar manualmente después
+    if (!zipPDFsFile) {
+      // Permitir continuar sin ZIP - el usuario puede agregar PDFs manualmente después
+      console.log('[Importación Completa] Excel procesado sin ZIP. Los PDFs se pueden agregar manualmente después.')
+    }
+
+    setLoadingPDFsImport(true)
+    setError(null)
+
+    try {
+      // 1. Leer Excel
+      const reader = new FileReader()
+      reader.onload = async (event) => {
+        try {
+          const data = event.target?.result
+          const workbook = XLSX.read(data, { type: 'binary' })
+          const sheetName = workbook.SheetNames[0]
+          const worksheet = workbook.Sheets[sheetName]
+          const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[]
+
+          // Normalizar nombres de columnas
+          const normalizeKey = (key: string) => key.toLowerCase().trim().replace(/\s+/g, '_')
+          const normalizedData = jsonData.map(row => {
+            const normalized: any = {}
+            Object.keys(row).forEach(key => {
+              normalized[normalizeKey(key)] = row[key]
+            })
+            return normalized
+          })
+
+          // 2. Extraer PDFs del ZIP (si está disponible)
+          let zipContents: any = null
+          if (zipPDFsFile) {
+            const zip = new JSZip()
+            const zipData = await zipPDFsFile.arrayBuffer()
+            zipContents = await zip.loadAsync(zipData)
+          }
+
+          // 3. Mapear PDFs a grupos
+          const nuevosPdfs = new Map(pdfsPorGrupo)
+          let mapeados = 0
+          let noEncontrados = 0
+          let sinZIP = 0
+
+          for (const row of normalizedData) {
+            const curso = String(row.curso || row.nombre_curso || '').trim()
+            const nombrePDF = String(row.nombre_pdf || row.archivo_pdf || row.ruta_pdf || row.pdf || '').trim()
+
+            if (!curso || !nombrePDF) {
+              continue
+            }
+
+            // Usar las funciones globales normalizeCurso y extractComponents
+            const cursoComponents = extractComponents(curso)
+            
+            // Buscar todos los grupos que coincidan con este curso (búsqueda muy flexible)
+            let gruposEncontrados: string[] = []
+            
+            for (const [key, grupo] of agrupado.entries()) {
+              const cursoGrupo = grupo.curso.nombre.trim()
+              const grupoComponents = extractComponents(cursoGrupo)
+              
+              // Múltiples estrategias de comparación para máxima flexibilidad
+              let cursoMatch = false
+              
+              // Estrategia 1: Comparación normalizada completa (sin espacios ni caracteres especiales)
+              if (cursoComponents.normalized === grupoComponents.normalized) {
+                cursoMatch = true
+              }
+              // Estrategia 2: Uno contiene al otro (coincidencia parcial)
+              else if (cursoComponents.normalized.includes(grupoComponents.normalized) || 
+                       grupoComponents.normalized.includes(cursoComponents.normalized)) {
+                cursoMatch = true
+              }
+              // Estrategia 3: Comparar por componentes clave (grado + nivel + año) - CUALQUIER número
+              else if (cursoComponents.grado && grupoComponents.grado && 
+                       cursoComponents.nivel && grupoComponents.nivel) {
+                // Comparar grado (cualquier número: 1, 2, 3, 5, 10, etc.)
+                const mismoGrado = cursoComponents.grado === grupoComponents.grado
+                
+                // Comparar nivel (normalizado: basico/basica, medio/media)
+                const mismoNivel = cursoComponents.nivel === grupoComponents.nivel ||
+                                  (cursoComponents.nivel.includes('basic') && grupoComponents.nivel.includes('basic')) ||
+                                  (cursoComponents.nivel.includes('medi') && grupoComponents.nivel.includes('medi'))
+                
+                // Comparar año (opcional, pero si ambos tienen año, deben coincidir)
+                const mismoAño = !cursoComponents.año || !grupoComponents.año || 
+                                 cursoComponents.año === grupoComponents.año ||
+                                 // También aceptar si uno tiene año y el otro no (flexibilidad)
+                                 (cursoComponents.año && !grupoComponents.año) ||
+                                 (!cursoComponents.año && grupoComponents.año)
+                
+                // Si coinciden grado y nivel, y año (si está presente), es un match
+                if (mismoGrado && mismoNivel && mismoAño) {
+                  cursoMatch = true
+                }
+              }
+              // Estrategia 4: Comparación por similitud de palabras clave (números y nivel)
+              else {
+                const palabrasCurso = cursoComponents.normalized.match(/\d+|[a-z]+/g) || []
+                const palabrasGrupo = grupoComponents.normalized.match(/\d+|[a-z]+/g) || []
+                
+                // Extraer números de ambos
+                const numerosCurso = palabrasCurso.filter(p => /^\d+$/.test(p))
+                const numerosGrupo = palabrasGrupo.filter(p => /^\d+$/.test(p))
+                
+                // Extraer palabras (nivel)
+                const palabrasCursoTexto = palabrasCurso.filter(p => !/^\d+$/.test(p))
+                const palabrasGrupoTexto = palabrasGrupo.filter(p => !/^\d+$/.test(p))
+                
+                // Verificar si tienen números en común (grado)
+                const numerosComunes = numerosCurso.filter(n => numerosGrupo.includes(n))
+                
+                // Verificar si tienen palabras en común (nivel)
+                const palabrasComunes = palabrasCursoTexto.filter(p => palabrasGrupoTexto.includes(p))
+                
+                // Si tienen al menos un número en común (grado) y una palabra en común (nivel), es un match
+                if (numerosComunes.length >= 1 && palabrasComunes.length >= 1) {
+                  cursoMatch = true
+                }
+                // O si tienen al menos 2 elementos en común (número + palabra o 2 palabras)
+                else if ((numerosComunes.length + palabrasComunes.length) >= 2) {
+                  cursoMatch = true
+                }
+              }
+              
+              if (cursoMatch) {
+                gruposEncontrados.push(key)
+              }
+            }
+
+            // Buscar PDF en el ZIP (si está disponible)
+            let pdfFile: File | null = null
+            
+            if (zipContents) {
+              for (const [fileName, file] of Object.entries(zipContents.files)) {
+                if (file.dir) continue
+                
+                // Comparar nombres (case-insensitive, sin extensiones)
+                const zipFileName = fileName.toLowerCase().replace(/\.pdf$/i, '').split('/').pop() || ''
+                const searchName = nombrePDF.toLowerCase().replace(/\.pdf$/i, '')
+                
+                if (zipFileName === searchName || zipFileName.includes(searchName) || searchName.includes(zipFileName)) {
+                  // Extraer el archivo
+                  const blob = await file.async('blob')
+                  pdfFile = new File([blob], fileName.split('/').pop() || nombrePDF, { type: 'application/pdf' })
+                  break
+                }
+              }
+            }
+
+            if (pdfFile) {
+              // Asignar el PDF a todos los grupos encontrados que coincidan con el curso
+              // NO sobrescribir: agregar como nueva versión si ya existe
+              if (gruposEncontrados.length > 0) {
+                let nuevos = 0
+                let agregados = 0
+                gruposEncontrados.forEach(key => {
+                  // Si ya había PDF(s) asignado(s), agregar como nueva versión (NO sobrescribir)
+                  const pdfsExistentes = nuevosPdfs.get(key) || []
+                  if (pdfsExistentes.length > 0) {
+                    // Agregar como nueva versión
+                    nuevosPdfs.set(key, [...pdfsExistentes, pdfFile])
+                    agregados++
+                  } else {
+                    // Primera vez, crear array con un solo PDF
+                    nuevosPdfs.set(key, [pdfFile])
+                    nuevos++
+                  }
+                })
+                mapeados++
+                const mensaje = agregados > 0 
+                  ? `PDF "${nombrePDF}" agregado como nueva versión a ${gruposEncontrados.length} grupo(s) del curso "${curso}" (${agregados} grupo(s) ya tenían PDF)`
+                  : `PDF "${nombrePDF}" asignado a ${gruposEncontrados.length} grupo(s) del curso "${curso}"`
+                console.log(`[Importación Completa] ${mensaje}: ${gruposEncontrados.join(', ')}`)
+              } else {
+                noEncontrados++
+                console.warn(`[Importación Completa] No se encontró ningún grupo que coincida con curso: ${curso}`)
+              }
+            } else {
+              // PDF no encontrado en ZIP o no hay ZIP
+              if (zipPDFsFile) {
+                noEncontrados++
+                console.warn(`[Importación Completa] PDF no encontrado en ZIP: ${nombrePDF} para curso: ${curso}`)
+              } else {
+                // Sin ZIP - marcar para agregar manualmente
+                sinZIP++
+                console.log(`[Importación Completa] Sin ZIP - PDF "${nombrePDF}" para curso "${curso}" deberá agregarse manualmente`)
+                
+                // Aún así, marcar los grupos encontrados para que el usuario sepa dónde agregar el PDF
+                if (gruposEncontrados.length > 0) {
+                  gruposEncontrados.forEach(key => {
+                    // No agregar PDF, pero el usuario puede agregarlo manualmente después
+                    console.log(`[Importación Completa] Grupo encontrado para agregar PDF manualmente: ${key}`)
+                  })
+                }
+              }
+            }
+          }
+
+          setPdfsPorGrupo(nuevosPdfs)
+          setLoadingPDFsImport(false)
+
+          if (mapeados > 0 || sinZIP > 0) {
+            setError(null)
+            let mensaje = ''
+            if (mapeados > 0) {
+              mensaje = `✅ ${mapeados} PDF(s) mapeado(s) correctamente desde el ZIP.`
+            }
+            if (sinZIP > 0) {
+              mensaje += `\n📋 ${sinZIP} curso(s) identificado(s) en el Excel. Puedes agregar los PDFs manualmente en la tabla.`
+            }
+            if (noEncontrados > 0) {
+              mensaje += `\n⚠️ ${noEncontrados} PDF(s) no encontrado(s) en el ZIP.`
+            }
+            alert(mensaje.trim())
+            
+            // Mostrar información adicional si hay PDFs que actualizaron otros anteriores
+            const totalAsignados = nuevosPdfs.size
+            const totalGrupos = agrupado.size
+            if (totalAsignados < totalGrupos) {
+              console.log(`[Importación Completa] ${totalAsignados} de ${totalGrupos} grupos tienen PDF asignado`)
+            }
+          } else {
+            if (zipPDFsFile) {
+              setError(`No se pudo mapear ningún PDF. Verifica que los nombres en el Excel coincidan con los archivos en el ZIP.`)
+            } else {
+              setError(`Excel procesado. Los grupos están listos para agregar PDFs manualmente.`)
+            }
+          }
+        } catch (err: any) {
+          setError('Error al procesar Excel/ZIP: ' + err.message)
+          setLoadingPDFsImport(false)
+        }
+      }
+
+      if (excelPDFsFile.name.endsWith('.csv')) {
+        reader.readAsText(excelPDFsFile)
+      } else {
+        reader.readAsBinaryString(excelPDFsFile)
+      }
+    } catch (err: any) {
+      setError('Error al procesar archivos: ' + err.message)
+      setLoadingPDFsImport(false)
+    }
   }
 
   const handleReset = () => {
@@ -1362,6 +2480,14 @@ export default function ImportacionCompletaModal({
     setProcessResults([])
     setProgress(0)
     setPdfsPorGrupo(new Map())
+    setExcelPDFsFile(null)
+    setZipPDFsFile(null)
+    if (excelPDFsInputRef.current) {
+      excelPDFsInputRef.current.value = ''
+    }
+    if (zipPDFsInputRef.current) {
+      zipPDFsInputRef.current.value = ''
+    }
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -1374,14 +2500,8 @@ export default function ImportacionCompletaModal({
   }
 
   const handleComplete = () => {
-    console.log('[Importación Completa] ✅ Procesamiento completado, llamando a onSuccess...')
-    if (onSuccess) {
-      console.log('[Importación Completa] ✅ onSuccess disponible, llamando...')
-      onSuccess()
-    } else {
-      console.warn('[Importación Completa] ⚠️ onSuccess no está disponible')
-    }
-    // Cerrar el modal después de llamar a onSuccess
+    console.log('[Importación Completa] ✅ Procesamiento completado, cerrando modal...')
+    // onSuccess ya se llamó en el procesamiento (una sola vez), solo cerrar el modal
     handleClose()
   }
 
@@ -1558,11 +2678,91 @@ export default function ImportacionCompletaModal({
   const errorCount = processResults.filter((r) => !r.success).length
   const gruposCount = agrupado.size
 
+  // Verificar si hay un proceso en curso guardado en localStorage (para persistencia)
+  const [hasPersistedProcess, setHasPersistedProcess] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('importacion-completa-processing') === 'true'
+    }
+    return false
+  })
+
+  // Actualizar hasPersistedProcess cuando cambie processing
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setHasPersistedProcess(processing || localStorage.getItem('importacion-completa-processing') === 'true')
+    }
+  }, [processing])
+
   return (
-    <Modal show={show} onHide={handleClose} size="xl" centered>
-      <ModalHeader closeButton>
-        <ModalTitle>Importación Completa de Listas (Plantilla Completa)</ModalTitle>
-      </ModalHeader>
+    <>
+      {/* Componente minimizado flotante - mostrar si está minimizado Y procesando, o si hay un proceso persistido */}
+      {(minimized || hasPersistedProcess) && (processing || hasPersistedProcess) && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '20px',
+            right: '20px',
+            zIndex: 1050,
+            backgroundColor: 'white',
+            border: '1px solid #dee2e6',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+            padding: '12px 16px',
+            minWidth: '300px',
+            maxWidth: '400px',
+          }}
+        >
+          <div className="d-flex align-items-center justify-content-between mb-2">
+            <div className="d-flex align-items-center gap-2">
+              <Spinner size="sm" />
+              <strong>Importación en Progreso</strong>
+            </div>
+            <Button
+              variant="link"
+              size="sm"
+              onClick={() => {
+                setMinimized(false)
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem('importacion-completa-minimized')
+                }
+              }}
+              className="p-0"
+              title="Restaurar ventana"
+            >
+              <LuMaximize2 size={18} />
+            </Button>
+          </div>
+          <div className="mb-2">
+            <ProgressBar now={progress} label={`${progress}%`} />
+          </div>
+          <small className="text-muted">
+            Procesando grupos... Puedes continuar trabajando en otra pestaña.
+          </small>
+        </div>
+      )}
+
+      <Modal 
+        show={show && !minimized} 
+        onHide={handleClose} 
+        size="xl" 
+        centered
+      >
+        <ModalHeader closeButton>
+          <div className="d-flex align-items-center justify-content-between w-100 me-3">
+            <ModalTitle>Importación Completa de Listas (Plantilla Completa)</ModalTitle>
+            {processing && (
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => setMinimized(true)}
+                className="p-0 ms-2"
+                title="Minimizar (continuará en segundo plano)"
+              >
+                <LuMinimize2 size={20} />
+              </Button>
+            )}
+          </div>
+        </ModalHeader>
       <ModalBody>
         {step === 'upload' && (
           <div>
@@ -1606,6 +2806,227 @@ export default function ImportacionCompletaModal({
               <strong>Revisión de datos:</strong> Se encontraron {importData.length} productos agrupados en {gruposCount} listas únicas.
             </Alert>
 
+            {/* Importación masiva de PDFs */}
+            <Alert variant="secondary" className="mb-3">
+              <div className="d-flex justify-content-between align-items-center">
+                <div>
+                  <strong><LuFileSpreadsheet className="me-2" />Importación Masiva de PDFs:</strong>
+                  <small className="d-block text-muted mt-1 mb-2">
+                    <strong>Opción 1 (Automático):</strong> Sube un Excel con el mapeo (<strong>Curso</strong>, <strong>Nombre_PDF</strong>) y un ZIP con los PDFs.
+                    <br />
+                    <strong>Opción 2 (Manual):</strong> Sube solo el Excel y agrega PDFs manualmente (múltiples a la vez) en cada fila.
+                    <br />
+                    <strong>Opción 3 (Directo):</strong> Sube múltiples PDFs directamente abajo (sin Excel) - mapeo automático por nombre.
+                    <br />
+                    El año debe estar incluido en el nombre del curso. El PDF se asignará a todas las listas del curso.
+                  </small>
+                </div>
+                <div className="d-flex gap-2">
+                  <FormControl
+                    ref={excelPDFsInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    size="sm"
+                    style={{ width: '200px' }}
+                    onChange={(e) => {
+                      const file = (e.target as HTMLInputElement).files?.[0] || null
+                      setExcelPDFsFile(file)
+                    }}
+                    disabled={loadingPDFsImport}
+                  />
+                  <FormControl
+                    ref={zipPDFsInputRef}
+                    type="file"
+                    accept=".zip"
+                    size="sm"
+                    style={{ width: '200px' }}
+                    onChange={(e) => {
+                      const file = (e.target as HTMLInputElement).files?.[0] || null
+                      setZipPDFsFile(file)
+                    }}
+                    disabled={loadingPDFsImport}
+                  />
+                  <Button
+                    variant="outline-primary"
+                    size="sm"
+                    onClick={handleImportarPDFsMasivo}
+                    disabled={!excelPDFsFile || loadingPDFsImport}
+                  >
+                    {loadingPDFsImport ? (
+                      <>
+                        <Spinner animation="border" size="sm" className="me-2" />
+                        Procesando...
+                      </>
+                    ) : (
+                      <>
+                        <LuUpload className="me-2" />
+                        Importar PDFs
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+              {excelPDFsFile && (
+                <small className="text-muted d-block mt-2">
+                  Excel: {excelPDFsFile.name}
+                </small>
+              )}
+              {zipPDFsFile && (
+                <small className="text-muted d-block">
+                  ZIP: {zipPDFsFile.name}
+                </small>
+              )}
+              
+              {/* Input masivo para subir múltiples PDFs sin Excel */}
+              <div className="mt-3 pt-3 border-top">
+                <FormLabel className="mb-2">
+                  <strong>📁 O sube múltiples PDFs directamente (sin Excel - mapeo automático):</strong>
+                </FormLabel>
+                <FormControl
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  multiple
+                  onChange={(e) => {
+                    const target = e.target as HTMLInputElement
+                    const files = Array.from(target.files || [])
+                    const pdfFiles = files.filter(file => 
+                      file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+                    )
+                    
+                    if (pdfFiles.length === 0) {
+                      setError('Por favor, selecciona al menos un archivo PDF')
+                      return
+                    }
+                    
+                    // Intentar mapear automáticamente por nombre del archivo
+                    const nuevosPdfs = new Map(pdfsPorGrupo)
+                    let mapeados = 0
+                    
+                    pdfFiles.forEach(pdfFile => {
+                      const fileName = pdfFile.name
+                      const pdfComponents = extractComponents(fileName)
+                      
+                      console.log(`[Importación Completa] Procesando PDF: "${fileName}"`)
+                      console.log(`[Importación Completa] Componentes extraídos del PDF:`, pdfComponents)
+                      
+                      // Buscar TODOS los grupos que coincidan (no solo el mejor, sino todos los que coincidan)
+                      const matches: Array<{ key: string; score: number; cursoNombre: string }> = []
+                      
+                      for (const [key, grupo] of agrupado.entries()) {
+                        const cursoGrupo = grupo.curso.nombre.trim()
+                        const cursoComponents = extractComponents(cursoGrupo)
+                        
+                        console.log(`[Importación Completa] Comparando con curso: "${cursoGrupo}"`, cursoComponents)
+                        
+                        // Calcular score de coincidencia (más flexible)
+                        let score = 0
+                        
+                        // Mismo grado = +3 puntos
+                        if (cursoComponents.grado && pdfComponents.grado && cursoComponents.grado === pdfComponents.grado) {
+                          score += 3
+                          console.log(`  ✓ Mismo grado: ${cursoComponents.grado} (+3 puntos)`)
+                        }
+                        
+                        // Mismo nivel = +2 puntos (más flexible)
+                        if (cursoComponents.nivel && pdfComponents.nivel) {
+                          const nivelCurso = cursoComponents.nivel.toLowerCase()
+                          const nivelPDF = pdfComponents.nivel.toLowerCase()
+                          if (nivelCurso === nivelPDF || 
+                              nivelCurso.includes(nivelPDF) || 
+                              nivelPDF.includes(nivelCurso) ||
+                              (nivelCurso.includes('basic') && nivelPDF.includes('basic')) ||
+                              (nivelCurso.includes('medi') && nivelPDF.includes('medi'))) {
+                            score += 2
+                            console.log(`  ✓ Mismo nivel: ${nivelCurso} / ${nivelPDF} (+2 puntos)`)
+                          }
+                        }
+                        
+                        // Mismo año = +1 punto
+                        if (cursoComponents.año && pdfComponents.año && cursoComponents.año === pdfComponents.año) {
+                          score += 1
+                          console.log(`  ✓ Mismo año: ${cursoComponents.año} (+1 punto)`)
+                        }
+                        
+                        // Comparación por texto normalizado (coincidencia parcial)
+                        if (cursoComponents.normalized && pdfComponents.normalized) {
+                          if (cursoComponents.normalized.includes(pdfComponents.normalized) || 
+                              pdfComponents.normalized.includes(cursoComponents.normalized)) {
+                            score += 1
+                            console.log(`  ✓ Coincidencia parcial en texto normalizado (+1 punto)`)
+                          }
+                        }
+                        
+                        console.log(`  Score total: ${score}`)
+                        
+                        // Si tiene al menos grado y nivel, es un match válido
+                        if (score >= 3) {
+                          matches.push({ key, score, cursoNombre: cursoGrupo })
+                          console.log(`  ✅ MATCH encontrado para curso "${cursoGrupo}" (score: ${score})`)
+                        }
+                        // Si solo tiene grado (sin nivel), también puede ser válido si el score es alto
+                        else if (score >= 2 && cursoComponents.grado && pdfComponents.grado && 
+                                 cursoComponents.grado === pdfComponents.grado) {
+                          matches.push({ key, score, cursoNombre: cursoGrupo })
+                          console.log(`  ✅ MATCH encontrado (solo grado) para curso "${cursoGrupo}" (score: ${score})`)
+                        }
+                        // Si solo tiene nivel (sin grado), también puede ser válido
+                        else if (score >= 2 && cursoComponents.nivel && pdfComponents.nivel && 
+                                 (cursoComponents.nivel.includes(pdfComponents.nivel) || 
+                                  pdfComponents.nivel.includes(cursoComponents.nivel))) {
+                          matches.push({ key, score, cursoNombre: cursoGrupo })
+                          console.log(`  ✅ MATCH encontrado (solo nivel) para curso "${cursoGrupo}" (score: ${score})`)
+                        }
+                      }
+                      
+                      // Si hay matches, asignar a todos los que coincidan (o al mejor si hay varios)
+                      if (matches.length > 0) {
+                        // Ordenar por score descendente
+                        matches.sort((a, b) => b.score - a.score)
+                        
+                        // Si hay múltiples matches con el mismo score alto, asignar a todos
+                        // Si hay un match claramente mejor, solo asignar a ese
+                        const mejorScore = matches[0].score
+                        const matchesMejores = matches.filter(m => m.score === mejorScore)
+                        
+                        if (matchesMejores.length === 1 || mejorScore >= 5) {
+                          // Solo un match o score muy alto, asignar solo a ese
+                          const match = matchesMejores[0]
+                          const pdfsExistentes = nuevosPdfs.get(match.key) || []
+                          nuevosPdfs.set(match.key, [...pdfsExistentes, pdfFile])
+                          mapeados++
+                          console.log(`[Importación Completa] ✅ PDF "${fileName}" mapeado a curso "${match.cursoNombre}" (score: ${match.score})`)
+                        } else {
+                          // Múltiples matches con mismo score, asignar al primero (el mejor)
+                          const match = matchesMejores[0]
+                          const pdfsExistentes = nuevosPdfs.get(match.key) || []
+                          nuevosPdfs.set(match.key, [...pdfsExistentes, pdfFile])
+                          mapeados++
+                          console.log(`[Importación Completa] ✅ PDF "${fileName}" mapeado a curso "${match.cursoNombre}" (score: ${match.score}, había ${matches.length} matches)`)
+                        }
+                      } else {
+                        console.warn(`[Importación Completa] ❌ No se pudo mapear PDF "${fileName}"`)
+                        console.warn(`[Importación Completa] Componentes extraídos:`, pdfComponents)
+                        console.warn(`[Importación Completa] Total grupos disponibles: ${agrupado.size}`)
+                      }
+                    })
+                    
+                    setPdfsPorGrupo(nuevosPdfs)
+                    if (mapeados > 0) {
+                      alert(`✅ ${mapeados} PDF(s) mapeado(s) automáticamente. ${pdfFiles.length - mapeados > 0 ? `${pdfFiles.length - mapeados} PDF(s) no se pudieron mapear automáticamente - agrégalos manualmente.` : ''}`)
+                    } else {
+                      alert(`⚠️ No se pudieron mapear automáticamente. Agrega los PDFs manualmente en cada fila usando el botón "Seleccionar archivo".`)
+                    }
+                    
+                    target.value = ''
+                  }}
+                  title="Selecciona múltiples PDFs (Ctrl+Click o Shift+Click). El sistema intentará mapearlos automáticamente por nombre."
+                />
+                <Form.Text className="text-muted">
+                  Selecciona múltiples PDFs y el sistema intentará mapearlos automáticamente a los cursos según el nombre del archivo (ej: "1o-Basicos-2026.pdf" → curso "1 Basico 2026").
+                </Form.Text>
+              </div>
+            </Alert>
+
             <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
               <Table striped bordered hover size="sm">
                 <thead>
@@ -1620,7 +3041,9 @@ export default function ImportacionCompletaModal({
                 </thead>
                 <tbody>
                   {Array.from(agrupado.entries()).map(([grupoKey, grupo], index) => {
-                    const tienePDFSubido = pdfsPorGrupo.has(grupoKey)
+                    const pdfsDelGrupo = pdfsPorGrupo.get(grupoKey) || []
+                    const tienePDFSubido = pdfsDelGrupo.length > 0
+                    const cantidadPDFs = pdfsDelGrupo.length
                     const tieneURLPDF = !!grupo.lista.url_lista
                     return (
                       <tr key={index}>
@@ -1649,7 +3072,7 @@ export default function ImportacionCompletaModal({
                             {tienePDFSubido && (
                               <Badge bg="success" className="w-100">
                                 <LuFileText className="me-1" size={12} />
-                                PDF listo
+                                {cantidadPDFs > 1 ? `${cantidadPDFs} PDFs listos` : 'PDF listo'}
                               </Badge>
                             )}
                             {!tienePDFSubido && tieneURLPDF && (
@@ -1665,13 +3088,50 @@ export default function ImportacionCompletaModal({
                             )}
                             <FormControl
                               type="file"
-                              accept=".pdf"
+                              accept=".pdf,application/pdf"
                               size="sm"
+                              multiple
                               onChange={(e) => {
                                 const target = e.target as HTMLInputElement
-                                const file = target.files?.[0] || null
-                                handlePDFUpload(grupoKey, file)
+                                const files = Array.from(target.files || [])
+                                
+                                console.log(`[Importación Completa] Archivos seleccionados para grupo ${grupoKey}:`, files.length, files.map(f => ({ name: f.name, type: f.type, size: f.size })))
+                                
+                                if (files.length === 0) {
+                                  console.warn('[Importación Completa] No se seleccionaron archivos')
+                                  return
+                                }
+                                
+                                const pdfFiles = files.filter(file => {
+                                  const isPDF = file.type === 'application/pdf' || 
+                                                file.name.toLowerCase().endsWith('.pdf') ||
+                                                file.type === '' // Algunos navegadores no detectan el tipo correctamente
+                                  if (!isPDF) {
+                                    console.warn(`[Importación Completa] Archivo rechazado (no es PDF): ${file.name} (tipo: ${file.type})`)
+                                  }
+                                  return isPDF
+                                })
+                                
+                                console.log(`[Importación Completa] PDFs válidos después del filtro:`, pdfFiles.length)
+                                
+                                if (pdfFiles.length === 0) {
+                                  setError(`Ninguno de los ${files.length} archivo(s) seleccionado(s) es un PDF válido. Por favor, selecciona solo archivos PDF.`)
+                                  target.value = ''
+                                  return
+                                }
+                                
+                                // Agregar todos los PDFs seleccionados (múltiples versiones)
+                                pdfFiles.forEach((file, index) => {
+                                  console.log(`[Importación Completa] Agregando PDF ${index + 1}/${pdfFiles.length}: ${file.name}`)
+                                  handlePDFUpload(grupoKey, file)
+                                })
+                                
+                                setError(null)
+                                
+                                // Limpiar el input para permitir seleccionar los mismos archivos de nuevo si es necesario
+                                target.value = ''
                               }}
+                              title="Puedes seleccionar múltiples PDFs a la vez (Ctrl+Click o Shift+Click)"
                             />
                           </div>
                         </td>
@@ -1754,5 +3214,6 @@ export default function ImportacionCompletaModal({
         )}
       </ModalFooter>
     </Modal>
+    </>
   )
 }

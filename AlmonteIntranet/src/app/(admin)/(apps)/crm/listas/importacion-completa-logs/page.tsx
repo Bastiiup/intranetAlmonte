@@ -1,14 +1,21 @@
 'use client'
 
-import { Container } from 'react-bootstrap'
-import PageBreadcrumb from '@/components/PageBreadcrumb'
-import LogsViewer from './components/LogsViewer'
+import { Container, Alert } from 'react-bootstrap'
+import ImportacionCompletaLogsViewer from './components/LogsViewer'
 
 export default function ImportacionCompletaLogsPage() {
   return (
-    <Container fluid>
-      <PageBreadcrumb title="Logs de Importación Completa" subtitle="CRM - Listas" />
-      <LogsViewer />
+    <Container fluid className="py-4">
+      <Alert variant="info" className="mb-3">
+        <strong>🔒 Página oculta</strong> - Solo accesible por URL directa
+        <br />
+        <small className="text-muted">
+          Esta página no aparece en el menú de navegación. Solo puedes acceder escribiendo la URL directamente.
+          <br />
+          URL: <code>/crm/listas/importacion-completa-logs</code>
+        </small>
+      </Alert>
+      <ImportacionCompletaLogsViewer />
     </Container>
   )
 }

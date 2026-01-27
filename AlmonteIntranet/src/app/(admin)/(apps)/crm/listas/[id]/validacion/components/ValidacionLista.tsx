@@ -468,10 +468,16 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
     }
   }
 
-  // Obtener versiones ordenadas
+  // Obtener versiones ordenadas - incluir TODAS las versiones que tengan PDF (pdf_id o pdf_url)
   const versionesOrdenadas = useMemo(() => {
     const versiones = lista?.versiones_materiales || []
-    return [...versiones].sort((a: any, b: any) => {
+    // Filtrar solo versiones que tienen PDF (pdf_id o pdf_url)
+    const versionesConPDF = versiones.filter((v: any) => v.pdf_id || v.pdf_url)
+    
+    // Si no hay versiones con PDF, usar todas las versiones (por compatibilidad)
+    const versionesAFiltrar = versionesConPDF.length > 0 ? versionesConPDF : versiones
+    
+    return [...versionesAFiltrar].sort((a: any, b: any) => {
       const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
       const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
       return fechaB - fechaA
@@ -1860,11 +1866,16 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
               }}>
                 <div className="d-flex justify-content-between align-items-start mb-2">
                   <div style={{ flex: 1 }}>
-                    {versionesOrdenadas.length > 1 ? (
+                    {versionesOrdenadas.length > 0 ? (
                       <div className="mb-2">
                         <div className="d-flex align-items-center gap-3 mb-2">
                           <div style={{ flex: 1 }}>
-                            <Form.Label className="mb-1 fw-bold">Seleccionar Lista de Materiales:</Form.Label>
+                            <div className="d-flex align-items-center gap-2 mb-1">
+                              <Form.Label className="mb-0 fw-bold">Seleccionar Lista de Materiales:</Form.Label>
+                              <Badge bg="info">
+                                {versionesOrdenadas.length} {versionesOrdenadas.length === 1 ? 'versión disponible' : 'versiones disponibles'}
+                              </Badge>
+                            </div>
                             <Form.Select
                               value={versionSeleccionada !== null ? versionSeleccionada : 0}
                               onChange={(e) => cambiarVersion(parseInt(e.target.value, 10))}
@@ -1885,10 +1896,11 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                             const nombreArchivo = version.nombre_archivo || version.metadata?.nombre || `Lista ${index + 1}`
                             const tipoLista = version.tipo_lista || version.nombre || 'Lista de Útiles'
                             const productosCount = version.materiales?.length || 0
+                            const tienePDF = !!(version.pdf_id || version.pdf_url)
                             
                             return (
                               <option key={index} value={index}>
-                                {tipoLista} - {nombreArchivo} ({productosCount} productos) - {fechaFormateada}
+                                {tienePDF ? '📄 ' : ''}{nombreArchivo} {productosCount > 0 ? `(${productosCount} productos)` : '(sin productos)'} - {fechaFormateada}
                               </option>
                             )
                           })}

@@ -210,6 +210,27 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
   }
 
   const handlePDFUpload = (index: number, file: File | null) => {
+    if (file) {
+      // Validar que sea un PDF
+      if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+        setError(`El archivo "${file.name}" no es un PDF válido. Por favor, seleccione un archivo PDF.`)
+        return
+      }
+      
+      // Validar tamaño (máximo 10MB)
+      const maxSize = 10 * 1024 * 1024 // 10MB
+      if (file.size > maxSize) {
+        setError(`El archivo "${file.name}" es demasiado grande (${(file.size / 1024 / 1024).toFixed(2)} MB). Máximo permitido: 10 MB.`)
+        return
+      }
+      
+      console.log(`[Importación Masiva] ✅ PDF válido seleccionado para fila ${index + 1}:`, {
+        nombre: file.name,
+        tamaño: file.size,
+        tipo: file.type,
+      })
+    }
+    
     setImportData((prev) => {
       const updated = [...prev]
       updated[index].pdf = file
@@ -480,130 +501,227 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
           let pdfSubido = false
           if (row.pdf && cursoId) {
             try {
-              // Esperar más tiempo para asegurar que el curso esté completamente disponible en Strapi
-              // Strapi puede necesitar tiempo para procesar la creación y hacer el curso disponible
-              console.log(`[Importación Masiva] ⏳ Esperando 2 segundos para que Strapi procese el curso...`)
-              await new Promise(resolve => setTimeout(resolve, 2000))
-              
-              const pdfFormData = new FormData()
-              pdfFormData.append('pdf', row.pdf)
-              // Enviar ambos IDs si están disponibles para que el endpoint pueda intentar ambos
-              pdfFormData.append('cursoId', String(cursoId))
-              if (row._cursoDocumentId && row._cursoDocumentId !== cursoId) {
-                pdfFormData.append('cursoDocumentId', String(row._cursoDocumentId))
-              }
-              if (row._cursoIdNum && row._cursoIdNum !== cursoId) {
-                pdfFormData.append('cursoIdNum', String(row._cursoIdNum))
-              }
-              pdfFormData.append('colegioId', String(colegioId))
-
-              console.log(`[Importación Masiva] Subiendo PDF para curso:`, {
-                cursoId: cursoId,
-                tipoCursoId: typeof cursoId,
-                nombreArchivo: row.pdf.name,
-                tamaño: row.pdf.size,
-              })
-
-              const uploadResponse = await fetch('/api/crm/cursos/import-pdf', {
-                method: 'POST',
-                body: pdfFormData,
-              })
-
-              // Leer la respuesta una sola vez
-              let uploadResponseText = ''
-              try {
-                uploadResponseText = await uploadResponse.text()
-              } catch (readError: any) {
-                console.error(`[Importación Masiva] ❌ Error al leer respuesta del PDF:`, readError)
-                // NO hacer continue aquí - el curso se creó, solo falló el PDF
-                // Continuar al final para registrar el resultado
-              }
-
-              if (!uploadResponse.ok) {
-                let errorJson: any = null
-                let errorMessage = `Error HTTP ${uploadResponse.status} ${uploadResponse.statusText}`
+              // Validar PDF antes de subir
+              if (row.pdf.type !== 'application/pdf' && !row.pdf.name.toLowerCase().endsWith('.pdf')) {
+                console.error(`[Importación Masiva] ❌ PDF inválido para curso ${row.nombre_curso}:`, {
+                  nombre: row.pdf.name,
+                  tipo: row.pdf.type,
+                })
+                // Continuar sin PDF
+              } else {
+                // Esperar más tiempo para asegurar que el curso esté completamente disponible en Strapi
+                // Strapi puede necesitar tiempo para procesar la creación y hacer el curso disponible
+                console.log(`[Importación Masiva] ⏳ Esperando 2 segundos para que Strapi procese el curso...`)
+                await new Promise(resolve => setTimeout(resolve, 2000))
                 
-                // Intentar parsear como JSON
-                if (uploadResponseText && uploadResponseText.trim()) {
-                  try {
-                    errorJson = JSON.parse(uploadResponseText)
-                    errorMessage = errorJson?.error || errorJson?.message || errorJson?.details?.message || errorMessage
-                  } catch (parseErr) {
-                    // Si no es JSON, usar el texto directamente
-                    errorMessage = uploadResponseText || errorMessage
-                    console.warn(`[Importación Masiva] ⚠️ No se pudo parsear respuesta como JSON:`, parseErr)
-                  }
+                const pdfFormData = new FormData()
+                pdfFormData.append('pdf', row.pdf)
+                // Enviar ambos IDs si están disponibles para que el endpoint pueda intentar ambos
+                pdfFormData.append('cursoId', String(cursoId))
+                if (row._cursoDocumentId && row._cursoDocumentId !== cursoId) {
+                  pdfFormData.append('cursoDocumentId', String(row._cursoDocumentId))
                 }
+                if (row._cursoIdNum && row._cursoIdNum !== cursoId) {
+                  pdfFormData.append('cursoIdNum', String(row._cursoIdNum))
+                }
+                pdfFormData.append('colegioId', String(colegioId))
+
+                const tamañoKB = (row.pdf.size / 1024).toFixed(2)
+                const tamañoMB = (row.pdf.size / 1024 / 1024).toFixed(2)
                 
-                // Log más detallado para debugging - usar console.log separados para evitar problemas de serialización
-                console.error(`[Importación Masiva] ❌ Error HTTP al subir PDF`)
-                console.error(`  Status:`, uploadResponse.status)
-                console.error(`  StatusText:`, uploadResponse.statusText)
-                console.error(`  CursoId:`, cursoId)
-                console.error(`  CursoNombre:`, row.nombre_curso)
-                console.error(`  NombreArchivo:`, row.pdf?.name || 'N/A')
-                console.error(`  TamañoArchivo:`, row.pdf?.size || 'N/A')
-                console.error(`  TipoArchivo:`, row.pdf?.type || 'N/A')
-                console.error(`  ErrorText:`, uploadResponseText || '(vacío)')
-                console.error(`  ErrorTextLength:`, uploadResponseText?.length || 0)
-                console.error(`  ErrorJson:`, errorJson)
-                console.error(`  ErrorMessage:`, errorMessage)
+                console.log(`[Importación Masiva] 📤 Subiendo PDF para curso:`, {
+                  cursoId: cursoId,
+                  tipoCursoId: typeof cursoId,
+                  nombreArchivo: row.pdf.name,
+                  tamaño: row.pdf.size,
+                  tamañoKB: parseFloat(tamañoKB),
+                  tamañoMB: parseFloat(tamañoMB),
+                  tipo: row.pdf.type,
+                  tieneDocumentId: !!row._cursoDocumentId,
+                  tieneIdNum: !!row._cursoIdNum,
+                })
+                
+                // Enviar log al sistema de logs
                 try {
-                  const headersObj = Object.fromEntries(uploadResponse.headers.entries())
-                  console.error(`  Headers:`, headersObj)
+                  await fetch('/api/crm/listas/importacion-completa-logs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      level: 'log',
+                      message: `[Importación Masiva] 📤 Subiendo PDF para curso: ${row.nombre_curso}`,
+                      data: {
+                        cursoId: cursoId,
+                        cursoNombre: row.nombre_curso,
+                        nombreArchivo: row.pdf.name,
+                        tamañoBytes: row.pdf.size,
+                        tamañoKB: parseFloat(tamañoKB),
+                        tamañoMB: parseFloat(tamañoMB),
+                        tipo: row.pdf.type,
+                        tieneDocumentId: !!row._cursoDocumentId,
+                        tieneIdNum: !!row._cursoIdNum,
+                      },
+                    }),
+                  })
                 } catch (e) {
-                  console.error(`  Headers: (no se pudieron leer)`)
+                  // Ignorar errores de logging
                 }
-                
-                // NO hacer continue aquí - el curso se creó, solo falló el PDF
-                // Continuar al final para registrar el resultado y notificar
-              }
 
-              // Si la respuesta es exitosa, parsear el resultado
-              let uploadResult: any = null
-              try {
-                if (uploadResponseText && uploadResponseText.trim()) {
-                  uploadResult = JSON.parse(uploadResponseText)
-                } else {
-                  console.warn(`[Importación Masiva] ⚠️ Respuesta vacía al subir PDF (status ${uploadResponse.status})`)
-                }
-              } catch (parseError: any) {
-                console.error(`[Importación Masiva] ❌ Error al parsear respuesta del PDF:`, {
-                  parseError: parseError.message,
-                  responseText: uploadResponseText || '(vacío)',
-                  responseTextLength: uploadResponseText?.length || 0,
+                const uploadStartTime = Date.now()
+                const uploadResponse = await fetch('/api/crm/cursos/import-pdf', {
+                  method: 'POST',
+                  body: pdfFormData,
+                })
+                const uploadDuration = Date.now() - uploadStartTime
+                
+                console.log(`[Importación Masiva] 📥 Respuesta de /api/crm/cursos/import-pdf:`, {
                   status: uploadResponse.status,
                   statusText: uploadResponse.statusText,
+                  ok: uploadResponse.ok,
+                  duration: `${uploadDuration}ms`,
+                  nombreArchivo: row.pdf.name,
                   cursoId: cursoId,
                 })
-                // Continuar, el curso se creó exitosamente
-              }
-              
-              if (uploadResult && !uploadResult.success) {
-                // Log detallado usando console.log separados
-                console.error(`[Importación Masiva] ❌ Error al subir PDF (respuesta indica fallo)`)
-                console.error(`  UploadResult completo:`, JSON.stringify(uploadResult, null, 2))
-                console.error(`  CursoId:`, cursoId)
-                console.error(`  CursoNombre:`, row.nombre_curso)
-                console.error(`  Error:`, uploadResult.error)
-                console.error(`  Message:`, uploadResult.message)
-                console.error(`  Details:`, uploadResult.details)
-                // No hacer continue, el curso se creó exitosamente
-              } else if (uploadResult && uploadResult.success) {
-                console.log(`[Importación Masiva] ✅ PDF subido exitosamente`)
-                console.log(`  CursoId:`, cursoId)
-                console.log(`  VersionesCount:`, uploadResult.data?.versionesCount)
-                pdfSubido = true
-              } else if (!uploadResult) {
-                // Si no hay resultado pero el status es OK, asumir éxito
-                if (uploadResponse.ok) {
-                  console.log(`[Importación Masiva] ✅ PDF subido (sin respuesta JSON, pero status OK)`)
+
+                // Leer la respuesta una sola vez
+                let uploadResponseText = ''
+                try {
+                  uploadResponseText = await uploadResponse.text()
+                } catch (readError: any) {
+                  console.error(`[Importación Masiva] ❌ Error al leer respuesta del PDF:`, readError)
+                  // NO hacer continue aquí - el curso se creó, solo falló el PDF
+                  // Continuar al final para registrar el resultado
+                }
+
+                if (!uploadResponse.ok) {
+                  let errorJson: any = null
+                  let errorMessage = `Error HTTP ${uploadResponse.status} ${uploadResponse.statusText}`
+                  
+                  // Intentar parsear como JSON
+                  if (uploadResponseText && uploadResponseText.trim()) {
+                    try {
+                      errorJson = JSON.parse(uploadResponseText)
+                      errorMessage = errorJson?.error || errorJson?.message || errorJson?.details?.message || errorMessage
+                    } catch (parseErr) {
+                      // Si no es JSON, usar el texto directamente
+                      errorMessage = uploadResponseText || errorMessage
+                      console.warn(`[Importación Masiva] ⚠️ No se pudo parsear respuesta como JSON:`, parseErr)
+                    }
+                  }
+                  
+                  // Log más detallado para debugging - usar console.log separados para evitar problemas de serialización
+                  console.error(`[Importación Masiva] ❌ Error HTTP al subir PDF`)
+                  console.error(`  Status:`, uploadResponse.status)
+                  console.error(`  StatusText:`, uploadResponse.statusText)
+                  console.error(`  CursoId:`, cursoId)
+                  console.error(`  CursoNombre:`, row.nombre_curso)
+                  console.error(`  NombreArchivo:`, row.pdf?.name || 'N/A')
+                  console.error(`  TamañoArchivo:`, row.pdf?.size || 'N/A')
+                  console.error(`  TipoArchivo:`, row.pdf?.type || 'N/A')
+                  console.error(`  ErrorText:`, uploadResponseText || '(vacío)')
+                  console.error(`  ErrorTextLength:`, uploadResponseText?.length || 0)
+                  console.error(`  ErrorJson:`, errorJson)
+                  console.error(`  ErrorMessage:`, errorMessage)
+                  try {
+                    const headersObj = Object.fromEntries(uploadResponse.headers.entries())
+                    console.error(`  Headers:`, headersObj)
+                  } catch (e) {
+                    console.error(`  Headers: (no se pudieron leer)`)
+                  }
+                  
+                  // Enviar log de error al sistema de logs
+                  try {
+                    await fetch('/api/crm/listas/importacion-completa-logs', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        level: 'error',
+                        message: `[Importación Masiva] ❌ Error HTTP al subir PDF: ${uploadResponse.status} ${uploadResponse.statusText}`,
+                        data: {
+                          cursoId: cursoId,
+                          cursoNombre: row.nombre_curso,
+                          nombreArchivo: row.pdf?.name || 'N/A',
+                          status: uploadResponse.status,
+                          statusText: uploadResponse.statusText,
+                          errorMessage: errorMessage,
+                          duration: `${uploadDuration}ms`,
+                        },
+                      }),
+                    })
+                  } catch (e) {
+                    // Ignorar errores de logging
+                  }
+                  
+                  // NO hacer continue aquí - el curso se creó, solo falló el PDF
+                  // Continuar al final para registrar el resultado y notificar
+                }
+
+                // Si la respuesta es exitosa, parsear el resultado
+                let uploadResult: any = null
+                try {
+                  if (uploadResponseText && uploadResponseText.trim()) {
+                    uploadResult = JSON.parse(uploadResponseText)
+                  } else {
+                    console.warn(`[Importación Masiva] ⚠️ Respuesta vacía al subir PDF (status ${uploadResponse.status})`)
+                  }
+                } catch (parseError: any) {
+                  console.error(`[Importación Masiva] ❌ Error al parsear respuesta del PDF:`, {
+                    parseError: parseError.message,
+                    responseText: uploadResponseText || '(vacío)',
+                    responseTextLength: uploadResponseText?.length || 0,
+                    status: uploadResponse.status,
+                    statusText: uploadResponse.statusText,
+                    cursoId: cursoId,
+                  })
+                  // Continuar, el curso se creó exitosamente
+                }
+                
+                if (uploadResult && !uploadResult.success) {
+                  // Log detallado usando console.log separados
+                  console.error(`[Importación Masiva] ❌ Error al subir PDF (respuesta indica fallo)`)
+                  console.error(`  UploadResult completo:`, JSON.stringify(uploadResult, null, 2))
+                  console.error(`  CursoId:`, cursoId)
+                  console.error(`  CursoNombre:`, row.nombre_curso)
+                  console.error(`  Error:`, uploadResult.error)
+                  console.error(`  Message:`, uploadResult.message)
+                  console.error(`  Details:`, uploadResult.details)
+                  // No hacer continue, el curso se creó exitosamente
+                } else if (uploadResult && uploadResult.success) {
+                  console.log(`[Importación Masiva] ✅ PDF subido exitosamente`)
+                  console.log(`  CursoId:`, cursoId)
+                  console.log(`  VersionesCount:`, uploadResult.data?.versionesCount)
                   pdfSubido = true
-                } else {
-                  console.warn(`[Importación Masiva] ⚠️ No se pudo determinar el resultado del PDF`)
-                  console.warn(`  Status:`, uploadResponse.status)
-                  console.warn(`  StatusText:`, uploadResponse.statusText)
-                  console.warn(`  ResponseText:`, uploadResponseText || '(vacío)')
+                  
+                  // Enviar log de éxito al sistema de logs
+                  try {
+                    await fetch('/api/crm/listas/importacion-completa-logs', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        level: 'log',
+                        message: `[Importación Masiva] ✅ PDF subido exitosamente para curso: ${row.nombre_curso}`,
+                        data: {
+                          cursoId: cursoId,
+                          cursoNombre: row.nombre_curso,
+                          nombreArchivo: row.pdf.name,
+                          versionesCount: uploadResult.data?.versionesCount,
+                          duration: `${uploadDuration}ms`,
+                        },
+                      }),
+                    })
+                  } catch (e) {
+                    // Ignorar errores de logging
+                  }
+                } else if (!uploadResult) {
+                  // Si no hay resultado pero el status es OK, asumir éxito
+                  if (uploadResponse.ok) {
+                    console.log(`[Importación Masiva] ✅ PDF subido (sin respuesta JSON, pero status OK)`)
+                    pdfSubido = true
+                  } else {
+                    console.warn(`[Importación Masiva] ⚠️ No se pudo determinar el resultado del PDF`)
+                    console.warn(`  Status:`, uploadResponse.status)
+                    console.warn(`  StatusText:`, uploadResponse.statusText)
+                    console.warn(`  ResponseText:`, uploadResponseText || '(vacío)')
+                  }
                 }
               }
             } catch (pdfError: any) {
@@ -612,6 +730,28 @@ export default function ImportacionMasivaModal({ show, onHide, onSuccess }: Impo
                 stack: pdfError.stack,
                 cursoId: cursoId,
               })
+              
+              // Enviar log de excepción al sistema de logs
+              try {
+                await fetch('/api/crm/listas/importacion-completa-logs', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    level: 'error',
+                    message: `[Importación Masiva] ❌ Excepción al subir PDF: ${pdfError.message}`,
+                    data: {
+                      cursoId: cursoId,
+                      cursoNombre: row.nombre_curso,
+                      nombreArchivo: row.pdf?.name || 'N/A',
+                      error: pdfError.message,
+                      stack: pdfError.stack?.substring(0, 500),
+                    },
+                  }),
+                })
+              } catch (e) {
+                // Ignorar errores de logging
+              }
+              
               // No hacer continue, el curso se creó exitosamente
             }
           }

@@ -232,16 +232,7 @@ export async function POST(
       )
     }
 
-    // Validar que el año esté presente (ahora que Strapi tiene el campo configurado)
-    if (body.año === undefined && body.ano === undefined) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'El año es obligatorio',
-        },
-        { status: 400 }
-      )
-    }
+    // Obtener el año si está presente (puede ser opcional dependiendo de la configuración de Strapi)
     const año = body.año || body.ano || new Date().getFullYear()
 
     // ✅ Campo correcto en Strapi: nombre_curso (generado automáticamente o proporcionado)
@@ -281,11 +272,21 @@ export async function POST(
         colegio: { connect: [colegioIdFinal] }, // ✅ Usar ID numérico para relación manyToOne
         nivel: body.nivel,
         grado: String(body.grado), // ✅ grado debe ser string según schema de Strapi
-        año: año, // Campo ya configurado en Strapi
+        // ❌ NO incluir año/ano - Strapi rechaza ambos campos en la creación
+        // El campo año NO existe en el schema de Strapi o no se puede crear directamente
+        // año: año, // ❌ NO incluir - causa error "Invalid key año"
+        // ano: año, // ❌ NO incluir - causa error "Invalid key ano"
         ...(body.paralelo && { paralelo: body.paralelo }),
         ...(body.activo !== undefined && { activo: body.activo !== false }),
       },
     }
+    
+    // 🔍 LOG: Verificar que NO se está enviando año
+    debugLog('[API /crm/colegios/[id]/cursos POST] ✅ Payload sin campo año:', {
+      tieneAño: 'año' in cursoData.data,
+      tieneAno: 'ano' in cursoData.data,
+      campos: Object.keys(cursoData.data),
+    })
 
     // Agregar relación lista_utiles si está presente
     if (body.lista_utiles) {
@@ -339,11 +340,18 @@ export async function POST(
     const cursoCreado = Array.isArray(response.data) ? response.data[0] : response.data
     const cursoAttrs = cursoCreado?.attributes || cursoCreado
     
-    debugLog('[API /crm/colegios/[id]/cursos POST] Curso creado:', {
+    debugLog('[API /crm/colegios/[id]/cursos POST] ✅ Curso creado exitosamente:', {
       id: cursoCreado?.id,
       documentId: cursoCreado?.documentId,
       nombre: cursoAttrs?.nombre_curso,
+      nivel: cursoAttrs?.nivel,
+      grado: cursoAttrs?.grado,
+      colegioId: colegioIdFinal,
     })
+    
+    // ❌ NO intentar actualizar el año - Strapi rechaza el campo año/ano incluso en actualizaciones
+    // El campo año NO existe en el schema de Strapi o no está disponible para escritura
+    // Los cursos se crean correctamente sin el campo año
 
     return NextResponse.json({
       success: true,
