@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Row, Col, Card, ProgressBar, Spinner, Alert } from 'react-bootstrap'
+import { Row, Col, Card, ProgressBar, Spinner, Alert, Table } from 'react-bootstrap'
 import { TbCheck, TbClockHour4, TbKey, TbUserCheck } from 'react-icons/tb'
 
 type LicenciaResumen = {
@@ -19,6 +19,7 @@ type UsoPorLibro = {
 }
 
 type LicenciaApi = {
+  codigo_activacion?: string
   activa: boolean
   fecha_activacion: string | null
   fecha_vencimiento: string | null
@@ -28,6 +29,30 @@ type LicenciaApi = {
       isbn_libro?: string
     } | null
   } | null
+  estudiante?: {
+    email?: string
+    persona?: {
+      nombres?: string
+      primer_apellido?: string
+      segundo_apellido?: string
+    } | null
+    colegio?: {
+      nombre?: string
+    } | null
+    nivel?: string
+    curso?: string
+  } | null
+}
+
+type ActivacionItem = {
+  codigo: string
+  fecha_activacion: string
+  libro: string
+  isbn: string
+  estudiante: string
+  email: string
+  colegio: string
+  curso: string
 }
 
 const AnaliticasMiraClient = () => {
@@ -38,6 +63,7 @@ const AnaliticasMiraClient = () => {
     sinUsar: 0,
   })
   const [usoPorLibro, setUsoPorLibro] = useState<UsoPorLibro[]>([])
+  const [activacionesRecientes, setActivacionesRecientes] = useState<ActivacionItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -71,6 +97,7 @@ const AnaliticasMiraClient = () => {
         }
 
         const mapa = new Map<string, UsoPorLibro>()
+        const activaciones: ActivacionItem[] = []
 
         for (const lic of data) {
           const activa = lic.activa !== false
@@ -97,6 +124,29 @@ const AnaliticasMiraClient = () => {
               if (usada) existente.usadas += 1
             }
           }
+
+          // Historial de activaciones (solo licencias con fecha_activacion)
+          if (usada && lic.fecha_activacion) {
+            const fecha = lic.fecha_activacion
+            const persona = lic.estudiante?.persona
+            const colegio = lic.estudiante?.colegio
+            const nombreEstudiante = persona
+              ? `${persona.nombres || ''} ${persona.primer_apellido || ''} ${
+                  persona.segundo_apellido || ''
+                }`.trim()
+              : 'Sin asignar'
+
+            activaciones.push({
+              codigo: lic.codigo_activacion || '',
+              fecha_activacion: fecha,
+              libro: libro?.nombre_libro || 'Sin nombre',
+              isbn: libro?.isbn_libro || '',
+              estudiante: nombreEstudiante,
+              email: lic.estudiante?.email || '',
+              colegio: colegio?.nombre || '',
+              curso: [lic.estudiante?.nivel, lic.estudiante?.curso].filter(Boolean).join(' '),
+            })
+          }
         }
 
         setResumen(resumenTmp)
@@ -104,6 +154,14 @@ const AnaliticasMiraClient = () => {
           Array.from(mapa.values())
             .sort((a, b) => b.total - a.total)
             .slice(0, 10)
+        )
+        setActivacionesRecientes(
+          activaciones
+            .sort(
+              (a, b) =>
+                new Date(b.fecha_activacion).getTime() - new Date(a.fecha_activacion).getTime()
+            )
+            .slice(0, 15)
         )
       } catch (e: any) {
         console.error('[MIRA Analiticas] Error en cliente:', e)
@@ -292,6 +350,73 @@ const AnaliticasMiraClient = () => {
                   Más adelante se pueden agregar filtros por año, colegio, curso, etc.
                 </li>
               </ul>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+
+      <Row className="mt-3">
+        <Col>
+          <Card className="mb-3">
+            <Card.Header>
+              <Card.Title as="h5" className="mb-0">
+                Activaciones recientes
+              </Card.Title>
+              <Card.Subtitle className="text-muted fs-12">
+                Últimas licencias utilizadas por estudiantes
+              </Card.Subtitle>
+            </Card.Header>
+            <Card.Body style={{ maxHeight: 360, overflowY: 'auto' }}>
+              {activacionesRecientes.length === 0 && (
+                <div className="text-muted fs-13">Aún no hay licencias activadas.</div>
+              )}
+              {activacionesRecientes.length > 0 && (
+                <Table responsive hover size="sm" className="mb-0 align-middle">
+                  <thead className="table-light">
+                    <tr>
+                      <th style={{ whiteSpace: 'nowrap' }}>Fecha</th>
+                      <th style={{ whiteSpace: 'nowrap' }}>Estudiante</th>
+                      <th style={{ whiteSpace: 'nowrap' }}>Colegio / Curso</th>
+                      <th style={{ whiteSpace: 'nowrap' }}>Libro</th>
+                      <th style={{ whiteSpace: 'nowrap' }}>Código</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activacionesRecientes.map((item, idx) => (
+                      <tr key={idx}>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          {new Date(item.fecha_activacion).toLocaleDateString('es-CL', {
+                            year: '2-digit',
+                            month: '2-digit',
+                            day: '2-digit',
+                          })}
+                        </td>
+                        <td>
+                          <div className="fw-semibold">{item.estudiante}</div>
+                          {item.email && (
+                            <div className="text-muted fs-12">{item.email}</div>
+                          )}
+                        </td>
+                        <td>
+                          {item.colegio && <div className="fs-12">{item.colegio}</div>}
+                          {item.curso && (
+                            <div className="text-muted fs-12">{item.curso}</div>
+                          )}
+                        </td>
+                        <td>
+                          <div className="fw-semibold fs-13">{item.libro}</div>
+                          {item.isbn && (
+                            <div className="text-muted fs-12">ISBN: {item.isbn}</div>
+                          )}
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <span className="text-monospace fs-12">{item.codigo}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              )}
             </Card.Body>
           </Card>
         </Col>
