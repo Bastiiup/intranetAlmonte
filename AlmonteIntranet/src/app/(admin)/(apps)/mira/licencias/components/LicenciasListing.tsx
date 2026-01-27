@@ -13,7 +13,7 @@ import {
   Table as TableType,
   useReactTable,
 } from '@tanstack/react-table'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge } from 'react-bootstrap'
 import { LuSearch, LuRefreshCw, LuUpload } from 'react-icons/lu'
 import { TbEdit } from 'react-icons/tb'
@@ -71,33 +71,116 @@ const columnHelper = createColumnHelper<LicenciaType>()
 interface LicenciasListingProps {
   licencias: any[]
   error: string | null
+  initialMeta?: {
+    pagination?: {
+      page: number
+      pageSize: number
+      pageCount: number
+      total: number
+    }
+  }
 }
 
-export default function LicenciasListing({ licencias: licenciasProp, error }: LicenciasListingProps) {
+export default function LicenciasListing({ licencias: licenciasProp, error: initialError, initialMeta }: LicenciasListingProps) {
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [selectedLicencia, setSelectedLicencia] = useState<LicenciaType | null>(null)
+  const [data, setData] = useState<LicenciaType[]>([])
+  const [error, setError] = useState<string | null>(initialError)
+  const [paginationMeta, setPaginationMeta] = useState(initialMeta?.pagination || {
+    page: 1,
+    pageSize: 25,
+    pageCount: 1,
+    total: 0,
+  })
+  const isInitialMount = useRef(true)
+
+  // Función para cargar licencias desde la API
+  const cargarLicencias = useCallback(async (page: number = 1, pageSize: number = 25) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const timestamp = Date.now()
+      const response = await fetch(`/api/mira/licencias?page=${page}&pageSize=${pageSize}&_t=${timestamp}`, {
+        cache: 'no-store',
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      
+      if (result.success && Array.isArray(result.data)) {
+        const nuevasLicencias = result.data.map((licencia: any) => ({
+          id: licencia.id || licencia.documentId,
+          documentId: licencia.documentId || String(licencia.id || ''),
+          numeral: typeof licencia.numeral === 'number' ? licencia.numeral : licencia.numeral != null ? Number(licencia.numeral) : null,
+          codigo_activacion: licencia.codigo_activacion || '',
+          fecha_activacion: licencia.fecha_activacion || null,
+          activa: licencia.activa !== false,
+          fecha_vencimiento: licencia.fecha_vencimiento || null,
+          libro_mira: licencia.libro_mira || null,
+          estudiante: licencia.estudiante || null,
+          createdAt: licencia.createdAt || null,
+          updatedAt: licencia.updatedAt || null,
+        } as LicenciaType))
+        
+        setData(nuevasLicencias)
+        
+        // Actualizar meta de paginación
+        if (result.meta?.pagination) {
+          setPaginationMeta(result.meta.pagination)
+        }
+      } else {
+        throw new Error(result.error || 'Error al obtener licencias')
+      }
+    } catch (loadError: any) {
+      console.error('Error al cargar licencias:', loadError)
+      setError(loadError.message || 'Error al cargar licencias')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Cargar datos iniciales
+  useEffect(() => {
+    if (licenciasProp && licenciasProp.length > 0) {
+      const mappedLicencias = licenciasProp.map((licencia: any) => ({
+        id: licencia.id || licencia.documentId,
+        documentId: licencia.documentId || String(licencia.id || ''),
+        numeral: typeof licencia.numeral === 'number' ? licencia.numeral : licencia.numeral != null ? Number(licencia.numeral) : null,
+        codigo_activacion: licencia.codigo_activacion || '',
+        fecha_activacion: licencia.fecha_activacion || null,
+        activa: licencia.activa !== false,
+        fecha_vencimiento: licencia.fecha_vencimiento || null,
+        libro_mira: licencia.libro_mira || null,
+        estudiante: licencia.estudiante || null,
+        createdAt: licencia.createdAt || null,
+        updatedAt: licencia.updatedAt || null,
+      } as LicenciaType))
+      setData(mappedLicencias)
+      if (initialMeta?.pagination) {
+        setPaginationMeta(initialMeta.pagination)
+      }
+      isInitialMount.current = false
+    } else if (!initialError) {
+      // Si no hay datos iniciales y no hay error, cargar la primera página
+      cargarLicencias(1, 25)
+      isInitialMount.current = false
+    }
+  }, [licenciasProp, initialError, initialMeta, cargarLicencias]) // Solo ejecutar cuando cambien los props iniciales
 
   // Los datos ya vienen transformados desde la API /api/mira/licencias
-  const mappedLicencias = useMemo(() => {
-    if (!licenciasProp || !Array.isArray(licenciasProp)) return []
-    
-    return licenciasProp.map((licencia: any) => ({
-      id: licencia.id || licencia.documentId,
-      documentId: licencia.documentId || String(licencia.id || ''),
-      numeral: typeof licencia.numeral === 'number' ? licencia.numeral : licencia.numeral != null ? Number(licencia.numeral) : null,
-      codigo_activacion: licencia.codigo_activacion || '',
-      fecha_activacion: licencia.fecha_activacion || null,
-      activa: licencia.activa !== false,
-      fecha_vencimiento: licencia.fecha_vencimiento || null,
-      libro_mira: licencia.libro_mira || null,
-      estudiante: licencia.estudiante || null,
-      createdAt: licencia.createdAt || null,
-      updatedAt: licencia.updatedAt || null,
-    } as LicenciaType))
-  }, [licenciasProp])
+  const mappedLicencias = useMemo(() => data, [data])
 
   const columns: ColumnDef<LicenciaType, any>[] = [
     {
@@ -340,20 +423,25 @@ export default function LicenciasListing({ licencias: licenciasProp, error }: Li
     },
   ]
 
-  const [data, setData] = useState<LicenciaType[]>([])
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'fecha_activacion', desc: true },
   ])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 25 })
 
+  // Cargar datos cuando cambie la paginación (solo después del mount inicial)
   useEffect(() => {
-    setData(mappedLicencias)
-  }, [mappedLicencias])
+    if (isInitialMount.current) {
+      return // No cargar en el primer render si ya hay datos iniciales
+    }
+    const page = pagination.pageIndex + 1 // pageIndex es 0-based, pero la API espera 1-based
+    const pageSize = pagination.pageSize
+    cargarLicencias(page, pageSize)
+  }, [pagination.pageIndex, pagination.pageSize, cargarLicencias])
 
   const table = useReactTable<LicenciaType>({
-    data,
+    data: mappedLicencias,
     columns,
     getRowId: (row) => String(row.id || row.documentId || Math.random()),
     state: { sorting, globalFilter, columnFilters, pagination, rowSelection: selectedRowIds },
@@ -365,7 +453,9 @@ export default function LicenciasListing({ licencias: licenciasProp, error }: Li
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    // NO usar getPaginationRowModel porque la paginación es del lado del servidor
+    manualPagination: true, // Paginación del lado del servidor
+    pageCount: paginationMeta.pageCount, // Total de páginas desde el servidor
     globalFilterFn: 'includesString',
     enableColumnFilters: true,
     enableRowSelection: true,
@@ -373,57 +463,19 @@ export default function LicenciasListing({ licencias: licenciasProp, error }: Li
 
   const pageIndex = table.getState().pagination.pageIndex
   const pageSize = table.getState().pagination.pageSize
-  const totalItems = table.getFilteredRowModel().rows.length
+  const totalItems = paginationMeta.total // Total desde el servidor
 
   const start = pageIndex * pageSize + 1
   const end = Math.min(start + pageSize - 1, totalItems)
 
   const recargarLicencias = async () => {
-    setLoading(true)
-    try {
-      const timestamp = Date.now()
-      const response = await fetch(`/api/mira/licencias?_t=${timestamp}`, {
-        cache: 'no-store',
-        method: 'GET',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-        },
-      })
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      
-      const result = await response.json()
-      
-      if (result.success && Array.isArray(result.data)) {
-        const nuevasLicencias = result.data.map((licencia: any) => ({
-          id: licencia.id || licencia.documentId,
-          documentId: licencia.documentId || String(licencia.id || ''),
-          numeral: typeof licencia.numeral === 'number' ? licencia.numeral : licencia.numeral != null ? Number(licencia.numeral) : null,
-          codigo_activacion: licencia.codigo_activacion || '',
-          fecha_activacion: licencia.fecha_activacion || null,
-          activa: licencia.activa !== false,
-          fecha_vencimiento: licencia.fecha_vencimiento || null,
-          libro_mira: licencia.libro_mira || null,
-          estudiante: licencia.estudiante || null,
-          createdAt: licencia.createdAt || null,
-          updatedAt: licencia.updatedAt || null,
-        } as LicenciaType))
-        
-        setData(nuevasLicencias)
-      }
-    } catch (refreshError: any) {
-      console.error('Error al recargar licencias:', refreshError)
-      alert('Error al recargar licencias: ' + refreshError.message)
-    } finally {
-      setLoading(false)
-    }
+    // Recargar la página actual
+    const page = pagination.pageIndex + 1
+    const pageSize = pagination.pageSize
+    await cargarLicencias(page, pageSize)
   }
 
-  if (error && mappedLicencias.length === 0) {
+  if (error && data.length === 0 && !loading) {
     return (
       <Row>
         <Col xs={12}>
@@ -476,10 +528,14 @@ export default function LicenciasListing({ licencias: licenciasProp, error }: Li
                 <select
                   className="form-select form-control my-1 my-md-0"
                   value={table.getState().pagination.pageSize}
-                  onChange={(e) => table.setPageSize(Number(e.target.value))}>
-                  {[5, 10, 15, 20, 25].map((size) => (
+                  onChange={(e) => {
+                    const newPageSize = Number(e.target.value)
+                    table.setPageSize(newPageSize)
+                    table.setPageIndex(0) // Resetear a la primera página cuando cambie el tamaño
+                  }}>
+                  {[10, 25, 50, 100, 200].map((size) => (
                     <option key={size} value={size}>
-                      {size}
+                      {size} por página
                     </option>
                   ))}
                 </select>

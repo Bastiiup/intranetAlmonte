@@ -15,6 +15,7 @@ export const metadata: Metadata = {
 export default async function Page() {
   let licencias: any[] = []
   let error: string | null = null
+  let meta: any = null
 
   try {
     const headersList = await headers()
@@ -39,6 +40,9 @@ export default async function Page() {
     } else {
       error = data.error || 'Error al obtener licencias'
     }
+    
+    // Pasar también el meta de paginación
+    const meta = data.meta || null
   } catch (err: any) {
     error = err.message || 'Error al conectar con la API'
   }
@@ -46,7 +50,7 @@ export default async function Page() {
   return (
     <Container fluid>
       <PageBreadcrumb title="Licencias de Libros MIRA" subtitle="MIRA" />
-      <LicenciasListing licencias={licencias} error={error} />
+      <LicenciasListing licencias={licencias} error={error} initialMeta={meta} />
     </Container>
   )
 }
