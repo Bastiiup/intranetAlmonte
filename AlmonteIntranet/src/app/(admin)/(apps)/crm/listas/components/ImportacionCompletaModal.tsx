@@ -278,6 +278,22 @@ export default function ImportacionCompletaModal({
     }
   }, [])
 
+  // Resetear estado minimizado cuando se abre el modal (si no hay proceso en curso)
+  useEffect(() => {
+    if (show) {
+      if (typeof window !== 'undefined') {
+        const isProcessing = localStorage.getItem('importacion-completa-processing') === 'true'
+        // Si no hay proceso en curso, resetear el estado minimizado
+        if (!isProcessing && !processing) {
+          setMinimized(false)
+          localStorage.removeItem('importacion-completa-minimized')
+          localStorage.removeItem('importacion-completa-processing')
+          localStorage.removeItem('importacion-completa-progress')
+        }
+      }
+    }
+  }, [show, processing])
+
   // Detectar si debemos abrir el modal automáticamente al restaurar
   useEffect(() => {
     if (typeof window !== 'undefined' && show) {
