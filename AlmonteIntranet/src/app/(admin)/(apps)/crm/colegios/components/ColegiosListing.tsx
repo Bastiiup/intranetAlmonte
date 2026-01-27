@@ -24,6 +24,7 @@ import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
 import EditColegioModal from './EditColegioModal'
 import AddColegioModal from './AddColegioModal'
+import ImportarNivelesAsignaturasModal from './ImportarNivelesAsignaturasModal'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 
@@ -856,6 +857,9 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
               <Button variant="primary" className="btn-icon">
                 <TbList className="fs-lg" />
               </Button>
+              <Button variant="outline-success" className="ms-1" onClick={() => setShowImportNivelesModal(true)}>
+                <LuUpload className="fs-sm me-2" /> Importar Niveles/Asignaturas
+              </Button>
               <Button variant="danger" className="ms-1" onClick={() => setAddModal(true)}>
                 <LuPlus className="fs-sm me-2" /> Agregar Colegio
               </Button>
@@ -941,6 +945,19 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
         onSuccess={() => {
           setEditModal({ open: false, colegio: null })
           setSuccessMessage('Colegio actualizado exitosamente')
+          setTimeout(() => setSuccessMessage(null), 3000)
+          router.refresh()
+          fetchColegios()
+        }}
+      />
+
+      {/* Modal de importación de niveles y asignaturas */}
+      <ImportarNivelesAsignaturasModal
+        show={showImportNivelesModal}
+        onHide={() => setShowImportNivelesModal(false)}
+        onSuccess={() => {
+          setShowImportNivelesModal(false)
+          setSuccessMessage('Niveles y asignaturas importados exitosamente')
           setTimeout(() => setSuccessMessage(null), 3000)
           router.refresh()
           fetchColegios()
