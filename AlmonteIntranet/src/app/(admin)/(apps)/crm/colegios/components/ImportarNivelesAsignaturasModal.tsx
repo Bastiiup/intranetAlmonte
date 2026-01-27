@@ -145,13 +145,19 @@ export default function ImportarNivelesAsignaturasModal({
                 <div>
                   <strong>Formato del archivo CSV/Excel:</strong>
                   <ul className="mb-0 mt-2">
-                    <li><strong>AGNO</strong> o <strong>Año</strong>: Año de los datos (ej: 2022)</li>
+                    <li><strong>AÑO</strong> o <strong>AGNO</strong>: Año de los datos (ej: 2022)</li>
                     <li><strong>RBD</strong>: RBD del colegio (conector con content type Colegios)</li>
-                    <li><strong>Nivel</strong>: Nombre del nivel (ej: "I Medio", "II Medio", "III Medio", "IV Medio")</li>
-                    <li><strong>ID_NIVEL</strong>: Código numérico del nivel (12=I Medio, 13=II Medio, 14=III Medio, 15=IV Medio)</li>
-                    <li><strong>ENS_BAS_MED</strong> o <strong>Tipo_Enseñanza</strong>: Tipo de enseñanza (Media, Básica)</li>
-                    <li><strong>CICLO</strong>: Ciclo educativo (Educación Media, Educación Básica)</li>
-                    <li><strong>Asignatura</strong>: Nombre de la asignatura (opcional)</li>
+                    <li><strong>NIVEL</strong>: Nombre del nivel (ej: "1° Básico", "7° Básico", "I Medio")</li>
+                    <li><strong>ID_NIVEL</strong>: Código numérico del nivel según MINEDUC:
+                      <ul>
+                        <li>4-7: 1° a 4° Básico (Primer Ciclo)</li>
+                        <li>8-11: 5° a 8° Básico (Segundo Ciclo)</li>
+                        <li>12-15: I a IV Medio</li>
+                      </ul>
+                    </li>
+                    <li><strong>EDUCACIÓN</strong> o <strong>ENS_BAS_MED</strong>: Tipo de enseñanza (Básica, Media)</li>
+                    <li><strong>CICLO</strong>: Ciclo educativo (Primer Ciclo Educación Básica, Segundo Ciclo Educación Básica, Educación Media)</li>
+                    <li><strong>Asignatura</strong> o <strong>nom_subsector</strong>: Nombre de la asignatura (opcional)</li>
                     <li><strong>Cantidad_Alumnos</strong>: Cantidad de alumnos (opcional)</li>
                   </ul>
                 </div>

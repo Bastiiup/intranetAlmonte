@@ -44,11 +44,17 @@ interface NivelRow {
 
 /**
  * Mapear nombre de nivel a grado y nivel
+ * 
+ * ID_NIVEL según MINEDUC:
+ * - 1-3: Pre-básica (no se usa en este contexto)
+ * - 4-7: 1° a 4° Básico (Primer Ciclo)
+ * - 8-11: 5° a 8° Básico (Segundo Ciclo)
+ * - 12-15: I a IV Medio
  */
 function parseNivel(nivelStr: string, idNivel?: number): { nivel: 'Basica' | 'Media', grado: number } {
   const nivel = String(nivelStr || '').trim().toLowerCase()
   
-  // Si tenemos ID_NIVEL, usarlo como referencia
+  // Si tenemos ID_NIVEL, usarlo como referencia (más confiable)
   if (idNivel) {
     // Media: 12=I Medio, 13=II Medio, 14=III Medio, 15=IV Medio
     if (idNivel >= 12 && idNivel <= 15) {
@@ -57,8 +63,17 @@ function parseNivel(nivelStr: string, idNivel?: number): { nivel: 'Basica' | 'Me
         grado: idNivel - 11 // 12->1, 13->2, 14->3, 15->4
       }
     }
-    // Básica: 1-8 (1º a 8º básico)
-    if (idNivel >= 1 && idNivel <= 8) {
+    // Básica según ID_NIVEL de MINEDUC:
+    // ID_NIVEL 4 = 1° Básico, 5 = 2° Básico, 6 = 3° Básico, 7 = 4° Básico
+    // ID_NIVEL 8 = 5° Básico, 9 = 6° Básico, 10 = 7° Básico, 11 = 8° Básico
+    if (idNivel >= 4 && idNivel <= 11) {
+      return {
+        nivel: 'Basica',
+        grado: idNivel - 3 // 4->1, 5->2, 6->3, 7->4, 8->5, 9->6, 10->7, 11->8
+      }
+    }
+    // Si es 1-3, asumir que es básica (aunque normalmente es pre-básica)
+    if (idNivel >= 1 && idNivel <= 3) {
       return {
         nivel: 'Basica',
         grado: idNivel
@@ -66,8 +81,15 @@ function parseNivel(nivelStr: string, idNivel?: number): { nivel: 'Basica' | 'Me
     }
   }
   
-  // Parsear desde texto
+  // Parsear desde texto del nivel (ej: "1° Básico", "7° Básico", "I Medio")
   if (nivel.includes('medio')) {
+    // Intentar extraer el número romano o número
+    const matchRomano = nivel.match(/[ivxlcdm]+/i) // I, II, III, IV
+    if (matchRomano) {
+      const romanos: Record<string, number> = { 'i': 1, 'ii': 2, 'iii': 3, 'iv': 4 }
+      const grado = romanos[matchRomano[0].toLowerCase()] || 1
+      return { nivel: 'Media', grado }
+    }
     const match = nivel.match(/(\d+)/)
     const grado = match ? parseInt(match[1]) : 1
     return { nivel: 'Media', grado: Math.min(grado, 4) }
@@ -154,21 +176,55 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Normalizar datos
-    const nivelesData: NivelRow[] = rawData.map((row: any) => ({
-      agno: row.agno || row.agno || row.año || row.ano ? parseInt(String(row.agno || row.agno || row.año || row.ano)) : undefined,
-      año: row.agno || row.agno || row.año || row.ano ? parseInt(String(row.agno || row.agno || row.año || row.ano)) : undefined,
-      rbd: row.rbd || row.RBD ? String(row.rbd || row.RBD).trim() : undefined,
-      nivel: row.nivel || row.Nivel ? String(row.nivel || row.Nivel).trim() : undefined,
-      id_nivel: row.id_nivel || row.ID_NIVEL || row.idNivel ? parseInt(String(row.id_nivel || row.ID_NIVEL || row.idNivel)) : undefined,
-      idNivel: row.id_nivel || row.ID_NIVEL || row.idNivel ? parseInt(String(row.id_nivel || row.ID_NIVEL || row.idNivel)) : undefined,
-      ens_bas_med: row.ens_bas_med || row.ENS_BAS_MED || row.tipo_ensenanza ? String(row.ens_bas_med || row.ENS_BAS_MED || row.tipo_ensenanza).trim() : undefined,
-      tipo_ensenanza: row.ens_bas_med || row.ENS_BAS_MED || row.tipo_ensenanza ? String(row.ens_bas_med || row.ENS_BAS_MED || row.tipo_ensenanza).trim() : undefined,
-      ciclo: row.ciclo || row.CICLO ? String(row.ciclo || row.CICLO).trim() : undefined,
-      asignatura: row.asignatura || row.Asignatura ? String(row.asignatura || row.Asignatura).trim() : undefined,
-      cantidad_alumnos: row.cantidad_alumnos || row.Cantidad_Alumnos || row.cantidadAlumnos ? parseInt(String(row.cantidad_alumnos || row.Cantidad_Alumnos || row.cantidadAlumnos)) : undefined,
-      cantidadAlumnos: row.cantidad_alumnos || row.Cantidad_Alumnos || row.cantidadAlumnos ? parseInt(String(row.cantidad_alumnos || row.Cantidad_Alumnos || row.cantidadAlumnos)) : undefined,
-    }))
+    // Normalizar datos - soportar múltiples formatos de columnas
+    const nivelesData: NivelRow[] = rawData.map((row: any) => {
+      // Año: soportar AÑO (con tilde), AGNO, año, ano
+      const añoValue = row.año || row.AÑO || row.agno || row.AGNO || row.ano || row.ANO
+      const año = añoValue ? parseInt(String(añoValue)) : undefined
+
+      // RBD: soportar RBD, rbd
+      const rbdValue = row.rbd || row.RBD
+      const rbd = rbdValue ? String(rbdValue).trim() : undefined
+
+      // Nivel: soportar NIVEL, nivel
+      const nivelValue = row.nivel || row.NIVEL
+      const nivel = nivelValue ? String(nivelValue).trim() : undefined
+
+      // ID_NIVEL: soportar ID_NIVEL, id_nivel, idNivel
+      const idNivelValue = row.id_nivel || row.ID_NIVEL || row.idNivel
+      const idNivel = idNivelValue ? parseInt(String(idNivelValue)) : undefined
+
+      // Tipo de enseñanza: soportar EDUCACIÓN, ENS_BAS_MED, tipo_ensenanza
+      const educacionValue = row.educación || row.EDUCACIÓN || row.educacion || row.EDUCACION || row.ens_bas_med || row.ENS_BAS_MED || row.tipo_ensenanza
+      const tipoEnsenanza = educacionValue ? String(educacionValue).trim() : undefined
+
+      // Ciclo: soportar CICLO, ciclo
+      const cicloValue = row.ciclo || row.CICLO
+      const ciclo = cicloValue ? String(cicloValue).trim() : undefined
+
+      // Asignatura (opcional): soportar asignatura, Asignatura, nom_subsector
+      const asignaturaValue = row.asignatura || row.Asignatura || row.nom_subsector || row.NOM_SUBSECTOR
+      const asignatura = asignaturaValue ? String(asignaturaValue).trim() : undefined
+
+      // Cantidad de alumnos (opcional)
+      const cantidadAlumnosValue = row.cantidad_alumnos || row.Cantidad_Alumnos || row.cantidadAlumnos
+      const cantidadAlumnos = cantidadAlumnosValue ? parseInt(String(cantidadAlumnosValue)) : undefined
+
+      return {
+        agno: año,
+        año: año,
+        rbd: rbd,
+        nivel: nivel,
+        id_nivel: idNivel,
+        idNivel: idNivel,
+        ens_bas_med: tipoEnsenanza,
+        tipo_ensenanza: tipoEnsenanza,
+        ciclo: ciclo,
+        asignatura: asignatura,
+        cantidad_alumnos: cantidadAlumnos,
+        cantidadAlumnos: cantidadAlumnos,
+      }
+    })
 
     // Agrupar por RBD y año
     const colegiosMap = new Map<string, Map<number, NivelRow[]>>()
