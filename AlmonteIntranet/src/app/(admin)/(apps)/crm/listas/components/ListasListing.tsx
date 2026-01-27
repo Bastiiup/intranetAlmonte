@@ -376,14 +376,26 @@ export default function ListasListing({ listas: listasProp, error: initialError 
       accessorKey: 'direccion',
       enableSorting: true,
       cell: ({ row }) => {
-        const direccion = row.original.direccion
-        return direccion ? (
-          <div className="d-flex align-items-center">
-            <LuMapPin className="me-1" size={14} />
-            <span>{direccion}</span>
+        const colegio = row.original
+        const direccion = colegio.direccion
+        const comuna = colegio.comuna
+        
+        if (!direccion && !comuna) {
+          return <span className="text-muted">-</span>
+        }
+        
+        return (
+          <div className="fs-xs">
+            {direccion && (
+              <div className="d-flex align-items-center">
+                <LuMapPin className="me-1" size={14} />
+                <span>{direccion}</span>
+              </div>
+            )}
+            {comuna && (
+              <div className="text-muted mt-1">{comuna}</div>
+            )}
           </div>
-        ) : (
-          <span className="text-muted">-</span>
         )
       },
     },
