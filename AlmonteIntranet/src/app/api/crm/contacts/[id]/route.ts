@@ -620,3 +620,127 @@ export async function GET(
     )
   }
 }
+
+/**
+ * PUT /api/crm/contacts/[id]
+ * Actualiza un contacto (persona) existente
+ */
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const body = await request.json()
+
+    // Validaciones básicas
+    if (!body.nombres || !body.nombres.trim()) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'El nombre es obligatorio',
+        },
+        { status: 400 }
+      )
+    }
+
+    // Preparar datos para Strapi
+    const personaUpdateData: any = {
+      data: {
+        nombres: body.nombres.trim(),
+        ...(body.primer_apellido && { primer_apellido: body.primer_apellido.trim() }),
+        ...(body.segundo_apellido && { segundo_apellido: body.segundo_apellido.trim() }),
+        ...(body.nombre_completo && { nombre_completo: body.nombre_completo.trim() }),
+        ...(body.rut && { rut: body.rut.trim() }),
+        ...(body.genero && { genero: body.genero }),
+        ...(body.cumpleagno && { cumpleagno: body.cumpleagno }),
+        ...(body.activo !== undefined && { activo: body.activo }),
+        ...(body.nivel_confianza && { nivel_confianza: body.nivel_confianza }),
+        ...(body.origen && { origen: body.origen }),
+      },
+    }
+
+    // Agregar emails si existen
+    if (body.emails && Array.isArray(body.emails) && body.emails.length > 0) {
+      personaUpdateData.data.emails = body.emails.map((emailItem: any, index: number) => {
+        const emailValue = typeof emailItem === 'string' ? emailItem : emailItem.email || ''
+        return {
+          email: typeof emailValue === 'string' ? emailValue.trim() : String(emailValue).trim(),
+          principal: typeof emailItem === 'object' && emailItem.principal !== undefined ? emailItem.principal : index === 0,
+        }
+      })
+    }
+
+    // Agregar telefonos si existen
+    if (body.telefonos && Array.isArray(body.telefonos) && body.telefonos.length > 0) {
+      personaUpdateData.data.telefonos = body.telefonos.map((telefonoItem: any, index: number) => {
+        const telefonoValue = telefonoItem.telefono_raw || telefonoItem.telefono_norm || telefonoItem.telefono || ''
+        return {
+          telefono_raw: typeof telefonoValue === 'string' ? telefonoValue.trim() : String(telefonoValue).trim(),
+          telefono_norm: typeof telefonoValue === 'string' ? telefonoValue.trim() : String(telefonoValue).trim(),
+          principal: typeof telefonoItem === 'object' && telefonoItem.principal !== undefined ? telefonoItem.principal : index === 0,
+        }
+      })
+    }
+
+    // Actualizar en Strapi
+    const response = await strapiClient.put<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
+      `/api/personas/${id}`,
+      personaUpdateData
+    )
+
+    // Extraer datos de la respuesta
+    const updatedData = Array.isArray(response.data) 
+      ? (response.data.length > 0 ? response.data[0] : response.data)
+      : response.data
+
+    return NextResponse.json({
+      success: true,
+      data: updatedData,
+      message: 'Contacto actualizado exitosamente',
+    }, { status: 200 })
+  } catch (error: any) {
+    console.error('[API /crm/contacts/[id] PUT] Error:', {
+      message: error.message,
+      status: error.status,
+      details: error.details,
+      id,
+    })
+
+    // Manejar errores específicos
+    if (error.status === 404) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Contacto no encontrado',
+          details: `No se encontró un contacto con el ID: ${id}`,
+        },
+        { status: 404 }
+      )
+    }
+
+    // Extraer mensaje de error más descriptivo
+    let errorMessage = error.message || 'Error al actualizar contacto'
+    
+    if (error.details?.errors && Array.isArray(error.details.errors)) {
+      const firstError = error.details.errors[0]
+      if (firstError?.message) {
+        const fieldName = firstError.path?.[0] || 'Campo'
+        const fieldLabel = fieldName === 'nombres' ? 'Nombre' : 
+                          fieldName === 'rut' ? 'RUT' : 
+                          fieldName
+        errorMessage = `${fieldLabel}: ${firstError.message}`
+      }
+    }
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: errorMessage,
+        details: error.details || {},
+        status: error.status || 500,
+      },
+      { status: error.status || 500 }
+    )
+  }
+}

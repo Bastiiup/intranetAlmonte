@@ -4,9 +4,10 @@
  * Lee las variables de entorno y exporta la configuración necesaria
  * para conectarse con la API de Strapi.
  * 
- * En desarrollo local:
- * - Usa NEXT_PUBLIC_STRAPI_URL_LOCAL si está definida (para Strapi local)
- * - Si no, usa NEXT_PUBLIC_STRAPI_URL (para Strapi de producción/staging)
+ * Prioridad de configuración:
+ * 1. Si STRAPI_FORCE_REMOTE=true, siempre usa remoto (incluso en desarrollo)
+ * 2. Si NEXT_PUBLIC_STRAPI_URL_LOCAL está definida Y no se fuerza remoto, usa local
+ * 3. Si no, usa NEXT_PUBLIC_STRAPI_URL (remoto)
  * 
  * En producción (Railway):
  * - Siempre usa NEXT_PUBLIC_STRAPI_URL (definida en Railway)
@@ -15,31 +16,40 @@
 // Detectar si estamos en desarrollo local
 const isDevelopment = process.env.NODE_ENV === 'development'
 
+// Verificar si se fuerza el uso del remoto
+const forceRemote = process.env.STRAPI_FORCE_REMOTE === 'true' || process.env.STRAPI_FORCE_REMOTE === '1'
+
 // URL base de Strapi
-// En desarrollo: prioriza la URL local si está definida
-// En producción: usa la URL de producción (definida en Railway)
 const getStrapiApiUrl = (): string => {
-  // En desarrollo, primero intentar usar Strapi local
+  // Si se fuerza remoto, siempre usar remoto
+  if (forceRemote) {
+    return process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'
+  }
+  
+  // En desarrollo, usar local solo si está explícitamente configurado
   if (isDevelopment && process.env.NEXT_PUBLIC_STRAPI_URL_LOCAL) {
     return process.env.NEXT_PUBLIC_STRAPI_URL_LOCAL
   }
   
-  // Si no hay URL local o estamos en producción, usar la URL de producción
+  // Por defecto, usar la URL remota
   return process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'
 }
 
 export const STRAPI_API_URL = getStrapiApiUrl()
 
 // Token de API de Strapi
-// En desarrollo: puede usar STRAPI_API_TOKEN_LOCAL para Strapi local
-// En producción: usa STRAPI_API_TOKEN (definida en Railway)
 const getStrapiApiToken = (): string | undefined => {
-  // En desarrollo, primero intentar usar token local
+  // Si se fuerza remoto, siempre usar token remoto
+  if (forceRemote) {
+    return process.env.STRAPI_API_TOKEN
+  }
+  
+  // En desarrollo, usar token local solo si está explícitamente configurado
   if (isDevelopment && process.env.STRAPI_API_TOKEN_LOCAL) {
     return process.env.STRAPI_API_TOKEN_LOCAL
   }
   
-  // Si no hay token local o estamos en producción, usar el token de producción
+  // Por defecto, usar el token remoto
   return process.env.STRAPI_API_TOKEN
 }
 
@@ -50,8 +60,12 @@ if (isDevelopment) {
   console.log('[Strapi Config] 🔧 Configuración de desarrollo:', {
     url: STRAPI_API_URL,
     tieneToken: !!STRAPI_API_TOKEN,
-    usandoLocal: !!process.env.NEXT_PUBLIC_STRAPI_URL_LOCAL,
-    usandoTokenLocal: !!process.env.STRAPI_API_TOKEN_LOCAL,
+    forceRemote,
+    usandoLocal: !forceRemote && !!process.env.NEXT_PUBLIC_STRAPI_URL_LOCAL,
+    usandoTokenLocal: !forceRemote && !!process.env.STRAPI_API_TOKEN_LOCAL,
+    urlSource: forceRemote 
+      ? 'FORCED_REMOTE' 
+      : (process.env.NEXT_PUBLIC_STRAPI_URL_LOCAL ? 'LOCAL' : 'REMOTE'),
   })
 }
 

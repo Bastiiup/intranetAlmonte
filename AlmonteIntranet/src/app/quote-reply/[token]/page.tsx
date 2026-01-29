@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import { Container, Card, CardHeader, CardBody, Form, FormGroup, FormLabel, FormControl, Button, Alert, Spinner, Row, Col } from 'react-bootstrap'
+import { Container, Card, CardHeader, CardBody, Form, FormGroup, FormLabel, FormControl, Button, Alert, Spinner, Row, Col, Badge } from 'react-bootstrap'
 import { LuSend, LuUpload, LuFileText, LuCheck } from 'react-icons/lu'
 
 interface RFQData {
@@ -12,8 +12,15 @@ interface RFQData {
   descripcion?: string
   fecha_vencimiento?: string
   moneda: string
-  productos: Array<{ id: string | number; nombre: string }>
+  productos: Array<{ 
+    id: string | number
+    documentId?: string
+    nombre: string
+    isbn?: string
+    sku?: string
+  }>
   empresas: Array<{ id: string | number; nombre: string }>
+  productos_cantidades?: Record<string, number>
 }
 
 export default function QuoteReplyPage() {
@@ -29,14 +36,14 @@ export default function QuoteReplyPage() {
   const [formData, setFormData] = useState({
     empresa_id: '',
     contacto_id: '',
-    numero_cotizacion: '',
-    precio_total: '',
-    precio_unitario: '',
     moneda: 'CLP',
     notas: '',
     fecha_validez: '',
     archivo_pdf: null as File | null,
   })
+  
+  // Estado para precios unitarios por producto
+  const [productosPrecios, setProductosPrecios] = useState<Record<string, number>>({})
 
   // Cargar datos de RFQ
   useEffect(() => {
@@ -65,6 +72,16 @@ export default function QuoteReplyPage() {
             moneda: result.data.moneda || 'CLP',
           }))
         }
+        
+        // Inicializar precios en 0 para cada producto
+        if (result.data.productos && result.data.productos_cantidades) {
+          const preciosIniciales: Record<string, number> = {}
+          result.data.productos.forEach((prod: any) => {
+            const prodId = String(prod.documentId || prod.id)
+            preciosIniciales[prodId] = 0
+          })
+          setProductosPrecios(preciosIniciales)
+        }
       } catch (err: any) {
         console.error('Error al cargar RFQ:', err)
         setError('Error al cargar la solicitud de cotización')
@@ -83,6 +100,28 @@ export default function QuoteReplyPage() {
       ...prev,
       [field]: value,
     }))
+  }
+  
+  const handleProductoPrecioChange = (productoId: string, precio: number) => {
+    setProductosPrecios(prev => ({
+      ...prev,
+      [productoId]: precio,
+    }))
+  }
+  
+  // Calcular total automáticamente
+  const calcularTotal = (): number => {
+    if (!rfq || !rfq.productos || !rfq.productos_cantidades) return 0
+    
+    let total = 0
+    rfq.productos.forEach((producto) => {
+      const prodId = String(producto.documentId || producto.id)
+      const cantidad = rfq.productos_cantidades?.[prodId] || rfq.productos_cantidades?.[String(producto.id)] || 1
+      const precioUnitario = productosPrecios[prodId] || 0
+      total += cantidad * precioUnitario
+    })
+    
+    return total
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -115,21 +154,50 @@ export default function QuoteReplyPage() {
         throw new Error('Debe seleccionar una empresa')
       }
 
-      if (!formData.precio_total || parseFloat(formData.precio_total) <= 0) {
-        throw new Error('El precio total es obligatorio y debe ser mayor a 0')
+      const totalCalculado = calcularTotal()
+      if (totalCalculado <= 0) {
+        throw new Error('Debe ingresar precios unitarios para al menos un producto')
+      }
+
+      // Preparar items para enviar
+      const items: Array<{
+        producto: string
+        cantidad: number
+        precio_unitario: number
+        subtotal: number
+      }> = []
+      
+      if (rfq && rfq.productos && rfq.productos_cantidades) {
+        rfq.productos.forEach((producto) => {
+          const prodId = String(producto.documentId || producto.id)
+          const cantidad = rfq.productos_cantidades?.[prodId] || rfq.productos_cantidades?.[String(producto.id)] || 1
+          const precioUnitario = productosPrecios[prodId] || 0
+          
+          if (precioUnitario > 0) {
+            items.push({
+              producto: prodId,
+              cantidad: cantidad,
+              precio_unitario: precioUnitario,
+              subtotal: cantidad * precioUnitario,
+            })
+          }
+        })
+      }
+      
+      if (items.length === 0) {
+        throw new Error('Debe ingresar precios para al menos un producto')
       }
 
       // Preparar FormData para enviar
       const submitFormData = new FormData()
       submitFormData.append('empresa_id', formData.empresa_id)
       if (formData.contacto_id) submitFormData.append('contacto_id', formData.contacto_id)
-      if (formData.numero_cotizacion) submitFormData.append('numero_cotizacion', formData.numero_cotizacion)
-      submitFormData.append('precio_total', formData.precio_total)
-      if (formData.precio_unitario) submitFormData.append('precio_unitario', formData.precio_unitario)
+      submitFormData.append('precio_total', totalCalculado.toString())
       submitFormData.append('moneda', formData.moneda)
       if (formData.notas) submitFormData.append('notas', formData.notas)
       if (formData.fecha_validez) submitFormData.append('fecha_validez', formData.fecha_validez)
       if (formData.archivo_pdf) submitFormData.append('archivo_pdf', formData.archivo_pdf)
+      submitFormData.append('items', JSON.stringify(items))
 
       const response = await fetch(`/api/public/quote-reply/${token}`, {
         method: 'POST',
@@ -231,11 +299,73 @@ export default function QuoteReplyPage() {
           {rfq.productos && rfq.productos.length > 0 && (
             <div className="mb-4">
               <h5>Productos Solicitados:</h5>
-              <ul>
-                {rfq.productos.map((producto) => (
-                  <li key={producto.id}>{producto.nombre}</li>
-                ))}
-              </ul>
+              <div className="table-responsive">
+                <table className="table table-bordered">
+                  <thead>
+                    <tr>
+                      <th>Producto</th>
+                      <th>ISBN/SKU</th>
+                      <th>Cantidad</th>
+                      <th>Precio Unitario *</th>
+                      <th>Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rfq.productos.map((producto) => {
+                      const prodId = String(producto.documentId || producto.id)
+                      const cantidad = rfq.productos_cantidades?.[prodId] || rfq.productos_cantidades?.[String(producto.id)] || 1
+                      const precioUnitario = productosPrecios[prodId] || 0
+                      const subtotal = cantidad * precioUnitario
+                      
+                      return (
+                        <tr key={producto.id}>
+                          <td>
+                            <strong>{producto.nombre}</strong>
+                          </td>
+                          <td>
+                            <small className="text-muted">
+                              {producto.isbn || producto.sku || '-'}
+                            </small>
+                          </td>
+                          <td>
+                            <Badge bg="primary">{cantidad}</Badge>
+                          </td>
+                          <td>
+                            <FormControl
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="0.00"
+                              value={precioUnitario || ''}
+                              onChange={(e) => handleProductoPrecioChange(prodId, parseFloat(e.target.value) || 0)}
+                              disabled={submitting}
+                              style={{ width: '120px' }}
+                            />
+                          </td>
+                          <td>
+                            <strong>
+                              {subtotal > 0 
+                                ? `${formData.moneda} ${subtotal.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                : '-'}
+                            </strong>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <th colSpan={4} className="text-end">Total:</th>
+                      <th>
+                        {calcularTotal() > 0 
+                          ? `${formData.moneda} ${calcularTotal().toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          : '-'}
+                      </th>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <small className="text-muted">* Ingrese el precio unitario para cada producto</small>
             </div>
           )}
         </CardBody>
@@ -275,53 +405,10 @@ export default function QuoteReplyPage() {
                   </FormControl>
                 </FormGroup>
               </Col>
-              <Col md={6}>
-                <FormGroup className="mb-3">
-                  <FormLabel>Número de Cotización (Opcional)</FormLabel>
-                  <FormControl
-                    type="text"
-                    placeholder="Ej: COT-2026-001"
-                    value={formData.numero_cotizacion}
-                    onChange={(e) => handleFieldChange('numero_cotizacion', e.target.value)}
-                    disabled={submitting}
-                  />
-                </FormGroup>
-              </Col>
             </Row>
 
             <Row>
-              <Col md={4}>
-                <FormGroup className="mb-3">
-                  <FormLabel>
-                    Precio Total <span className="text-danger">*</span>
-                  </FormLabel>
-                  <FormControl
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={formData.precio_total}
-                    onChange={(e) => handleFieldChange('precio_total', e.target.value)}
-                    required
-                    disabled={submitting}
-                  />
-                </FormGroup>
-              </Col>
-              <Col md={4}>
-                <FormGroup className="mb-3">
-                  <FormLabel>Precio Unitario (Opcional)</FormLabel>
-                  <FormControl
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={formData.precio_unitario}
-                    onChange={(e) => handleFieldChange('precio_unitario', e.target.value)}
-                    disabled={submitting}
-                  />
-                </FormGroup>
-              </Col>
-              <Col md={4}>
+              <Col md={6}>
                 <FormGroup className="mb-3">
                   <FormLabel>Moneda</FormLabel>
                   <FormControl

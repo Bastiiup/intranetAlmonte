@@ -30,13 +30,17 @@ interface POType {
 
 const getEstadoBadge = (estado?: string) => {
   const estados: Record<string, { variant: string; label: string; icon: any }> = {
-    pendiente: { variant: 'warning', label: 'Pendiente', icon: LuClock },
+    emitida: { variant: 'secondary', label: 'Emitida', icon: LuFileText },
     confirmada: { variant: 'info', label: 'Confirmada', icon: LuCheck },
-    en_transito: { variant: 'primary', label: 'En Tránsito', icon: LuTruck },
+    en_proceso: { variant: 'primary', label: 'En Proceso', icon: LuClock },
+    despachada: { variant: 'primary', label: 'Despachada', icon: LuTruck },
+    en_envio: { variant: 'warning', label: 'En Envío', icon: LuTruck },
     recibida: { variant: 'success', label: 'Recibida', icon: LuCheck },
+    recibida_confirmada: { variant: 'success', label: 'Recibida y Confirmada', icon: LuCheck },
+    facturada: { variant: 'success', label: 'Facturada', icon: LuCheck },
     cancelada: { variant: 'danger', label: 'Cancelada', icon: LuFileText },
   }
-  const estadoData = estados[estado || 'pendiente'] || estados.pendiente
+  const estadoData = estados[estado || 'emitida'] || estados.emitida
   const Icon = estadoData.icon
   return (
     <Badge bg={estadoData.variant} className="d-flex align-items-center gap-1" style={{ width: 'fit-content' }}>
@@ -57,8 +61,11 @@ export default function PODetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [uploadingFactura, setUploadingFactura] = useState(false)
   const [uploadingDespacho, setUploadingDespacho] = useState(false)
+  const [uploadingPago, setUploadingPago] = useState(false)
+  const [confirmingRecepcion, setConfirmingRecepcion] = useState(false)
   const facturaFileRef = useRef<HTMLInputElement>(null)
   const despachoFileRef = useRef<HTMLInputElement>(null)
+  const pagoFileRef = useRef<HTMLInputElement>(null)
   
   useEffect(() => {
     loadPO()
@@ -84,10 +91,10 @@ export default function PODetailPage() {
     }
   }
   
-  const handleFileUpload = async (type: 'factura' | 'despacho', file: File) => {
+  const handleFileUpload = async (type: 'factura' | 'despacho' | 'pago', file: File) => {
     if (!po) return
     
-    const setUploading = type === 'factura' ? setUploadingFactura : setUploadingDespacho
+    const setUploading = type === 'factura' ? setUploadingFactura : type === 'despacho' ? setUploadingDespacho : setUploadingPago
     setUploading(true)
     
     try {
@@ -106,13 +113,22 @@ export default function PODetailPage() {
         throw new Error(result.error || `Error al subir ${type}`)
       }
       
+      const typeLabels: Record<string, string> = {
+        factura: 'Factura',
+        despacho: 'Despacho',
+        pago: 'Documento de Pago'
+      }
+      
       showNotification({
         title: 'Éxito',
-        message: `${type === 'factura' ? 'Factura' : 'Despacho'} subido exitosamente`,
+        message: `${typeLabels[type] || type} subido exitosamente`,
         variant: 'success',
       })
       
-      loadPO()
+      await loadPO()
+      
+      // Verificar si todos los documentos están listos para cambiar estado a "en_envio"
+      await checkAndUpdateEstado()
     } catch (err: any) {
       showNotification({
         title: 'Error',
@@ -121,6 +137,80 @@ export default function PODetailPage() {
       })
     } finally {
       setUploading(false)
+    }
+  }
+  
+  const checkAndUpdateEstado = async () => {
+    if (!po) return
+    
+    try {
+      const response = await fetch(`/api/compras/ordenes-compra/${poId}`)
+      const result = await response.json()
+      
+      if (result.success && result.data) {
+        const poData = result.data
+        const attrs = poData.attributes || poData
+        const factura = attrs.factura?.data || attrs.factura
+        const despacho = attrs.orden_despacho?.data || attrs.orden_despacho
+        const pago = attrs.documento_pago?.data || attrs.documento_pago
+        const estadoActual = attrs.estado
+        
+        // Si todos los documentos están listos y el estado es "despachada" o anterior, cambiar a "en_envio"
+        if (factura && despacho && pago && estadoActual !== 'en_envio' && estadoActual !== 'recibida_confirmada') {
+          const response = await fetch(`/api/compras/ordenes-compra/${poId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ estado: 'en_envio' }),
+          })
+          
+          if (response.ok) {
+            showNotification({
+              title: 'Estado Actualizado',
+              message: 'La orden ha sido marcada como "En Envío" porque todos los documentos están completos',
+              variant: 'info',
+            })
+            await loadPO()
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error al verificar estado:', err)
+    }
+  }
+  
+  const handleConfirmarRecepcion = async () => {
+    if (!po || !window.confirm('¿Confirmar que los productos han llegado físicamente y están en buen estado?')) {
+      return
+    }
+    
+    setConfirmingRecepcion(true)
+    try {
+      const response = await fetch(`/api/compras/ordenes-compra/${poId}/confirmar-recepcion`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      
+      const result = await response.json()
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Error al confirmar recepción')
+      }
+      
+      showNotification({
+        title: 'Recepción Confirmada',
+        message: 'Los productos han sido agregados al inventario',
+        variant: 'success',
+      })
+      
+      await loadPO()
+    } catch (err: any) {
+      showNotification({
+        title: 'Error',
+        message: err.message || 'Error al confirmar recepción',
+        variant: 'danger',
+      })
+    } finally {
+      setConfirmingRecepcion(false)
     }
   }
   
@@ -135,6 +225,13 @@ export default function PODetailPage() {
     const file = e.target.files?.[0]
     if (file) {
       handleFileUpload('despacho', file)
+    }
+  }
+  
+  const handlePagoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      handleFileUpload('pago', file)
     }
   }
   
@@ -165,15 +262,90 @@ export default function PODetailPage() {
   }
   
   const attrs = (po as any).attributes || po
+  
+  // Extraer empresa (proveedor)
   const empresa = attrs.empresa?.data || attrs.empresa
-  const cotizacion = attrs.cotizacion_recibida?.data || attrs.cotizacion?.data || attrs.cotizacion || attrs.cotizacion_recibida
-  const items = attrs.items || []
-  const estado = attrs.estado || 'pendiente'
   const empAttrs = empresa?.attributes || empresa || {}
+  
+  // Extraer cotización recibida
+  const cotizacion = attrs.cotizacion_recibida?.data || attrs.cotizacion?.data || attrs.cotizacion || attrs.cotizacion_recibida
   const cotAttrs = cotizacion?.attributes || cotizacion || {}
+  const cotizacionId = cotizacion?.id || cotizacion?.documentId
+  
+  // Extraer RFQ desde la cotización
+  const rfq = cotAttrs.rfq?.data || cotAttrs.rfq
+  const rfqAttrs = rfq?.attributes || rfq || {}
+  
+  // Extraer items: primero desde la cotización, si no desde el RFQ
+  // items es un componente, viene directamente en cotAttrs.items
+  let items: any[] = []
+  
+  // Intentar obtener items desde la cotización (componente)
+  if (cotAttrs.items && Array.isArray(cotAttrs.items)) {
+    items = cotAttrs.items
+  }
+  
+  // Si no hay items en la cotización, generarlos desde el RFQ
+  if (items.length === 0 && rfqAttrs.productos) {
+    const productos = Array.isArray(rfqAttrs.productos?.data) 
+      ? rfqAttrs.productos.data 
+      : (rfqAttrs.productos?.data ? [rfqAttrs.productos.data] : (Array.isArray(rfqAttrs.productos) ? rfqAttrs.productos : []))
+    
+    // Obtener cantidades desde productos_cantidades (JSON field)
+    const productosCantidades = rfqAttrs.productos_cantidades || {}
+    
+    items = productos.map((producto: any) => {
+      const prodAttrs = producto.attributes || producto
+      const productoId = producto.documentId || producto.id
+      const cantidad = productosCantidades[productoId] || productosCantidades[String(productoId)] || 1
+      const precioUnitario = cotAttrs.precio_unitario || 0
+      
+      return {
+        producto: producto,
+        producto_nombre: prodAttrs.nombre_libro || prodAttrs.nombre || 'Producto',
+        cantidad: cantidad,
+        precio_unitario: precioUnitario,
+        subtotal: cantidad * precioUnitario,
+      }
+    })
+  } else if (items.length > 0) {
+    // Si hay items en la cotización, necesitamos buscar los productos completos desde el RFQ
+    // porque en el componente items, producto es solo un string (ID)
+    const productosRFQ = Array.isArray(rfqAttrs.productos?.data) 
+      ? rfqAttrs.productos.data 
+      : (rfqAttrs.productos?.data ? [rfqAttrs.productos.data] : (Array.isArray(rfqAttrs.productos) ? rfqAttrs.productos : []))
+    
+    // Crear un mapa de productos por ID para búsqueda rápida
+    const productosMap = new Map()
+    productosRFQ.forEach((prod: any) => {
+      const prodId = prod.documentId || prod.id
+      productosMap.set(String(prodId), prod)
+      productosMap.set(String(prod.id), prod)
+    })
+    
+    // Enriquecer items con información completa del producto
+    items = items.map((item: any) => {
+      const productoId = item.producto || item.producto_id
+      const productoCompleto = productoId ? productosMap.get(String(productoId)) : null
+      
+      return {
+        ...item,
+        producto: productoCompleto || null,
+        producto_nombre: item.nombre || item.producto_nombre || (productoCompleto ? (productoCompleto.attributes || productoCompleto).nombre_libro || (productoCompleto.attributes || productoCompleto).nombre : 'Producto'),
+      }
+    })
+  }
+  
+  const estado = attrs.estado || 'pendiente'
   const factura = attrs.factura?.data || attrs.factura || attrs.attributes?.factura
   const despacho = attrs.orden_despacho?.data || attrs.despacho?.data || attrs.despacho || attrs.orden_despacho || attrs.attributes?.orden_despacho
-  const cotizacionId = cotizacion?.id || cotizacion?.documentId
+  const pago = attrs.documento_pago?.data || attrs.documento_pago || attrs.attributes?.documento_pago
+  
+  // Extraer emails de la empresa proveedora
+  const empresaEmails = empAttrs.emails?.data || empAttrs.emails || []
+  const emailPrincipal = Array.isArray(empresaEmails) && empresaEmails.length > 0
+    ? (empresaEmails[0].attributes || empresaEmails[0]).email || empresaEmails[0].email
+    : null
   
   return (
     <Container fluid>
@@ -206,7 +378,15 @@ export default function PODetailPage() {
                   </p>
                   <p className="mb-2">
                     <strong>Proveedor:</strong> {empAttrs.empresa_nombre || empAttrs.nombre || '-'}
+                    {empAttrs.empresa_nombre_corto && (
+                      <span className="text-muted ms-2">({empAttrs.empresa_nombre_corto})</span>
+                    )}
                   </p>
+                  {emailPrincipal && (
+                    <p className="mb-2">
+                      <strong>Email Proveedor:</strong> {emailPrincipal}
+                    </p>
+                  )}
                   <p className="mb-2">
                     <strong>Cotización:</strong>{' '}
                     {cotAttrs.numero_cotizacion ? (
@@ -274,6 +454,7 @@ export default function PODetailPage() {
                   <thead>
                     <tr>
                       <th>Producto</th>
+                      <th>SKU/ISBN</th>
                       <th>Cantidad</th>
                       <th>Precio Unitario</th>
                       <th>Subtotal</th>
@@ -281,21 +462,45 @@ export default function PODetailPage() {
                   </thead>
                   <tbody>
                     {items.map((item: any, idx: number) => {
-                      const itemAttrs = item.attributes || item
-                      const producto = itemAttrs.producto?.data || itemAttrs.producto
+                      // item puede venir directamente del componente o enriquecido
+                      const producto = item.producto
                       const prodAttrs = producto?.attributes || producto || {}
+                      
+                      // Obtener nombre del producto (puede venir de diferentes lugares)
+                      const nombreProducto = item.producto_nombre || item.nombre || prodAttrs.nombre_libro || prodAttrs.nombre || 'Producto'
+                      
+                      // Calcular subtotal si no existe
+                      const cantidad = item.cantidad || 0
+                      const precioUnitario = item.precio_unitario || 0
+                      const subtotal = item.subtotal || item.total || (cantidad * precioUnitario)
+                      
                       return (
                         <tr key={idx}>
-                          <td>{prodAttrs.nombre_libro || prodAttrs.nombre || 'Producto'}</td>
-                          <td>{itemAttrs.cantidad || '-'}</td>
                           <td>
-                            {itemAttrs.precio_unitario
-                              ? `${attrs.moneda || 'CLP'} ${Number(itemAttrs.precio_unitario).toLocaleString()}`
+                            <div>
+                              <strong>{nombreProducto}</strong>
+                              {prodAttrs.autor && (
+                                <div className="text-muted small">{prodAttrs.autor}</div>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            {prodAttrs.sku && <div>{prodAttrs.sku}</div>}
+                            {prodAttrs.isbn && (
+                              <div className="text-muted small">ISBN: {prodAttrs.isbn}</div>
+                            )}
+                            {item.sku && !prodAttrs.sku && <div>{item.sku}</div>}
+                            {!prodAttrs.sku && !prodAttrs.isbn && !item.sku && '-'}
+                          </td>
+                          <td>{cantidad || '-'}</td>
+                          <td>
+                            {precioUnitario > 0
+                              ? `${attrs.moneda || 'CLP'} ${Number(precioUnitario).toLocaleString()}`
                               : '-'}
                           </td>
                           <td>
-                            {itemAttrs.subtotal
-                              ? `${attrs.moneda || 'CLP'} ${Number(itemAttrs.subtotal).toLocaleString()}`
+                            {subtotal > 0
+                              ? `${attrs.moneda || 'CLP'} ${Number(subtotal).toLocaleString()}`
                               : '-'}
                           </td>
                         </tr>
@@ -304,7 +509,7 @@ export default function PODetailPage() {
                   </tbody>
                   <tfoot>
                     <tr>
-                      <th colSpan={3}>Total</th>
+                      <th colSpan={4}>Total</th>
                       <th>
                         {attrs.monto_total
                           ? `${attrs.moneda || 'CLP'} ${Number(attrs.monto_total).toLocaleString()}`
@@ -361,7 +566,7 @@ export default function PODetailPage() {
                 )}
               </FormGroup>
               
-              <FormGroup>
+              <FormGroup className="mb-3">
                 <FormLabel>Despacho/Guía de Despacho</FormLabel>
                 {despacho ? (
                   <div>
@@ -397,6 +602,70 @@ export default function PODetailPage() {
                   </div>
                 )}
               </FormGroup>
+              
+              <FormGroup className="mb-3">
+                <FormLabel>Documento de Pago</FormLabel>
+                {pago ? (
+                  <div>
+                    <div className="d-flex align-items-center gap-2 mb-2">
+                      <LuFileText size={20} />
+                      <span>{pago.name || 'Documento de Pago'}</span>
+                    </div>
+                    {pago.url && (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        href={pago.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <LuDownload className="me-1" />
+                        Descargar
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <FormControl
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      ref={pagoFileRef}
+                      onChange={handlePagoChange}
+                      disabled={uploadingPago}
+                    />
+                    {uploadingPago && (
+                      <Spinner size="sm" className="mt-2" />
+                    )}
+                  </div>
+                )}
+              </FormGroup>
+              
+              {/* Botón para confirmar recepción */}
+              {estado === 'en_envio' && (
+                <div className="mt-3">
+                  <Button
+                    variant="success"
+                    onClick={handleConfirmarRecepcion}
+                    disabled={confirmingRecepcion}
+                    className="w-100"
+                  >
+                    {confirmingRecepcion ? (
+                      <>
+                        <Spinner size="sm" className="me-2" />
+                        Confirmando...
+                      </>
+                    ) : (
+                      <>
+                        <LuCheck className="me-1" />
+                        Confirmar Recepción de Productos
+                      </>
+                    )}
+                  </Button>
+                  <small className="text-muted d-block mt-2">
+                    Al confirmar, los productos serán agregados al inventario
+                  </small>
+                </div>
+              )}
             </CardBody>
           </Card>
         </Col>

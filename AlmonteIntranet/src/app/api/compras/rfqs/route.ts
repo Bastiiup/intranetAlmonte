@@ -19,15 +19,19 @@ export async function GET(request: NextRequest) {
     const empresaId = searchParams.get('empresaId') || ''
     
     // Usar populate específico para evitar errores con comuna en empresas
-    // Populatear empresas y emails, pero evitar populatear comuna usando populate anidado específico
+    // Para empresas (manyToMany): populatear empresas con emails anidados
+    // Para productos (manyToMany): usar populate=true (populate=* causa error "Invalid key portada_libro")
+    // NOTA: En Strapi v5, no se puede usar populate[empresas]=* y populate[empresas][populate][emails] al mismo tiempo
+    // IMPORTANTE: Para cotizaciones_recibidas, populatear también empresa y contacto_responsable
     const params = new URLSearchParams({
       'pagination[page]': page,
       'pagination[pageSize]': pageSize,
       'sort[0]': 'createdAt:desc',
       'populate[empresas][populate][emails]': 'true',
-      'populate[productos]': 'true',
+      'populate[productos]': 'true', // Usar populate simple - si hay error con portada_libro, Strapi lo ignorará pero seguirá populando
       'populate[creado_por][populate][persona]': 'true',
-      'populate[cotizaciones_recibidas]': 'true',
+      'populate[cotizaciones_recibidas][populate][empresa][populate][emails]': 'true',
+      'populate[cotizaciones_recibidas][populate][contacto_responsable]': 'true',
     })
     
     if (search) {
@@ -40,8 +44,46 @@ export async function GET(request: NextRequest) {
       params.append('filters[estado][$eq]', estado)
     }
     
+    // Si hay filtro por empresaId, verificar si es documentId y convertirlo a ID numérico
+    let empresaIdFinal = empresaId
     if (empresaId) {
-      params.append('filters[empresas][id][$eq]', empresaId)
+      const isDocumentId = typeof empresaId === 'string' && !/^\d+$/.test(empresaId)
+      
+      if (isDocumentId) {
+        try {
+          // Obtener el ID numérico de la empresa si es documentId
+          const empresaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+            `/api/empresas/${empresaId}?fields[0]=id`
+          )
+          const empresaData = Array.isArray(empresaResponse.data) 
+            ? empresaResponse.data[0] 
+            : empresaResponse.data
+          
+          if (empresaData && typeof empresaData === 'object' && 'id' in empresaData) {
+            empresaIdFinal = String(empresaData.id as number)
+          } else {
+            // Si no se encuentra la empresa, retornar error
+            return NextResponse.json(
+              {
+                success: false,
+                error: 'Empresa no encontrada',
+              },
+              { status: 404 }
+            )
+          }
+        } catch (error: any) {
+          console.error('[API /compras/rfqs GET] Error al obtener empresa:', error)
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Error al obtener empresa: ' + (error.message || 'Empresa no encontrada'),
+            },
+            { status: error.status || 404 }
+          )
+        }
+      }
+      
+      params.append('filters[empresas][id][$eq]', empresaIdFinal)
     }
     
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
@@ -74,6 +116,14 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     
+    console.log('[API /compras/rfqs POST] 📥 Datos recibidos del frontend:', {
+      nombre: body.nombre,
+      empresas: body.empresas,
+      empresasType: body.empresas?.map((e: any) => ({ e, type: typeof e })),
+      productos: body.productos,
+      productosType: body.productos?.map((p: any) => ({ p, type: typeof p })),
+    })
+    
     // Validaciones básicas
     if (!body.nombre || !body.nombre.trim()) {
       return NextResponse.json(
@@ -105,6 +155,11 @@ export async function POST(request: NextRequest) {
       )
     }
     
+    console.log('[API /compras/rfqs POST] ✅ Validaciones pasadas, llamando a createRFQ con:', {
+      productos: body.productos,
+      productosCount: body.productos.length,
+    })
+    
     const rfqData = {
       nombre: body.nombre.trim(),
       descripcion: body.descripcion?.trim(),
@@ -112,11 +167,23 @@ export async function POST(request: NextRequest) {
       fecha_vencimiento: body.fecha_vencimiento,
       estado: body.estado || 'draft',
       moneda: body.moneda || 'CLP',
-      empresas: body.empresas.map((id: any) => Number(id)),
-      productos: body.productos.map((id: any) => Number(id)),
+      // IMPORTANTE: empresas puede contener números (ID interno) o strings (documentId)
+      // NO convertir a Number porque documentId son UUIDs que se convertirían en NaN
+      empresas: body.empresas, // Pasar tal como vienen, el servicio los procesará
+      // IMPORTANTE: productos puede contener números (ID interno) o strings (documentId)
+      // NO convertir a Number porque documentId son UUIDs que se convertirían en NaN
+      productos: body.productos, // Pasar tal como vienen, el servicio los procesará
+      productos_cantidades: body.productos_cantidades || {}, // Cantidades por producto
       creado_por: body.creado_por ? Number(body.creado_por) : undefined,
       notas_internas: body.notas_internas?.trim(),
     }
+    
+    console.log('[API /compras/rfqs POST] 📦 Datos preparados para createRFQ:', {
+      empresas: rfqData.empresas,
+      empresasTypes: rfqData.empresas.map((e: any) => ({ e, type: typeof e })),
+      productos: rfqData.productos,
+      productosTypes: rfqData.productos.map((p: any) => ({ p, type: typeof p })),
+    })
     
     const result = await createRFQ(rfqData)
     

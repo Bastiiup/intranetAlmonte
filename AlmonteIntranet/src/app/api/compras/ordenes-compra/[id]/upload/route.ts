@@ -28,11 +28,11 @@ export async function POST(
       )
     }
     
-    if (!type || (type !== 'factura' && type !== 'despacho')) {
+    if (!type || (type !== 'factura' && type !== 'despacho' && type !== 'pago')) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Tipo de archivo inválido. Debe ser "factura" o "despacho"',
+          error: 'Tipo de archivo inválido. Debe ser "factura", "despacho" o "pago"',
         },
         { status: 400 }
       )
@@ -81,6 +81,8 @@ export async function POST(
       updateData.data.factura = uploadedFile.id
     } else if (type === 'despacho') {
       updateData.data.orden_despacho = uploadedFile.id
+    } else if (type === 'pago') {
+      updateData.data.documento_pago = uploadedFile.id
     }
     
     const response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
@@ -92,9 +94,9 @@ export async function POST(
       success: true,
       data: {
         ...response.data,
-        [type === 'factura' ? 'factura' : 'orden_despacho']: uploadedFile,
+        [type === 'factura' ? 'factura' : type === 'despacho' ? 'orden_despacho' : 'documento_pago']: uploadedFile,
       },
-      message: `${type === 'factura' ? 'Factura' : 'Despacho'} subido exitosamente`,
+      message: `${type === 'factura' ? 'Factura' : type === 'despacho' ? 'Despacho' : 'Documento de Pago'} subido exitosamente`,
     }, { status: 200 })
   } catch (error: any) {
     console.error('[API /compras/ordenes-compra/[id]/upload POST] Error:', error)

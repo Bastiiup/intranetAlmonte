@@ -28,6 +28,36 @@ const DEPENDENCIAS = [
   'Particular Pagado',
 ]
 
+// Helper para parsear JSON de forma segura
+async function safeJsonParse(response: Response): Promise<any> {
+  const contentType = response.headers.get('content-type')
+  const contentLength = response.headers.get('content-length')
+  
+  // Si no hay contenido o es 204 No Content, retornar objeto vacío
+  if (response.status === 204 || contentLength === '0') {
+    return {}
+  }
+  
+  // Verificar que el content-type sea JSON
+  if (contentType && !contentType.includes('application/json')) {
+    const text = await response.text()
+    throw new Error(`Respuesta no es JSON. Content-Type: ${contentType}, Body: ${text.substring(0, 100)}`)
+  }
+  
+  const text = await response.text()
+  
+  // Si el texto está vacío, retornar objeto vacío
+  if (!text || text.trim().length === 0) {
+    return {}
+  }
+  
+  try {
+    return JSON.parse(text)
+  } catch (parseError) {
+    throw new Error(`Error al parsear JSON: ${parseError instanceof Error ? parseError.message : 'Unknown error'}. Respuesta: ${text.substring(0, 200)}`)
+  }
+}
+
 interface EditContactModalProps {
   show: boolean
   onHide: () => void
@@ -78,7 +108,7 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
         ? `/api/crm/colegios/list?search=${encodeURIComponent(search)}`
         : '/api/crm/colegios/list' // Sin búsqueda para cargar todos
       const response = await fetch(url)
-      const result = await response.json()
+      const result = await safeJsonParse(response)
       if (result.success && Array.isArray(result.data)) {
         setColegios(result.data)
         console.log(`✅ [EditContactModal] ${result.data.length} colegios cargados`)
@@ -94,7 +124,7 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
     setLoadingEmpresas(true)
     try {
       const response = await fetch('/api/crm/empresas?pageSize=1000')
-      const result = await response.json()
+      const result = await safeJsonParse(response)
       console.log('[EditContactModal] 📥 Respuesta de empresas:', result)
       
       if (result.success && Array.isArray(result.data)) {
@@ -231,7 +261,7 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
         console.log('[EditContactModal] 📤 Obteniendo datos completos del colegio:', colegioId)
         
         const response = await fetch(`/api/crm/colegios/${colegioId}?populate[comuna]=true`)
-        const result = await response.json()
+        const result = await safeJsonParse(response)
         
         if (result.success && result.data) {
           const colegioData = result.data
@@ -322,7 +352,7 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
 
           console.log('[EditContactModal] 📤 Fetching contact data for ID:', contactId)
           const response = await fetch(`/api/crm/contacts/${contactId}`)
-          const result = await response.json()
+          const result = await safeJsonParse(response)
           
           if (!response.ok || !result.success) {
             throw new Error(result.error || 'Error al cargar contacto')
@@ -388,7 +418,7 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
                   // Intentar obtener el ID numérico desde Strapi
                   try {
                     const colegioResponse = await fetch(`/api/crm/colegios/${colegioDocumentId}?fields=id`)
-                    const colegioResult = await colegioResponse.json()
+                    const colegioResult = await safeJsonParse(colegioResponse)
                     if (colegioResult.success && colegioResult.data) {
                       const colegioIdNum = colegioResult.data.id || colegioResult.data.documentId
                       colegioId = String(colegioIdNum)
@@ -434,7 +464,7 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
                 const empresaContactosResponse = await fetch(
                   `/api/empresa-contactos?filters[persona][id][$eq]=${personaIdNum}`
                 )
-                const empresaContactosResult = await empresaContactosResponse.json()
+                const empresaContactosResult = await safeJsonParse(empresaContactosResponse)
                 if (empresaContactosResult.success && empresaContactosResult.data) {
                   const empresaContactos = Array.isArray(empresaContactosResult.data) 
                     ? empresaContactosResult.data 
@@ -695,15 +725,49 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
         body: JSON.stringify(contactData),
       })
 
-      const result = await response.json()
+      const result = await safeJsonParse(response)
 
       if (!response.ok || !result.success) {
-        const errorMessage = result.details?.errors?.[0]?.message || result.error || 'Error al actualizar contacto'
-        console.error('[EditContactModal] ❌ Error en respuesta:', {
-          status: response.status,
-          error: errorMessage,
-          details: result.details,
-        })
+        const status = response.status ?? 0
+        const statusText = response.statusText || 'No status text'
+        const errorMessage = result.details?.errors?.[0]?.message || result.error || `Error al actualizar contacto (${status})`
+        const url = `/api/crm/contacts/${contactIdStr || 'unknown'}`
+        
+        // Log directo con valores primitivos para evitar problemas de serialización
+        console.error(
+          `[EditContactModal] ❌ Error al actualizar contacto\n` +
+          `  Status: ${status}\n` +
+          `  StatusText: ${statusText}\n` +
+          `  URL: ${url}\n` +
+          `  Method: PUT\n` +
+          `  Error: ${errorMessage}\n` +
+          `  Result type: ${typeof result}\n` +
+          `  Result keys: ${result && typeof result === 'object' ? Object.keys(result).join(', ') : 'N/A'}\n` +
+          `  Has details: ${!!(result.details && typeof result.details === 'object' && Object.keys(result.details).length > 0)}\n` +
+          `  Timestamp: ${new Date().toISOString()}`
+        )
+        
+        // Si hay detalles adicionales, mostrarlos por separado
+        if (result.details && typeof result.details === 'object' && Object.keys(result.details).length > 0) {
+          console.error('[EditContactModal] Error details:', result.details)
+        }
+        
+        // Si hay un error diferente al mensaje, mostrarlo
+        if (result.error && typeof result.error === 'string' && result.error.trim() && result.error !== errorMessage) {
+          console.error('[EditContactModal] Error from response:', result.error)
+        }
+        
+        // Si result tiene contenido, mostrarlo
+        if (result && typeof result === 'object' && Object.keys(result).length > 0) {
+          try {
+            console.error('[EditContactModal] Full response:', JSON.stringify(result, null, 2))
+          } catch (e) {
+            console.error('[EditContactModal] Response (could not stringify):', result)
+          }
+        } else {
+          console.error('[EditContactModal] ⚠️ Response is empty or invalid')
+        }
+        
         throw new Error(errorMessage)
       }
 
@@ -735,7 +799,7 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
               // Si es documentId, hacer una llamada para obtener el ID numérico
               try {
                 const personaResponse = await fetch(`/api/crm/contacts/${contactId}`)
-                const personaResult = await personaResponse.json()
+                const personaResult = await safeJsonParse(personaResponse)
                 if (personaResult.success && personaResult.data) {
                   const personaData = Array.isArray(personaResult.data) ? personaResult.data[0] : personaResult.data
                   const attrs = personaData.attributes || personaData
@@ -779,7 +843,7 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
             const trayectoriasResponse = await fetch(
               `/api/persona-trayectorias?filters[persona][id][$eq]=${personaIdNum}&filters[is_current][$eq]=true`
             )
-            const trayectoriasResult = await trayectoriasResponse.json()
+            const trayectoriasResult = await safeJsonParse(trayectoriasResponse)
             
             if (trayectoriasResult.success && trayectoriasResult.data) {
               trayectoriasExistentes = Array.isArray(trayectoriasResult.data) 
@@ -798,7 +862,7 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
               const trayectoriasResponse2 = await fetch(
                 `/api/persona-trayectorias?filters[persona][id][$eq]=${personaIdNum}`
               )
-              const trayectoriasResult2 = await trayectoriasResponse2.json()
+              const trayectoriasResult2 = await safeJsonParse(trayectoriasResponse2)
               
               if (trayectoriasResult2.success && trayectoriasResult2.data) {
                 trayectoriasExistentes = Array.isArray(trayectoriasResult2.data) 
@@ -846,16 +910,24 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
               }),
             })
 
-            const updateResult = await updateResponse.json()
+            const updateResult = await safeJsonParse(updateResponse)
 
             if (!updateResponse.ok || !updateResult.success) {
-              console.error('[EditContactModal] ❌ Error al actualizar trayectoria:', {
+              const errorMsg = updateResult.error || `Error al actualizar trayectoria (${updateResponse.status})`
+              const logData: any = {
                 status: updateResponse.status,
-                error: updateResult.error,
-                details: updateResult.details,
-              })
+                statusText: updateResponse.statusText,
+                message: errorMsg,
+              }
+              if (updateResult.error && updateResult.error !== errorMsg) {
+                logData.error = updateResult.error
+              }
+              if (updateResult.details && typeof updateResult.details === 'object' && Object.keys(updateResult.details).length > 0) {
+                logData.details = updateResult.details
+              }
+              console.error('[EditContactModal] ❌ Error al actualizar trayectoria:', logData)
               setError(
-                `El contacto se actualizó correctamente, pero hubo un error al actualizar el colegio: ${updateResult.error || 'Error desconocido'}. Puedes intentar editarlo nuevamente.`
+                `El contacto se actualizó correctamente, pero hubo un error al actualizar el colegio: ${errorMsg}. Puedes intentar editarlo nuevamente.`
               )
             } else {
               console.log('[EditContactModal] ✅ Trayectoria actualizada exitosamente')
@@ -878,16 +950,24 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
               }),
             })
 
-            const createResult = await createResponse.json()
+            const createResult = await safeJsonParse(createResponse)
 
             if (!createResponse.ok || !createResult.success) {
-              console.error('[EditContactModal] ❌ Error al crear trayectoria:', {
+              const errorMsg = createResult.error || `Error al crear trayectoria (${createResponse.status})`
+              const logData: any = {
                 status: createResponse.status,
-                error: createResult.error,
-                details: createResult.details,
-              })
+                statusText: createResponse.statusText,
+                message: errorMsg,
+              }
+              if (createResult.error && createResult.error !== errorMsg) {
+                logData.error = createResult.error
+              }
+              if (createResult.details && typeof createResult.details === 'object' && Object.keys(createResult.details).length > 0) {
+                logData.details = createResult.details
+              }
+              console.error('[EditContactModal] ❌ Error al crear trayectoria:', logData)
               setError(
-                `El contacto se actualizó correctamente, pero hubo un error al asociarlo al colegio: ${createResult.error || 'Error desconocido'}. Puedes intentar editarlo nuevamente.`
+                `El contacto se actualizó correctamente, pero hubo un error al asociarlo al colegio: ${errorMsg}. Puedes intentar editarlo nuevamente.`
               )
             } else {
               console.log('[EditContactModal] ✅ Trayectoria creada exitosamente')
@@ -922,7 +1002,7 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
             } else {
               try {
                 const personaResponse = await fetch(`/api/crm/contacts/${contactId}`)
-                const personaResult = await personaResponse.json()
+                const personaResult = await safeJsonParse(personaResponse)
                 if (personaResult.success && personaResult.data) {
                   const personaData = Array.isArray(personaResult.data) ? personaResult.data[0] : personaResult.data
                   const attrs = personaData.attributes || personaData
@@ -949,11 +1029,23 @@ const EditContactModal = ({ show, onHide, contact, onSuccess }: EditContactModal
                 }),
               })
 
-              const empresaContactoResult = await empresaContactoResponse.json()
+              const empresaContactoResult = await safeJsonParse(empresaContactoResponse)
               if (!empresaContactoResponse.ok || !empresaContactoResult.success) {
-                console.error('[EditContactModal] ❌ Error al crear/actualizar relación empresa-contacto:', empresaContactoResult.error)
+                const errorMsg = empresaContactoResult.error || `Error al crear/actualizar relación empresa-contacto (${empresaContactoResponse.status})`
+                const logData: any = {
+                  status: empresaContactoResponse.status,
+                  statusText: empresaContactoResponse.statusText,
+                  message: errorMsg,
+                }
+                if (empresaContactoResult.error && empresaContactoResult.error !== errorMsg) {
+                  logData.error = empresaContactoResult.error
+                }
+                if (empresaContactoResult.details && typeof empresaContactoResult.details === 'object' && Object.keys(empresaContactoResult.details).length > 0) {
+                  logData.details = empresaContactoResult.details
+                }
+                console.error('[EditContactModal] ❌ Error al crear/actualizar relación empresa-contacto:', logData)
                 setError(
-                  `El contacto se actualizó correctamente, pero hubo un error al asociarlo a la empresa: ${empresaContactoResult.error || 'Error desconocido'}. Puedes intentar editarlo nuevamente.`
+                  `El contacto se actualizó correctamente, pero hubo un error al asociarlo a la empresa: ${errorMsg}. Puedes intentar editarlo nuevamente.`
                 )
               } else {
                 console.log('[EditContactModal] ✅ Relación empresa-contacto creada/actualizada exitosamente')

@@ -52,9 +52,32 @@ export async function GET(request: NextRequest) {
       `/api/cotizaciones-recibidas?${params.toString()}`
     )
     
+    // Normalizar datos para asegurar campos consistentes
+    const normalizeCotizacion = (cotizacion: any) => {
+      const attrs = cotizacion.attributes || cotizacion
+      return {
+        ...cotizacion,
+        attributes: {
+          ...attrs,
+          precio_total: attrs.precio_total,
+          precio_unitario: attrs.precio_unitario,
+          monto_total: attrs.precio_total || attrs.monto_total, // Compatibilidad
+          monto_unitario: attrs.precio_unitario || attrs.monto_unitario, // Compatibilidad
+        },
+        precio_total: attrs.precio_total,
+        precio_unitario: attrs.precio_unitario,
+        monto_total: attrs.precio_total || attrs.monto_total,
+        monto_unitario: attrs.precio_unitario || attrs.monto_unitario,
+      }
+    }
+    
+    const data = Array.isArray(response.data)
+      ? response.data.map(normalizeCotizacion)
+      : normalizeCotizacion(response.data)
+    
     return NextResponse.json({
       success: true,
-      data: response.data,
+      data: data,
       meta: response.meta,
     }, { status: 200 })
   } catch (error: any) {

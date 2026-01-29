@@ -13,22 +13,32 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const body = await request.json()
+    const body = await request.json().catch(() => ({})) // Si no hay body, usar objeto vacío
     
-    const cotizacionId = parseInt(String(id))
-    if (isNaN(cotizacionId)) {
+    // Aceptar tanto ID numérico como documentId
+    const cotizacionId: number | string = /^\d+$/.test(id) ? parseInt(id) : id
+    
+    if (!cotizacionId) {
       return NextResponse.json(
         {
           success: false,
-          error: 'ID de cotización inválido',
+          error: 'ID de cotización no proporcionado',
         },
         { status: 400 }
       )
     }
     
     const creadoPorId = body.creado_por_id ? parseInt(String(body.creado_por_id)) : undefined
+    const empresaPropiaId = body.empresa_propia_id ? (typeof body.empresa_propia_id === 'string' ? body.empresa_propia_id : String(body.empresa_propia_id)) : undefined
     
-    const result = await createPOFromCotizacion(cotizacionId, creadoPorId)
+    console.log('[API /compras/cotizaciones/[id]/crear-po POST] Creando PO:', {
+      cotizacionId,
+      cotizacionIdType: typeof cotizacionId,
+      empresaPropiaId,
+      creadoPorId,
+    })
+    
+    const result = await createPOFromCotizacion(cotizacionId, creadoPorId, empresaPropiaId)
     
     if (!result.success) {
       return NextResponse.json(

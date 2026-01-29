@@ -65,3 +65,12 @@ describe('BaseVectorMap', () => {
   })
 })
 
+
+
+
+
+
+
+
+
+

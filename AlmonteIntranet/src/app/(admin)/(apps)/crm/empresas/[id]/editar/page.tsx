@@ -47,6 +47,7 @@ const EditarEmpresaPage = () => {
           emails: attrs.emails || [],
           direcciones: attrs.direcciones || [],
           datos_facturacion: attrs.datos_facturacion || {},
+          es_empresa_propia: attrs.es_empresa_propia || false,
         }
 
         setEmpresa(empresaFormData)
@@ -78,6 +79,7 @@ const EditarEmpresaPage = () => {
         emails: data.emails.filter((e: any) => e.email),
         direcciones: data.direcciones.filter((d: any) => d.nombre_calle || d.numero_calle),
         datos_facturacion: data.datos_facturacion,
+        es_empresa_propia: data.es_empresa_propia || false,
       }
 
       const response = await fetch(`/api/crm/empresas/${empresaId}`, {

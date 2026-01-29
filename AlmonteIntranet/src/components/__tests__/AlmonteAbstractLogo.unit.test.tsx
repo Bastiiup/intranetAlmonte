@@ -50,3 +50,12 @@ describe('AlmonteAbstractLogo', () => {
   })
 })
 
+
+
+
+
+
+
+
+
+

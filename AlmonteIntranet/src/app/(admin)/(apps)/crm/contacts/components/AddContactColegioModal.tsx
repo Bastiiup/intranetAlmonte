@@ -491,3 +491,12 @@ const AddContactColegioModal = ({ show, onHide, onSuccess }: AddContactColegioMo
 export default AddContactColegioModal
 
 
+
+
+
+
+
+
+
+
+

@@ -15,7 +15,8 @@ export async function GET(request: NextRequest) {
     const page = searchParams.get('page') || '1'
     const pageSize = searchParams.get('pageSize') || '25'
     const estado = searchParams.get('estado') || ''
-    const empresaId = searchParams.get('empresaId') || ''
+    const empresaId = searchParams.get('empresaId') || '' // Empresa proveedora
+    const empresaPropiaId = searchParams.get('empresaPropiaId') || '' // Empresa propia que generó la PO
     
     const params = new URLSearchParams({
       'pagination[page]': page,
@@ -40,9 +41,43 @@ export async function GET(request: NextRequest) {
       `/api/ordenes-compra?${params.toString()}`
     )
     
+    let data = response.data
+    const dataArray = Array.isArray(data) ? data : (data ? [data] : [])
+    
+    // Si se solicita filtrar por empresa propia, necesitamos obtener el nombre de la empresa
+    // y filtrar por direccion_facturacion.company
+    if (empresaPropiaId) {
+      try {
+        // Obtener información de la empresa propia
+        const empresaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+          `/api/empresas/${empresaPropiaId}`
+        )
+        
+        if (empresaResponse.data) {
+          const empresa = Array.isArray(empresaResponse.data) ? empresaResponse.data[0] : empresaResponse.data
+          const empresaAttrs = empresa.attributes || empresa
+          const nombreEmpresa = empresaAttrs.empresa_nombre || empresaAttrs.nombre || empresaAttrs.razon_social
+          
+          // Filtrar POs por el nombre de la empresa en direccion_facturacion.company
+          if (nombreEmpresa) {
+            const filteredData = dataArray.filter((po: any) => {
+              const attrs = po.attributes || po
+              const direccionFacturacion = attrs.direccion_facturacion || {}
+              return direccionFacturacion.company === nombreEmpresa
+            })
+            
+            data = filteredData
+          }
+        }
+      } catch (error: any) {
+        console.error('[API /compras/ordenes-compra GET] Error al obtener empresa propia:', error)
+        // Si falla, retornar todas las POs sin filtrar
+      }
+    }
+    
     return NextResponse.json({
       success: true,
-      data: response.data,
+      data: data,
       meta: response.meta,
     }, { status: 200 })
   } catch (error: any) {

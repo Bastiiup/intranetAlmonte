@@ -56,7 +56,7 @@ export async function GET(
         'populate[colegio]': 'true',
         'populate[lista_utiles]': 'true', // Solo el ID de lista_utiles, sin materiales anidados
         'fields[0]': 'nombre_curso', // Incluir nombre_curso explícitamente
-        'fields[1]': 'año', // Incluir año explícitamente
+        'fields[1]': 'anio', // Incluir año explícitamente
         'fields[2]': 'nivel', // Incluir nivel explícitamente
         'fields[3]': 'grado', // Incluir grado explícitamente
         'fields[4]': 'paralelo', // Incluir paralelo explícitamente
@@ -274,7 +274,7 @@ export async function PUT(
       cursoData.data.paralelo = body.paralelo || null
     }
     if (body.año !== undefined || body.ano !== undefined) {
-      cursoData.data.año = body.año || body.ano || new Date().getFullYear()
+      cursoData.data.anio = body.año || body.ano || new Date().getFullYear()
     }
     if (body.activo !== undefined) {
       cursoData.data.activo = body.activo

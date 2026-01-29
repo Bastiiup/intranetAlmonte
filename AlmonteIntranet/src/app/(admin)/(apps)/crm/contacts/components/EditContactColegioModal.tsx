@@ -468,3 +468,12 @@ const EditContactColegioModal = ({ show, onHide, contact, onSuccess }: EditConta
 export default EditContactColegioModal
 
 
+
+
+
+
+
+
+
+
+

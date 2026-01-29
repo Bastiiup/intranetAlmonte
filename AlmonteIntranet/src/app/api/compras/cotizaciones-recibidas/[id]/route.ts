@@ -29,9 +29,31 @@ export async function GET(
       )
     }
     
+    // Normalizar la cotización para asegurar campos consistentes
+    const cotizacionData = response.data
+    const cotizacionAttrs = cotizacionData.attributes || cotizacionData
+    
+    // Normalizar nombres de campos: precio_total -> monto_total (para compatibilidad con frontend)
+    const cotizacionNormalizada = {
+      ...cotizacionData,
+      id: cotizacionData.id,
+      documentId: cotizacionData.documentId,
+      attributes: {
+        ...cotizacionAttrs,
+        precio_total: cotizacionAttrs.precio_total,
+        precio_unitario: cotizacionAttrs.precio_unitario,
+        monto_total: cotizacionAttrs.precio_total || cotizacionAttrs.monto_total,
+        monto_unitario: cotizacionAttrs.precio_unitario || cotizacionAttrs.monto_unitario,
+      },
+      precio_total: cotizacionAttrs.precio_total,
+      precio_unitario: cotizacionAttrs.precio_unitario,
+      monto_total: cotizacionAttrs.precio_total || cotizacionAttrs.monto_total,
+      monto_unitario: cotizacionAttrs.precio_unitario || cotizacionAttrs.monto_unitario,
+    }
+    
     return NextResponse.json({
       success: true,
-      data: response.data,
+      data: cotizacionNormalizada,
     }, { status: 200 })
   } catch (error: any) {
     console.error('[API /compras/cotizaciones-recibidas/[id] GET] Error:', error)

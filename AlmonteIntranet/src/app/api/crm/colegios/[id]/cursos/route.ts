@@ -85,7 +85,7 @@ export async function GET(
         'populate[materiales]': 'true',
         'populate[lista_utiles]': 'true', // Solo el ID de lista_utiles, sin materiales anidados
         'fields[0]': 'nombre_curso', // Incluir nombre_curso explícitamente
-        'fields[1]': 'año', // Incluir año explícitamente para el filtro
+        'fields[1]': 'anio', // Incluir año explícitamente para el filtro
         'fields[2]': 'nivel', // Incluir nivel explícitamente
         'fields[3]': 'grado', // Incluir grado explícitamente
         'fields[4]': 'paralelo', // Incluir paralelo explícitamente
@@ -281,7 +281,7 @@ export async function POST(
         colegio: { connect: [colegioIdFinal] }, // ✅ Usar ID numérico para relación manyToOne
         nivel: body.nivel,
         grado: String(body.grado), // ✅ grado debe ser string según schema de Strapi
-        año: año, // Campo ya configurado en Strapi
+        anio: año, // Campo correcto en Strapi (anio sin tilde)
         ...(body.paralelo && { paralelo: body.paralelo }),
         ...(body.activo !== undefined && { activo: body.activo !== false }),
       },

@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
       filters.push(`filters[grado][$eq]=${grado}`)
     }
     if (año) {
-      filters.push(`filters[año][$eq]=${año}`)
+      filters.push(`filters[anio][$eq]=${año}`)
     }
 
     // Populate y fields necesarios - Mejorado para incluir más datos
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     filters.push('fields[0]=nombre_curso')
     filters.push('fields[1]=nivel')
     filters.push('fields[2]=grado')
-    filters.push('fields[3]=año')
+    filters.push('fields[3]=anio')
     filters.push('fields[4]=paralelo')
     filters.push('fields[5]=versiones_materiales') // Campo JSON, no relación
     filters.push('fields[6]=activo')
@@ -211,7 +211,7 @@ export async function GET(request: NextRequest) {
         nivel: attrs.nivel || 'Basica',
         grado: parseInt(attrs.grado) || 1,
         paralelo: attrs.paralelo || '',
-        año: attrs.año || attrs.ano || new Date().getFullYear(),
+        año: attrs.anio || attrs.año || attrs.ano || new Date().getFullYear(),
         descripcion: `Curso: ${nombreCompleto}`,
         activo: attrs.activo !== false,
         pdf_id: ultimaVersion?.pdf_id || null,

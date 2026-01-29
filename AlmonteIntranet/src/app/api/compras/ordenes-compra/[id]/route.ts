@@ -15,16 +15,106 @@ export async function GET(
   try {
     const { id } = await params
     
-    // En Strapi v5, populates anidados profundos deben usar '*' en lugar de 'true'
-    const response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-      `/api/ordenes-compra/${id}?populate[empresa]=true&populate[cotizacion_recibida][populate][rfq]=*&populate[creado_por][populate][persona]=*&populate[factura]=true&populate[orden_despacho]=true`
-    )
-    
-    if (!response.data) {
+    if (!id) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Orden de Compra no encontrada',
+          error: 'ID de Orden de Compra no proporcionado',
+        },
+        { status: 400 }
+      )
+    }
+    
+    const isNumericId = /^\d+$/.test(id)
+    // items es un componente, no una relación, así que no se puede poblar
+    // Los items se obtienen directamente desde la cotización
+    // Poblar productos del RFQ para generar items si no existen en la cotización
+    const populateParams = 'populate[empresa][populate][emails]=true&populate[cotizacion_recibida][populate][rfq][populate][productos]=true&populate[cotizacion_recibida][populate][empresa][populate][emails]=true&populate[creado_por][populate][persona][populate][emails]=true&populate[factura]=true&populate[orden_despacho]=true&populate[documento_pago]=true'
+    
+    let ordenCompra: StrapiEntity<any> | null = null
+    
+    // Intentar primero con el endpoint directo
+    try {
+      const response = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+        `/api/ordenes-compra/${id}?${populateParams}`
+      )
+      
+      if (response.data) {
+        ordenCompra = Array.isArray(response.data) ? response.data[0] : response.data
+        console.log('[API /compras/ordenes-compra/[id] GET] ✅ Orden de Compra encontrada directamente')
+      }
+    } catch (directError: any) {
+      // Si falla con 404, intentar buscar por filtros alternativos
+      if (directError.status === 404) {
+        console.log(`[API /compras/ordenes-compra/[id] GET] Error 404 con ID directo "${id}" (${isNumericId ? 'numérico' : 'documentId'}), buscando por filtros alternativos`)
+        
+        try {
+          // Intentar buscar por id numérico si el ID es numérico, o por documentId si no lo es
+          const searchParams = new URLSearchParams({
+            ...(isNumericId ? { 'filters[id][$eq]': id } : { 'filters[documentId][$eq]': id }),
+            'populate[empresa][populate][emails]': 'true',
+            'populate[cotizacion_recibida][populate][rfq][populate][productos]': 'true',
+            'populate[cotizacion_recibida][populate][empresa][populate][emails]': 'true',
+            'populate[creado_por][populate][persona][populate][emails]': 'true',
+            'populate[factura]': 'true',
+            'populate[orden_despacho]': 'true',
+            'populate[documento_pago]': 'true',
+          })
+          
+          const filterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+            `/api/ordenes-compra?${searchParams.toString()}`
+          )
+          
+          if (filterResponse.data) {
+            if (Array.isArray(filterResponse.data) && filterResponse.data.length > 0) {
+              ordenCompra = filterResponse.data[0]
+              console.log(`[API /compras/ordenes-compra/[id] GET] ✅ Orden de Compra encontrada con filtro alternativo`)
+            } else if (!Array.isArray(filterResponse.data)) {
+              ordenCompra = filterResponse.data
+              console.log(`[API /compras/ordenes-compra/[id] GET] ✅ Orden de Compra encontrada con filtro alternativo (objeto único)`)
+            }
+          }
+          
+          // Si aún no se encontró, intentar con el filtro inverso
+          if (!ordenCompra) {
+            const altSearchParams = new URLSearchParams({
+              ...(isNumericId ? { 'filters[documentId][$eq]': id } : { 'filters[id][$eq]': id }),
+              'populate[empresa][populate][emails]': 'true',
+              'populate[cotizacion_recibida][populate][rfq][populate][productos]': 'true',
+              'populate[cotizacion_recibida][populate][empresa][populate][emails]': 'true',
+              'populate[creado_por][populate][persona][populate][emails]': 'true',
+              'populate[factura]': 'true',
+              'populate[orden_despacho]': 'true',
+            })
+            
+            const altFilterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+              `/api/ordenes-compra?${altSearchParams.toString()}`
+            )
+            
+            if (altFilterResponse.data) {
+              if (Array.isArray(altFilterResponse.data) && altFilterResponse.data.length > 0) {
+                ordenCompra = altFilterResponse.data[0]
+                console.log(`[API /compras/ordenes-compra/[id] GET] ✅ Orden de Compra encontrada con filtro inverso`)
+              } else if (!Array.isArray(altFilterResponse.data)) {
+                ordenCompra = altFilterResponse.data
+                console.log(`[API /compras/ordenes-compra/[id] GET] ✅ Orden de Compra encontrada con filtro inverso (objeto único)`)
+              }
+            }
+          }
+        } catch (filterError: any) {
+          console.error('[API /compras/ordenes-compra/[id] GET] Error en búsqueda alternativa:', filterError.message)
+        }
+      } else {
+        // Si no es 404, lanzar el error original
+        throw directError
+      }
+    }
+    
+    if (!ordenCompra) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Orden de Compra no encontrada con ID: ${id}. Verifica que el ID sea correcto (puede ser id numérico o documentId).`,
         },
         { status: 404 }
       )
@@ -32,7 +122,7 @@ export async function GET(
     
     return NextResponse.json({
       success: true,
-      data: response.data,
+      data: ordenCompra,
     }, { status: 200 })
   } catch (error: any) {
     console.error('[API /compras/ordenes-compra/[id] GET] Error:', error)
@@ -90,6 +180,8 @@ export async function PUT(
       updateData.data.orden_despacho = { connect: [Number(body.orden_despacho_id)] }
     }
     
+    // Usar documentId si el ID es un UUID, o el ID numérico directamente
+    // Strapi v5 acepta ambos formatos en el endpoint PUT
     const response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
       `/api/ordenes-compra/${id}`,
       updateData

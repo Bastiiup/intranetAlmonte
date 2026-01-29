@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Container, Card, CardBody, CardHeader, Button, Row, Col, Alert, Spinner, Badge, Table } from 'react-bootstrap'
+import { Container, Card, CardBody, CardHeader, Button, Row, Col, Alert, Spinner, Badge, Table, Modal, Form } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { LuArrowLeft, LuCheck, LuShoppingCart, LuFileText } from 'react-icons/lu'
 import { format } from 'date-fns'
@@ -28,7 +28,7 @@ interface CotizacionRecibidaType {
 const getEstadoBadge = (estado?: string) => {
   const estados: Record<string, { variant: string; label: string }> = {
     pendiente: { variant: 'warning', label: 'Pendiente' },
-    aceptada: { variant: 'success', label: 'Aceptada' },
+    aprobada: { variant: 'success', label: 'Aprobada' },
     rechazada: { variant: 'danger', label: 'Rechazada' },
     convertida: { variant: 'info', label: 'Convertida' },
   }
@@ -46,6 +46,11 @@ export default function CotizacionRecibidaDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [creatingPO, setCreatingPO] = useState(false)
+  const [showEmpresaModal, setShowEmpresaModal] = useState(false)
+  const [empresasPropias, setEmpresasPropias] = useState<any[]>([])
+  const [loadingEmpresas, setLoadingEmpresas] = useState(false)
+  const [empresaPropiaSeleccionada, setEmpresaPropiaSeleccionada] = useState<string | number | null>(null)
+  const [procesandoAccion, setProcesandoAccion] = useState(false)
   
   useEffect(() => {
     loadCotizacion()
@@ -71,14 +76,78 @@ export default function CotizacionRecibidaDetailPage() {
     }
   }
   
-  const handleCrearPO = async () => {
+  const handleAbrirModalEmpresa = async () => {
+    if (!cotizacion) return
+    
+    console.log('[Cotización] Abriendo modal de empresa propia')
+    
+    setShowEmpresaModal(true)
+    setLoadingEmpresas(true)
+    setEmpresaPropiaSeleccionada(null)
+    
+    try {
+      // Cargar empresas propias
+      const url = '/api/crm/empresas?es_empresa_propia=true&pagination[pageSize]=100'
+      console.log('[Cotización] Cargando empresas propias desde:', url)
+      
+      const response = await fetch(url)
+      const result = await response.json()
+      
+      console.log('[Cotización] Resultado de cargar empresas propias:', { 
+        success: result.success, 
+        count: Array.isArray(result.data) ? result.data.length : (result.data ? 1 : 0),
+        data: result.data 
+      })
+      
+      if (result.success && result.data) {
+        const empresas = Array.isArray(result.data) ? result.data : [result.data]
+        setEmpresasPropias(empresas)
+        
+        console.log('[Cotización] Empresas propias cargadas:', empresas.length)
+        
+        // Si solo hay una empresa propia, seleccionarla automáticamente
+        if (empresas.length === 1) {
+          const empresa = empresas[0]
+          const empresaId = empresa.documentId || empresa.id
+          setEmpresaPropiaSeleccionada(empresaId)
+          console.log('[Cotización] Empresa única seleccionada automáticamente:', empresaId)
+        }
+      } else {
+        console.warn('[Cotización] No se encontraron empresas propias')
+        showNotification({
+          title: 'Advertencia',
+          message: 'No se encontraron empresas propias. Se usará la primera disponible automáticamente.',
+          variant: 'warning',
+        })
+      }
+    } catch (err: any) {
+      console.error('[Cotización] Error al cargar empresas propias:', err)
+      showNotification({
+        title: 'Error',
+        message: 'Error al cargar empresas propias. Se intentará crear la PO sin selección.',
+        variant: 'warning',
+      })
+    } finally {
+      setLoadingEmpresas(false)
+    }
+  }
+  
+  const handleCrearPO = async (empresaPropiaId?: string | number) => {
     if (!cotizacion) return
     
     setCreatingPO(true)
+    setShowEmpresaModal(false)
+    
     try {
+      const body: any = {}
+      if (empresaPropiaId) {
+        body.empresa_propia_id = empresaPropiaId
+      }
+      
       const response = await fetch(`/api/compras/cotizaciones/${cotizacionId}/crear-po`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       })
       
       const result = await response.json()
@@ -107,6 +176,102 @@ export default function CotizacionRecibidaDetailPage() {
       })
     } finally {
       setCreatingPO(false)
+      setEmpresaPropiaSeleccionada(null)
+    }
+  }
+  
+  const handleConfirmarCrearPO = () => {
+    if (empresaPropiaSeleccionada) {
+      handleCrearPO(empresaPropiaSeleccionada)
+    } else {
+      // Si no hay selección, crear sin empresa específica (usará la primera disponible)
+      handleCrearPO()
+    }
+  }
+  
+  const handleAceptarCotizacion = async () => {
+    if (!cotizacion) return
+    
+    setProcesandoAccion(true)
+    try {
+      const cotizacionIdFinal = cotizacion.documentId || cotizacion.id || cotizacionId
+      
+      console.log('[Cotización] Aceptando cotización:', { cotizacionIdFinal, cotizacionId })
+      
+      const response = await fetch(`/api/compras/cotizaciones/${cotizacionIdFinal}/aprobar`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      
+      const result = await response.json()
+      
+      console.log('[Cotización] Resultado de aprobar:', result)
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Error al aceptar cotización')
+      }
+      
+      showNotification({
+        title: 'Éxito',
+        message: result.message || 'Cotización aprobada exitosamente',
+        variant: 'success',
+      })
+      
+      // Recargar la cotización para actualizar el estado
+      await loadCotizacion()
+      
+      console.log('[Cotización] Cotización recargada después de aprobar')
+    } catch (err: any) {
+      console.error('[Cotización] Error al aceptar:', err)
+      showNotification({
+        title: 'Error',
+        message: err.message || 'Error al aceptar cotización',
+        variant: 'danger',
+      })
+    } finally {
+      setProcesandoAccion(false)
+    }
+  }
+  
+  const handleRechazarCotizacion = async () => {
+    if (!cotizacion) return
+    
+    // Pedir confirmación
+    const motivo = prompt('Ingrese el motivo del rechazo (opcional):')
+    if (motivo === null) return // Usuario canceló
+    
+    setProcesandoAccion(true)
+    try {
+      const cotizacionIdFinal = cotizacion.documentId || cotizacion.id || cotizacionId
+      
+      const response = await fetch(`/api/compras/cotizaciones/${cotizacionIdFinal}/rechazar`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ motivo: motivo || undefined }),
+      })
+      
+      const result = await response.json()
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Error al rechazar cotización')
+      }
+      
+      showNotification({
+        title: 'Éxito',
+        message: result.message || 'Cotización rechazada exitosamente',
+        variant: 'success',
+      })
+      
+      // Recargar la cotización para actualizar el estado
+      await loadCotizacion()
+    } catch (err: any) {
+      showNotification({
+        title: 'Error',
+        message: err.message || 'Error al rechazar cotización',
+        variant: 'danger',
+      })
+    } finally {
+      setProcesandoAccion(false)
     }
   }
   
@@ -139,8 +304,53 @@ export default function CotizacionRecibidaDetailPage() {
   const attrs = (cotizacion as any).attributes || cotizacion
   const empresa = attrs.empresa?.data || attrs.empresa
   const rfq = attrs.rfq?.data || attrs.rfq
-  // items es un componente repeatable, no una relación, así que viene directamente en attrs
-  const items = attrs.items || []
+  
+  // Items pueden venir de dos lugares:
+  // 1. Directamente en attrs.items (si existe un componente repeatable)
+  // 2. Generados desde productos de la RFQ (si no hay items directos)
+  let items = attrs.items || []
+  
+  // Si no hay items pero hay RFQ con productos, generar items desde productos de la RFQ
+  if (items.length === 0 && rfq) {
+    const rfqAttrs = rfq?.attributes || rfq
+    let productosRFQ: any[] = []
+    
+    if (rfqAttrs?.productos) {
+      if (Array.isArray(rfqAttrs.productos)) {
+        productosRFQ = rfqAttrs.productos
+      } else if (rfqAttrs.productos.data) {
+        if (Array.isArray(rfqAttrs.productos.data)) {
+          productosRFQ = rfqAttrs.productos.data
+        } else if (rfqAttrs.productos.data && typeof rfqAttrs.productos.data === 'object') {
+          productosRFQ = [rfqAttrs.productos.data]
+        }
+      }
+    }
+    
+    // Obtener cantidades de la RFQ
+    const productosCantidades = rfqAttrs.productos_cantidades
+      ? (typeof rfqAttrs.productos_cantidades === 'string' 
+          ? JSON.parse(rfqAttrs.productos_cantidades) 
+          : rfqAttrs.productos_cantidades)
+      : {}
+    
+    // Generar items desde productos de la RFQ
+    items = productosRFQ.map((producto: any) => {
+      const prodAttrs = producto.attributes || producto
+      const productoId = producto.documentId || producto.id
+      const cantidad = productosCantidades[productoId] || productosCantidades[String(productoId)] || 1
+      const precioUnitario = attrs.precio_unitario || attrs.monto_unitario || 0
+      
+      return {
+        producto: producto,
+        producto_nombre: prodAttrs.nombre_libro || prodAttrs.nombre || 'Producto',
+        cantidad: cantidad,
+        precio_unitario: precioUnitario,
+        subtotal: precioUnitario ? Number(precioUnitario) * Number(cantidad) : null,
+        precio_total: precioUnitario ? Number(precioUnitario) * Number(cantidad) : null,
+      }
+    })
+  }
   const estado = attrs.estado || 'pendiente'
   const empAttrs = empresa?.attributes || empresa || {}
   const rfqAttrs = rfq?.attributes || rfq || {}
@@ -158,8 +368,8 @@ export default function CotizacionRecibidaDetailPage() {
           <LuArrowLeft className="me-1" />
           Volver
         </Button>
-        {estado === 'aceptada' && (
-          <Button variant="primary" onClick={handleCrearPO} disabled={creatingPO}>
+        {estado === 'aprobada' && (
+          <Button variant="primary" onClick={handleAbrirModalEmpresa} disabled={creatingPO}>
             <LuShoppingCart className="me-1" />
             {creatingPO ? 'Creando...' : 'Crear Orden de Compra'}
           </Button>
@@ -207,9 +417,15 @@ export default function CotizacionRecibidaDetailPage() {
                 </Col>
                 <Col md={6}>
                   <p className="mb-2">
-                    <strong>Monto Total:</strong>{' '}
-                    {attrs.monto_total
-                      ? `${attrs.moneda || 'CLP'} ${Number(attrs.monto_total).toLocaleString()}`
+                    <strong>Precio Unitario:</strong>{' '}
+                    {attrs.precio_unitario || attrs.monto_unitario
+                      ? `${attrs.moneda || 'CLP'} ${Number(attrs.precio_unitario || attrs.monto_unitario).toLocaleString()}`
+                      : '-'}
+                  </p>
+                  <p className="mb-2">
+                    <strong>Precio Total:</strong>{' '}
+                    {attrs.precio_total || attrs.monto_total
+                      ? `${attrs.moneda || 'CLP'} ${Number(attrs.precio_total || attrs.monto_total).toLocaleString()}`
                       : '-'}
                   </p>
                   <p className="mb-2">
@@ -281,8 +497,8 @@ export default function CotizacionRecibidaDetailPage() {
                     <tr>
                       <th colSpan={3}>Total</th>
                       <th>
-                        {attrs.monto_total
-                          ? `${attrs.moneda || 'CLP'} ${Number(attrs.monto_total).toLocaleString()}`
+                        {attrs.precio_total || attrs.monto_total
+                          ? `${attrs.moneda || 'CLP'} ${Number(attrs.precio_total || attrs.monto_total).toLocaleString()}`
                           : '-'}
                       </th>
                     </tr>
@@ -302,17 +518,27 @@ export default function CotizacionRecibidaDetailPage() {
               <div className="d-grid gap-2">
                 {estado === 'pendiente' && (
                   <>
-                    <Button variant="success" size="sm">
+                    <Button 
+                      variant="success" 
+                      size="sm"
+                      onClick={handleAceptarCotizacion}
+                      disabled={procesandoAccion}
+                    >
                       <LuCheck className="me-1" />
-                      Aceptar Cotización
+                      {procesandoAccion ? 'Procesando...' : 'Aceptar Cotización'}
                     </Button>
-                    <Button variant="danger" size="sm">
-                      Rechazar Cotización
+                    <Button 
+                      variant="danger" 
+                      size="sm"
+                      onClick={handleRechazarCotizacion}
+                      disabled={procesandoAccion}
+                    >
+                      {procesandoAccion ? 'Procesando...' : 'Rechazar Cotización'}
                     </Button>
                   </>
                 )}
-                {estado === 'aceptada' && (
-                  <Button variant="primary" onClick={handleCrearPO} disabled={creatingPO}>
+                {estado === 'aprobada' && (
+                  <Button variant="primary" onClick={handleAbrirModalEmpresa} disabled={creatingPO}>
                     <LuShoppingCart className="me-1" />
                     {creatingPO ? 'Creando...' : 'Crear Orden de Compra'}
                   </Button>
@@ -327,6 +553,76 @@ export default function CotizacionRecibidaDetailPage() {
           </Card>
         </Col>
       </Row>
+      
+      {/* Modal de Selección de Empresa Propia */}
+      <Modal show={showEmpresaModal} onHide={() => setShowEmpresaModal(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Seleccionar Empresa Compradora</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p className="text-muted mb-3">
+            Selecciona la empresa propia (Almonte, Moraleja, Escolar) que realizará la compra. 
+            Los datos de facturación de esta empresa se usarán en la orden de compra.
+          </p>
+          
+          {loadingEmpresas ? (
+            <div className="text-center py-4">
+              <Spinner animation="border" variant="primary" />
+              <p className="text-muted mt-2">Cargando empresas...</p>
+            </div>
+          ) : empresasPropias.length === 0 ? (
+            <Alert variant="warning">
+              No se encontraron empresas propias. Se usará la primera disponible automáticamente.
+            </Alert>
+          ) : (
+            <Form>
+              {empresasPropias.map((empresa: any) => {
+                const empAttrs = empresa.attributes || empresa
+                const empresaId = empresa.documentId || empresa.id
+                const empresaNombre = empAttrs.empresa_nombre || empAttrs.nombre || 'Empresa'
+                const razonSocial = empAttrs.razon_social || ''
+                const rut = empAttrs.rut || ''
+                
+                return (
+                  <div key={empresaId} className="mb-3">
+                    <Form.Check
+                      type="radio"
+                      id={`empresa-${empresaId}`}
+                      name="empresaPropia"
+                      label={
+                        <div>
+                          <strong>{empresaNombre}</strong>
+                          {razonSocial && (
+                            <small className="text-muted d-block">{razonSocial}</small>
+                          )}
+                          {rut && (
+                            <small className="text-muted d-block">RUT: {rut}</small>
+                          )}
+                        </div>
+                      }
+                      checked={empresaPropiaSeleccionada === empresaId}
+                      onChange={() => setEmpresaPropiaSeleccionada(empresaId)}
+                    />
+                  </div>
+                )
+              })}
+            </Form>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowEmpresaModal(false)}>
+            Cancelar
+          </Button>
+          <Button 
+            variant="primary" 
+            onClick={handleConfirmarCrearPO}
+            disabled={loadingEmpresas || creatingPO}
+          >
+            <LuShoppingCart className="me-1" />
+            {creatingPO ? 'Creando...' : 'Crear Orden de Compra'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </Container>
   )
 }

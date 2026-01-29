@@ -123,6 +123,7 @@ export const menuItems: MenuItemType[] = [
     label: 'Inventario/Proveedores',
     icon: LuShoppingBag,
     children: [
+      { key: 'inventario-productos', label: 'Productos', url: '/inventario/proveedores' },
       { key: 'inventario-empresas', label: 'Empresas', url: '/crm/empresas' },
       { key: 'inventario-rfqs', label: 'Solicitudes de Cotización', url: '/crm/compras/rfqs' },
       { key: 'inventario-cotizaciones-recibidas', label: 'Cotizaciones Recibidas', url: '/crm/compras/cotizaciones' },
@@ -327,6 +328,7 @@ export const horizontalMenuItems: MenuItemType[] = [
         label: 'Inventario/Proveedores',
         icon: LuShoppingBag,
         children: [
+          { key: 'inventario-productos', label: 'Productos', url: '/inventario/proveedores' },
           { key: 'inventario-empresas', label: 'Empresas', url: '/crm/empresas' },
           { key: 'inventario-rfqs', label: 'Solicitudes de Cotización', url: '/crm/compras/rfqs' },
           { key: 'inventario-cotizaciones-recibidas', label: 'Cotizaciones Recibidas', url: '/crm/compras/cotizaciones' },
