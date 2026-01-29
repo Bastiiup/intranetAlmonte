@@ -484,7 +484,8 @@ export async function GET(
                 : empresaResponse.data
               
               const empresaAttrs = empresaData.attributes || empresaData
-              const empresaEmails = empresaData.emails || empresaAttrs.emails
+              const empresaDataAny = empresaData as any
+              const empresaEmails = empresaDataAny.emails || empresaAttrs.emails
               
               if (empresaEmails && (Array.isArray(empresaEmails) ? empresaEmails.length > 0 : true)) {
                 // Agregar emails a la empresa normalizada
