@@ -90,10 +90,13 @@ export async function POST(
       updateData
     )
     
+    // Normalizar response.data que puede ser array o objeto
+    const ordenData = Array.isArray(response.data) ? response.data[0] : response.data
+    
     return NextResponse.json({
       success: true,
       data: {
-        ...response.data,
+        ...ordenData,
         [type === 'factura' ? 'factura' : type === 'despacho' ? 'orden_despacho' : 'documento_pago']: uploadedFile,
       },
       message: `${type === 'factura' ? 'Factura' : type === 'despacho' ? 'Despacho' : 'Documento de Pago'} subido exitosamente`,
