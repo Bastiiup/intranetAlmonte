@@ -5,6 +5,27 @@ import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * Normaliza el campo matrícula de un curso
+ * En Strapi v5, cuando se usa fields selector, matrícula puede estar en:
+ * - nivel raíz: curso.matricula
+ * - attributes: curso.attributes.matricula
+ * 
+ * Esta función busca en todas las ubicaciones y retorna un número o null
+ */
+function normalizeMatricula(curso: any): number | null {
+  // Buscar matrícula en múltiples ubicaciones (prioridad: attributes > raíz)
+  const matricula = 
+    curso.attributes?.matricula ?? 
+    curso.matricula ?? 
+    null;
+  
+  // Convertir a número o null
+  if (matricula === null || matricula === undefined) return null;
+  const num = Number(matricula);
+  return isNaN(num) ? null : num;
+}
+
 interface ColegioAttributes {
   colegio_nombre?: string
   rbd?: number
@@ -31,12 +52,78 @@ interface ColegioAttributes {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const page = searchParams.get('page') || '1'
-    const pageSize = searchParams.get('pagination[pageSize]') || searchParams.get('pageSize') || '25'
+    const loadAll = searchParams.get('all') === 'true'
     const search = searchParams.get('search') || ''
     const estado = searchParams.get('estado') || ''
     const region = searchParams.get('region') || ''
     const comuna = searchParams.get('comuna') || ''
+
+    // Si se pide cargar todos, hacer múltiples llamadas (solo campos esenciales)
+    if (loadAll && !search) {
+      const allColegios: any[] = []
+      let currentPage = 1
+      let totalPages = 1
+      const maxPageSize = 1000 // Límite máximo de Strapi
+
+      do {
+        const params = new URLSearchParams({
+          'pagination[page]': currentPage.toString(),
+          'pagination[pageSize]': maxPageSize.toString(),
+          'sort[0]': 'colegio_nombre:asc',
+        })
+        // Solo campos esenciales para la lista (sin populate pesados)
+        params.append('fields[0]', 'colegio_nombre')
+        params.append('fields[1]', 'rbd')
+        params.append('fields[2]', 'estado')
+        params.append('fields[3]', 'dependencia')
+        params.append('fields[4]', 'region')
+        params.append('fields[5]', 'createdAt')
+        params.append('populate[comuna][fields][0]', 'comuna_nombre')
+        // Incluir cursos con matrícula (solo campos necesarios)
+        params.append('populate[cursos][fields][0]', 'matricula')
+
+        if (estado) params.append('filters[estado][$eq]', estado)
+        if (region) params.append('filters[region][$eq]', region)
+        if (comuna) params.append('filters[comuna][id][$eq]', comuna)
+
+        const url = `/api/colegios?${params.toString()}`
+        const response = await strapiClient.get<StrapiResponse<StrapiEntity<ColegioAttributes>>>(url)
+        
+        const data = Array.isArray(response.data) ? response.data : [response.data]
+        
+        // Calcular matrícula total para cada colegio
+        const colegiosConMatricula = data.map((colegio: any) => {
+          const attrs = colegio.attributes || colegio
+          const cursos = attrs.cursos?.data || attrs.cursos || []
+          
+          // SOLUCIÓN 2: Calcular matrícula total usando función de normalización
+          const matriculaTotal = cursos.reduce((sum: number, curso: any) => {
+            const matricula = normalizeMatricula(curso) ?? 0
+            return sum + matricula
+          }, 0)
+          
+          return {
+            ...colegio,
+            matriculaTotal,
+          }
+        })
+        
+        allColegios.push(...colegiosConMatricula)
+        
+        totalPages = response.meta?.pagination?.pageCount || 1
+        currentPage++
+      } while (currentPage <= totalPages)
+
+      return NextResponse.json({
+        success: true,
+        data: allColegios,
+        meta: { pagination: { total: allColegios.length, page: 1, pageSize: allColegios.length, pageCount: 1 } },
+      }, { status: 200 })
+    }
+
+    // Paginación normal
+    const page = searchParams.get('page') || '1'
+    const pageSize = searchParams.get('pagination[pageSize]') || searchParams.get('pageSize') || '1000'
 
     // Construir URL con paginación y ordenamiento
     const params = new URLSearchParams({
@@ -51,6 +138,8 @@ export async function GET(request: Request) {
     params.append('populate[emails]', 'true')
     params.append('populate[direcciones]', 'true')
     params.append('populate[cartera_asignaciones][populate][ejecutivo]', 'true')
+    // Incluir cursos con matrícula (solo campo matricula para optimizar)
+    params.append('populate[cursos][fields][0]', 'matricula')
 
     // Agregar búsqueda por nombre o RBD si existe
     if (search) {
@@ -93,9 +182,27 @@ export async function GET(request: Request) {
       url
     )
 
+    // Calcular matrícula total para cada colegio
+    const data = Array.isArray(response.data) ? response.data : [response.data]
+    const colegiosConMatricula = data.map((colegio: any) => {
+      const attrs = colegio.attributes || colegio
+      const cursos = attrs.cursos?.data || attrs.cursos || []
+      
+      // SOLUCIÓN 2: Calcular matrícula total usando función de normalización
+      const matriculaTotal = cursos.reduce((sum: number, curso: any) => {
+        const matricula = normalizeMatricula(curso) ?? 0
+        return sum + matricula
+      }, 0)
+      
+      return {
+        ...colegio,
+        matriculaTotal,
+      }
+    })
+
     return NextResponse.json({
       success: true,
-      data: response.data,
+      data: colegiosConMatricula,
       meta: response.meta,
     }, { status: 200 })
   } catch (error: any) {

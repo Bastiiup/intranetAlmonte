@@ -36,6 +36,8 @@ interface ImportRow {
   Curso?: string
   Año_curso?: number
   Orden_curso?: number
+  Matricula?: number | string // ✅ Campo de matrícula
+  Matriculados?: number | string // ✅ Alias alternativo
   Asignatura?: string
   Orden_asignatura?: number
   Lista_nombre?: string
@@ -96,6 +98,54 @@ interface ProcessResult {
   message: string
   tipo: 'colegio' | 'curso' | 'lista' | 'producto'
   datos?: any
+}
+
+// Helper para enviar logs al endpoint de debug
+const enviarLogDebug = async (tipo: string, mensaje: string, datos?: any) => {
+  try {
+    await fetch('/api/debug/importacion', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tipo, mensaje, datos }),
+    })
+  } catch (error) {
+    // Silenciosamente fallar si el endpoint no está disponible
+    console.warn('[Debug] No se pudo enviar log:', error)
+  }
+}
+
+// Helper para esperar a que un curso esté disponible en Strapi (polling inteligente)
+const esperarCursoDisponible = async (cursoId: string | number, maxIntentos = 10): Promise<boolean> => {
+  console.log(`[Importación Completa] ⏳ Verificando disponibilidad del curso ${cursoId}...`)
+  
+  for (let intento = 1; intento <= maxIntentos; intento++) {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/cursos/${cursoId}?populate=colegio`, {
+        headers: {
+          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_STRAPI_TOKEN}`
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        if (data.data) {
+          console.log(`[Importación Completa] ✅ Curso ${cursoId} disponible (intento ${intento}/${maxIntentos})`)
+          return true
+        }
+      }
+    } catch (error) {
+      // Ignorar errores y continuar
+      console.log(`[Importación Completa] 🔄 Intento ${intento}/${maxIntentos} - Curso aún no disponible`)
+    }
+    
+    // Esperar 200ms entre intentos (total máximo: 2 segundos)
+    if (intento < maxIntentos) {
+      await new Promise(resolve => setTimeout(resolve, 200))
+    }
+  }
+  
+  console.warn(`[Importación Completa] ⚠️ Curso ${cursoId} no confirmado después de ${maxIntentos} intentos (${maxIntentos * 200}ms)`)
+  return false
 }
 
 // Funciones de normalización y extracción de componentes (disponibles para todo el componente)
@@ -390,9 +440,64 @@ export default function ImportacionCompletaModal({
     const originalError = (window as any).__importacionCompletaOriginalError
     const originalWarn = (window as any).__importacionCompletaOriginalWarn
 
+    // Función helper para validar si un argumento tiene contenido útil
+    const hasUsefulContent = (arg: any): boolean => {
+      if (arg === null || arg === undefined) return false
+      if (typeof arg === 'string') {
+        const trimmed = arg.trim()
+        return trimmed !== '' && trimmed !== '{}' && trimmed !== '{} '
+      }
+      if (typeof arg === 'object') {
+        try {
+          // Intentar serializar para detectar objetos vacíos
+          const serialized = JSON.stringify(arg)
+          if (serialized === '{}' || serialized === '[]' || serialized === 'null') return false
+          
+          const keys = Object.keys(arg)
+          if (keys.length === 0) return false
+          
+          // Verificar si tiene al menos una propiedad con valor útil
+          const hasUsefulValue = keys.some(key => {
+            const value = arg[key]
+            if (value === null || value === undefined) return false
+            if (typeof value === 'string') {
+              const trimmed = value.trim()
+              return trimmed !== '' && trimmed !== '{}'
+            }
+            if (typeof value === 'object') {
+              try {
+                const valueSerialized = JSON.stringify(value)
+                return valueSerialized !== '{}' && valueSerialized !== '[]' && valueSerialized !== 'null'
+              } catch (e) {
+                return false
+              }
+            }
+            return true
+          })
+          
+          return hasUsefulValue
+        } catch (e) {
+          // Si no se puede serializar, asumir que no es útil
+          return false
+        }
+      }
+      return true
+    }
+
+    // Función helper para filtrar argumentos vacíos
+    const filterUsefulArgs = (args: any[]): any[] => {
+      return args.filter(arg => hasUsefulContent(arg))
+    }
+
     const sendLogToServer = async (level: 'log' | 'warn' | 'error', ...args: any[]) => {
       try {
-        const message = args.map(arg => 
+        // Filtrar argumentos vacíos antes de procesar
+        const usefulArgs = filterUsefulArgs(args)
+        
+        // Si no hay argumentos útiles, no hacer nada
+        if (usefulArgs.length === 0) return
+        
+        const message = usefulArgs.map(arg => 
           typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
         ).join(' ')
         
@@ -404,7 +509,7 @@ export default function ImportacionCompletaModal({
             body: JSON.stringify({ 
               level, 
               message, 
-              data: args.length > 1 ? args.slice(1) : undefined 
+              data: usefulArgs.length > 1 ? usefulArgs.slice(1) : undefined 
             }),
           }).catch((err) => {
             // Loggear errores en desarrollo
@@ -429,8 +534,23 @@ export default function ImportacionCompletaModal({
       }
 
       console.error = (...args: any[]) => {
-        originalError(...args)
-        sendLogToServer('error', ...args)
+        // Filtrar argumentos vacíos antes de pasar a originalError
+        const usefulArgs = filterUsefulArgs(args)
+        
+        // Solo llamar a originalError si hay argumentos útiles
+        if (usefulArgs.length > 0) {
+          // Verificar que el mensaje no sea solo "{}" o vacío
+          const message = usefulArgs.map(arg => 
+            typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+          ).join(' ')
+          
+          if (message.trim() && message.trim() !== '{}' && !message.trim().startsWith('{}')) {
+            originalError(...usefulArgs)
+            sendLogToServer('error', ...usefulArgs)
+          }
+          // Si el mensaje es solo "{}" o vacío, no hacer nada
+        }
+        // Si no hay argumentos útiles, no hacer nada (evitar loguear objetos vacíos)
       }
 
       console.warn = (...args: any[]) => {
@@ -456,10 +576,14 @@ export default function ImportacionCompletaModal({
     const reader = new FileReader()
     reader.onload = async (event) => {
       try {
+        await enviarLogDebug('inicio', `📤 Iniciando importación del archivo: ${file.name}`, { nombreArchivo: file.name, tamañoBytes: file.size })
+        
         const data = new Uint8Array(event.target?.result as ArrayBuffer)
         const workbook = XLSX.read(data, { type: 'array' })
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
         const jsonData = XLSX.utils.sheet_to_json(firstSheet, { raw: false })
+        
+        await enviarLogDebug('parseando', `📄 Excel parseado: ${jsonData.length} filas detectadas`, { totalFilas: jsonData.length })
 
         // Función helper para obtener URL desde múltiples variantes (case-insensitive)
         const obtenerURLLista = (row: any): string | undefined => {
@@ -546,6 +670,7 @@ export default function ImportacionCompletaModal({
               Curso: row.Curso || row.curso || row.nombre_curso || '',
               Año_curso: row.Año_curso || row.año_curso || row.año || row.ano ? parseInt(String(row.Año_curso || row.año_curso || row.año || row.ano)) : undefined,
               Orden_curso: row.Orden_curso || row.orden_curso ? parseInt(String(row.Orden_curso || row.orden_curso)) : undefined,
+              Matricula: row.Matricula || row.matricula || row.Matriculados || row.matriculados ? parseInt(String(row.Matricula || row.matricula || row.Matriculados || row.matriculados)) : undefined, // ✅ Mapeo de matrícula
               Asignatura: row.Asignatura || row.asignatura || row.asignaura || '', // Soporta typo "asignaura"
               Orden_asignatura: row.Orden_asignatura || row.orden_asignatura || row.orden_asigna ? parseInt(String(row.Orden_asignatura || row.orden_asignatura || row.orden_asigna)) : undefined,
               Lista_nombre: row.Lista_nombre || row.lista_nombre || row.Lista || row.lista || (row.Asignatura || row.asignatura || row.asignaura || 'Lista de Útiles'), // Usar asignatura como lista si no hay
@@ -790,6 +915,7 @@ export default function ImportacionCompletaModal({
   }
 
   const handleProcess = async () => {
+    (window as any).__importStartTime = Date.now()
     setProcessing(true)
     setStep('processing')
     setProgress(0)
@@ -958,6 +1084,8 @@ export default function ImportacionCompletaModal({
               }
 
               console.log(`[Importación Completa] ➕ Creando nuevo colegio: ${grupo.colegio.nombre} (RBD: ${grupo.colegio.rbd})`)
+              await enviarLogDebug('colegio', `➕ Creando nuevo colegio: ${grupo.colegio.nombre}`, { rbd: grupo.colegio.rbd, nombre: grupo.colegio.nombre, comuna: grupo.colegio.comuna })
+              
               const createColegioResponse = await fetch('/api/crm/colegios', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -973,6 +1101,8 @@ export default function ImportacionCompletaModal({
               if (createColegioResponse.ok && createColegioResult.success) {
                 const nuevoColegio = createColegioResult.data
                 colegioId = nuevoColegio.id || nuevoColegio.documentId
+                
+                await enviarLogDebug('colegio', `✅ Colegio creado exitosamente: ${grupo.colegio.nombre}`, { id: colegioId, rbd: grupo.colegio.rbd })
                 
                 // Guardar datos completos del nuevo colegio
                 if (colegioId) {
@@ -1139,6 +1269,31 @@ export default function ImportacionCompletaModal({
           
           if (cursoId) {
             console.log(`[Importación Completa] ♻️ Reutilizando curso ya procesado: ${grupo.curso.nombre} (ID: ${cursoId})`)
+            
+            // Log específico: Curso reutilizado del cache
+            try {
+              await fetch('/api/crm/listas/importacion-completa-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  level: 'log',
+                  message: `[Importación Completa] ♻️ CURSO REUTILIZADO: "${grupo.curso.nombre}" reutilizado del cache para colegio "${grupo.colegio.nombre}"`,
+                  data: {
+                    grupoKey,
+                    colegio: grupo.colegio.nombre,
+                    colegioId,
+                    curso: grupo.curso.nombre,
+                    cursoId,
+                    nivel,
+                    grado,
+                    año: grupo.curso.año || new Date().getFullYear(),
+                    tipo: 'curso_reutilizado',
+                  },
+                }),
+              })
+            } catch (e) {
+              // Ignorar errores de logging
+            }
           } else {
             // Buscar curso existente en Strapi
             const cursosResponse = await fetch(`/api/crm/colegios/${colegioId}/cursos`)
@@ -1162,6 +1317,31 @@ export default function ImportacionCompletaModal({
                 if (cursoId) {
                   cursosProcesadosMap.set(cursoKey, cursoId)
                   console.log(`[Importación Completa] ✅ Curso existente encontrado. ID: ${cursoId} (documentId: ${cursoExistente.documentId}, id: ${cursoExistente.id})`)
+                  
+                  // Log específico: Curso reconocido
+                  try {
+                    await fetch('/api/crm/listas/importacion-completa-logs', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        level: 'log',
+                        message: `[Importación Completa] 🔍 CURSO RECONOCIDO: "${grupo.curso.nombre}" encontrado en colegio "${grupo.colegio.nombre}"`,
+                        data: {
+                          grupoKey,
+                          colegio: grupo.colegio.nombre,
+                          colegioId,
+                          curso: grupo.curso.nombre,
+                          cursoId,
+                          nivel,
+                          grado,
+                          año: grupo.curso.año || new Date().getFullYear(),
+                          tipo: 'curso_reconocido',
+                        },
+                      }),
+                    })
+                  } catch (e) {
+                    // Ignorar errores de logging
+                  }
                 } else {
                   console.warn(`[Importación Completa] ⚠️ Curso existente encontrado pero sin ID válido (documentId: ${cursoExistente.documentId}, id: ${cursoExistente.id})`)
                 }
@@ -1171,6 +1351,20 @@ export default function ImportacionCompletaModal({
 
           // Crear curso si no existe
           if (!cursoId) {
+            // Extraer matrícula del primer producto del grupo (todas las filas del mismo curso tienen la misma matrícula)
+            const matriculaRaw = grupo.productos[0]?.Matricula || grupo.productos[0]?.Matriculados || null
+            const matricula = matriculaRaw ? parseInt(String(matriculaRaw)) : null
+            
+            await enviarLogDebug('curso', `➕ Creando curso: ${grupo.curso.nombre}`, { 
+              nombre: grupo.curso.nombre, 
+              nivel, 
+              grado, 
+              año: grupo.curso.año, 
+              matricula, 
+              colegioId,
+              colegioNombre: grupo.colegio.nombre 
+            })
+            
             const createCursoResponse = await fetch(`/api/crm/colegios/${colegioId}/cursos`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -1180,6 +1374,7 @@ export default function ImportacionCompletaModal({
                 grado: String(grado),
                 año: grupo.curso.año || new Date().getFullYear(), // Usar "año" con acento (igual que otros endpoints)
                 activo: true,
+                ...(matricula !== null && !isNaN(matricula) && { matricula }), // ✅ Incluir matrícula si está disponible
               }),
             })
 
@@ -1201,18 +1396,117 @@ export default function ImportacionCompletaModal({
                 cursoIdAsignado: cursoId,
                 tipoCursoId: typeof cursoId,
               })
+              
+              // ✅ VALIDACIÓN CRÍTICA: Verificar que el curso tenga colegio asignado
+              const cursoTieneColegio = nuevoCurso.colegio || 
+                                        nuevoCurso.attributes?.colegio?.data || 
+                                        nuevoCurso.attributes?.colegio ||
+                                        false
+              
+              if (!cursoTieneColegio) {
+                console.error(`[Importación Completa] ❌ CURSO SIN COLEGIO DETECTADO: "${grupo.curso.nombre}" (ID: ${cursoId})`)
+                
+                await enviarLogDebug('error', `❌ Curso creado SIN colegio: ${grupo.curso.nombre}`, {
+                  cursoId,
+                  colegioIdEsperado: colegioId,
+                  colegioNombreEsperado: grupo.colegio.nombre,
+                  respuestaCompleta: nuevoCurso
+                })
+                
+                // Intentar re-asociar el curso al colegio
+                console.log(`[Importación Completa] 🔧 Intentando re-asociar curso ${cursoId} al colegio ${colegioId}...`)
+                try {
+                  const patchResponse = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/cursos/${cursoId}`, {
+                    method: 'PUT',
+                    headers: { 
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${process.env.NEXT_PUBLIC_STRAPI_TOKEN}`
+                    },
+                    body: JSON.stringify({
+                      data: {
+                        colegio: { connect: [colegioId] }
+                      }
+                    })
+                  })
+                  
+                  if (patchResponse.ok) {
+                    console.log(`[Importación Completa] ✅ Curso re-asociado exitosamente al colegio`)
+                    await enviarLogDebug('curso', `✅ Curso RE-ASOCIADO al colegio: ${grupo.curso.nombre}`, {
+                      cursoId,
+                      colegioId,
+                      colegioNombre: grupo.colegio.nombre
+                    })
+                  } else {
+                    const patchError = await patchResponse.text()
+                    console.error(`[Importación Completa] ❌ Error al re-asociar curso:`, patchError)
+                    await enviarLogDebug('error', `❌ Error al re-asociar curso: ${grupo.curso.nombre}`, {
+                      cursoId,
+                      colegioId,
+                      error: patchError
+                    })
+                  }
+                } catch (patchError: any) {
+                  console.error(`[Importación Completa] ❌ Excepción al re-asociar curso:`, patchError)
+                  await enviarLogDebug('error', `❌ Excepción al re-asociar: ${grupo.curso.nombre}`, {
+                    cursoId,
+                    colegioId,
+                    error: patchError.message
+                  })
+                }
+              }
+              
+              await enviarLogDebug('curso', `✅ Curso creado exitosamente: ${grupo.curso.nombre}`, { 
+                cursoId, 
+                documentId: nuevoCurso.documentId,
+                id: nuevoCurso.id,
+                nombre: nuevoCurso.nombre_curso || nuevoCurso.attributes?.nombre_curso,
+                matricula: nuevoCurso.matricula || nuevoCurso.attributes?.matricula,
+                colegio: cursoTieneColegio ? { id: colegioId, nombre: grupo.colegio.nombre } : null,
+                WARNING: cursoTieneColegio ? null : 'CURSO SIN COLEGIO - INTENTÓ RE-ASOCIAR'
+              })
               console.log(`[Importación Completa] 📋 Respuesta completa de creación:`, JSON.stringify(createCursoResult, null, 2))
               
               // Guardar en el mapa para reutilizar en siguientes grupos con el mismo curso
               if (cursoId) {
                 cursosProcesadosMap.set(cursoKey, cursoId)
                 console.log(`[Importación Completa] 💾 Curso guardado en mapa de cache (clave: ${cursoKey}) para reutilización`)
+                
+                // Log específico: Curso creado
+                try {
+                  await fetch('/api/crm/listas/importacion-completa-logs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      level: 'log',
+                      message: `[Importación Completa] ➕ CURSO CREADO: "${grupo.curso.nombre}" creado en colegio "${grupo.colegio.nombre}"`,
+                      data: {
+                        grupoKey,
+                        colegio: grupo.colegio.nombre,
+                        colegioId,
+                        curso: grupo.curso.nombre,
+                        cursoId,
+                        nivel,
+                        grado,
+                        año: grupo.curso.año || new Date().getFullYear(),
+                        tipo: 'curso_creado',
+                      },
+                    }),
+                  })
+                } catch (e) {
+                  // Ignorar errores de logging
+                }
               }
               
-              // Esperar un momento para que Strapi procese el curso recién creado
-              // Aumentar el tiempo de espera para dar más tiempo a Strapi
-              console.log(`[Importación Completa] ⏳ Esperando 1.5s para que Strapi procese el curso recién creado...`)
-              await new Promise(resolve => setTimeout(resolve, 1500))
+              // ✅ MEJORA: Usar polling inteligente en lugar de setTimeout fijo
+              // Verificar que el curso esté realmente disponible en Strapi
+              try {
+                const disponible = await esperarCursoDisponible(cursoId, 10)
+                if (!disponible) {
+                  console.warn(`[Importación Completa] ⚠️ Curso ${cursoId} no confirmado en Strapi, continuando de todas formas...`)
+                }
+              } catch (pollingError: any) {
+                console.warn(`[Importación Completa] ⚠️ Error en polling, continuando:`, pollingError.message)
+              }
               
               results.push({
                 success: true,
@@ -1356,6 +1650,33 @@ export default function ImportacionCompletaModal({
               
               try {
                 console.log(`[Importación Completa] 📤 Subiendo PDF ${i + 1}/${pdfsSubidos.length}: ${pdf.name}`)
+                
+                // Log específico: Inicio de subida de PDF
+                try {
+                  await fetch('/api/crm/listas/importacion-completa-logs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      level: 'log',
+                      message: `[Importación Completa] 📤 INICIANDO SUBIDA DE PDF: "${nombrePDF}" para curso "${grupo.curso.nombre}"`,
+                      data: {
+                        grupoKey,
+                        colegio: grupo.colegio.nombre,
+                        curso: grupo.curso.nombre,
+                        cursoId,
+                        nombrePDF,
+                        tamaño: pdf.size,
+                        tipo: pdf.type,
+                        pdfIndex: i + 1,
+                        totalPDFs: pdfsSubidos.length,
+                        tipo: 'pdf_subida_inicio',
+                      },
+                    }),
+                  })
+                } catch (e) {
+                  // Ignorar errores de logging
+                }
+                
                 const resultadoPDF = await subirPDFaStrapi(pdf, nombrePDF)
                 
                 if (resultadoPDF.pdfUrl && resultadoPDF.pdfId) {
@@ -1366,8 +1687,59 @@ export default function ImportacionCompletaModal({
                     fecha: new Date().toISOString(),
                   })
                   console.log(`[Importación Completa] ✅ PDF ${i + 1}/${pdfsSubidos.length} subido exitosamente: ${resultadoPDF.pdfUrl}`)
+                  
+                  // Log específico: PDF subido exitosamente
+                  try {
+                    await fetch('/api/crm/listas/importacion-completa-logs', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        level: 'log',
+                        message: `[Importación Completa] ✅ PDF SUBIDO EXITOSAMENTE: "${nombrePDF}" para curso "${grupo.curso.nombre}"`,
+                        data: {
+                          grupoKey,
+                          colegio: grupo.colegio.nombre,
+                          curso: grupo.curso.nombre,
+                          cursoId,
+                          nombrePDF,
+                          pdfId: resultadoPDF.pdfId,
+                          pdfUrl: resultadoPDF.pdfUrl ? resultadoPDF.pdfUrl.substring(0, 100) + '...' : null,
+                          pdfIndex: i + 1,
+                          totalPDFs: pdfsSubidos.length,
+                          tipo: 'pdf_subida_exitosa',
+                        },
+                      }),
+                    })
+                  } catch (e) {
+                    // Ignorar errores de logging
+                  }
                 } else {
                   console.warn(`[Importación Completa] ⚠️ PDF ${i + 1}/${pdfsSubidos.length} no se pudo subir correctamente`)
+                  
+                  // Log específico: Error al subir PDF
+                  try {
+                    await fetch('/api/crm/listas/importacion-completa-logs', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        level: 'error',
+                        message: `[Importación Completa] ❌ ERROR AL SUBIR PDF: "${nombrePDF}" para curso "${grupo.curso.nombre}"`,
+                        data: {
+                          grupoKey,
+                          colegio: grupo.colegio.nombre,
+                          curso: grupo.curso.nombre,
+                          cursoId,
+                          nombrePDF,
+                          pdfIndex: i + 1,
+                          totalPDFs: pdfsSubidos.length,
+                          resultadoPDF,
+                          tipo: 'pdf_subida_error',
+                        },
+                      }),
+                    })
+                  } catch (e) {
+                    // Ignorar errores de logging
+                  }
                 }
                 
                 // Pequeño delay entre subidas para evitar saturar Strapi
@@ -1466,11 +1838,34 @@ export default function ImportacionCompletaModal({
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     level: 'log',
-                    message: `[Importación Completa] 📥 Descargando PDF desde URL: ${grupo.lista.url_lista}`,
+                    message: `[Importación Completa] 📥 INICIANDO DESCARGA DE PDF: desde URL para curso "${grupo.curso.nombre}"`,
                     data: {
                       grupo: grupoKey,
                       url: grupo.lista.url_lista,
                       nombrePDF,
+                    },
+                  }),
+                })
+              } catch (e) {
+                // Ignorar errores de logging
+              }
+              
+              // Log específico: Inicio de descarga de PDF desde URL
+              try {
+                await fetch('/api/crm/listas/importacion-completa-logs', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    level: 'log',
+                    message: `[Importación Completa] 📥 INICIANDO DESCARGA DE PDF: desde URL para curso "${grupo.curso.nombre}"`,
+                    data: {
+                      grupoKey,
+                      colegio: grupo.colegio.nombre,
+                      curso: grupo.curso.nombre,
+                      cursoId,
+                      nombrePDF,
+                      url: urlParaDescargar,
+                      tipo: 'pdf_descarga_inicio',
                     },
                   }),
                 })
@@ -1491,6 +1886,55 @@ export default function ImportacionCompletaModal({
                   fecha: new Date().toISOString(),
                 })
                 console.log(`[Importación Completa] ✅ PDF descargado y agregado a pdfsSubidosConExito: ${pdfUrl.substring(0, 80)}...`)
+                
+                // Log específico: PDF descargado y subido exitosamente
+                try {
+                  await fetch('/api/crm/listas/importacion-completa-logs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      level: 'log',
+                      message: `[Importación Completa] ✅ PDF DESCARGADO Y SUBIDO EXITOSAMENTE: desde URL para curso "${grupo.curso.nombre}"`,
+                      data: {
+                        grupoKey,
+                        colegio: grupo.colegio.nombre,
+                        curso: grupo.curso.nombre,
+                        cursoId,
+                        nombrePDF,
+                        url: urlParaDescargar,
+                        pdfId: resultadoPDF.pdfId,
+                        pdfUrl: resultadoPDF.pdfUrl ? resultadoPDF.pdfUrl.substring(0, 100) + '...' : null,
+                        tipo: 'pdf_descarga_exitosa',
+                      },
+                    }),
+                  })
+                } catch (e) {
+                  // Ignorar errores de logging
+                }
+              } else {
+                // Log específico: Error al descargar PDF desde URL
+                try {
+                  await fetch('/api/crm/listas/importacion-completa-logs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      level: 'error',
+                      message: `[Importación Completa] ❌ ERROR AL DESCARGAR PDF: desde URL para curso "${grupo.curso.nombre}"`,
+                      data: {
+                        grupoKey,
+                        colegio: grupo.colegio.nombre,
+                        curso: grupo.curso.nombre,
+                        cursoId,
+                        nombrePDF,
+                        url: urlParaDescargar,
+                        resultadoPDF,
+                        tipo: 'pdf_descarga_error',
+                      },
+                    }),
+                  })
+                } catch (e) {
+                  // Ignorar errores de logging
+                }
               }
               
               // 🔍 LOG CRÍTICO: Resultado de descarga y subida
@@ -1511,8 +1955,8 @@ export default function ImportacionCompletaModal({
                   body: JSON.stringify({
                     level: pdfUrl && pdfId ? 'log' : 'warn',
                     message: pdfUrl && pdfId 
-                      ? `[Importación Completa] ✅ PDF descargado y subido correctamente: ${pdfUrl.substring(0, 80)}...`
-                      : `[Importación Completa] ⚠️ No se pudo descargar/subir PDF desde: ${grupo.lista.url_lista}`,
+                      ? `[Importación Completa] ✅ PDF DESCARGADO Y SUBIDO EXITOSAMENTE: desde URL para curso "${grupo.curso.nombre}"`
+                      : `[Importación Completa] ❌ ERROR AL DESCARGAR PDF: desde URL para curso "${grupo.curso.nombre}"`,
                     data: {
                       grupo: grupoKey,
                       url: grupo.lista.url_lista,
@@ -1898,11 +2342,39 @@ export default function ImportacionCompletaModal({
           }
 
         } catch (err: any) {
+          // ✅ MANEJO DE ERRORES GRANULAR: Un error no detiene toda la importación
+          const errorMsg = err.message || 'Error desconocido'
+          console.error(`[Importación Completa] ❌ Error procesando grupo ${procesados}/${gruposArray.length}:`, {
+            colegio: grupo.colegio.nombre,
+            curso: grupo.curso.nombre,
+            asignatura: grupo.asignatura.nombre,
+            lista: grupo.lista.nombre,
+            error: errorMsg,
+            stack: err.stack
+          })
+          
+          await enviarLogDebug('error', `❌ Error en grupo: ${grupo.colegio.nombre} → ${grupo.curso.nombre}`, {
+            error: errorMsg,
+            stack: err.stack,
+            grupo: {
+              colegio: grupo.colegio.nombre,
+              rbd: grupo.colegio.rbd,
+              curso: grupo.curso.nombre,
+              nivel,
+              grado,
+              asignatura: grupo.asignatura.nombre,
+              lista: grupo.lista.nombre,
+            }
+          })
+          
           results.push({
             success: false,
-            message: `Error: ${err.message || 'Error desconocido'}`,
+            message: `Error en ${grupo.colegio.nombre} → ${grupo.curso.nombre}: ${errorMsg}`,
             tipo: 'lista',
           })
+          
+          // ✅ CONTINUAR con el siguiente grupo (no hacer throw)
+          console.log(`[Importación Completa] 🔄 Continuando con siguiente grupo...`)
         }
       }
 
@@ -1953,6 +2425,16 @@ export default function ImportacionCompletaModal({
         'error'
       )
     } finally {
+      const exitosos = results.filter(r => r.success).length
+      const errores = results.filter(r => !r.success).length
+      
+      await enviarLogDebug('fin', `🎉 Importación finalizada`, { 
+        totalResultados: results.length,
+        exitosos,
+        errores,
+        duracionSegundos: ((Date.now() - (window as any).__importStartTime) / 1000).toFixed(2)
+      })
+      
       setProcessing(false)
       // Limpiar localStorage cuando termine el procesamiento
       if (typeof window !== 'undefined') {
@@ -2050,7 +2532,7 @@ export default function ImportacionCompletaModal({
       const uploadedFile = Array.isArray(uploadResult) ? uploadResult[0] : uploadResult
 
       if (uploadedFile) {
-        const strapiUrl = process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'
+        const strapiUrl = process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi-pruebas-production.up.railway.app'
         const pdfUrl = uploadedFile.url 
           ? (uploadedFile.url.startsWith('http') ? uploadedFile.url : `${strapiUrl}${uploadedFile.url}`)
           : null
@@ -2597,6 +3079,7 @@ export default function ImportacionCompletaModal({
       'Nivel',
       'Grado',
       'Año',
+      'Matricula',
       'Asignatura',
       'Orden Asig.',
       'Orden Prod.',
@@ -2615,6 +3098,7 @@ export default function ImportacionCompletaModal({
         'Basica',
         '1',
         '2026',
+        '38',
         'Lenguaje y Comunicación',
         '1',
         '1',
@@ -2629,6 +3113,7 @@ export default function ImportacionCompletaModal({
         'Basica',
         '1',
         '2026',
+        '38',
         'Lenguaje y Comunicación',
         '1',
         '2',
@@ -2643,6 +3128,7 @@ export default function ImportacionCompletaModal({
         'Basica',
         '1',
         '2026',
+        '38',
         'Matemáticas',
         '2',
         '1',
@@ -2657,6 +3143,7 @@ export default function ImportacionCompletaModal({
         'Basica',
         '1',
         '2026',
+        '38',
         'Matemáticas',
         '2',
         '2',
@@ -2676,6 +3163,7 @@ export default function ImportacionCompletaModal({
       { wch: 8 },  // Nivel
       { wch: 6 },  // Grado
       { wch: 6 },  // Año
+      { wch: 10 }, // Matricula
       { wch: 22 }, // Asignatura
       { wch: 10 }, // Orden Asig.
       { wch: 10 }, // Orden Prod.

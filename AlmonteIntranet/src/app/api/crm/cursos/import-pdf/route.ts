@@ -268,7 +268,7 @@ export async function POST(request: NextRequest) {
     uploadFormData.append('files', pdfBlob, pdfFile.name)
     
     // Subir a Strapi Media Library
-    const strapiUrl = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.STRAPI_URL || 'https://strapi.moraleja.cl'
+    const strapiUrl = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.STRAPI_URL || 'https://strapi-pruebas-production.up.railway.app'
     const uploadUrl = `${strapiUrl}/api/upload`
     const uploadHeaders: HeadersInit = {
       'Authorization': `Bearer ${process.env.STRAPI_API_TOKEN || ''}`,

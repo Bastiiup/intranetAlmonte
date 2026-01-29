@@ -15,7 +15,7 @@ import {
 import Link from 'next/link'
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Button, Card, CardFooter, CardHeader, CardBody, Col, Row, Alert, Form } from 'react-bootstrap'
-import { LuSearch, LuMapPin, LuPhone, LuMail, LuUsers, LuPlus, LuX, LuCalendar, LuDownload, LuUpload } from 'react-icons/lu'
+import { LuSearch, LuMapPin, LuPhone, LuMail, LuUsers, LuPlus, LuX, LuCalendar, LuDownload, LuUpload, LuFileText, LuCircleCheck } from 'react-icons/lu'
 import { TbEye, TbEdit, TbTrash, TbLayoutGrid, TbList } from 'react-icons/tb'
 import { exportarListasColegioAExcel } from '@/helpers/excel'
 
@@ -25,6 +25,8 @@ import TablePagination from '@/components/table/TablePagination'
 import EditColegioModal from './EditColegioModal'
 import AddColegioModal from './AddColegioModal'
 import ImportarNivelesAsignaturasModal from './ImportarNivelesAsignaturasModal'
+import ImportarMatriculadosModal from './ImportarMatriculadosModal'
+import VerificarImportacionModal from './VerificarImportacionModal'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 
@@ -44,6 +46,7 @@ interface ColegioType {
   createdAt?: string
   estado?: string
   createdAtTimestamp?: number
+  matriculaTotal?: number
 }
 
 const columnHelper = createColumnHelper<ColegioType>()
@@ -98,7 +101,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     { id: 'createdAtTimestamp', desc: true } // Ordenar por fecha descendente (más nuevo primero)
   ])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10000 })
   const [totalRows, setTotalRows] = useState(0)
   
   // Estados de modales
@@ -107,6 +110,8 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; colegio: any | null }>({ open: false, colegio: null })
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
   const [showImportNivelesModal, setShowImportNivelesModal] = useState(false)
+  const [showImportMatriculadosModal, setShowImportMatriculadosModal] = useState(false)
+  const [showVerificarModal, setShowVerificarModal] = useState(false)
 
   // Función para obtener datos
   const fetchColegios = useCallback(async () => {
@@ -115,9 +120,14 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
     
     try {
       const params = new URLSearchParams()
-      params.append('page', (pagination.pageIndex + 1).toString())
-      params.append('pageSize', pagination.pageSize.toString())
-      if (globalFilter) params.append('search', globalFilter)
+      // Cargar todos los colegios de una vez si no hay búsqueda
+      if (!globalFilter) {
+        params.append('all', 'true')
+      } else {
+        params.append('page', (pagination.pageIndex + 1).toString())
+        params.append('pageSize', '1000')
+        params.append('search', globalFilter)
+      }
       if (tipo) params.append('tipo', tipo)
       if (region) params.append('region', region)
 
@@ -127,30 +137,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
       if (data.success && data.data) {
         const colegiosData = Array.isArray(data.data) ? data.data : [data.data]
         setColegios(colegiosData)
-        setTotalRows(data.meta?.pagination?.total || 0)
-        
-        // Obtener conteo de contactos para cada colegio
-        const colegiosConContactos = await Promise.all(
-          colegiosData.map(async (colegio: any) => {
-            const colegioId = colegio.documentId || colegio.id
-            if (!colegioId) return colegio
-            
-            try {
-              const contactosResponse = await fetch(`/api/crm/colegios/${colegioId}/contacts`)
-              const contactosData = await contactosResponse.json()
-              if (contactosData.success && contactosData.data) {
-                const contactosArray = Array.isArray(contactosData.data) ? contactosData.data : [contactosData.data]
-                colegio._contactosCount = contactosArray.length
-              } else {
-                colegio._contactosCount = 0
-              }
-            } catch (err) {
-              colegio._contactosCount = 0
-            }
-            return colegio
-          })
-        )
-        setColegios(colegiosConContactos)
+        setTotalRows(data.meta?.pagination?.total || colegiosData.length)
       } else {
         setError(data.error || 'Error al obtener colegios')
       }
@@ -260,6 +247,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
         estado: data.estado || data.ESTADO || '',
         createdAt,
         createdAtTimestamp: createdDate.getTime(),
+        matriculaTotal: (colegio as any).matriculaTotal || 0,
       }
     })
   }, [colegios])
@@ -410,6 +398,28 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
           <div className="d-flex align-items-center">
             <LuUsers className="me-1 text-muted" size={16} />
             <span>{colegio.contactosCount || 0}</span>
+          </div>
+        )
+      },
+    },
+    {
+      id: 'matricula',
+      header: 'MATRÍCULA',
+      accessorFn: (row) => row.matriculaTotal || 0,
+      enableSorting: true,
+      enableColumnFilter: true,
+      cell: ({ row }) => {
+        const colegio = row.original
+        const matricula = colegio.matriculaTotal || 0
+        return (
+          <div className="d-flex align-items-center">
+            {matricula > 0 ? (
+              <span className="badge badge-soft-info">
+                {matricula.toLocaleString('es-CL')}
+              </span>
+            ) : (
+              <span className="text-muted">-</span>
+            )}
           </div>
         )
       },
@@ -842,11 +852,10 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
                   value={table.getState().pagination.pageSize}
                   onChange={(e) => table.setPageSize(Number(e.target.value))}
                 >
-                  {[5, 8, 10, 15, 20].map((size) => (
-                    <option key={size} value={size}>
-                      {size}
-                    </option>
-                  ))}
+                  <option value={10000}>Todos</option>
+                  <option value={100}>100</option>
+                  <option value={50}>50</option>
+                  <option value={25}>25</option>
                 </select>
               </div>
             </div>
@@ -861,6 +870,17 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
               <Button variant="outline-success" className="ms-1" onClick={() => setShowImportNivelesModal(true)}>
                 <LuUpload className="fs-sm me-2" /> Importar Niveles/Asignaturas
               </Button>
+              <Button variant="outline-warning" className="ms-1" onClick={() => setShowImportMatriculadosModal(true)}>
+                <LuUsers className="fs-sm me-2" /> Importar Matriculados
+              </Button>
+              <Button variant="outline-success" className="ms-1" onClick={() => setShowVerificarModal(true)}>
+                <LuCircleCheck className="fs-sm me-2" /> Verificar Importación
+              </Button>
+              <Link href="/crm/colegios/logs">
+                <Button variant="outline-info" className="ms-1">
+                  <LuFileText className="fs-sm me-2" /> Ver Logs
+                </Button>
+              </Link>
               <Button variant="danger" className="ms-1" onClick={() => setAddModal(true)}>
                 <LuPlus className="fs-sm me-2" /> Agregar Colegio
               </Button>
@@ -963,6 +983,25 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
           router.refresh()
           fetchColegios()
         }}
+      />
+
+      {/* Modal de importación de matriculados */}
+      <ImportarMatriculadosModal
+        show={showImportMatriculadosModal}
+        onHide={() => setShowImportMatriculadosModal(false)}
+        onSuccess={() => {
+          setShowImportMatriculadosModal(false)
+          setSuccessMessage('Matriculados importados exitosamente')
+          setTimeout(() => setSuccessMessage(null), 3000)
+          router.refresh()
+          fetchColegios()
+        }}
+      />
+
+      {/* Modal de verificación de importación */}
+      <VerificarImportacionModal
+        show={showVerificarModal}
+        onHide={() => setShowVerificarModal(false)}
       />
     </Row>
   )

@@ -16,7 +16,7 @@ export default function ImportacionCompletaLogsViewer() {
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [filteredLogs, setFilteredLogs] = useState<LogEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [autoRefresh, setAutoRefresh] = useState(false)
+  const [autoRefresh, setAutoRefresh] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [levelFilter, setLevelFilter] = useState<'all' | 'log' | 'error' | 'warn'>('all')
   const [sourceFilter, setSourceFilter] = useState<'all' | 'client' | 'server'>('all')

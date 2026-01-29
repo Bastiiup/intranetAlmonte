@@ -33,8 +33,11 @@ export default async function Page() {
       colegios = Array.isArray(data.data) ? data.data : [data.data]
       console.log('[Colegios Page] Colegios obtenidos:', colegios.length)
     } else {
-      error = data.error || 'Error al obtener colegios'
-      console.error('[Colegios Page] Error en respuesta:', data)
+      error = data.error || data.message || 'Error al obtener colegios'
+      // Solo loggear si hay un error específico (no genérico)
+      if (data.error && data.error !== 'Error al obtener colegios') {
+        console.error('[Colegios Page] Error:', data.error)
+      }
     }
   } catch (err: any) {
     error = err.message || 'Error al conectar con la API'

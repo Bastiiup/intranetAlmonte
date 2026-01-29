@@ -49,9 +49,20 @@ const GRADOS_BASICA = Array.from({ length: 8 }, (_, i) => ({
   label: `${i + 1}° Básica`,
 }))
 
+// Función para convertir número a romano (para Media)
+const numeroARomano = (num: number): string => {
+  const romanos: Record<number, string> = {
+    1: 'I',
+    2: 'II',
+    3: 'III',
+    4: 'IV',
+  }
+  return romanos[num] || String(num)
+}
+
 const GRADOS_MEDIA = Array.from({ length: 4 }, (_, i) => ({
   value: String(i + 1),
-  label: `${i + 1}° Media`,
+  label: `${numeroARomano(i + 1)} Medio`, // I Medio, II Medio, III Medio, IV Medio
 }))
 
 const PARALELOS = [
@@ -118,9 +129,14 @@ export default function CursoModal({ show, onHide, colegioId, curso, onSuccess }
       return ''
     }
     const nivelLabel = NIVELES.find(n => n.value === formData.nivel)?.label || formData.nivel
-    const gradoText = `${formData.grado}°`
+    // Para Media usar números romanos (I, II, III, IV), para Básica usar números arábigos (1°, 2°, etc.)
+    const gradoNum = parseInt(formData.grado)
+    const gradoText = formData.nivel === 'Media' 
+      ? numeroARomano(gradoNum) 
+      : `${formData.grado}°`
+    const nivelTexto = formData.nivel === 'Media' ? 'Medio' : 'Básico'
     const paraleloText = formData.paralelo ? ` ${formData.paralelo}` : ''
-    return `${gradoText} ${nivelLabel}${paraleloText}`
+    return `${gradoText} ${nivelTexto}${paraleloText}`
   }, [formData.nivel, formData.grado, formData.paralelo])
 
 

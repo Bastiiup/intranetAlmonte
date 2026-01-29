@@ -72,6 +72,7 @@ interface ListaData {
   nivel: 'Basica' | 'Media'
   grado: number
   año?: number
+  cantidad_alumnos?: number | null // Cantidad de alumnos del curso
   pdf_id?: number | string
   pdf_url?: string
   pdf_nombre?: string
@@ -1378,6 +1379,12 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
   const encontradosEnWooCommerce = productos.filter(p => p.encontrado_en_woocommerce === true).length
   const noEncontradosEnWooCommerce = productos.filter(p => p.encontrado_en_woocommerce === false).length
   
+  // Calcular total de materiales necesarios si hay cantidad de alumnos
+  const cantidadAlumnos = lista?.cantidad_alumnos || 0
+  const totalMaterialesNecesarios = cantidadAlumnos > 0 
+    ? productos.reduce((total, producto) => total + (producto.cantidad * cantidadAlumnos), 0)
+    : 0
+  
   // Productos a mostrar según el tab
   const productosAMostrar = tabActivo === 'disponibles' 
     ? productosDisponibles 
@@ -1437,6 +1444,11 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
               <Badge bg="light" text="dark">
                 Año: {lista.año || new Date().getFullYear()}
               </Badge>
+              {lista.cantidad_alumnos && lista.cantidad_alumnos > 0 && (
+                <Badge bg="info" className="ms-2">
+                  👥 {lista.cantidad_alumnos} alumnos
+                </Badge>
+              )}
               <span className="ms-2">
                 <strong>Fecha Publicación:</strong> {new Date().toLocaleDateString('es-CL', { 
                   year: 'numeric', 
@@ -1481,9 +1493,17 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                     <h5 className="mb-1">
                       Productos Identificados ({totalProductos})
                     </h5>
-                    <p className="text-muted mb-0 small">
-                      Selecciona un producto para ver su ubicación en el PDF
-                    </p>
+                    <div className="d-flex gap-3 align-items-center flex-wrap">
+                      <p className="text-muted mb-0 small">
+                        Selecciona un producto para ver su ubicación en el PDF
+                      </p>
+                      {cantidadAlumnos > 0 && totalMaterialesNecesarios > 0 && (
+                        <Badge bg="primary" className="ms-2">
+                          📦 Total necesario: {totalMaterialesNecesarios.toLocaleString('es-CL')} unidades
+                          <small className="ms-1">({cantidadAlumnos} alumnos)</small>
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <div className="d-flex gap-2">
                     <Button 
@@ -1591,6 +1611,9 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                           <th>Nombre Producto</th>
                           <th>Marca</th>
                           <th style={{ width: '80px' }}>Cantidad</th>
+                          {lista.cantidad_alumnos && lista.cantidad_alumnos > 0 && (
+                            <th style={{ width: '120px' }}>Total Necesario</th>
+                          )}
                           <th style={{ width: '100px' }}>Comprar</th>
                           <th style={{ width: '140px' }}>Disponibilidad</th>
                           <th style={{ width: '100px' }}>Precio</th>
@@ -1602,7 +1625,7 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                       <tbody>
                         {productosAMostrar.length === 0 ? (
                           <tr>
-                            <td colSpan={12} className="text-center py-4">
+                            <td colSpan={lista.cantidad_alumnos && lista.cantidad_alumnos > 0 ? 13 : 12} className="text-center py-4">
                               <Alert variant="info" className="mb-0">
                                 No hay productos en esta categoría
                               </Alert>
@@ -1691,7 +1714,20 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                             <td>{producto.isbn || '-'}</td>
                             <td><strong>{producto.nombre}</strong></td>
                             <td>{producto.marca || '-'}</td>
-                            <td className="text-center">{producto.cantidad}</td>
+                            <td className="text-center">
+                              <div>{producto.cantidad}</div>
+                              <small className="text-muted">unidad</small>
+                            </td>
+                            {lista.cantidad_alumnos && lista.cantidad_alumnos > 0 && (
+                              <td className="text-center">
+                                <div className="fw-bold text-primary">
+                                  {producto.cantidad * lista.cantidad_alumnos}
+                                </div>
+                                <small className="text-muted">
+                                  {producto.cantidad} × {lista.cantidad_alumnos} alumnos
+                                </small>
+                              </td>
+                            )}
                             <td className="text-center">
                               <Badge bg={producto.comprar ? 'dark' : 'secondary'}>
                                 {producto.comprar ? 'Sí' : 'No'}

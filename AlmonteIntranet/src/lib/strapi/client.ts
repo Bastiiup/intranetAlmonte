@@ -82,13 +82,19 @@ async function handleResponse<T>(response: Response): Promise<T> {
       errorData = { message: errorText }
     }
     
-    const error: any = new Error(
-      errorData.error?.message || 
-      errorData.message || 
-      `HTTP error! status: ${response.status}`
-    )
+    // Construir mensaje de error más descriptivo
+    let errorMessage = errorData.error?.message || errorData.message || `HTTP error! status: ${response.status}`
+    
+    // Si el error es "Application not found", puede ser un problema de URL
+    if (errorText.includes('Application not found') || errorText.includes('Not Found')) {
+      errorMessage = `Application not found - Verifica que la URL de Strapi sea correcta: ${response.url}`
+    }
+    
+    const error: any = new Error(errorMessage)
     error.status = response.status
     error.details = errorData.error?.details || errorData.details
+    error.data = errorData
+    error.responseText = errorText
     throw error
   }
 

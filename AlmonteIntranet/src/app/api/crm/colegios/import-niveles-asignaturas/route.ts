@@ -19,6 +19,8 @@ import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 300 // 5 minutos para procesar archivos grandes
+export const runtime = 'nodejs'
 
 const DEBUG = process.env.NODE_ENV === 'development' || process.env.DEBUG_CRM === 'true'
 const debugLog = (...args: any[]) => {
@@ -40,6 +42,23 @@ interface NivelRow {
   asignatura?: string
   cantidad_alumnos?: number
   cantidadAlumnos?: number
+  // Campos para nombre de colegio
+  nombre_colegio?: string
+  colegio_nombre?: string
+  nombre?: string
+}
+
+/**
+ * Convertir número a romano (para Media: 1->I, 2->II, 3->III, 4->IV)
+ */
+function numeroARomano(num: number): string {
+  const romanos: Record<number, string> = {
+    1: 'I',
+    2: 'II',
+    3: 'III',
+    4: 'IV',
+  }
+  return romanos[num] || String(num)
 }
 
 /**
@@ -121,8 +140,49 @@ function parseNivel(nivelStr: string, idNivel?: number): { nivel: 'Basica' | 'Me
  * Procesa un archivo CSV/Excel con niveles y asignaturas
  */
 export async function POST(request: NextRequest) {
+  const startTime = Date.now()
   try {
-    const formData = await request.formData()
+    debugLog('[API /crm/colegios/import-niveles-asignaturas] 🚀 INICIANDO IMPORTACIÓN...')
+    
+    // Verificar content-type primero
+    const contentType = request.headers.get('content-type') || ''
+    debugLog('[API /crm/colegios/import-niveles-asignaturas] Content-Type recibido:', contentType)
+    
+    let formData: FormData
+    try {
+      // Intentar parsear FormData con timeout
+      formData = await Promise.race([
+        request.formData(),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout al leer el archivo. El archivo puede ser demasiado grande.')), 60000)
+        )
+      ])
+    } catch (formDataError: any) {
+      debugLog('[API /crm/colegios/import-niveles-asignaturas] ❌ Error al parsear FormData:', {
+        message: formDataError.message,
+        name: formDataError.name,
+        stack: formDataError.stack,
+      })
+      
+      // Mensaje más específico según el tipo de error
+      let errorMessage = 'No se pudo leer el archivo.'
+      if (formDataError.message?.includes('Timeout')) {
+        errorMessage = 'El archivo es demasiado grande o la conexión es lenta. Intenta con un archivo más pequeño o divide el archivo en partes.'
+      } else if (formDataError.message?.includes('Failed to parse')) {
+        errorMessage = 'El archivo excede el límite de tamaño permitido por el servidor. El límite máximo es 100MB, pero archivos muy grandes pueden requerir procesamiento en partes.'
+      } else {
+        errorMessage = formDataError.message || 'Verifica que el archivo no esté corrupto y que no exceda el tamaño máximo.'
+      }
+      
+      return NextResponse.json(
+        {
+          success: false,
+          error: errorMessage,
+        },
+        { status: 400 }
+      )
+    }
+    
     const file = formData.get('file') as File | null
 
     if (!file) {
@@ -147,6 +207,18 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: 'Tipo de archivo no válido. Se aceptan: .xlsx, .xls, .csv',
+        },
+        { status: 400 }
+      )
+    }
+
+    // Validar tamaño (max 100MB)
+    const maxSize = 100 * 1024 * 1024 // 100MB
+    if (file.size > maxSize) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'El archivo es demasiado grande. Tamaño máximo: 100MB',
         },
         { status: 400 }
       )
@@ -177,7 +249,13 @@ export async function POST(request: NextRequest) {
     // Convertir a JSON
     const rawData: any[] = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '' })
 
-    if (rawData.length < 2) {
+    debugLog('[API /crm/colegios/import-niveles-asignaturas] 📄 Archivo leído:', {
+      totalFilas: rawData.length,
+      columnas: rawData.length > 0 ? Object.keys(rawData[0]).join(', ') : 'N/A',
+      primeras3Filas: rawData.slice(0, 3),
+    })
+
+    if (rawData.length < 1) {
       return NextResponse.json(
         {
           success: false,
@@ -221,6 +299,11 @@ export async function POST(request: NextRequest) {
       const cantidadAlumnosValue = row.cantidad_alumnos || row.Cantidad_Alumnos || row.cantidadAlumnos
       const cantidadAlumnos = cantidadAlumnosValue ? parseInt(String(cantidadAlumnosValue)) : undefined
 
+      // Nombre de colegio (opcional): soportar nombre_colegio, NOMBRE_COLEGIO, colegio_nombre, COLEGIO_NOMBRE, nombre, NOMBRE
+      const nombreColegioValue = row.nombre_colegio || row.NOMBRE_COLEGIO || row.colegio_nombre || 
+                                 row.COLEGIO_NOMBRE || row.nombre || row.NOMBRE || row.Nombre || row.Colegio
+      const nombreColegio = nombreColegioValue ? String(nombreColegioValue).trim() : undefined
+
       return {
         agno: año,
         año: año,
@@ -234,16 +317,47 @@ export async function POST(request: NextRequest) {
         asignatura: asignatura,
         cantidad_alumnos: cantidadAlumnos,
         cantidadAlumnos: cantidadAlumnos,
+        nombre_colegio: nombreColegio,
+        colegio_nombre: nombreColegio,
+        nombre: nombreColegio,
       }
     })
 
-    // Agrupar por RBD y año
+    debugLog('[API /crm/colegios/import-niveles-asignaturas] 📊 Datos normalizados:', {
+      totalFilasNormalizadas: nivelesData.length,
+      filasConRBD: nivelesData.filter(r => r.rbd).length,
+      filasConAño: nivelesData.filter(r => r.año).length,
+      filasCompletas: nivelesData.filter(r => r.rbd && r.año).length,
+      ejemplosNormalizados: nivelesData.slice(0, 5).map(r => ({
+        rbd: r.rbd,
+        año: r.año,
+        nivel: r.nivel,
+        id_nivel: r.id_nivel,
+        ens_bas_med: r.ens_bas_med,
+      })),
+    })
+
+    // Agrupar por RBD y año, y extraer nombres de colegios
     const colegiosMap = new Map<string, Map<number, NivelRow[]>>()
+    const rbdToNombreColegio = new Map<string, string>() // Mapa RBD -> nombre_colegio del archivo
 
     nivelesData.forEach((row) => {
-      if (!row.rbd || !row.año) return
+      if (!row.rbd || !row.año) {
+        debugLog('[API /crm/colegios/import-niveles-asignaturas] ⚠️ Fila ignorada por falta de RBD o Año:', {
+          rbd: row.rbd,
+          año: row.año,
+          nivel: row.nivel,
+        })
+        return
+      }
 
       const rbd = String(row.rbd)
+      
+      // Si esta fila tiene nombre_colegio y aún no lo tenemos para este RBD, guardarlo
+      if (row.nombre_colegio && !rbdToNombreColegio.has(rbd)) {
+        rbdToNombreColegio.set(rbd, row.nombre_colegio)
+      }
+      
       if (!colegiosMap.has(rbd)) {
         colegiosMap.set(rbd, new Map())
       }
@@ -254,6 +368,11 @@ export async function POST(request: NextRequest) {
       }
 
       añosMap.get(row.año)!.push(row)
+    })
+    
+    debugLog('[API /crm/colegios/import-niveles-asignaturas] 📊 Nombres de colegios extraídos del archivo:', {
+      totalNombres: rbdToNombreColegio.size,
+      ejemplos: Array.from(rbdToNombreColegio.entries()).slice(0, 5),
     })
 
     debugLog('[API /crm/colegios/import-niveles-asignaturas] Datos procesados:', {
@@ -290,6 +409,43 @@ export async function POST(request: NextRequest) {
       conRBD: rbdToColegioId.size,
     })
 
+    // OPTIMIZACIÓN: Cargar TODOS los cursos de una vez para evitar búsquedas individuales
+    debugLog('[API /crm/colegios/import-niveles-asignaturas] 📥 Cargando todos los cursos de Strapi...')
+    const todosLosCursosResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
+      '/api/cursos?pagination[pageSize]=10000&publicationState=preview&populate[colegio]=true'
+    )
+    const todosLosCursos = Array.isArray(todosLosCursosResponse.data) ? todosLosCursosResponse.data : []
+    
+    // Crear un índice de cursos por colegio, nivel, grado y año para búsqueda rápida
+    // Clave: `${colegioId}-${nivel}-${grado}-${año}`
+    const cursosIndex = new Map<string, any>()
+    todosLosCursos.forEach((curso: any) => {
+      const attrs = curso.attributes || curso
+      const colegioId = attrs.colegio?.data?.id || attrs.colegio?.id || attrs.colegio
+      const nivel = attrs.nivel
+      const grado = attrs.grado
+      const año = attrs.año || attrs.ano
+      const nombreCurso = attrs.nombre_curso || ''
+      
+      if (colegioId && nivel && grado) {
+        // Crear múltiples claves para búsqueda flexible
+        if (año) {
+          cursosIndex.set(`${colegioId}-${nivel}-${grado}-${año}`, curso)
+        }
+        // También indexar por nombre de curso que contiene el año
+        if (nombreCurso && nombreCurso.includes(String(año))) {
+          cursosIndex.set(`${colegioId}-${nivel}-${grado}-${año}`, curso)
+        }
+        // Clave genérica sin año (por si acaso)
+        cursosIndex.set(`${colegioId}-${nivel}-${grado}`, curso)
+      }
+    })
+    
+    debugLog('[API /crm/colegios/import-niveles-asignaturas] ✅ Cursos cargados e indexados:', {
+      totalCursos: todosLosCursos.length,
+      cursosIndexados: cursosIndex.size,
+    })
+
     // Procesar cada colegio
     const resultados: Array<{
       rbd: string
@@ -300,18 +456,141 @@ export async function POST(request: NextRequest) {
       errores: string[]
     }> = []
 
-    for (const [rbd, añosMap] of colegiosMap.entries()) {
-      const colegioId = rbdToColegioId.get(rbd)
+    const totalColegios = colegiosMap.size
+    let colegiosProcesados = 0
 
+    debugLog('[API /crm/colegios/import-niveles-asignaturas] 📊 Iniciando procesamiento de colegios:', {
+      totalColegios,
+      totalAños: Array.from(colegiosMap.values()).reduce((sum, añosMap) => sum + añosMap.size, 0),
+    })
+
+    for (const [rbd, añosMap] of colegiosMap.entries()) {
+      colegiosProcesados++
+      
+      // Log de progreso cada 10 colegios o al final
+      if (colegiosProcesados % 10 === 0 || colegiosProcesados === totalColegios) {
+        const porcentaje = ((colegiosProcesados / totalColegios) * 100).toFixed(1)
+        debugLog(`[API /crm/colegios/import-niveles-asignaturas] 📈 Progreso: ${colegiosProcesados}/${totalColegios} colegios procesados (${porcentaje}%)`)
+        console.log(`[PROGRESO] Colegios: ${colegiosProcesados}/${totalColegios} (${porcentaje}%)`)
+      }
+      
+      let colegioId = rbdToColegioId.get(rbd)
+
+      // Si el colegio no existe, crearlo automáticamente (sin sobrescribir si ya existe)
       if (!colegioId) {
-        resultados.push({
-          rbd,
-          año: 0,
-          cursosCreados: 0,
-          cursosActualizados: 0,
-          errores: [`Colegio con RBD ${rbd} no encontrado en Strapi`],
-        })
-        continue
+        try {
+          debugLog(`[API /crm/colegios/import-niveles-asignaturas] 🆕 Creando colegio con RBD ${rbd}...`)
+          
+          // Verificar nuevamente si existe (por si acaso se creó en otro proceso)
+          const checkResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
+            `/api/colegios?filters[rbd][$eq]=${rbd}&publicationState=preview`
+          )
+          
+          const colegiosExistentes = Array.isArray(checkResponse.data) ? checkResponse.data : []
+          if (colegiosExistentes.length > 0) {
+            // Ya existe, usar su ID
+            const colegioExistente = colegiosExistentes[0]
+            colegioId = colegioExistente.id || colegioExistente.documentId
+            if (colegioId) {
+              rbdToColegioId.set(rbd, colegioId)
+              debugLog(`[API /crm/colegios/import-niveles-asignaturas] ✅ Colegio con RBD ${rbd} encontrado después de verificación (ID: ${colegioId})`)
+              
+              // Si el colegio existe pero tiene nombre genérico y tenemos nombre del archivo, actualizarlo
+              const nombreDelArchivo = rbdToNombreColegio.get(rbd)
+              if (nombreDelArchivo) {
+                const attrs = (colegioExistente as any)?.attributes || colegioExistente
+                const nombreActual = attrs?.colegio_nombre || colegioExistente?.colegio_nombre || ''
+                const esNombreGenerico = nombreActual.includes('Colegio RBD') || !nombreActual.trim() || nombreActual === `Colegio RBD ${rbd}`
+                
+                if (esNombreGenerico && nombreActual.trim() !== nombreDelArchivo.trim()) {
+                  try {
+                    debugLog(`[API /crm/colegios/import-niveles-asignaturas] 🔄 Actualizando nombre genérico "${nombreActual}" a "${nombreDelArchivo}"`)
+                    await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
+                      `/api/colegios/${colegioId}`,
+                      {
+                        data: {
+                          colegio_nombre: nombreDelArchivo.trim(),
+                        },
+                      }
+                    )
+                    debugLog(`[API /crm/colegios/import-niveles-asignaturas] ✅ Nombre actualizado exitosamente`)
+                  } catch (updateError: any) {
+                    debugLog(`[API /crm/colegios/import-niveles-asignaturas] ⚠️ Error al actualizar nombre del colegio:`, updateError.message)
+                    // No fallar el proceso completo por esto, solo loguear
+                  }
+                }
+              }
+            }
+          } else {
+            // Crear nuevo colegio con datos mínimos
+            // Usar nombre del archivo si está disponible, sino usar nombre temporal
+            const nombreDelArchivo = rbdToNombreColegio.get(rbd)
+            const nombreColegio = nombreDelArchivo || `Colegio RBD ${rbd}`
+            
+            const nuevoColegioData = {
+              data: {
+                colegio_nombre: nombreColegio,
+                rbd: parseInt(rbd),
+                estado: 'Por Verificar',
+              },
+            }
+            
+            if (nombreDelArchivo) {
+              debugLog(`[API /crm/colegios/import-niveles-asignaturas] 📝 Creando colegio con nombre del archivo: "${nombreDelArchivo}"`)
+            }
+            
+            const createResponse = await strapiClient.post<StrapiResponse<StrapiEntity<any>>>(
+              '/api/colegios',
+              nuevoColegioData
+            )
+            
+            if (createResponse.data) {
+              const nuevoColegio = Array.isArray(createResponse.data) ? createResponse.data[0] : createResponse.data
+              colegioId = nuevoColegio?.id || nuevoColegio?.documentId
+              
+              if (colegioId) {
+                rbdToColegioId.set(rbd, colegioId)
+                debugLog(`[API /crm/colegios/import-niveles-asignaturas] ✅ Colegio creado con RBD ${rbd} (ID: ${colegioId})`)
+              } else {
+                throw new Error('No se pudo obtener ID del colegio creado')
+              }
+            } else {
+              throw new Error('No se recibió data en la respuesta de creación')
+            }
+          }
+        } catch (createError: any) {
+          // Si hay error al crear (por ejemplo, RBD duplicado), intentar buscar nuevamente
+          debugLog(`[API /crm/colegios/import-niveles-asignaturas] ⚠️ Error al crear colegio RBD ${rbd}, intentando buscar nuevamente:`, createError.message)
+          
+          try {
+            const retryResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
+              `/api/colegios?filters[rbd][$eq]=${rbd}&publicationState=preview`
+            )
+            const retryColegios = Array.isArray(retryResponse.data) ? retryResponse.data : []
+            if (retryColegios.length > 0) {
+              const colegioRetry = retryColegios[0]
+              colegioId = colegioRetry.id || colegioRetry.documentId
+              if (colegioId) {
+                rbdToColegioId.set(rbd, colegioId)
+                debugLog(`[API /crm/colegios/import-niveles-asignaturas] ✅ Colegio con RBD ${rbd} encontrado después de reintento (ID: ${colegioId})`)
+              }
+            }
+          } catch (retryError: any) {
+            debugLog(`[API /crm/colegios/import-niveles-asignaturas] ❌ Error en reintento para RBD ${rbd}:`, retryError.message)
+          }
+          
+          // Si aún no tenemos colegioId, reportar error y continuar
+          if (!colegioId) {
+            resultados.push({
+              rbd,
+              año: 0,
+              cursosCreados: 0,
+              cursosActualizados: 0,
+              errores: [`No se pudo crear ni encontrar colegio con RBD ${rbd}: ${createError.message}`],
+            })
+            continue
+          }
+        }
       }
 
       for (const [año, niveles] of añosMap.entries()) {
@@ -319,94 +598,140 @@ export async function POST(request: NextRequest) {
         const cursosActualizados: number[] = []
         const errores: string[] = []
 
-        for (const nivelRow of niveles) {
-          try {
-            const { nivel, grado } = parseNivel(nivelRow.nivel || '', nivelRow.id_nivel || nivelRow.idNivel)
-            const nombreCurso = `${grado}º ${nivel === 'Media' ? 'Media' : 'Básico'}`
-
-            // Buscar si el curso ya existe
-            // Nota: Strapi puede no tener filtro directo por año, así que filtramos por colegio, nivel y grado
-            const cursosResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
-              `/api/cursos?filters[colegio][id][$eq]=${colegioId}&filters[nivel][$eq]=${nivel}&filters[grado][$eq]=${grado}&publicationState=preview`
-            )
-
-            const cursosExistentes = Array.isArray(cursosResponse.data) ? cursosResponse.data : []
-            
-            // Filtrar por año también (ya que Strapi puede no filtrar por año directamente)
-            const cursoExistente = cursosExistentes.find((curso: any) => {
-              const attrs = (curso as any)?.attributes || curso
-              const cursoAño = attrs.año || attrs.ano
-              return cursoAño === año
-            })
-            
-            let cursoId: number | undefined
-
-            if (cursoExistente) {
-              // Actualizar curso existente
-              cursoId = cursoExistente.id || cursoExistente.documentId
+        // Procesar niveles en lotes para optimizar velocidad (batch processing)
+      const BATCH_SIZE = 10 // Procesar 10 cursos en paralelo
+      const nivelesArray = Array.from(niveles)
+      
+      for (let i = 0; i < nivelesArray.length; i += BATCH_SIZE) {
+        const batch = nivelesArray.slice(i, i + BATCH_SIZE)
+        
+        // Procesar lote en paralelo
+        await Promise.all(
+          batch.map(async (nivelRow) => {
+            try {
+              const { nivel, grado } = parseNivel(nivelRow.nivel || '', nivelRow.id_nivel || nivelRow.idNivel)
+              // Para Media usar números romanos (I, II, III, IV), para Básico usar números arábigos (1º, 2º, etc.)
+              const gradoTexto = nivel === 'Media' ? numeroARomano(grado) : `${grado}º`
+              const nombreCurso = `${gradoTexto} ${nivel === 'Media' ? 'Medio' : 'Básico'} ${año}`
               
-              const updateData: any = {
-                nombre_curso: nombreCurso,
-                nivel,
-                grado,
-                // Nota: año no se puede actualizar directamente en Strapi según el código existente
-              }
-
-              // Usar la API de cursos para actualizar
-              const updateResponse = await fetch(`/api/crm/cursos/${cursoId}`, {
-                method: 'PUT',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(updateData),
+              debugLog(`[API /crm/colegios/import-niveles-asignaturas] 🔄 Procesando nivel para RBD ${rbd}, año ${año}:`, {
+                nivelOriginal: nivelRow.nivel,
+                idNivel: nivelRow.id_nivel || nivelRow.idNivel,
+                nivelParseado: nivel,
+                gradoParseado: grado,
+                nombreCurso,
+                ens_bas_med: nivelRow.ens_bas_med,
               })
 
-              if (!updateResponse.ok) {
-                const errorData = await updateResponse.json()
-                throw new Error(errorData.error || 'Error al actualizar curso')
+              // OPTIMIZACIÓN: Buscar curso en el índice en lugar de hacer llamada a Strapi
+              const cursoKey = `${colegioId}-${nivel}-${grado}-${año}`
+              let cursoExistente = cursosIndex.get(cursoKey)
+              
+              // Si no se encuentra con año, intentar sin año y verificar manualmente
+              if (!cursoExistente) {
+                const cursoSinAño = cursosIndex.get(`${colegioId}-${nivel}-${grado}`)
+                if (cursoSinAño) {
+                  const attrs = cursoSinAño.attributes || cursoSinAño
+                  const cursoAño = attrs.año || attrs.ano
+                  const nombreCursoAttr = attrs.nombre_curso || ''
+                  // Verificar que el año coincida
+                  if (cursoAño === año || nombreCursoAttr.includes(String(año))) {
+                    cursoExistente = cursoSinAño
+                  }
+                }
               }
+              
+              let cursoId: number | undefined
 
-              cursosActualizados.push(cursoId)
-              debugLog(`[API] ✅ Curso actualizado: ${nombreCurso} (ID: ${cursoId})`)
-            } else {
-              // Crear nuevo curso usando la API de colegios
-              const createData: any = {
-                nombre_curso: nombreCurso,
-                nivel,
-                grado,
-                año,
-                activo: true,
-              }
+              if (cursoExistente) {
+                // Actualizar curso existente usando strapiClient directamente
+                cursoId = cursoExistente.id || cursoExistente.documentId
+                
+                const updateData: any = {
+                  data: {
+                    nombre_curso: nombreCurso,
+                    nivel,
+                    grado: String(grado), // grado debe ser string en Strapi
+                    // Añadir asignatura y cantidad de alumnos si existen
+                    ...(nivelRow.asignatura && { asignatura: nivelRow.asignatura }),
+                    ...(nivelRow.cantidad_alumnos && { cantidad_alumnos: nivelRow.cantidad_alumnos }),
+                  },
+                }
 
-              const createResponse = await fetch(`/api/crm/colegios/${colegioId}/cursos`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(createData),
-              })
+                try {
+                  await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
+                    `/api/cursos/${cursoId}`,
+                    updateData
+                  )
 
-              const createResult = await createResponse.json()
-
-              if (createResult.success && createResult.data) {
-                const nuevoCurso = Array.isArray(createResult.data) ? createResult.data[0] : createResult.data
-                cursoId = nuevoCurso?.id || nuevoCurso?.documentId
-
-                if (cursoId) {
-                  cursosCreados.push(cursoId)
-                  debugLog(`[API] ✅ Curso creado: ${nombreCurso} (ID: ${cursoId})`)
-                } else {
-                  errores.push(`No se pudo obtener ID del curso creado: ${nombreCurso}`)
+                  cursosActualizados.push(cursoId)
+                  debugLog(`[API /crm/colegios/import-niveles-asignaturas] ✅ Curso actualizado: ${nombreCurso} (ID: ${cursoId}) para RBD ${rbd}, año ${año}`)
+                } catch (updateError: any) {
+                  const errorMsg = `Error al actualizar curso ${nombreCurso}: ${updateError.message || 'Error desconocido'}`
+                  errores.push(errorMsg)
+                  debugLog(`[API /crm/colegios/import-niveles-asignaturas] ❌ Error al actualizar curso ${nombreCurso} para RBD ${rbd}, año ${año}:`, updateError)
                 }
               } else {
-                errores.push(`Error al crear curso ${nombreCurso}: ${createResult.error || 'Error desconocido'}`)
+                // Crear nuevo curso usando strapiClient directamente
+                // NOTA: NO incluir campo 'año' - Strapi lo rechaza con "Invalid key año"
+                // El año ya está incluido en nombre_curso (ej: "1º Básico 2022")
+                const createData: any = {
+                  data: {
+                    nombre_curso: nombreCurso,
+                    nivel,
+                    grado: String(grado), // grado debe ser string en Strapi
+                    // año: año, // ❌ NO incluir - Strapi rechaza este campo
+                    activo: true,
+                    colegio: { connect: [colegioId] }, // Relación manyToOne
+                    // Añadir asignatura y cantidad de alumnos si existen
+                    ...(nivelRow.asignatura && { asignatura: nivelRow.asignatura }),
+                    ...(nivelRow.cantidad_alumnos && { cantidad_alumnos: nivelRow.cantidad_alumnos }),
+                  },
+                }
+
+                try {
+                  const createResponse = await strapiClient.post<StrapiResponse<StrapiEntity<any>>>(
+                    '/api/cursos',
+                    createData
+                  )
+
+                  if (createResponse.data) {
+                    const nuevoCurso = Array.isArray(createResponse.data) ? createResponse.data[0] : createResponse.data
+                    cursoId = nuevoCurso?.id || nuevoCurso?.documentId
+
+                    if (cursoId) {
+                      cursosCreados.push(cursoId)
+                      debugLog(`[API /crm/colegios/import-niveles-asignaturas] ✅ Curso creado: ${nombreCurso} (ID: ${cursoId}) para RBD ${rbd}, año ${año}`)
+                    } else {
+                      errores.push(`No se pudo obtener ID del curso creado: ${nombreCurso}`)
+                    }
+                  } else {
+                    const errorMsg = `Error al crear curso ${nombreCurso}: No se recibió data en la respuesta`
+                    errores.push(errorMsg)
+                    debugLog(`[API /crm/colegios/import-niveles-asignaturas] ❌ Error al crear curso ${nombreCurso} para RBD ${rbd}, año ${año}: No data en respuesta`, createResponse)
+                  }
+                } catch (createError: any) {
+                  const errorMsg = `Error al crear curso ${nombreCurso}: ${createError.message || 'Error desconocido'}`
+                  errores.push(errorMsg)
+                  debugLog(`[API /crm/colegios/import-niveles-asignaturas] ❌ Error al crear curso ${nombreCurso} para RBD ${rbd}, año ${año}:`, {
+                    error: createError.message,
+                    stack: createError.stack,
+                    response: createError.response,
+                  })
+                }
               }
+            } catch (error: any) {
+              const errorMsg = `Error procesando nivel ${nivelRow.nivel} (ID: ${nivelRow.id_nivel}): ${error.message}`
+              errores.push(errorMsg)
+              debugLog(`[API /crm/colegios/import-niveles-asignaturas] ❌ Error procesando nivel ${nivelRow.nivel} para colegio RBD ${rbd} año ${año}:`, {
+                error: error.message,
+                stack: error.stack,
+                nivelRow,
+              })
             }
-          } catch (error: any) {
-            errores.push(`Error procesando nivel ${nivelRow.nivel}: ${error.message}`)
-            debugLog(`[API] ❌ Error:`, error)
-          }
-        }
+          })
+        )
+      }
 
         resultados.push({
           rbd,
@@ -422,6 +747,16 @@ export async function POST(request: NextRequest) {
     const totalCursosCreados = resultados.reduce((sum, r) => sum + r.cursosCreados, 0)
     const totalCursosActualizados = resultados.reduce((sum, r) => sum + r.cursosActualizados, 0)
     const totalErrores = resultados.reduce((sum, r) => sum + r.errores.length, 0)
+    const tiempoTotal = ((Date.now() - startTime) / 1000).toFixed(2)
+
+    debugLog('[API /crm/colegios/import-niveles-asignaturas] ✅✅✅ IMPORTACIÓN COMPLETADA ✅✅✅', {
+      totalColegios: colegiosMap.size,
+      totalCursosCreados,
+      totalCursosActualizados,
+      totalErrores,
+      tiempoTotal: `${tiempoTotal}s`,
+      resultadosPorColegio: resultados.length,
+    })
 
     return NextResponse.json({
       success: true,

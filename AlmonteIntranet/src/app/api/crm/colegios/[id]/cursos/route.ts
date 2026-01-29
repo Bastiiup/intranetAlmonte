@@ -278,6 +278,7 @@ export async function POST(
         // ano: año, // ❌ NO incluir - causa error "Invalid key ano"
         ...(body.paralelo && { paralelo: body.paralelo }),
         ...(body.activo !== undefined && { activo: body.activo !== false }),
+        ...(body.matricula !== undefined && body.matricula !== null && { matricula: typeof body.matricula === 'number' ? body.matricula : parseInt(String(body.matricula)) }), // ✅ Incluir matrícula si está disponible
       },
     }
     

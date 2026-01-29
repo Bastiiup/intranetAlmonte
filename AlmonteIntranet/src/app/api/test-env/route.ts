@@ -10,7 +10,7 @@ export async function GET() {
     // Variables de Strapi
     hasStrapiToken: !!process.env.STRAPI_API_TOKEN,
     strapiTokenLength: process.env.STRAPI_API_TOKEN?.length || 0,
-    strapiUrl: process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl',
+    strapiUrl: process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi-pruebas-production.up.railway.app',
     
     // Variables de WooCommerce
     hasWooCommerceKey: !!process.env.WOOCOMMERCE_CONSUMER_KEY,

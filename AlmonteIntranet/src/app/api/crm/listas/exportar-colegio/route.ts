@@ -223,6 +223,7 @@ export async function GET(request: NextRequest) {
       const nivel = attrs.nivel || 'Basica'
       const grado = attrs.grado || 1
       const año = attrs.año || attrs.ano || new Date().getFullYear()
+      const cantidadAlumnos = attrs.cantidad_alumnos || null // Obtener cantidad de alumnos
 
       // Obtener todos los productos de todas las versiones
       const todosLosProductos: any[] = []
@@ -264,6 +265,7 @@ export async function GET(request: NextRequest) {
         nivel: nivel,
         grado: grado,
         año: año,
+        cantidad_alumnos: cantidadAlumnos, // Agregar cantidad de alumnos
         versiones_count: versiones.length,
         productos: todosLosProductos,
         productos_count: todosLosProductos.length,
@@ -282,6 +284,10 @@ export async function GET(request: NextRequest) {
             return
           }
           
+          const cantidadUnitaria = producto.cantidad || 1
+          const cantidadAlumnos = lista.cantidad_alumnos || 0
+          const totalNecesario = cantidadAlumnos > 0 ? cantidadUnitaria * cantidadAlumnos : cantidadUnitaria
+          
           datosExcel.push({
             Colegio: colegioNombre,
             RBD: colegioRBD || '',
@@ -290,12 +296,14 @@ export async function GET(request: NextRequest) {
             Nivel: lista.nivel,
             Grado: lista.grado,
             Año: lista.año,
+            Cantidad_Alumnos: cantidadAlumnos > 0 ? cantidadAlumnos : '',
             Versión: producto.version_nombre || '',
             Fecha_Versión: producto.fecha_version ? new Date(producto.fecha_version).toLocaleDateString('es-CL') : '',
             Producto: producto.nombre || '',
             ISBN: producto.isbn || producto.woocommerce_sku || '',
             Marca: producto.marca || '',
-            Cantidad: producto.cantidad || 1,
+            Cantidad: cantidadUnitaria,
+            Total_Necesario: cantidadAlumnos > 0 ? totalNecesario : '',
             Precio: producto.precio || producto.precio_woocommerce || 0,
             Precio_WooCommerce: producto.precio_woocommerce || '',
             Asignatura: producto.asignatura || '',
@@ -328,6 +336,8 @@ export async function GET(request: NextRequest) {
               const versionNombre = version.nombre_archivo || version.nombre_lista || version.tipo_lista || 'Versión con PDF'
               const fechaVersion = version.fecha_actualizacion || version.fecha_subida || ''
               
+              const cantidadAlumnos = lista.cantidad_alumnos || 0
+              
               datosExcel.push({
                 Colegio: colegioNombre,
                 RBD: colegioRBD || '',
@@ -336,12 +346,14 @@ export async function GET(request: NextRequest) {
                 Nivel: lista.nivel,
                 Grado: lista.grado,
                 Año: lista.año,
+                Cantidad_Alumnos: cantidadAlumnos > 0 ? cantidadAlumnos : '',
                 Versión: versionNombre,
                 Fecha_Versión: fechaVersion ? new Date(fechaVersion).toLocaleDateString('es-CL') : '',
                 Producto: `PDF disponible: ${versionNombre}`,
                 ISBN: '',
                 Marca: '',
                 Cantidad: 0,
+                Total_Necesario: '',
                 Precio: 0,
                 Precio_WooCommerce: '',
                 Asignatura: '',

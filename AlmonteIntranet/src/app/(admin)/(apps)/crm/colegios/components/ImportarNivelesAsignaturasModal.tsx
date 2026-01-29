@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import {
   Modal,
   ModalHeader,
@@ -46,6 +47,113 @@ export default function ImportarNivelesAsignaturasModal({
     totalCursosActualizados: number
     totalErrores: number
   } | null>(null)
+  
+  // Estados para el progreso en tiempo real
+  const [progreso, setProgreso] = useState<{
+    colegiosProcesados: number
+    totalColegios: number
+    cursosCreados: number
+    cursosActualizados: number
+    errores: number
+    ultimoMensaje: string
+  }>({
+    colegiosProcesados: 0,
+    totalColegios: 0,
+    cursosCreados: 0,
+    cursosActualizados: 0,
+    errores: 0,
+    ultimoMensaje: '',
+  })
+  const [intervalId, setIntervalId] = useState<NodeJS.Timeout | null>(null)
+  const [tiempoInicio, setTiempoInicio] = useState<number | null>(null)
+  const [tiempoTranscurrido, setTiempoTranscurrido] = useState<string>('00:00')
+  const tiempoIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Función para obtener progreso desde los logs
+  const obtenerProgresoDesdeLogs = useCallback(async () => {
+    try {
+      const response = await fetch('/api/crm/colegios/logs?limit=100')
+      if (!response.ok) return
+      
+      const result = await response.json()
+      if (!result.success || !result.data?.logs) return
+      
+      const logs = result.data.logs
+      
+      // Extraer información de progreso de los logs
+      let colegiosProcesados = 0
+      let totalColegios = 0
+      let cursosCreados = 0
+      let cursosActualizados = 0
+      let errores = 0
+      let ultimoMensaje = ''
+      
+      // Buscar logs de progreso
+      for (const log of logs) {
+        const msg = log.message || ''
+        
+        // Detectar total de colegios
+        const matchTotal = msg.match(/Total.*?colegios.*?(\d+)/i) || 
+                          msg.match(/colegios.*?encontrados.*?(\d+)/i)
+        if (matchTotal) {
+          const total = parseInt(matchTotal[1])
+          if (total > totalColegios) {
+            totalColegios = total
+          }
+        }
+        
+        // Detectar progreso de colegios (formato: "[PROGRESO] Colegios: X/Y (Z%)")
+        const matchProgreso = msg.match(/\[PROGRESO\]\s*Colegios:\s*(\d+)\/(\d+)/i) || 
+                                 msg.match(/Progreso.*?(\d+)\/(\d+).*?colegios/i) ||
+                                 msg.match(/Colegios.*?(\d+)\/(\d+)/i)
+        if (matchProgreso) {
+          const procesados = parseInt(matchProgreso[1])
+          const total = parseInt(matchProgreso[2])
+          if (procesados > colegiosProcesados) {
+            colegiosProcesados = procesados
+          }
+          if (total > totalColegios) {
+            totalColegios = total
+          }
+        }
+        
+        // Detectar cursos creados
+        if (msg.includes('✅ Curso creado') || msg.includes('Curso creado:')) {
+          cursosCreados++
+        }
+        
+        // Detectar cursos actualizados
+        if (msg.includes('✅ Curso actualizado') || msg.includes('Curso actualizado:')) {
+          cursosActualizados++
+        }
+        
+        // Detectar errores
+        if (msg.includes('❌') || (msg.includes('Error') && log.level === 'error')) {
+          errores++
+        }
+        
+        // Obtener último mensaje relevante
+        if (msg.includes('[PROGRESO]') || msg.includes('Procesando') || msg.includes('Colegio') || msg.includes('Curso')) {
+          ultimoMensaje = msg.replace(/\[.*?\]/g, '').trim().substring(0, 80)
+        }
+      }
+      
+      // Si encontramos información, actualizar el estado
+      if (colegiosProcesados > 0 || totalColegios > 0 || cursosCreados > 0 || cursosActualizados > 0) {
+        setProgreso({
+          colegiosProcesados,
+          totalColegios,
+          cursosCreados,
+          cursosActualizados,
+          errores,
+          ultimoMensaje,
+        })
+      }
+    } catch (err) {
+      // Silenciar errores de polling
+      console.debug('[ImportarNivelesAsignaturasModal] Error al obtener progreso:', err)
+    }
+  }, [])
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return
@@ -55,6 +163,38 @@ export default function ImportarNivelesAsignaturasModal({
     setLoading(true)
     setResultados([])
     setResumen(null)
+    
+    // Resetear progreso
+    setProgreso({
+      colegiosProcesados: 0,
+      totalColegios: 0,
+      cursosCreados: 0,
+      cursosActualizados: 0,
+      errores: 0,
+      ultimoMensaje: 'Iniciando importación...',
+    })
+    
+    // Iniciar contador de tiempo
+    setTiempoInicio(Date.now())
+    
+    // Iniciar polling de progreso cada 2 segundos
+    const interval = setInterval(obtenerProgresoDesdeLogs, 2000)
+    setIntervalId(interval)
+    
+    // Iniciar contador de tiempo cada segundo
+    const inicioTiempo = Date.now()
+    if (tiempoIntervalRef.current) {
+      clearInterval(tiempoIntervalRef.current)
+    }
+    tiempoIntervalRef.current = setInterval(() => {
+      const segundos = Math.floor((Date.now() - inicioTiempo) / 1000)
+      const minutos = Math.floor(segundos / 60)
+      const segs = segundos % 60
+      setTiempoTranscurrido(`${String(minutos).padStart(2, '0')}:${String(segs).padStart(2, '0')}`)
+    }, 1000)
+    
+    // Primera consulta inmediata
+    obtenerProgresoDesdeLogs()
 
     try {
       // Validar tipo de archivo
@@ -65,46 +205,207 @@ export default function ImportarNivelesAsignaturasModal({
         throw new Error('Tipo de archivo no válido. Se aceptan: .xlsx, .xls, .csv')
       }
 
-      // Validar tamaño (max 10MB)
-      const maxSize = 10 * 1024 * 1024 // 10MB
+      // Validar tamaño (max 100MB)
+      const maxSize = 100 * 1024 * 1024 // 100MB
       if (file.size > maxSize) {
-        throw new Error('El archivo es demasiado grande. Tamaño máximo: 10MB')
+        throw new Error('El archivo es demasiado grande. Tamaño máximo: 100MB')
       }
 
       // Crear FormData y enviar a la API
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch('/api/crm/colegios/import-niveles-asignaturas', {
-        method: 'POST',
-        body: formData,
+      console.log('[ImportarNivelesAsignaturasModal] 📤 Enviando archivo:', {
+        nombre: file.name,
+        tamaño: file.size,
+        tipo: file.type,
       })
+
+      // Crear un AbortController para timeout (10 minutos para archivos grandes)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 600000) // 10 minutos
+
+      let response: Response
+      try {
+        response = await fetch('/api/crm/colegios/import-niveles-asignaturas', {
+          method: 'POST',
+          body: formData,
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId)
+        
+        // Manejar diferentes tipos de errores
+        if (fetchError.name === 'AbortError') {
+          throw new Error('La petición tardó demasiado tiempo. El archivo puede ser muy grande. Intenta con un archivo más pequeño o divide el archivo en partes.')
+        }
+        
+        if (fetchError.message === 'Failed to fetch') {
+          throw new Error('No se pudo conectar con el servidor. Verifica que el servidor esté corriendo y que no haya problemas de red.')
+        }
+        
+        throw new Error(`Error al enviar archivo: ${fetchError.message || 'Error desconocido'}`)
+      }
+
+      console.log('[ImportarNivelesAsignaturasModal] 📥 Respuesta recibida:', {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        contentType: response.headers.get('content-type'),
+      })
+
+      // Verificar si la respuesta es JSON
+      const contentType = response.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text()
+        console.error('[ImportarNivelesAsignaturasModal] ❌ Respuesta no es JSON:', text.substring(0, 500))
+        throw new Error(`Error del servidor: ${response.status} ${response.statusText}. La respuesta no es JSON válido.`)
+      }
 
       const result = await response.json()
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Error al procesar el archivo')
+      console.log('[ImportarNivelesAsignaturasModal] 📊 Resultado:', {
+        success: result.success,
+        tieneData: !!result.data,
+        tieneResultados: !!result.data?.resultados,
+        tieneResumen: !!result.data?.resumen,
+        error: result.error,
+      })
+
+      if (!response.ok) {
+        // Si la respuesta no es OK, intentar obtener más información del error
+        let errorMessage = `Error del servidor: ${response.status} ${response.statusText}`
+        
+        try {
+          if (result && result.error) {
+            errorMessage = result.error
+          } else if (result && result.message) {
+            errorMessage = result.message
+          }
+        } catch (e) {
+          // Si no se puede parsear el error, usar el mensaje por defecto
+        }
+        
+        throw new Error(errorMessage)
+      }
+      
+      if (!result.success) {
+        const errorMessage = result.error || result.message || 'Error desconocido al procesar el archivo'
+        throw new Error(errorMessage)
       }
 
       if (result.data) {
         setResultados(result.data.resultados || [])
         setResumen(result.data.resumen || null)
         
+        // Actualizar progreso final
+        if (result.data.resumen) {
+          setProgreso({
+            colegiosProcesados: result.data.resumen.totalColegios,
+            totalColegios: result.data.resumen.totalColegios,
+            cursosCreados: result.data.resumen.totalCursosCreados,
+            cursosActualizados: result.data.resumen.totalCursosActualizados,
+            errores: result.data.resumen.totalErrores,
+            ultimoMensaje: '✅ Importación completada',
+          })
+        }
+        
+        // Detener polling y contador de tiempo
+        if (intervalId) {
+          clearInterval(intervalId)
+          setIntervalId(null)
+        }
+        setTiempoInicio(null)
+        
         if (onSuccess) {
           setTimeout(() => {
             onSuccess()
           }, 1000)
         }
+      } else {
+        setResultados([])
+        setResumen(null)
+        
+        // Detener polling y contador de tiempo
+        if (intervalId) {
+          clearInterval(intervalId)
+          setIntervalId(null)
+        }
+        if (tiempoIntervalRef.current) {
+          clearInterval(tiempoIntervalRef.current)
+          tiempoIntervalRef.current = null
+        }
+        setTiempoInicio(null)
       }
     } catch (err: any) {
-      console.error('Error al importar archivo:', err)
-      setError(err.message || 'Error al procesar el archivo')
+      // Mejorar el logging de errores
+      const errorInfo: any = {
+        message: err?.message || 'Error desconocido',
+        name: err?.name,
+        stack: err?.stack,
+      }
+      
+      // Si es un error de red, agregar más información
+      if (err instanceof TypeError && err.message.includes('fetch')) {
+        errorInfo.tipo = 'Error de red'
+        errorInfo.detalle = 'No se pudo conectar con el servidor. El servidor puede estar caído o no estar corriendo. Verifica que el servidor esté activo.'
+      }
+      
+      // Si es un AbortError (timeout), dar mensaje específico
+      if (err?.name === 'AbortError') {
+        errorInfo.tipo = 'Timeout'
+        errorInfo.detalle = 'La petición tardó demasiado tiempo. El archivo puede ser muy grande. Intenta con un archivo más pequeño o divide el archivo en partes.'
+      }
+      
+      // Si el error tiene más propiedades, agregarlas
+      if (err && typeof err === 'object') {
+        Object.keys(err).forEach(key => {
+          if (!['message', 'name', 'stack'].includes(key)) {
+            errorInfo[key] = err[key]
+          }
+        })
+      }
+      
+      console.error('[ImportarNivelesAsignaturasModal] ❌ Error al importar archivo:', errorInfo)
+      
+      // Mostrar mensaje de error más descriptivo
+      let errorMessage = err?.message || err?.toString() || 'Error al procesar el archivo. Por favor, intenta nuevamente.'
+      
+      // Mejorar mensajes de error comunes
+      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('fetch')) {
+        errorMessage = 'No se pudo conectar con el servidor. Verifica que el servidor esté corriendo (npm run dev).'
+      } else if (errorMessage.includes('AbortError') || errorMessage.includes('timeout')) {
+        errorMessage = 'La petición tardó demasiado tiempo. El archivo puede ser muy grande. Intenta con un archivo más pequeño.'
+      }
+      
+      setError(errorMessage)
       setResultados([])
       setResumen(null)
+      
+      // Detener polling y contador de tiempo
+      if (intervalId) {
+        clearInterval(intervalId)
+        setIntervalId(null)
+      }
+      if (tiempoIntervalRef.current) {
+        clearInterval(tiempoIntervalRef.current)
+        tiempoIntervalRef.current = null
+      }
+      setTiempoInicio(null)
     } finally {
       setLoading(false)
     }
-  }, [onSuccess])
+  }, [onSuccess, obtenerProgresoDesdeLogs, intervalId])
+  
+  // Limpiar intervalo al desmontar o cerrar el modal
+  useEffect(() => {
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId)
+      }
+    }
+  }, [intervalId])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -118,7 +419,36 @@ export default function ImportarNivelesAsignaturasModal({
   })
 
   const handleClose = () => {
-    if (!loading) {
+    if (loading) {
+      // Si está procesando, preguntar si realmente quiere cerrar
+      if (confirm('⚠️ La importación está en progreso. Si cierras el modal, perderás la visualización del progreso, pero el proceso puede continuar en el servidor.\n\n¿Deseas cerrar de todas formas?\n\nPuedes verificar el progreso en la página de logs.')) {
+        // Detener polling pero mantener el proceso en el servidor
+        if (intervalId) {
+          clearInterval(intervalId)
+          setIntervalId(null)
+        }
+        if (tiempoIntervalRef.current) {
+          clearInterval(tiempoIntervalRef.current)
+          tiempoIntervalRef.current = null
+        }
+        setTiempoInicio(null)
+        setLoading(false)
+        setError(null)
+        setResultados([])
+        setResumen(null)
+        onHide()
+      }
+    } else {
+      // Si no está procesando, cerrar normalmente
+      if (intervalId) {
+        clearInterval(intervalId)
+        setIntervalId(null)
+      }
+      if (tiempoIntervalRef.current) {
+        clearInterval(tiempoIntervalRef.current)
+        tiempoIntervalRef.current = null
+      }
+      setTiempoInicio(null)
       setError(null)
       setResultados([])
       setResumen(null)
@@ -181,7 +511,75 @@ export default function ImportarNivelesAsignaturasModal({
               {loading ? (
                 <div>
                   <Spinner animation="border" className="mb-3" />
-                  <p className="mb-0">Procesando archivo...</p>
+                  <p className="mb-2 fw-semibold">Procesando archivo...</p>
+                  
+                  {/* Resumen de progreso en tiempo real */}
+                  {(progreso.colegiosProcesados > 0 || progreso.cursosCreados > 0 || progreso.cursosActualizados > 0) && (
+                    <div className="mb-3 p-3 bg-light rounded border">
+                      <div className="d-flex justify-content-between align-items-center mb-3">
+                      <h6 className="mb-0">📊 Progreso de Importación</h6>
+                      {tiempoInicio && (
+                        <Badge bg="secondary" className="fs-6">
+                          ⏱️ {tiempoTranscurrido}
+                        </Badge>
+                      )}
+                    </div>
+                      <div className="row g-2">
+                        {progreso.totalColegios > 0 && (
+                          <div className="col-6">
+                            <div className="d-flex justify-content-between align-items-center">
+                              <span className="text-muted small">Colegios:</span>
+                              <Badge bg="primary">
+                                {progreso.colegiosProcesados} / {progreso.totalColegios}
+                              </Badge>
+                            </div>
+                            <ProgressBar 
+                              now={(progreso.colegiosProcesados / progreso.totalColegios) * 100} 
+                              className="mt-1"
+                              style={{ height: '6px' }}
+                            />
+                          </div>
+                        )}
+                        <div className="col-6">
+                          <div className="d-flex justify-content-between align-items-center">
+                            <span className="text-muted small">Cursos creados:</span>
+                            <Badge bg="success">{progreso.cursosCreados}</Badge>
+                          </div>
+                        </div>
+                        <div className="col-6">
+                          <div className="d-flex justify-content-between align-items-center">
+                            <span className="text-muted small">Cursos actualizados:</span>
+                            <Badge bg="info">{progreso.cursosActualizados}</Badge>
+                          </div>
+                        </div>
+                        {progreso.errores > 0 && (
+                          <div className="col-6">
+                            <div className="d-flex justify-content-between align-items-center">
+                              <span className="text-muted small">Errores:</span>
+                              <Badge bg="danger">{progreso.errores}</Badge>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      {progreso.ultimoMensaje && (
+                        <div className="mt-2 pt-2 border-top">
+                          <small className="text-muted">
+                            <strong>Última actividad:</strong> {progreso.ultimoMensaje}
+                          </small>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  <Alert variant="warning" className="mb-2 small">
+                    <strong>⚠️ Importante:</strong> Si cierras este modal o recargas la página, perderás la visualización del progreso, pero el proceso continuará ejecutándose en el servidor. Los datos ya guardados no se perderán.
+                  </Alert>
+                  <p className="mb-2 text-muted small">
+                    Esto puede tardar varios minutos dependiendo del tamaño del archivo.
+                  </p>
+                  <p className="mb-0 text-muted small">
+                    Puedes abrir la página de <Link href="/crm/colegios/logs" target="_blank" className="text-primary fw-semibold">logs</Link> en otra pestaña para ver el progreso en tiempo real y verificar el estado incluso si cierras este modal.
+                  </p>
                 </div>
               ) : (
                 <div>
@@ -192,7 +590,7 @@ export default function ImportarNivelesAsignaturasModal({
                       : 'Arrastra un archivo CSV/Excel aquí o haz clic para seleccionar'}
                   </p>
                   <small className="text-muted">
-                    Formatos aceptados: .xlsx, .xls, .csv (máx. 10MB)
+                    Formatos aceptados: .xlsx, .xls, .csv (máx. 100MB)
                   </small>
                 </div>
               )}

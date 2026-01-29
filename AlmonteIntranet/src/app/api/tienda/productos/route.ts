@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     // Endpoint correcto confirmado: /api/libros (verificado en test-strapi)
     const endpointUsed = '/api/libros'
     const queryString = `populate=*&pagination[pageSize]=${pageSize}&pagination[page]=${page}`
-    const url = `${process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'}${endpointUsed}?${queryString}`
+    const url = `${process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi-pruebas-production.up.railway.app'}${endpointUsed}?${queryString}`
     
     console.log('[API /tienda/productos] Intentando obtener productos:', {
       endpoint: endpointUsed,

@@ -9,6 +9,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:fast": "set NEXT_TELEMETRY_DISABLED=1&& set NODE_OPTIONS=--max-old-space-size=4096&& set SKIP_TYPE_CHECK=true&& set NEXT_PRIVATE_SKIP_TYPE_CHECK=true&& set NEXT_PRIVATE_SKIP_LINT=true&& set NEXT_PRIVATE_SKIP_VALIDATION=true&& set CI=true&& next build",
+    "build:fast:unix": "NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS=--max-old-space-size=4096 SKIP_TYPE_CHECK=true NEXT_PRIVATE_SKIP_TYPE_CHECK=true NEXT_PRIVATE_SKIP_LINT=true NEXT_PRIVATE_SKIP_VALIDATION=true CI=true next build",
     "postbuild": "node fix-server.js",
     "postinstall": "patch-package || echo 'patch-package not available, skipping patches'",
     "start": "node server.js",

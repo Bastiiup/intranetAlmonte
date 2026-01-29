@@ -384,7 +384,7 @@ async function syncProductsToWooCommerce(platform: 'woo_moraleja' | 'woo_escolar
             const portadaAttrs = portada.attributes || portada
             const url = portadaAttrs.url || portadaAttrs.URL
             if (url) {
-              const baseUrl = process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'
+              const baseUrl = process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi-pruebas-production.up.railway.app'
               imageUrl = url.startsWith('http') ? url : `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
             }
           }

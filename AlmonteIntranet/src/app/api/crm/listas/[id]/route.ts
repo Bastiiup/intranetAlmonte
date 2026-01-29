@@ -152,6 +152,7 @@ export async function GET(
       año: attrs.año || attrs.ano || new Date().getFullYear(),
       descripcion: `Curso: ${nombreCompleto}`,
       activo: attrs.activo !== false,
+      cantidad_alumnos: attrs.cantidad_alumnos || null, // Agregar cantidad de alumnos
       pdf_id: ultimaVersion?.pdf_id || null,
       pdf_url: ultimaVersion?.pdf_url || null,
       pdf_nombre: ultimaVersion?.nombre_archivo || ultimaVersion?.metadata?.nombre || null,
