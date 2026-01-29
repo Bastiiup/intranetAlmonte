@@ -654,6 +654,35 @@ export default function PODetailPage() {
                 )}
               </FormGroup>
               
+              {/* Indicador de estado de documentos */}
+              <div className="mt-3 mb-3">
+                <small className="text-muted d-block mb-2">Estado de Documentos:</small>
+                <div className="d-flex flex-column gap-1">
+                  <div className="d-flex align-items-center gap-2">
+                    {factura ? (
+                      <Badge bg="success">✓ Factura</Badge>
+                    ) : (
+                      <Badge bg="secondary">✗ Factura</Badge>
+                    )}
+                    {despacho ? (
+                      <Badge bg="success">✓ Despacho</Badge>
+                    ) : (
+                      <Badge bg="secondary">✗ Despacho</Badge>
+                    )}
+                    {pago ? (
+                      <Badge bg="success">✓ Pago</Badge>
+                    ) : (
+                      <Badge bg="secondary">✗ Pago</Badge>
+                    )}
+                  </div>
+                  {factura && despacho && pago && estado !== 'en_envio' && estado !== 'recibida_confirmada' && (
+                    <Alert variant="info" className="mb-0 mt-2">
+                      <small>⚠️ Todos los documentos están completos. El estado se actualizará automáticamente a "En Envío".</small>
+                    </Alert>
+                  )}
+                </div>
+              </div>
+              
               {/* Botón para confirmar recepción */}
               {estado === 'en_envio' && (
                 <div className="mt-3">
@@ -679,6 +708,15 @@ export default function PODetailPage() {
                     Al confirmar, los productos serán agregados al inventario
                   </small>
                 </div>
+              )}
+              
+              {/* Mensaje si falta algún documento */}
+              {estado !== 'en_envio' && estado !== 'recibida_confirmada' && (!factura || !despacho || !pago) && (
+                <Alert variant="warning" className="mt-3">
+                  <small>
+                    <strong>Pendiente:</strong> Sube todos los documentos (Factura, Despacho y Documento de Pago) para que la orden cambie a estado "En Envío" y puedas confirmar la recepción.
+                  </small>
+                </Alert>
               )}
             </CardBody>
           </Card>
