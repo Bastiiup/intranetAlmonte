@@ -225,10 +225,11 @@ export async function GET(
             // Normalizar directCheck.data que puede ser array o objeto
             const directCheckData = Array.isArray(directCheck.data) ? directCheck.data[0] : directCheck.data
             const directCheckAttrs = directCheckData ? ((directCheckData as any).attributes || directCheckData) : null
+            const directCheckDataAny = directCheckData as any
             console.log('[API /compras/rfqs/[id] GET] Consulta directa a Strapi:', {
               hasData: !!directCheckData,
-              productosInDirect: !!(directCheckAttrs?.productos || directCheckData?.productos),
-              productosDirectRaw: JSON.stringify(directCheckAttrs?.productos || directCheckData?.productos || null).substring(0, 500),
+              productosInDirect: !!(directCheckAttrs?.productos || directCheckDataAny?.productos),
+              productosDirectRaw: JSON.stringify(directCheckAttrs?.productos || directCheckDataAny?.productos || null).substring(0, 500),
             })
           } catch (directError: any) {
             console.error('[API /compras/rfqs/[id] GET] Error en consulta directa:', directError.message, {
