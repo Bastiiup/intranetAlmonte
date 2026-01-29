@@ -149,6 +149,66 @@ export async function PUT(
     const { id } = await params
     const body = await request.json()
     
+    // Primero, buscar la orden de compra para obtener el documentId correcto
+    const isNumericId = /^\d+$/.test(id)
+    let ordenCompra: StrapiEntity<any> | null = null
+    let ordenIdParaUpdate: string | number = id
+    
+    try {
+      const ordenResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+        `/api/ordenes-compra/${id}?fields[0]=id&fields[1]=documentId`
+      )
+      
+      if (ordenResponse.data) {
+        ordenCompra = Array.isArray(ordenResponse.data) ? ordenResponse.data[0] : ordenResponse.data
+        ordenIdParaUpdate = ordenCompra.documentId || ordenCompra.id || id
+        console.log('[API /compras/ordenes-compra/[id] PUT] ✅ Orden encontrada:', {
+          idOriginal: id,
+          idParaUpdate: ordenIdParaUpdate,
+          documentId: ordenCompra.documentId,
+        })
+      }
+    } catch (ordenError: any) {
+      // Si falla con 404, intentar buscar por filtros
+      if (ordenError.status === 404) {
+        try {
+          const searchParams = new URLSearchParams({
+            ...(isNumericId ? { 'filters[id][$eq]': id } : { 'filters[documentId][$eq]': id }),
+            'fields[0]': 'id',
+            'fields[1]': 'documentId',
+          })
+          
+          const filterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+            `/api/ordenes-compra?${searchParams.toString()}`
+          )
+          
+          if (filterResponse.data) {
+            const ordenes = Array.isArray(filterResponse.data) ? filterResponse.data : [filterResponse.data]
+            if (ordenes.length > 0) {
+              ordenCompra = ordenes[0]
+              ordenIdParaUpdate = ordenCompra.documentId || ordenCompra.id || id
+              console.log('[API /compras/ordenes-compra/[id] PUT] ✅ Orden encontrada por filtro:', {
+                idOriginal: id,
+                idParaUpdate: ordenIdParaUpdate,
+              })
+            }
+          }
+        } catch (filterError: any) {
+          console.error('[API /compras/ordenes-compra/[id] PUT] Error al buscar orden:', filterError.message)
+        }
+      }
+    }
+    
+    if (!ordenCompra) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Orden de compra no encontrada con ID: ${id}`,
+        },
+        { status: 404 }
+      )
+    }
+    
     const updateData: any = {
       data: {},
     }
@@ -180,16 +240,22 @@ export async function PUT(
       updateData.data.orden_despacho = { connect: [Number(body.orden_despacho_id)] }
     }
     
-    // Usar documentId si el ID es un UUID, o el ID numérico directamente
-    // Strapi v5 acepta ambos formatos en el endpoint PUT
+    console.log('[API /compras/ordenes-compra/[id] PUT] Actualizando orden:', {
+      ordenIdParaUpdate,
+      updateData,
+    })
+    
     const response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
-      `/api/ordenes-compra/${id}`,
+      `/api/ordenes-compra/${ordenIdParaUpdate}`,
       updateData
     )
     
+    // Normalizar response.data que puede ser array o objeto
+    const ordenData = Array.isArray(response.data) ? response.data[0] : response.data
+    
     return NextResponse.json({
       success: true,
-      data: response.data,
+      data: ordenData,
       message: 'Orden de Compra actualizada exitosamente',
     }, { status: 200 })
   } catch (error: any) {

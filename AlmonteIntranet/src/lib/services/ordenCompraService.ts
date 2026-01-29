@@ -348,7 +348,7 @@ export async function createPOFromCotizacion(
     
     // Extraer datos de la PO para devolver (puede estar en attributes o en el nivel superior)
     const poAttrs = po.attributes || po
-    const poData = {
+    const poResponseData = {
       id: po.id,
       documentId: po.documentId,
       ...poAttrs,
@@ -356,7 +356,7 @@ export async function createPOFromCotizacion(
     
     return {
       success: true,
-      data: poData,
+      data: poResponseData,
     }
   } catch (error: any) {
     console.error('[OrdenCompraService] Error al crear PO:', {
