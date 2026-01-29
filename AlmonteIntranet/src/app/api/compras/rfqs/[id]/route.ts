@@ -629,7 +629,9 @@ export async function PUT(
                   `/api/libros/${keyNum}?fields[0]=id&fields[1]=documentId`
                 )
                 if (productoCheck.data) {
-                  const docId = productoCheck.data.documentId || (productoCheck.data as any).documentId
+                  // Normalizar productoCheck.data que puede ser array o objeto
+                  const productoData = Array.isArray(productoCheck.data) ? productoCheck.data[0] : productoCheck.data
+                  const docId = productoData?.documentId || (productoData as any)?.documentId
                   if (docId) {
                     cantidadesConDocumentId[docId] = cantidad
                     console.log(`[API /compras/rfqs/[id] PUT] ✅ Cantidad convertida: ID ${keyNum} → documentId ${docId}: ${cantidad}`)
