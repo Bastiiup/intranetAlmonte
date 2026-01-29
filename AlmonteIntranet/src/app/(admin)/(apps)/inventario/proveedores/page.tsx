@@ -24,6 +24,7 @@ interface Producto {
 interface EmpresaOption {
   id: number | string
   documentId?: string
+  internalId?: number | string
   empresa_nombre?: string
   nombre?: string
   emails?: Array<{ email: string }>
