@@ -222,10 +222,13 @@ export async function GET(
             const directCheck = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
               `/api/rfqs/${rfqIdForCheck}?fields[0]=id&fields[1]=documentId&populate[productos]=true`
             )
+            // Normalizar directCheck.data que puede ser array o objeto
+            const directCheckData = Array.isArray(directCheck.data) ? directCheck.data[0] : directCheck.data
+            const directCheckAttrs = directCheckData ? ((directCheckData as any).attributes || directCheckData) : null
             console.log('[API /compras/rfqs/[id] GET] Consulta directa a Strapi:', {
-              hasData: !!directCheck.data,
-              productosInDirect: !!(directCheck.data?.attributes?.productos || directCheck.data?.productos),
-              productosDirectRaw: JSON.stringify(directCheck.data?.attributes?.productos || directCheck.data?.productos || null).substring(0, 500),
+              hasData: !!directCheckData,
+              productosInDirect: !!(directCheckAttrs?.productos || directCheckData?.productos),
+              productosDirectRaw: JSON.stringify(directCheckAttrs?.productos || directCheckData?.productos || null).substring(0, 500),
             })
           } catch (directError: any) {
             console.error('[API /compras/rfqs/[id] GET] Error en consulta directa:', directError.message, {
