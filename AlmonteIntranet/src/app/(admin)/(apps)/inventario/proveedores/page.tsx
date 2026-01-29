@@ -357,7 +357,7 @@ export default function InventarioProveedoresPage() {
         })
         console.log('[Inventario/Proveedores] Proveedores cargados:', {
           total: proveedoresMapeados.length,
-          primeros: proveedoresMapeados.slice(0, 5).map(p => ({
+          primeros: proveedoresMapeados.slice(0, 5).map((p: EmpresaOption) => ({
             id: p.id,
             documentId: p.documentId,
             internalId: p.internalId,
@@ -365,7 +365,7 @@ export default function InventarioProveedoresPage() {
             tipoId: typeof p.id,
             tieneDocumentId: !!p.documentId,
           })),
-          todosLosIds: proveedoresMapeados.map(p => ({
+          todosLosIds: proveedoresMapeados.map((p: EmpresaOption) => ({
             id: p.id,
             documentId: p.documentId,
             nombre: p.empresa_nombre,
