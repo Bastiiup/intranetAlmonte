@@ -60,19 +60,13 @@ export default function EditProductPage({ params }: EditProductPageProps) {
     descripcion_corta: '',
     isbn_libro: '',
     
-    // === WOOCOMMERCE: PRECIO ===
-    precio: '',
-    precio_oferta: '',
+    // === WOOCOMMERCE: PRECIO E INVENTARIO ===
+    // NOTA: Los precios e inventario se gestionan desde Inventario/Proveedores
     sale_quantity: '',
     sold_items: '0',
     tax_status: 'taxable',
     tax_class: 'standard',
-    
-    // === WOOCOMMERCE: INVENTARIO ===
     sku: '',
-    stock_quantity: '',
-    manage_stock: true,
-    stock_status: 'instock' as 'instock' | 'outofstock' | 'onbackorder',
     sold_individually: false,
     
     // === WOOCOMMERCE: TIPO DE PRODUCTO ===
