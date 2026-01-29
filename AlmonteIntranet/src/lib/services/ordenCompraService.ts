@@ -341,15 +341,29 @@ export async function createPOFromCotizacion(
       }
     }
     
-    // Enviar email al proveedor con detalles de la PO
-    await sendPOEmailToProvider(po, empresaProveedoraAttrs)
+    // Enviar email al proveedor con detalles de la PO (en background, no bloquear si falla)
+    sendPOEmailToProvider(po, empresaProveedoraAttrs).catch((emailError: any) => {
+      console.error('[OrdenCompraService] Error al enviar email (no crítico):', emailError.message)
+    })
+    
+    // Extraer datos de la PO para devolver (puede estar en attributes o en el nivel superior)
+    const poAttrs = po.attributes || po
+    const poData = {
+      id: po.id,
+      documentId: po.documentId,
+      ...poAttrs,
+    }
     
     return {
       success: true,
-      data: po,
+      data: poData,
     }
   } catch (error: any) {
-    console.error('[OrdenCompraService] Error al crear PO:', error)
+    console.error('[OrdenCompraService] Error al crear PO:', {
+      message: error.message,
+      stack: error.stack,
+      status: error.status,
+    })
     return {
       success: false,
       error: error.message || 'Error al crear Orden de Compra',
