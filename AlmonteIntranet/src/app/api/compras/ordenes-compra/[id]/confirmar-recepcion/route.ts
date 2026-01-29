@@ -84,19 +84,39 @@ export async function POST(
     const attrs = po.attributes || po
     const estadoActual = attrs.estado
     
-    // Verificar que todos los documentos estén presentes
-    const factura = attrs.factura?.data || attrs.factura
-    const despacho = attrs.orden_despacho?.data || attrs.orden_despacho
-    const pago = attrs.documento_pago?.data || attrs.documento_pago
+    // Verificar que todos los documentos estén presentes (múltiples formas de acceso - igual que en el frontend)
+    const factura = attrs.factura?.data || attrs.factura || attrs.attributes?.factura
+    const despacho = attrs.orden_despacho?.data || attrs.despacho?.data || attrs.despacho || attrs.orden_despacho || attrs.attributes?.orden_despacho
+    const pago = attrs.documento_pago?.data || attrs.documento_pago || attrs.attributes?.documento_pago
+    
+    console.log('[Confirmar Recepción] Verificando documentos:', {
+      tieneFactura: !!factura,
+      tieneDespacho: !!despacho,
+      tienePago: !!pago,
+      facturaRaw: factura ? (typeof factura === 'object' ? JSON.stringify(factura).substring(0, 100) : factura) : null,
+      despachoRaw: despacho ? (typeof despacho === 'object' ? JSON.stringify(despacho).substring(0, 100) : despacho) : null,
+      pagoRaw: pago ? (typeof pago === 'object' ? JSON.stringify(pago).substring(0, 100) : pago) : null,
+      estadoActual,
+      attrsKeys: Object.keys(attrs),
+    })
     
     if (!factura || !despacho || !pago) {
+      const documentosFaltantes = []
+      if (!factura) documentosFaltantes.push('Factura')
+      if (!despacho) documentosFaltantes.push('Despacho')
+      if (!pago) documentosFaltantes.push('Documento de Pago')
+      
+      console.error('[Confirmar Recepción] ❌ Faltan documentos:', documentosFaltantes)
+      
       return NextResponse.json(
         {
           success: false,
-          error: 'No se puede confirmar recepción. Faltan documentos: ' + 
-            (!factura ? 'Factura ' : '') + 
-            (!despacho ? 'Despacho ' : '') + 
-            (!pago ? 'Documento de Pago' : ''),
+          error: `No se puede confirmar recepción. Faltan documentos: ${documentosFaltantes.join(', ')}`,
+          detalles: {
+            factura: !!factura,
+            despacho: !!despacho,
+            pago: !!pago,
+          },
         },
         { status: 400 }
       )
