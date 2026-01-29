@@ -150,26 +150,40 @@ export default function PODetailPage() {
       if (result.success && result.data) {
         const poData = result.data
         const attrs = poData.attributes || poData
-        const factura = attrs.factura?.data || attrs.factura
-        const despacho = attrs.orden_despacho?.data || attrs.orden_despacho
-        const pago = attrs.documento_pago?.data || attrs.documento_pago
+        
+        // Verificar documentos de múltiples formas (pueden estar en diferentes estructuras)
+        const factura = attrs.factura?.data || attrs.factura || attrs.factura?.id
+        const despacho = attrs.orden_despacho?.data || attrs.orden_despacho || attrs.orden_despacho?.id
+        const pago = attrs.documento_pago?.data || attrs.documento_pago || attrs.documento_pago?.id
+        
         const estadoActual = attrs.estado
+        
+        console.log('[checkAndUpdateEstado] Verificando documentos:', {
+          factura: !!factura,
+          despacho: !!despacho,
+          pago: !!pago,
+          estadoActual,
+        })
         
         // Si todos los documentos están listos y el estado es "despachada" o anterior, cambiar a "en_envio"
         if (factura && despacho && pago && estadoActual !== 'en_envio' && estadoActual !== 'recibida_confirmada') {
-          const response = await fetch(`/api/compras/ordenes-compra/${poId}`, {
+          console.log('[checkAndUpdateEstado] Todos los documentos están listos, cambiando estado a "en_envio"')
+          const updateResponse = await fetch(`/api/compras/ordenes-compra/${poId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ estado: 'en_envio' }),
           })
           
-          if (response.ok) {
+          if (updateResponse.ok) {
             showNotification({
               title: 'Estado Actualizado',
               message: 'La orden ha sido marcada como "En Envío" porque todos los documentos están completos',
               variant: 'info',
             })
             await loadPO()
+          } else {
+            const errorData = await updateResponse.json().catch(() => ({}))
+            console.error('[checkAndUpdateEstado] Error al actualizar estado:', errorData)
           }
         }
       }

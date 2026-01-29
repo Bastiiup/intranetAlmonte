@@ -15,9 +15,59 @@ export async function POST(
   try {
     const { id } = await params
     
-    // Obtener la orden de compra
+    // Primero, buscar la orden de compra para obtener el documentId correcto
+    const isNumericId = /^\d+$/.test(id)
+    let ordenCompra: StrapiEntity<any> | null = null
+    let ordenIdParaUpdate: string | number = id
+    
+    try {
+      const ordenResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+        `/api/ordenes-compra/${id}?fields[0]=id&fields[1]=documentId`
+      )
+      
+      if (ordenResponse.data) {
+        ordenCompra = Array.isArray(ordenResponse.data) ? ordenResponse.data[0] : ordenResponse.data
+        ordenIdParaUpdate = ordenCompra.documentId || ordenCompra.id || id
+      }
+    } catch (ordenError: any) {
+      if (ordenError.status === 404) {
+        try {
+          const searchParams = new URLSearchParams({
+            ...(isNumericId ? { 'filters[id][$eq]': id } : { 'filters[documentId][$eq]': id }),
+            'fields[0]': 'id',
+            'fields[1]': 'documentId',
+          })
+          
+          const filterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+            `/api/ordenes-compra?${searchParams.toString()}`
+          )
+          
+          if (filterResponse.data) {
+            const ordenes = Array.isArray(filterResponse.data) ? filterResponse.data : [filterResponse.data]
+            if (ordenes.length > 0) {
+              ordenCompra = ordenes[0]
+              ordenIdParaUpdate = ordenCompra.documentId || ordenCompra.id || id
+            }
+          }
+        } catch (filterError: any) {
+          console.error('[Confirmar Recepción] Error al buscar orden:', filterError.message)
+        }
+      }
+    }
+    
+    if (!ordenCompra) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Orden de compra no encontrada con ID: ${id}`,
+        },
+        { status: 404 }
+      )
+    }
+    
+    // Obtener la orden de compra completa con relaciones
     const poResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-      `/api/ordenes-compra/${id}?populate[cotizacion_recibida][populate][rfq][populate][productos]=true&populate[cotizacion_recibida][populate][items]=true`
+      `/api/ordenes-compra/${ordenIdParaUpdate}?populate[cotizacion_recibida][populate][rfq][populate][productos]=true&populate[cotizacion_recibida][populate][items]=true`
     )
     
     if (!poResponse.data) {
@@ -87,22 +137,57 @@ export async function POST(
       }
       
       try {
-        // Obtener producto actual
-        const productoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-          `/api/libros/${productoId}?fields[0]=id&fields[1]=documentId&fields[2]=stock_quantity`
-        )
+        // Buscar producto primero para obtener el documentId correcto
+        const isProductoNumericId = /^\d+$/.test(String(productoId))
+        let producto: StrapiEntity<any> | null = null
+        let productoIdParaUpdate: string | number = productoId
         
-        if (!productoResponse.data) {
+        try {
+          const productoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+            `/api/libros/${productoId}?fields[0]=id&fields[1]=documentId&fields[2]=stock_quantity`
+          )
+          
+          if (productoResponse.data) {
+            producto = Array.isArray(productoResponse.data) ? productoResponse.data[0] : productoResponse.data
+            productoIdParaUpdate = producto.documentId || producto.id || productoId
+          }
+        } catch (prodError: any) {
+          if (prodError.status === 404) {
+            try {
+              const searchParams = new URLSearchParams({
+                ...(isProductoNumericId ? { 'filters[id][$eq]': String(productoId) } : { 'filters[documentId][$eq]': String(productoId) }),
+                'fields[0]': 'id',
+                'fields[1]': 'documentId',
+                'fields[2]': 'stock_quantity',
+              })
+              
+              const filterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+                `/api/libros?${searchParams.toString()}`
+              )
+              
+              if (filterResponse.data) {
+                const productos = Array.isArray(filterResponse.data) ? filterResponse.data : [filterResponse.data]
+                if (productos.length > 0) {
+                  producto = productos[0]
+                  productoIdParaUpdate = producto.documentId || producto.id || productoId
+                }
+              }
+            } catch (filterError: any) {
+              console.error(`[Confirmar Recepción] Error al buscar producto ${productoId}:`, filterError.message)
+            }
+          }
+        }
+        
+        if (!producto) {
           console.warn(`[Confirmar Recepción] ⚠️ Producto ${productoId} no encontrado`)
           continue
         }
         
-        const producto = Array.isArray(productoResponse.data) ? productoResponse.data[0] : productoResponse.data
         const prodAttrs = producto.attributes || producto
         const stockActual = Number(prodAttrs.stock_quantity || prodAttrs.stockQuantity || 0)
         const nuevoStock = stockActual + cantidad
         
-        // Actualizar stock
+        // Actualizar stock usando el ID correcto
         const updateData: any = {
           data: {
             stock_quantity: nuevoStock,
@@ -110,8 +195,10 @@ export async function POST(
           },
         }
         
+        console.log(`[Confirmar Recepción] Actualizando stock para producto ${productoIdParaUpdate}: ${stockActual} + ${cantidad} = ${nuevoStock}`)
+        
         await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
-          `/api/libros/${productoId}`,
+          `/api/libros/${productoIdParaUpdate}`,
           updateData
         )
         
@@ -137,10 +224,15 @@ export async function POST(
       }
     }
     
-    // Actualizar estado de la orden a "recibida_confirmada"
+    // Actualizar estado de la orden a "recibida_confirmada" usando el ID correcto
     const fechaRecepcion = new Date().toISOString().split('T')[0]
+    console.log('[Confirmar Recepción] Actualizando orden a recibida_confirmada:', {
+      ordenIdParaUpdate,
+      fechaRecepcion,
+    })
+    
     await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
-      `/api/ordenes-compra/${id}`,
+      `/api/ordenes-compra/${ordenIdParaUpdate}`,
       {
         data: {
           estado: 'recibida_confirmada',
