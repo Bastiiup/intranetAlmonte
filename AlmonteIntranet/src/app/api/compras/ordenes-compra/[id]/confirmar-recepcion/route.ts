@@ -84,12 +84,30 @@ export async function POST(
     const attrs = po.attributes || po
     const estadoActual = attrs.estado
     
-    // Verificar que el estado sea "en_envio"
-    if (estadoActual !== 'en_envio') {
+    // Verificar que todos los documentos estén presentes
+    const factura = attrs.factura?.data || attrs.factura
+    const despacho = attrs.orden_despacho?.data || attrs.orden_despacho
+    const pago = attrs.documento_pago?.data || attrs.documento_pago
+    
+    if (!factura || !despacho || !pago) {
       return NextResponse.json(
         {
           success: false,
-          error: `No se puede confirmar recepción. El estado actual es "${estadoActual}". Debe estar en "en_envio".`,
+          error: 'No se puede confirmar recepción. Faltan documentos: ' + 
+            (!factura ? 'Factura ' : '') + 
+            (!despacho ? 'Despacho ' : '') + 
+            (!pago ? 'Documento de Pago' : ''),
+        },
+        { status: 400 }
+      )
+    }
+    
+    // Verificar que no esté ya confirmada
+    if (estadoActual === 'recibida_confirmada') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'La recepción ya ha sido confirmada anteriormente',
         },
         { status: 400 }
       )

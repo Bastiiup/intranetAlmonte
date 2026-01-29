@@ -141,55 +141,9 @@ export default function PODetailPage() {
   }
   
   const checkAndUpdateEstado = async () => {
-    if (!po) return
-    
-    try {
-      const response = await fetch(`/api/compras/ordenes-compra/${poId}`)
-      const result = await response.json()
-      
-      if (result.success && result.data) {
-        const poData = result.data
-        const attrs = poData.attributes || poData
-        
-        // Verificar documentos de múltiples formas (pueden estar en diferentes estructuras)
-        const factura = attrs.factura?.data || attrs.factura || attrs.factura?.id
-        const despacho = attrs.orden_despacho?.data || attrs.orden_despacho || attrs.orden_despacho?.id
-        const pago = attrs.documento_pago?.data || attrs.documento_pago || attrs.documento_pago?.id
-        
-        const estadoActual = attrs.estado
-        
-        console.log('[checkAndUpdateEstado] Verificando documentos:', {
-          factura: !!factura,
-          despacho: !!despacho,
-          pago: !!pago,
-          estadoActual,
-        })
-        
-        // Si todos los documentos están listos y el estado es "despachada" o anterior, cambiar a "en_envio"
-        if (factura && despacho && pago && estadoActual !== 'en_envio' && estadoActual !== 'recibida_confirmada') {
-          console.log('[checkAndUpdateEstado] Todos los documentos están listos, cambiando estado a "en_envio"')
-          const updateResponse = await fetch(`/api/compras/ordenes-compra/${poId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ estado: 'en_envio' }),
-          })
-          
-          if (updateResponse.ok) {
-            showNotification({
-              title: 'Estado Actualizado',
-              message: 'La orden ha sido marcada como "En Envío" porque todos los documentos están completos',
-              variant: 'info',
-            })
-            await loadPO()
-          } else {
-            const errorData = await updateResponse.json().catch(() => ({}))
-            console.error('[checkAndUpdateEstado] Error al actualizar estado:', errorData)
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Error al verificar estado:', err)
-    }
+    // Ya no cambiamos el estado automáticamente
+    // Solo recargamos la orden para que el botón aparezca si los 3 documentos están presentes
+    await loadPO()
   }
   
   const handleConfirmarRecepcion = async () => {
@@ -675,16 +629,11 @@ export default function PODetailPage() {
                       <Badge bg="secondary">✗ Pago</Badge>
                     )}
                   </div>
-                  {factura && despacho && pago && estado !== 'en_envio' && estado !== 'recibida_confirmada' && (
-                    <Alert variant="info" className="mb-0 mt-2">
-                      <small>⚠️ Todos los documentos están completos. El estado se actualizará automáticamente a "En Envío".</small>
-                    </Alert>
-                  )}
                 </div>
               </div>
               
-              {/* Botón para confirmar recepción */}
-              {estado === 'en_envio' && (
+              {/* Botón para confirmar llegada - aparece cuando los 3 documentos están subidos */}
+              {factura && despacho && pago && estado !== 'recibida_confirmada' && (
                 <div className="mt-3">
                   <Button
                     variant="success"
@@ -700,21 +649,21 @@ export default function PODetailPage() {
                     ) : (
                       <>
                         <LuCheck className="me-1" />
-                        Confirmar Recepción de Productos
+                        Confirmar Llegada de Productos
                       </>
                     )}
                   </Button>
                   <small className="text-muted d-block mt-2">
-                    Al confirmar, los productos serán agregados al inventario
+                    Al confirmar, los productos serán agregados al inventario y la orden se marcará como completada
                   </small>
                 </div>
               )}
               
               {/* Mensaje si falta algún documento */}
-              {estado !== 'en_envio' && estado !== 'recibida_confirmada' && (!factura || !despacho || !pago) && (
+              {(!factura || !despacho || !pago) && estado !== 'recibida_confirmada' && (
                 <Alert variant="warning" className="mt-3">
                   <small>
-                    <strong>Pendiente:</strong> Sube todos los documentos (Factura, Despacho y Documento de Pago) para que la orden cambie a estado "En Envío" y puedas confirmar la recepción.
+                    <strong>Pendiente:</strong> Sube todos los documentos (Factura, Despacho y Documento de Pago) para habilitar el botón de confirmar llegada.
                   </small>
                 </Alert>
               )}
