@@ -30,8 +30,18 @@ export async function GET(
     }
     
     // Normalizar la cotización para asegurar campos consistentes
-    const cotizacionData = response.data
-    const cotizacionAttrs = cotizacionData.attributes || cotizacionData
+    // response.data debería ser un objeto único (no array) cuando se obtiene por ID
+    const cotizacionData = Array.isArray(response.data) ? response.data[0] : response.data
+    if (!cotizacionData) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Cotización recibida no encontrada',
+        },
+        { status: 404 }
+      )
+    }
+    const cotizacionAttrs = (cotizacionData as any).attributes || cotizacionData
     
     // Normalizar nombres de campos: precio_total -> monto_total (para compatibilidad con frontend)
     const cotizacionNormalizada = {
