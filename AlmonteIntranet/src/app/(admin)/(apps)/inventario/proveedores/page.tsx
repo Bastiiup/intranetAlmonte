@@ -320,7 +320,7 @@ export default function InventarioProveedoresPage() {
       
       if (result.success && result.data) {
         const empresasData = Array.isArray(result.data) ? result.data : [result.data]
-        const proveedoresMapeados = empresasData.map((emp: any) => {
+        const proveedoresMapeados: EmpresaOption[] = empresasData.map((emp: any) => {
           const attrs = emp.attributes || emp
           
           // Validar y limpiar documentId
@@ -354,7 +354,7 @@ export default function InventarioProveedoresPage() {
             nombre: attrs.nombre,
             emails: attrs.emails?.data || attrs.emails || [],
             es_empresa_propia: attrs.es_empresa_propia || false,
-          }
+          } as EmpresaOption
         })
         console.log('[Inventario/Proveedores] Proveedores cargados:', {
           total: proveedoresMapeados.length,
