@@ -141,15 +141,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // NO incluir lista_aprobada ni fecha_aprobacion_lista porque no existen en el modelo de Strapi
-    // Solo actualizar versiones_materiales con los productos aprobados
+    // Actualizar versiones_materiales con los productos aprobados
+    // Y actualizar estado_revision a "revisado" para indicar que la lista fue validada
     const updateData = {
       data: {
         versiones_materiales: versionesActualizadas,
+        estado_revision: 'revisado', // Cambiar estado a "revisado" cuando se aprueba
+        fecha_revision: new Date().toISOString(), // Guardar fecha de revisión
       },
     }
     
-    console.log('[Aprobar Lista] ℹ️ Nota: Los campos lista_aprobada y fecha_aprobacion_lista no están disponibles en el modelo de Strapi, solo se actualizan los productos individuales')
+    console.log('[Aprobar Lista] ℹ️ Actualizando estado_revision a "revisado"')
 
     console.log('[Aprobar Lista] 💾 Guardando en Strapi...')
     const response = await strapiClient.put<any>(`/api/cursos/${cursoDocumentId}`, updateData)

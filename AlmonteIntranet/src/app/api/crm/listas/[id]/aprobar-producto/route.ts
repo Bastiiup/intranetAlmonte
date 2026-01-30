@@ -222,10 +222,29 @@ export async function POST(
       )
     }
 
-    const updateData = {
+    // Verificar si todos los productos están aprobados
+    const todosAprobados = materiales.every((m: any) => m.aprobado === true)
+    const listaAprobada = todosAprobados && materiales.length > 0
+
+    // Preparar datos de actualización
+    const updateData: any = {
       data: {
         versiones_materiales: versionesActualizadas,
       },
+    }
+
+    // Si todos los productos están aprobados, actualizar estado_revision a "revisado"
+    if (listaAprobada) {
+      updateData.data.estado_revision = 'revisado'
+      updateData.data.fecha_revision = new Date().toISOString()
+      console.log('[Aprobar Producto] ✅ Todos los productos están aprobados - actualizando estado_revision a "revisado"')
+    } else if (aprobado === false) {
+      // Si se está desaprobando un producto y el estado era "revisado", volver a "borrador"
+      const estadoActual = attrs.estado_revision
+      if (estadoActual === 'revisado') {
+        updateData.data.estado_revision = 'borrador'
+        console.log('[Aprobar Producto] ⚠️ Producto desaprobado - cambiando estado_revision a "borrador"')
+      }
     }
 
     console.log('[Aprobar Producto] 💾 Guardando en Strapi...')
@@ -233,17 +252,6 @@ export async function POST(
 
     if ((response as any)?.error) {
       throw new Error(`Strapi devolvió un error: ${JSON.stringify((response as any).error)}`)
-    }
-
-    // Verificar si todos los productos están aprobados
-    const todosAprobados = materiales.every((m: any) => m.aprobado === true)
-    const listaAprobada = todosAprobados && materiales.length > 0
-
-    // NO intentar actualizar lista_aprobada ni fecha_aprobacion_lista porque no existen en el modelo de Strapi
-    // El estado de aprobación de la lista se determina verificando si todos los productos están aprobados
-    if (listaAprobada) {
-      console.log('[Aprobar Producto] ✅ Todos los productos están aprobados (lista completa aprobada)')
-      console.log('[Aprobar Producto] ℹ️ Nota: Los campos lista_aprobada y fecha_aprobacion_lista no están disponibles en el modelo de Strapi')
     }
 
     console.log('[Aprobar Producto] ✅ Producto aprobado exitosamente')
