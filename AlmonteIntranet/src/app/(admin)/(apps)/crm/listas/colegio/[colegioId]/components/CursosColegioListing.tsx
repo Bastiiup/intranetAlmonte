@@ -8,6 +8,7 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   SortingState,
+  RowSelectionState,
   Row as TableRow,
   Table as TableType,
   useReactTable,
@@ -16,7 +17,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge } from 'react-bootstrap'
-import { LuSearch, LuFileText, LuEye, LuArrowLeft } from 'react-icons/lu'
+import { LuSearch, LuFileText, LuEye, LuArrowLeft, LuDownload, LuFileSpreadsheet } from 'react-icons/lu'
 
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
@@ -65,6 +66,29 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
   }, [cursosProp])
 
   const columns: ColumnDef<CursoType, any>[] = [
+    {
+      id: 'select',
+      maxSize: 45,
+      size: 45,
+      header: ({ table }: { table: TableType<CursoType> }) => (
+        <input
+          type="checkbox"
+          className="form-check-input form-check-input-light fs-14"
+          checked={table.getIsAllRowsSelected()}
+          onChange={table.getToggleAllRowsSelectedHandler()}
+        />
+      ),
+      cell: ({ row }: { row: TableRow<CursoType> }) => (
+        <input
+          type="checkbox"
+          className="form-check-input form-check-input-light fs-14"
+          checked={row.getIsSelected()}
+          onChange={row.getToggleSelectedHandler()}
+        />
+      ),
+      enableSorting: false,
+      enableColumnFilter: false,
+    },
     {
       id: 'curso',
       header: 'CURSO',
@@ -176,10 +200,94 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
   ])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 25 })
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [exportando, setExportando] = useState(false)
 
   useEffect(() => {
     setData(mappedCursos)
   }, [mappedCursos])
+
+  const exportarCSV = async () => {
+    const selectedRows = table.getSelectedRowModel().rows
+    if (selectedRows.length === 0) {
+      alert('Por favor selecciona al menos un curso para exportar')
+      return
+    }
+
+    setExportando(true)
+    try {
+      const cursosIds = selectedRows.map(row => row.original.documentId || row.original.id)
+      const colegioId = colegio?.documentId || colegio?.id
+      
+      const response = await fetch('/api/crm/listas/exportar-cursos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          cursosIds, 
+          colegioId,
+          formato: 'csv' 
+        }),
+      })
+
+      if (!response.ok) throw new Error('Error al exportar')
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `listas_${colegio?.nombre || 'colegio'}_${new Date().toISOString().split('T')[0]}.csv`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error) {
+      console.error('Error al exportar CSV:', error)
+      alert('Error al exportar CSV. Por favor intenta de nuevo.')
+    } finally {
+      setExportando(false)
+    }
+  }
+
+  const exportarEscolar = async () => {
+    const selectedRows = table.getSelectedRowModel().rows
+    if (selectedRows.length === 0) {
+      alert('Por favor selecciona al menos un curso para exportar')
+      return
+    }
+
+    setExportando(true)
+    try {
+      const cursosIds = selectedRows.map(row => row.original.documentId || row.original.id)
+      const colegioId = colegio?.documentId || colegio?.id
+      
+      const response = await fetch('/api/crm/listas/exportar-cursos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          cursosIds, 
+          colegioId,
+          formato: 'escolar' 
+        }),
+      })
+
+      if (!response.ok) throw new Error('Error al exportar')
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `escolar_${colegio?.nombre || 'colegio'}_${new Date().toISOString().split('T')[0]}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error) {
+      console.error('Error al exportar para escolar.cl:', error)
+      alert('Error al exportar. Por favor intenta de nuevo.')
+    } finally {
+      setExportando(false)
+    }
+  }
 
   const table = useReactTable({
     data,
@@ -189,15 +297,18 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
       columnFilters,
       globalFilter,
       pagination,
+      rowSelection,
     },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     onPaginationChange: setPagination,
+    onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    enableRowSelection: true,
   })
 
   if (error) {
@@ -276,6 +387,38 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
                 </Col>
               </Row>
 
+              {Object.keys(rowSelection).length > 0 && (
+                <Row className="mb-3">
+                  <Col xs={12}>
+                    <Alert variant="info" className="d-flex justify-content-between align-items-center mb-0">
+                      <span>
+                        <strong>{Object.keys(rowSelection).length}</strong> curso(s) seleccionado(s)
+                      </span>
+                      <div className="d-flex gap-2">
+                        <Button 
+                          variant="success" 
+                          size="sm"
+                          onClick={exportarCSV}
+                          disabled={exportando}
+                        >
+                          <LuDownload className="me-1" />
+                          {exportando ? 'Exportando...' : 'Exportar CSV'}
+                        </Button>
+                        <Button 
+                          variant="primary" 
+                          size="sm"
+                          onClick={exportarEscolar}
+                          disabled={exportando}
+                        >
+                          <LuFileSpreadsheet className="me-1" />
+                          {exportando ? 'Exportando...' : 'Exportar para escolar.cl'}
+                        </Button>
+                      </div>
+                    </Alert>
+                  </Col>
+                </Row>
+              )}
+
               {data.length === 0 ? (
                 <div className="text-center py-5">
                   <p className="text-muted">No se encontraron cursos con listas para este colegio</p>
@@ -284,7 +427,23 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
                 <>
                   <DataTable table={table} />
                   <CardFooter className="border-top py-3">
-                    <TablePagination table={table} />
+                    <TablePagination
+                      totalItems={table.getFilteredRowModel().rows.length}
+                      start={table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}
+                      end={Math.min(
+                        (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+                        table.getFilteredRowModel().rows.length
+                      )}
+                      itemsName="cursos"
+                      showInfo
+                      previousPage={table.previousPage}
+                      canPreviousPage={table.getCanPreviousPage()}
+                      pageCount={table.getPageCount()}
+                      pageIndex={table.getState().pagination.pageIndex}
+                      setPageIndex={table.setPageIndex}
+                      nextPage={table.nextPage}
+                      canNextPage={table.getCanNextPage()}
+                    />
                   </CardFooter>
                 </>
               )}

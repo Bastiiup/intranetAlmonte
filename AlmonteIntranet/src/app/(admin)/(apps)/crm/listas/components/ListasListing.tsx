@@ -17,7 +17,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge } from 'react-bootstrap'
-import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw, LuFileCode } from 'react-icons/lu'
+import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw, LuFileCode, LuPackageSearch } from 'react-icons/lu'
 import { TbEdit, TbTrash } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
@@ -883,6 +883,15 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                   <TbTrash className="fs-sm me-2" /> Eliminar Seleccionados ({Object.keys(selectedRowIds).length})
                 </Button>
               )}
+              <Link href="/crm/listas/buscar-producto">
+                <Button 
+                  variant="info"
+                  title="Buscar un producto en todos los colegios y cursos"
+                >
+                  <LuPackageSearch className="fs-sm me-2" /> 
+                  Buscar Producto
+                </Button>
+              </Link>
               <Button 
                 variant="outline-secondary" 
                 onClick={() => recargarListas()}
