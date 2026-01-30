@@ -1881,27 +1881,32 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                           </>
                         )}
                       </div>
-                      <div className="d-flex gap-2 align-items-center">
+                      <div className="d-flex gap-2 align-items-center flex-wrap">
+                        {/* Badge de estado publicado */}
                         {estadoRevision === 'publicado' && (
                           <Badge bg="success" className="d-flex align-items-center" style={{ fontSize: '0.9rem', padding: '0.5rem 1rem' }}>
                             <TbCheck className="me-2" />
                             Lista Publicada
                           </Badge>
                         )}
+                        
+                        {/* Badge informativo cuando todos están aprobados */}
                         {validados === totalProductos && totalProductos > 0 && estadoRevision !== 'publicado' && (
-                          <Badge bg="info" className="d-flex align-items-center" style={{ fontSize: '0.9rem', padding: '0.5rem 1rem' }}>
+                          <Badge bg="success" className="d-flex align-items-center" style={{ fontSize: '0.9rem', padding: '0.5rem 1rem' }}>
                             <TbChecklist className="me-2" />
-                            Lista Aprobada
+                            ✓ Todos Aprobados
                           </Badge>
                         )}
+                        
+                        {/* Botón Aprobar Lista Completa - SIEMPRE VISIBLE (excepto si está publicado) */}
                         {estadoRevision !== 'publicado' && (
                           <Button
-                            variant="success"
+                            variant={validados === totalProductos && totalProductos > 0 ? 'outline-success' : 'success'}
                             size="sm"
                             onClick={aprobarListaCompleta}
                             disabled={loading || totalProductos === 0}
                             className="d-flex align-items-center"
-                            title={totalProductos === 0 ? 'No hay productos para aprobar' : loading ? 'Aprobando...' : 'Aprobar todos los productos de la lista'}
+                            title={totalProductos === 0 ? 'No hay productos para aprobar' : loading ? 'Aprobando...' : 'Aprobar o re-aprobar todos los productos de la lista'}
                           >
                             {loading ? (
                               <>
@@ -1911,11 +1916,13 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                             ) : (
                               <>
                                 <TbChecklist className="me-2" />
-                                Aprobar Lista Completa
+                                {validados === totalProductos && totalProductos > 0 ? 'Re-aprobar Lista' : 'Aprobar Lista Completa'}
                               </>
                             )}
                           </Button>
                         )}
+                        
+                        {/* Botón Publicar - solo visible cuando todos están aprobados */}
                         {validados === totalProductos && totalProductos > 0 && estadoRevision !== 'publicado' && (
                           <Button
                             variant="primary"
