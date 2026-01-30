@@ -91,6 +91,7 @@ export async function GET(
         'fields[4]': 'paralelo', // Incluir paralelo explícitamente
         'fields[5]': 'versiones_materiales', // Incluir explícitamente versiones_materiales
         'fields[6]': 'matricula', // Incluir matricula explícitamente
+        'fields[7]': 'estado_revision', // Incluir estado_revision para validación/publicación
         'publicationState': 'preview', // Incluir drafts y publicados
       })
       response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(

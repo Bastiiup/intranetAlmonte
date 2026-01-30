@@ -89,6 +89,7 @@ export default async function Page({ params }: PageProps) {
             pdf_id: ultimaVersion?.pdf_id || null,
             pdf_url: ultimaVersion?.pdf_url || null,
             updatedAt: curso.updatedAt || null,
+            estado_revision: curso.estado_revision || null,
             ids: [curso.id || curso.documentId], // Guardar IDs originales
           }
           
@@ -115,6 +116,18 @@ export default async function Page({ params }: PageProps) {
               cursoExistente.cantidadProductos = cursoMapeado.cantidadProductos
               cursoExistente.pdf_id = cursoMapeado.pdf_id
               cursoExistente.pdf_url = cursoMapeado.pdf_url
+            }
+            
+            // Priorizar estado_revision: publicado > revisado > borrador > null
+            const prioridades: Record<string, number> = {
+              'publicado': 3,
+              'revisado': 2,
+              'borrador': 1,
+            }
+            const prioridadActual = prioridades[cursoExistente.estado_revision || ''] || 0
+            const prioridadNuevo = prioridades[cursoMapeado.estado_revision || ''] || 0
+            if (prioridadNuevo > prioridadActual) {
+              cursoExistente.estado_revision = cursoMapeado.estado_revision
             }
             
             // Mantener la fecha más reciente

@@ -17,7 +17,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge } from 'react-bootstrap'
-import { LuSearch, LuFileText, LuEye, LuArrowLeft, LuDownload, LuFileSpreadsheet } from 'react-icons/lu'
+import { LuSearch, LuFileText, LuEye, LuArrowLeft, LuDownload, LuFileSpreadsheet, LuCheck, LuEdit, LuX } from 'react-icons/lu'
 
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
@@ -35,6 +35,7 @@ interface CursoType {
   cantidadVersiones: number
   matriculados?: number
   updatedAt?: string
+  estado_revision?: 'borrador' | 'revisado' | 'publicado' | null
 }
 
 interface CursosColegioListingProps {
@@ -62,6 +63,7 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
       cantidadVersiones: curso.cantidadVersiones || 0,
       matriculados: curso.matricula || curso.matriculados || 0, // Usar "matricula" de Strapi
       updatedAt: curso.updatedAt || null,
+      estado_revision: curso.estado_revision || null,
     } as CursoType))
   }, [cursosProp])
 
@@ -198,6 +200,45 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
           )
         }
         return <Badge bg="secondary">Sin PDF</Badge>
+      },
+    },
+    {
+      id: 'estado',
+      header: 'ESTADO',
+      accessorKey: 'estado_revision',
+      enableSorting: true,
+      cell: ({ row }) => {
+        const estado = row.original.estado_revision
+        
+        if (estado === 'publicado') {
+          return (
+            <Badge bg="success" className="fs-13">
+              <LuCheck className="me-1" size={14} />
+              ✓ Lista para Exportar
+            </Badge>
+          )
+        } else if (estado === 'revisado') {
+          return (
+            <Badge bg="info" className="fs-13">
+              <LuEye className="me-1" size={14} />
+              En Revisión
+            </Badge>
+          )
+        } else if (estado === 'borrador') {
+          return (
+            <Badge bg="warning" text="dark" className="fs-13">
+              <LuEdit className="me-1" size={14} />
+              Borrador
+            </Badge>
+          )
+        } else {
+          return (
+            <Badge bg="secondary" className="fs-13">
+              <LuX className="me-1" size={14} />
+              Sin Validar
+            </Badge>
+          )
+        }
       },
     },
     {

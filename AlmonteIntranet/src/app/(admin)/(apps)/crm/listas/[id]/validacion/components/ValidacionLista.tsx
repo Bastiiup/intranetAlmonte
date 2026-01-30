@@ -126,6 +126,18 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false)
   const [productosAgregadosEnSesion, setProductosAgregadosEnSesion] = useState(0)
   const [ultimoProductoAgregado, setUltimoProductoAgregado] = useState<string | null>(null)
+  const [estadoRevision, setEstadoRevision] = useState<'borrador' | 'revisado' | 'publicado' | null>(null)
+  const [publicando, setPublicando] = useState(false)
+
+  // Cargar estado_revision inicial
+  useEffect(() => {
+    if (lista) {
+      // Intentar obtener el estado_revision de la lista
+      const estado = (lista as any).estado_revision || null
+      setEstadoRevision(estado)
+      console.log('[ValidacionLista] Estado de revisión inicial:', estado)
+    }
+  }, [lista])
   const [productosPendientes, setProductosPendientes] = useState<Array<{
     nombre: string
     cantidad: number
@@ -722,6 +734,69 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
     } finally {
       setLoading(false)
       console.log('[ValidacionLista] ✅ Proceso de aprobación finalizado')
+    }
+  }
+
+  const publicarLista = async () => {
+    if (publicando) {
+      console.warn('[ValidacionLista] ⚠️ Ya hay una publicación en proceso')
+      return
+    }
+
+    const idParaUsar = listaIdFromUrl || lista?.id || lista?.documentId
+
+    if (!idParaUsar) {
+      console.error('[ValidacionLista] ❌ ID de lista no encontrado')
+      alert('No se puede publicar: ID de lista no encontrado')
+      return
+    }
+
+    // Verificar que todos los productos estén aprobados
+    if (validados !== totalProductos || totalProductos === 0) {
+      alert('Debes aprobar todos los productos antes de publicar la lista')
+      return
+    }
+
+    if (!confirm('¿Estás seguro de que deseas publicar esta lista? Una vez publicada, estará lista para comercialización y exportación.')) {
+      return
+    }
+
+    setPublicando(true)
+    console.log('[ValidacionLista] 📤 Publicando lista:', idParaUsar)
+
+    try {
+      const response = await fetch(`/api/crm/listas/${idParaUsar}/publicar`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          notas: 'Lista validada y aprobada desde interfaz de validación',
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || errorData.details || 'Error al publicar la lista')
+      }
+
+      const result = await response.json()
+      console.log('[ValidacionLista] ✅ Lista publicada exitosamente:', result)
+
+      // Actualizar estado local
+      setEstadoRevision('publicado')
+
+      alert('¡Lista publicada exitosamente! Ya está lista para comercialización y exportación.')
+      
+      // Opcional: recargar la página después de 2 segundos
+      setTimeout(() => {
+        window.location.reload()
+      }, 2000)
+    } catch (error: any) {
+      console.error('[ValidacionLista] ❌ Error al publicar lista:', error)
+      alert(`Error al publicar la lista: ${error.message}`)
+    } finally {
+      setPublicando(false)
     }
   }
 
@@ -1807,32 +1882,62 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                         )}
                       </div>
                       <div className="d-flex gap-2 align-items-center">
-                        {validados === totalProductos && totalProductos > 0 && (
+                        {estadoRevision === 'publicado' && (
                           <Badge bg="success" className="d-flex align-items-center" style={{ fontSize: '0.9rem', padding: '0.5rem 1rem' }}>
+                            <TbCheck className="me-2" />
+                            Lista Publicada
+                          </Badge>
+                        )}
+                        {validados === totalProductos && totalProductos > 0 && estadoRevision !== 'publicado' && (
+                          <Badge bg="info" className="d-flex align-items-center" style={{ fontSize: '0.9rem', padding: '0.5rem 1rem' }}>
                             <TbChecklist className="me-2" />
                             Lista Aprobada
                           </Badge>
                         )}
-                        <Button
-                          variant="success"
-                          size="sm"
-                          onClick={aprobarListaCompleta}
-                          disabled={loading || totalProductos === 0}
-                          className="d-flex align-items-center"
-                          title={totalProductos === 0 ? 'No hay productos para aprobar' : loading ? 'Aprobando...' : 'Aprobar todos los productos de la lista'}
-                        >
-                          {loading ? (
-                            <>
-                              <Spinner size="sm" className="me-2" />
-                              Aprobando...
-                            </>
-                          ) : (
-                            <>
-                              <TbChecklist className="me-2" />
-                              Aprobar Lista Completa
-                            </>
-                          )}
-                        </Button>
+                        {estadoRevision !== 'publicado' && (
+                          <Button
+                            variant="success"
+                            size="sm"
+                            onClick={aprobarListaCompleta}
+                            disabled={loading || totalProductos === 0}
+                            className="d-flex align-items-center"
+                            title={totalProductos === 0 ? 'No hay productos para aprobar' : loading ? 'Aprobando...' : 'Aprobar todos los productos de la lista'}
+                          >
+                            {loading ? (
+                              <>
+                                <Spinner size="sm" className="me-2" />
+                                Aprobando...
+                              </>
+                            ) : (
+                              <>
+                                <TbChecklist className="me-2" />
+                                Aprobar Lista Completa
+                              </>
+                            )}
+                          </Button>
+                        )}
+                        {validados === totalProductos && totalProductos > 0 && estadoRevision !== 'publicado' && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={publicarLista}
+                            disabled={publicando || loading}
+                            className="d-flex align-items-center"
+                            title="Publicar lista para comercialización y exportación"
+                          >
+                            {publicando ? (
+                              <>
+                                <Spinner size="sm" className="me-2" />
+                                Publicando...
+                              </>
+                            ) : (
+                              <>
+                                <TbCheck className="me-2" />
+                                Publicar Lista
+                              </>
+                            )}
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
