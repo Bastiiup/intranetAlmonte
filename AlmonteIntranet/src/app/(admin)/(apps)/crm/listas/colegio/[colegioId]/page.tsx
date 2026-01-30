@@ -72,6 +72,9 @@ export default async function Page({ params }: PageProps) {
           // Normalizar nombre: quitar año del nombre si existe (ej: "1° Básico 2022" -> "1° Básico")
           let nombreNormalizado = (curso.nombre_curso || '').trim()
           nombreNormalizado = nombreNormalizado.replace(/\s+\d{4}$/, '') // Quitar año al final
+          // Normalizar símbolos de grado: º y ° son el mismo grado
+          nombreNormalizado = nombreNormalizado.replace(/º/g, '°') // Cambiar º por °
+          nombreNormalizado = nombreNormalizado.replace(/\s+/g, ' ') // Normalizar espacios múltiples
           
           const cursoMapeado = {
             id: curso.id || curso.documentId,
