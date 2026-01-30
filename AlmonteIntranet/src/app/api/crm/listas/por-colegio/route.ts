@@ -83,28 +83,8 @@ export async function GET(request: NextRequest) {
 
     // Agrupar por colegio
     const colegiosMap = new Map<string, any>()
-    
-    // Mapa para calcular matrícula total de TODOS los cursos (no solo los que tienen listas)
-    const matriculasPorColegio = new Map<string, number>()
-    
-    // PASO 1: Calcular matrícula total de TODOS los cursos
-    cursos.forEach((curso: any) => {
-      const attrs = curso.attributes || curso
-      const colegioData = attrs.colegio?.data || attrs.colegio
-      if (!colegioData) return
-      
-      const colegioId = colegioData.id || colegioData.documentId
-      const matricula = attrs.matricula || 0
-      
-      if (!matriculasPorColegio.has(colegioId)) {
-        matriculasPorColegio.set(colegioId, 0)
-      }
-      matriculasPorColegio.set(colegioId, matriculasPorColegio.get(colegioId)! + Number(matricula))
-    })
-    
-    debugLog('[API /crm/listas/por-colegio GET] Matrículas calculadas:', Array.from(matriculasPorColegio.entries()))
 
-    // PASO 2: Agrupar solo cursos con listas
+    // Agrupar solo cursos con listas
     cursosConListas.forEach((curso: any) => {
       const attrs = curso.attributes || curso
       const colegioData = attrs.colegio?.data || attrs.colegio
@@ -187,22 +167,43 @@ export async function GET(request: NextRequest) {
     })
 
     // Convertir a array y calcular totales
-    const colegios = Array.from(colegiosMap.values()).map(colegio => {
-      const totalPDFs = colegio.cursos.filter((c: any) => c.pdf_id).length
-      const totalVersiones = colegio.cursos.reduce((sum: number, c: any) => sum + c.versiones, 0)
-      // Usar matrícula total de TODOS los cursos (no solo los que tienen listas)
-      const totalMatriculados = matriculasPorColegio.get(colegio.id) || 0
-      
-      debugLog(`[API /crm/listas/por-colegio GET] Colegio ${colegio.nombre} (${colegio.id}): ${totalMatriculados} estudiantes`)
-      
-      return {
-        ...colegio,
-        total_matriculados: totalMatriculados, // Suma de TODOS los cursos del colegio
-        cantidadCursos: colegio.cursos.length,
-        cantidadPDFs: totalPDFs,
-        cantidadListas: totalVersiones,
-      }
-    })
+    const colegios = await Promise.all(
+      Array.from(colegiosMap.values()).map(async (colegio) => {
+        const totalPDFs = colegio.cursos.filter((c: any) => c.pdf_id).length
+        const totalVersiones = colegio.cursos.reduce((sum: number, c: any) => sum + c.versiones, 0)
+        
+        // Calcular matrícula consultando TODOS los cursos del colegio (no solo los limitados)
+        let totalMatriculados = 0
+        
+        if (colegio.rbd) {
+          try {
+            const cursosResponse = await strapiClient.get<any>(
+              `/api/cursos?filters[colegio][rbd][$eq]=${colegio.rbd}&fields[0]=matricula&pagination[pageSize]=1000`
+            )
+            
+            const todosCursos = Array.isArray(cursosResponse.data) ? cursosResponse.data : [cursosResponse.data]
+            
+            totalMatriculados = todosCursos.reduce((sum, curso) => {
+              const attrs = curso.attributes || curso
+              const matricula = attrs.matricula || 0
+              return sum + Number(matricula)
+            }, 0)
+            
+            debugLog(`[API /crm/listas/por-colegio GET] Colegio ${colegio.nombre} (RBD: ${colegio.rbd}): ${totalMatriculados} estudiantes (de ${todosCursos.length} cursos)`)
+          } catch (error) {
+            debugLog(`[API /crm/listas/por-colegio GET] Error calculando matrícula para ${colegio.nombre}:`, error)
+          }
+        }
+        
+        return {
+          ...colegio,
+          total_matriculados: totalMatriculados, // Suma de TODOS los cursos del colegio
+          cantidadCursos: colegio.cursos.length,
+          cantidadPDFs: totalPDFs,
+          cantidadListas: totalVersiones,
+        }
+      })
+    )
 
     debugLog('[API /crm/listas/por-colegio GET] Colegios agrupados:', colegios.length)
 
