@@ -81,15 +81,26 @@ function parseNivel(nivelStr: string, idNivel?: number): { nivel: 'Basica' | 'Me
     }
   }
   
-  // Parsear desde texto del nivel (ej: "1° Básico", "7° Básico", "I Medio")
+  // Parsear desde texto del nivel (ej: "1° Básico", "7° Básico", "I Medio", "II Medio")
   if (nivel.includes('medio')) {
-    // Intentar extraer el número romano o número
-    const matchRomano = nivel.match(/[ivxlcdm]+/i) // I, II, III, IV
+    // Intentar extraer el número romano primero (más común en Media)
+    // Buscar patrones como "I Medio", "II Medio", "III Medio", "IV Medio"
+    const matchRomano = nivel.match(/\b([ivxlcdm]+)\s*medio/i) // I, II, III, IV seguido de "medio"
     if (matchRomano) {
-      const romanos: Record<string, number> = { 'i': 1, 'ii': 2, 'iii': 3, 'iv': 4 }
-      const grado = romanos[matchRomano[0].toLowerCase()] || 1
-      return { nivel: 'Media', grado }
+      const romanos: Record<string, number> = { 
+        'i': 1, 
+        'ii': 2, 
+        'iii': 3, 
+        'iv': 4,
+        '1': 1, // Por si acaso viene como "1 Medio"
+        '2': 2,
+        '3': 3,
+        '4': 4
+      }
+      const grado = romanos[matchRomano[1].toLowerCase()] || 1
+      return { nivel: 'Media', grado: Math.min(grado, 4) }
     }
+    // Si no hay romano, buscar número arábigo
     const match = nivel.match(/(\d+)/)
     const grado = match ? parseInt(match[1]) : 1
     return { nivel: 'Media', grado: Math.min(grado, 4) }
