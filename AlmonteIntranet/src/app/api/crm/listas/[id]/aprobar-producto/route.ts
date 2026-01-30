@@ -233,25 +233,38 @@ export async function POST(
       },
     }
 
-    // Si todos los productos están aprobados, actualizar estado_revision a "revisado"
-    if (listaAprobada) {
-      updateData.data.estado_revision = 'revisado'
-      updateData.data.fecha_revision = new Date().toISOString()
-      console.log('[Aprobar Producto] ✅ Todos los productos están aprobados - actualizando estado_revision a "revisado"')
-    } else if (aprobado === false) {
-      // Si se está desaprobando un producto y el estado era "revisado", volver a "borrador"
-      const estadoActual = attrs.estado_revision
-      if (estadoActual === 'revisado') {
-        updateData.data.estado_revision = 'borrador'
-        console.log('[Aprobar Producto] ⚠️ Producto desaprobado - cambiando estado_revision a "borrador"')
-      }
-    }
-
-    console.log('[Aprobar Producto] 💾 Guardando en Strapi...')
+    console.log('[Aprobar Producto] 💾 Guardando versiones en Strapi...')
     const response = await strapiClient.put<any>(`/api/cursos/${cursoDocumentId}`, updateData)
 
     if ((response as any)?.error) {
       throw new Error(`Strapi devolvió un error: ${JSON.stringify((response as any).error)}`)
+    }
+
+    console.log('[Aprobar Producto] ✅ Versiones guardadas exitosamente')
+
+    // Intentar actualizar estado_revision si todos los productos están aprobados
+    // (En un try-catch separado para que no rompa si el campo no existe)
+    if (listaAprobada || (aprobado === false && attrs.estado_revision === 'revisado')) {
+      try {
+        const estadoData: any = {
+          data: {}
+        }
+
+        if (listaAprobada) {
+          estadoData.data.estado_revision = 'revisado'
+          estadoData.data.fecha_revision = new Date().toISOString()
+          console.log('[Aprobar Producto] 📝 Intentando actualizar estado_revision a "revisado"...')
+        } else if (aprobado === false && attrs.estado_revision === 'revisado') {
+          estadoData.data.estado_revision = 'borrador'
+          console.log('[Aprobar Producto] 📝 Intentando actualizar estado_revision a "borrador"...')
+        }
+
+        await strapiClient.put<any>(`/api/cursos/${cursoDocumentId}`, estadoData)
+        console.log('[Aprobar Producto] ✅ Estado de revisión actualizado')
+      } catch (estadoError: any) {
+        console.warn('[Aprobar Producto] ⚠️ No se pudo actualizar estado_revision (puede que el campo no exista en Strapi):', estadoError.message)
+        // No lanzar el error, solo registrarlo
+      }
     }
 
     console.log('[Aprobar Producto] ✅ Producto aprobado exitosamente')

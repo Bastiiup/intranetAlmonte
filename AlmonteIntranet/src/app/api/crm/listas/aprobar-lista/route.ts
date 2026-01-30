@@ -142,22 +142,35 @@ export async function POST(request: NextRequest) {
     }
 
     // Actualizar versiones_materiales con los productos aprobados
-    // Y actualizar estado_revision a "revisado" para indicar que la lista fue validada
     const updateData = {
       data: {
         versiones_materiales: versionesActualizadas,
-        estado_revision: 'revisado', // Cambiar estado a "revisado" cuando se aprueba
-        fecha_revision: new Date().toISOString(), // Guardar fecha de revisión
       },
     }
-    
-    console.log('[Aprobar Lista] ℹ️ Actualizando estado_revision a "revisado"')
 
-    console.log('[Aprobar Lista] 💾 Guardando en Strapi...')
+    console.log('[Aprobar Lista] 💾 Guardando versiones en Strapi...')
     const response = await strapiClient.put<any>(`/api/cursos/${cursoDocumentId}`, updateData)
 
     if ((response as any)?.error) {
       throw new Error(`Strapi devolvió un error: ${JSON.stringify((response as any).error)}`)
+    }
+
+    console.log('[Aprobar Lista] ✅ Versiones guardadas exitosamente')
+
+    // Intentar actualizar estado_revision a "revisado" (en un try-catch separado por si el campo no existe)
+    try {
+      console.log('[Aprobar Lista] 📝 Intentando actualizar estado_revision a "revisado"...')
+      const estadoData = {
+        data: {
+          estado_revision: 'revisado',
+          fecha_revision: new Date().toISOString(),
+        },
+      }
+      await strapiClient.put<any>(`/api/cursos/${cursoDocumentId}`, estadoData)
+      console.log('[Aprobar Lista] ✅ Estado de revisión actualizado')
+    } catch (estadoError: any) {
+      console.warn('[Aprobar Lista] ⚠️ No se pudo actualizar estado_revision (puede que el campo no exista en Strapi):', estadoError.message)
+      // No lanzar el error, solo registrarlo
     }
 
     console.log('[Aprobar Lista] ✅ Lista aprobada exitosamente')
