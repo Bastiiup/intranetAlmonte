@@ -65,6 +65,32 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
     } as CursoType))
   }, [cursosProp])
 
+  // Calcular años únicos para el filtro
+  const añosDisponibles = useMemo(() => {
+    const años = new Set<number>()
+    mappedCursos.forEach(curso => años.add(curso.año))
+    return Array.from(años).sort((a, b) => b - a) // Orden descendente
+  }, [mappedCursos])
+
+  // Calcular niveles únicos para el filtro
+  const nivelesDisponibles = useMemo(() => {
+    const niveles = new Set<string>()
+    mappedCursos.forEach(curso => niveles.add(curso.nivel))
+    return Array.from(niveles).sort()
+  }, [mappedCursos])
+
+  const [data, setData] = useState<CursoType[]>([])
+  const [globalFilter, setGlobalFilter] = useState('')
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: 'año', desc: true }, // Ordenar por año descendente por defecto
+  ])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 25 })
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [exportando, setExportando] = useState(false)
+  const [filtroAño, setFiltroAño] = useState<string>('todos')
+  const [filtroNivel, setFiltroNivel] = useState<string>('todos')
+
   const columns: ColumnDef<CursoType, any>[] = [
     {
       id: 'select',
@@ -90,6 +116,28 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
       enableColumnFilter: false,
     },
     {
+      id: 'año',
+      header: 'AÑO',
+      accessorKey: 'año',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <Badge bg="primary" className="fs-13">
+          {row.original.año}
+        </Badge>
+      ),
+    },
+    {
+      id: 'nivel',
+      header: 'NIVEL',
+      accessorKey: 'nivel',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <Badge bg={row.original.nivel === 'Media' ? 'info' : 'success'} className="fs-13">
+          {row.original.nivel}
+        </Badge>
+      ),
+    },
+    {
       id: 'curso',
       header: 'CURSO',
       accessorKey: 'nombre',
@@ -98,7 +146,7 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
         <div>
           <h6 className="mb-0 fw-bold">{row.original.nombre || 'Sin nombre'}</h6>
           <small className="text-muted">
-            {row.original.nivel} - {row.original.grado}° - {row.original.año}
+            {row.original.grado}°
           </small>
         </div>
       ),
@@ -193,19 +241,21 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
     },
   ]
 
-  const [data, setData] = useState<CursoType[]>([])
-  const [globalFilter, setGlobalFilter] = useState('')
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: 'curso', desc: false },
-  ])
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 25 })
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
-  const [exportando, setExportando] = useState(false)
-
   useEffect(() => {
-    setData(mappedCursos)
-  }, [mappedCursos])
+    let cursosFiltrados = [...mappedCursos]
+
+    // Filtrar por año
+    if (filtroAño !== 'todos') {
+      cursosFiltrados = cursosFiltrados.filter(curso => curso.año === parseInt(filtroAño))
+    }
+
+    // Filtrar por nivel
+    if (filtroNivel !== 'todos') {
+      cursosFiltrados = cursosFiltrados.filter(curso => curso.nivel === filtroNivel)
+    }
+
+    setData(cursosFiltrados)
+  }, [mappedCursos, filtroAño, filtroNivel])
 
   const exportarCSV = async () => {
     const selectedRows = table.getSelectedRowModel().rows
@@ -359,7 +409,7 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
 
             <Card.Body>
               <Row className="mb-3">
-                <Col sm={12} md={6}>
+                <Col sm={12} md={4}>
                   <div className="app-search position-relative">
                     <input
                       type="search"
@@ -371,7 +421,32 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
                     <span className="mdi mdi-magnify search-icon"></span>
                   </div>
                 </Col>
-                <Col sm={12} md={6} className="d-flex justify-content-end align-items-center gap-2">
+                <Col sm={6} md={2}>
+                  <select
+                    className="form-select form-control"
+                    value={filtroAño}
+                    onChange={(e) => setFiltroAño(e.target.value)}
+                  >
+                    <option value="todos">Todos los años</option>
+                    {añosDisponibles.map(año => (
+                      <option key={año} value={año}>{año}</option>
+                    ))}
+                  </select>
+                </Col>
+                <Col sm={6} md={2}>
+                  <select
+                    className="form-select form-control"
+                    value={filtroNivel}
+                    onChange={(e) => setFiltroNivel(e.target.value)}
+                  >
+                    <option value="todos">Todos los niveles</option>
+                    {nivelesDisponibles.map(nivel => (
+                      <option key={nivel} value={nivel}>{nivel}</option>
+                    ))}
+                  </select>
+                </Col>
+                <Col sm={12} md={4} className="d-flex justify-content-end align-items-center gap-2">
+                  <small className="text-muted">Mostrar:</small>
                   <div>
                     <select
                       className="form-select form-control"
