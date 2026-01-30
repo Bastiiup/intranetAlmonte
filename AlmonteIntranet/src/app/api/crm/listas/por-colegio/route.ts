@@ -174,7 +174,7 @@ export async function GET(request: NextRequest) {
       
       return {
         ...colegio,
-        total_matriculados: totalMatriculados > 0 ? totalMatriculados : null, // null si no hay datos
+        total_matriculados: totalMatriculados, // Suma de matriculados de todos los cursos
         cantidadCursos: colegio.cursos.length,
         cantidadPDFs: totalPDFs,
         cantidadListas: totalVersiones,
