@@ -17,7 +17,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge } from 'react-bootstrap'
-import { LuSearch, LuFileText, LuEye, LuArrowLeft, LuDownload, LuFileSpreadsheet, LuCheck, LuPencil, LuX } from 'react-icons/lu'
+import { LuSearch, LuFileText, LuEye, LuArrowLeft, LuDownload, LuFileSpreadsheet, LuCheck, LuPencil, LuX, LuRefreshCw } from 'react-icons/lu'
 
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
@@ -439,13 +439,23 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
                   </Badge>
                 )}
               </div>
-              <Button
-                variant="outline-secondary"
-                onClick={() => router.back()}
-              >
-                <LuArrowLeft className="me-2" />
-                Volver
-              </Button>
+              <div className="d-flex gap-2">
+                <Button
+                  variant="outline-primary"
+                  onClick={() => router.refresh()}
+                  title="Recargar para ver cambios actualizados"
+                >
+                  <LuRefreshCw className="me-2" />
+                  Recargar
+                </Button>
+                <Button
+                  variant="outline-secondary"
+                  onClick={() => router.back()}
+                >
+                  <LuArrowLeft className="me-2" />
+                  Volver
+                </Button>
+              </div>
             </CardHeader>
 
             <Card.Body>

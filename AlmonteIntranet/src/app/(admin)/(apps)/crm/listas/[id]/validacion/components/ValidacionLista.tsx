@@ -632,11 +632,17 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
         throw new Error(data.error || 'Error al aprobar el producto')
       }
 
-      // Si todos los productos están aprobados, mostrar mensaje
+      // Si todos los productos están aprobados, actualizar estado y mostrar mensaje
       if (data.data.listaAprobada) {
         console.log('[ValidacionLista] ✅ Todos los productos aprobados, lista marcada como aprobada')
+        setEstadoRevision('revisado')
+        console.log('[ValidacionLista] 🔄 Estado actualizado a "revisado"')
         // Recargar datos para obtener el estado actualizado
         await cargarProductos(true)
+      } else if (!nuevoEstado) {
+        // Si se desaprueba un producto, volver a borrador
+        setEstadoRevision('borrador')
+        console.log('[ValidacionLista] 🔄 Estado actualizado a "borrador"')
       }
 
       console.log('[ValidacionLista] ✅ Producto aprobado:', { productoId, aprobado: nuevoEstado })
@@ -722,6 +728,11 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
       }
 
       console.log('[ValidacionLista] ✅ Lista aprobada exitosamente')
+      
+      // Actualizar estado local a "revisado"
+      setEstadoRevision('revisado')
+      console.log('[ValidacionLista] 🔄 Estado actualizado a "revisado"')
+      
       alert('✅ Lista aprobada exitosamente. Todos los productos han sido marcados como aprobados.')
       
       // Recargar datos
