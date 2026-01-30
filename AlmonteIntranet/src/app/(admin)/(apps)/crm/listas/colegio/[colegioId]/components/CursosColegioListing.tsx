@@ -16,8 +16,8 @@ import {
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
-import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge } from 'react-bootstrap'
-import { LuSearch, LuFileText, LuEye, LuArrowLeft, LuDownload, LuFileSpreadsheet, LuCheck, LuPencil, LuX, LuRefreshCw } from 'react-icons/lu'
+import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge, Modal, ProgressBar, Spinner } from 'react-bootstrap'
+import { LuSearch, LuFileText, LuEye, LuArrowLeft, LuDownload, LuFileSpreadsheet, LuCheck, LuPencil, LuX, LuRefreshCw, LuZap } from 'react-icons/lu'
 import { TbCheck, TbEye, TbX } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
@@ -97,6 +97,18 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
   const [exportando, setExportando] = useState(false)
   const [filtroAño, setFiltroAño] = useState<string>('todos')
   const [filtroNivel, setFiltroNivel] = useState<string>('todos')
+  
+  // Estados para procesamiento masivo con IA
+  const [showProcesarModal, setShowProcesarModal] = useState(false)
+  const [procesando, setProcesando] = useState(false)
+  const [progresoTotal, setProgresoTotal] = useState(0)
+  const [cursoActual, setCursoActual] = useState('')
+  const [resultados, setResultados] = useState<Array<{
+    curso: string
+    status: 'pending' | 'processing' | 'success' | 'error'
+    mensaje: string
+    productosEncontrados?: number
+  }>>([])
 
   const columns: ColumnDef<CursoType, any>[] = [
     {
@@ -345,6 +357,113 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
     }
   }
 
+  const procesarMasivamente = async () => {
+    const selectedRows = table.getSelectedRowModel().rows
+    if (selectedRows.length === 0) {
+      alert('Por favor selecciona al menos un curso para procesar')
+      return
+    }
+
+    // Verificar que todos los cursos seleccionados tengan PDF
+    const cursosSinPDF = selectedRows.filter(row => !row.original.pdf_id)
+    if (cursosSinPDF.length > 0) {
+      const confirmar = window.confirm(
+        `${cursosSinPDF.length} curso(s) no tienen PDF asociado y serán omitidos. ¿Deseas continuar?`
+      )
+      if (!confirmar) return
+    }
+
+    // Filtrar solo cursos con PDF
+    const cursosConPDF = selectedRows.filter(row => row.original.pdf_id)
+    if (cursosConPDF.length === 0) {
+      alert('Ninguno de los cursos seleccionados tiene PDF asociado')
+      return
+    }
+
+    // Inicializar resultados
+    const resultadosIniciales = cursosConPDF.map(row => ({
+      curso: row.original.nombre,
+      cursoId: row.original.documentId || row.original.id,
+      pdfId: row.original.pdf_id,
+      status: 'pending' as const,
+      mensaje: 'Pendiente',
+    }))
+    
+    setResultados(resultadosIniciales)
+    setShowProcesarModal(true)
+    setProcesando(true)
+    setProgresoTotal(0)
+
+    // Procesar cada curso secuencialmente
+    for (let i = 0; i < cursosConPDF.length; i++) {
+      const row = cursosConPDF[i]
+      const cursoId = row.original.documentId || row.original.id
+      const pdfId = row.original.pdf_id
+      const cursoNombre = row.original.nombre
+
+      try {
+        // Actualizar estado actual
+        setCursoActual(cursoNombre)
+        setResultados(prev => prev.map((r, idx) => 
+          idx === i ? { ...r, status: 'processing', mensaje: 'Procesando con IA...' } : r
+        ))
+
+        // Obtener el PDF desde Strapi
+        console.log(`[Procesamiento Masivo] Descargando PDF del curso ${cursoNombre}...`)
+        const pdfResponse = await fetch(`/api/crm/listas/pdf/${pdfId}`)
+        if (!pdfResponse.ok) {
+          throw new Error('Error al descargar PDF')
+        }
+
+        const pdfBlob = await pdfResponse.blob()
+        
+        // Crear FormData para enviar el PDF
+        const formData = new FormData()
+        formData.append('pdf', pdfBlob, `lista-${cursoNombre}.pdf`)
+        formData.append('cursoId', String(cursoId))
+        formData.append('cursoDocumentId', String(cursoId))
+
+        // Enviar a la API de procesamiento
+        console.log(`[Procesamiento Masivo] Enviando PDF a IA para ${cursoNombre}...`)
+        const response = await fetch('/api/crm/cursos/import-pdf', {
+          method: 'POST',
+          body: formData,
+        })
+
+        const result = await response.json()
+
+        if (response.ok && result.success) {
+          const productosEncontrados = result.data?.productos?.length || 0
+          setResultados(prev => prev.map((r, idx) => 
+            idx === i ? { 
+              ...r, 
+              status: 'success', 
+              mensaje: `✓ ${productosEncontrados} productos extraídos`,
+              productosEncontrados 
+            } : r
+          ))
+        } else {
+          throw new Error(result.error || 'Error al procesar PDF')
+        }
+      } catch (error: any) {
+        console.error(`[Procesamiento Masivo] Error en ${cursoNombre}:`, error)
+        setResultados(prev => prev.map((r, idx) => 
+          idx === i ? { 
+            ...r, 
+            status: 'error', 
+            mensaje: `✗ Error: ${error.message}` 
+          } : r
+        ))
+      }
+
+      // Actualizar progreso
+      setProgresoTotal(((i + 1) / cursosConPDF.length) * 100)
+    }
+
+    setProcesando(false)
+    setCursoActual('')
+  }
+
   const table = useReactTable({
     data,
     columns,
@@ -487,6 +606,16 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
                       </span>
                       <div className="d-flex gap-2">
                         <Button 
+                          variant="warning" 
+                          size="sm"
+                          onClick={procesarMasivamente}
+                          disabled={procesando}
+                          title="Procesar PDFs con IA (Gemini) para extraer productos automáticamente"
+                        >
+                          <LuZap className="me-1" />
+                          {procesando ? 'Procesando...' : 'Procesar con IA'}
+                        </Button>
+                        <Button 
                           variant="success" 
                           size="sm"
                           onClick={exportarCSV}
@@ -542,6 +671,111 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
           </Card>
         </Col>
       </Row>
+
+      {/* Modal de Procesamiento Masivo con IA */}
+      <Modal
+        show={showProcesarModal}
+        onHide={() => !procesando && setShowProcesarModal(false)}
+        size="lg"
+        backdrop={procesando ? 'static' : true}
+        keyboard={!procesando}
+      >
+        <Modal.Header closeButton={!procesando}>
+          <Modal.Title>
+            <LuZap className="me-2" />
+            Procesamiento Masivo con IA (Gemini)
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="mb-3">
+            <div className="d-flex justify-content-between mb-2">
+              <span className="fw-bold">Progreso Total:</span>
+              <span>{Math.round(progresoTotal)}%</span>
+            </div>
+            <ProgressBar 
+              now={progresoTotal} 
+              variant={procesando ? 'primary' : 'success'}
+              animated={procesando}
+              striped={procesando}
+            />
+          </div>
+
+          {cursoActual && (
+            <Alert variant="info" className="mb-3">
+              <Spinner animation="border" size="sm" className="me-2" />
+              <strong>Procesando:</strong> {cursoActual}
+            </Alert>
+          )}
+
+          <div className="mt-3">
+            <h6 className="mb-3">Resultados:</h6>
+            {resultados.length === 0 ? (
+              <div className="text-center text-muted py-3">
+                Iniciando procesamiento...
+              </div>
+            ) : (
+              <div className="list-group">
+                {resultados.map((resultado, index) => (
+                  <div
+                    key={index}
+                    className={`list-group-item d-flex justify-content-between align-items-start ${
+                      resultado.status === 'processing' ? 'list-group-item-info' :
+                      resultado.status === 'success' ? 'list-group-item-success' :
+                      resultado.status === 'error' ? 'list-group-item-danger' : ''
+                    }`}
+                  >
+                    <div className="flex-grow-1">
+                      <h6 className="mb-1">{resultado.curso}</h6>
+                      <p className="mb-0 small">{resultado.mensaje}</p>
+                    </div>
+                    <div>
+                      {resultado.status === 'pending' && (
+                        <Badge bg="secondary">Pendiente</Badge>
+                      )}
+                      {resultado.status === 'processing' && (
+                        <Spinner animation="border" size="sm" variant="info" />
+                      )}
+                      {resultado.status === 'success' && (
+                        <Badge bg="success">✓</Badge>
+                      )}
+                      {resultado.status === 'error' && (
+                        <Badge bg="danger">✗</Badge>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          {!procesando && (
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => setShowProcesarModal(false)}
+              >
+                Cerrar
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setShowProcesarModal(false)
+                  router.refresh()
+                }}
+              >
+                <LuRefreshCw className="me-2" />
+                Recargar Página
+              </Button>
+            </>
+          )}
+          {procesando && (
+            <div className="text-muted small">
+              Por favor espera mientras se procesan los PDFs...
+            </div>
+          )}
+        </Modal.Footer>
+      </Modal>
     </>
   )
 }
