@@ -61,24 +61,24 @@ export default async function Page({ params }: PageProps) {
       
       if (cursosData.success && cursosData.data) {
         cursos = cursosData.data.map((curso: any) => {
-          const attrs = curso.attributes || curso
-          const versiones = attrs.versiones_materiales || []
+          // Los datos vienen directamente en el objeto (no en attributes)
+          const versiones = curso.versiones_materiales || []
           const ultimaVersion = versiones.length > 0 ? versiones[versiones.length - 1] : null
           const materiales = ultimaVersion?.materiales || []
           
           return {
             id: curso.id || curso.documentId,
             documentId: curso.documentId || String(curso.id),
-            nombre: attrs.nombre_curso || '',
-            nivel: attrs.nivel || '',
-            grado: attrs.grado || 0,
-            año: attrs.anio || attrs.año || new Date().getFullYear(),
-            matricula: attrs.matricula || 0,
+            nombre: curso.nombre_curso || '',
+            nivel: curso.nivel || '',
+            grado: curso.grado || 0,
+            año: curso.anio || curso.año || new Date().getFullYear(),
+            matricula: curso.matricula || 0,
             cantidadVersiones: versiones.length,
             cantidadProductos: materiales.length,
             pdf_id: ultimaVersion?.pdf_id || null,
             pdf_url: ultimaVersion?.pdf_url || null,
-            updatedAt: curso.updatedAt || curso.attributes?.updatedAt || null,
+            updatedAt: curso.updatedAt || null,
           }
         })
       }
