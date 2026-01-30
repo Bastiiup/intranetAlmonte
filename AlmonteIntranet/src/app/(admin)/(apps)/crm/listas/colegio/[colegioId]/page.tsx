@@ -69,10 +69,14 @@ export default async function Page({ params }: PageProps) {
           const ultimaVersion = versiones.length > 0 ? versiones[versiones.length - 1] : null
           const materiales = ultimaVersion?.materiales || []
           
+          // Normalizar nombre: quitar año del nombre si existe (ej: "1° Básico 2022" -> "1° Básico")
+          let nombreNormalizado = (curso.nombre_curso || '').trim()
+          nombreNormalizado = nombreNormalizado.replace(/\s+\d{4}$/, '') // Quitar año al final
+          
           const cursoMapeado = {
             id: curso.id || curso.documentId,
             documentId: curso.documentId || String(curso.id),
-            nombre: curso.nombre_curso || '',
+            nombre: nombreNormalizado,
             nivel: curso.nivel || '',
             grado: curso.grado || 0,
             año: curso.anio || curso.año || new Date().getFullYear(),
@@ -85,16 +89,21 @@ export default async function Page({ params }: PageProps) {
             ids: [curso.id || curso.documentId], // Guardar IDs originales
           }
           
-          // Crear clave única: nombre + nivel + grado + año
-          const clave = `${cursoMapeado.nombre}-${cursoMapeado.nivel}-${cursoMapeado.grado}-${cursoMapeado.año}`.toLowerCase()
+          // Crear clave única: SOLO nombre + nivel + grado (sin año para agrupar todos los años)
+          const clave = `${nombreNormalizado}-${cursoMapeado.nivel}-${cursoMapeado.grado}`.toLowerCase().trim()
           
           if (cursosMap.has(clave)) {
             // Si ya existe, combinar datos
             const cursoExistente = cursosMap.get(clave)!
             
-            // Sumar matrículas si son diferentes
-            if (cursoMapeado.matricula > 0) {
-              cursoExistente.matricula = Math.max(cursoExistente.matricula, cursoMapeado.matricula)
+            // Usar la matrícula más alta
+            if (cursoMapeado.matricula > cursoExistente.matricula) {
+              cursoExistente.matricula = cursoMapeado.matricula
+            }
+            
+            // Usar el año más reciente
+            if (cursoMapeado.año > cursoExistente.año) {
+              cursoExistente.año = cursoMapeado.año
             }
             
             // Mantener el que tenga más versiones
