@@ -240,8 +240,12 @@ export async function createRFQ(data: RFQData): Promise<{ success: boolean; data
             )
             
             if (productoCheck.data) {
-              const productoData = productoCheck.data
-              const docId = productoData.documentId || (productoData as any).documentId
+              // Normalizar productoCheck.data que puede ser array o objeto
+              const productoData: StrapiEntity<any> | null = Array.isArray(productoCheck.data)
+                ? (productoCheck.data.length > 0 ? productoCheck.data[0] : null)
+                : productoCheck.data || null
+              const productoDataAny = productoData as any
+              const docId = productoData?.documentId || productoDataAny?.documentId
               
               if (docId) {
                 productosIds.push(docId)
