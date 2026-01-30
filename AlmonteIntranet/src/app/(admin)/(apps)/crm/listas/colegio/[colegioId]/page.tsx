@@ -60,13 +60,16 @@ export default async function Page({ params }: PageProps) {
       const cursosData = await cursosResponse.json()
       
       if (cursosData.success && cursosData.data) {
-        cursos = cursosData.data.map((curso: any) => {
+        // Mapear cursos
+        const cursosMap = new Map<string, any>()
+        
+        cursosData.data.forEach((curso: any) => {
           // Los datos vienen directamente en el objeto (no en attributes)
           const versiones = curso.versiones_materiales || []
           const ultimaVersion = versiones.length > 0 ? versiones[versiones.length - 1] : null
           const materiales = ultimaVersion?.materiales || []
           
-          return {
+          const cursoMapeado = {
             id: curso.id || curso.documentId,
             documentId: curso.documentId || String(curso.id),
             nombre: curso.nombre_curso || '',
@@ -79,8 +82,46 @@ export default async function Page({ params }: PageProps) {
             pdf_id: ultimaVersion?.pdf_id || null,
             pdf_url: ultimaVersion?.pdf_url || null,
             updatedAt: curso.updatedAt || null,
+            ids: [curso.id || curso.documentId], // Guardar IDs originales
+          }
+          
+          // Crear clave única: nombre + nivel + grado + año
+          const clave = `${cursoMapeado.nombre}-${cursoMapeado.nivel}-${cursoMapeado.grado}-${cursoMapeado.año}`.toLowerCase()
+          
+          if (cursosMap.has(clave)) {
+            // Si ya existe, combinar datos
+            const cursoExistente = cursosMap.get(clave)!
+            
+            // Sumar matrículas si son diferentes
+            if (cursoMapeado.matricula > 0) {
+              cursoExistente.matricula = Math.max(cursoExistente.matricula, cursoMapeado.matricula)
+            }
+            
+            // Mantener el que tenga más versiones
+            if (cursoMapeado.cantidadVersiones > cursoExistente.cantidadVersiones) {
+              cursoExistente.cantidadVersiones = cursoMapeado.cantidadVersiones
+              cursoExistente.cantidadProductos = cursoMapeado.cantidadProductos
+              cursoExistente.pdf_id = cursoMapeado.pdf_id
+              cursoExistente.pdf_url = cursoMapeado.pdf_url
+            }
+            
+            // Mantener la fecha más reciente
+            if (cursoMapeado.updatedAt && (!cursoExistente.updatedAt || cursoMapeado.updatedAt > cursoExistente.updatedAt)) {
+              cursoExistente.updatedAt = cursoMapeado.updatedAt
+              cursoExistente.id = cursoMapeado.id // Usar el ID más reciente
+              cursoExistente.documentId = cursoMapeado.documentId
+            }
+            
+            // Agregar ID a la lista
+            cursoExistente.ids.push(curso.id || curso.documentId)
+          } else {
+            // Si no existe, agregarlo
+            cursosMap.set(clave, cursoMapeado)
           }
         })
+        
+        // Convertir el mapa a array
+        cursos = Array.from(cursosMap.values())
       }
     } else {
       error = 'No se encontró el colegio'
