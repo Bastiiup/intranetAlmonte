@@ -87,7 +87,7 @@ export async function getWeareCloudOrders(): Promise<WeareCloudOrder[]> {
       notes: order.notes || order.notas,
       // Campos originales del microservicio
       warecloud_id: order.warecloud_id,
-      url: order.url || (order.warecloud_id ? `https://ecommerce.wareclouds.app/orders/${order.warecloud_id}` : null),
+      url: order.url || (order.warecloud_id ? `${WEARECLOUD_URL}/orders/${order.warecloud_id}` : null),
       pedido_ecommerce: order.pedido_ecommerce
     }))
     

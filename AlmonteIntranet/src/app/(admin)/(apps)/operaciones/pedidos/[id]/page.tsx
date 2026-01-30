@@ -9,6 +9,10 @@ import { useNotificationContext } from '@/context/useNotificationContext'
 import type { SincronizedOrder } from '@/lib/operaciones/types'
 import ActualizarPedidoModal from '../components/ActualizarPedidoModal'
 
+// URLs públicas (disponibles en el cliente)
+const WEARECLOUD_URL = process.env.NEXT_PUBLIC_WEARECLOUD_URL || 'https://ecommerce.wareclouds.app'
+const JUMPSELLER_ADMIN_URL = process.env.NEXT_PUBLIC_JUMPSELLER_ADMIN_URL || 'https://jumpseller.cl/admin'
+
 export default function PedidoDetallePage() {
   const params = useParams()
   const router = useRouter()
@@ -101,9 +105,9 @@ export default function PedidoDetallePage() {
                     size="sm"
                     href={
                       wcOrder.url || 
-                      (wcOrder.warecloud_id ? `https://ecommerce.wareclouds.app/orders/${wcOrder.warecloud_id}` : null) ||
-                      (wcOrder.id ? `https://ecommerce.wareclouds.app/orders/${wcOrder.id}` : null) ||
-                      (wcOrder.pedido_ecommerce ? `https://ecommerce.wareclouds.app/orders?search=${wcOrder.pedido_ecommerce}` : '#')
+                      (wcOrder.warecloud_id ? `${WEARECLOUD_URL}/orders/${wcOrder.warecloud_id}` : null) ||
+                      (wcOrder.id ? `${WEARECLOUD_URL}/orders/${wcOrder.id}` : null) ||
+                      (wcOrder.pedido_ecommerce ? `${WEARECLOUD_URL}/orders?search=${wcOrder.pedido_ecommerce}` : '#')
                     }
                     target="_blank"
                     rel="noopener noreferrer"
@@ -121,8 +125,8 @@ export default function PedidoDetallePage() {
                       size="sm"
                       href={
                         jsOrder.id 
-                          ? `https://jumpseller.cl/admin/orders/${jsOrder.id}` 
-                          : (jsOrder.order_number ? `https://jumpseller.cl/admin/orders?search=${jsOrder.order_number}` : '#')
+                          ? `${JUMPSELLER_ADMIN_URL}/orders/${jsOrder.id}` 
+                          : (jsOrder.order_number ? `${JUMPSELLER_ADMIN_URL}/orders?search=${jsOrder.order_number}` : '#')
                       }
                       target="_blank"
                       rel="noopener noreferrer"

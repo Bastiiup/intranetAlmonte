@@ -8,6 +8,10 @@ import type { SincronizedOrder } from '@/lib/operaciones/types'
 import ActualizarPedidoModal from './ActualizarPedidoModal'
 import SincronizarPedidoModal from './SincronizarPedidoModal'
 
+// URLs públicas (disponibles en el cliente)
+const WEARECLOUD_URL = process.env.NEXT_PUBLIC_WEARECLOUD_URL || 'https://ecommerce.wareclouds.app'
+const JUMPSELLER_ADMIN_URL = process.env.NEXT_PUBLIC_JUMPSELLER_ADMIN_URL || 'https://jumpseller.cl/admin'
+
 interface PedidosListProps {
   pedidos: SincronizedOrder[]
   onUpdate: () => void
@@ -70,14 +74,14 @@ export default function PedidosList({ pedidos, onUpdate }: PedidosListProps) {
 
               // Construir URLs directas a ambos sistemas (funcionan con sesión del navegador)
               const wearecloudUrl = wcOrder?.url || 
-                (wcOrder?.warecloud_id ? `https://ecommerce.wareclouds.app/orders/${wcOrder.warecloud_id}` : null) ||
-                (wcOrder?.id ? `https://ecommerce.wareclouds.app/orders/${wcOrder.id}` : null) ||
-                (wcOrder?.pedido_ecommerce ? `https://ecommerce.wareclouds.app/orders?search=${wcOrder.pedido_ecommerce}` : null)
+                (wcOrder?.warecloud_id ? `${WEARECLOUD_URL}/orders/${wcOrder.warecloud_id}` : null) ||
+                (wcOrder?.id ? `${WEARECLOUD_URL}/orders/${wcOrder.id}` : null) ||
+                (wcOrder?.pedido_ecommerce ? `${WEARECLOUD_URL}/orders?search=${wcOrder.pedido_ecommerce}` : null)
               
               // URL de JumpSeller admin (funciona con sesión del navegador)
               const jumpsellerUrl = jsOrder?.id 
-                ? `https://jumpseller.cl/admin/orders/${jsOrder.id}` 
-                : (jsOrder?.order_number ? `https://jumpseller.cl/admin/orders?search=${jsOrder.order_number}` : null)
+                ? `${JUMPSELLER_ADMIN_URL}/orders/${jsOrder.id}` 
+                : (jsOrder?.order_number ? `${JUMPSELLER_ADMIN_URL}/orders?search=${jsOrder.order_number}` : null)
 
               return (
                 <tr key={pedido.id}>
