@@ -906,6 +906,7 @@ export async function PUT(
       const updatedRFQ = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(populateUrl)
       // Manejar caso donde data puede ser array o objeto
       const updatedRFQData = Array.isArray(updatedRFQ.data) ? updatedRFQ.data[0] : updatedRFQ.data
+      const updatedRFQDataAny = updatedRFQData as any
       console.log('[API /compras/rfqs/[id] PUT] Respuesta GET con populate:', {
         hasData: !!updatedRFQData,
         dataId: updatedRFQData?.id,
@@ -913,12 +914,12 @@ export async function PUT(
         hasAttributes: !!(updatedRFQData?.attributes),
         attributesKeys: updatedRFQData?.attributes ? Object.keys(updatedRFQData.attributes) : [],
         productosInAttributes: !!(updatedRFQData?.attributes?.productos),
-        productosInData: !!(updatedRFQData?.productos),
-        productosRaw: updatedRFQData?.attributes?.productos || updatedRFQData?.productos,
-        productosRawType: typeof (updatedRFQData?.attributes?.productos || updatedRFQData?.productos),
-        productosIsArray: Array.isArray(updatedRFQData?.attributes?.productos || updatedRFQData?.productos),
-        productosRawKeys: updatedRFQData?.attributes?.productos ? Object.keys(updatedRFQData.attributes.productos) : updatedRFQData?.productos ? Object.keys(updatedRFQData.productos) : [],
-        productosRawValue: JSON.stringify(updatedRFQData?.attributes?.productos || updatedRFQData?.productos || null).substring(0, 1000),
+        productosInData: !!(updatedRFQDataAny?.productos),
+        productosRaw: updatedRFQData?.attributes?.productos || updatedRFQDataAny?.productos,
+        productosRawType: typeof (updatedRFQData?.attributes?.productos || updatedRFQDataAny?.productos),
+        productosIsArray: Array.isArray(updatedRFQData?.attributes?.productos || updatedRFQDataAny?.productos),
+        productosRawKeys: updatedRFQData?.attributes?.productos ? Object.keys(updatedRFQData.attributes.productos) : updatedRFQDataAny?.productos ? Object.keys(updatedRFQDataAny.productos) : [],
+        productosRawValue: JSON.stringify(updatedRFQData?.attributes?.productos || updatedRFQDataAny?.productos || null).substring(0, 1000),
         // Log completo de la respuesta para debugging
         fullResponse: JSON.stringify(updatedRFQData, null, 2).substring(0, 2000),
       })
