@@ -831,7 +831,6 @@ export default function ListasListing({ listas: listasProp, error: initialError 
 
             <DataTable
               table={table}
-              isLoading={loading}
             />
 
             <TablePagination table={table} />
