@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge } from 'react-bootstrap'
 import { LuSearch, LuFileText, LuEye, LuArrowLeft, LuDownload, LuFileSpreadsheet, LuCheck, LuPencil, LuX, LuRefreshCw } from 'react-icons/lu'
+import { TbCheck, TbEye, TbX } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
@@ -36,6 +37,8 @@ interface CursoType {
   matriculados?: number
   updatedAt?: string
   estado_revision?: 'borrador' | 'revisado' | 'publicado' | null
+  fecha_publicacion?: string | null
+  fecha_revision?: string | null
 }
 
 interface CursosColegioListingProps {
@@ -118,88 +121,40 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
       enableColumnFilter: false,
     },
     {
-      id: 'año',
-      header: 'AÑO',
-      accessorKey: 'año',
-      enableSorting: true,
-      cell: ({ row }) => (
-        <Badge bg="primary" className="fs-13">
-          {row.original.año}
-        </Badge>
-      ),
-    },
-    {
-      id: 'nivel',
-      header: 'NIVEL',
-      accessorKey: 'nivel',
-      enableSorting: true,
-      cell: ({ row }) => (
-        <Badge bg={row.original.nivel === 'Media' ? 'info' : 'success'} className="fs-13">
-          {row.original.nivel}
-        </Badge>
-      ),
-    },
-    {
       id: 'curso',
       header: 'CURSO',
       accessorKey: 'nombre',
       enableSorting: true,
       cell: ({ row }) => (
         <div>
-          <h6 className="mb-0 fw-bold">{row.original.nombre || 'Sin nombre'}</h6>
-          <small className="text-muted">
-            {row.original.grado}°
-          </small>
+          <h5 className="mb-1 fw-bold fs-16">{row.original.nombre || 'Sin nombre'}</h5>
+          <div className="d-flex gap-2 align-items-center">
+            <Badge bg={row.original.nivel === 'Media' ? 'info' : 'success'} className="fs-12">
+              {row.original.nivel}
+            </Badge>
+            <Badge bg="primary" className="fs-12">
+              {row.original.año}
+            </Badge>
+          </div>
         </div>
       ),
     },
     {
-      id: 'productos',
-      header: 'PRODUCTOS',
-      accessorKey: 'cantidadProductos',
-      enableSorting: true,
-      cell: ({ row }) => {
-        const cantidad = row.original.cantidadProductos || 0
-        if (cantidad > 0) {
-          return (
-            <Badge bg="success" className="fs-13">
-              {cantidad} {cantidad === 1 ? 'producto' : 'productos'}
-            </Badge>
-          )
-        }
-        return <Badge bg="secondary">Sin productos</Badge>
-      },
-    },
-    {
-      id: 'versiones',
-      header: 'VERSIONES',
+      id: 'pdf',
+      header: 'PDFs',
       accessorKey: 'cantidadVersiones',
       enableSorting: true,
       cell: ({ row }) => {
         const cantidad = row.original.cantidadVersiones || 0
         if (cantidad > 0) {
           return (
-            <Badge bg="info" className="fs-13">
-              {cantidad} {cantidad === 1 ? 'versión' : 'versiones'}
-            </Badge>
-          )
-        }
-        return <Badge bg="secondary">0</Badge>
-      },
-    },
-    {
-      id: 'pdf',
-      header: 'PDF',
-      cell: ({ row }) => {
-        if (row.original.pdf_id) {
-          return (
-            <Badge bg="success">
+            <Badge bg="success" className="fs-13">
               <LuFileText className="me-1" size={14} />
-              Disponible
+              {cantidad} {cantidad === 1 ? 'PDF' : 'PDFs'}
             </Badge>
           )
         }
-        return <Badge bg="secondary">Sin PDF</Badge>
+        return <Badge bg="secondary">Sin PDFs</Badge>
       },
     },
     {
@@ -209,36 +164,44 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
       enableSorting: true,
       cell: ({ row }) => {
         const estado = row.original.estado_revision
+        const fechaPublicacion = row.original.fecha_publicacion
+        const fechaRevision = row.original.fecha_revision
+        const totalProductos = row.original.cantidadProductos || 0
+        const totalVersiones = row.original.cantidadVersiones || 0
+        const tienePDF = row.original.pdf_id
+        
+        let badgeBg = 'secondary'
+        let badgeText = '✗ Sin Validar'
+        let icon = <TbX className="me-1" size={14} />
+        let tooltip = 'Esta lista aún no ha sido validada.'
         
         if (estado === 'publicado') {
-          return (
-            <Badge bg="success" className="fs-13">
-              <LuCheck className="me-1" size={14} />
-              ✓ Lista para Exportar
-            </Badge>
-          )
+          badgeBg = 'success'
+          badgeText = '✓ Lista para Exportar'
+          icon = <TbCheck className="me-1" size={14} />
+          tooltip = `Lista publicada el ${fechaPublicacion ? new Date(fechaPublicacion).toLocaleDateString() : 'fecha desconocida'}. Lista para comercialización y exportación.`
         } else if (estado === 'revisado') {
-          return (
-            <Badge bg="info" className="fs-13">
-              <LuEye className="me-1" size={14} />
-              En Revisión
-            </Badge>
-          )
+          badgeBg = 'info'
+          badgeText = '👁 En Revisión'
+          icon = <TbEye className="me-1" size={14} />
+          tooltip = `Lista revisada el ${fechaRevision ? new Date(fechaRevision).toLocaleDateString() : 'fecha desconocida'}. Pendiente de publicación.`
         } else if (estado === 'borrador') {
-          return (
-            <Badge bg="warning" text="dark" className="fs-13">
-              <LuPencil className="me-1" size={14} />
-              Borrador
-            </Badge>
-          )
-        } else {
-          return (
-            <Badge bg="secondary" className="fs-13">
-              <LuX className="me-1" size={14} />
-              Sin Validar
-            </Badge>
-          )
+          badgeBg = 'warning'
+          badgeText = '✏ Borrador'
+          icon = <LuPencil className="me-1" size={14} />
+          tooltip = 'Esta lista está en borrador y requiere validación.'
+        } else if (totalProductos > 0 || totalVersiones > 0 || tienePDF) {
+          badgeBg = 'secondary'
+          badgeText = '✗ Sin Validar'
+          icon = <TbX className="me-1" size={14} />
+          tooltip = 'Esta lista tiene productos o versiones, pero aún no ha sido validada.'
         }
+        
+        return (
+          <Badge bg={badgeBg} className="fs-13" title={tooltip}>
+            {icon} {badgeText}
+          </Badge>
+        )
       },
     },
     {
