@@ -835,12 +835,13 @@ export async function PUT(
       )
       // Manejar caso donde data puede ser array o objeto
       const responseData = Array.isArray(response.data) ? response.data[0] : response.data
+      const responseDataAny = responseData as any
       console.log('[API /compras/rfqs/[id] PUT] Respuesta PUT de Strapi:', {
         success: !!responseData,
         responseId: responseData?.id,
         responseDocumentId: responseData?.documentId,
-        responseHasProductos: !!(responseData?.attributes?.productos || responseData?.productos),
-        responseProductosRaw: responseData?.attributes?.productos || responseData?.productos,
+        responseHasProductos: !!(responseData?.attributes?.productos || responseDataAny?.productos),
+        responseProductosRaw: responseData?.attributes?.productos || responseDataAny?.productos,
       })
     } catch (putError: any) {
       // Si falla con 404, buscar la RFQ para obtener el ID correcto
