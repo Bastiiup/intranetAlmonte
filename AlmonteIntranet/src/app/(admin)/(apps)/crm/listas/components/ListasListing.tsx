@@ -492,6 +492,13 @@ export default function ListasListing({ listas: listasProp, error: initialError 
     getPaginationRowModel: getPaginationRowModel(),
   })
 
+  // Calcular valores de paginación
+  const pageIndex = table.getState().pagination.pageIndex
+  const pageSize = table.getState().pagination.pageSize
+  const totalItems = table.getFilteredRowModel().rows.length
+  const start = pageIndex * pageSize + 1
+  const end = Math.min(start + pageSize - 1, totalItems)
+
   // Si hay un colegio seleccionado, mostrar vista de detalle
   if (selectedColegio) {
     return (
@@ -833,7 +840,22 @@ export default function ListasListing({ listas: listasProp, error: initialError 
               table={table}
             />
 
-            <TablePagination table={table} />
+            {table.getRowModel().rows.length > 0 && (
+              <TablePagination
+                totalItems={totalItems}
+                start={start}
+                end={end}
+                itemsName="colegios"
+                showInfo
+                previousPage={table.previousPage}
+                canPreviousPage={table.getCanPreviousPage()}
+                pageCount={table.getPageCount()}
+                pageIndex={pageIndex}
+                setPageIndex={table.setPageIndex}
+                nextPage={table.nextPage}
+                canNextPage={table.getCanNextPage()}
+              />
+            )}
           </div>
         </Card>
 
