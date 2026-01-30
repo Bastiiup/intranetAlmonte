@@ -629,8 +629,10 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let id: string | undefined
   try {
-    const { id } = await params
+    const resolvedParams = await params
+    id = resolvedParams.id
     const body = await request.json()
 
     // Validaciones básicas
