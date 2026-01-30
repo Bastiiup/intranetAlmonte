@@ -93,9 +93,42 @@ export async function GET(request: Request) {
       url
     )
 
+    // Calcular matrícula total para cada colegio
+    const colegiosConMatricula = await Promise.all(
+      (Array.isArray(response.data) ? response.data : [response.data]).map(async (colegio) => {
+        const colegioId = colegio.id
+        const colegioRbd = colegio.attributes?.rbd || colegio.rbd
+        
+        if (!colegioRbd) {
+          return { ...colegio, total_matriculados: 0 }
+        }
+        
+        try {
+          // Obtener todos los cursos del colegio
+          const cursosResponse = await strapiClient.get<any>(
+            `/api/cursos?filters[colegio][rbd][$eq]=${colegioRbd}&fields[0]=matricula&pagination[pageSize]=1000`
+          )
+          
+          const cursos = Array.isArray(cursosResponse.data) ? cursosResponse.data : [cursosResponse.data]
+          
+          // Sumar matrícula de todos los cursos
+          const totalMatricula = cursos.reduce((sum, curso) => {
+            const attrs = curso.attributes || curso
+            const matricula = attrs.matricula || 0
+            return sum + Number(matricula)
+          }, 0)
+          
+          return { ...colegio, total_matriculados: totalMatricula }
+        } catch (error) {
+          console.error(`Error al calcular matrícula del colegio ${colegioId}:`, error)
+          return { ...colegio, total_matriculados: 0 }
+        }
+      })
+    )
+
     return NextResponse.json({
       success: true,
-      data: response.data,
+      data: colegiosConMatricula,
       meta: response.meta,
     }, { status: 200 })
   } catch (error: any) {

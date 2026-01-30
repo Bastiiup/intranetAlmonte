@@ -42,6 +42,7 @@ interface ColegioType {
   createdAt?: string
   estado?: string
   createdAtTimestamp?: number
+  total_matriculados?: number | null
 }
 
 const columnHelper = createColumnHelper<ColegioType>()
@@ -407,6 +408,34 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
             <LuUsers className="me-1 text-muted" size={16} />
             <span>{colegio.contactosCount || 0}</span>
           </div>
+        )
+      },
+    },
+    {
+      id: 'matriculados',
+      header: 'MATRICULADOS',
+      accessorKey: 'total_matriculados',
+      enableSorting: true,
+      cell: ({ row }) => {
+        const cantidad = row.original.total_matriculados
+        if (cantidad === null || cantidad === undefined) {
+          return (
+            <span className="badge badge-soft-secondary fs-xs">
+              No disponible
+            </span>
+          )
+        }
+        if (cantidad > 0) {
+          return (
+            <span className="badge badge-soft-warning fs-xs">
+              {cantidad.toLocaleString('es-CL')} estudiantes
+            </span>
+          )
+        }
+        return (
+          <span className="badge badge-soft-secondary fs-xs">
+            0 estudiantes
+          </span>
         )
       },
     },
