@@ -31,18 +31,59 @@ export default async function Page({ params }: PageProps) {
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
     const baseUrl = `${protocol}://${host}`
     
-    // Obtener TODOS los cursos del colegio (no solo los que tienen listas)
-    const response = await fetch(`${baseUrl}/api/crm/colegios/${colegioId}/cursos`, {
+    // Obtener colegio
+    const colegioResponse = await fetch(`${baseUrl}/api/crm/colegios?filters[documentId][$eq]=${colegioId}`, {
       cache: 'no-store',
     })
     
-    const data = await response.json()
+    const colegioData = await colegioResponse.json()
     
-    if (data.success && data.data) {
-      colegio = data.data.colegio
-      cursos = data.data.cursos || []
+    if (colegioData.success && colegioData.data && colegioData.data.length > 0) {
+      const colegioInfo = colegioData.data[0]
+      const colegioAttrs = colegioInfo.attributes || colegioInfo
+      
+      colegio = {
+        id: colegioInfo.id || colegioInfo.documentId,
+        documentId: colegioInfo.documentId || String(colegioInfo.id),
+        nombre: colegioAttrs.colegio_nombre || '',
+        rbd: colegioAttrs.rbd || null,
+        comuna: colegioAttrs.comuna?.data?.attributes?.comuna_nombre || colegioAttrs.provincia || '',
+        region: colegioAttrs.region || '',
+        total_matriculados: colegioInfo.total_matriculados || 0,
+      }
+      
+      // Obtener TODOS los cursos del colegio
+      const cursosResponse = await fetch(`${baseUrl}/api/crm/colegios/${colegioId}/cursos`, {
+        cache: 'no-store',
+      })
+      
+      const cursosData = await cursosResponse.json()
+      
+      if (cursosData.success && cursosData.data) {
+        cursos = cursosData.data.map((curso: any) => {
+          const attrs = curso.attributes || curso
+          const versiones = attrs.versiones_materiales || []
+          const ultimaVersion = versiones.length > 0 ? versiones[versiones.length - 1] : null
+          const materiales = ultimaVersion?.materiales || []
+          
+          return {
+            id: curso.id || curso.documentId,
+            documentId: curso.documentId || String(curso.id),
+            nombre: attrs.nombre_curso || '',
+            nivel: attrs.nivel || '',
+            grado: attrs.grado || 0,
+            año: attrs.anio || attrs.año || new Date().getFullYear(),
+            matricula: attrs.matricula || 0,
+            cantidadVersiones: versiones.length,
+            cantidadProductos: materiales.length,
+            pdf_id: ultimaVersion?.pdf_id || null,
+            pdf_url: ultimaVersion?.pdf_url || null,
+            updatedAt: curso.updatedAt || curso.attributes?.updatedAt || null,
+          }
+        })
+      }
     } else {
-      error = data.error || 'No se encontraron cursos para este colegio'
+      error = 'No se encontró el colegio'
     }
   } catch (err: any) {
     error = err.message || 'Error al conectar con la API'
