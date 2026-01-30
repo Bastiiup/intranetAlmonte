@@ -67,6 +67,8 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
       matriculados: curso.matricula || curso.matriculados || 0, // Usar "matricula" de Strapi
       updatedAt: curso.updatedAt || null,
       estado_revision: curso.estado_revision || null,
+      fecha_publicacion: curso.fecha_publicacion || null,
+      fecha_revision: curso.fecha_revision || null,
     } as CursoType))
   }, [cursosProp])
 
@@ -87,7 +89,7 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
   const [data, setData] = useState<CursoType[]>([])
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([
-    { id: 'año', desc: true }, // Ordenar por año descendente por defecto
+    { id: 'curso', desc: false }, // Ordenar por curso alfabéticamente por defecto
   ])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 25 })
