@@ -705,10 +705,11 @@ export async function PUT(
             const empresaData: StrapiEntity<any> | null = Array.isArray(empresaCheck.data) 
               ? (empresaCheck.data.length > 0 ? empresaCheck.data[0] : null)
               : empresaCheck.data || null
+            const empresaDataAny = empresaData as any
             console.log(`[API /compras/rfqs/[id] PUT] ✅ Empresa ${empresaId} existe en Strapi:`, {
               id: empresaData?.id,
               documentId: empresaData?.documentId,
-              nombre: empresaData?.attributes?.nombre || empresaData?.nombre || empresaData?.attributes?.empresa_nombre || empresaData?.empresa_nombre,
+              nombre: empresaData?.attributes?.nombre || empresaDataAny?.nombre || empresaData?.attributes?.empresa_nombre || empresaDataAny?.empresa_nombre,
             })
           } catch (err: any) {
             console.error(`[API /compras/rfqs/[id] PUT] ❌ Empresa ${empresaId} NO existe en Strapi:`, {
