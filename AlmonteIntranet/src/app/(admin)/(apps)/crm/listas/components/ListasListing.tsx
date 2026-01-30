@@ -41,7 +41,7 @@ interface ColegioType {
   direccion?: string
   telefono?: string
   email?: string
-  total_matriculados?: number
+  total_matriculados?: number | null
   cantidadCursos?: number
   cantidadPDFs?: number
   cantidadListas?: number
@@ -105,7 +105,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
       direccion: colegio.direccion || '',
       telefono: colegio.telefono || '',
       email: colegio.email || '',
-      total_matriculados: colegio.total_matriculados || 0,
+      total_matriculados: colegio.total_matriculados !== undefined ? colegio.total_matriculados : null,
       cantidadCursos: colegio.cantidadCursos || 0,
       cantidadPDFs: colegio.cantidadPDFs || 0,
       cantidadListas: colegio.cantidadListas || 0,
@@ -240,7 +240,14 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
       accessorKey: 'total_matriculados',
       enableSorting: true,
       cell: ({ row }) => {
-        const cantidad = row.original.total_matriculados || 0
+        const cantidad = row.original.total_matriculados
+        if (cantidad === null || cantidad === undefined) {
+          return (
+            <Badge bg="secondary" className="fs-13">
+              No disponible
+            </Badge>
+          )
+        }
         if (cantidad > 0) {
           return (
             <Badge bg="warning" text="dark" className="fs-13">
@@ -248,7 +255,11 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
             </Badge>
           )
         }
-        return <Badge bg="secondary">Sin datos</Badge>
+        return (
+          <Badge bg="secondary" className="fs-13">
+            0 estudiantes
+          </Badge>
+        )
       },
     },
     {

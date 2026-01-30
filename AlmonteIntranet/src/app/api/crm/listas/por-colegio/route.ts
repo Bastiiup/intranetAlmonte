@@ -118,7 +118,8 @@ export async function GET(request: NextRequest) {
           documentId: colegioData.documentId || String(colegioId),
           nombre: colegioAttrs?.colegio_nombre || '',
           rbd: colegioAttrs?.rbd || null,
-          comuna: comunaAttrs?.comuna_nombre || '',
+          // Usar provincia como fallback si no hay comuna
+          comuna: comunaAttrs?.comuna_nombre || colegioAttrs?.provincia || colegioAttrs?.comuna || '',
           region: colegioAttrs?.region || comunaAttrs?.region_nombre || '',
           direccion: direccionCompleta,
           telefono: colegioAttrs?.telefono || colegioAttrs?.telefono_principal || '',
@@ -127,7 +128,7 @@ export async function GET(request: NextRequest) {
           total_matriculados: colegioAttrs?.total_matriculados || 
                               colegioAttrs?.matriculados || 
                               colegioAttrs?.cantidad_matriculados || 
-                              0,
+                              null, // Cambiado a null para diferenciarlo de 0
           cursos: [],
           updatedAt: curso.updatedAt || curso.attributes?.updatedAt || new Date().toISOString(),
         })

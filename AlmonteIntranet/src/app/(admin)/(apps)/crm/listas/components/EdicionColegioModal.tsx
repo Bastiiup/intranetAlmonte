@@ -49,7 +49,7 @@ export default function EdicionColegioModal({ show, onHide, colegio, onSuccess }
         direccion: colegio.direccion || '',
         telefono: colegio.telefono || '',
         email: colegio.email || '',
-        total_matriculados: colegio.total_matriculados || 0,
+        total_matriculados: colegio.total_matriculados !== null && colegio.total_matriculados !== undefined ? colegio.total_matriculados : 0,
       })
     }
   }, [colegio])
