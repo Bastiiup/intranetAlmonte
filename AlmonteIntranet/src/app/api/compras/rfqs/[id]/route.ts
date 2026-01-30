@@ -701,10 +701,14 @@ export async function PUT(
             const empresaCheck = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
               `/api/empresas/${empresaId}?fields[0]=id&fields[1]=nombre`
             )
+            // Manejar caso donde data puede ser array o objeto
+            const empresaData: StrapiEntity<any> | null = Array.isArray(empresaCheck.data) 
+              ? (empresaCheck.data.length > 0 ? empresaCheck.data[0] : null)
+              : empresaCheck.data || null
             console.log(`[API /compras/rfqs/[id] PUT] ✅ Empresa ${empresaId} existe en Strapi:`, {
-              id: empresaCheck.data?.id,
-              documentId: empresaCheck.data?.documentId,
-              nombre: empresaCheck.data?.attributes?.nombre || empresaCheck.data?.nombre || empresaCheck.data?.attributes?.empresa_nombre || empresaCheck.data?.empresa_nombre,
+              id: empresaData?.id,
+              documentId: empresaData?.documentId,
+              nombre: empresaData?.attributes?.nombre || empresaData?.nombre || empresaData?.attributes?.empresa_nombre || empresaData?.empresa_nombre,
             })
           } catch (err: any) {
             console.error(`[API /compras/rfqs/[id] PUT] ❌ Empresa ${empresaId} NO existe en Strapi:`, {
@@ -821,12 +825,14 @@ export async function PUT(
         `/api/rfqs/${id}`,
         updateData
       )
+      // Manejar caso donde data puede ser array o objeto
+      const responseData = Array.isArray(response.data) ? response.data[0] : response.data
       console.log('[API /compras/rfqs/[id] PUT] Respuesta PUT de Strapi:', {
-        success: !!response.data,
-        responseId: response.data?.id,
-        responseDocumentId: response.data?.documentId,
-        responseHasProductos: !!(response.data?.attributes?.productos || response.data?.productos),
-        responseProductosRaw: response.data?.attributes?.productos || response.data?.productos,
+        success: !!responseData,
+        responseId: responseData?.id,
+        responseDocumentId: responseData?.documentId,
+        responseHasProductos: !!(responseData?.attributes?.productos || responseData?.productos),
+        responseProductosRaw: responseData?.attributes?.productos || responseData?.productos,
       })
     } catch (putError: any) {
       // Si falla con 404, buscar la RFQ para obtener el ID correcto
@@ -876,7 +882,9 @@ export async function PUT(
     
     // IMPORTANTE: La respuesta del PUT no incluye las relaciones populadas
     // Necesitamos hacer un GET con populate completo para obtener los datos completos
-    const rfqIdFinal = response.data?.documentId || response.data?.id || id
+    // Manejar caso donde data puede ser array o objeto
+    const responseData = Array.isArray(response.data) ? response.data[0] : response.data
+    const rfqIdFinal = responseData?.documentId || responseData?.id || id
     console.log('[API /compras/rfqs/[id] PUT] Obteniendo RFQ actualizada con relaciones populadas:', rfqIdFinal)
     
     try {
@@ -887,25 +895,27 @@ export async function PUT(
       const populateUrl = `/api/rfqs/${rfqIdFinal}?populate[empresas][populate][emails]=true&${buildProductosPopulate()}&populate[creado_por][populate][persona]=true&populate[cotizaciones_recibidas][populate][empresa][populate][emails]=true&populate[cotizaciones_recibidas][populate][contacto_responsable]=true`
       console.log('[API /compras/rfqs/[id] PUT] Haciendo GET con populate para obtener relaciones:', populateUrl)
       const updatedRFQ = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(populateUrl)
+      // Manejar caso donde data puede ser array o objeto
+      const updatedRFQData = Array.isArray(updatedRFQ.data) ? updatedRFQ.data[0] : updatedRFQ.data
       console.log('[API /compras/rfqs/[id] PUT] Respuesta GET con populate:', {
-        hasData: !!updatedRFQ.data,
-        dataId: updatedRFQ.data?.id,
-        dataDocumentId: updatedRFQ.data?.documentId,
-        hasAttributes: !!(updatedRFQ.data?.attributes),
-        attributesKeys: updatedRFQ.data?.attributes ? Object.keys(updatedRFQ.data.attributes) : [],
-        productosInAttributes: !!(updatedRFQ.data?.attributes?.productos),
-        productosInData: !!(updatedRFQ.data?.productos),
-        productosRaw: updatedRFQ.data?.attributes?.productos || updatedRFQ.data?.productos,
-        productosRawType: typeof (updatedRFQ.data?.attributes?.productos || updatedRFQ.data?.productos),
-        productosIsArray: Array.isArray(updatedRFQ.data?.attributes?.productos || updatedRFQ.data?.productos),
-        productosRawKeys: updatedRFQ.data?.attributes?.productos ? Object.keys(updatedRFQ.data.attributes.productos) : updatedRFQ.data?.productos ? Object.keys(updatedRFQ.data.productos) : [],
-        productosRawValue: JSON.stringify(updatedRFQ.data?.attributes?.productos || updatedRFQ.data?.productos || null).substring(0, 1000),
+        hasData: !!updatedRFQData,
+        dataId: updatedRFQData?.id,
+        dataDocumentId: updatedRFQData?.documentId,
+        hasAttributes: !!(updatedRFQData?.attributes),
+        attributesKeys: updatedRFQData?.attributes ? Object.keys(updatedRFQData.attributes) : [],
+        productosInAttributes: !!(updatedRFQData?.attributes?.productos),
+        productosInData: !!(updatedRFQData?.productos),
+        productosRaw: updatedRFQData?.attributes?.productos || updatedRFQData?.productos,
+        productosRawType: typeof (updatedRFQData?.attributes?.productos || updatedRFQData?.productos),
+        productosIsArray: Array.isArray(updatedRFQData?.attributes?.productos || updatedRFQData?.productos),
+        productosRawKeys: updatedRFQData?.attributes?.productos ? Object.keys(updatedRFQData.attributes.productos) : updatedRFQData?.productos ? Object.keys(updatedRFQData.productos) : [],
+        productosRawValue: JSON.stringify(updatedRFQData?.attributes?.productos || updatedRFQData?.productos || null).substring(0, 1000),
         // Log completo de la respuesta para debugging
-        fullResponse: JSON.stringify(updatedRFQ.data, null, 2).substring(0, 2000),
+        fullResponse: JSON.stringify(updatedRFQData, null, 2).substring(0, 2000),
       })
       
-      if (updatedRFQ.data) {
-        const rfqData = updatedRFQ.data
+      if (updatedRFQData) {
+        const rfqData = updatedRFQData
         const rfqAttrs = rfqData.attributes || rfqData
         
         // Extraer productos con manejo robusto
