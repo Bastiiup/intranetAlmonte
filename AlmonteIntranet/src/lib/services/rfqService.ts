@@ -372,16 +372,22 @@ export async function createRFQ(data: RFQData): Promise<{ success: boolean; data
     console.log('[RFQService] 📥 Respuesta completa de Strapi POST:')
     console.log(JSON.stringify(response, null, 2))
     
+    // Normalizar response.data que puede ser array o objeto
+    const responseData: StrapiEntity<any> | null = Array.isArray(response.data)
+      ? (response.data.length > 0 ? response.data[0] : null)
+      : response.data || null
+    const responseDataAny = responseData as any
+    
     console.log('[RFQService] RFQ creada exitosamente:', {
       responseData: response.data,
-      responseDataId: response.data?.id,
-      responseDataDocumentId: response.data?.documentId,
-      responseDataAttributes: response.data?.attributes,
+      responseDataId: responseData?.id,
+      responseDataDocumentId: responseData?.documentId,
+      responseDataAttributes: responseData?.attributes,
     })
     
     // IMPORTANTE: La respuesta del POST no incluye las relaciones populadas
     // Necesitamos hacer un GET con populate completo para obtener los datos completos
-    const rfqIdFinal = response.data?.documentId || response.data?.id
+    const rfqIdFinal = responseData?.documentId || responseData?.id
     let rfqFinal = response.data
     
     if (rfqIdFinal) {
