@@ -200,6 +200,16 @@ export const menuItems: MenuItemType[] = [
     ],
     roles: ['super_admin', 'supervisor', 'soporte'],
   },
+  { key: 'mira-section', label: 'MIRA', isTitle: true },
+  {
+    key: 'mira',
+    label: 'Mira',
+    icon: LuGraduationCap,
+    children: [
+      { key: 'mira-licencias', label: 'Licencias de libros', url: '/mira/licencias' },
+      { key: 'mira-analiticas', label: 'Analíticas', url: '/mira/analiticas' },
+    ],
+  },
   { key: 'aplicaciones', label: 'APLICACIONES', isTitle: true },
   { key: 'chat', label: 'Chat', icon: LuMessageSquareDot, url: '/chat' },
   { key: 'logs', label: 'Logs de Actividades', icon: LuFileText, url: '/logs', roles: ['super_admin', 'supervisor', 'soporte'] },
