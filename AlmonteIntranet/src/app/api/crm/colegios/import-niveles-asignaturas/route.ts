@@ -366,8 +366,10 @@ export async function POST(request: NextRequest) {
                 throw new Error(errorData.error || 'Error al actualizar curso')
               }
 
-              cursosActualizados.push(cursoId)
-              debugLog(`[API] ✅ Curso actualizado: ${nombreCurso} (ID: ${cursoId})`)
+              if (cursoId !== undefined) {
+                cursosActualizados.push(cursoId)
+                debugLog(`[API] ✅ Curso actualizado: ${nombreCurso} (ID: ${cursoId})`)
+              }
             } else {
               // Crear nuevo curso usando la API de colegios
               const createData: any = {
