@@ -101,6 +101,7 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
   const [pageDimensions, setPageDimensions] = useState<{ width: number; height: number } | null>(null)
   const [loading, setLoading] = useState(false)
   const [processingPDF, setProcessingPDF] = useState(false)
+  const [autoProcessAttempted, setAutoProcessAttempted] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<string | number | null>(null)
   const [selectedProductData, setSelectedProductData] = useState<ProductoIdentificado | null>(null)
   const [tabActivo, setTabActivo] = useState<'todos' | 'disponibles' | 'no-disponibles'>('todos')
@@ -367,6 +368,58 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lista?.id, lista?.versiones_materiales?.length])
+
+  // Procesamiento automático con IA si no hay productos
+  useEffect(() => {
+    const intentarProcesamientoAutomatico = async () => {
+      // Solo intentar una vez
+      if (autoProcessAttempted) return
+
+      // Esperar a que se cargue la lista y los productos
+      if (!lista || loading) return
+
+      // Verificar si hay PDF
+      const tienePDF = lista.pdf_id || (lista.versiones_materiales && lista.versiones_materiales.length > 0 && lista.versiones_materiales[0]?.pdf_id)
+      if (!tienePDF) {
+        console.log('[ValidacionLista] No hay PDF, omitiendo procesamiento automático')
+        setAutoProcessAttempted(true)
+        return
+      }
+
+      // Verificar si ya hay productos procesados
+      const tieneProductos = productos.length > 0
+      if (tieneProductos) {
+        console.log('[ValidacionLista] Ya hay productos procesados, omitiendo procesamiento automático')
+        setAutoProcessAttempted(true)
+        return
+      }
+
+      // Esperar un poco más para asegurar que cargarProductos terminó
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
+      // Verificar nuevamente después del delay
+      if (productos.length > 0) {
+        console.log('[ValidacionLista] Productos cargados durante el delay, omitiendo procesamiento automático')
+        setAutoProcessAttempted(true)
+        return
+      }
+
+      // Iniciar procesamiento automático
+      console.log('[ValidacionLista] 🤖 Iniciando procesamiento automático con IA...')
+      setAutoProcessAttempted(true)
+      
+      try {
+        await procesarPDFConGemini()
+        console.log('[ValidacionLista] ✅ Procesamiento automático completado')
+      } catch (error: any) {
+        console.error('[ValidacionLista] ❌ Error en procesamiento automático:', error)
+        // No mostrar alert para procesamiento automático fallido
+      }
+    }
+
+    intentarProcesamientoAutomatico()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lista, productos.length, loading, autoProcessAttempted])
   
   // Efecto separado para recargar productos cuando cambia mostrarTodosLosProductos
   useEffect(() => {
@@ -1618,7 +1671,21 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
               ) : productos.length === 0 ? (
                 <div className="d-flex justify-content-center align-items-center flex-grow-1">
                   <Alert variant="info" className="m-3">
-                    No hay productos identificados aún. Los productos se cargarán automáticamente desde el PDF.
+                    {processingPDF ? (
+                      <>
+                        <Spinner animation="border" size="sm" className="me-2" />
+                        Procesando PDF con IA (Gemini)... Esto puede tomar algunos segundos.
+                      </>
+                    ) : autoProcessAttempted ? (
+                      <>
+                        No se encontraron productos en el PDF. Puedes intentar procesar nuevamente haciendo clic en "Procesar con IA" o agregar productos manualmente.
+                      </>
+                    ) : (
+                      <>
+                        <Spinner animation="border" size="sm" className="me-2" />
+                        Iniciando procesamiento automático del PDF con IA...
+                      </>
+                    )}
                   </Alert>
                 </div>
               ) : (
