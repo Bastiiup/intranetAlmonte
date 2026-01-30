@@ -6,6 +6,9 @@
 
 import type { JumpSellerOrder } from '../jumpseller/types'
 
+// Re-exportar tipos de JumpSeller para uso en el módulo de operaciones
+export type { JumpSellerOrder }
+
 /**
  * Pedido de WeareCloud (obtenido vía scraping/microservicio Python)
  */
