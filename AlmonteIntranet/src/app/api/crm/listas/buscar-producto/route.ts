@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
           editorial.includes(queryLower)
 
         if (coincide) {
-          const matriculados = attrs.matriculados || attrs.total_matriculados || 0
+          const matriculados = attrs.matricula || 0 // Campo correcto según Strapi: "matricula"
           const cantidadPorAlumno = material.cantidad || 1
           const totalProductos = matriculados * cantidadPorAlumno
 

@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
         cantidadProductos: materiales.length,
         versiones: versiones.length, // Mantener por compatibilidad
         materiales: materiales.length, // Mantener por compatibilidad
-        matriculados: attrs.matriculados || attrs.total_matriculados || 0,
+        matriculados: attrs.matricula || 0, // Campo correcto según Strapi: "matricula"
         pdf_id: ultimaVersion?.pdf_id || null,
         pdf_url: ultimaVersion?.pdf_url || null,
         updatedAt: curso.updatedAt || curso.attributes?.updatedAt || null,
@@ -169,9 +169,12 @@ export async function GET(request: NextRequest) {
     const colegios = Array.from(colegiosMap.values()).map(colegio => {
       const totalPDFs = colegio.cursos.filter((c: any) => c.pdf_id).length
       const totalVersiones = colegio.cursos.reduce((sum: number, c: any) => sum + c.versiones, 0)
+      // Calcular total de matriculados sumando todos los cursos (campo "matricula" en Strapi)
+      const totalMatriculados = colegio.cursos.reduce((sum: number, c: any) => sum + (c.matriculados || 0), 0)
       
       return {
         ...colegio,
+        total_matriculados: totalMatriculados > 0 ? totalMatriculados : null, // null si no hay datos
         cantidadCursos: colegio.cursos.length,
         cantidadPDFs: totalPDFs,
         cantidadListas: totalVersiones,

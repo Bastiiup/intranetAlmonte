@@ -257,7 +257,7 @@ function exportarEscolar(cursos: any[], colegio: any) {
     const colegioRBD = colegio?.rbd || curso.colegio?.data?.attributes?.rbd || ''
     const cursoNombre = curso.nombre_curso || ''
     const nivel = curso.nivel || ''
-    const matriculados = curso.matriculados || curso.total_matriculados || 0
+    const matriculados = curso.matricula || 0 // Campo correcto según Strapi: "matricula"
 
     const versiones = curso.versiones_materiales || []
     const ultimaVersion = versiones[versiones.length - 1]
