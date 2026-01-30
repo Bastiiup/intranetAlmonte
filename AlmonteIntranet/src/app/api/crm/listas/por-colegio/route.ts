@@ -98,6 +98,21 @@ export async function GET(request: NextRequest) {
       const comunaAttrs = comunaData?.attributes || comunaData
       
       if (!colegiosMap.has(colegioId)) {
+        // Debug: ver qué datos tiene el colegio
+        debugLog('[API /crm/listas/por-colegio] Datos del colegio:', {
+          id: colegioId,
+          nombre: colegioAttrs?.colegio_nombre,
+          comuna: comunaAttrs?.comuna_nombre,
+          matriculados: colegioAttrs?.total_matriculados || colegioAttrs?.matriculados,
+          telefono: colegioAttrs?.telefono,
+          email: colegioAttrs?.email,
+        })
+        
+        // Obtener dirección
+        const direccionData = colegioAttrs?.direcciones?.data?.[0] || colegioAttrs?.direcciones?.[0]
+        const direccionAttrs = direccionData?.attributes || direccionData
+        const direccionCompleta = direccionAttrs?.direccion_completa || direccionAttrs?.direccion || ''
+        
         colegiosMap.set(colegioId, {
           id: colegioId,
           documentId: colegioData.documentId || String(colegioId),
@@ -105,6 +120,9 @@ export async function GET(request: NextRequest) {
           rbd: colegioAttrs?.rbd || null,
           comuna: comunaAttrs?.comuna_nombre || '',
           region: colegioAttrs?.region || comunaAttrs?.region_nombre || '',
+          direccion: direccionCompleta,
+          telefono: colegioAttrs?.telefono || colegioAttrs?.telefono_principal || '',
+          email: colegioAttrs?.email || colegioAttrs?.email_principal || '',
           // Buscar matriculados en diferentes posibles campos
           total_matriculados: colegioAttrs?.total_matriculados || 
                               colegioAttrs?.matriculados || 

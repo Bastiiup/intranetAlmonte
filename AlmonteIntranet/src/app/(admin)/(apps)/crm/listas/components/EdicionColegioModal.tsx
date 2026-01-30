@@ -29,6 +29,18 @@ export default function EdicionColegioModal({ show, onHide, colegio, onSuccess }
 
   useEffect(() => {
     if (colegio) {
+      console.log('[EdicionColegioModal] Datos del colegio recibidos:', {
+        nombre: colegio.nombre,
+        rbd: colegio.rbd,
+        comuna: colegio.comuna,
+        region: colegio.region,
+        direccion: colegio.direccion,
+        telefono: colegio.telefono,
+        email: colegio.email,
+        total_matriculados: colegio.total_matriculados,
+        colegioCompleto: colegio,
+      })
+      
       setFormData({
         colegio_nombre: colegio.nombre || '',
         rbd: String(colegio.rbd || ''),

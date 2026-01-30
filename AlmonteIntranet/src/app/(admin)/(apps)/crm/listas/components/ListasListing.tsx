@@ -38,6 +38,9 @@ interface ColegioType {
   rbd?: string | number
   comuna?: string
   region?: string
+  direccion?: string
+  telefono?: string
+  email?: string
   total_matriculados?: number
   cantidadCursos?: number
   cantidadPDFs?: number
@@ -99,6 +102,9 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
       rbd: colegio.rbd || undefined,
       comuna: colegio.comuna || '',
       region: colegio.region || '',
+      direccion: colegio.direccion || '',
+      telefono: colegio.telefono || '',
+      email: colegio.email || '',
       total_matriculados: colegio.total_matriculados || 0,
       cantidadCursos: colegio.cantidadCursos || 0,
       cantidadPDFs: colegio.cantidadPDFs || 0,
