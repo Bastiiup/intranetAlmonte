@@ -28,6 +28,8 @@ import ImportacionMasivaModal from './ImportacionMasivaModal'
 import ImportacionMasivaColegiosModal from './ImportacionMasivaColegiosModal'
 import ImportacionCompletaModal from './ImportacionCompletaModal'
 import DetalleListasModal from './DetalleListasModal'
+import EdicionColegioModal from './EdicionColegioModal'
+import CursosColegioModal from './CursosColegioModal'
 
 interface ColegioType {
   id: number | string
@@ -81,6 +83,10 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
   const [showImportCompletaModal, setShowImportCompletaModal] = useState(false)
   const [showDetalleListasModal, setShowDetalleListasModal] = useState(false)
   const [colegioSeleccionado, setColegioSeleccionado] = useState<ColegioType | null>(null)
+  const [showEdicionColegioModal, setShowEdicionColegioModal] = useState(false)
+  const [showCursosModal, setShowCursosModal] = useState(false)
+  const [colegioIdModal, setColegioIdModal] = useState<string | number | null>(null)
+  const [colegioNombreModal, setColegioNombreModal] = useState<string>('')
 
   // Los datos ya vienen transformados desde la API /api/crm/listas/por-colegio
   const mappedListas = useMemo(() => {
@@ -134,7 +140,17 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
       enableColumnFilter: true,
       cell: ({ row }) => (
         <div>
-          <div className="fw-bold">{row.original.nombre || 'Sin nombre'}</div>
+          <div 
+            className="fw-bold text-primary" 
+            style={{ cursor: 'pointer', textDecoration: 'underline' }}
+            onClick={() => {
+              setColegioSeleccionado(row.original)
+              setShowEdicionColegioModal(true)
+            }}
+            title="Clic para editar colegio"
+          >
+            {row.original.nombre || 'Sin nombre'}
+          </div>
           {row.original.rbd && (
             <small className="text-muted">RBD: {row.original.rbd}</small>
           )}
@@ -267,11 +283,24 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
         
         return (
           <div className="d-flex gap-1">
+            <Button
+              variant="info"
+              size="sm"
+              title="Ver cursos en modal (sin salir de esta página)"
+              onClick={() => {
+                setColegioIdModal(colegioId)
+                setColegioNombreModal(row.original.nombre)
+                setShowCursosModal(true)
+              }}
+            >
+              <LuEye className="me-1" />
+              Modal
+            </Button>
             <Link href={`/crm/listas/colegio/${colegioId}`}>
               <Button
                 variant="primary"
                 size="sm"
-                title="Ver cursos del colegio"
+                title="Ver cursos en pantalla completa (redirige)"
               >
                 <LuEye className="me-1" />
                 Ver
@@ -282,10 +311,10 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               size="sm"
               className="btn-icon rounded-circle"
               onClick={() => {
-                // TODO: Implementar modal de edición de colegio
-                alert(`Editar colegio: ${row.original.nombre}`)
+                setColegioSeleccionado(row.original)
+                setShowEdicionColegioModal(true)
               }}
-              title="Editar"
+              title="Editar colegio"
             >
               <TbEdit className="fs-lg" />
             </Button>
@@ -302,10 +331,20 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
   ])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
+  const [filtroListas, setFiltroListas] = useState<'todos' | 'con' | 'sin'>('todos')
 
   useEffect(() => {
-    setData(mappedListas)
-  }, [mappedListas])
+    let filtered = mappedListas
+
+    // Aplicar filtro de listas
+    if (filtroListas === 'con') {
+      filtered = filtered.filter(colegio => (colegio.cantidadListas || 0) > 0)
+    } else if (filtroListas === 'sin') {
+      filtered = filtered.filter(colegio => (colegio.cantidadListas || 0) === 0)
+    }
+
+    setData(filtered)
+  }, [mappedListas, filtroListas])
 
   // Función de filtro global personalizada que busca en nombre, colegio.nombre y colegio.rbd
   const globalFilterFn = (row: any, columnId: string, filterValue: string) => {
@@ -849,7 +888,17 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                 </select>
               </div>
 
-              {/* Filtros de Nivel y Estado eliminados - ya no aplican en vista de colegios */}
+              <div className="app-search">
+                <select
+                  className="form-select form-control my-1 my-md-0"
+                  value={filtroListas}
+                  onChange={(e) => setFiltroListas(e.target.value as 'todos' | 'con' | 'sin')}
+                >
+                  <option value="todos">Todos los Colegios</option>
+                  <option value="con">Con Listas</option>
+                  <option value="sin">Sin Listas</option>
+                </select>
+              </div>
 
               <div>
                 <select
@@ -1040,6 +1089,31 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
             setColegioSeleccionado(null)
           }}
           colegio={colegioSeleccionado as any}
+        />
+
+        <EdicionColegioModal
+          show={showEdicionColegioModal}
+          onHide={() => {
+            setShowEdicionColegioModal(false)
+            setColegioSeleccionado(null)
+          }}
+          colegio={colegioSeleccionado as any}
+          onSuccess={() => {
+            recargarListas()
+            setShowEdicionColegioModal(false)
+            setColegioSeleccionado(null)
+          }}
+        />
+
+        <CursosColegioModal
+          show={showCursosModal}
+          onHide={() => {
+            setShowCursosModal(false)
+            setColegioIdModal(null)
+            setColegioNombreModal('')
+          }}
+          colegioId={colegioIdModal}
+          colegioNombre={colegioNombreModal}
         />
       </Col>
     </Row>
