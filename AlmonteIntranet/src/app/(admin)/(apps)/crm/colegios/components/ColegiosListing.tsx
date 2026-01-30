@@ -257,6 +257,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
         estado: data.estado || data.ESTADO || '',
         createdAt,
         createdAtTimestamp: createdDate.getTime(),
+        total_matriculados: colegio.total_matriculados ?? data.total_matriculados ?? null,
       }
     })
   }, [colegios])
