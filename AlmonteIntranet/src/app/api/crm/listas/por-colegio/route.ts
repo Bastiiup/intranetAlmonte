@@ -83,7 +83,28 @@ export async function GET(request: NextRequest) {
 
     // Agrupar por colegio
     const colegiosMap = new Map<string, any>()
+    
+    // Mapa para calcular matrícula total de TODOS los cursos (no solo los que tienen listas)
+    const matriculasPorColegio = new Map<string, number>()
+    
+    // PASO 1: Calcular matrícula total de TODOS los cursos
+    cursos.forEach((curso: any) => {
+      const attrs = curso.attributes || curso
+      const colegioData = attrs.colegio?.data || attrs.colegio
+      if (!colegioData) return
+      
+      const colegioId = colegioData.id || colegioData.documentId
+      const matricula = attrs.matricula || 0
+      
+      if (!matriculasPorColegio.has(colegioId)) {
+        matriculasPorColegio.set(colegioId, 0)
+      }
+      matriculasPorColegio.set(colegioId, matriculasPorColegio.get(colegioId)! + Number(matricula))
+    })
+    
+    debugLog('[API /crm/listas/por-colegio GET] Matrículas calculadas:', Array.from(matriculasPorColegio.entries()))
 
+    // PASO 2: Agrupar solo cursos con listas
     cursosConListas.forEach((curso: any) => {
       const attrs = curso.attributes || curso
       const colegioData = attrs.colegio?.data || attrs.colegio
@@ -169,12 +190,14 @@ export async function GET(request: NextRequest) {
     const colegios = Array.from(colegiosMap.values()).map(colegio => {
       const totalPDFs = colegio.cursos.filter((c: any) => c.pdf_id).length
       const totalVersiones = colegio.cursos.reduce((sum: number, c: any) => sum + c.versiones, 0)
-      // Calcular total de matriculados sumando todos los cursos (campo "matricula" en Strapi)
-      const totalMatriculados = colegio.cursos.reduce((sum: number, c: any) => sum + (c.matriculados || 0), 0)
+      // Usar matrícula total de TODOS los cursos (no solo los que tienen listas)
+      const totalMatriculados = matriculasPorColegio.get(colegio.id) || 0
+      
+      debugLog(`[API /crm/listas/por-colegio GET] Colegio ${colegio.nombre} (${colegio.id}): ${totalMatriculados} estudiantes`)
       
       return {
         ...colegio,
-        total_matriculados: totalMatriculados, // Suma de matriculados de todos los cursos
+        total_matriculados: totalMatriculados, // Suma de TODOS los cursos del colegio
         cantidadCursos: colegio.cursos.length,
         cantidadPDFs: totalPDFs,
         cantidadListas: totalVersiones,
