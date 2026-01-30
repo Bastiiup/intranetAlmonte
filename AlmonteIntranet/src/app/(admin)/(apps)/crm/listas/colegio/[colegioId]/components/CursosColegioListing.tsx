@@ -17,7 +17,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge } from 'react-bootstrap'
-import { LuSearch, LuFileText, LuEye, LuArrowLeft, LuDownload, LuFileSpreadsheet, LuCheck, LuEdit, LuX } from 'react-icons/lu'
+import { LuSearch, LuFileText, LuEye, LuArrowLeft, LuDownload, LuFileSpreadsheet, LuCheck, LuPencil, LuX } from 'react-icons/lu'
 
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
@@ -227,7 +227,7 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
         } else if (estado === 'borrador') {
           return (
             <Badge bg="warning" text="dark" className="fs-13">
-              <LuEdit className="me-1" size={14} />
+              <LuPencil className="me-1" size={14} />
               Borrador
             </Badge>
           )
