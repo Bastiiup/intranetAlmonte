@@ -38,7 +38,11 @@ export default function ActualizarPedidoModal({
     e.preventDefault()
     
     if (!pedido.jumpseller_order?.id) {
-      showNotification('error', 'Error', 'No se puede actualizar: el pedido no tiene ID de JumpSeller')
+      showNotification({ 
+        variant: 'danger', 
+        title: 'Error', 
+        message: 'No se puede actualizar: el pedido no tiene ID de JumpSeller' 
+      })
       return
     }
 
@@ -55,18 +59,26 @@ export default function ActualizarPedidoModal({
       const data = await response.json()
 
       if (data.success) {
-        showNotification(
-          'success',
-          'Pedido actualizado',
-          'El pedido se actualizó exitosamente en JumpSeller. El cliente recibirá un correo automático.'
-        )
+        showNotification({
+          variant: 'success',
+          title: 'Pedido actualizado',
+          message: 'El pedido se actualizó exitosamente en JumpSeller. El cliente recibirá un correo automático.'
+        })
         onSuccess()
         onHide()
       } else {
-        showNotification('error', 'Error al actualizar', data.error || 'Error desconocido')
+        showNotification({ 
+          variant: 'danger', 
+          title: 'Error al actualizar', 
+          message: data.error || 'Error desconocido' 
+        })
       }
     } catch (err: any) {
-      showNotification('error', 'Error al actualizar', err.message || 'Error desconocido')
+      showNotification({ 
+        variant: 'danger', 
+        title: 'Error al actualizar', 
+        message: err.message || 'Error desconocido' 
+      })
     } finally {
       setLoading(false)
     }

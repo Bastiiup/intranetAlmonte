@@ -37,14 +37,26 @@ export default function SincronizarPedidoModal({
       const data = await response.json()
 
       if (data.success) {
-        showNotification('success', 'Pedido sincronizado', 'El pedido se sincronizó exitosamente desde WeareCloud')
+        showNotification({ 
+          variant: 'success', 
+          title: 'Pedido sincronizado', 
+          message: 'El pedido se sincronizó exitosamente desde WeareCloud' 
+        })
         onSuccess()
         onHide()
       } else {
-        showNotification('error', 'Error al sincronizar', data.error || 'Error desconocido')
+        showNotification({ 
+          variant: 'danger', 
+          title: 'Error al sincronizar', 
+          message: data.error || 'Error desconocido' 
+        })
       }
     } catch (err: any) {
-      showNotification('error', 'Error al sincronizar', err.message || 'Error desconocido')
+      showNotification({ 
+        variant: 'danger', 
+        title: 'Error al sincronizar', 
+        message: err.message || 'Error desconocido' 
+      })
     } finally {
       setLoading(false)
     }

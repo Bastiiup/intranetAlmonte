@@ -53,12 +53,24 @@ export default function OperacionesPedidosPage() {
 
       if (data.success) {
         setPedidos(data.data || [])
-        showNotification('success', 'Pedidos sincronizados exitosamente', `Se sincronizaron ${data.count || 0} pedidos`)
+        showNotification({ 
+          variant: 'success', 
+          title: 'Pedidos sincronizados exitosamente', 
+          message: `Se sincronizaron ${data.count || 0} pedidos` 
+        })
       } else {
-        showNotification('error', 'Error al sincronizar', data.error || 'Error desconocido')
+        showNotification({ 
+          variant: 'danger', 
+          title: 'Error al sincronizar', 
+          message: data.error || 'Error desconocido' 
+        })
       }
     } catch (err: any) {
-      showNotification('error', 'Error al sincronizar', err.message || 'Error desconocido')
+      showNotification({ 
+        variant: 'danger', 
+        title: 'Error al sincronizar', 
+        message: err.message || 'Error desconocido' 
+      })
     } finally {
       setSyncing(false)
     }
