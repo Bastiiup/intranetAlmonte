@@ -778,6 +778,21 @@ export default function ImportacionCompletaModal({
           }
         })
 
+        // Log para verificar agrupamiento
+        console.log(`[Importación Completa] 📊 Agrupamiento completado:`, {
+          totalFilas: normalizedData.length,
+          totalGrupos: agrupadoMap.size,
+          grupos: Array.from(agrupadoMap.entries()).map(([key, grupo]) => ({
+            clave: key,
+            colegio: grupo.colegio.nombre,
+            curso: grupo.curso.nombre,
+            asignatura: grupo.asignatura.nombre,
+            lista: grupo.lista.nombre,
+            totalProductos: grupo.productos.length,
+            primeros3Productos: grupo.productos.slice(0, 3).map((p: any) => p.Libro_nombre || p.Producto),
+          })),
+        })
+
         setImportData(normalizedData)
         setAgrupado(agrupadoMap)
         setStep('review')
@@ -1240,6 +1255,15 @@ export default function ImportacionCompletaModal({
             continue
           }
 
+          // ⚡ MOVER DECLARACIÓN DE grupoKey AQUÍ (ANTES de usarlo)
+          // Generar grupoKey usando la misma lógica que al agrupar (para que coincida con las claves de pdfsPorGrupo)
+          // Usar el identificador del colegio (RBD_xxx o nombre) en lugar del nombre completo
+          const identificadorColegio = grupo.colegio.rbd ? `RBD_${grupo.colegio.rbd}` : (grupo.colegio.nombre || '')
+          const grupoKey = `${identificadorColegio}|${grupo.curso.nombre}|${grupo.asignatura.nombre}|${grupo.lista.nombre}`
+          
+          // También buscar con la clave alternativa (nombre del colegio con guiones) por compatibilidad
+          const grupoKeyAlternativo = `${grupo.colegio.nombre}-${grupo.curso.nombre}-${grupo.asignatura.nombre}-${grupo.lista.nombre}`
+
           // Ordenar productos por Libro_orden antes de procesarlos
           const productosOrdenados = grupo.productos
             .filter(p => p.Libro_nombre) // Solo productos con nombre
@@ -1248,6 +1272,29 @@ export default function ImportacionCompletaModal({
               const ordenB = b.Libro_orden || 999999
               return ordenA - ordenB
             })
+
+          const logProductosOrdenados = {
+            grupo: grupoKey,
+            totalProductosOrdenados: productosOrdenados.length,
+            primeros3ProductosOrdenados: productosOrdenados.slice(0, 3).map((p: any) => p.Libro_nombre),
+          }
+          
+          console.log(`[Importación Completa] 📦 Productos ordenados y filtrados:`, logProductosOrdenados)
+          
+          // Enviar al servidor para debug
+          try {
+            await fetch('/api/crm/listas/importacion-completa-logs', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                level: 'log',
+                message: `[Importación Completa] 📦 Productos ordenados y filtrados para ${grupoKey}`,
+                data: logProductosOrdenados,
+              }),
+            })
+          } catch (e) {
+            // Ignorar errores de logging
+          }
 
           // Convertir productos a formato de materiales (formato usado en versiones_materiales)
           const materiales = productosOrdenados.map((producto, index) => ({
@@ -1280,13 +1327,36 @@ export default function ImportacionCompletaModal({
           let pdfUrl: string | null = null
           let pdfId: number | null = null
           
-          // Generar grupoKey usando la misma lógica que al agrupar (para que coincida con las claves de pdfsPorGrupo)
-          // Usar el identificador del colegio (RBD_xxx o nombre) en lugar del nombre completo
-          const identificadorColegio = grupo.colegio.rbd ? `RBD_${grupo.colegio.rbd}` : (grupo.colegio.nombre || '')
-          const grupoKey = `${identificadorColegio}|${grupo.curso.nombre}|${grupo.asignatura.nombre}|${grupo.lista.nombre}`
+          // 🔍 LOG CRÍTICO: Verificar productos del grupo  
+          const logProductos = {
+            grupo: grupoKey,
+            totalProductos: grupo.productos.length,
+            productosConNombre: grupo.productos.filter((p: any) => p.Libro_nombre).length,
+            primeros3Productos: grupo.productos.slice(0, 3).map((p: any) => ({
+              Libro_nombre: p.Libro_nombre,
+              Producto: p.Producto,
+              tieneLibroNombre: !!p.Libro_nombre,
+              camposDisponibles: Object.keys(p),
+            })),
+            todosLosCampos: grupo.productos.length > 0 ? Object.keys(grupo.productos[0]) : [],
+          }
           
-          // También buscar con la clave alternativa (nombre del colegio con guiones) por compatibilidad
-          const grupoKeyAlternativo = `${grupo.colegio.nombre}-${grupo.curso.nombre}-${grupo.asignatura.nombre}-${grupo.lista.nombre}`
+          console.log(`[Importación Completa] 🔍 Verificando productos del grupo ${grupoKey}:`, logProductos)
+          
+          // Enviar al servidor para debug
+          try {
+            await fetch('/api/crm/listas/importacion-completa-logs', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                level: 'log',
+                message: `[Importación Completa] 🔍 Verificando productos del grupo ${grupoKey}`,
+                data: logProductos,
+              }),
+            })
+          } catch (e) {
+            // Ignorar errores de logging
+          }
           
           // Array para guardar todos los PDFs subidos exitosamente (para crear múltiples versiones)
           const pdfsSubidosConExito: Array<{ pdfUrl: string; pdfId: number; nombre: string; fecha: string }> = []

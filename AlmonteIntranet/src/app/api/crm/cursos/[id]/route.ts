@@ -56,7 +56,7 @@ export async function GET(
         'populate[colegio]': 'true',
         'populate[lista_utiles]': 'true', // Solo el ID de lista_utiles, sin materiales anidados
         'fields[0]': 'nombre_curso', // Incluir nombre_curso explícitamente
-        'fields[1]': 'año', // Incluir año explícitamente
+        'fields[1]': 'anio', // Incluir año explícitamente (sin tilde para Strapi)
         'fields[2]': 'nivel', // Incluir nivel explícitamente
         'fields[3]': 'grado', // Incluir grado explícitamente
         'fields[4]': 'paralelo', // Incluir paralelo explícitamente
@@ -274,7 +274,7 @@ export async function PUT(
       cursoData.data.paralelo = body.paralelo || null
     }
     if (body.año !== undefined || body.ano !== undefined) {
-      cursoData.data.año = body.año || body.ano || new Date().getFullYear()
+      cursoData.data.anio = body.año || body.ano || new Date().getFullYear()
     }
     if (body.activo !== undefined) {
       cursoData.data.activo = body.activo
@@ -299,10 +299,21 @@ export async function PUT(
     if (body.versiones_materiales !== undefined) {
       if (Array.isArray(body.versiones_materiales)) {
         cursoData.data.versiones_materiales = body.versiones_materiales
-        debugLog('[API /crm/cursos/[id] PUT] Actualizando versiones_materiales:', body.versiones_materiales.length, 'versiones')
+        debugLog('[API /crm/cursos/[id] PUT] 📦 Actualizando versiones_materiales:', body.versiones_materiales.length, 'versiones')
+        // Log detallado de la primera versión para debug
+        if (body.versiones_materiales.length > 0) {
+          const primeraVersion = body.versiones_materiales[0]
+          debugLog('[API /crm/cursos/[id] PUT] 🔍 Primera versión a guardar:', {
+            tieneProductos: !!primeraVersion.productos,
+            cantidadProductos: primeraVersion.productos?.length || 0,
+            tienePdfId: !!primeraVersion.pdf_id,
+            fecha: primeraVersion.fecha_subida || primeraVersion.fecha_actualizacion,
+            primeros3Productos: primeraVersion.productos?.slice(0, 3).map((p: any) => p.nombre || p.material_nombre) || [],
+          })
+        }
       } else {
         // Si es null o undefined, mantener el valor actual (no actualizar)
-        debugLog('[API /crm/cursos/[id] PUT] versiones_materiales no es un array, ignorando')
+        debugLog('[API /crm/cursos/[id] PUT] ⚠️ versiones_materiales no es un array, ignorando')
       }
     }
 
@@ -329,12 +340,27 @@ export async function PUT(
       }
     })
 
+    debugLog('[API /crm/cursos/[id] PUT] 📤 Enviando a Strapi:', {
+      url: `/api/cursos/${id}`,
+      tieneVersionesMateriales: !!cursoData.data.versiones_materiales,
+      cantidadVersiones: cursoData.data.versiones_materiales?.length || 0,
+    })
+
     const response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
       `/api/cursos/${id}`,
       cursoData
     )
 
-    debugLog('[API /crm/cursos/[id] PUT] Curso actualizado exitosamente')
+    debugLog('[API /crm/cursos/[id] PUT] ✅ Curso actualizado exitosamente')
+    
+    // Verificar que se guardaron las versiones_materiales
+    const responseData = response.data
+    const attrs = responseData?.attributes || responseData
+    const versionesGuardadas = attrs?.versiones_materiales || []
+    debugLog('[API /crm/cursos/[id] PUT] 📊 Versiones guardadas en Strapi:', versionesGuardadas.length)
+    if (versionesGuardadas.length > 0 && versionesGuardadas[0].productos) {
+      debugLog('[API /crm/cursos/[id] PUT] 📦 Productos en primera versión:', versionesGuardadas[0].productos.length)
+    }
 
     return NextResponse.json({
       success: true,

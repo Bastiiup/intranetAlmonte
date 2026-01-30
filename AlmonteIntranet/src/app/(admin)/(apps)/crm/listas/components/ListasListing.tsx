@@ -23,43 +23,44 @@ import { TbEdit, TbTrash } from 'react-icons/tb'
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
-import ListaModal from './ListaModal'
+// import ListaModal from './ListaModal' // Temporalmente deshabilitado - TODO: Crear modal para colegios
 import ImportacionMasivaModal from './ImportacionMasivaModal'
 import ImportacionMasivaColegiosModal from './ImportacionMasivaColegiosModal'
 import ImportacionCompletaModal from './ImportacionCompletaModal'
 
-interface ListaType {
+interface ColegioType {
   id: number | string
   documentId?: string
   nombre: string
-  nivel: 'Basica' | 'Media'
-  grado: number
-  año?: number
-  descripcion?: string
-  activo: boolean
-  pdf_id?: number | string
-  pdf_url?: string
-  pdf_nombre?: string
-  colegio?: {
-    id: number | string
-    nombre: string
-    rbd?: string | number
-    direccion?: string
-    comuna?: string
-    region?: string
-    telefono?: string
-  }
-  curso?: {
-    id: number | string
-    nombre: string
-  }
-  materiales?: any[]
-  createdAt?: string
+  rbd?: string | number
+  comuna?: string
+  region?: string
+  total_matriculados?: number
+  cantidadCursos?: number
+  cantidadPDFs?: number
+  cantidadListas?: number
   updatedAt?: string
-  versiones?: number
+  cursos?: CursoType[]
 }
 
-const columnHelper = createColumnHelper<ListaType>()
+interface CursoType {
+  id: number | string
+  documentId?: string
+  nombre: string
+  nivel?: string
+  grado?: number
+  año?: number
+  versiones?: number
+  materiales?: number
+  pdf_id?: number | string
+  pdf_url?: string
+  updatedAt?: string
+}
+
+// Legacy interface para compatibilidad
+interface ListaType extends ColegioType {}
+
+const columnHelper = createColumnHelper<ColegioType>()
 
 interface ListasListingProps {
   listas: any[]
@@ -69,7 +70,7 @@ interface ListasListingProps {
 export default function ListasListing({ listas: listasProp, error }: ListasListingProps) {
   const router = useRouter()
   const [showModal, setShowModal] = useState(false)
-  const [editingLista, setEditingLista] = useState<ListaType | null>(null)
+  const [editingLista, setEditingLista] = useState<ColegioType | null>(null)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [selectedListaId, setSelectedListaId] = useState<string | number | null>(null)
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
@@ -78,40 +79,32 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
   const [showImportColegiosModal, setShowImportColegiosModal] = useState(false)
   const [showImportCompletaModal, setShowImportCompletaModal] = useState(false)
 
-  // Los datos ya vienen transformados desde la API /api/crm/listas
+  // Los datos ya vienen transformados desde la API /api/crm/listas/por-colegio
   const mappedListas = useMemo(() => {
     if (!listasProp || !Array.isArray(listasProp)) return []
     
-    return listasProp.map((lista: any) => ({
-      id: lista.id || lista.documentId,
-      documentId: lista.documentId || String(lista.id || ''),
-      nombre: lista.nombre || '',
-      nivel: lista.nivel || 'Basica',
-      grado: lista.grado || 1,
-      año: lista.año || lista.ano || new Date().getFullYear(),
-      descripcion: lista.descripcion || '',
-      activo: lista.activo !== false,
-      pdf_id: lista.pdf_id || undefined,
-      pdf_url: lista.pdf_url || undefined,
-      pdf_nombre: lista.pdf_nombre || undefined,
-      colegio: lista.colegio ? {
-        ...lista.colegio,
-        rbd: lista.colegio.rbd || lista.colegio.RBD || undefined, // Asegurar que RBD esté presente (case-insensitive)
-      } : undefined,
-      curso: lista.curso || undefined,
-      materiales: lista.materiales || [],
-      createdAt: lista.createdAt || null,
-      updatedAt: lista.updatedAt || null,
-      versiones: lista.versiones || 0,
-    } as ListaType))
+    return listasProp.map((colegio: any) => ({
+      id: colegio.id || colegio.documentId,
+      documentId: colegio.documentId || String(colegio.id || ''),
+      nombre: colegio.nombre || '',
+      rbd: colegio.rbd || undefined,
+      comuna: colegio.comuna || '',
+      region: colegio.region || '',
+      total_matriculados: colegio.total_matriculados || 0,
+      cantidadCursos: colegio.cantidadCursos || 0,
+      cantidadPDFs: colegio.cantidadPDFs || 0,
+      cantidadListas: colegio.cantidadListas || 0,
+      updatedAt: colegio.updatedAt || null,
+      cursos: colegio.cursos || [],
+    } as ColegioType))
   }, [listasProp])
 
-  const columns: ColumnDef<ListaType, any>[] = [
+  const columns: ColumnDef<ColegioType, any>[] = [
     {
       id: 'select',
       maxSize: 45,
       size: 45,
-      header: ({ table }: { table: TableType<ListaType> }) => (
+      header: ({ table }: { table: TableType<ColegioType> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -119,7 +112,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
           onChange={table.getToggleAllRowsSelectedHandler()}
         />
       ),
-      cell: ({ row }: { row: TableRow<ListaType> }) => (
+      cell: ({ row }: { row: TableRow<ColegioType> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -131,276 +124,169 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
       enableColumnFilter: false,
     },
     {
-      id: 'nombre',
-      header: 'Nombre',
+      id: 'institucion',
+      header: 'INSTITUCIÓN',
       accessorKey: 'nombre',
       enableSorting: true,
+      enableColumnFilter: true,
       cell: ({ row }) => (
         <div>
-          <h6 className="mb-0">{row.original.nombre || 'Sin nombre'}</h6>
-          {row.original.descripcion && (
-            <small className="text-muted">{row.original.descripcion}</small>
+          <div className="fw-bold">{row.original.nombre || 'Sin nombre'}</div>
+          {row.original.rbd && (
+            <small className="text-muted">RBD: {row.original.rbd}</small>
           )}
         </div>
       ),
     },
     {
-      id: 'nivel',
-      header: 'Nivel',
-      accessorKey: 'nivel',
+      id: 'comuna',
+      header: 'COMUNA',
+      accessorKey: 'comuna',
       enableSorting: true,
       enableColumnFilter: true,
-      cell: ({ row }) => (
-        <Badge bg={row.original.nivel === 'Basica' ? 'primary' : 'info'}>
-          {row.original.nivel}
-        </Badge>
-      ),
+      cell: ({ row }) => row.original.comuna || '-',
     },
     {
-      id: 'grado',
-      header: 'Grado',
-      accessorKey: 'grado',
-      enableSorting: true,
-      cell: ({ row }) => `${row.original.grado}°`,
-    },
-    {
-      id: 'año',
-      header: 'Año',
-      accessorKey: 'año',
+      id: 'region',
+      header: 'REGIÓN',
+      accessorKey: 'region',
       enableSorting: true,
       enableColumnFilter: true,
-      filterFn: 'equalsString',
-      cell: ({ row }) => row.original.año || '-',
+      cell: ({ row }) => row.original.region || '-',
     },
     {
-      id: 'colegio',
-      header: 'Colegio',
-      accessorFn: (row) => row.colegio?.nombre || '',
+      id: 'cursos',
+      header: 'CURSO',
+      accessorKey: 'cantidadCursos',
       enableSorting: true,
-      enableColumnFilter: true,
-      filterFn: 'includesString',
       cell: ({ row }) => {
-        const colegio = row.original.colegio
-        if (!colegio) return '-'
+        const cantidad = row.original.cantidadCursos || 0
         return (
-          <div>
-            <div className="fw-semibold">{colegio.nombre || '-'}</div>
-            {colegio.direccion && (
-              <small className="text-muted d-block">
-                <span className="me-1">📍</span>
-                {colegio.direccion}
-              </small>
-            )}
-            {(colegio.comuna || colegio.region) && (
-              <small className="text-muted d-block">
-                {colegio.comuna && colegio.region 
-                  ? `${colegio.comuna}, ${colegio.region}`
-                  : colegio.comuna || colegio.region}
-              </small>
-            )}
-            {colegio.telefono && (
-              <small className="text-muted d-block">
-                <span className="me-1">📞</span>
-                {colegio.telefono}
-              </small>
-            )}
-            {colegio.rbd && (
-              <small className="text-muted d-block">
-                <span className="me-1">🔢</span>
-                RBD: {colegio.rbd}
-              </small>
-            )}
-          </div>
+          <Badge bg="primary" className="fs-13">
+            {cantidad} {cantidad === 1 ? 'curso' : 'cursos'}
+          </Badge>
         )
       },
     },
     {
-      id: 'curso',
-      header: 'Curso',
-      cell: ({ row }) => {
-        const nombre = row.original.curso?.nombre || row.original.nombre || '-'
-        // Priorizar documentId si existe, sino usar id numérico
-        const listaId = row.original.documentId || row.original.id
-        
-        console.log('[ListasListing] Curso clickeado:', {
-          nombre,
-          id: row.original.id,
-          documentId: row.original.documentId,
-          listaIdUsado: listaId,
-          rowOriginal: row.original
-        })
-        
-        if (!listaId) {
-          console.warn('[ListasListing] ⚠️ No hay ID disponible para el curso:', nombre)
-          return <span>{nombre}</span>
-        }
-        
-        return (
-          <Link 
-            href={`/crm/listas/${listaId}/validacion`}
-            className="link-reset fw-semibold"
-            style={{ 
-              cursor: 'pointer',
-              color: '#667eea',
-              textDecoration: 'none'
-            }}
-            onClick={(e) => {
-              console.log('[ListasListing] Navegando a validación con ID:', listaId)
-              // Permitir que el clic navegue normalmente
-              e.stopPropagation()
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.textDecoration = 'underline'
-              e.currentTarget.style.color = '#764ba2'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.textDecoration = 'none'
-              e.currentTarget.style.color = '#667eea'
-            }}
-          >
-            {nombre}
-          </Link>
-        )
-      },
-    },
-    {
-      id: 'pdf',
+      id: 'pdfs',
       header: 'PDF',
+      accessorKey: 'cantidadPDFs',
+      enableSorting: true,
       cell: ({ row }) => {
-        if (row.original.pdf_id) {
+        const cantidad = row.original.cantidadPDFs || 0
+        if (cantidad > 0) {
           return (
-            <Badge bg="success">
-              <LuFileText className="me-1" size={14} />
-              Disponible
+            <Badge bg="success" className="fs-13">
+              <LuFileText className="me-1" size={12} />
+              {cantidad}
             </Badge>
           )
         }
-        return <Badge bg="secondary">Sin PDF</Badge>
+        return <Badge bg="secondary">0</Badge>
       },
     },
     {
-      id: 'activo',
-      header: 'Estado',
-      accessorKey: 'activo',
+      id: 'listas',
+      header: 'CANTIDAD DE LISTAS POR CURSOS',
+      accessorKey: 'cantidadListas',
       enableSorting: true,
-      enableColumnFilter: true,
-      cell: ({ row }) => (
-        <Badge bg={row.original.activo ? 'success' : 'secondary'}>
-          {row.original.activo ? 'Activo' : 'Inactivo'}
-        </Badge>
-      ),
+      cell: ({ row }) => {
+        const cantidad = row.original.cantidadListas || 0
+        return (
+          <Badge bg="info" className="fs-13">
+            {cantidad} {cantidad === 1 ? 'lista' : 'listas'}
+          </Badge>
+        )
+      },
     },
     {
-      id: 'fechas',
-      header: 'Fechas',
+      id: 'matriculados',
+      header: 'MATRICULADOS',
+      accessorKey: 'total_matriculados',
       enableSorting: true,
-      accessorFn: (row) => row.updatedAt || row.createdAt || '',
+      cell: ({ row }) => {
+        const cantidad = row.original.total_matriculados || 0
+        if (cantidad > 0) {
+          return (
+            <Badge bg="warning" text="dark" className="fs-13">
+              {cantidad.toLocaleString('es-CL')} estudiantes
+            </Badge>
+          )
+        }
+        return <Badge bg="secondary">Sin datos</Badge>
+      },
+    },
+    {
+      id: 'fecha',
+      header: 'FECHA DE ÚLTIMA ACTUALIZACIÓN',
+      enableSorting: true,
+      accessorKey: 'updatedAt',
       cell: ({ row }) => {
         const updatedAt = row.original.updatedAt
-        const createdAt = row.original.createdAt
         
-        const formatDate = (dateStr: string | null | undefined) => {
-          if (!dateStr) return '-'
-          try {
-            const date = new Date(dateStr)
-            return date.toLocaleDateString('es-CL', { 
-              day: '2-digit', 
-              month: '2-digit', 
-              year: 'numeric' 
-            })
-          } catch {
-            return '-'
-          }
+        if (!updatedAt) return '-'
+        
+        try {
+          const date = new Date(updatedAt)
+          return (
+            <div className="small">
+              <div>{date.toLocaleDateString('es-CL', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric' 
+              })}</div>
+              <div className="text-muted">{date.toLocaleTimeString('es-CL', {
+                hour: '2-digit',
+                minute: '2-digit'
+              })}</div>
+            </div>
+          )
+        } catch {
+          return '-'
         }
-        
-        return (
-          <div className="small">
-            {updatedAt && (
-              <div>
-                <span className="text-muted">Mod:</span> {formatDate(updatedAt)}
-              </div>
-            )}
-            {createdAt && (
-              <div>
-                <span className="text-muted">Creado:</span> {formatDate(createdAt)}
-              </div>
-            )}
-            {!updatedAt && !createdAt && '-'}
-          </div>
-        )
       },
     },
     {
       id: 'acciones',
-      header: 'Acciones',
-      cell: ({ row }) => (
-        <div className="d-flex gap-1">
-          {row.original.pdf_id && (
-            <>
-              <Link href={`/crm/listas/${row.original.documentId || row.original.id}/validacion`}>
-                <Button
-                  variant="outline-primary"
-                  size="sm"
-                  className="btn-icon rounded-circle"
-                  title="Ver detalle y validación"
-                >
-                  <LuEye className="fs-lg" />
-                </Button>
-              </Link>
+      header: 'ACCIONES',
+      cell: ({ row }) => {
+        const colegioId = row.original.documentId || row.original.id
+        
+        return (
+          <div className="d-flex gap-1">
+            <Link href={`/crm/listas/colegio/${colegioId}`}>
               <Button
-                variant="outline-success"
+                variant="primary"
                 size="sm"
-                className="btn-icon rounded-circle"
-                onClick={() => {
-                  const pdfUrl = `/api/crm/cursos/pdf/${row.original.pdf_id}`
-                  const link = document.createElement('a')
-                  link.href = pdfUrl
-                  link.download = row.original.pdf_nombre || `${row.original.nombre}.pdf`
-                  link.target = '_blank'
-                  document.body.appendChild(link)
-                  link.click()
-                  document.body.removeChild(link)
-                }}
-                title="Descargar PDF"
+                title="Ver cursos del colegio"
               >
-                <LuDownload className="fs-lg" />
+                <LuEye className="me-1" />
+                Ver
               </Button>
-            </>
-          )}
-          <Button
-            variant="outline-primary"
-            size="sm"
-            className="btn-icon rounded-circle"
-            onClick={() => {
-              setEditingLista(row.original)
-              setShowModal(true)
-            }}
-            title="Editar"
-          >
-            <TbEdit className="fs-lg" />
-          </Button>
-          <Button
-            variant="outline-danger"
-            size="sm"
-            className="btn-icon rounded-circle"
-            onClick={() => {
-              setSelectedRowIds({}) // Limpiar selección múltiple
-              setSelectedListaId(row.original.id)
-              setShowDeleteModal(true)
-            }}
-            title="Eliminar"
-          >
-            <TbTrash className="fs-lg" />
-          </Button>
-        </div>
-      ),
+            </Link>
+            <Button
+              variant="outline-primary"
+              size="sm"
+              className="btn-icon rounded-circle"
+              onClick={() => {
+                // TODO: Implementar modal de edición de colegio
+                alert(`Editar colegio: ${row.original.nombre}`)
+              }}
+              title="Editar"
+            >
+              <TbEdit className="fs-lg" />
+            </Button>
+          </div>
+        )
+      },
     },
   ]
 
-  const [data, setData] = useState<ListaType[]>([])
+  const [data, setData] = useState<ColegioType[]>([])
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([
-    { id: 'año', desc: true },
+    { id: 'fecha', desc: true }, // Cambiado de 'updatedAt' a 'fecha' (id de la columna)
   ])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
@@ -418,16 +304,12 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
     
     if (!searchValue) return true
     
-    // Buscar en nombre de la lista (normalizado)
+    // Buscar en nombre del colegio (normalizado)
     const nombre = String(row.original.nombre || '').toLowerCase().trim().replace(/\s+/g, '')
     if (nombre.includes(searchValue)) return true
     
-    // Buscar en nombre del colegio (normalizado)
-    const colegioNombre = String(row.original.colegio?.nombre || '').toLowerCase().trim().replace(/\s+/g, '')
-    if (colegioNombre.includes(searchValue)) return true
-    
     // Buscar en RBD del colegio (normalizado, sin espacios)
-    const rbd = row.original.colegio?.rbd
+    const rbd = row.original.rbd
     if (rbd !== undefined && rbd !== null) {
       // Convertir a string, eliminar espacios y convertir a minúsculas
       const rbdStr = String(rbd).trim().replace(/\s+/g, '').toLowerCase()
@@ -435,9 +317,13 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
       if (rbdStr === searchValue || rbdStr.includes(searchValue)) return true
     }
     
-    // Buscar en nombre del curso (normalizado)
-    const cursoNombre = String(row.original.curso?.nombre || '').toLowerCase().trim().replace(/\s+/g, '')
-    if (cursoNombre.includes(searchValue)) return true
+    // Buscar en comuna (normalizado)
+    const comuna = String(row.original.comuna || '').toLowerCase().trim().replace(/\s+/g, '')
+    if (comuna.includes(searchValue)) return true
+    
+    // Buscar en región (normalizado)
+    const region = String(row.original.region || '').toLowerCase().trim().replace(/\s+/g, '')
+    if (region.includes(searchValue)) return true
     
     return false
   }
@@ -912,19 +798,18 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               <div className="app-search">
                 <select
                   className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('colegio')?.getFilterValue() as string) ?? ''}
+                  value={(table.getColumn('region')?.getFilterValue() as string) ?? ''}
                   onChange={(e) => {
                     const value = e.target.value
-                    table.getColumn('colegio')?.setFilterValue(value === '' ? undefined : value)
+                    table.getColumn('region')?.setFilterValue(value === '' ? undefined : value)
                   }}>
-                  <option value="">Todos los Colegios</option>
-                  {Array.from(new Set(data.map(l => l.colegio?.nombre).filter(Boolean))).sort().map((nombre) => {
-                    // Contar listas por colegio en los datos filtrados actuales
+                  <option value="">Todas las Regiones</option>
+                  {Array.from(new Set(data.map(l => l.region).filter(Boolean))).sort().map((region) => {
                     const filteredRows = table.getFilteredRowModel().rows
-                    const count = filteredRows.filter(row => row.original.colegio?.nombre === nombre).length
+                    const count = filteredRows.filter(row => row.original.region === region).length
                     return (
-                      <option key={nombre} value={nombre}>
-                        {nombre} {count > 0 ? `(${count} ${count === 1 ? 'lista' : 'listas'})` : ''}
+                      <option key={region} value={region}>
+                        {region} {count > 0 ? `(${count})` : ''}
                       </option>
                     )
                   })}
@@ -934,83 +819,25 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               <div className="app-search">
                 <select
                   className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('nivel')?.getFilterValue() as string) ?? ''}
+                  value={(table.getColumn('comuna')?.getFilterValue() as string) ?? ''}
                   onChange={(e) => {
                     const value = e.target.value
-                    table.getColumn('nivel')?.setFilterValue(value === '' ? undefined : value)
+                    table.getColumn('comuna')?.setFilterValue(value === '' ? undefined : value)
                   }}>
-                  <option value="">Todos los Niveles</option>
-                  <option value="Basica">Básica</option>
-                  <option value="Media">Media</option>
+                  <option value="">Todas las Comunas</option>
+                  {Array.from(new Set(data.map(l => l.comuna).filter(Boolean))).sort().map((comuna) => {
+                    const filteredRows = table.getFilteredRowModel().rows
+                    const count = filteredRows.filter(row => row.original.comuna === comuna).length
+                    return (
+                      <option key={comuna} value={comuna}>
+                        {comuna} {count > 0 ? `(${count})` : ''}
+                      </option>
+                    )
+                  })}
                 </select>
               </div>
 
-              <div className="app-search">
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('año')?.getFilterValue() as string) ?? ''}
-                  onChange={(e) =>
-                    table.getColumn('año')?.setFilterValue(e.target.value === '' ? undefined : e.target.value)
-                  }>
-                  <option value="">Todos los Años</option>
-                  {Array.from(new Set(data.map(l => l.año).filter(Boolean))).sort((a, b) => (b || 0) - (a || 0)).map((año) => (
-                    <option key={año} value={String(año)}>{año}</option>
-                  ))}
-                </select>
-              </div>
-
-
-              <div className="app-search">
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('activo')?.getFilterValue() as string) ?? ''}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    if (value === '') {
-                      table.getColumn('activo')?.setFilterValue(undefined)
-                    } else {
-                      table.getColumn('activo')?.setFilterValue(value === 'true')
-                    }
-                  }}>
-                  <option value="">Todos los Estados</option>
-                  <option value="true">Activo</option>
-                  <option value="false">Inactivo</option>
-                </select>
-              </div>
-
-              <div className="app-search">
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('nivel')?.getFilterValue() as string) ?? 'All'}
-                  onChange={(e) =>
-                    table.getColumn('nivel')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)
-                  }>
-                  <option value="All">Nivel</option>
-                  <option value="Basica">Básica</option>
-                  <option value="Media">Media</option>
-                </select>
-              </div>
-
-              <div className="app-search">
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={
-                    (() => {
-                      const filterValue = table.getColumn('activo')?.getFilterValue()
-                      if (filterValue === undefined) return 'All'
-                      if (typeof filterValue === 'boolean') return filterValue ? 'true' : 'false'
-                      return String(filterValue)
-                    })()
-                  }
-                  onChange={(e) => {
-                    const value = e.target.value
-                    table.getColumn('activo')?.setFilterValue(value === 'All' ? undefined : value === 'true')
-                  }}>
-                  <option value="All">Estado</option>
-                  <option value="true">Activo</option>
-                  <option value="false">Inactivo</option>
-                </select>
-              </div>
+              {/* Filtros de Nivel y Estado eliminados - ya no aplican en vista de colegios */}
 
               <div>
                 <select
@@ -1142,12 +969,12 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
           />
         </Card>
 
-        <ListaModal
+        {/* <ListaModal
           show={showModal}
           onHide={handleModalClose}
           lista={editingLista}
           onSuccess={handleModalSuccess}
-        />
+        /> */}
 
         <ImportacionMasivaModal
           show={showImportModal}
@@ -1167,14 +994,21 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
           onHide={() => setShowImportCompletaModal(false)}
           onSuccess={() => {
             console.log('[ListasListing] ✅ Importación completa exitosa, recargando listas...')
-            // Recargar listas después de un pequeño delay para dar tiempo a Strapi
+            // Recargar listas después de dar más tiempo a Strapi para procesar
             setTimeout(() => {
+              console.log('[ListasListing] 🔄 Primera recarga (después de 2s)...')
               recargarListas()
-            }, 1000)
+            }, 2000)
             // Recargar de nuevo después de más tiempo para asegurar que se reflejen todos los cambios
             setTimeout(() => {
+              console.log('[ListasListing] 🔄 Segunda recarga (después de 5s)...')
               recargarListas()
-            }, 3000)
+            }, 5000)
+            // Tercera recarga final para asegurar que todo esté sincronizado
+            setTimeout(() => {
+              console.log('[ListasListing] 🔄 Tercera recarga final (después de 8s)...')
+              recargarListas()
+            }, 8000)
           }}
         />
       </Col>

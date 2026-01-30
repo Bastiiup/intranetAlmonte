@@ -22,7 +22,7 @@ export default async function Page() {
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
     const baseUrl = `${protocol}://${host}`
     
-    const response = await fetch(`${baseUrl}/api/crm/listas`, {
+    const response = await fetch(`${baseUrl}/api/crm/listas/por-colegio`, {
       cache: 'no-store',
     })
     
@@ -31,7 +31,7 @@ export default async function Page() {
     if (data.success && data.data) {
       listas = Array.isArray(data.data) ? data.data : [data.data]
     } else {
-      error = data.error || 'Error al obtener listas'
+      error = data.error || 'Error al obtener colegios'
     }
   } catch (err: any) {
     error = err.message || 'Error al conectar con la API'

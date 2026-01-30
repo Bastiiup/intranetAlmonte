@@ -11,7 +11,7 @@ import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 
 export const dynamic = 'force-dynamic'
 
-const DEBUG = process.env.NODE_ENV === 'development' || process.env.DEBUG_CRM === 'true'
+const DEBUG = true // Forzar DEBUG para ver logs
 const debugLog = (...args: any[]) => {
   if (DEBUG) {
     console.log(...args)
@@ -51,25 +51,21 @@ export async function GET(request: NextRequest) {
       filters.push(`filters[grado][$eq]=${grado}`)
     }
     if (año) {
-      filters.push(`filters[año][$eq]=${año}`)
+      filters.push(`filters[anio][$eq]=${año}`)
     }
 
-    // Populate y fields necesarios - Mejorado para incluir más datos
+    // ⚡ IMPORTANTE: Agregar paginación para obtener cursos recientes
+    filters.push('pagination[pageSize]=500') // Límite razonable para evitar timeout
+    filters.push('pagination[page]=1')
+    
+    // ⚡ ORDENAR: Por fecha de actualización descendente para obtener los más recientes primero
+    filters.push('sort[0]=updatedAt:desc')
+    
+    // ⚡ SIMPLIFICADO: No usar fields[] para obtener TODOS los campos del curso
+    // Esto evita problemas donde Strapi no devuelve cursos que no tienen todos los fields especificados
     filters.push('populate[colegio][populate][comuna]=true')
     filters.push('populate[colegio][populate][direcciones]=true')
     filters.push('populate[colegio][populate][telefonos]=true')
-    filters.push('populate[colegio][fields][0]=colegio_nombre')
-    filters.push('populate[colegio][fields][1]=rbd')
-    filters.push('populate[colegio][fields][2]=region')
-    filters.push('fields[0]=nombre_curso')
-    filters.push('fields[1]=nivel')
-    filters.push('fields[2]=grado')
-    filters.push('fields[3]=año')
-    filters.push('fields[5]=versiones_materiales') // Campo JSON, no relación
-    filters.push('fields[6]=activo')
-    filters.push('fields[7]=createdAt')
-    filters.push('fields[8]=updatedAt')
-    // colegio es una relación, se incluye con populate, no con fields
     filters.push('publicationState=preview')
 
     const queryString = filters.length > 0 ? `?${filters.join('&')}` : '?populate[colegio]=true&fields[0]=versiones_materiales&publicationState=preview'
@@ -112,42 +108,116 @@ export async function GET(request: NextRequest) {
 
     const cursos = Array.isArray(response.data) ? response.data : [response.data]
     
-    debugLog('[API /crm/listas GET] Total de cursos obtenidos de Strapi:', cursos.length)
-    debugLog('[API /crm/listas GET] IDs de cursos obtenidos:', cursos.map((c: any) => c.id || c.documentId))
+    console.log('[API /crm/listas GET] ===============================================')
+    console.log('[API /crm/listas GET] Total de cursos obtenidos de Strapi:', cursos.length)
+    console.log('[API /crm/listas GET] IDs de cursos:', cursos.map((c: any) => c.id || c.documentId).join(', '))
+    console.log('[API /crm/listas GET] ===============================================')
+    
+    // LOG MUY DETALLADO: Inspeccionar los primeros 3 cursos
+    cursos.slice(0, 3).forEach((curso: any, index: number) => {
+      const attrs = curso.attributes || curso
+      const versiones = attrs.versiones_materiales
+      debugLog(`[API /crm/listas GET] 🔍 Curso ${index + 1}:`, {
+        id: curso.id || curso.documentId,
+        nombre: attrs.nombre_curso,
+        año: attrs.año || attrs.anio,
+        tieneVersionesMateriales: !!versiones,
+        esArray: Array.isArray(versiones),
+        cantidadVersiones: Array.isArray(versiones) ? versiones.length : 0,
+        primeraVersion: Array.isArray(versiones) && versiones.length > 0 ? {
+          id: versiones[0].id,
+          nombre: versiones[0].nombre_archivo,
+          tieneMateriales: !!versiones[0].materiales,
+          cantidadMateriales: versiones[0].materiales?.length || 0,
+          primerMaterial: versiones[0].materiales?.[0] || null,
+        } : null,
+      })
+    })
 
-    // Filtrar solo los cursos que tienen al menos una versión de materiales (PDF)
+    // Filtrar solo los cursos que tienen al menos una versión de materiales
     // También verificar que el curso tenga un ID válido (los eliminados pueden no tenerlo)
     const cursosConPDFs = cursos.filter((curso: any) => {
       // Verificar que el curso tenga un ID válido
       if (!curso.id && !curso.documentId) {
-        debugLog('[API /crm/listas GET] Curso sin ID válido filtrado:', curso)
+        debugLog('[API /crm/listas GET] ❌ Curso sin ID válido filtrado:', curso)
         return false
       }
       
       const attrs = curso.attributes || curso
       const versiones = attrs.versiones_materiales || []
       
-      const tienePDFs = Array.isArray(versiones) && versiones.length > 0
+      const tieneMateriales = Array.isArray(versiones) && versiones.length > 0
       
-      // Solo loggear cursos CON PDFs para reducir ruido
-      if (tienePDFs) {
-        debugLog('[API /crm/listas GET] ✅ Curso CON PDFs:', {
+      // Loggear TODOS los cursos (con y sin materiales)
+      if (tieneMateriales) {
+        debugLog('[API /crm/listas GET] ✅ Curso CON materiales:', {
           id: curso.id || curso.documentId,
           nombre: attrs.nombre_curso,
           cantidadVersiones: versiones.length,
+          versionInfo: versiones[0] ? {
+            tieneMateriales: !!versiones[0].materiales,
+            cantidadMateriales: versiones[0].materiales?.length || 0,
+            tienePDF: !!versiones[0].pdf_id,
+          } : null,
+        })
+      } else {
+        debugLog('[API /crm/listas GET] ⚠️ Curso SIN materiales (filtrado):', {
+          id: curso.id || curso.documentId,
+          nombre: attrs.nombre_curso,
+          tieneVersiones: !!versiones,
+          esArray: Array.isArray(versiones),
+          cantidadVersiones: versiones?.length || 0,
         })
       }
       
-      return tienePDFs
+      return tieneMateriales
     })
 
     debugLog('[API /crm/listas GET] ✅ Cursos con PDFs encontrados:', cursosConPDFs.length)
     debugLog('[API /crm/listas GET] IDs de cursos con PDFs:', cursosConPDFs.map((c: any) => c.id || c.documentId))
-
-    // Transformar a formato de "lista" para el frontend
-    const listas = cursosConPDFs.map((curso: any) => {
+    
+    // Log detallado de los primeros 3 cursos con sus materiales
+    cursosConPDFs.slice(0, 3).forEach((curso: any, index: number) => {
       const attrs = curso.attributes || curso
       const versiones = attrs.versiones_materiales || []
+      const ultimaVersion = versiones.length > 0 
+        ? versiones.sort((a: any, b: any) => {
+            const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
+            const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
+            return fechaB - fechaA
+          })[0]
+        : null
+      
+      debugLog(`[API /crm/listas GET] 📦 Curso ${index + 1} con materiales:`, {
+        id: curso.id || curso.documentId,
+        nombre: attrs.nombre_curso,
+        totalVersiones: versiones.length,
+        ultimaVersion: ultimaVersion ? {
+          nombre: ultimaVersion.nombre_archivo,
+          pdf_id: ultimaVersion.pdf_id,
+          cantidadMateriales: ultimaVersion.materiales?.length || 0,
+          primeros3Materiales: (ultimaVersion.materiales || []).slice(0, 3).map((m: any) => m.nombre),
+        } : null,
+      })
+    })
+
+    // Transformar a formato de "lista" para el frontend
+    const listas = cursosConPDFs.map((curso: any, index: number) => {
+      const attrs = curso.attributes || curso
+      const versiones = attrs.versiones_materiales || []
+      
+      // LOG DETALLADO: Ver la estructura de versiones_materiales
+      if (index < 3) {
+        console.log(`[API /crm/listas GET] 🔍 Curso ${index + 1} - Estructura completa de versiones_materiales:`, {
+          id: curso.id || curso.documentId,
+          nombre: attrs.nombre_curso,
+          tieneVersiones: !!versiones,
+          esArray: Array.isArray(versiones),
+          cantidadVersiones: versiones.length,
+          versionesCompletas: JSON.stringify(versiones, null, 2).substring(0, 1000), // Primeros 1000 caracteres
+        })
+      }
+      
       const ultimaVersion = versiones.length > 0 
         ? versiones.sort((a: any, b: any) => {
             const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
@@ -202,6 +272,7 @@ export async function GET(request: NextRequest) {
         descripcion: `Curso: ${nombreCompleto}`,
         activo: attrs.activo !== false,
         pdf_id: ultimaVersion?.pdf_id || null,
+        pdf_url: ultimaVersion?.pdf_url || null,
         pdf_nombre: ultimaVersion?.nombre_archivo || ultimaVersion?.metadata?.nombre || null,
         colegio: colegioData ? {
           id: colegioData.id || colegioData.documentId,
@@ -218,6 +289,7 @@ export async function GET(request: NextRequest) {
           id: curso.id || curso.documentId,
           nombre: nombreCompleto,
         },
+        materiales: ultimaVersion?.materiales || [],
         versiones: versiones.length,
       }
     })
