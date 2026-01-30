@@ -255,8 +255,8 @@ export default function ImportacionMasivaColegiosModal({
                           colegiosMap.set(id, { id, nombre, rbd: rbdNum })
                           colegiosByRBD.set(rbdNum, { id, nombre })
                           colegiosByName.set(normalizedName, { id, nombre, rbd: rbdNum })
+                          console.log(`[Importación Masiva] ✅ Colegio encontrado después del error: ${nombre} (ID: ${id})`)
                         }
-                        console.log(`[Importación Masiva] ✅ Colegio encontrado después del error: ${nombre} (ID: ${id})`)
                       }
                     }
                   }
