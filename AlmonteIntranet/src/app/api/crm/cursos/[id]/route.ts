@@ -355,7 +355,8 @@ export async function PUT(
     
     // Verificar que se guardaron las versiones_materiales
     const responseData = response.data
-    const attrs = responseData?.attributes || responseData
+    const actualData = Array.isArray(responseData) ? responseData[0] : responseData
+    const attrs = actualData?.attributes || actualData
     const versionesGuardadas = attrs?.versiones_materiales || []
     debugLog('[API /crm/cursos/[id] PUT] 📊 Versiones guardadas en Strapi:', versionesGuardadas.length)
     if (versionesGuardadas.length > 0 && versionesGuardadas[0].productos) {
