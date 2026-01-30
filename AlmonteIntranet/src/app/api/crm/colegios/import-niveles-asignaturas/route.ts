@@ -341,9 +341,9 @@ export async function POST(request: NextRequest) {
             
             let cursoId: number | undefined
 
-            if (cursoExistente) {
+            if (cursoExistente && !Array.isArray(cursoExistente)) {
               // Actualizar curso existente
-              cursoId = cursoExistente.id || cursoExistente.documentId
+              cursoId = (cursoExistente as any).id || (cursoExistente as any).documentId
               
               const updateData: any = {
                 nombre_curso: nombreCurso,
