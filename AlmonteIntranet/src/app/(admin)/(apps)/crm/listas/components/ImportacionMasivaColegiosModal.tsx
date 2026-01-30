@@ -250,10 +250,12 @@ export default function ImportacionMasivaColegiosModal({
                       if (colegioExistente) {
                         colegioId = colegioExistente.id || colegioExistente.documentId
                         const id = colegioId
-                        const nombre = colegioExistente.colegio_nombre || colegioExistente.nombre || nombreColegio
-                        colegiosMap.set(id, { id, nombre, rbd: rbdNum })
-                        colegiosByRBD.set(rbdNum, { id, nombre })
-                        colegiosByName.set(normalizedName, { id, nombre, rbd: rbdNum })
+                        if (id !== null && id !== undefined) {
+                          const nombre = colegioExistente.colegio_nombre || colegioExistente.nombre || nombreColegio
+                          colegiosMap.set(id, { id, nombre, rbd: rbdNum })
+                          colegiosByRBD.set(rbdNum, { id, nombre })
+                          colegiosByName.set(normalizedName, { id, nombre, rbd: rbdNum })
+                        }
                         console.log(`[Importación Masiva] ✅ Colegio encontrado después del error: ${nombre} (ID: ${id})`)
                       }
                     }
