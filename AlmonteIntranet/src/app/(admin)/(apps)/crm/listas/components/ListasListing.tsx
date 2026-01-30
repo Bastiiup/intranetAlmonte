@@ -27,6 +27,7 @@ import TablePagination from '@/components/table/TablePagination'
 import ImportacionMasivaModal from './ImportacionMasivaModal'
 import ImportacionMasivaColegiosModal from './ImportacionMasivaColegiosModal'
 import ImportacionCompletaModal from './ImportacionCompletaModal'
+import DetalleListasModal from './DetalleListasModal'
 
 interface ColegioType {
   id: number | string
@@ -78,6 +79,8 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
   const [showImportModal, setShowImportModal] = useState(false)
   const [showImportColegiosModal, setShowImportColegiosModal] = useState(false)
   const [showImportCompletaModal, setShowImportCompletaModal] = useState(false)
+  const [showDetalleListasModal, setShowDetalleListasModal] = useState(false)
+  const [colegioSeleccionado, setColegioSeleccionado] = useState<ColegioType | null>(null)
 
   // Los datos ya vienen transformados desde la API /api/crm/listas/por-colegio
   const mappedListas = useMemo(() => {
@@ -194,7 +197,16 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
       cell: ({ row }) => {
         const cantidad = row.original.cantidadListas || 0
         return (
-          <Badge bg="info" className="fs-13">
+          <Badge 
+            bg="info" 
+            className="fs-13 cursor-pointer" 
+            style={{ cursor: 'pointer' }}
+            onClick={() => {
+              setColegioSeleccionado(row.original)
+              setShowDetalleListasModal(true)
+            }}
+            title="Clic para ver detalle de listas"
+          >
             {cantidad} {cantidad === 1 ? 'lista' : 'listas'}
           </Badge>
         )
@@ -1019,6 +1031,15 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               recargarListas()
             }, 8000)
           }}
+        />
+
+        <DetalleListasModal
+          show={showDetalleListasModal}
+          onHide={() => {
+            setShowDetalleListasModal(false)
+            setColegioSeleccionado(null)
+          }}
+          colegio={colegioSeleccionado as any}
         />
       </Col>
     </Row>
