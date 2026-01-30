@@ -926,6 +926,7 @@ export async function PUT(
       
       if (updatedRFQData) {
         const rfqData = updatedRFQData
+        const rfqDataAny = rfqData as any
         const rfqAttrs = rfqData.attributes || rfqData
         
         // Extraer productos con manejo robusto
@@ -936,11 +937,11 @@ export async function PUT(
           } else if (rfqAttrs.productos.data && Array.isArray(rfqAttrs.productos.data)) {
             productos = rfqAttrs.productos.data
           }
-        } else if (rfqData.productos) {
-          if (Array.isArray(rfqData.productos)) {
-            productos = rfqData.productos
-          } else if (rfqData.productos.data && Array.isArray(rfqData.productos.data)) {
-            productos = rfqData.productos.data
+        } else if (rfqDataAny.productos) {
+          if (Array.isArray(rfqDataAny.productos)) {
+            productos = rfqDataAny.productos
+          } else if (rfqDataAny.productos.data && Array.isArray(rfqDataAny.productos.data)) {
+            productos = rfqDataAny.productos.data
           }
         }
         
@@ -956,11 +957,11 @@ export async function PUT(
           } else if (typeof rfqAttrs.empresas === 'object' && rfqAttrs.empresas.id) {
             empresas = [rfqAttrs.empresas]
           }
-        } else if (rfqData.empresas) {
-          if (Array.isArray(rfqData.empresas)) {
-            empresas = rfqData.empresas
-          } else if (rfqData.empresas.data && Array.isArray(rfqData.empresas.data)) {
-            empresas = rfqData.empresas.data
+        } else if (rfqDataAny.empresas) {
+          if (Array.isArray(rfqDataAny.empresas)) {
+            empresas = rfqDataAny.empresas
+          } else if (rfqDataAny.empresas.data && Array.isArray(rfqDataAny.empresas.data)) {
+            empresas = rfqDataAny.empresas.data
           }
         }
         
@@ -968,21 +969,21 @@ export async function PUT(
           id: rfqData.id,
           documentId: rfqData.documentId,
           empresasCount: empresas.length,
-          empresasRaw: rfqAttrs.empresas || rfqData.empresas,
-          empresasRawType: typeof (rfqAttrs.empresas || rfqData.empresas),
-          empresasIsArray: Array.isArray(rfqAttrs.empresas || rfqData.empresas),
-          empresasRawKeys: rfqAttrs.empresas ? Object.keys(rfqAttrs.empresas) : rfqData.empresas ? Object.keys(rfqData.empresas) : [],
+          empresasRaw: rfqAttrs.empresas || rfqDataAny.empresas,
+          empresasRawType: typeof (rfqAttrs.empresas || rfqDataAny.empresas),
+          empresasIsArray: Array.isArray(rfqAttrs.empresas || rfqDataAny.empresas),
+          empresasRawKeys: rfqAttrs.empresas ? Object.keys(rfqAttrs.empresas) : rfqDataAny.empresas ? Object.keys(rfqDataAny.empresas) : [],
           empresasStructure: empresas.length > 0 ? {
             firstEmpresa: empresas[0],
             keys: Object.keys(empresas[0] || {}),
             hasAttributes: !!(empresas[0]?.attributes),
           } : null,
           productosCount: productos.length,
-          productosRaw: rfqAttrs.productos || rfqData.productos,
-          productosRawType: typeof (rfqAttrs.productos || rfqData.productos),
-          productosIsArray: Array.isArray(rfqAttrs.productos || rfqData.productos),
-          productosRawKeys: rfqAttrs.productos ? Object.keys(rfqAttrs.productos) : rfqData.productos ? Object.keys(rfqData.productos) : [],
-          productosRawValue: JSON.stringify(rfqAttrs.productos || rfqData.productos || null).substring(0, 500),
+          productosRaw: rfqAttrs.productos || rfqDataAny.productos,
+          productosRawType: typeof (rfqAttrs.productos || rfqDataAny.productos),
+          productosIsArray: Array.isArray(rfqAttrs.productos || rfqDataAny.productos),
+          productosRawKeys: rfqAttrs.productos ? Object.keys(rfqAttrs.productos) : rfqDataAny.productos ? Object.keys(rfqDataAny.productos) : [],
+          productosRawValue: JSON.stringify(rfqAttrs.productos || rfqDataAny.productos || null).substring(0, 500),
           productosStructure: productos.length > 0 ? {
             firstProducto: productos[0],
             keys: Object.keys(productos[0] || {}),
