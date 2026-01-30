@@ -31,16 +31,16 @@ export default async function Page({ params }: PageProps) {
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
     const baseUrl = `${protocol}://${host}`
     
-    // Obtener datos del colegio y sus cursos
-    const response = await fetch(`${baseUrl}/api/crm/listas/por-colegio?colegioId=${colegioId}`, {
+    // Obtener TODOS los cursos del colegio (no solo los que tienen listas)
+    const response = await fetch(`${baseUrl}/api/crm/colegios/${colegioId}/cursos`, {
       cache: 'no-store',
     })
     
     const data = await response.json()
     
-    if (data.success && data.data && data.data.length > 0) {
-      colegio = data.data[0]
-      cursos = colegio.cursos || []
+    if (data.success && data.data) {
+      colegio = data.data.colegio
+      cursos = data.data.cursos || []
     } else {
       error = data.error || 'No se encontraron cursos para este colegio'
     }

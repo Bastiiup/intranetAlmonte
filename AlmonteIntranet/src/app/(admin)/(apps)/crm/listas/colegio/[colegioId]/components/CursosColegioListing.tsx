@@ -60,7 +60,7 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
       pdf_url: curso.pdf_url || undefined,
       cantidadProductos: curso.cantidadProductos || 0,
       cantidadVersiones: curso.cantidadVersiones || 0,
-      matriculados: curso.matriculados || 0,
+      matriculados: curso.matricula || curso.matriculados || 0, // Usar "matricula" de Strapi
       updatedAt: curso.updatedAt || null,
     } as CursoType))
   }, [cursosProp])
