@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL || 'http://localhost:1337'
-const STRAPI_TOKEN = process.env.STRAPI_API_TOKEN || ''
+import strapiClient from '@/lib/strapi/client'
+import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 
 const DEBUG = process.env.NODE_ENV === 'development'
 const debugLog = (...args: any[]) => {
@@ -31,61 +30,149 @@ export async function GET(
       )
     }
 
-    // Intentar primero con el ID tal cual (puede ser documentId o ID numérico)
-    let response = await fetch(
-      `${STRAPI_URL}/api/cursos/${cursoId}?populate=*`,
-      {
-        headers: {
-          Authorization: `Bearer ${STRAPI_TOKEN}`,
-        },
-        cache: 'no-store',
-      }
-    )
-
-    // Si falla con documentId, intentar buscar por filtro
-    if (!response.ok && isNaN(Number(cursoId))) {
-      debugLog('⚠️ Falló con documentId, intentando con búsqueda por filtro...')
-      
-      const searchResponse = await fetch(
-        `${STRAPI_URL}/api/cursos?filters[documentId][$eq]=${cursoId}&populate=*`,
-        {
-          headers: {
-            Authorization: `Bearer ${STRAPI_TOKEN}`,
-          },
-          cache: 'no-store',
+    // Usar strapiClient en lugar de fetch directo (más robusto)
+    let curso: any = null
+    
+    // IMPORTANTE: versiones_materiales es un campo JSON, NO una relación
+    // Por lo tanto, NO usar populate para versiones_materiales
+    // Solo usar fields[] para incluirlo explícitamente
+    
+    // Intentar primero buscar por documentId si no es numérico
+    if (isNaN(Number(cursoId))) {
+      debugLog('🔍 Buscando por documentId:', cursoId)
+      try {
+        // NO especificar fields[] para que Strapi devuelva TODOS los campos, incluyendo versiones_materiales
+        const paramsDocId = new URLSearchParams({
+          'filters[documentId][$eq]': String(cursoId),
+          'populate[colegio]': 'true', // Solo populate para relaciones reales
+          'publicationState': 'preview',
+        })
+        const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
+          `/api/cursos?${paramsDocId.toString()}`
+        )
+        
+        if (cursoResponse.data && Array.isArray(cursoResponse.data) && cursoResponse.data.length > 0) {
+          curso = cursoResponse.data[0]
+          debugLog('✅ Curso encontrado por documentId')
         }
-      )
-
-      if (searchResponse.ok) {
-        const searchData = await searchResponse.json()
-        if (searchData.data && searchData.data.length > 0) {
-          // Usar el primer resultado
-          const curso = searchData.data[0]
-          debugLog('✅ Curso encontrado por documentId:', curso.documentId || curso.id)
-          
-          return NextResponse.json({
-            success: true,
-            data: curso,
+      } catch (docIdError: any) {
+        debugLog('⚠️ Error buscando por documentId:', docIdError.message)
+        // Intentar sin fields específicos (traer todos los campos)
+        try {
+          const paramsDocId = new URLSearchParams({
+            'filters[documentId][$eq]': String(cursoId),
+            'populate[colegio]': 'true',
+            'publicationState': 'preview',
           })
+          const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
+            `/api/cursos?${paramsDocId.toString()}`
+          )
+          if (cursoResponse.data && Array.isArray(cursoResponse.data) && cursoResponse.data.length > 0) {
+            curso = cursoResponse.data[0]
+            debugLog('✅ Curso encontrado por documentId (sin fields específicos)')
+          }
+        } catch (fallbackError: any) {
+          debugLog('❌ Error también sin fields:', fallbackError.message)
         }
       }
     }
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      debugLog('❌ Error al obtener curso desde Strapi:', errorText)
+    
+    // Si no se encontró, intentar con ID numérico
+    if (!curso && /^\d+$/.test(String(cursoId))) {
+      debugLog('🔍 Buscando por ID numérico:', cursoId)
+      try {
+        // NO especificar fields[] para que Strapi devuelva TODOS los campos, incluyendo versiones_materiales
+        const paramsObj = new URLSearchParams({
+          'populate[colegio]': 'true', // Solo populate para relaciones reales
+          'publicationState': 'preview',
+        })
+        const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+          `/api/cursos/${cursoId}?${paramsObj.toString()}`
+        )
+        
+        if (cursoResponse.data) {
+          curso = Array.isArray(cursoResponse.data) ? cursoResponse.data[0] : cursoResponse.data
+          debugLog('✅ Curso encontrado por ID numérico')
+        }
+      } catch (idError: any) {
+        debugLog('⚠️ Error buscando por ID:', idError.message)
+        // Intentar sin fields específicos (traer todos los campos)
+        try {
+          const paramsObj = new URLSearchParams({
+            'populate[colegio]': 'true',
+            'publicationState': 'preview',
+          })
+          const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+            `/api/cursos/${cursoId}?${paramsObj.toString()}`
+          )
+          if (cursoResponse.data) {
+            curso = Array.isArray(cursoResponse.data) ? cursoResponse.data[0] : cursoResponse.data
+            debugLog('✅ Curso encontrado por ID numérico (sin fields específicos)')
+          }
+        } catch (fallbackError: any) {
+          debugLog('❌ Error también sin fields:', fallbackError.message)
+        }
+      }
+    }
+    
+    if (!curso) {
+      debugLog('❌ Curso no encontrado con ningún método')
       return NextResponse.json(
-        { error: 'Curso no encontrado', details: errorText },
-        { status: response.status }
+        { 
+          success: false,
+          error: 'Curso no encontrado',
+          details: `No se encontró curso con ID: ${cursoId}`
+        },
+        { status: 404 }
       )
     }
-
-    const result = await response.json()
+    
     debugLog('✅ Curso obtenido exitosamente')
+    debugLog('📦 Estructura de respuesta RAW:', {
+      tieneData: !!curso,
+      dataKeys: curso ? Object.keys(curso) : [],
+      tieneAttributes: !!curso?.attributes,
+      attributesKeys: curso?.attributes ? Object.keys(curso.attributes) : [],
+      tieneVersionesEnAttributes: !!curso?.attributes?.versiones_materiales,
+      tieneVersionesEnRoot: !!curso?.versiones_materiales,
+      versionesEnAttributes: curso?.attributes?.versiones_materiales ? 
+        (Array.isArray(curso.attributes.versiones_materiales) ? curso.attributes.versiones_materiales.length : 'NO ES ARRAY') : 
+        'NO EXISTE',
+      versionesEnRoot: curso?.versiones_materiales ? 
+        (Array.isArray(curso.versiones_materiales) ? curso.versiones_materiales.length : 'NO ES ARRAY') : 
+        'NO EXISTE',
+    })
+    
+    // Normalizar datos: extraer de attributes si existe (Strapi v5)
+    const cursoNormalizado = curso?.attributes ? {
+      ...curso.attributes,
+      id: curso.id,
+      documentId: curso.documentId,
+      updatedAt: curso.updatedAt,
+      createdAt: curso.createdAt,
+    } : curso
+    
+    // Si versiones_materiales está dentro de attributes, extraerlo también
+    if (curso?.attributes?.versiones_materiales && !cursoNormalizado.versiones_materiales) {
+      cursoNormalizado.versiones_materiales = curso.attributes.versiones_materiales
+    }
+    
+    debugLog('📊 Datos del curso normalizado:', {
+      id: cursoNormalizado?.id,
+      documentId: cursoNormalizado?.documentId,
+      tieneVersiones: !!cursoNormalizado?.versiones_materiales,
+      cantidadVersiones: cursoNormalizado?.versiones_materiales?.length || 0,
+      tieneMateriales: cursoNormalizado?.versiones_materiales?.[0]?.materiales ? true : false,
+      cantidadMateriales: cursoNormalizado?.versiones_materiales?.[0]?.materiales?.length || 0,
+      tienePDF: !!cursoNormalizado?.versiones_materiales?.[0]?.pdf_id,
+      pdf_id: cursoNormalizado?.versiones_materiales?.[0]?.pdf_id,
+      versionesKeys: cursoNormalizado?.versiones_materiales?.[0] ? Object.keys(cursoNormalizado.versiones_materiales[0]) : [],
+      versionesRaw: cursoNormalizado?.versiones_materiales?.[0] ? JSON.stringify(cursoNormalizado.versiones_materiales[0]).substring(0, 200) : 'N/A',
+    })
 
     return NextResponse.json({
       success: true,
-      data: result.data,
+      data: cursoNormalizado,
     })
   } catch (error) {
     debugLog('❌ Error inesperado:', error)

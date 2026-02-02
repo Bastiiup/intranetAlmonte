@@ -64,32 +64,38 @@ export default async function Page({ params }: PageProps) {
         const cursosMap = new Map<string, any>()
         
         cursosData.data.forEach((curso: any) => {
-          // Los datos vienen directamente en el objeto (no en attributes)
-          const versiones = curso.versiones_materiales || []
+          // Los datos pueden venir en attributes o directamente
+          const attrs = curso.attributes || curso
+          const versiones = attrs.versiones_materiales || curso.versiones_materiales || []
           const ultimaVersion = versiones.length > 0 ? versiones[versiones.length - 1] : null
           const materiales = ultimaVersion?.materiales || []
           
           // Normalizar nombre: quitar año del nombre si existe (ej: "1° Básico 2022" -> "1° Básico")
-          let nombreNormalizado = (curso.nombre_curso || '').trim()
+          let nombreNormalizado = (attrs.nombre_curso || curso.nombre_curso || '').trim()
           nombreNormalizado = nombreNormalizado.replace(/\s+\d{4}$/, '') // Quitar año al final
           // Normalizar símbolos de grado: º y ° son el mismo grado
           nombreNormalizado = nombreNormalizado.replace(/º/g, '°') // Cambiar º por °
           nombreNormalizado = nombreNormalizado.replace(/\s+/g, ' ') // Normalizar espacios múltiples
           
+          // Leer estado_revision desde attributes o directamente
+          const estadoRevision = attrs.estado_revision || curso.estado_revision || null
+          
           const cursoMapeado = {
             id: curso.id || curso.documentId,
             documentId: curso.documentId || String(curso.id),
             nombre: nombreNormalizado,
-            nivel: curso.nivel || '',
-            grado: curso.grado || 0,
-            año: curso.anio || curso.año || new Date().getFullYear(),
-            matricula: curso.matricula || 0,
+            nivel: attrs.nivel || curso.nivel || '',
+            grado: attrs.grado || curso.grado || 0,
+            año: attrs.anio || attrs.año || curso.anio || curso.año || new Date().getFullYear(),
+            matricula: attrs.matricula || curso.matricula || 0,
             cantidadVersiones: versiones.length,
             cantidadProductos: materiales.length,
             pdf_id: ultimaVersion?.pdf_id || null,
             pdf_url: ultimaVersion?.pdf_url || null,
-            updatedAt: curso.updatedAt || null,
-            estado_revision: curso.estado_revision || null,
+            updatedAt: curso.updatedAt || attrs.updatedAt || null,
+            estado_revision: estadoRevision, // ✅ Leer desde attributes o directamente
+            fecha_revision: attrs.fecha_revision || curso.fecha_revision || null,
+            fecha_publicacion: attrs.fecha_publicacion || curso.fecha_publicacion || null,
             ids: [curso.id || curso.documentId], // Guardar IDs originales
           }
           

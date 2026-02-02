@@ -80,18 +80,13 @@ export async function GET(
     let response: any
     try {
       // Paso 1: Obtener cursos con populate básico (sin populate anidado)
+      // IMPORTANTE: NO usar fields[] específicos para que Strapi devuelva TODOS los campos, incluyendo estado_revision
       const paramsObj = new URLSearchParams({
         'filters[colegio][id][$eq]': String(colegioIdNum),
         'populate[materiales]': 'true',
         'populate[lista_utiles]': 'true', // Solo el ID de lista_utiles, sin materiales anidados
-        'fields[0]': 'nombre_curso', // Incluir nombre_curso explícitamente
-        'fields[1]': 'anio', // Incluir año explícitamente para el filtro (sin tilde para Strapi)
-        'fields[2]': 'nivel', // Incluir nivel explícitamente
-        'fields[3]': 'grado', // Incluir grado explícitamente
-        'fields[4]': 'paralelo', // Incluir paralelo explícitamente
-        'fields[5]': 'versiones_materiales', // Incluir explícitamente versiones_materiales
-        'fields[6]': 'matricula', // Incluir matricula explícitamente
-        'fields[7]': 'estado_revision', // Incluir estado_revision para validación/publicación
+        'populate[colegio]': 'true', // Incluir colegio para obtener el nombre
+        // NO especificar fields[] para obtener TODOS los campos, incluyendo estado_revision, fecha_revision, fecha_publicacion
         'publicationState': 'preview', // Incluir drafts y publicados
       })
       response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
@@ -103,9 +98,11 @@ export async function GET(
       if (error.status === 500 || error.status === 400 || error.status === 404) {
         debugLog('[API /crm/colegios/[id]/cursos GET] ⚠️ Error con populate básico, intentando sin lista_utiles')
         try {
+          // NO usar fields[] específicos para obtener TODOS los campos
           const paramsObj = new URLSearchParams({
             'filters[colegio][id][$eq]': String(colegioIdNum),
             'populate[materiales]': 'true',
+            'populate[colegio]': 'true',
             'publicationState': 'preview',
           })
           response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
@@ -113,7 +110,7 @@ export async function GET(
           )
           debugLog('[API /crm/colegios/[id]/cursos GET] ✅ Cursos obtenidos sin lista_utiles')
         } catch (secondError: any) {
-          // Si también falla, intentar solo campos básicos
+          // Si también falla, intentar solo campos básicos (sin populate)
           debugLog('[API /crm/colegios/[id]/cursos GET] ⚠️ Error también sin lista_utiles, intentando solo campos básicos')
           const paramsObj = new URLSearchParams({
             'filters[colegio][id][$eq]': String(colegioIdNum),

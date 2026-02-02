@@ -405,32 +405,25 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
         // Actualizar estado actual
         setCursoActual(cursoNombre)
         setResultados(prev => prev.map((r, idx) => 
-          idx === i ? { ...r, status: 'processing', mensaje: 'Procesando con IA...' } : r
+          idx === i ? { ...r, status: 'processing', mensaje: 'Procesando con Claude AI...' } : r
         ))
 
-        // Obtener el PDF desde Strapi
-        console.log(`[Procesamiento Masivo] Descargando PDF del curso ${cursoNombre}...`)
-        const pdfResponse = await fetch(`/api/crm/listas/pdf/${pdfId}`)
-        if (!pdfResponse.ok) {
-          throw new Error('Error al descargar PDF')
-        }
-
-        const pdfBlob = await pdfResponse.blob()
+        // Usar el mismo endpoint que funciona en validación individual
+        console.log(`[Procesamiento Masivo] Procesando curso ${cursoNombre} con Claude AI...`, {
+          cursoId,
+          pdfId
+        })
         
-        // Crear FormData para enviar el PDF
-        const formData = new FormData()
-        formData.append('pdf', pdfBlob, `lista-${cursoNombre}.pdf`)
-        formData.append('cursoId', String(cursoId))
-        formData.append('cursoDocumentId', String(cursoId))
-
-        // Enviar a la API de procesamiento
-        console.log(`[Procesamiento Masivo] Enviando PDF a IA para ${cursoNombre}...`)
-        const response = await fetch('/api/crm/cursos/import-pdf', {
+        const response = await fetch(`/api/crm/listas/${cursoId}/procesar-pdf`, {
           method: 'POST',
-          body: formData,
+          headers: {
+            'Content-Type': 'application/json',
+          },
         })
 
         const result = await response.json()
+        
+        console.log(`[Procesamiento Masivo] Resultado para ${cursoNombre}:`, result)
 
         if (response.ok && result.success) {
           const productosEncontrados = result.data?.productos?.length || 0
@@ -438,7 +431,7 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
             idx === i ? { 
               ...r, 
               status: 'success', 
-              mensaje: `✓ ${productosEncontrados} productos extraídos`,
+              mensaje: `✓ ${productosEncontrados} productos extraídos con Claude AI`,
               productosEncontrados 
             } : r
           ))
@@ -458,10 +451,17 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
 
       // Actualizar progreso
       setProgresoTotal(((i + 1) / cursosConPDF.length) * 100)
+      
+      // Esperar 3 segundos entre cada procesamiento para evitar rate limits de Claude
+      if (i < cursosConPDF.length - 1) {
+        console.log(`[Procesamiento Masivo] Esperando 3 segundos antes del siguiente curso...`)
+        await new Promise(resolve => setTimeout(resolve, 3000))
+      }
     }
 
     setProcesando(false)
     setCursoActual('')
+    console.log('[Procesamiento Masivo] ✅ Procesamiento completo de todos los cursos')
   }
 
   const table = useReactTable({
@@ -683,7 +683,7 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
         <Modal.Header closeButton={!procesando}>
           <Modal.Title>
             <LuZap className="me-2" />
-            Procesamiento Masivo con IA (Gemini)
+            Procesamiento Masivo con Claude AI
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>

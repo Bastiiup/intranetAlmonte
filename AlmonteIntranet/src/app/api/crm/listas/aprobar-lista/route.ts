@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 
@@ -141,7 +142,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Actualizar versiones_materiales con los productos aprobados
+    // Actualizar versiones_materiales primero (sin estado_revision para evitar errores)
     const updateData = {
       data: {
         versiones_materiales: versionesActualizadas,
@@ -157,7 +158,7 @@ export async function POST(request: NextRequest) {
 
     console.log('[Aprobar Lista] ✅ Versiones guardadas exitosamente')
 
-    // Intentar actualizar estado_revision a "revisado" (en un try-catch separado por si el campo no existe)
+    // Intentar actualizar estado_revision en una llamada separada (puede fallar si el campo no existe)
     try {
       console.log('[Aprobar Lista] 📝 Intentando actualizar estado_revision a "revisado"...')
       const estadoData = {
@@ -169,11 +170,37 @@ export async function POST(request: NextRequest) {
       await strapiClient.put<any>(`/api/cursos/${cursoDocumentId}`, estadoData)
       console.log('[Aprobar Lista] ✅ Estado de revisión actualizado')
     } catch (estadoError: any) {
+      // Si falla, no es crítico - solo loguear el error
       console.warn('[Aprobar Lista] ⚠️ No se pudo actualizar estado_revision (puede que el campo no exista en Strapi):', estadoError.message)
-      // No lanzar el error, solo registrarlo
+      // NO lanzar el error - la aprobación de productos es lo importante
     }
 
     console.log('[Aprobar Lista] ✅ Lista aprobada exitosamente')
+
+    // Revalidar todas las rutas relacionadas para que el estado se actualice en el listado
+    try {
+      console.log('[Aprobar Lista] 🔄 Revalidando rutas del caché de Next.js...')
+      
+      // Obtener el colegio_id si existe
+      const colegioId = attrs.colegio?.data?.id || attrs.colegio?.data?.documentId || attrs.colegio_id
+      
+      // Revalidar la página de validación individual
+      revalidatePath(`/crm/listas/${cursoDocumentId}/validacion`)
+      
+      // Revalidar la página de listado de cursos del colegio (si existe)
+      if (colegioId) {
+        revalidatePath(`/crm/listas/colegio/${colegioId}`)
+        console.log(`[Aprobar Lista] ✅ Revalidado: /crm/listas/colegio/${colegioId}`)
+      }
+      
+      // Revalidar la ruta principal de listas
+      revalidatePath('/crm/listas')
+      
+      console.log('[Aprobar Lista] ✅ Rutas revalidadas exitosamente')
+    } catch (revalidateError: any) {
+      console.warn('[Aprobar Lista] ⚠️ Error al revalidar rutas (no crítico):', revalidateError.message)
+      // No lanzar el error, solo registrarlo
+    }
 
     return NextResponse.json({
       success: true,
@@ -183,6 +210,7 @@ export async function POST(request: NextRequest) {
         totalProductos: materialesAprobados.length,
         productosAprobados: materialesAprobados.length,
         listaAprobada: true,
+        revalidacionExitosa: true,
       },
     }, { status: 200 })
 

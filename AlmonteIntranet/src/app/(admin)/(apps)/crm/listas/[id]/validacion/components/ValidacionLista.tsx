@@ -93,8 +93,88 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
   const params = useParams()
   const listaIdFromUrl = params?.id as string
   
-  const [lista, setLista] = useState<ListaData | null>(initialLista)
+  // Normalizar datos de Strapi: extraer de attributes si existe
+  const normalizarLista = (listaData: any): ListaData | null => {
+    if (!listaData) return null
+    
+    // Si tiene attributes (Strapi v5), extraerlos
+    if (listaData.attributes) {
+      return {
+        ...listaData.attributes,
+        id: listaData.id,
+        documentId: listaData.documentId,
+        updatedAt: listaData.updatedAt,
+        createdAt: listaData.createdAt,
+      } as ListaData
+    }
+    
+    return listaData as ListaData
+  }
+  
+  const listaNormalizada = normalizarLista(initialLista)
+  const [lista, setLista] = useState<ListaData | null>(listaNormalizada)
   const [error, setError] = useState<string | null>(initialError)
+  
+  // Cargar lista desde API si no viene del servidor
+  useEffect(() => {
+    const cargarListaDesdeAPI = async () => {
+      if (!lista && listaIdFromUrl && !loading) {
+        console.log('[ValidacionLista] 🔄 Cargando lista desde API...', { listaIdFromUrl })
+        setLoading(true)
+        try {
+          const response = await fetch(`/api/crm/listas/${listaIdFromUrl}`, {
+            cache: 'no-store',
+          })
+          const data = await response.json()
+          
+          if (data.success && data.data) {
+            const listaNormalizada = normalizarLista(data.data)
+            console.log('[ValidacionLista] ✅ Lista cargada desde API:', {
+              id: listaNormalizada?.id,
+              tieneVersiones: !!listaNormalizada?.versiones_materiales,
+              cantidadVersiones: listaNormalizada?.versiones_materiales?.length || 0,
+            })
+            setLista(listaNormalizada)
+          } else {
+            console.error('[ValidacionLista] ❌ Error al cargar lista:', data.error)
+            setError(data.error || 'Error al cargar la lista')
+          }
+        } catch (err: any) {
+          console.error('[ValidacionLista] ❌ Error al cargar lista:', err)
+          setError(err.message || 'Error al conectar con la API')
+        } finally {
+          setLoading(false)
+        }
+      }
+    }
+    
+    cargarListaDesdeAPI()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listaIdFromUrl]) // Solo ejecutar cuando cambie el ID
+  
+  // Log de depuración para ver qué datos tenemos
+  useEffect(() => {
+    if (lista) {
+      console.log('[ValidacionLista] 📊 Datos de la lista cargados:', {
+        id: lista.id,
+        documentId: lista.documentId,
+        tieneVersiones: !!lista.versiones_materiales,
+        cantidadVersiones: lista.versiones_materiales?.length || 0,
+        tienePDF: !!lista.pdf_id,
+        pdf_id: lista.pdf_id,
+        primeraVersion: lista.versiones_materiales?.[0] ? {
+          tieneMateriales: !!lista.versiones_materiales[0].materiales,
+          cantidadMateriales: lista.versiones_materiales[0].materiales?.length || 0,
+          pdf_id: lista.versiones_materiales[0].pdf_id,
+          pdf_url: lista.versiones_materiales[0].pdf_url,
+        } : null,
+      })
+    } else if (listaIdFromUrl) {
+      console.log('[ValidacionLista] ⏳ Esperando carga de lista desde API...', { listaIdFromUrl })
+    } else {
+      console.warn('[ValidacionLista] ⚠️ No hay datos de lista cargados ni ID para cargar')
+    }
+  }, [lista, listaIdFromUrl])
   const [numPages, setNumPages] = useState<number>(0)
   const [pageNumber, setPageNumber] = useState<number>(1)
   const [scale, setScale] = useState<number>(1.0)
@@ -130,15 +210,23 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
   const [estadoRevision, setEstadoRevision] = useState<'borrador' | 'revisado' | 'publicado' | null>(null)
   const [publicando, setPublicando] = useState(false)
 
-  // Cargar estado_revision inicial
+  // Cargar estado_revision inicial (solo si no está ya establecido o si la lista tiene un estado válido)
   useEffect(() => {
     if (lista) {
       // Intentar obtener el estado_revision de la lista
       const estado = (lista as any).estado_revision || null
-      setEstadoRevision(estado)
-      console.log('[ValidacionLista] Estado de revisión inicial:', estado)
+      // Solo actualizar si:
+      // 1. El estado actual es null Y la lista tiene un estado, O
+      // 2. La lista tiene un estado diferente al actual (para actualizar si cambió)
+      if (estado && (estadoRevision === null || estado !== estadoRevision)) {
+        setEstadoRevision(estado)
+        console.log('[ValidacionLista] Estado de revisión actualizado desde lista:', estado)
+      } else if (!estado && estadoRevision === null) {
+        // Si la lista no tiene estado y el estado actual es null, mantener null
+        console.log('[ValidacionLista] Estado de revisión inicial: null (lista sin estado)')
+      }
     }
-  }, [lista])
+  }, [lista]) // Remover estadoRevision de las dependencias para evitar loops
   const [productosPendientes, setProductosPendientes] = useState<Array<{
     nombre: string
     cantidad: number
@@ -196,13 +284,15 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
           const data = await response.json()
           
           if (data.success && data.data) {
-            listaActualizada = data.data
-            versiones = data.data.versiones_materiales || data.data.versiones || []
+            // Normalizar datos de Strapi
+            const listaNormalizada = normalizarLista(data.data)
+            listaActualizada = listaNormalizada
+            versiones = listaNormalizada?.versiones_materiales || listaNormalizada?.versiones || []
             console.log('[ValidacionLista] Datos recargados, versiones:', versiones.length)
             console.log('[ValidacionLista] Materiales en última versión:', versiones.length > 0 ? (versiones[0]?.materiales?.length || 0) : 0)
             
             // Actualizar el estado de lista para futuras recargas
-            setLista(listaActualizada)
+            setLista(listaNormalizada)
           }
         } catch (err: any) {
           console.error('[ValidacionLista] Error al recargar datos:', err)
@@ -386,10 +476,22 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
         return
       }
 
-      // Verificar si ya hay productos procesados
-      const tieneProductos = productos.length > 0
-      if (tieneProductos) {
-        console.log('[ValidacionLista] Ya hay productos procesados, omitiendo procesamiento automático')
+      // Verificar si ya hay productos procesados en Strapi
+      const tieneProductosEnLista = lista.versiones_materiales && 
+        lista.versiones_materiales.length > 0 && 
+        lista.versiones_materiales[0]?.materiales &&
+        lista.versiones_materiales[0].materiales.length > 0
+
+      if (tieneProductosEnLista) {
+        console.log('[ValidacionLista] ✅ Ya hay productos procesados en Strapi, omitiendo procesamiento automático')
+        setAutoProcessAttempted(true)
+        return
+      }
+
+      // Verificar si ya hay productos cargados localmente
+      const tieneProductosLocales = productos.length > 0
+      if (tieneProductosLocales) {
+        console.log('[ValidacionLista] ✅ Ya hay productos cargados localmente, omitiendo procesamiento automático')
         setAutoProcessAttempted(true)
         return
       }
@@ -399,7 +501,7 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
 
       // Verificar nuevamente después del delay
       if (productos.length > 0) {
-        console.log('[ValidacionLista] Productos cargados durante el delay, omitiendo procesamiento automático')
+        console.log('[ValidacionLista] ✅ Productos cargados durante el delay, omitiendo procesamiento automático')
         setAutoProcessAttempted(true)
         return
       }
@@ -628,17 +730,29 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
   }
 
   const handleProductoClick = (productoId: string | number) => {
+    console.log('[ValidacionLista] 📍 CLICK en producto:', productoId)
+    
     const producto = productos.find(p => p.id === productoId)
     if (producto) {
+      console.log('[ValidacionLista] 📍 Producto encontrado:', {
+        nombre: producto.nombre,
+        coordenadas: producto.coordenadas,
+        pagina: producto.coordenadas?.pagina,
+      })
+      
       const isAlreadySelected = selectedProduct === productoId
       setSelectedProduct(isAlreadySelected ? null : productoId)
       setSelectedProductData(isAlreadySelected ? null : producto)
       
+      console.log('[ValidacionLista] 📍 Producto seleccionado:', isAlreadySelected ? 'Deseleccionado' : 'Seleccionado')
+      
       // Si el producto tiene coordenadas, navegar a esa página
       if (!isAlreadySelected && producto.coordenadas) {
+        console.log('[ValidacionLista] 📍 Navegando al PDF, página:', producto.coordenadas.pagina)
         navegarAProductoEnPDF(producto)
       }
     } else {
+      console.warn('[ValidacionLista] ⚠️ Producto NO encontrado:', productoId)
       setSelectedProduct(null)
       setSelectedProductData(null)
     }
@@ -782,15 +896,61 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
 
       console.log('[ValidacionLista] ✅ Lista aprobada exitosamente')
       
-      // Actualizar estado local a "revisado"
-      setEstadoRevision('revisado')
-      console.log('[ValidacionLista] 🔄 Estado actualizado a "revisado"')
-      
-      alert('✅ Lista aprobada exitosamente. Todos los productos han sido marcados como aprobados.')
-      
-      // Recargar datos
-      console.log('[ValidacionLista] 🔄 Recargando productos...')
+      // Recargar datos primero para obtener el estado actualizado desde Strapi
+      console.log('[ValidacionLista] 🔄 Recargando productos y estado...')
       await cargarProductos(true)
+      
+      // Recargar la lista completa para obtener el estado_revision actualizado
+      if (listaIdFromUrl) {
+        try {
+          const listaResponse = await fetch(`/api/crm/listas/${listaIdFromUrl}`, {
+            cache: 'no-store',
+          })
+          const listaData = await listaResponse.json()
+          
+          if (listaData.success && listaData.data) {
+            const listaNormalizada = normalizarLista(listaData.data)
+            setLista(listaNormalizada)
+            // Obtener el estado de la lista normalizada
+            const nuevoEstado = (listaNormalizada as any)?.estado_revision
+            // Si la lista tiene estado, usarlo; si no, usar 'revisado' como fallback
+            const estadoFinal = nuevoEstado || 'revisado'
+            setEstadoRevision(estadoFinal)
+            console.log('[ValidacionLista] 🔄 Estado recargado desde API:', estadoFinal, {
+              tieneEstadoEnLista: !!nuevoEstado,
+              estadoEnLista: nuevoEstado,
+              estadoFinal: estadoFinal
+            })
+          }
+        } catch (err: any) {
+          console.warn('[ValidacionLista] ⚠️ Error al recargar estado, usando "revisado" por defecto:', err.message)
+          setEstadoRevision('revisado')
+        }
+      } else {
+        // Si no hay ID, actualizar estado local
+        setEstadoRevision('revisado')
+        console.log('[ValidacionLista] 🔄 Estado actualizado a "revisado" (local)')
+      }
+      
+      // Obtener colegioId para redirección
+      const colegioId = lista?.colegio?.data?.id || lista?.colegio?.data?.documentId || lista?.colegio_id
+      
+      // Si hay colegioId, redirigir automáticamente al listado y forzar refresh
+      if (colegioId) {
+        console.log('[ValidacionLista] 🔄 Redirigiendo al listado del colegio...')
+        // Forzar refresh del router antes de redirigir
+        router.refresh()
+        // Redirigir con timestamp para evitar caché
+        router.push(`/crm/listas/colegio/${colegioId}?t=${Date.now()}`)
+        // Mostrar mensaje después de un pequeño delay
+        setTimeout(() => {
+          alert('✅ Lista aprobada exitosamente. El estado se ha actualizado.')
+        }, 500)
+      } else {
+        // Si no hay colegioId, solo mostrar mensaje y recargar la página actual
+        alert('✅ Lista aprobada exitosamente. Todos los productos han sido marcados como aprobados.')
+        router.refresh()
+      }
     } catch (error: any) {
       console.error('[ValidacionLista] ❌ Error al aprobar lista:', error)
       console.error('[ValidacionLista] ❌ Stack:', error.stack)
@@ -1567,6 +1727,24 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
               <Badge bg="light" text="dark" className="ms-2">
                 Curso: {lista.nombre}
               </Badge>
+              {/* Badge de estado de revisión */}
+              {estadoRevision && (
+                <Badge 
+                  bg={
+                    estadoRevision === 'publicado' ? 'success' :
+                    estadoRevision === 'revisado' ? 'info' :
+                    estadoRevision === 'borrador' ? 'warning' :
+                    'secondary'
+                  }
+                  className="ms-2"
+                  style={{ fontSize: '0.875rem', padding: '0.5rem 0.75rem' }}
+                >
+                  {estadoRevision === 'publicado' ? '✓ Publicado' :
+                   estadoRevision === 'revisado' ? '👁 En Revisión' :
+                   estadoRevision === 'borrador' ? '✏ Borrador' :
+                   '✗ Sin Validar'}
+                </Badge>
+              )}
               <Badge bg="light" text="dark">
                 Año: {lista.año || new Date().getFullYear()}
               </Badge>
@@ -1603,20 +1781,27 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
           backgroundColor: 'white'
         }}>
           <Card className="h-100 border-0 rounded-0" style={{ position: 'relative', zIndex: 10, backgroundColor: 'white' }}>
-            <CardBody className="d-flex flex-column h-100 p-0" style={{ position: 'relative', zIndex: 10 }}>
+            <CardBody className="d-flex flex-column h-100 p-0" style={{ position: 'relative', zIndex: 10, overflow: 'visible' }}>
               <div style={{ 
                 padding: '1rem', 
                 borderBottom: '1px solid #dee2e6',
                 background: '#f8f9fa'
               }}>
                 <div className="d-flex justify-content-between align-items-center">
-                  <div>
+                  <div className="flex-grow-1">
                     <h5 className="mb-1">
                       Productos Identificados ({totalProductos})
                     </h5>
-                    <p className="text-muted mb-0 small">
-                      Selecciona un producto para ver su ubicación en el PDF
-                    </p>
+                    <div className="d-flex align-items-center gap-3">
+                      <p className="text-muted mb-0 small">
+                        👆 Haz click en una fila para ver su ubicación en el PDF →
+                      </p>
+                      {selectedProduct && (
+                        <Badge bg="warning" className="d-flex align-items-center animate__animated animate__pulse animate__infinite">
+                          📍 Viendo: {selectedProductData?.nombre || 'Producto seleccionado'}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <div className="d-flex gap-2">
                     <Button 
@@ -1935,10 +2120,13 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                   <div style={{ 
                     padding: '1rem', 
                     borderTop: '1px solid #dee2e6',
-                    background: '#f8f9fa'
+                    background: '#f8f9fa',
+                    overflow: 'visible',
+                    minHeight: 'fit-content'
                   }}>
-                    <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                      <div>
+                    <div className="d-flex flex-column gap-3" style={{ overflow: 'visible' }}>
+                      {/* Primera fila: Estadísticas */}
+                      <div className="d-flex flex-wrap align-items-center gap-2" style={{ overflow: 'visible' }}>
                         <strong>Total productos:</strong> {totalProductos} | 
                         <strong className="ms-2">Para comprar:</strong> {paraComprar} | 
                         <strong className="ms-2">Disponibles:</strong> {disponibles} |
@@ -1959,10 +2147,16 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                           </>
                         )}
                       </div>
-                      <div className="d-flex gap-2 align-items-center flex-wrap">
+                      {/* Segunda fila: Botones de acción */}
+                      <div className="d-flex gap-2 align-items-center flex-wrap" style={{ 
+                        width: '100%', 
+                        overflow: 'visible',
+                        minWidth: 0,
+                        flexWrap: 'wrap'
+                      }}>
                         {/* Badge de estado publicado */}
                         {estadoRevision === 'publicado' && (
-                          <Badge bg="success" className="d-flex align-items-center" style={{ fontSize: '0.9rem', padding: '0.5rem 1rem' }}>
+                          <Badge bg="success" className="d-flex align-items-center" style={{ fontSize: '0.9rem', padding: '0.5rem 1rem', flexShrink: 0 }}>
                             <TbCheck className="me-2" />
                             Lista Publicada
                           </Badge>
@@ -1970,31 +2164,59 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                         
                         {/* Badge informativo cuando todos están aprobados */}
                         {validados === totalProductos && totalProductos > 0 && estadoRevision !== 'publicado' && (
-                          <Badge bg="success" className="d-flex align-items-center" style={{ fontSize: '0.9rem', padding: '0.5rem 1rem' }}>
+                          <Badge bg="success" className="d-flex align-items-center" style={{ fontSize: '0.9rem', padding: '0.5rem 1rem', flexShrink: 0 }}>
                             <TbChecklist className="me-2" />
                             ✓ Todos Aprobados
                           </Badge>
                         )}
                         
+                        {/* Mensaje cuando no hay productos pero hay PDF */}
+                        {estadoRevision !== 'publicado' && totalProductos === 0 && (lista?.pdf_id || versionActual?.pdf_id) && (
+                          <Alert variant="info" className="mb-0" style={{ flexShrink: 0 }}>
+                            <strong>📋 No hay productos identificados.</strong> Haz clic en "Procesar con IA" para extraer productos del PDF.
+                          </Alert>
+                        )}
+                        
+                        {/* Mensaje cuando no hay productos ni PDF */}
+                        {estadoRevision !== 'publicado' && totalProductos === 0 && !lista?.pdf_id && !versionActual?.pdf_id && (
+                          <Alert variant="warning" className="mb-0" style={{ flexShrink: 0 }}>
+                            <strong>⚠️ No hay PDF ni productos.</strong> Sube un PDF primero para procesar productos.
+                          </Alert>
+                        )}
+                        
                         {/* Botón Aprobar Lista Completa - SIEMPRE VISIBLE (excepto si está publicado) */}
-                        {estadoRevision !== 'publicado' && (
+                        {estadoRevision !== 'publicado' && totalProductos > 0 && (
                           <Button
-                            variant={validados === totalProductos && totalProductos > 0 ? 'outline-success' : 'success'}
-                            size="sm"
+                            variant={validados === totalProductos && totalProductos > 0 ? 'success' : 'warning'}
+                            size="lg"
                             onClick={aprobarListaCompleta}
-                            disabled={loading || totalProductos === 0}
-                            className="d-flex align-items-center"
-                            title={totalProductos === 0 ? 'No hay productos para aprobar' : loading ? 'Aprobando...' : 'Aprobar o re-aprobar todos los productos de la lista'}
+                            disabled={loading}
+                            className="d-inline-flex align-items-center"
+                            style={{ 
+                              fontWeight: 'bold',
+                              fontSize: '0.95rem',
+                              padding: '0.7rem 1.3rem',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0,
+                              boxShadow: validados === totalProductos && totalProductos > 0 ? '0 4px 12px rgba(40, 167, 69, 0.4)' : '0 4px 12px rgba(255, 193, 7, 0.4)',
+                              display: 'inline-flex'
+                            }}
+                            title={loading ? 'Aprobando...' : validados === totalProductos && totalProductos > 0 ? 'Todos los productos están aprobados. Click para confirmar la lista completa.' : 'Aprobar todos los productos de la lista'}
                           >
                             {loading ? (
                               <>
                                 <Spinner size="sm" className="me-2" />
-                                Aprobando...
+                                <span>Aprobando...</span>
+                              </>
+                            ) : validados === totalProductos && totalProductos > 0 ? (
+                              <>
+                                <TbCheck className="me-2" size={18} />
+                                <span>✓ Aprobar Lista Completa ({validados}/{totalProductos})</span>
                               </>
                             ) : (
                               <>
-                                <TbChecklist className="me-2" />
-                                {validados === totalProductos && totalProductos > 0 ? 'Re-aprobar Lista' : 'Aprobar Lista Completa'}
+                                <TbChecklist className="me-2" size={18} />
+                                <span>Aprobar Lista ({validados}/{totalProductos})</span>
                               </>
                             )}
                           </Button>
@@ -2222,6 +2444,28 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
                     isolation: 'isolate',
                     overflow: 'hidden'
                   }}>
+                    {!selectedProduct && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        zIndex: 5,
+                        backgroundColor: 'rgba(255, 193, 7, 0.95)',
+                        color: '#000',
+                        padding: '1.5rem 2rem',
+                        borderRadius: '12px',
+                        fontSize: '1.1rem',
+                        fontWeight: 'bold',
+                        boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
+                        textAlign: 'center',
+                        border: '3px solid rgba(255, 152, 0, 0.9)',
+                        pointerEvents: 'none',
+                      }}>
+                        👈 Haz click en un producto de la tabla<br/>
+                        <small style={{ fontSize: '0.85rem', opacity: 0.9 }}>para ver su ubicación aquí con resaltado amarillo</small>
+                      </div>
+                    )}
                     <div style={{ position: 'relative', display: 'inline-block', overflow: 'hidden' }}>
                       <Document
                         file={pdfUrl}

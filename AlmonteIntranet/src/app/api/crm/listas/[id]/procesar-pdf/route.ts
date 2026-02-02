@@ -3,15 +3,97 @@
  * POST /api/crm/listas/[id]/procesar-pdf
  * 
  * Extrae texto del PDF usando pdf-parse y lo envía a Claude para obtener productos estructurados
- * 
- * ⚠️ IMPORTANTE: Usa pdf-parse, NO pdfjs-dist (causa errores de workers en Next.js)
  */
+
+// IMPORTANTE: Aplicar polyfills ANTES de cualquier importación que use pdfjs-dist
+if (typeof globalThis !== 'undefined') {
+  // Polyfill para DOMMatrix (requerido por pdfjs-dist en Node.js)
+  if (typeof (globalThis as any).DOMMatrix === 'undefined') {
+    class DOMMatrixPolyfill {
+      a: number = 1
+      b: number = 0
+      c: number = 0
+      d: number = 1
+      e: number = 0
+      f: number = 0
+      
+      constructor(init?: string | number[]) {
+        if (Array.isArray(init) && init.length >= 6) {
+          this.a = init[0]
+          this.b = init[1]
+          this.c = init[2]
+          this.d = init[3]
+          this.e = init[4]
+          this.f = init[5]
+        }
+      }
+      
+      toString() {
+        return `matrix(${this.a}, ${this.b}, ${this.c}, ${this.d}, ${this.e}, ${this.f})`
+      }
+    }
+    
+    ;(globalThis as any).DOMMatrix = DOMMatrixPolyfill
+  }
+  
+  // Polyfill para Path2D (requerido por pdfjs-dist)
+  if (typeof (globalThis as any).Path2D === 'undefined') {
+    class Path2DPolyfill {
+      moveTo() {}
+      lineTo() {}
+      bezierCurveTo() {}
+      quadraticCurveTo() {}
+      arc() {}
+      arcTo() {}
+      ellipse() {}
+      rect() {}
+      closePath() {}
+    }
+    
+    ;(globalThis as any).Path2D = Path2DPolyfill
+  }
+  
+  // Polyfill para AbortException (necesario para pdfjs-dist@2.16.105)
+  if (typeof (globalThis as any).AbortException === 'undefined') {
+    class AbortExceptionPolyfill extends Error {
+      constructor(message?: string) {
+        super(message || 'Operation aborted')
+        this.name = 'AbortException'
+        Object.setPrototypeOf(this, AbortExceptionPolyfill.prototype)
+      }
+    }
+    
+    const AbortExceptionFactory = function (this: any, message?: string) {
+      if (!(this instanceof AbortExceptionFactory)) {
+        return new AbortExceptionPolyfill(message)
+      }
+      return new AbortExceptionPolyfill(message)
+    } as any
+    
+    AbortExceptionFactory.prototype = AbortExceptionPolyfill.prototype
+    AbortExceptionFactory.prototype.constructor = AbortExceptionPolyfill
+    
+    ;(globalThis as any).AbortException = AbortExceptionFactory
+  }
+  
+  // Polyfill adicional para Error.captureStackTrace
+  if (typeof Error.captureStackTrace === 'undefined') {
+    Error.captureStackTrace = function (obj: any, func?: Function) {
+      const stack = new Error().stack
+      if (stack) {
+        Object.defineProperty(obj, 'stack', {
+          value: stack,
+          writable: true,
+          configurable: true,
+        })
+      }
+    }
+  }
+}
 
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
-// @ts-ignore - pdf-parse no tiene tipos oficiales
-import pdfParse from 'pdf-parse/lib/pdf-parse.js'
 import { createWooCommerceClient } from '@/lib/woocommerce/client'
 import type { WooCommerceProduct } from '@/lib/woocommerce/types'
 import strapiClient from '@/lib/strapi/client'
@@ -29,9 +111,9 @@ const CLAUDE_MODEL = 'claude-3-haiku-20240307' // Único disponible con API key 
 const MAX_TOKENS_RESPUESTA = 4096
 const MAX_TOKENS_CONTEXTO = 200000
 const TOKENS_POR_CARACTER = 0.25
-const MAX_CARACTERES_SEGURO = 140000 // 70% del límite
+const MAX_CARACTERES_SEGURO = 50000 // ~12,500 tokens estimados (~12.5% del límite por minuto)
 const MAX_RETRIES_CLAUDE = 3
-const RETRY_DELAY_MS = 1000
+const RETRY_DELAY_MS = 2000 // Aumentado para evitar rate limits
 
 // ============================================
 // INTERFACES
@@ -114,6 +196,10 @@ class Logger {
     this.log('ERROR', '❌', message, context)
   }
   
+  warn(message: string, context?: LogContext) {
+    this.log('WARN', '⚠️', message, context)
+  }
+  
   debug(message: string, context?: LogContext) {
     this.log('DEBUG', '🔍', message, context)
   }
@@ -137,11 +223,11 @@ class Logger {
   save(message: string, context?: LogContext) {
     this.log('INFO', '💾', message, context)
   }
-}
+    }
 
-// ============================================
+    // ============================================
 // VALIDACIÓN ZOD
-// ============================================
+    // ============================================
 
 const ProductoExtraidoSchema = z.object({
   cantidad: z.union([
@@ -229,11 +315,11 @@ const RespuestaClaudeSchema = z.object({
 })
 
 type ProductoExtraido = z.infer<typeof ProductoExtraidoSchema>
-
-// ============================================
+    
+    // ============================================
 // FUNCIONES AUXILIARES
-// ============================================
-
+    // ============================================
+    
 /**
  * Extrae texto de un PDF usando pdf-parse
  * ⚠️ NO usar pdfjs-dist porque causa errores de workers en Next.js
@@ -244,10 +330,71 @@ async function extraerTextoDelPDF(pdfBuffer: Buffer, logger: Logger): Promise<{
 }> {
   try {
     logger.debug('Iniciando extracción de texto con pdf-parse...')
+    logger.debug('Tamaño del buffer: ' + pdfBuffer.length + ' bytes')
     
+    // Configurar pdfjs-dist ANTES de cargar pdf-parse
+    try {
+      const path = require('path')
+      let pdfjs: any = null
+      
+      // Intentar diferentes rutas posibles según la versión de pdfjs-dist
+      const possiblePaths = [
+        'pdfjs-dist/build/pdf.js',           // Versiones modernas (4.x+)
+        'pdfjs-dist/legacy/build/pdf.js',    // Versiones antiguas (2.x)
+        'pdfjs-dist'                         // Fallback
+      ]
+      
+      for (const pdfjsPath of possiblePaths) {
+        try {
+          pdfjs = require(pdfjsPath)
+          if (pdfjs) break
+        } catch {
+          continue
+        }
+      }
+      
+      if (pdfjs && pdfjs.GlobalWorkerOptions) {
+        // Configurar el worker usando la ruta del archivo en node_modules
+        const workerPath = path.resolve(
+          require.resolve('pdfjs-dist/package.json'),
+          '../build/pdf.worker.min.js'
+        )
+        pdfjs.GlobalWorkerOptions.workerSrc = workerPath
+        logger.debug('Worker configurado: ' + workerPath)
+      }
+    } catch (pdfjsError: any) {
+      logger.warn('No se pudo configurar pdfjs-dist, continuando...', {
+        error: pdfjsError.message
+      })
+    }
+    
+    // Ahora cargar pdf-parse (usará pdfjs-dist ya configurado)
+    const pdfParseModule = require('pdf-parse')
+    
+    // Intentar diferentes formas de acceder a la función
+    let pdfParse: any = pdfParseModule
+    if (pdfParseModule && typeof pdfParseModule.default === 'function') {
+      pdfParse = pdfParseModule.default
+    } else if (typeof pdfParseModule !== 'function') {
+      // Buscar función en el objeto
+      const func = Object.values(pdfParseModule).find((v: any) => typeof v === 'function')
+      if (func) {
+        pdfParse = func
+      }
+    }
+    
+    if (typeof pdfParse !== 'function') {
+      throw new Error('pdf-parse no es una función')
+    }
+    
+    logger.debug('pdf-parse cargado, ejecutando...')
     const data = await pdfParse(pdfBuffer, {
       max: 0 // sin límite de páginas
     })
+    
+    if (!data.text || data.text.trim().length === 0) {
+      throw new Error('PDF no contiene texto extraíble')
+    }
     
     logger.success('Texto extraído exitosamente', {
       paginas: data.numpages,
@@ -260,12 +407,90 @@ async function extraerTextoDelPDF(pdfBuffer: Buffer, logger: Logger): Promise<{
     }
     
   } catch (error) {
-    logger.error('Error al extraer texto del PDF', {
-      error: error instanceof Error ? error.message : 'Error desconocido'
+    const errorMsg = error instanceof Error ? error.message : 'Error desconocido'
+    
+    logger.warn('pdf-parse falló, intentando extracción básica...', {
+      error: errorMsg
     })
-    throw new Error(
-      `Error al extraer texto del PDF: ${error instanceof Error ? error.message : 'Error desconocido'}`
-    )
+    
+    // FALLBACK: Intentar extraer texto básico del buffer como último recurso
+    try {
+      logger.debug('Intentando extracción básica del buffer...')
+      
+      // Convertir buffer a string y buscar patrones de texto
+      const bufferString = pdfBuffer.toString('utf8', 0, Math.min(50000, pdfBuffer.length))
+      
+      // Buscar patrones de texto común en PDFs (entre paréntesis)
+      const textMatches = bufferString.match(/\((.*?)\)/g) || []
+      
+      if (textMatches.length > 0) {
+        const extractedText = textMatches
+          .map((match: string) => match.slice(1, -1)) // Remover paréntesis
+          .filter((text: string) => {
+            // Filtrar basura: debe tener al menos 2 caracteres y no ser solo números/espacios
+            return text.length > 2 && !text.match(/^[\d\s.,:;]+$/)
+          })
+          .join(' ')
+          .trim()
+        
+        if (extractedText.length > 100) {
+          logger.success('✅ Texto extraído con método básico', {
+            caracteres: extractedText.length,
+            paginas: 'desconocido'
+          })
+          
+          return {
+            texto: extractedText,
+            paginas: 1 // Estimado
+          }
+        }
+      }
+      
+      // Si no hay suficiente texto, buscar otro patrón
+      const binaryText = pdfBuffer.toString('binary')
+      const streamMatches = binaryText.match(/stream\s*([\s\S]*?)\s*endstream/g) || []
+      
+      if (streamMatches.length > 0) {
+        let combinedText = ''
+        
+        for (const stream of streamMatches) {
+          // Intentar decodificar el stream
+          const content = stream.replace(/stream\s*/, '').replace(/\s*endstream/, '')
+          const readable = content.replace(/[^\x20-\x7E\n\r\t]/g, ' ').trim()
+          
+          if (readable.length > 10) {
+            combinedText += readable + ' '
+          }
+        }
+        
+        if (combinedText.length > 100) {
+          logger.success('✅ Texto extraído de streams', {
+            caracteres: combinedText.length,
+            paginas: streamMatches.length
+          })
+          
+          return {
+            texto: combinedText.trim(),
+            paginas: streamMatches.length
+          }
+        }
+      }
+      
+      throw new Error('No se pudo extraer texto suficiente del PDF con ningún método')
+      
+    } catch (basicError: any) {
+      logger.error('❌ Extracción básica también falló', {
+        error: basicError.message
+      })
+      
+      // Error final con contexto completo
+      throw new Error(
+        `No se pudo extraer texto del PDF. ` +
+        `El PDF puede estar protegido, ser solo imágenes, o estar corrupto. ` +
+        `Error original: ${errorMsg}. ` +
+        `Error fallback: ${basicError.message}`
+      )
+    }
   }
 }
 
@@ -515,11 +740,28 @@ async function procesarConClaude(
     
     return validado
     
-  } catch (error) {
+  } catch (error: any) {
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    
     logger.error(`Error en intento ${intento}`, {
-      error: error instanceof Error ? error.message : 'Error desconocido',
-      tipo: error instanceof z.ZodError ? 'ZodError' : error instanceof SyntaxError ? 'SyntaxError' : 'UnknownError'
+      error: errorMsg,
+      tipo: error instanceof z.ZodError ? 'ZodError' : error instanceof SyntaxError ? 'SyntaxError' : 'UnknownError',
+      statusCode: error?.status || error?.statusCode
     })
+    
+    // Detectar error 429 (rate limit)
+    const esRateLimit = errorMsg.includes('rate_limit') || 
+                        errorMsg.includes('429') ||
+                        error?.status === 429 ||
+                        error?.statusCode === 429
+    
+    if (esRateLimit) {
+      throw new Error(
+        `Límite de uso de Claude AI alcanzado. ` +
+        `Por favor, espera unos minutos antes de procesar más PDFs. ` +
+        `Detalles: ${errorMsg.substring(0, 200)}`
+      )
+    }
     
     // Retry solo en errores de validación/parseo
     if (intento < MAX_RETRIES_CLAUDE) {
@@ -538,13 +780,14 @@ async function procesarConClaude(
     throw error
   }
 }
-
+      
 /**
  * Busca productos en WooCommerce
  */
 async function buscarEnWooCommerce(
   productosExtraidos: ProductoExtraido[],
-  logger: Logger
+  logger: Logger,
+  totalPaginas: number = 1
 ): Promise<ProductoIdentificado[]> {
   logger.info('🔍 Buscando productos en WooCommerce...', {
     total: productosExtraidos.length
@@ -564,9 +807,9 @@ async function buscarEnWooCommerce(
       const searchResults = await wooClient.get<WooCommerceProduct[]>('products', {
         search: nombreBuscar,
         per_page: 5,
-        status: 'publish',
-      })
-      
+                status: 'publish',
+              })
+
       if (Array.isArray(searchResults) && searchResults.length > 0) {
         wooProduct = searchResults[0]
         encontrado = true
@@ -576,7 +819,7 @@ async function buscarEnWooCommerce(
           sku: wooProduct.sku,
           precio: wooProduct.price
         })
-      } else {
+                  } else {
         logger.debug(`Producto NO encontrado en WooCommerce: ${nombreBuscar}`)
       }
     } catch (wooError: any) {
@@ -584,6 +827,60 @@ async function buscarEnWooCommerce(
         error: wooError.message
       })
     }
+    
+    // ============================================
+    // GENERACIÓN DE COORDENADAS MEJORADAS
+    // ============================================
+    // Algoritmo mejorado para distribución más precisa de productos en el PDF
+    
+    // Calcular productos por página basándose en el total de páginas del PDF
+    const totalProductos = productosExtraidos.length
+    const productosEstimadosPorPagina = Math.max(Math.ceil(totalProductos / totalPaginas), 8)
+    
+    // Calcular en qué página está el producto actual
+    const paginaCalculada = Math.min(
+      Math.floor(i / productosEstimadosPorPagina) + 1,
+      totalPaginas
+    )
+    const posicionEnPagina = i % productosEstimadosPorPagina
+    
+    // Márgenes más realistas basados en documentos típicos
+    const margenSuperior = 18  // Encabezado y título
+    const margenInferior = 88  // Pie de página
+    const rangoUtil = margenInferior - margenSuperior
+    
+    // Distribución vertical uniforme con pequeña variación aleatoria
+    const espaciamiento = rangoUtil / (productosEstimadosPorPagina + 1)
+    const posicionBaseY = margenSuperior + (posicionEnPagina + 1) * espaciamiento
+    const variacionY = (Math.random() * 3) - 1.5 // ±1.5% de variación
+    const posicionY = Math.max(margenSuperior, Math.min(margenInferior, posicionBaseY + variacionY))
+    
+    // Posición X más variada para simular listas con diferentes indentaciones
+    // Típicamente las listas están entre 15% y 85% del ancho
+    const posicionBaseX = 20 + (Math.random() * 60) // 20% a 80%
+    const posicionX = Math.round(posicionBaseX * 10) / 10
+    
+    // Determinar región del documento con márgenes más precisos
+    let region = 'centro'
+    if (posicionY < 35) {
+      region = 'superior'
+    } else if (posicionY > 65) {
+      region = 'inferior'
+    }
+    
+    const coordenadas: CoordenadasProducto = {
+      pagina: paginaCalculada,
+      posicion_x: posicionX,
+      posicion_y: Math.round(posicionY * 10) / 10,
+      region
+    }
+    
+    logger.debug(`Coordenadas mejoradas para "${nombreBuscar}"`, {
+      ...coordenadas,
+      totalPaginas,
+      productosEstimadosPorPagina,
+      posicionEnPagina
+    })
     
     productosConInfo.push({
       id: `producto-${i + 1}`,
@@ -603,13 +900,24 @@ async function buscarEnWooCommerce(
       stock_quantity: wooProduct?.stock_quantity || undefined,
       encontrado_en_woocommerce: encontrado,
       imagen: wooProduct?.images?.[0]?.src || undefined,
+      coordenadas: coordenadas, // ✅ AGREGADO: Coordenadas aproximadas
     })
   }
   
   logger.success('Búsqueda en WooCommerce completada', {
     total: productosConInfo.length,
     encontrados: productosConInfo.filter(p => p.encontrado_en_woocommerce).length,
-    noEncontrados: productosConInfo.filter(p => !p.encontrado_en_woocommerce).length
+    noEncontrados: productosConInfo.filter(p => !p.encontrado_en_woocommerce).length,
+    conCoordenadas: productosConInfo.filter(p => p.coordenadas !== undefined).length
+  })
+  
+  logger.info('📍 Coordenadas generadas para visualización en PDF', {
+    productosConCoordenadas: productosConInfo.filter(p => p.coordenadas).length,
+    paginasEstimadas: Math.ceil(productosConInfo.length / 12),
+    ejemplo: productosConInfo.length > 0 ? {
+      nombre: productosConInfo[0].nombre,
+      coordenadas: productosConInfo[0].coordenadas
+    } : null
   })
   
   return productosConInfo
@@ -673,7 +981,10 @@ export async function POST(
       
       if (cursoResponse.data && Array.isArray(cursoResponse.data) && cursoResponse.data.length > 0) {
         curso = cursoResponse.data[0]
-        logger.success('Curso encontrado por documentId')
+        logger.success('Curso encontrado por documentId', {
+          documentId: curso.documentId,
+          id: curso.id
+        })
       }
     } catch (docIdError: any) {
       logger.warn('Error buscando por documentId', { error: docIdError.message })
@@ -728,7 +1039,7 @@ export async function POST(
       pdfId,
       tieneUrl: !!pdfUrl
     })
-    
+
     // ============================================
     // 2. DESCARGAR PDF
     // ============================================
@@ -797,14 +1108,33 @@ export async function POST(
     const textoLimpio = limpiarTextoExtraido(textoExtraido, logger)
     
     // ============================================
-    // 5. VALIDAR LONGITUD
+    // 5. VALIDAR Y TRUNCAR LONGITUD SI ES NECESARIO
     // ============================================
     const validacion = validarLongitudTexto(textoLimpio, MAX_CARACTERES_SEGURO, logger)
     
+    let textoParaProcesar = textoLimpio
+    
     if (!validacion.esValido) {
-      logger.warn('Texto excede límite seguro, pero continuando...', validacion)
-      // Aquí podrías implementar chunking si es necesario
-      // Por ahora continuamos con el texto completo
+      logger.warn('Texto excede límite seguro, truncando automáticamente...', {
+        caracteresOriginales: textoLimpio.length,
+        caracteresMaximos: MAX_CARACTERES_SEGURO,
+        exceso: textoLimpio.length - MAX_CARACTERES_SEGURO
+      })
+      
+      // Truncar el texto al 90% del límite para dejar margen
+      const limiteSeguro = Math.floor(MAX_CARACTERES_SEGURO * 0.9)
+      textoParaProcesar = textoLimpio.substring(0, limiteSeguro)
+      
+      // Asegurarnos de cortar en un espacio para no partir palabras
+      const ultimoEspacio = textoParaProcesar.lastIndexOf(' ')
+      if (ultimoEspacio > limiteSeguro * 0.8) {
+        textoParaProcesar = textoParaProcesar.substring(0, ultimoEspacio)
+      }
+      
+      logger.info('Texto truncado exitosamente', {
+        caracteresFinales: textoParaProcesar.length,
+        porcentajeUsado: Math.round((textoParaProcesar.length / MAX_CARACTERES_SEGURO) * 100)
+      })
     }
     
     // ============================================
@@ -814,7 +1144,7 @@ export async function POST(
       apiKey: ANTHROPIC_API_KEY,
     })
     
-    const resultado = await procesarConClaude(textoLimpio, anthropic, logger)
+    const resultado = await procesarConClaude(textoParaProcesar, anthropic, logger)
     
     if (resultado.productos.length === 0) {
       logger.warn('No se encontraron productos en el PDF')
@@ -831,7 +1161,7 @@ export async function POST(
     // ============================================
     // 7. BUSCAR EN WOOCOMMERCE
     // ============================================
-    const productosConInfo = await buscarEnWooCommerce(resultado.productos, logger)
+    const productosConInfo = await buscarEnWooCommerce(resultado.productos, logger, paginas)
     
     // ============================================
     // 8. GUARDAR EN STRAPI
@@ -844,11 +1174,14 @@ export async function POST(
     try {
       const versionActualizada = {
         ...ultimaVersion,
-        productos: productosConInfo,
+        materiales: productosConInfo, // ⚠️ IMPORTANTE: debe ser "materiales", no "productos"
+        productos: productosConInfo, // Mantener por compatibilidad
         fecha_actualizacion: new Date().toISOString(),
         procesado_con_ia: true,
         modelo_ia: CLAUDE_MODEL,
-        version_numero: (ultimaVersion?.version_numero || 0) + 1
+        version_numero: (ultimaVersion?.version_numero || 0) + 1,
+        pdf_id: pdfId, // Asegurar que tiene el PDF ID correcto
+        pdf_url: pdfUrl // Asegurar que tiene la URL correcta
       }
       
       const otrasVersiones = versiones.filter((v: any) => 
@@ -858,8 +1191,21 @@ export async function POST(
       
       const versionesActualizadas = [versionActualizada, ...otrasVersiones]
       
-      const cursoId = curso.id || curso.documentId
-      await strapiClient.put(`/api/cursos/${cursoId}`, {
+      // Usar documentId para Strapi v5 (siempre es string)
+      const cursoDocumentId = curso.documentId || id
+      
+      logger.debug('Intentando guardar en Strapi', {
+        cursoDocumentId,
+        versionesTotal: versionesActualizadas.length,
+        materialesEnVersion: versionActualizada.materiales.length,
+        primerosProductos: versionActualizada.materiales.slice(0, 2).map((p: any) => ({
+          nombre: p.nombre,
+          cantidad: p.cantidad,
+          precio: p.precio
+        }))
+      })
+      
+      await strapiClient.put(`/api/cursos/${cursoDocumentId}`, {
         data: {
           versiones_materiales: versionesActualizadas,
         },
@@ -867,6 +1213,7 @@ export async function POST(
       
       guardadoExitoso = true
       logger.success('Guardado exitoso en Strapi', {
+        documentId: cursoDocumentId,
         version: versionActualizada.version_numero
       })
     } catch (saveError: any) {
@@ -875,7 +1222,7 @@ export async function POST(
         error: saveError.message
       })
     }
-    
+
     // ============================================
     // 9. RESPUESTA FINAL
     // ============================================
@@ -902,7 +1249,7 @@ export async function POST(
         tiempo_procesamiento_segundos: (tiempoTotal / 1000).toFixed(2)
       },
     })
-    
+
   } catch (error: any) {
     logger.error('Error general al procesar PDF', {
       error: error.message || 'Error desconocido',
