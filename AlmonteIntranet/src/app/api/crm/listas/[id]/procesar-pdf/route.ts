@@ -2,7 +2,7 @@
  * API Route para procesar PDF de lista de útiles con Claude AI (Anthropic)
  * POST /api/crm/listas/[id]/procesar-pdf
  * 
- * Extrae texto del PDF usando pdf-parse y lo envía a Claude para obtener productos estructurados
+ * Convierte el PDF a imagen y usa Claude Vision API para extraer productos directamente
  */
 
 // IMPORTANTE: Aplicar polyfills ANTES de cualquier importación que use pdfjs-dist
@@ -94,10 +94,14 @@ if (typeof globalThis !== 'undefined') {
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
+import { getColaboradorFromCookies } from '@/lib/auth/cookies'
 import { createWooCommerceClient } from '@/lib/woocommerce/client'
 import type { WooCommerceProduct } from '@/lib/woocommerce/types'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import { obtenerFechaChileISO } from '@/lib/utils/dates'
+import { normalizarCursoStrapi, obtenerUltimaVersion } from '@/lib/utils/strapi'
+import { extraerCoordenadasMultiples } from '@/lib/utils/pdf-coordenadas'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -107,8 +111,11 @@ export const maxDuration = 300
 // CONFIGURACIÓN
 // ============================================
 
-const CLAUDE_MODEL = 'claude-3-haiku-20240307' // Único disponible con API key actual
-const MAX_TOKENS_RESPUESTA = 4096
+// Modelo de Claude AI
+// claude-sonnet-4-20250514: Claude 4 Sonnet (2025) - Soporta Vision API y PDFs
+// Modelo más reciente y potente disponible
+const CLAUDE_MODEL = 'claude-sonnet-4-20250514'
+const MAX_TOKENS_RESPUESTA = 4096 // Tokens para la respuesta
 const MAX_TOKENS_CONTEXTO = 200000
 const TOKENS_POR_CARACTER = 0.25
 const MAX_CARACTERES_SEGURO = 50000 // ~12,500 tokens estimados (~12.5% del límite por minuto)
@@ -135,6 +142,8 @@ interface CoordenadasProducto {
   posicion_x?: number
   posicion_y?: number
   region?: string
+  ancho?: number
+  alto?: number
 }
 
 interface ProductoIdentificado {
@@ -329,8 +338,11 @@ async function extraerTextoDelPDF(pdfBuffer: Buffer, logger: Logger): Promise<{
   paginas: number
 }> {
   try {
-    logger.debug('Iniciando extracción de texto con pdf-parse...')
+    logger.info('🔍 Iniciando extracción de texto con pdf-parse...')
     logger.debug('Tamaño del buffer: ' + pdfBuffer.length + ' bytes')
+    logger.debug('Primeros bytes del buffer (hex):', {
+      preview: pdfBuffer.slice(0, 100).toString('hex').substring(0, 200)
+    })
     
     // Configurar pdfjs-dist ANTES de cargar pdf-parse
     try {
@@ -354,13 +366,9 @@ async function extraerTextoDelPDF(pdfBuffer: Buffer, logger: Logger): Promise<{
       }
       
       if (pdfjs && pdfjs.GlobalWorkerOptions) {
-        // Configurar el worker usando la ruta del archivo en node_modules
-        const workerPath = path.resolve(
-          require.resolve('pdfjs-dist/package.json'),
-          '../build/pdf.worker.min.js'
-        )
-        pdfjs.GlobalWorkerOptions.workerSrc = workerPath
-        logger.debug('Worker configurado: ' + workerPath)
+        // Deshabilitar worker en servidor (no es necesario para pdf-parse)
+        pdfjs.GlobalWorkerOptions.workerSrc = ''
+        logger.debug('Worker deshabilitado (no necesario en servidor)')
       }
     } catch (pdfjsError: any) {
       logger.warn('No se pudo configurar pdfjs-dist, continuando...', {
@@ -387,18 +395,33 @@ async function extraerTextoDelPDF(pdfBuffer: Buffer, logger: Logger): Promise<{
       throw new Error('pdf-parse no es una función')
     }
     
-    logger.debug('pdf-parse cargado, ejecutando...')
+    logger.info('📄 pdf-parse cargado, ejecutando extracción...')
     const data = await pdfParse(pdfBuffer, {
       max: 0 // sin límite de páginas
     })
     
+    logger.debug('📊 Resultado de pdf-parse:', {
+      tieneTexto: !!data.text,
+      longitudTexto: data.text?.length || 0,
+      numPages: data.numpages,
+      info: data.info || 'N/A',
+      metadata: data.metadata || 'N/A',
+      previewTexto: data.text?.substring(0, 500) || 'N/A'
+    })
+    
     if (!data.text || data.text.trim().length === 0) {
-      throw new Error('PDF no contiene texto extraíble')
+      logger.error('❌ PDF no contiene texto extraíble', {
+        numPages: data.numpages,
+        info: data.info,
+        metadata: data.metadata
+      })
+      throw new Error('PDF no contiene texto extraíble - puede ser un PDF escaneado (solo imágenes)')
     }
     
-    logger.success('Texto extraído exitosamente', {
+    logger.success('✅ Texto extraído exitosamente con pdf-parse', {
       paginas: data.numpages,
-      caracteres: data.text.length
+      caracteres: data.text.length,
+      preview: data.text.substring(0, 500).replace(/\n/g, ' ')
     })
     
     return {
@@ -495,6 +518,46 @@ async function extraerTextoDelPDF(pdfBuffer: Buffer, logger: Logger): Promise<{
 }
 
 /**
+ * Prepara el PDF en base64 para enviar directamente a Claude Vision
+ * Claude Vision API soporta PDFs nativamente sin necesidad de convertir a imágenes
+ */
+async function prepararPDFParaClaude(pdfBuffer: Buffer, logger: Logger): Promise<{
+  pdfBase64: string
+  tamañoMB: number
+}> {
+  try {
+    logger.info('📄 Preparando PDF para Claude Vision...')
+    
+    // Convertir PDF a base64
+    const pdfBase64 = pdfBuffer.toString('base64')
+    const tamañoMB = pdfBuffer.length / (1024 * 1024)
+    
+    // Claude acepta PDFs de hasta 32MB
+    if (tamañoMB > 32) {
+      throw new Error(`PDF muy grande (${tamañoMB.toFixed(2)} MB). Máximo: 32 MB`)
+    }
+    
+    logger.success('✅ PDF preparado para Claude Vision', {
+      tamañoMB: tamañoMB.toFixed(2),
+      tamañoKB: (pdfBuffer.length / 1024).toFixed(2),
+      base64Length: pdfBase64.length
+    })
+    
+    return {
+      pdfBase64,
+      tamañoMB
+    }
+    
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Error desconocido'
+    logger.error('Error al preparar PDF', {
+      error: errorMsg
+    })
+    throw new Error(`Error al preparar PDF: ${errorMsg}`)
+  }
+}
+
+/**
  * Limpia y normaliza el texto extraído del PDF
  */
 function limpiarTextoExtraido(texto: string, logger: Logger): string {
@@ -562,181 +625,344 @@ function validarLongitudTexto(texto: string, maxCaracteres: number, logger: Logg
  * Crea el prompt mejorado para Claude
  */
 function crearPromptMejorado(): string {
-  return `Eres un experto en analizar listas de útiles escolares. Tu tarea es extraer TODOS los productos de la siguiente lista.
+  return `Eres un extractor de datos. Tu ÚNICA tarea es copiar EXACTAMENTE los productos que aparecen en el texto, SIN MODIFICAR, SIN AGREGAR, SIN INVENTAR información.
 
-REGLAS DE EXTRACCIÓN:
+REGLA DE ORO: Si NO está en el texto, NO lo pongas. Si ESTÁ en el texto, cópialo EXACTAMENTE.
 
-1. CANTIDAD:
-   - Si hay número al inicio → usar ese número
-   - "2x Cuadernos" → cantidad: 2
-   - "dos lápices" → cantidad: 2
-   - "II reglas" → cantidad: 2
-   - "un cuaderno" → cantidad: 1
-   - "par de tijeras" → cantidad: 2
-   - Si no hay número → cantidad: 1
+INSTRUCCIONES:
 
-2. NOMBRE:
-   - Ser específico y completo
-   - NO usar nombres genéricos como "útiles" o "materiales"
-   - Incluir detalles importantes: "Cuaderno universitario 100 hojas cuadriculado"
-   - Extraer marca si está en el nombre: "Lápiz Faber-Castell HB"
+1. IDENTIFICAR PRODUCTOS:
+   - Busca líneas que tengan: número + nombre de material
+   - Ejemplo: "2 Cuadernos" → ES producto
+   - Ejemplo: "Marcar con nombre" → NO es producto (es instrucción)
+   - Ejemplo: "LISTA DE ÚTILES" → NO es producto (es título)
 
-3. ISBN:
-   - Buscar patrones: "ISBN:", "ISBN", números de 10 o 13 dígitos
-   - Limpiar guiones y espacios: "978-84-376-0494-7" → "9788437604947"
-   - Si no hay ISBN → null
+2. CANTIDAD:
+   - Copia EXACTAMENTE el número que aparece: "2 Cuadernos" → 2
+   - Si dice "dos" → 2, "tres" → 3, "un" → 1
+   - Si NO hay número → 1
+   - NO inventes números que no estén en el texto
 
-4. PRECIO:
-   - Extraer si está presente: "$5.000", "CLP 5000", "5.000 pesos"
-   - "gratis", "sin costo" → precio: 0
-   - Si no hay precio → precio: 0
+3. NOMBRE:
+   - Copia el nombre EXACTAMENTE como aparece en el texto
+   - NO agregues palabras que no estén en el texto original
+   - NO quites palabras que SÍ estén en el texto original
+   - Si dice "Cuaderno universitario 100 hojas cuadriculado" → copia EXACTAMENTE eso
+   - NO cambies "Cuaderno" por "Cuadernos" o viceversa
+   - NO agregues detalles que no estén en el texto
 
-5. ASIGNATURA:
-   - Si el producto está bajo un título de asignatura, asignarla
-   - Ejemplos: "Matemáticas:", "Lenguaje:", "Ciencias:"
-   - Si no está claro → null
+4. ISBN:
+   - SOLO si aparece la palabra "ISBN" o números de 10/13 dígitos
+   - Copia el número EXACTAMENTE, solo quita guiones: "978-84-376-0494-7" → "9788437604947"
+   - Si NO aparece ISBN → null
+   - NO inventes ISBNs
 
-6. QUÉ IGNORAR:
-   - Títulos de secciones: "LISTA DE ÚTILES", "MATERIALES", "TEXTOS ESCOLARES"
-   - Instrucciones generales: "Marcar todo con nombre"
-   - Encabezados de asignaturas (pero sí extraer la asignatura para los productos)
+5. MARCA:
+   - SOLO si el nombre incluye una marca: "Lápiz Faber-Castell" → marca: "Faber-Castell"
+   - Si NO hay marca en el texto → null
+   - NO inventes marcas
 
-EJEMPLOS:
+6. PRECIO:
+   - SOLO si aparece explícitamente: "$5.000", "CLP 5000", "5.000 pesos"
+   - Extrae el número EXACTAMENTE: "$5.000" → 5000
+   - Si dice "gratis" → 0
+   - Si NO hay precio → 0
+   - NO inventes precios
+
+7. ASIGNATURA:
+   - SOLO si hay un encabezado claro: "Matemáticas:" seguido de productos
+   - Si NO está claro → null
+   - NO inventes asignaturas
+
+8. DESCRIPCIÓN:
+   - SOLO si hay detalles técnicos en el nombre: "100 hojas", "HB", "triangular"
+   - Si el nombre ya incluye todo → descripcion: null
+   - NO agregues descripciones que no estén en el texto
+
+9. QUÉ IGNORAR (NO extraer):
+   - Títulos: "LISTA DE ÚTILES", "MATERIALES", "TEXTOS ESCOLARES"
+   - Instrucciones: "Marcar con nombre", "Comprar en...", "Link de compra"
+   - URLs: "https://www.booksandbits.cl/..."
+   - Notas: "Pueden reutilizar", "Opcional", "Sin marcar"
+   - Encabezados: "MATERIALES DE LIBRERIA:", "TEXTOS:"
+   - Información administrativa: nombres de colegios, cursos, fechas
+
+10. COMPLETITUD:
+    - Extrae TODOS los productos que aparezcan en el texto
+    - NO omitas productos porque parezcan similares
+    - Si hay 30 productos en el texto, debes extraer 30
+    - Revisa línea por línea para no perder ninguno
+
+11. FIDELIDAD:
+    - Copia el texto EXACTAMENTE como aparece
+    - NO cambies palabras: "Cuaderno" ≠ "Cuadernos"
+    - NO agregues información: si no dice "universitario", NO lo agregues
+    - NO quites información: si dice "100 hojas", NO lo quites
+    - Si el texto dice "2 Cuadernos", el nombre debe ser "Cuadernos" (plural), NO "Cuaderno" (singular)
+
+FORMATO JSON (sin markdown, solo JSON):
+{"productos":[{"cantidad":number,"nombre":string,"isbn":string|null,"marca":string|null,"precio":number,"asignatura":string|null,"descripcion":string|null,"comprar":boolean}]}
+
+EJEMPLOS (copia EXACTAMENTE):
 
 Input: "2 Cuadernos universitarios 100 hojas cuadriculado"
-Output: {
-  "cantidad": 2,
-  "nombre": "Cuaderno universitario 100 hojas cuadriculado",
-  "isbn": null,
-  "marca": null,
-  "precio": 0,
-  "asignatura": null,
-  "descripcion": "100 hojas cuadriculado",
-  "comprar": true
-}
+Output: {"cantidad":2,"nombre":"Cuadernos universitarios 100 hojas cuadriculado","isbn":null,"marca":null,"precio":0,"asignatura":null,"descripcion":null,"comprar":true}
+NOTA: El nombre es "Cuadernos" (plural) porque así aparece en el texto
+
+Input: "1 caja de temperas solidas 12 colores"
+Output: {"cantidad":1,"nombre":"caja de temperas solidas 12 colores","isbn":null,"marca":null,"precio":0,"asignatura":null,"descripcion":null,"comprar":true}
+NOTA: Copia EXACTAMENTE, incluso si empieza con minúscula
 
 Input: "Libro: El Quijote ISBN 978-84-376-0494-7 $15.000"
-Output: {
-  "cantidad": 1,
-  "nombre": "El Quijote",
-  "isbn": "9788437604947",
-  "marca": null,
-  "precio": 15000,
-  "asignatura": null,
-  "descripcion": null,
-  "comprar": true
-}
+Output: {"cantidad":1,"nombre":"El Quijote","isbn":"9788437604947","marca":null,"precio":15000,"asignatura":null,"descripcion":null,"comprar":true}
 
-Input: "Matemáticas: Calculadora científica Casio"
-Output: {
-  "cantidad": 1,
-  "nombre": "Calculadora científica Casio",
-  "isbn": null,
-  "marca": "Casio",
-  "precio": 0,
-  "asignatura": "Matemáticas",
-  "descripcion": "Calculadora científica",
-  "comprar": true
-}
+Input: "Marcar todo con nombre"
+Output: NO incluir (es instrucción, no producto)
 
-FORMATO DE RESPUESTA:
-Responde ÚNICAMENTE con un objeto JSON válido, sin markdown, sin explicaciones:
+⚠️ CRÍTICO - LEE ESTO PRIMERO:
+1. EXTRAE TODOS LOS PRODUCTOS SIN EXCEPCIÓN: Si el PDF tiene 12 productos, debes devolver 12. Si tiene 30, devuelve 30. NO omitas ninguno.
+2. REVISA LÍNEA POR LÍNEA: Cada línea del texto puede tener un producto. Revisa TODAS las líneas desde el inicio hasta el final.
+3. NO TE DETENGAS: Si ves muchos productos, continúa extrayendo hasta el final. NO te detengas a mitad de camino.
+4. CUENTA LOS PRODUCTOS: Al final, cuenta cuántos productos extrajiste y verifica que coincida con el PDF. Si el PDF tiene una tabla con 12 filas de productos, debes extraer 12 productos.
+5. SI HAY DUDAS: Si una línea tiene un número y un nombre de material, es un producto. Inclúyelo.
+6. COPIA EXACTAMENTE: El nombre debe ser EXACTAMENTE como aparece en el texto, sin cambios.
+7. TABLAS: Si el PDF tiene una tabla con columnas "Cantidad" y "Artículos", extrae TODOS los productos de esa tabla. NO omitas ninguno.
+8. LISTAS NUMERADAS: Si hay una lista numerada (1, 2, 3...), cada número seguido de un nombre es un producto. Extrae TODOS.
 
-{
-  "productos": [
-    {
-      "cantidad": number,
-      "nombre": string,
-      "isbn": string | null,
-      "marca": string | null,
-      "precio": number,
-      "asignatura": string | null,
-      "descripcion": string | null,
-      "comprar": boolean
-    }
-  ]
-}
+IMPORTANTE SOBRE COMPLETITUD:
+- Si el texto tiene una lista de productos, extrae TODOS
+- NO omitas productos porque parezcan similares
+- NO omitas productos porque estén en diferentes secciones
+- Si hay "1 caja de temperas" y "2 cajas de temperas", son DOS productos diferentes
+- Si hay productos en múltiples páginas, extrae TODOS
+- Al final de tu respuesta, verifica que no hayas omitido ningún producto
 
-IMPORTANTE: NO incluyas \`\`\`json ni \`\`\` en tu respuesta, solo el JSON puro.`
+FORMATO DE RESPUESTA (JSON puro, sin markdown):
+{"productos":[{"cantidad":number,"nombre":string,"isbn":string|null,"marca":string|null,"precio":number,"asignatura":string|null,"descripcion":string|null,"comprar":boolean}]}
+
+RECUERDA: Tu respuesta debe incluir TODOS los productos del texto, sin excepción.`
 }
 
 /**
  * Procesa el texto con Claude AI (con retry logic)
  */
 async function procesarConClaude(
-  texto: string,
+  pdfBase64: string,
   anthropic: Anthropic,
   logger: Logger,
   intento: number = 1
 ): Promise<{ productos: ProductoExtraido[] }> {
   try {
-    logger.processing(`Procesando con Claude AI (intento ${intento}/${MAX_RETRIES_CLAUDE})...`, {
+    // ============================================
+    // 🤖 INICIANDO PROCESAMIENTO
+    // ============================================
+    console.log('\n\n🤖 ==========================================')
+    console.log('🤖 INICIANDO PROCESAMIENTO CON CLAUDE VISION')
+    console.log('🤖 ==========================================\n')
+    
+    logger.info('\n🤖 ===== PROCESAMIENTO CON CLAUDE VISION (PDF) =====')
+    logger.info(`📊 Estadísticas del PDF:`)
+    logger.info(`   - Tamaño base64: ${(pdfBase64.length / 1024).toFixed(2)} KB`)
+    
+    console.log('📊 ESTADÍSTICAS DEL PDF:')
+    console.log(`   - Tamaño base64: ${(pdfBase64.length / 1024).toFixed(2)} KB`)
+    
+    logger.processing(`🔄 Intento ${intento}/${MAX_RETRIES_CLAUDE}`, {
       modelo: CLAUDE_MODEL,
-      caracteres: texto.length,
-      tokensEstimados: Math.ceil(texto.length * TOKENS_POR_CARACTER)
+      tamañoPDF: `${(pdfBase64.length / 1024).toFixed(2)} KB`
     })
     
     const prompt = crearPromptMejorado()
+    
+    console.log(`\n📝 PROMPT COMPLETO ENVIADO A CLAUDE:`)
+    console.log('=' + '='.repeat(100))
+    console.log(prompt)
+    console.log('=' + '='.repeat(100))
+    
+    // Construir contenido con PDF
+    const content: Anthropic.MessageParam['content'] = [
+      {
+        type: 'document',
+        source: {
+          type: 'base64',
+          media_type: 'application/pdf',
+          data: pdfBase64
+        }
+      } as any,
+      {
+        type: 'text',
+        text: prompt
+      }
+    ]
+    
+    logger.debug('📄 PDF agregado al mensaje de Claude')
     
     const response = await anthropic.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: MAX_TOKENS_RESPUESTA,
       messages: [{
         role: 'user',
-        content: prompt + '\n\nTEXTO DEL PDF:\n' + texto
+        content: content
       }]
     })
+    
+    console.log(`\n📥 RESPUESTA DE CLAUDE:`)
+    console.log(`   - Stop reason: ${response.stop_reason || 'N/A'}`)
+    console.log(`   - Tokens usados: ${response.usage?.output_tokens || 'N/A'}/${response.usage?.input_tokens || 'N/A'}`)
+    console.log(`   - Total tokens: ${response.usage?.input_tokens && response.usage?.output_tokens ? response.usage.input_tokens + response.usage.output_tokens : 'N/A'}`)
+    
+    logger.info(`\n📥 RESPUESTA DE CLAUDE:`)
+    logger.info(`   - Stop reason: ${response.stop_reason || 'N/A'}`)
+    logger.info(`   - Tokens usados: ${response.usage?.output_tokens || 'N/A'}/${response.usage?.input_tokens || 'N/A'}`)
+    logger.info(`   - Total tokens: ${response.usage?.input_tokens && response.usage?.output_tokens ? response.usage.input_tokens + response.usage.output_tokens : 'N/A'}`)
+    logger.info(`   - Contenido completo (primeros 2000 chars):\n${JSON.stringify(response.content, null, 2).substring(0, 2000)}`)
     
     // Extraer texto de la respuesta
     const contenido = response.content[0]
     if (contenido.type !== 'text') {
+      logger.error('❌ Respuesta de Claude no es texto:', { tipo: contenido.type })
       throw new Error('Respuesta de Claude no es texto')
     }
     
     let jsonText = contenido.text
     
-    logger.debug('Respuesta recibida de Claude', {
-      longitud: jsonText.length,
-      preview: jsonText.substring(0, 200).replace(/\n/g, ' ') + '...'
-    })
+    console.log(`\n📄 TEXTO DE RESPUESTA COMPLETO DE CLAUDE:`)
+    console.log(jsonText)
+    console.log('=' + '='.repeat(50))
+    
+    logger.info(`\n📄 TEXTO DE RESPUESTA COMPLETO:`)
+    logger.info(jsonText)
+    logger.info('=' + '='.repeat(50))
+    
+    // Validar que la respuesta no esté vacía
+    if (!jsonText || jsonText.trim().length === 0) {
+      logger.error('❌ La respuesta de Claude está vacía')
+      throw new Error('Respuesta vacía de Claude')
+    }
+    
+    // Advertencia si se usaron muchos tokens
+    if (response.usage?.output_tokens && response.usage.output_tokens / MAX_TOKENS_RESPUESTA > 0.95) {
+      logger.warn('⚠️ ADVERTENCIA: Respuesta puede estar cortada (>95% tokens usados)', {
+        tokensUsados: response.usage.output_tokens,
+        tokensMaximos: MAX_TOKENS_RESPUESTA,
+        porcentaje: Math.round((response.usage.output_tokens / MAX_TOKENS_RESPUESTA) * 100)
+      })
+    }
+    
+    // Verificar si la respuesta se cortó (uso de tokens cercano al máximo)
+    if (response.usage?.output_tokens && response.usage.output_tokens >= MAX_TOKENS_RESPUESTA * 0.95) {
+      logger.warn('⚠️ La respuesta de Claude puede estar cortada - se usó más del 95% de los tokens', {
+        tokensUsados: response.usage.output_tokens,
+        tokensMaximos: MAX_TOKENS_RESPUESTA,
+        porcentaje: Math.round((response.usage.output_tokens / MAX_TOKENS_RESPUESTA) * 100)
+      })
+    }
     
     // Limpiar markdown si existe
     jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
     
-    // Buscar JSON en la respuesta (por si Claude agregó texto adicional)
+    // Buscar JSON en la respuesta
+    logger.info('\n🔍 Buscando JSON en la respuesta...')
     const jsonMatch = jsonText.match(/\{[\s\S]*\}/)
-    if (jsonMatch) {
-      jsonText = jsonMatch[0]
+    
+    if (!jsonMatch) {
+      logger.error('❌ No se encontró JSON en la respuesta')
+      logger.info(`📄 Respuesta completa (primeros 1000 chars):\n${jsonText.substring(0, 1000)}`)
+      throw new Error('No se encontró JSON en la respuesta de Claude')
     }
+    
+    logger.info('✅ JSON encontrado, intentando parsear...')
+    logger.info(`📄 JSON extraído (primeros 500 chars):\n${jsonMatch[0].substring(0, 500)}`)
     
     // Parsear JSON
     let parsed: any
     try {
-      parsed = JSON.parse(jsonText)
+      parsed = JSON.parse(jsonMatch[0])
+    console.log('✅ JSON parseado exitosamente')
+    console.log(`📊 Estructura del JSON:`, Object.keys(parsed))
+    
+    logger.info('✅ JSON parseado exitosamente')
+    logger.info(`📊 Estructura:`, Object.keys(parsed))
+    
+    if (parsed.productos) {
+      console.log(`✅ Campo "productos" encontrado: ${parsed.productos.length} items`)
+      logger.info(`✅ Campo "productos" encontrado: ${parsed.productos.length} items`)
+      
+      if (parsed.productos.length > 0) {
+        console.log(`📦 Primer producto:`, JSON.stringify(parsed.productos[0], null, 2))
+        logger.info(`📦 Primer producto:`, JSON.stringify(parsed.productos[0], null, 2))
+      } else {
+        console.warn('⚠️ El campo "productos" está vacío (array vacío)')
+        logger.warn('⚠️ El campo "productos" está vacío (array vacío)')
+      }
+    } else {
+      console.error('❌ El JSON no tiene campo "productos"')
+      console.log('📄 JSON completo:', JSON.stringify(parsed, null, 2))
+      logger.error('❌ El JSON no tiene campo "productos"')
+      logger.info('📄 JSON completo:', JSON.stringify(parsed, null, 2))
+      throw new Error('El JSON no tiene campo "productos"')
+    }
     } catch (parseError) {
-      logger.error('Error al parsear JSON de Claude', {
-        error: parseError instanceof Error ? parseError.message : 'Error desconocido',
-        textoRecibido: jsonText.substring(0, 500)
-      })
-      throw new Error(`JSON inválido de Claude: ${parseError instanceof Error ? parseError.message : 'Error desconocido'}`)
+      logger.error('❌ Error al parsear JSON:', parseError instanceof Error ? parseError.message : 'Error desconocido')
+      logger.info(`📄 JSON que intentó parsear:\n${jsonMatch[0]}`)
+      throw parseError
     }
     
     // Validar con Zod
+    logger.info('\n🔍 Validando con Zod...')
     let validado: z.infer<typeof RespuestaClaudeSchema>
     try {
       validado = RespuestaClaudeSchema.parse(parsed)
+      logger.info('✅ Validación Zod exitosa')
+      logger.info(`📊 Productos validados: ${validado.productos.length}`)
+      
+      if (validado.productos.length === 0) {
+        logger.warn('⚠️ ADVERTENCIA: Validación exitosa pero 0 productos en el resultado')
+        logger.info('📄 JSON completo para revisión:', JSON.stringify(parsed, null, 2))
+      }
     } catch (zodError) {
       if (zodError instanceof z.ZodError) {
-        logger.error('Error de validación Zod', {
-          errores: zodError.errors
-        })
+        logger.error('❌ Error de validación Zod:', JSON.stringify(zodError.errors, null, 2))
+        logger.info('📄 Errores detallados:', zodError.errors)
+        logger.info('📄 JSON que falló validación:', JSON.stringify(parsed, null, 2))
       }
       throw zodError
     }
     
+    console.log(`\n✅ RESULTADO FINAL:`)
+    console.log(`   - Productos encontrados: ${validado.productos.length}`)
+    console.log(`   - Tokens usados: ${response.usage?.output_tokens || 'N/A'}/${MAX_TOKENS_RESPUESTA}`)
+    console.log(`   - Porcentaje tokens: ${response.usage?.output_tokens ? Math.round((response.usage.output_tokens / MAX_TOKENS_RESPUESTA) * 100) : 'N/A'}%`)
+    if (validado.productos.length > 0) {
+      console.log(`   - Primeros 5 productos:`)
+      validado.productos.slice(0, 5).forEach((p, i) => {
+        console.log(`     ${i + 1}. ${p.nombre} (cantidad: ${p.cantidad})`)
+      })
+    }
+    
     logger.success('Claude procesó el texto exitosamente', {
-      productosEncontrados: validado.productos.length
+      productosEncontrados: validado.productos.length,
+      tokensUsados: response.usage?.output_tokens || 'N/A',
+      tokensMaximos: MAX_TOKENS_RESPUESTA,
+      porcentajeTokens: response.usage?.output_tokens 
+        ? Math.round((response.usage.output_tokens / MAX_TOKENS_RESPUESTA) * 100) 
+        : 'N/A',
+      productosPreview: validado.productos.slice(0, 5).map(p => p.nombre)
     })
+    
+    // Advertencia si se usaron muchos tokens (puede indicar que se cortó la respuesta)
+    if (response.usage?.output_tokens && response.usage.output_tokens > MAX_TOKENS_RESPUESTA * 0.9) {
+      console.warn('⚠️ ADVERTENCIA: Se usó más del 90% de los tokens - la respuesta puede estar incompleta')
+      logger.warn('⚠️ Se usó más del 90% de los tokens de respuesta - la respuesta puede estar incompleta', {
+        tokensUsados: response.usage.output_tokens,
+        tokensMaximos: MAX_TOKENS_RESPUESTA,
+        productosEncontrados: validado.productos.length
+      })
+    }
+    
+    console.log('\n🤖 ==========================================')
+    console.log('🤖 FIN PROCESAMIENTO CON CLAUDE')
+    console.log('🤖 ==========================================\n')
     
     return validado
     
@@ -787,7 +1013,8 @@ async function procesarConClaude(
 async function buscarEnWooCommerce(
   productosExtraidos: ProductoExtraido[],
   logger: Logger,
-  totalPaginas: number = 1
+  totalPaginas: number = 1,
+  pdfBuffer?: Buffer
 ): Promise<ProductoIdentificado[]> {
   logger.info('🔍 Buscando productos en WooCommerce...', {
     total: productosExtraidos.length
@@ -796,9 +1023,34 @@ async function buscarEnWooCommerce(
   const wooClient = createWooCommerceClient('woo_escolar')
   const productosConInfo: ProductoIdentificado[] = []
   
+  // Extraer coordenadas reales del PDF si está disponible
+  let coordenadasMap: Map<string, any> = new Map()
+  if (pdfBuffer) {
+    try {
+      logger.info('📍 Extrayendo coordenadas reales del PDF...')
+      const productosParaCoordenadas = productosExtraidos.map((p, i) => ({
+        nombre: p.nombre || '',
+        id: `producto-${i + 1}`
+      }))
+      
+      coordenadasMap = await extraerCoordenadasMultiples(
+        pdfBuffer,
+        productosParaCoordenadas,
+        logger
+      )
+      
+      logger.success(`✅ Coordenadas reales extraídas: ${coordenadasMap.size}/${productosExtraidos.length} productos`)
+    } catch (coordError: any) {
+      logger.warn('⚠️ Error al extraer coordenadas reales, usando coordenadas aproximadas', {
+        error: coordError.message
+      })
+    }
+  }
+  
   for (let i = 0; i < productosExtraidos.length; i++) {
     const prod = productosExtraidos[i]
     const nombreBuscar = prod.nombre || ''
+    const productoId = `producto-${i + 1}`
     
     let wooProduct: WooCommerceProduct | null = null
     let encontrado = false
@@ -807,8 +1059,8 @@ async function buscarEnWooCommerce(
       const searchResults = await wooClient.get<WooCommerceProduct[]>('products', {
         search: nombreBuscar,
         per_page: 5,
-                status: 'publish',
-              })
+        status: 'publish',
+      })
 
       if (Array.isArray(searchResults) && searchResults.length > 0) {
         wooProduct = searchResults[0]
@@ -819,7 +1071,7 @@ async function buscarEnWooCommerce(
           sku: wooProduct.sku,
           precio: wooProduct.price
         })
-                  } else {
+      } else {
         logger.debug(`Producto NO encontrado en WooCommerce: ${nombreBuscar}`)
       }
     } catch (wooError: any) {
@@ -829,61 +1081,78 @@ async function buscarEnWooCommerce(
     }
     
     // ============================================
-    // GENERACIÓN DE COORDENADAS MEJORADAS
+    // OBTENER COORDENADAS (REALES O APROXIMADAS)
     // ============================================
-    // Algoritmo mejorado para distribución más precisa de productos en el PDF
+    let coordenadas: CoordenadasProducto | undefined
     
-    // Calcular productos por página basándose en el total de páginas del PDF
-    const totalProductos = productosExtraidos.length
-    const productosEstimadosPorPagina = Math.max(Math.ceil(totalProductos / totalPaginas), 8)
+    // Intentar usar coordenadas reales primero (buscar con múltiples keys)
+    const coordenadasReales = coordenadasMap.get(productoId) || 
+                              coordenadasMap.get(nombreBuscar.toLowerCase().trim()) ||
+                              coordenadasMap.get(`producto-${i + 1}`)
     
-    // Calcular en qué página está el producto actual
-    const paginaCalculada = Math.min(
-      Math.floor(i / productosEstimadosPorPagina) + 1,
-      totalPaginas
-    )
-    const posicionEnPagina = i % productosEstimadosPorPagina
-    
-    // Márgenes más realistas basados en documentos típicos
-    const margenSuperior = 18  // Encabezado y título
-    const margenInferior = 88  // Pie de página
-    const rangoUtil = margenInferior - margenSuperior
-    
-    // Distribución vertical uniforme con pequeña variación aleatoria
-    const espaciamiento = rangoUtil / (productosEstimadosPorPagina + 1)
-    const posicionBaseY = margenSuperior + (posicionEnPagina + 1) * espaciamiento
-    const variacionY = (Math.random() * 3) - 1.5 // ±1.5% de variación
-    const posicionY = Math.max(margenSuperior, Math.min(margenInferior, posicionBaseY + variacionY))
-    
-    // Posición X más variada para simular listas con diferentes indentaciones
-    // Típicamente las listas están entre 15% y 85% del ancho
-    const posicionBaseX = 20 + (Math.random() * 60) // 20% a 80%
-    const posicionX = Math.round(posicionBaseX * 10) / 10
-    
-    // Determinar región del documento con márgenes más precisos
-    let region = 'centro'
-    if (posicionY < 35) {
-      region = 'superior'
-    } else if (posicionY > 65) {
-      region = 'inferior'
+    if (coordenadasReales) {
+      // Usar coordenadas reales extraídas del PDF
+      coordenadas = {
+        pagina: coordenadasReales.pagina,
+        posicion_x: coordenadasReales.x,
+        posicion_y: coordenadasReales.y,
+        region: coordenadasReales.y < 35 ? 'superior' : coordenadasReales.y > 65 ? 'inferior' : 'centro',
+        // Incluir ancho y alto si están disponibles
+        ancho: coordenadasReales.ancho,
+        alto: coordenadasReales.alto,
+      }
+      
+      logger.debug(`✅ Coordenadas REALES para "${nombreBuscar}"`, {
+        ...coordenadas,
+        textoEncontrado: coordenadasReales.texto
+      })
+    } else {
+      // Fallback: usar coordenadas aproximadas mejoradas (sin Math.random para consistencia)
+      const totalProductos = productosExtraidos.length
+      const productosEstimadosPorPagina = Math.max(Math.ceil(totalProductos / totalPaginas), 8)
+      
+      const paginaCalculada = Math.min(
+        Math.floor(i / productosEstimadosPorPagina) + 1,
+        totalPaginas
+      )
+      const posicionEnPagina = i % productosEstimadosPorPagina
+      
+      // Mejorar distribución: usar hash del nombre para posición consistente
+      const hashNombre = nombreBuscar.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+      
+      const margenSuperior = 18
+      const margenInferior = 88
+      const rangoUtil = margenInferior - margenSuperior
+      
+      const espaciamiento = rangoUtil / (productosEstimadosPorPagina + 1)
+      const posicionBaseY = margenSuperior + (posicionEnPagina + 1) * espaciamiento
+      
+      // Usar hash para variación determinística (no aleatoria)
+      const variacionY = ((hashNombre % 7) - 3) * 0.5 // Variación de -1.5 a 1.5
+      const posicionY = Math.max(margenSuperior, Math.min(margenInferior, posicionBaseY + variacionY))
+      
+      // Posición X basada en hash (más consistente que random)
+      const posicionX = 15 + ((hashNombre % 65)) // Entre 15% y 80%
+      
+      let region = 'centro'
+      if (posicionY < 35) {
+        region = 'superior'
+      } else if (posicionY > 65) {
+        region = 'inferior'
+      }
+      
+      coordenadas = {
+        pagina: paginaCalculada,
+        posicion_x: posicionX,
+        posicion_y: Math.round(posicionY * 10) / 10,
+        region
+      }
+      
+      logger.debug(`📍 Coordenadas APROXIMADAS para "${nombreBuscar}"`, coordenadas)
     }
     
-    const coordenadas: CoordenadasProducto = {
-      pagina: paginaCalculada,
-      posicion_x: posicionX,
-      posicion_y: Math.round(posicionY * 10) / 10,
-      region
-    }
-    
-    logger.debug(`Coordenadas mejoradas para "${nombreBuscar}"`, {
-      ...coordenadas,
-      totalPaginas,
-      productosEstimadosPorPagina,
-      posicionEnPagina
-    })
-    
-    productosConInfo.push({
-      id: `producto-${i + 1}`,
+    const productoConInfo = {
+      id: productoId,
       validado: false,
       nombre: nombreBuscar,
       marca: prod.marca || undefined,
@@ -900,24 +1169,35 @@ async function buscarEnWooCommerce(
       stock_quantity: wooProduct?.stock_quantity || undefined,
       encontrado_en_woocommerce: encontrado,
       imagen: wooProduct?.images?.[0]?.src || undefined,
-      coordenadas: coordenadas, // ✅ AGREGADO: Coordenadas aproximadas
-    })
+      coordenadas: coordenadas,
+    }
+    
+    // Log detallado de coordenadas antes de guardar
+    if (coordenadas) {
+      logger.debug(`📍 Coordenadas para "${nombreBuscar}" antes de guardar:`, {
+        pagina: coordenadas.pagina,
+        posicion_x: coordenadas.posicion_x,
+        posicion_y: coordenadas.posicion_y,
+        region: coordenadas.region,
+        tipo_x: typeof coordenadas.posicion_x,
+        tipo_y: typeof coordenadas.posicion_y,
+        esNumero_x: typeof coordenadas.posicion_x === 'number',
+        esNumero_y: typeof coordenadas.posicion_y === 'number',
+      })
+    } else {
+      logger.warn(`⚠️ NO hay coordenadas para "${nombreBuscar}"`)
+    }
+    
+    productosConInfo.push(productoConInfo)
   }
   
   logger.success('Búsqueda en WooCommerce completada', {
     total: productosConInfo.length,
     encontrados: productosConInfo.filter(p => p.encontrado_en_woocommerce).length,
     noEncontrados: productosConInfo.filter(p => !p.encontrado_en_woocommerce).length,
-    conCoordenadas: productosConInfo.filter(p => p.coordenadas !== undefined).length
-  })
-  
-  logger.info('📍 Coordenadas generadas para visualización en PDF', {
-    productosConCoordenadas: productosConInfo.filter(p => p.coordenadas).length,
-    paginasEstimadas: Math.ceil(productosConInfo.length / 12),
-    ejemplo: productosConInfo.length > 0 ? {
-      nombre: productosConInfo[0].nombre,
-      coordenadas: productosConInfo[0].coordenadas
-    } : null
+    conCoordenadas: productosConInfo.filter(p => p.coordenadas !== undefined).length,
+    coordenadasReales: coordenadasMap.size,
+    coordenadasAproximadas: productosConInfo.length - coordenadasMap.size
   })
   
   return productosConInfo
@@ -927,6 +1207,9 @@ async function buscarEnWooCommerce(
 // POST HANDLER
 // ============================================
 
+// Límite máximo de tamaño de PDF (10MB)
+const MAX_PDF_SIZE = 10 * 1024 * 1024 // 10MB en bytes
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -935,6 +1218,28 @@ export async function POST(
   
   try {
     logger.start('🚀 Iniciando procesamiento de PDF con Claude AI')
+    
+    // Leer el body primero (solo se puede leer una vez en Next.js)
+    let forzarReprocesar = false
+    try {
+      const body = await request.json()
+      forzarReprocesar = body.forzarReprocesar === true || body.reprocesar === true
+    } catch {
+      // Si no hay body o hay error, continuar sin problemas (forzarReprocesar = false)
+    }
+    
+    // Validación de permisos
+    const colaborador = await getColaboradorFromCookies()
+    if (!colaborador) {
+      logger.error('Usuario no autenticado')
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'No autorizado. Debes iniciar sesión para procesar PDFs.',
+        },
+        { status: 401 }
+      )
+    }
     
     // Validar API key de Claude
     const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
@@ -1013,18 +1318,24 @@ export async function POST(
       )
     }
     
-    const attrs = curso.attributes || curso
-    const versiones = attrs.versiones_materiales || []
-    const ultimaVersion = versiones.length > 0 
-      ? versiones.sort((a: any, b: any) => {
-          const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
-          const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
-          return fechaB - fechaA
-        })[0]
-      : null
+    // Normalizar curso de Strapi
+    const cursoNormalizado = normalizarCursoStrapi(curso)
+    if (!cursoNormalizado) {
+      logger.error('Error al normalizar curso')
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Error al procesar los datos del curso',
+        },
+        { status: 500 }
+      )
+    }
+
+    const versiones = cursoNormalizado.versiones_materiales || []
+    const ultimaVersion = obtenerUltimaVersion(versiones)
     
-    const pdfId = ultimaVersion?.pdf_id || attrs.pdf_id
-    const pdfUrl = ultimaVersion?.pdf_url || attrs.pdf_url
+    const pdfId = ultimaVersion?.pdf_id || cursoNormalizado.pdf_id
+    const pdfUrl = ultimaVersion?.pdf_url || cursoNormalizado.pdf_url
     
     if (!pdfId && !pdfUrl) {
       logger.error('El curso no tiene PDF asociado')
@@ -1032,6 +1343,35 @@ export async function POST(
         { success: false, error: 'El curso no tiene PDF asociado' },
         { status: 400 }
       )
+    }
+
+    // Validar si el PDF ya fue procesado (evitar duplicados, a menos que se fuerce)
+    if (!forzarReprocesar && pdfId && ultimaVersion) {
+      const versionExistente = versiones.find((v: any) => 
+        v.pdf_id === pdfId && 
+        v.materiales && 
+        Array.isArray(v.materiales) && 
+        v.materiales.length > 0
+      )
+      
+      if (versionExistente) {
+        logger.warn('Este PDF ya fue procesado anteriormente', {
+          fecha_procesamiento: versionExistente.fecha_subida || versionExistente.fecha_actualizacion,
+          productos: versionExistente.materiales?.length || 0
+        })
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Este PDF ya fue procesado anteriormente',
+            fecha_procesamiento: versionExistente.fecha_subida || versionExistente.fecha_actualizacion,
+            productos_existentes: versionExistente.materiales?.length || 0,
+            puede_reprocesar: true // Indicar que se puede reprocesar con forzarReprocesar: true
+          },
+          { status: 409 }
+        )
+      }
+    } else if (forzarReprocesar) {
+      logger.info('⚠️ Reprocesamiento forzado solicitado - se reemplazarán los productos existentes')
     }
     
     logger.success('Curso y PDF identificados', {
@@ -1079,78 +1419,104 @@ export async function POST(
       throw new Error('No se encontró URL o ID del PDF')
     }
     
+    // Validar tamaño del PDF
+    if (pdfBuffer.length > MAX_PDF_SIZE) {
+      const tamañoMB = (pdfBuffer.length / 1024 / 1024).toFixed(2)
+      logger.error('PDF demasiado grande', {
+        tamaño_actual: `${tamañoMB}MB`,
+        tamaño_maximo: '10MB'
+      })
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'El PDF es demasiado grande',
+          tamano_actual: `${tamañoMB}MB`,
+          tamano_maximo: '10MB',
+          detalles: 'El tamaño máximo permitido es 10MB. Por favor, comprime el PDF o divide el contenido.'
+        },
+        { status: 413 }
+      )
+    }
+    
     logger.success('PDF descargado', {
-      tamaño: `${(pdfBuffer.length / 1024).toFixed(2)} KB`,
+      tamaño: `${(pdfBuffer.length / 1024 / 1024).toFixed(2)} MB`,
       bytes: pdfBuffer.length
     })
     
-    // ============================================
-    // 3. EXTRAER TEXTO DEL PDF
-    // ============================================
-    logger.info('📄 Extrayendo texto del PDF con pdf-parse...')
-    
-    const { texto: textoExtraido, paginas } = await extraerTextoDelPDF(pdfBuffer, logger)
-    
-    if (!textoExtraido || textoExtraido.trim().length === 0) {
-      logger.error('No se pudo extraer texto del PDF')
-      throw new Error('No se pudo extraer texto del PDF. Puede ser un PDF escaneado o corrupto.')
+    // Obtener número de páginas del PDF (necesario para coordenadas y metadata)
+    let paginas = 1 // Valor por defecto
+    try {
+      const pdfData = await pdfParse(pdfBuffer)
+      paginas = pdfData.numpages
+      logger.info('📄 Páginas del PDF:', { paginas })
+    } catch (error) {
+      logger.warn('⚠️ No se pudo obtener el número de páginas del PDF, usando valor por defecto: 1')
     }
     
-    logger.success('Texto extraído exitosamente', {
-      caracteres: textoExtraido.length,
-      paginas,
-      preview: textoExtraido.substring(0, 300).replace(/\n/g, ' ') + '...'
+    // ============================================
+    // 3. PREPARAR PDF PARA CLAUDE VISION
+    // ============================================
+    logger.info('📄 Preparando PDF para Claude Vision...', {
+      tamañoBuffer: `${(pdfBuffer.length / 1024).toFixed(2)} KB`,
+      primerosBytes: pdfBuffer.slice(0, 4).toString('hex')
+    })
+    
+    let pdfBase64: string
+    let tamañoPDFMB: number
+    
+    try {
+      const resultado = await prepararPDFParaClaude(pdfBuffer, logger)
+      pdfBase64 = resultado.pdfBase64
+      tamañoPDFMB = resultado.tamañoMB
+    } catch (error: any) {
+      logger.error('❌ Error al preparar PDF', {
+        error: error.message,
+        stack: error.stack?.substring(0, 500),
+        tamañoBuffer: pdfBuffer.length
+      })
+      throw new Error(`No se pudo preparar PDF: ${error.message}`)
+    }
+    
+    logger.success('✅ PDF preparado exitosamente', {
+      tamañoMB: tamañoPDFMB.toFixed(2),
+      tamañoBase64KB: (pdfBase64.length / 1024).toFixed(2)
     })
     
     // ============================================
-    // 4. LIMPIAR TEXTO
-    // ============================================
-    const textoLimpio = limpiarTextoExtraido(textoExtraido, logger)
-    
-    // ============================================
-    // 5. VALIDAR Y TRUNCAR LONGITUD SI ES NECESARIO
-    // ============================================
-    const validacion = validarLongitudTexto(textoLimpio, MAX_CARACTERES_SEGURO, logger)
-    
-    let textoParaProcesar = textoLimpio
-    
-    if (!validacion.esValido) {
-      logger.warn('Texto excede límite seguro, truncando automáticamente...', {
-        caracteresOriginales: textoLimpio.length,
-        caracteresMaximos: MAX_CARACTERES_SEGURO,
-        exceso: textoLimpio.length - MAX_CARACTERES_SEGURO
-      })
-      
-      // Truncar el texto al 90% del límite para dejar margen
-      const limiteSeguro = Math.floor(MAX_CARACTERES_SEGURO * 0.9)
-      textoParaProcesar = textoLimpio.substring(0, limiteSeguro)
-      
-      // Asegurarnos de cortar en un espacio para no partir palabras
-      const ultimoEspacio = textoParaProcesar.lastIndexOf(' ')
-      if (ultimoEspacio > limiteSeguro * 0.8) {
-        textoParaProcesar = textoParaProcesar.substring(0, ultimoEspacio)
-      }
-      
-      logger.info('Texto truncado exitosamente', {
-        caracteresFinales: textoParaProcesar.length,
-        porcentajeUsado: Math.round((textoParaProcesar.length / MAX_CARACTERES_SEGURO) * 100)
-      })
-    }
-    
-    // ============================================
-    // 6. PROCESAR CON CLAUDE
+    // 4. PROCESAR CON CLAUDE VISION
     // ============================================
     const anthropic = new Anthropic({
       apiKey: ANTHROPIC_API_KEY,
     })
     
-    const resultado = await procesarConClaude(textoParaProcesar, anthropic, logger)
+    // Log del PDF que se enviará a Claude
+    logger.info('📤 PDF que se enviará a Claude Vision:', {
+      tamañoMB: tamañoPDFMB.toFixed(2),
+      tamañoBase64KB: (pdfBase64.length / 1024).toFixed(2)
+    })
+    
+    const resultado = await procesarConClaude(pdfBase64, anthropic, logger)
+    
+    logger.info('📊 Resultado de Claude:', {
+      productosEncontrados: resultado.productos.length,
+      primerosProductos: resultado.productos.slice(0, 5).map(p => ({
+        cantidad: p.cantidad,
+        nombre: p.nombre,
+        isbn: p.isbn,
+        marca: p.marca
+      }))
+    })
     
     if (resultado.productos.length === 0) {
-      logger.warn('No se encontraron productos en el PDF')
+      logger.error('❌ No se encontraron productos en el PDF', {
+        tamañoPDFMB: tamañoPDFMB.toFixed(2)
+      })
       return NextResponse.json({
         success: false,
-        error: 'No se encontraron productos en el PDF',
+        error: 'No se encontraron productos en el PDF. Verifica que el PDF contenga una lista de productos visible.',
+        detalles: {
+          tamañoPDFMB: tamañoPDFMB.toFixed(2)
+        },
         data: {
           productos: [],
           guardadoEnStrapi: false,
@@ -1159,9 +1525,89 @@ export async function POST(
     }
     
     // ============================================
-    // 7. BUSCAR EN WOOCOMMERCE
+    // FILTRAR Y VALIDAR PRODUCTOS
     // ============================================
-    const productosConInfo = await buscarEnWooCommerce(resultado.productos, logger, paginas)
+    logger.info('🔍 Filtrando productos...', {
+      totalAntesFiltrado: resultado.productos.length,
+      productosOriginales: resultado.productos.map(p => ({
+        cantidad: p.cantidad,
+        nombre: p.nombre,
+        isbn: p.isbn,
+        marca: p.marca
+      }))
+    })
+    
+    // FILTRADO MÍNIMO - Solo lo esencial
+    const productosFiltrados = resultado.productos.filter((producto) => {
+      // Solo validar que tenga nombre y no esté vacío
+      if (!producto.nombre || producto.nombre.trim().length === 0) {
+        return false
+      }
+      
+      // Validar cantidad mínima
+      if (producto.cantidad <= 0) {
+        producto.cantidad = 1
+      }
+      
+      // Limpiar solo URLs
+      producto.nombre = producto.nombre
+        .replace(/https?:\/\/[^\s]+/g, '')
+        .replace(/www\.[^\s]+/g, '')
+        .trim()
+      
+      return producto.nombre.length > 0
+    })
+    
+    logger.info('✅ Filtrado completado', {
+      totalAntes: resultado.productos.length,
+      totalDespues: productosFiltrados.length,
+      productosFiltrados: productosFiltrados.map(p => `${p.cantidad}x ${p.nombre}`)
+    })
+    
+    if (productosFiltrados.length === 0) {
+      logger.error('❌ Todos los productos fueron filtrados', {
+        productosOriginales: resultado.productos.map(p => ({
+          cantidad: p.cantidad,
+          nombre: p.nombre,
+          nombreLength: p.nombre?.length || 0
+        }))
+      })
+      return NextResponse.json({
+        success: false,
+        error: 'No se encontraron productos válidos en el PDF después del filtrado.',
+        detalles: {
+          productosOriginales: resultado.productos.length,
+          productosFiltrados: 0,
+          productosOriginalesLista: resultado.productos.map(p => `${p.cantidad}x ${p.nombre}`)
+        },
+        data: {
+          productos: [],
+          guardadoEnStrapi: false,
+        }
+      }, { status: 200 })
+    }
+    
+    // Log detallado de productos filtrados
+    const productosOmitidos = resultado.productos.length - productosFiltrados.length
+    logger.info(`✅ Productos extraídos por Claude: ${resultado.productos.length} → ${productosFiltrados.length} válidos (${productosOmitidos} omitidos)`, {
+      productos: productosFiltrados.slice(0, 10).map(p => `${p.cantidad}x ${p.nombre}`),
+      total: productosFiltrados.length,
+      omitidos: productosOmitidos,
+      resumen: {
+        conISBN: productosFiltrados.filter(p => p.isbn).length,
+        conMarca: productosFiltrados.filter(p => p.marca).length,
+        conPrecio: productosFiltrados.filter(p => p.precio > 0).length,
+        conAsignatura: productosFiltrados.filter(p => p.asignatura).length,
+      }
+    })
+    
+    // Usar productos filtrados en lugar de los originales
+    resultado.productos = productosFiltrados
+    
+    // ============================================
+    // 7. BUSCAR EN WOOCOMMERCE Y EXTRAER COORDENADAS REALES
+    // ============================================
+    const productosConInfo = await buscarEnWooCommerce(resultado.productos, logger, paginas, pdfBuffer)
     
     // ============================================
     // 8. GUARDAR EN STRAPI
@@ -1176,7 +1622,7 @@ export async function POST(
         ...ultimaVersion,
         materiales: productosConInfo, // ⚠️ IMPORTANTE: debe ser "materiales", no "productos"
         productos: productosConInfo, // Mantener por compatibilidad
-        fecha_actualizacion: new Date().toISOString(),
+        fecha_actualizacion: obtenerFechaChileISO(),
         procesado_con_ia: true,
         modelo_ia: CLAUDE_MODEL,
         version_numero: (ultimaVersion?.version_numero || 0) + 1,
@@ -1201,8 +1647,16 @@ export async function POST(
         primerosProductos: versionActualizada.materiales.slice(0, 2).map((p: any) => ({
           nombre: p.nombre,
           cantidad: p.cantidad,
-          precio: p.precio
-        }))
+          precio: p.precio,
+          coordenadas: p.coordenadas ? {
+            pagina: p.coordenadas.pagina,
+            posicion_x: p.coordenadas.posicion_x,
+            posicion_y: p.coordenadas.posicion_y,
+            region: p.coordenadas.region
+          } : null
+        })),
+        productosConCoordenadas: versionActualizada.materiales.filter((p: any) => p.coordenadas).length,
+        totalProductos: versionActualizada.materiales.length
       })
       
       await strapiClient.put(`/api/cursos/${cursoDocumentId}`, {
@@ -1210,6 +1664,24 @@ export async function POST(
           versiones_materiales: versionesActualizadas,
         },
       })
+      
+      // Verificar que las coordenadas se guardaron correctamente
+      const respuestaVerificacion = await strapiClient.get(`/api/cursos/${cursoDocumentId}?populate=*`)
+      const cursoVerificado = respuestaVerificacion.data
+      const versionesVerificadas = cursoVerificado?.versiones_materiales || []
+      const versionVerificada = versionesVerificadas.find((v: any) => v.version_numero === versionActualizada.version_numero)
+      
+      if (versionVerificada?.materiales) {
+        const productosConCoordenadas = versionVerificada.materiales.filter((p: any) => p.coordenadas)
+        logger.debug('✅ Verificación post-guardado:', {
+          totalMateriales: versionVerificada.materiales.length,
+          productosConCoordenadas: productosConCoordenadas.length,
+          primerosConCoordenadas: productosConCoordenadas.slice(0, 2).map((p: any) => ({
+            nombre: p.nombre,
+            coordenadas: p.coordenadas
+          }))
+        })
+      }
       
       guardadoExitoso = true
       logger.success('Guardado exitoso en Strapi', {
