@@ -716,7 +716,7 @@ async function procesarConClaude(
   logger: Logger,
   intento: number = 1,
   paginas: number = 1
-): Promise<{ productos: ProductoExtraido[] }> {
+): Promise<{ productos: ProductoExtraido[], modeloUsado: string }> {
   try {
     // ============================================
     // 🤖 SELECCIÓN DE MODELO ADAPTATIVO
@@ -947,7 +947,7 @@ async function procesarConClaude(
     console.log('🤖 FIN PROCESAMIENTO CON CLAUDE')
     console.log('🤖 ==========================================\n')
     
-    return validado
+    return { ...validado, modeloUsado: modelo }
     
   } catch (error: any) {
     const errorMsg = error instanceof Error ? error.message : String(error)
@@ -1633,7 +1633,7 @@ export async function POST(
         productos: productosConInfo, // Mantener por compatibilidad
         fecha_actualizacion: obtenerFechaChileISO(),
         procesado_con_ia: true,
-        modelo_ia: CLAUDE_MODEL,
+        modelo_ia: resultado.modeloUsado || CLAUDE_MODEL_SONNET,
         version_numero: (ultimaVersion?.version_numero || 0) + 1,
         pdf_id: pdfId, // Asegurar que tiene el PDF ID correcto
         pdf_url: pdfUrl // Asegurar que tiene la URL correcta
@@ -1725,7 +1725,7 @@ export async function POST(
         noEncontrados: productosConInfo.filter(p => !p.encontrado_en_woocommerce).length,
         guardadoEnStrapi: guardadoExitoso,
         errorGuardado: errorGuardado,
-        modelo_usado: CLAUDE_MODEL,
+        modelo_usado: resultado.modeloUsado || CLAUDE_MODEL_SONNET,
         paginas_procesadas: paginas,
         tiempo_procesamiento_segundos: (tiempoTotal / 1000).toFixed(2)
       },
