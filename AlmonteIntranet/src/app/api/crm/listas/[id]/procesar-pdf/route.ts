@@ -1593,7 +1593,7 @@ export async function POST(
     const pdfHash = obtenerHashPDF(pdfBuffer)
     const resultadoCacheado = obtenerDesdeCacheProcesamientos(pdfHash)
     
-    let resultado: { productos: ProductoExtraido[] }
+    let resultado: { productos: ProductoExtraido[], modeloUsado: string }
     
     if (resultadoCacheado) {
       logger.success('⚡ PDF ya procesado anteriormente - usando caché', {
