@@ -31,38 +31,38 @@ export async function extraerCoordenadasReales(
   logger?: any
 ): Promise<CoordenadasTexto | null> {
   try {
-    // Intentar importar pdfjs-dist desde diferentes ubicaciones
+    // Importar pdfjs-dist (compatible con Next.js server-side)
     let pdfjsLib: any = null
-    const path = require('path')
     
     try {
-      // Intentar desde pdfjs-dist (versión 4.x de react-pdf)
-      pdfjsLib = await import('pdfjs-dist')
+      // Importar la versión estándar de pdfjs-dist
+      const pdfjs = await import('pdfjs-dist')
+      pdfjsLib = pdfjs
       
-      // Si no tiene getDocument, intentar desde legacy
+      // Verificar que tenga getDocument
       if (!pdfjsLib.getDocument) {
-        // @ts-expect-error - Este módulo puede no existir en todos los entornos, pero manejamos el error
-        pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js')
+        // Intentar acceder al default export
+        pdfjsLib = (pdfjs as any).default || pdfjs
       }
-    } catch (e1) {
-      try {
-        // Intentar desde legacy build
-        // @ts-expect-error - Este módulo puede no existir en todos los entornos, pero manejamos el error
-        pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js')
-      } catch (e2) {
+      
+      if (!pdfjsLib.getDocument) {
         if (logger) {
-          logger.warn('No se pudo importar pdfjs-dist, usando coordenadas aproximadas', {
-            error1: e1 instanceof Error ? e1.message : String(e1),
-            error2: e2 instanceof Error ? e2.message : String(e2)
+          logger.warn('⚠️ pdfjs-dist no tiene getDocument disponible', {
+            keysDisponibles: Object.keys(pdfjs).join(', ')
           })
         }
         return null
       }
-    }
-    
-    if (!pdfjsLib || !pdfjsLib.getDocument) {
+      
       if (logger) {
-        logger.warn('pdfjs-dist no tiene getDocument, usando coordenadas aproximadas')
+        logger.debug('✅ pdfjs-dist importado correctamente')
+      }
+    } catch (importError: any) {
+      if (logger) {
+        logger.error('❌ No se pudo importar pdfjs-dist', {
+          error: importError.message,
+          stack: importError.stack?.split('\n').slice(0, 2).join('\n')
+        })
       }
       return null
     }
