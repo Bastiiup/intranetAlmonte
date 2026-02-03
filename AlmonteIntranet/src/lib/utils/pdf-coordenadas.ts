@@ -41,11 +41,13 @@ export async function extraerCoordenadasReales(
       
       // Si no tiene getDocument, intentar desde legacy
       if (!pdfjsLib.getDocument) {
+        // @ts-expect-error - Este módulo puede no existir en todos los entornos, pero manejamos el error
         pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js')
       }
     } catch (e1) {
       try {
         // Intentar desde legacy build
+        // @ts-expect-error - Este módulo puede no existir en todos los entornos, pero manejamos el error
         pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js')
       } catch (e2) {
         if (logger) {
