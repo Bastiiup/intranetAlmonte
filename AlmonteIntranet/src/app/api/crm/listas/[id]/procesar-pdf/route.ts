@@ -134,7 +134,7 @@ const RETRY_DELAY_MS = 2000 // Aumentado para evitar rate limits
 
 // Caché en memoria para PDFs procesados (evita reprocesar el mismo PDF)
 const cacheProcesamientos = new Map<string, {
-  resultado: { productos: ProductoExtraido[] }
+  resultado: { productos: ProductoExtraido[], modeloUsado: string }
   timestamp: number
   paginas: number
 }>()
