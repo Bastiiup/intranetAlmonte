@@ -43,7 +43,7 @@ export default function DetalleListasModal({ show, onHide, colegio }: DetalleLis
         ) : (
           años.map((año) => {
             const cursos = cursosPorAño[año]
-            const totalVersiones = cursos.reduce((sum: number, c) => sum + (c.versiones || 0), 0)
+            const totalVersiones = cursos.reduce((sum: number, c: any) => sum + (c.versiones || 0), 0)
 
             return (
               <div key={año} className="mb-4">
