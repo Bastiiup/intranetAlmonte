@@ -72,11 +72,11 @@ export async function GET(request: NextRequest) {
     debugLog('Buscando producto:', query)
 
     // Obtener TODOS los cursos con sus versiones_materiales
+    // IMPORTANTE: versiones_materiales es un campo JSON, NO una relación, por lo que NO se usa populate
     const filters: string[] = []
     filters.push('pagination[pageSize]=1000') // Límite alto para obtener todos
     filters.push('pagination[page]=1')
     filters.push('populate[colegio][populate][0]=comuna')
-    filters.push('populate[versiones_materiales]=true')
     filters.push('publicationState=preview')
 
     const queryString = filters.join('&')
