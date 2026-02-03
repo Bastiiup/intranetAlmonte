@@ -11,6 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
+import { obtenerUltimaVersion } from '@/lib/utils/strapi'
 
 export const dynamic = 'force-dynamic'
 
@@ -120,7 +121,7 @@ export async function GET(request: NextRequest) {
       // Solo buscar en la última versión (la más reciente)
       if (versiones.length === 0) return
       
-      const ultimaVersion = versiones[versiones.length - 1]
+      const ultimaVersion = obtenerUltimaVersion(versiones)
       const materiales = ultimaVersion?.materiales || []
 
       materiales.forEach((material: any) => {
@@ -180,8 +181,8 @@ export async function GET(request: NextRequest) {
     // Calcular totales
     const colegiosUnicos = new Set(resultados.map(r => r.colegio.id)).size
     const cursosUnicos = new Set(resultados.map(r => r.curso.id)).size
-    const estudiantesTotal = resultados.reduce((sum, r) => sum + r.curso.matriculados, 0)
-    const productosTotal = resultados.reduce((sum, r) => sum + r.totalProductos, 0)
+    const estudiantesTotal = resultados.reduce((sum: number, r) => sum + r.curso.matriculados, 0)
+    const productosTotal = resultados.reduce((sum: number, r) => sum + r.totalProductos, 0)
 
     return NextResponse.json({
       success: true,
