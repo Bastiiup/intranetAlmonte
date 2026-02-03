@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL || 'http://localhost:1337'
-const STRAPI_TOKEN = process.env.STRAPI_API_TOKEN || ''
+import { revalidatePath } from 'next/cache'
+import { getColaboradorFromCookies } from '@/lib/auth/cookies'
+import strapiClient from '@/lib/strapi/client'
+import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import { obtenerFechaChileISO } from '@/lib/utils/dates'
+import { normalizarCursoStrapi } from '@/lib/utils/strapi'
 
 const DEBUG = process.env.NODE_ENV === 'development'
 const debugLog = (...args: any[]) => {
@@ -20,6 +23,19 @@ export async function POST(
   context: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
+    // Validación de permisos
+    const colaborador = await getColaboradorFromCookies()
+    if (!colaborador) {
+      debugLog('❌ Usuario no autenticado')
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'No autorizado. Debes iniciar sesión para publicar listas.',
+        },
+        { status: 401 }
+      )
+    }
+
     const params = await Promise.resolve(context.params)
     const cursoId = params.id
 
@@ -27,7 +43,10 @@ export async function POST(
 
     if (!cursoId) {
       return NextResponse.json(
-        { error: 'ID de curso no proporcionado' },
+        { 
+          success: false,
+          error: 'ID de curso no proporcionado' 
+        },
         { status: 400 }
       )
     }
@@ -38,10 +57,79 @@ export async function POST(
 
     debugLog('📝 Datos adicionales:', { notas, validador_nombre, validador_email })
 
+    // Obtener curso desde Strapi para verificar que existe
+    let curso: any = null
+
+    try {
+      const paramsDocId = new URLSearchParams({
+        'filters[documentId][$eq]': String(cursoId),
+        'publicationState': 'preview',
+      })
+      const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
+        `/api/cursos?${paramsDocId.toString()}`
+      )
+      
+      if (cursoResponse.data && Array.isArray(cursoResponse.data) && cursoResponse.data.length > 0) {
+        curso = cursoResponse.data[0]
+        debugLog('✅ Curso encontrado por documentId')
+      }
+    } catch (docIdError: any) {
+      debugLog('⚠️ Error buscando por documentId:', docIdError.message)
+    }
+
+    // Si no se encontró con documentId, intentar con id numérico
+    if (!curso && /^\d+$/.test(String(cursoId))) {
+      try {
+        const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+          `/api/cursos/${cursoId}?publicationState=preview`
+        )
+        
+        if (cursoResponse.data) {
+          curso = Array.isArray(cursoResponse.data) ? cursoResponse.data[0] : cursoResponse.data
+          debugLog('✅ Curso encontrado por ID numérico')
+        }
+      } catch (idError: any) {
+        debugLog('⚠️ Error buscando por ID:', idError.message)
+      }
+    }
+
+    if (!curso) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Curso no encontrado',
+        },
+        { status: 404 }
+      )
+    }
+
+    // Normalizar curso
+    const cursoNormalizado = normalizarCursoStrapi(curso)
+    if (!cursoNormalizado) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Error al procesar los datos del curso',
+        },
+        { status: 500 }
+      )
+    }
+
+    const cursoDocumentId = curso.documentId || curso.id
+    if (!cursoDocumentId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'El curso no tiene documentId válido',
+        },
+        { status: 400 }
+      )
+    }
+
     // Preparar actualización
     const updateData: any = {
       estado_revision: 'publicado',
-      fecha_publicacion: new Date().toISOString(),
+      fecha_publicacion: obtenerFechaChileISO(),
     }
 
     // Agregar información del validador si se proporciona
@@ -49,7 +137,7 @@ export async function POST(
       updateData.validador_info = {
         nombre: validador_nombre,
         email: validador_email,
-        fecha_validacion: new Date().toISOString(),
+        fecha_validacion: obtenerFechaChileISO(),
       }
     }
 
@@ -59,88 +147,118 @@ export async function POST(
 
     debugLog('🔄 Actualizando curso en Strapi...', updateData)
 
-    // Intentar primero con documentId
-    let response = await fetch(
-      `${STRAPI_URL}/api/cursos/${cursoId}`,
-      {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${STRAPI_TOKEN}`,
+    try {
+      const response = await strapiClient.put<any>(`/api/cursos/${cursoDocumentId}`, {
+        data: updateData,
+      })
+
+      if ((response as any)?.error) {
+        throw new Error(`Strapi devolvió un error: ${JSON.stringify((response as any).error)}`)
+      }
+
+      debugLog('✅ Lista publicada exitosamente')
+
+      // Normalizar respuesta
+      const actualData = (response as any).data || response
+      const attrs = actualData?.attributes || actualData
+
+      // Obtener colegioId para revalidar el listado
+      const colegioId = cursoNormalizado.colegio?.id || 
+                        cursoNormalizado.colegio?.documentId || 
+                        cursoNormalizado.colegio_id
+
+      // Revalidar rutas relacionadas
+      try {
+        debugLog('🔄 Revalidando rutas del caché de Next.js...')
+        revalidatePath(`/crm/listas/${cursoDocumentId}/validacion`)
+        if (colegioId) {
+          revalidatePath(`/crm/listas/colegio/${colegioId}`)
+          debugLog(`✅ Revalidado: /crm/listas/colegio/${colegioId}`)
+        }
+        revalidatePath('/crm/listas')
+        debugLog('✅ Rutas revalidadas exitosamente')
+      } catch (revalidateError: any) {
+        debugLog('⚠️ Error al revalidar rutas (no crítico):', revalidateError.message)
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Lista publicada exitosamente',
+        data: {
+          id: actualData?.id,
+          documentId: actualData?.documentId,
+          estado_revision: attrs?.estado_revision || 'publicado',
+          fecha_publicacion: attrs?.fecha_publicacion,
+          validador_info: attrs?.validador_info,
+          colegioId: colegioId,
         },
-        body: JSON.stringify({ data: updateData }),
-      }
-    )
+      })
+    } catch (error: any) {
+      // Si falla por estado_revision, intentar guardar en metadata como fallback
+      if (error.message?.includes('estado_revision') || error.message?.includes('Invalid key')) {
+        debugLog('⚠️ estado_revision no existe, guardando en metadata como fallback')
+        
+        // Obtener versiones actuales
+        const versiones = cursoNormalizado.versiones_materiales || []
+        const ultimaVersion = versiones.length > 0 
+          ? versiones.sort((a: any, b: any) => {
+              const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
+              const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
+              return fechaB - fechaA
+            })[0]
+          : null
 
-    // Si falla con documentId, intentar con ID numérico
-    if (!response.ok && isNaN(Number(cursoId))) {
-      debugLog('⚠️ Falló con documentId, intentando con búsqueda por filtro...')
-      
-      // Buscar el curso por documentId
-      const searchResponse = await fetch(
-        `${STRAPI_URL}/api/cursos?filters[documentId][$eq]=${cursoId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${STRAPI_TOKEN}`,
-          },
-        }
-      )
-
-      if (searchResponse.ok) {
-        const searchData = await searchResponse.json()
-        if (searchData.data && searchData.data.length > 0) {
-          const numericId = searchData.data[0].id
-          debugLog('✅ Encontrado ID numérico:', numericId)
-          
-          // Reintentar con ID numérico
-          response = await fetch(
-            `${STRAPI_URL}/api/cursos/${numericId}`,
-            {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${STRAPI_TOKEN}`,
-              },
-              body: JSON.stringify({ data: updateData }),
+        if (ultimaVersion) {
+          const versionesConMetadata = versiones.map((v: any) => {
+            if (v === ultimaVersion || v.id === ultimaVersion.id) {
+              return {
+                ...v,
+                metadata: {
+                  ...v.metadata,
+                  estado_revision: 'publicado',
+                  fecha_publicacion: obtenerFechaChileISO(),
+                }
+              }
             }
-          )
+            return v
+          })
+
+          try {
+            await strapiClient.put<any>(`/api/cursos/${cursoDocumentId}`, {
+              data: { versiones_materiales: versionesConMetadata }
+            })
+            debugLog('✅ Estado guardado en metadata como fallback')
+            
+            return NextResponse.json({
+              success: true,
+              message: 'Lista publicada exitosamente (estado guardado en metadata)',
+              data: {
+                id: curso.id,
+                documentId: cursoDocumentId,
+                estado_revision: 'publicado',
+                fecha_publicacion: obtenerFechaChileISO(),
+              },
+            })
+          } catch (metadataError: any) {
+            debugLog('❌ Error también al guardar en metadata:', metadataError.message)
+            throw error // Lanzar error original
+          }
         }
       }
+      
+      throw error
     }
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      debugLog('❌ Error al actualizar curso en Strapi:', errorText)
-      return NextResponse.json(
-        { error: 'Error al publicar la lista', details: errorText },
-        { status: response.status }
-      )
-    }
-
-    const result = await response.json()
-    debugLog('✅ Lista publicada exitosamente:', result)
-
-    // Extraer los datos actualizados
-    const actualData = result.data
-    const attrs = actualData?.attributes || actualData
-
-    return NextResponse.json({
-      success: true,
-      message: 'Lista publicada exitosamente',
-      data: {
-        id: actualData?.id,
-        documentId: actualData?.documentId,
-        estado_revision: attrs?.estado_revision,
-        fecha_publicacion: attrs?.fecha_publicacion,
-        validador_info: attrs?.validador_info,
-      },
+  } catch (error: any) {
+    debugLog('❌ Error inesperado:', {
+      message: error.message,
+      stack: error.stack,
     })
-  } catch (error) {
-    debugLog('❌ Error inesperado:', error)
     return NextResponse.json(
       {
-        error: 'Error al publicar la lista',
-        details: error instanceof Error ? error.message : String(error),
+        success: false,
+        error: 'Error al publicar la lista. Por favor, intenta nuevamente.',
+        detalles: error instanceof Error ? error.message : 'Error desconocido',
+        ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
       },
       { status: 500 }
     )

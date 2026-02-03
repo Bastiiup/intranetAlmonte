@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import { normalizarCursoStrapi } from '@/lib/utils/strapi'
 
 const DEBUG = process.env.NODE_ENV === 'development'
 const debugLog = (...args: any[]) => {
@@ -143,18 +144,18 @@ export async function GET(
         'NO EXISTE',
     })
     
-    // Normalizar datos: extraer de attributes si existe (Strapi v5)
-    const cursoNormalizado = curso?.attributes ? {
-      ...curso.attributes,
-      id: curso.id,
-      documentId: curso.documentId,
-      updatedAt: curso.updatedAt,
-      createdAt: curso.createdAt,
-    } : curso
+    // Normalizar datos usando utilidad centralizada
+    const cursoNormalizado = normalizarCursoStrapi(curso)
     
-    // Si versiones_materiales está dentro de attributes, extraerlo también
-    if (curso?.attributes?.versiones_materiales && !cursoNormalizado.versiones_materiales) {
-      cursoNormalizado.versiones_materiales = curso.attributes.versiones_materiales
+    if (!cursoNormalizado) {
+      debugLog('❌ Error al normalizar curso')
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Error al procesar los datos del curso',
+        },
+        { status: 500 }
+      )
     }
     
     debugLog('📊 Datos del curso normalizado:', {
@@ -168,6 +169,19 @@ export async function GET(
       pdf_id: cursoNormalizado?.versiones_materiales?.[0]?.pdf_id,
       versionesKeys: cursoNormalizado?.versiones_materiales?.[0] ? Object.keys(cursoNormalizado.versiones_materiales[0]) : [],
       versionesRaw: cursoNormalizado?.versiones_materiales?.[0] ? JSON.stringify(cursoNormalizado.versiones_materiales[0]).substring(0, 200) : 'N/A',
+      tieneColegio: !!cursoNormalizado?.colegio,
+      colegioNombre: cursoNormalizado?.colegio?.nombre || cursoNormalizado?.colegio?.data?.attributes?.nombre || cursoNormalizado?.colegio?.data?.nombre || 'NO ENCONTRADO',
+      colegioKeys: cursoNormalizado?.colegio ? Object.keys(cursoNormalizado.colegio) : [],
+    })
+    
+    // Log detallado de la estructura del colegio en el curso RAW
+    debugLog('📊 Estructura del colegio en curso RAW:', {
+      tieneColegio: !!curso?.attributes?.colegio,
+      colegioType: curso?.attributes?.colegio ? typeof curso.attributes.colegio : 'N/A',
+      colegioKeys: curso?.attributes?.colegio ? Object.keys(curso.attributes.colegio) : [],
+      colegioDataKeys: curso?.attributes?.colegio?.data ? Object.keys(curso.attributes.colegio.data) : [],
+      colegioDataAttributesKeys: curso?.attributes?.colegio?.data?.attributes ? Object.keys(curso.attributes.colegio.data.attributes) : [],
+      colegioNombreRaw: curso?.attributes?.colegio?.data?.attributes?.nombre || curso?.attributes?.colegio?.data?.nombre || 'NO ENCONTRADO',
     })
 
     return NextResponse.json({

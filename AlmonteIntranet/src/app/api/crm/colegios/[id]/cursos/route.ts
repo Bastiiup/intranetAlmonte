@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import { normalizarCursoStrapi, obtenerUltimaVersion } from '@/lib/utils/strapi'
 
 export const dynamic = 'force-dynamic'
 
@@ -127,7 +128,25 @@ export async function GET(
       }
     }
 
-    const cursos = Array.isArray(response.data) ? response.data : []
+    const cursosRaw = Array.isArray(response.data) ? response.data : []
+
+    // Normalizar cursos y extraer estado_revision desde metadata si no está en el campo directo
+    const cursos = cursosRaw.map((curso: any) => {
+      const cursoNormalizado = normalizarCursoStrapi(curso) || curso
+      
+      // Si no tiene estado_revision en el campo directo, buscar en metadata de la última versión
+      if (!cursoNormalizado.estado_revision) {
+        const versiones = cursoNormalizado.versiones_materiales || []
+        const ultimaVersion = obtenerUltimaVersion(versiones)
+        
+        if (ultimaVersion?.metadata?.estado_revision) {
+          cursoNormalizado.estado_revision = ultimaVersion.metadata.estado_revision
+          debugLog(`[API /crm/colegios/[id]/cursos GET] ✅ Estado encontrado en metadata: ${ultimaVersion.metadata.estado_revision}`)
+        }
+      }
+      
+      return cursoNormalizado
+    })
 
     // El año se manejará en el frontend mediante localStorage
     // No necesitamos extraerlo aquí ya que el frontend lo leerá de localStorage

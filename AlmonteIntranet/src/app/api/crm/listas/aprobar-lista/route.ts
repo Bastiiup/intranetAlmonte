@@ -4,15 +4,31 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { getColaboradorFromCookies } from '@/lib/auth/cookies'
 import { revalidatePath } from 'next/cache'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import { obtenerFechaChileISO } from '@/lib/utils/dates'
+import { normalizarCursoStrapi, obtenerUltimaVersion } from '@/lib/utils/strapi'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export async function POST(request: NextRequest) {
   try {
+    // Validación de permisos
+    const colaborador = await getColaboradorFromCookies()
+    if (!colaborador) {
+      console.error('[Aprobar Lista] ❌ Usuario no autenticado')
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'No autorizado. Debes iniciar sesión para aprobar listas.',
+        },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
     const { listaId } = body
 
@@ -74,15 +90,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const attrs = curso.attributes || curso
-    const versiones = attrs.versiones_materiales || []
-    const ultimaVersion = versiones.length > 0 
-      ? versiones.sort((a: any, b: any) => {
-          const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
-          const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
-          return fechaB - fechaA
-        })[0]
-      : null
+    // Normalizar curso de Strapi
+    const cursoNormalizado = normalizarCursoStrapi(curso)
+    if (!cursoNormalizado) {
+      console.error('[Aprobar Lista] ❌ Error al normalizar curso')
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Error al procesar los datos del curso',
+        },
+        { status: 500 }
+      )
+    }
+
+    const versiones = cursoNormalizado.versiones_materiales || []
+    const ultimaVersion = obtenerUltimaVersion(versiones)
 
     if (!ultimaVersion) {
       return NextResponse.json(
@@ -110,7 +132,7 @@ export async function POST(request: NextRequest) {
     const materialesAprobados = materiales.map((m: any) => ({
       ...m,
       aprobado: true,
-      fecha_aprobacion: m.aprobado ? m.fecha_aprobacion : new Date().toISOString(),
+      fecha_aprobacion: m.aprobado ? m.fecha_aprobacion : obtenerFechaChileISO(),
     }))
 
     // Actualizar la última versión
@@ -124,7 +146,7 @@ export async function POST(request: NextRequest) {
         return {
           ...v,
           materiales: materialesAprobados,
-          fecha_actualizacion: new Date().toISOString(),
+          fecha_actualizacion: obtenerFechaChileISO(),
         }
       }
       return v
@@ -142,37 +164,70 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Actualizar versiones_materiales primero (sin estado_revision para evitar errores)
+    // Combinar actualización de versiones_materiales Y estado_revision en una sola llamada
     const updateData = {
       data: {
         versiones_materiales: versionesActualizadas,
+        estado_revision: 'revisado',
+        fecha_revision: obtenerFechaChileISO(),
       },
     }
 
-    console.log('[Aprobar Lista] 💾 Guardando versiones en Strapi...')
-    const response = await strapiClient.put<any>(`/api/cursos/${cursoDocumentId}`, updateData)
-
-    if ((response as any)?.error) {
-      throw new Error(`Strapi devolvió un error: ${JSON.stringify((response as any).error)}`)
-    }
-
-    console.log('[Aprobar Lista] ✅ Versiones guardadas exitosamente')
-
-    // Intentar actualizar estado_revision en una llamada separada (puede fallar si el campo no existe)
+    console.log('[Aprobar Lista] 💾 Guardando versiones y estado en Strapi...')
+    
     try {
-      console.log('[Aprobar Lista] 📝 Intentando actualizar estado_revision a "revisado"...')
-      const estadoData = {
-        data: {
-          estado_revision: 'revisado',
-          fecha_revision: new Date().toISOString(),
-        },
+      const response = await strapiClient.put<any>(`/api/cursos/${cursoDocumentId}`, updateData)
+
+      if ((response as any)?.error) {
+        throw new Error(`Strapi devolvió un error: ${JSON.stringify((response as any).error)}`)
       }
-      await strapiClient.put<any>(`/api/cursos/${cursoDocumentId}`, estadoData)
-      console.log('[Aprobar Lista] ✅ Estado de revisión actualizado')
-    } catch (estadoError: any) {
-      // Si falla, no es crítico - solo loguear el error
-      console.warn('[Aprobar Lista] ⚠️ No se pudo actualizar estado_revision (puede que el campo no exista en Strapi):', estadoError.message)
-      // NO lanzar el error - la aprobación de productos es lo importante
+
+      console.log('[Aprobar Lista] ✅ Versiones y estado guardados exitosamente')
+    } catch (error: any) {
+      // Si falla por estado_revision, intentar solo con versiones_materiales
+      if (error.message?.includes('estado_revision') || error.message?.includes('Invalid key')) {
+        console.warn('[Aprobar Lista] ⚠️ estado_revision no existe, guardando solo versiones_materiales')
+        
+        const updateDataSinEstado = {
+          data: {
+            versiones_materiales: versionesActualizadas,
+          },
+        }
+        
+        const response = await strapiClient.put<any>(`/api/cursos/${cursoDocumentId}`, updateDataSinEstado)
+        
+        if ((response as any)?.error) {
+          throw new Error(`Strapi devolvió un error: ${JSON.stringify((response as any).error)}`)
+        }
+        
+        console.log('[Aprobar Lista] ✅ Versiones guardadas (sin estado_revision)')
+        
+        // Guardar estado en metadata como fallback
+        const versionesConEstadoEnMetadata = versionesActualizadas.map((v: any) => {
+          if (v === ultimaVersion || v.id === ultimaVersion.id) {
+            return {
+              ...v,
+              metadata: {
+                ...v.metadata,
+                estado_revision: 'revisado',
+                fecha_revision: obtenerFechaChileISO(),
+              }
+            }
+          }
+          return v
+        })
+        
+        try {
+          await strapiClient.put<any>(`/api/cursos/${cursoDocumentId}`, {
+            data: { versiones_materiales: versionesConEstadoEnMetadata }
+          })
+          console.log('[Aprobar Lista] ✅ Estado guardado en metadata como fallback')
+        } catch (metadataError: any) {
+          console.warn('[Aprobar Lista] ⚠️ No se pudo guardar estado en metadata:', metadataError.message)
+        }
+      } else {
+        throw error
+      }
     }
 
     console.log('[Aprobar Lista] ✅ Lista aprobada exitosamente')
@@ -182,7 +237,9 @@ export async function POST(request: NextRequest) {
       console.log('[Aprobar Lista] 🔄 Revalidando rutas del caché de Next.js...')
       
       // Obtener el colegio_id si existe
-      const colegioId = attrs.colegio?.data?.id || attrs.colegio?.data?.documentId || attrs.colegio_id
+      const colegioId = cursoNormalizado.colegio?.data?.id || 
+                        cursoNormalizado.colegio?.data?.documentId || 
+                        cursoNormalizado.colegio_id
       
       // Revalidar la página de validación individual
       revalidatePath(`/crm/listas/${cursoDocumentId}/validacion`)
@@ -215,12 +272,18 @@ export async function POST(request: NextRequest) {
     }, { status: 200 })
 
   } catch (error: any) {
-    console.error('[Aprobar Lista] ❌ Error:', error)
+    console.error('[Aprobar Lista] ❌ Error:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    })
+    
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Error al aprobar la lista',
-        details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+        error: 'Error al aprobar la lista. Por favor, intenta nuevamente.',
+        detalles: error instanceof Error ? error.message : 'Error desconocido',
+        ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
       },
       { status: 500 }
     )
