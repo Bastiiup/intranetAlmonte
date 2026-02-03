@@ -173,8 +173,8 @@ export default function ProductoRow({
           <span className="text-muted" style={{ fontSize: '0.75rem' }}>-</span>
         )}
       </td>
-      <td>
-        <div className="d-flex gap-1">
+      <td style={{ padding: '4px' }}>
+        <div className="d-flex gap-1 justify-content-center">
           <Button
             variant="outline-primary"
             size="sm"
@@ -183,6 +183,7 @@ export default function ProductoRow({
               onEditar()
             }}
             title="Editar producto"
+            style={{ padding: '2px 6px', fontSize: '14px' }}
           >
             <TbEdit />
           </Button>
@@ -194,6 +195,7 @@ export default function ProductoRow({
               onEliminar()
             }}
             title="Eliminar producto"
+            style={{ padding: '2px 6px', fontSize: '14px' }}
           >
             <TbTrash />
           </Button>

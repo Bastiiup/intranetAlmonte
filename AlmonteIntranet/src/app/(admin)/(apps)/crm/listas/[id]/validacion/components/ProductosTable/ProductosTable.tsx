@@ -160,7 +160,7 @@ export default function ProductosTable({
               <th style={{ width: '100px' }}>Precio</th>
               <th>Asignatura</th>
               <th style={{ width: '120px' }}>Ubicación PDF</th>
-              <th style={{ width: '100px' }}>Acciones</th>
+              <th style={{ width: '80px', textAlign: 'center' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
