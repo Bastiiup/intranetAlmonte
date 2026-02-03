@@ -206,6 +206,7 @@ export const menuItems: MenuItemType[] = [
     icon: LuGraduationCap,
     children: [
       { key: 'mira-licencias', label: 'Licencias de libros', url: '/mira/licencias' },
+      { key: 'mira-evaluaciones-omr', label: 'Evaluaciones OMR', url: '/mira/evaluaciones-omr' },
       { key: 'mira-analiticas', label: 'Analíticas', url: '/mira/analiticas' },
     ],
   },
