@@ -1,23 +1,77 @@
 /**
  * Componente principal del visor de PDF
- * Orquesta todos los subcomponentes del PDF viewer
+ * Con búsqueda de texto real (como Ctrl+F) y UI profesional
  */
 
 'use client'
 
-import { useMemo, useEffect } from 'react'
+import { useMemo, useEffect, useRef, useCallback } from 'react'
 import { Card, CardBody, Button, Spinner, Alert } from 'react-bootstrap'
-import { TbSparkles, TbFileText } from 'react-icons/tb'
+import { TbSparkles, TbFileText, TbDownload, TbSearch } from 'react-icons/tb'
 import { Document, Page as PDFPage, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css'
 import 'react-pdf/dist/esm/Page/TextLayer.css'
 import PDFControls from './PDFControls'
-import PDFHighlight from './PDFHighlight'
+import SearchBar from './SearchBar'
 import VersionSelector from './VersionSelector'
+import { useTextSearch } from '../../hooks/useTextSearch'
 import type { ProductoIdentificado, ListaData } from '../../types'
 import { STRAPI_API_URL } from '@/lib/strapi/config'
 
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs'
+
+// Estilos globales para los highlights
+const globalStyles = `
+  .pdf-search-highlight {
+    background-color: rgba(255, 235, 59, 0.6) !important;
+    color: #000 !important;
+    border-radius: 2px !important;
+    box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.4) !important;
+    transition: all 0.3s ease !important;
+  }
+
+  .pdf-search-highlight-active {
+    background-color: rgba(255, 152, 0, 0.9) !important;
+    box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.6), 0 4px 12px rgba(0,0,0,0.3) !important;
+    animation: pulse-highlight 1.5s ease-in-out infinite !important;
+  }
+
+  @keyframes pulse-highlight {
+    0%, 100% {
+      box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.6), 0 4px 12px rgba(0,0,0,0.3);
+    }
+    50% {
+      box-shadow: 0 0 0 6px rgba(255, 87, 34, 0.3), 0 6px 20px rgba(0,0,0,0.4);
+    }
+  }
+
+  .react-pdf__Page__textContent span {
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .pdf-viewer-container {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0,0,0,0.2) transparent;
+  }
+
+  .pdf-viewer-container::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .pdf-viewer-container::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .pdf-viewer-container::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.2);
+    border-radius: 4px;
+  }
+
+  .pdf-viewer-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(0,0,0,0.3);
+  }
+`
 
 interface PDFViewerProps {
   lista: ListaData | null
@@ -34,6 +88,7 @@ interface PDFViewerProps {
   onProcesarPDF: () => void
   loadingLogs: boolean
   onCargarLogs: () => void
+  onClearSelection?: () => void
 }
 
 export default function PDFViewer({
@@ -50,7 +105,8 @@ export default function PDFViewer({
   processingPDF,
   onProcesarPDF,
   loadingLogs,
-  onCargarLogs
+  onCargarLogs,
+  onClearSelection
 }: PDFViewerProps) {
   const {
     numPages,
@@ -66,124 +122,177 @@ export default function PDFViewer({
     onZoomReset
   } = pdfViewer
 
-  // Log cuando selectedProductData cambia
+  // Hook de búsqueda de texto
+  const {
+    searchState,
+    searchInPDF,
+    nextMatch,
+    prevMatch,
+    clearSearch
+  } = useTextSearch()
+
+  // Ref para el contenedor del PDF
+  const pdfContainerRef = useRef<HTMLDivElement>(null)
+  const lastSearchedProductRef = useRef<string | null>(null)
+
+  // Inyectar estilos globales
   useEffect(() => {
-    if (selectedProductData) {
-      console.log('[PDFViewer] ✅ selectedProductData actualizado:', {
-        nombre: selectedProductData.nombre,
-        id: selectedProductData.id,
-        tieneCoordenadas: !!selectedProductData.coordenadas,
-        coordenadas: selectedProductData.coordenadas,
-        pageNumber,
-        numPages
-      })
-    } else {
-      console.log('[PDFViewer] ⚪ selectedProductData es null')
+    const styleId = 'pdf-search-styles'
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style')
+      style.id = styleId
+      style.textContent = globalStyles
+      document.head.appendChild(style)
     }
-  }, [selectedProductData, pageNumber, numPages])
+  }, [])
+
+  // Ejecutar búsqueda cuando cambia el producto seleccionado o la página
+  const executeSearch = useCallback((forceSearch: boolean = false) => {
+    if (!selectedProductData || !pdfContainerRef.current) {
+      if (!selectedProductData && lastSearchedProductRef.current) {
+        clearSearch()
+        lastSearchedProductRef.current = null
+      }
+      return
+    }
+
+    // Clave única para esta búsqueda (producto + página)
+    const productKey = `${selectedProductData.id}-${pageNumber}`
+
+    // Evitar búsquedas repetidas a menos que sea forzada
+    if (!forceSearch && lastSearchedProductRef.current === productKey) {
+      return
+    }
+
+    // Limpiar highlights anteriores antes de buscar en nueva página
+    clearSearch()
+
+    // Esperar a que el TextLayer se renderice completamente
+    const timeoutId = setTimeout(() => {
+      console.log('[PDFViewer] Buscando en página', pageNumber, ':', selectedProductData.nombre)
+      searchInPDF(
+        selectedProductData.nombre,
+        pdfContainerRef.current,
+        {
+          isbn: selectedProductData.isbn,
+          marca: selectedProductData.marca
+        }
+      )
+      lastSearchedProductRef.current = productKey
+    }, 400)
+
+    return () => clearTimeout(timeoutId)
+  }, [selectedProductData, pageNumber, searchInPDF, clearSearch])
+
+  // Ejecutar búsqueda cuando cambia el producto o la página
+  useEffect(() => {
+    executeSearch()
+  }, [executeSearch])
+
+  // Limpiar cuando se deselecciona el producto
+  useEffect(() => {
+    if (!selectedProductData) {
+      clearSearch()
+      lastSearchedProductRef.current = null
+    }
+  }, [selectedProductData, clearSearch])
+
+  // Manejar la limpieza de búsqueda
+  const handleClearSearch = useCallback(() => {
+    clearSearch()
+    lastSearchedProductRef.current = null
+    // También limpiar la selección en el componente padre
+    if (onClearSelection) {
+      onClearSelection()
+    }
+  }, [clearSearch, onClearSelection])
 
   // Determinar URL del PDF
   const pdfUrl = useMemo(() => {
-    // Helper para limpiar URL corrupta (elimina dominio duplicado)
     const limpiarUrl = (url: string): string => {
       let urlLimpia = url.trim()
-      
-      // Si la URL contiene el dominio de Strapi duplicado, limpiarlo
+
       if (urlLimpia.includes(STRAPI_API_URL)) {
-        // Buscar la primera ocurrencia de https:// después del dominio de Strapi
         const index = urlLimpia.indexOf(STRAPI_API_URL)
         if (index !== -1) {
           const parteDespues = urlLimpia.substring(index + STRAPI_API_URL.length)
-          // Si después del dominio hay "https://" o "http://", usar esa parte
           if (parteDespues.startsWith('https://') || parteDespues.startsWith('http://')) {
             urlLimpia = parteDespues
-            console.log('[PDFViewer] 🧹 URL limpiada (dominio duplicado removido):', urlLimpia)
           } else if (parteDespues.startsWith('https') || parteDespues.startsWith('http')) {
-            // Caso especial: "https" sin "://"
             const match = parteDespues.match(/^(https?)(.*)/)
             if (match) {
               urlLimpia = `${match[1]}://${match[2].replace(/^\/+/, '')}`
-              console.log('[PDFViewer] 🧹 URL limpiada (formato corregido):', urlLimpia)
             }
           }
         }
       }
-      
+
       return urlLimpia
     }
 
-    // Helper para normalizar URL - detecta si ya es URL completa
     const normalizarUrl = (url: string): string => {
-      // Primero limpiar URL corrupta
       let urlLimpia = limpiarUrl(url)
-      
-      // Si ya es una URL completa (http:// o https://), usarla directamente
+
       if (urlLimpia.startsWith('http://') || urlLimpia.startsWith('https://')) {
-        console.log('[PDFViewer] ✅ URL completa detectada, usando directamente:', urlLimpia)
         return urlLimpia
       }
-      
-      // Si es una ruta relativa que empieza con /, construir URL completa
+
       if (urlLimpia.startsWith('/')) {
-        const fullUrl = `${STRAPI_API_URL}${urlLimpia}`
-        console.log('[PDFViewer] 🔧 Construyendo URL desde ruta relativa:', { url: urlLimpia, fullUrl, STRAPI_API_URL })
-        return fullUrl
+        return `${STRAPI_API_URL}${urlLimpia}`
       }
-      
-      // Si es una ruta relativa sin /, agregar /
-      const fullUrl = `${STRAPI_API_URL}/${urlLimpia}`
-      console.log('[PDFViewer] 🔧 Construyendo URL desde ruta sin /:', { url: urlLimpia, fullUrl, STRAPI_API_URL })
-      return fullUrl
+
+      return `${STRAPI_API_URL}/${urlLimpia}`
     }
 
-    console.log('[PDFViewer] 🔍 Determinando URL del PDF:', {
-      versionActual_pdf_url: versionActual?.pdf_url,
-      versionActual_pdf_id: versionActual?.pdf_id,
-      lista_pdf_url: lista?.pdf_url,
-      lista_pdf_id: lista?.pdf_id,
-      STRAPI_API_URL
-    })
-
-    // Prioridad 1: Usar API route para pdf_id de la versión (más confiable, con autenticación)
     if (versionActual?.pdf_id) {
-      const url = `/api/crm/listas/pdf/${versionActual.pdf_id}`
-      console.log('[PDFViewer] 📄 URL final desde versión pdf_id (API route):', url)
-      return url
+      return `/api/crm/listas/pdf/${versionActual.pdf_id}`
     }
-    
-    // Prioridad 2: pdf_url directo de la versión (limpiar si está corrupto)
+
     if (versionActual?.pdf_url) {
-      const url = normalizarUrl(versionActual.pdf_url)
-      console.log('[PDFViewer] 📄 URL final desde versión pdf_url:', url)
-      return url
+      return normalizarUrl(versionActual.pdf_url)
     }
-    
-    // Prioridad 3: Usar API route para pdf_id de la lista (más confiable, con autenticación)
+
     if (lista?.pdf_id) {
-      const url = `/api/crm/listas/pdf/${lista.pdf_id}`
-      console.log('[PDFViewer] 📄 URL final desde lista pdf_id (API route):', url)
-      return url
+      return `/api/crm/listas/pdf/${lista.pdf_id}`
     }
-    
-    // Prioridad 4: pdf_url directo de la lista (limpiar si está corrupto)
+
     if (lista?.pdf_url) {
-      const url = normalizarUrl(lista.pdf_url)
-      console.log('[PDFViewer] 📄 URL final desde lista pdf_url:', url)
-      return url
+      return normalizarUrl(lista.pdf_url)
     }
-    
-    console.log('[PDFViewer] ⚠️ No se encontró PDF URL')
+
     return null
   }, [versionActual, lista])
 
   if (!pdfUrl) {
     return (
-      <Card className="h-100 border-0 rounded-0">
+      <Card className="h-100 border-0 rounded-0" style={{ background: '#f8f9fa' }}>
         <CardBody className="d-flex flex-column h-100 p-0">
           <div className="d-flex justify-content-center align-items-center flex-grow-1">
-            <Alert variant="warning" className="m-3">
-              No hay PDF disponible para este curso.
-            </Alert>
+            <div style={{
+              textAlign: 'center',
+              padding: '3rem',
+              background: 'white',
+              borderRadius: '12px',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.08)'
+            }}>
+              <div style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 1rem',
+                color: 'white'
+              }}>
+                <TbFileText size={32} />
+              </div>
+              <h5 style={{ color: '#333', marginBottom: '0.5rem' }}>No hay PDF disponible</h5>
+              <p style={{ color: '#666', margin: 0, fontSize: '0.9rem' }}>
+                Este curso no tiene un PDF de lista de útiles cargado.
+              </p>
+            </div>
           </div>
         </CardBody>
       </Card>
@@ -191,15 +300,25 @@ export default function PDFViewer({
   }
 
   return (
-    <Card className="h-100 border-0 rounded-0">
+    <Card className="h-100 border-0 rounded-0" style={{ background: '#f8f9fa' }}>
       <CardBody className="d-flex flex-column h-100 p-0">
         {/* Header con controles */}
         <div style={{
-          padding: '1rem',
-          borderBottom: '1px solid #dee2e6',
-          background: 'white'
+          padding: '1rem 1.25rem',
+          borderBottom: '1px solid #e9ecef',
+          background: 'white',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.04)'
         }}>
-          <div className="d-flex justify-content-between align-items-start mb-2">
+          {/* Barra de búsqueda cuando hay producto seleccionado */}
+          <SearchBar
+            selectedProduct={selectedProductData}
+            searchState={searchState}
+            onNextMatch={nextMatch}
+            onPrevMatch={prevMatch}
+            onClearSearch={handleClearSearch}
+          />
+
+          <div className="d-flex justify-content-between align-items-start mb-3">
             <div style={{ flex: 1 }}>
               <VersionSelector
                 versiones={versiones}
@@ -209,63 +328,94 @@ export default function PDFViewer({
                 onChangeMostrarTodos={onChangeMostrarTodos}
                 onRecargarProductos={onRecargarProductos}
               />
-              <h5 className="mb-1">
+              <h5 style={{
+                margin: '0.5rem 0 0.25rem',
+                fontSize: '1rem',
+                fontWeight: 600,
+                color: '#333'
+              }}>
                 {versionActual?.tipo_lista || versionActual?.nombre || 'Lista de Útiles Original (PDF)'}
               </h5>
-              <p className="text-muted mb-0 small">
+              <p style={{
+                margin: 0,
+                fontSize: '0.8rem',
+                color: '#6c757d'
+              }}>
                 {versionActual?.nombre_archivo || versionActual?.metadata?.nombre || 'Documento proporcionado por el colegio'}
                 {versionActual?.fecha_subida && (
-                  <> - Subido: {new Date(versionActual.fecha_subida).toLocaleDateString('es-CL', { 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}</>
+                  <span style={{ marginLeft: '8px', opacity: 0.8 }}>
+                    • {new Date(versionActual.fecha_subida).toLocaleDateString('es-CL', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric'
+                    })}
+                  </span>
                 )}
               </p>
             </div>
+
             <div className="d-flex gap-2">
-              <Button 
-                variant="primary" 
+              <Button
+                variant="primary"
                 size="sm"
                 onClick={onProcesarPDF}
                 disabled={processingPDF}
-                className="d-flex align-items-center"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  fontWeight: 500,
+                  fontSize: '0.85rem',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  border: 'none',
+                  boxShadow: '0 2px 8px rgba(102, 126, 234, 0.3)'
+                }}
               >
                 {processingPDF ? (
                   <>
-                    <Spinner size="sm" className="me-2" />
+                    <Spinner size="sm" style={{ width: '14px', height: '14px' }} />
                     Procesando...
                   </>
                 ) : (
                   <>
-                    <TbSparkles className="me-2" />
+                    <TbSparkles size={16} />
                     Procesar con IA
                   </>
                 )}
               </Button>
-              <Button 
-                variant="outline-info" 
+              <Button
+                variant="outline-secondary"
                 size="sm"
                 onClick={onCargarLogs}
                 disabled={loadingLogs}
-                className="d-flex align-items-center"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  fontWeight: 500,
+                  fontSize: '0.85rem'
+                }}
                 title="Ver logs del procesamiento"
               >
                 {loadingLogs ? (
                   <>
-                    <Spinner size="sm" className="me-2" />
+                    <Spinner size="sm" style={{ width: '14px', height: '14px' }} />
                     Cargando...
                   </>
                 ) : (
                   <>
-                    <TbFileText className="me-2" />
-                    Ver Logs
+                    <TbFileText size={16} />
+                    Logs
                   </>
                 )}
               </Button>
             </div>
           </div>
-          
+
           <PDFControls
             pageNumber={pageNumber}
             numPages={numPages}
@@ -279,170 +429,153 @@ export default function PDFViewer({
         </div>
 
         {/* Área del PDF */}
-        <div style={{ 
-          flexGrow: 1, 
-          overflow: 'auto',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'flex-start',
-          padding: '1rem',
-          background: '#e5e5e5',
-          position: 'relative',
-          zIndex: 0
-        }}>
-          <div style={{ 
+        <div
+          ref={pdfContainerRef}
+          className="pdf-viewer-container"
+          style={{
+            flexGrow: 1,
+            overflow: 'auto',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'flex-start',
+            padding: '1.5rem',
+            background: 'linear-gradient(180deg, #e9ecef 0%, #dee2e6 100%)',
+            position: 'relative'
+          }}
+        >
+          {/* Mensaje cuando no hay producto seleccionado */}
+          {!selectedProductData && (
+            <div style={{
+              position: 'absolute',
+              top: '1.5rem',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 10,
+              background: 'white',
+              padding: '12px 20px',
+              borderRadius: '10px',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              border: '1px solid #e9ecef'
+            }}>
+              <div style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white'
+              }}>
+                <TbSearch size={16} />
+              </div>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#333' }}>
+                  Selecciona un producto
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#666' }}>
+                  Haz clic en la tabla para buscarlo aquí
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div style={{
             background: 'white',
-            padding: '1rem',
-            borderRadius: '4px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-            position: 'relative',
-            display: 'inline-block',
-            isolation: 'isolate',
+            borderRadius: '8px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
             overflow: 'hidden'
           }}>
-            {/* Mensaje cuando no hay producto seleccionado */}
-            {!selectedProductData && (
-              <div style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                zIndex: 5,
-                backgroundColor: 'rgba(255, 193, 7, 0.95)',
-                color: '#000',
-                padding: '1.5rem 2rem',
-                borderRadius: '12px',
-                fontSize: '1.1rem',
-                fontWeight: 'bold',
-                boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
-                textAlign: 'center',
-                border: '3px solid rgba(255, 152, 0, 0.9)',
-                pointerEvents: 'none',
-              }}>
-                👈 Haz click en un producto de la tabla<br/>
-                <small style={{ fontSize: '0.85rem', opacity: 0.9 }}>para ver su ubicación aquí con resaltado amarillo</small>
-              </div>
-            )}
-            
-            <div style={{ position: 'relative', display: 'inline-block' }}>
-              <Document
-                file={pdfUrl}
-                onLoadSuccess={onDocumentLoadSuccess}
-                onLoadError={(error) => {
-                  console.error('[PDFViewer] ❌ Error al cargar PDF:', error)
-                  console.error('[PDFViewer] 📄 URL intentada:', pdfUrl)
-                }}
-                loading={
-                  <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
-                    <Spinner animation="border" />
-                  </div>
-                }
-                error={
-                  <div className="d-flex flex-column justify-content-center align-items-center" style={{ minHeight: '400px', padding: '2rem' }}>
-                    <Alert variant="danger">
-                      <strong>Error al cargar el PDF</strong>
-                      <br />
-                      <small>URL: {pdfUrl}</small>
-                      <br />
-                      <small>Verifica que el PDF esté disponible y accesible.</small>
-                    </Alert>
-                  </div>
-                }
-              >
-                <div style={{ position: 'relative', display: 'inline-block' }}>
-                  <PDFPage 
-                    pageNumber={pageNumber} 
-                    scale={scale} 
-                    className="border rounded"
-                    renderTextLayer={true}
-                    renderAnnotationLayer={true}
-                    onRenderSuccess={(page) => {
-                      if (page.width && page.height) {
-                        setPageDimensions({
-                          width: page.width,
-                          height: page.height
-                        })
-                      }
-                    }}
-                  />
-                  
-                  {/* Overlay para resaltar productos - VERSIÓN CORREGIDA */}
-                  {(() => {
-                    // Validaciones tempranas con logging detallado
-                    if (!selectedProductData) {
-                      console.log('[PDFViewer] ❌ No hay producto seleccionado (selectedProductData es null)')
-                      return null
-                    }
-                    
-                    console.log('[PDFViewer] 🔍 Verificando producto seleccionado:', {
-                      nombre: selectedProductData.nombre,
-                      id: selectedProductData.id,
-                      tieneCoordenadas: !!selectedProductData.coordenadas,
-                      coordenadas: selectedProductData.coordenadas,
-                      pageNumber,
-                      numPages
-                    })
-                    
-                    if (!selectedProductData.coordenadas) {
-                      console.warn('[PDFViewer] ⚠️ Producto seleccionado pero NO tiene coordenadas:', {
-                        nombre: selectedProductData.nombre,
-                        id: selectedProductData.id,
-                        productoCompleto: selectedProductData
-                      })
-                      return null
-                    }
-                    
-                    const coord = selectedProductData.coordenadas
-                    
-                    // Verificar página correcta
-                    if (coord.pagina !== pageNumber) {
-                      console.log('[PDFViewer] ⏭️ Producto en página diferente:', {
-                        paginaProducto: coord.pagina,
-                        paginaActual: pageNumber
-                      })
-                      return null
-                    }
-                    
-                    // Verificar coordenadas X/Y
-                    if (coord.posicion_x === undefined || 
-                        coord.posicion_x === null ||
-                        coord.posicion_y === undefined || 
-                        coord.posicion_y === null) {
-                      console.warn('[PDFViewer] ⚠️ Producto sin coordenadas X/Y:', {
-                        producto: selectedProductData.nombre,
-                        coordenadas: coord
-                      })
-                      return null
-                    }
-
-                    // Determinar si son coordenadas reales o aproximadas
-                    const esCoordenadasReales = coord.ancho !== undefined && 
-                                                coord.ancho !== null && 
-                                                coord.alto !== undefined && 
-                                                coord.alto !== null
-
-                    console.log('[PDFViewer] ✅ RENDERIZANDO OVERLAY:', {
-                      producto: selectedProductData.nombre,
-                      tipo: esCoordenadasReales ? '🎯 COORDENADAS REALES' : '📍 COORDENADAS APROXIMADAS',
-                      pagina: coord.pagina,
-                      posicion_x: `${coord.posicion_x}%`,
-                      posicion_y: `${coord.posicion_y}%`,
-                      ancho: coord.ancho ? `${coord.ancho}%` : 'calculado',
-                      alto: coord.alto ? `${coord.alto}%` : '30px',
-                    })
-
-                    // RETORNAR JSX DIRECTAMENTE (NO BOOLEAN)
-                    return (
-                      <PDFHighlight
-                        producto={selectedProductData}
-                        pageNumber={pageNumber}
-                        scale={scale}
-                      />
-                    )
-                  })()}
+            <Document
+              file={pdfUrl}
+              onLoadSuccess={onDocumentLoadSuccess}
+              onLoadError={(error) => {
+                console.error('[PDFViewer] Error al cargar PDF:', error)
+              }}
+              loading={
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  minHeight: '400px',
+                  minWidth: '300px',
+                  gap: '1rem'
+                }}>
+                  <Spinner animation="border" variant="primary" />
+                  <span style={{ color: '#666', fontSize: '0.9rem' }}>Cargando PDF...</span>
                 </div>
-              </Document>
-            </div>
+              }
+              error={
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  minHeight: '400px',
+                  minWidth: '300px',
+                  padding: '2rem'
+                }}>
+                  <div style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '50%',
+                    background: '#ffebee',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: '1rem'
+                  }}>
+                    <TbFileText size={32} color="#f44336" />
+                  </div>
+                  <h6 style={{ color: '#333', marginBottom: '0.5rem' }}>Error al cargar el PDF</h6>
+                  <p style={{
+                    color: '#666',
+                    fontSize: '0.8rem',
+                    textAlign: 'center',
+                    maxWidth: '250px',
+                    margin: 0
+                  }}>
+                    Verifica que el archivo esté disponible y sea accesible.
+                  </p>
+                </div>
+              }
+            >
+              <PDFPage
+                pageNumber={pageNumber}
+                scale={scale}
+                renderTextLayer={true}
+                renderAnnotationLayer={true}
+                onRenderSuccess={(page) => {
+                  if (page.width && page.height) {
+                    setPageDimensions({
+                      width: page.width,
+                      height: page.height
+                    })
+                  }
+                  // Esperar a que el TextLayer se renderice después del canvas
+                  // El TextLayer se renderiza después del onRenderSuccess del canvas
+                  if (selectedProductData) {
+                    // Intentar múltiples veces con delays incrementales
+                    const attempts = [300, 600, 1000]
+                    attempts.forEach((delay, index) => {
+                      setTimeout(() => {
+                        if (pdfContainerRef.current) {
+                          const textLayer = pdfContainerRef.current.querySelector('.react-pdf__Page__textContent')
+                          if (textLayer && textLayer.children.length > 0) {
+                            console.log(`[PDFViewer] TextLayer encontrado en intento ${index + 1} (${delay}ms)`)
+                            executeSearch(true)
+                          }
+                        }
+                      }, delay)
+                    })
+                  }
+                }}
+              />
+            </Document>
           </div>
         </div>
       </CardBody>

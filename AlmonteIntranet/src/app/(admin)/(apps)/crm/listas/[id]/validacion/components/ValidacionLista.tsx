@@ -1,25 +1,28 @@
 /**
  * ValidacionLista - Componente refactorizado
  * Usa hooks y componentes modulares para mantener el código limpio
- * Reducido de 3,736 líneas a ~450 líneas
+ * Con paneles redimensionables y toast notifications
  */
 
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { Container, Row, Col, Alert, Button, Badge } from 'react-bootstrap'
+import { Container, Alert, Button, Badge } from 'react-bootstrap'
 import { TbArrowLeft } from 'react-icons/tb'
+import { Toaster } from 'react-hot-toast'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 
 // Hooks
 import { useProductos } from '../hooks/useProductos'
 import { usePDFViewer } from '../hooks/usePDFViewer'
 import { useProductosCRUD } from '../hooks/useProductosCRUD'
+import { useToast } from '../hooks/useToast'
 
 // Componentes
 import ProductosTable from './ProductosTable/ProductosTable'
 import PDFViewer from './PDFViewer/PDFViewer'
+import ResizablePanels from './ResizablePanels'
 import EditProductModal from './Modals/EditProductModal'
 import AddProductModal from './Modals/AddProductModal'
 import ExcelImportModal from './Modals/ExcelImportModal'
@@ -27,31 +30,6 @@ import LogsModal from './Modals/LogsModal'
 
 // Tipos
 import type { ListaData, ProductoIdentificado } from '../types'
-
-// Estilos para animación de pulso del resaltado
-const highlightStyles = `
-  @keyframes pulse {
-    0%, 100% {
-      opacity: 0.5;
-      box-shadow: 0 4px 12px rgba(255, 193, 7, 0.6), inset 0 0 10px rgba(255, 235, 59, 0.3);
-    }
-    50% {
-      opacity: 0.7;
-      box-shadow: 0 6px 16px rgba(255, 193, 7, 0.8), inset 0 0 15px rgba(255, 235, 59, 0.5);
-    }
-  }
-`
-
-// Inyectar estilos si no existen
-if (typeof document !== 'undefined') {
-  const styleId = 'pdf-highlight-styles'
-  if (!document.getElementById(styleId)) {
-    const style = document.createElement('style')
-    style.id = styleId
-    style.textContent = highlightStyles
-    document.head.appendChild(style)
-  }
-}
 
 interface ValidacionListaProps {
   lista: ListaData | null
@@ -62,6 +40,7 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
   const router = useRouter()
   const params = useParams()
   const listaIdFromUrl = params?.id as string
+  const toast = useToast()
 
   // Normalizar datos de Strapi
   const normalizarLista = (listaData: any): ListaData | null => {
@@ -173,58 +152,26 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
 
   // Handlers
   const handleProductoClick = (productoId: string | number) => {
-    console.log('[ValidacionLista] 🖱️ Click en producto:', productoId)
-    console.log('[ValidacionLista] 📊 Estado actual:', {
-      selectedProduct,
-      selectedProductData: selectedProductData?.nombre || null,
-      totalProductos: productos.length
-    })
-    
     const producto = productos.find(p => p.id === productoId)
-    
+
     if (!producto) {
-      console.error('[ValidacionLista] ❌ Producto no encontrado:', productoId)
-      console.log('[ValidacionLista] 📦 Productos disponibles:', productos.map(p => ({ id: p.id, nombre: p.nombre })))
+      console.error('[ValidacionLista] Producto no encontrado:', productoId)
       return
     }
 
-    console.log('[ValidacionLista] 📦 Producto encontrado:', {
-      id: producto.id,
-      nombre: producto.nombre,
-      tieneCoordenadas: !!producto.coordenadas,
-      coordenadas: producto.coordenadas,
-      pagina: producto.coordenadas?.pagina,
-      posicion_x: producto.coordenadas?.posicion_x,
-      posicion_y: producto.coordenadas?.posicion_y
-    })
-
     // Toggle: si ya está seleccionado, deseleccionar
     const isAlreadySelected = selectedProduct === productoId
-    
+
     if (isAlreadySelected) {
-      console.log('[ValidacionLista] ⚪ Deseleccionando producto')
       setSelectedProduct(null)
-      setSelectedProductData(null) // ✅ CRÍTICO: Limpiar también selectedProductData
+      setSelectedProductData(null)
     } else {
-      console.log('[ValidacionLista] 🟢 Seleccionando producto')
       setSelectedProduct(productoId)
-      setSelectedProductData(producto) // ✅ CRÍTICO: Actualizar selectedProductData
-      
-      console.log('[ValidacionLista] ✅ Estados actualizados:', {
-        selectedProduct: productoId,
-        selectedProductDataNombre: producto.nombre,
-        coordenadas: producto.coordenadas
-      })
-      
+      setSelectedProductData(producto)
+
       // Navegar a la página del producto si tiene coordenadas
       if (producto.coordenadas?.pagina) {
-        console.log('[ValidacionLista] 📄 Navegando a página:', producto.coordenadas.pagina)
         pdfViewer.navegarAPagina(producto.coordenadas.pagina)
-      } else {
-        console.warn('[ValidacionLista] ⚠️ Producto NO tiene página en coordenadas:', {
-          nombre: producto.nombre,
-          coordenadas: producto.coordenadas
-        })
       }
     }
   }
@@ -239,7 +186,7 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
 
     const idParaUsar = listaIdFromUrl || lista?.id || lista?.documentId
     if (!idParaUsar) {
-      alert('No se puede editar: ID de lista no encontrado')
+      toast.error('Error', 'No se puede editar: ID de lista no encontrado')
       return
     }
 
@@ -255,20 +202,25 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
         throw new Error(data.error || 'Error al editar el producto')
       }
 
-      alert('✅ Producto editado exitosamente')
+      toast.success('Producto editado', 'Los cambios se guardaron correctamente')
       setShowEditModal(false)
       setProductoEditando(null)
       await cargarProductos(true)
     } catch (error: any) {
-      alert(`Error al editar el producto: ${error.message}`)
+      toast.error('Error al editar', error.message)
     }
   }
 
-  const solicitarProcesarPDF = () => {
+  const solicitarProcesarPDF = async () => {
     if (productos.length > 0) {
-      if (!confirm('Este PDF ya fue procesado. ¿Deseas reprocesarlo?')) {
-        return
-      }
+      const confirmado = await toast.confirm({
+        title: 'Reprocesar PDF',
+        text: 'Este PDF ya fue procesado. ¿Deseas reprocesarlo? Se reemplazarán los productos actuales.',
+        type: 'warning',
+        confirmText: 'Si, reprocesar',
+        cancelText: 'Cancelar'
+      })
+      if (!confirmado) return
     }
     procesarPDFConIA(true)
   }
@@ -276,11 +228,13 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
   const procesarPDFConIA = async (forzarReprocesar: boolean = false) => {
     const idParaUsar = listaIdFromUrl || lista?.id || lista?.documentId
     if (!idParaUsar) {
-      alert('No se puede procesar el PDF: ID de lista no encontrado')
+      toast.error('Error', 'No se puede procesar el PDF: ID de lista no encontrado')
       return
     }
 
     setProcessingPDF(true)
+    toast.info('Procesando', 'Analizando el PDF con IA...')
+
     try {
       const response = await fetch(`/api/crm/listas/${idParaUsar}/procesar-pdf`, {
         method: 'POST',
@@ -293,10 +247,13 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
         throw new Error(data.error || 'Error al procesar el PDF')
       }
 
-      alert(`✅ PDF procesado exitosamente: ${data.productos?.length || 0} productos identificados`)
+      toast.success(
+        'PDF procesado',
+        `Se identificaron ${data.productos?.length || 0} productos`
+      )
       await cargarProductos(true)
     } catch (error: any) {
-      alert(`Error al procesar PDF: ${error.message}`)
+      toast.error('Error al procesar', error.message)
     } finally {
       setProcessingPDF(false)
     }
@@ -312,7 +269,7 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
         setShowLogsModal(true)
       }
     } catch (error: any) {
-      alert(`Error al cargar logs: ${error.message}`)
+      toast.error('Error', `No se pudieron cargar los logs: ${error.message}`)
     } finally {
       setLoadingLogs(false)
     }
@@ -334,8 +291,8 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
         return
       }
 
-      const tieneProductos = lista.versiones_materiales && 
-        lista.versiones_materiales.length > 0 && 
+      const tieneProductos = lista.versiones_materiales &&
+        lista.versiones_materiales.length > 0 &&
         lista.versiones_materiales[0]?.materiales &&
         lista.versiones_materiales[0].materiales.length > 0
 
@@ -360,7 +317,7 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
   if (error) {
     return (
       <Container fluid>
-        <PageBreadcrumb title="Validación de Lista de Útiles" subtitle="CRM" />
+        <PageBreadcrumb title="Validacion de Lista de Utiles" subtitle="CRM" />
         <Alert variant="danger">
           <strong>Error:</strong> {error}
         </Alert>
@@ -375,9 +332,9 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
   if (!lista) {
     return (
       <Container fluid>
-        <PageBreadcrumb title="Validación de Lista de Útiles" subtitle="CRM" />
+        <PageBreadcrumb title="Validacion de Lista de Utiles" subtitle="CRM" />
         <Alert variant="warning">
-          No se encontró la lista solicitada.
+          No se encontro la lista solicitada.
         </Alert>
         <Button variant="primary" onClick={() => router.push('/crm/listas')}>
           <TbArrowLeft className="me-2" />
@@ -389,135 +346,149 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
 
   const versiones = lista.versiones_materiales || []
 
+  // Panel izquierdo: Tabla de productos
+  const leftPanel = (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      backgroundColor: 'white'
+    }}>
+      <ProductosTable
+        productos={productos}
+        loading={loading}
+        selectedProduct={selectedProduct}
+        onProductoClick={handleProductoClick}
+        onToggleValidado={aprobarProducto}
+        onEditarProducto={handleEditarProducto}
+        onEliminarProducto={eliminarProducto}
+        onNavegarAPDF={(producto) => pdfViewer.navegarAProducto(producto)}
+        isApprovingProduct={isApprovingProduct}
+        estadoRevision={estadoRevision}
+        isApproving={isApproving}
+        onAprobarListaCompleta={aprobarListaCompleta}
+        lista={lista}
+        versionActual={versionActual}
+        processingPDF={processingPDF}
+        autoProcessAttempted={autoProcessAttempted}
+      />
+    </div>
+  )
+
+  // Panel derecho: Visor de PDF
+  const rightPanel = (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      background: '#f5f5f5'
+    }}>
+      <PDFViewer
+        lista={lista}
+        versionActual={versionActual}
+        versiones={versiones}
+        versionSeleccionada={versionSeleccionada}
+        mostrarTodosLosProductos={mostrarTodosLosProductos}
+        onChangeVersion={cambiarVersion}
+        onChangeMostrarTodos={setMostrarTodosLosProductos}
+        onRecargarProductos={() => cargarProductos(true)}
+        pdfViewer={pdfViewer}
+        selectedProductData={selectedProductData}
+        processingPDF={processingPDF}
+        onProcesarPDF={solicitarProcesarPDF}
+        loadingLogs={loadingLogs}
+        onCargarLogs={cargarLogs}
+        onClearSelection={() => {
+          setSelectedProduct(null)
+          setSelectedProductData(null)
+        }}
+      />
+    </div>
+  )
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <div style={{ 
+      <div style={{
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         color: 'white',
-        padding: '1.5rem',
+        padding: '1rem 1.5rem',
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
         flexShrink: 0
       }}>
         <div className="d-flex justify-content-between align-items-center">
           <div>
-            <h2 className="mb-2" style={{ fontSize: '1.75rem', fontWeight: 600 }}>
-              Validación de Lista de Útiles Escolares
+            <h2 className="mb-1" style={{ fontSize: '1.5rem', fontWeight: 600 }}>
+              Validacion de Lista de Utiles
             </h2>
-            <div className="d-flex gap-2 flex-wrap align-items-center">
+            <div className="d-flex gap-2 flex-wrap align-items-center" style={{ fontSize: '0.9rem' }}>
               <span><strong>Colegio:</strong> {
-                lista.colegio?.nombre || 
-                (lista.colegio as any)?.data?.attributes?.nombre || 
+                lista.colegio?.nombre ||
+                (lista.colegio as any)?.data?.attributes?.nombre ||
                 (lista.colegio as any)?.data?.nombre ||
                 (lista.colegio as any)?.attributes?.nombre ||
                 'N/A'
               }</span>
-              <Badge bg="light" text="dark" className="ms-2">
-                Curso: {lista.nombre}
+              <Badge bg="light" text="dark" style={{ fontSize: '0.8rem' }}>
+                {lista.nombre}
               </Badge>
               {estadoRevision && (
-                <Badge 
+                <Badge
                   bg={
                     estadoRevision === 'publicado' ? 'success' :
                     estadoRevision === 'revisado' ? 'info' :
                     estadoRevision === 'borrador' ? 'warning' :
                     'secondary'
                   }
-                  className="ms-2"
-                  style={{ fontSize: '0.875rem', padding: '0.5rem 0.75rem' }}
+                  style={{ fontSize: '0.8rem' }}
                 >
-                  {estadoRevision === 'publicado' ? '✓ Publicado' :
-                   estadoRevision === 'revisado' ? '👁 En Revisión' :
-                   estadoRevision === 'borrador' ? '✏ Borrador' :
-                   '✗ Sin Validar'}
+                  {estadoRevision === 'publicado' ? 'Publicado' :
+                   estadoRevision === 'revisado' ? 'En Revision' :
+                   estadoRevision === 'borrador' ? 'Borrador' :
+                   'Sin Validar'}
                 </Badge>
               )}
-              <Badge bg="light" text="dark">
-                Año: {lista.año || new Date().getFullYear()}
+              <Badge bg="light" text="dark" style={{ fontSize: '0.8rem' }}>
+                {lista.año || new Date().getFullYear()}
               </Badge>
             </div>
           </div>
-          <Button 
-            variant="light" 
+          <Button
+            variant="light"
+            size="sm"
             onClick={() => router.push('/crm/listas')}
             className="d-flex align-items-center"
           >
-            <TbArrowLeft className="me-2" />
+            <TbArrowLeft className="me-1" />
             Volver
           </Button>
         </div>
       </div>
 
-      {/* Main Content */}
-      <Row className="g-0" style={{ flex: '1 1 auto', minHeight: 0 }}>
-        {/* Columna Izquierda: Productos */}
-        <Col xs={12} md={6} style={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          minHeight: 'calc(100vh - 200px)',
-          borderRight: '1px solid #dee2e6',
-          position: 'relative',
-          zIndex: 10,
-          backgroundColor: 'white'
-        }}>
-          <ProductosTable
-            productos={productos}
-            loading={loading}
-            selectedProduct={selectedProduct}
-            onProductoClick={handleProductoClick}
-            onToggleValidado={aprobarProducto}
-            onEditarProducto={handleEditarProducto}
-            onEliminarProducto={eliminarProducto}
-            onNavegarAPDF={(producto) => pdfViewer.navegarAProducto(producto)}
-            isApprovingProduct={isApprovingProduct}
-            estadoRevision={estadoRevision}
-            isApproving={isApproving}
-            onAprobarListaCompleta={aprobarListaCompleta}
-            lista={lista}
-            versionActual={versionActual}
-            processingPDF={processingPDF}
-            autoProcessAttempted={autoProcessAttempted}
-          />
-        </Col>
-
-        {/* Columna Derecha: PDF Viewer */}
-        <Col xs={12} md={6} className="pdf-viewer-container" style={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          minHeight: 'calc(100vh - 200px)',
-          background: '#f5f5f5',
-          position: 'relative',
-          zIndex: 0
-        }}>
-          <PDFViewer
-            lista={lista}
-            versionActual={versionActual}
-            versiones={versiones}
-            versionSeleccionada={versionSeleccionada}
-            mostrarTodosLosProductos={mostrarTodosLosProductos}
-            onChangeVersion={cambiarVersion}
-            onChangeMostrarTodos={setMostrarTodosLosProductos}
-            onRecargarProductos={() => cargarProductos(true)}
-            pdfViewer={pdfViewer}
-            selectedProductData={selectedProductData}
-            processingPDF={processingPDF}
-            onProcesarPDF={solicitarProcesarPDF}
-            loadingLogs={loadingLogs}
-            onCargarLogs={cargarLogs}
-          />
-        </Col>
-      </Row>
+      {/* Main Content con paneles redimensionables */}
+      <ResizablePanels
+        leftPanel={leftPanel}
+        rightPanel={rightPanel}
+        defaultLeftWidth={50}
+        minLeftWidth={30}
+        maxLeftWidth={70}
+        storageKey="validacion-panel-width"
+      />
 
       {/* Footer */}
-      <div style={{ 
-        padding: '0.5rem 1rem', 
+      <div style={{
+        padding: '0.4rem 1rem',
         background: '#f8f9fa',
         borderTop: '1px solid #dee2e6',
-        textAlign: 'right',
-        fontSize: '0.875rem',
-        color: '#6c757d'
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        fontSize: '0.8rem',
+        color: '#6c757d',
+        flexShrink: 0
       }}>
-        Sistema de validación con IA
+        <span>Arrastra el separador central para redimensionar los paneles</span>
+        <span>Sistema de validacion con IA</span>
       </div>
 
       {/* Modales */}
@@ -550,6 +521,18 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
         show={showLogsModal}
         logs={logs}
         onHide={() => setShowLogsModal(false)}
+      />
+
+      {/* Toast notifications */}
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            borderRadius: '8px',
+            fontSize: '14px',
+          },
+        }}
       />
     </div>
   )

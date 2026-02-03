@@ -1,11 +1,14 @@
 /**
  * Hook para manejar operaciones CRUD de productos
  * Extrae la lógica de aprobar, editar, eliminar productos
+ * Usa react-hot-toast para notificaciones
  */
 
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Swal from 'sweetalert2'
 import type { ProductoIdentificado, ListaData } from '../types'
+import { toast } from './useToast'
 
 interface UseProductosCRUDParams {
   lista: ListaData | null
@@ -18,6 +21,28 @@ interface UseProductosCRUDParams {
   setLista?: React.Dispatch<React.SetStateAction<ListaData | null>>
   setSelectedProduct?: React.Dispatch<React.SetStateAction<string | number | null>>
   setSelectedProductData?: React.Dispatch<React.SetStateAction<ProductoIdentificado | null>>
+}
+
+// Función de confirmación usando SweetAlert2 (solo para diálogos)
+const confirmar = async (options: {
+  title: string
+  text?: string
+  confirmText?: string
+  cancelText?: string
+  type?: 'warning' | 'question' | 'info'
+}): Promise<boolean> => {
+  const result = await Swal.fire({
+    title: options.title,
+    text: options.text,
+    icon: options.type || 'question',
+    showCancelButton: true,
+    confirmButtonColor: '#667eea',
+    cancelButtonColor: '#6c757d',
+    confirmButtonText: options.confirmText || 'Confirmar',
+    cancelButtonText: options.cancelText || 'Cancelar',
+    reverseButtons: true
+  })
+  return result.isConfirmed
 }
 
 export function useProductosCRUD({
@@ -40,8 +65,7 @@ export function useProductosCRUD({
   const aprobarProducto = useCallback(async (productoId: string | number) => {
     const producto = productos.find(p => p.id === productoId)
     if (!producto) {
-      console.error('[useProductosCRUD] Producto no encontrado:', productoId)
-      alert('Error: Producto no encontrado')
+      toast.error('Producto no encontrado')
       return
     }
 
@@ -49,23 +73,21 @@ export function useProductosCRUD({
     const idParaUsar = listaIdFromUrl || lista?.id || lista?.documentId
 
     if (!idParaUsar) {
-      alert('Error: No se puede aprobar. ID de lista no encontrado.')
+      toast.error('ID de lista no encontrado')
       return
     }
 
     setIsApprovingProduct(productoId)
 
     // Optimistic update
-    setProductos(prev => prev.map(p => 
+    setProductos(prev => prev.map(p =>
       p.id === productoId ? { ...p, validado: nuevoEstado } : p
     ))
 
     try {
       const response = await fetch(`/api/crm/listas/${idParaUsar}/aprobar-producto`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productoId: productoId,
           productoNombre: producto.nombre,
@@ -77,33 +99,27 @@ export function useProductosCRUD({
       const data = await response.json()
 
       if (!response.ok || !data.success) {
-        // Revertir cambio optimista
-        setProductos(prev => prev.map(p => 
+        setProductos(prev => prev.map(p =>
           p.id === productoId ? { ...p, validado: !nuevoEstado } : p
         ))
-        throw new Error(data.error || data.detalles || 'Error al aprobar el producto')
+        throw new Error(data.error || 'Error al aprobar')
       }
 
-      // Si todos los productos están aprobados, actualizar estado
       if (data.data.listaAprobada) {
-        console.log('[useProductosCRUD] ✅ Todos los productos aprobados')
         setEstadoRevision('revisado')
+        toast.success('Lista completa validada')
         if (onSuccess) await onSuccess()
         router.refresh()
       } else if (!nuevoEstado) {
-        // Si se desaprueba, volver a borrador
         setEstadoRevision('borrador')
         router.refresh()
       }
 
-      console.log('[useProductosCRUD] ✅ Producto aprobado:', { productoId, aprobado: nuevoEstado })
     } catch (error: any) {
-      console.error('[useProductosCRUD] ❌ Error al aprobar producto:', error)
-      // Revertir cambio local
-      setProductos(prev => prev.map(p => 
+      setProductos(prev => prev.map(p =>
         p.id === productoId ? { ...p, validado: !nuevoEstado } : p
       ))
-      alert(`Error al ${nuevoEstado ? 'aprobar' : 'desaprobar'} el producto: ${error.message || error.detalles || 'Error desconocido'}`)
+      toast.error(error.message || 'Error al aprobar')
     } finally {
       setIsApprovingProduct(null)
     }
@@ -115,91 +131,75 @@ export function useProductosCRUD({
       e.stopPropagation()
     }
 
-    if (loading || isApproving) {
-      console.warn('[useProductosCRUD] ⚠️ Ya hay una aprobación en proceso')
-      return
-    }
+    if (loading || isApproving) return
 
     if (productos.length === 0) {
-      alert('No hay productos para aprobar')
+      toast.warning('No hay productos para aprobar')
       return
     }
 
     const idParaUsar = listaIdFromUrl || lista?.id || lista?.documentId
-
     if (!idParaUsar) {
-      alert('No se puede aprobar: ID de lista no encontrado')
+      toast.error('ID de lista no encontrado')
       return
     }
 
-    if (!confirm(`¿Estás seguro de que deseas aprobar todos los ${productos.length} productos de esta lista?`)) {
-      return
-    }
+    const confirmado = await confirmar({
+      title: 'Aprobar lista completa',
+      text: `Se aprobaran ${productos.length} productos`,
+      type: 'question',
+      confirmText: 'Si, aprobar',
+      cancelText: 'Cancelar'
+    })
+
+    if (!confirmado) return
 
     setLoading(true)
     setIsApproving(true)
+    const loadingToast = toast.loading('Aprobando productos...')
 
     try {
       const response = await fetch('/api/crm/listas/aprobar-lista', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          listaId: idParaUsar,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listaId: idParaUsar }),
       })
 
       const data = await response.json()
+      toast.dismiss(loadingToast)
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || data.details || 'Error al aprobar la lista')
+        throw new Error(data.error || 'Error al aprobar')
       }
 
-      console.log('[useProductosCRUD] ✅ Lista aprobada exitosamente')
-
-      // Recargar datos
       if (onSuccess) await onSuccess()
 
-      // Recargar la lista completa para obtener el estado_revision actualizado
       if (listaIdFromUrl && normalizarLista && setLista) {
         try {
-          const listaResponse = await fetch(`/api/crm/listas/${listaIdFromUrl}`, {
-            cache: 'no-store',
-          })
+          const listaResponse = await fetch(`/api/crm/listas/${listaIdFromUrl}`, { cache: 'no-store' })
           const listaData = await listaResponse.json()
-
           if (listaData.success && listaData.data) {
             const listaNormalizada = normalizarLista(listaData.data)
             setLista(listaNormalizada)
-            const nuevoEstado = (listaNormalizada as any)?.estado_revision || 'revisado'
-            setEstadoRevision(nuevoEstado)
-            console.log('[useProductosCRUD] 🔄 Estado recargado desde API:', nuevoEstado)
+            setEstadoRevision((listaNormalizada as any)?.estado_revision || 'revisado')
           }
-        } catch (err: any) {
-          console.warn('[useProductosCRUD] ⚠️ Error al recargar estado:', err.message)
+        } catch {
           setEstadoRevision('revisado')
         }
       } else {
         setEstadoRevision('revisado')
       }
 
-      // Obtener colegioId para redirección
-      const colegioId = lista?.colegio?.id || (lista?.colegio as any)?.data?.id || (lista?.colegio as any)?.data?.documentId
+      toast.success('Lista aprobada correctamente')
 
-      // Redirigir al listado del colegio
+      const colegioId = lista?.colegio?.id || (lista?.colegio as any)?.data?.id
       if (colegioId) {
         router.refresh()
         router.push(`/crm/listas/colegio/${colegioId}?t=${Date.now()}`)
-        setTimeout(() => {
-          alert('✅ Lista aprobada exitosamente. El estado se ha actualizado.')
-        }, 500)
-      } else {
-        alert('✅ Lista aprobada exitosamente')
       }
     } catch (error: any) {
-      console.error('[useProductosCRUD] ❌ Error al aprobar lista:', error)
-      alert(`Error al aprobar la lista: ${error.message || error.details || 'Error desconocido'}`)
+      toast.dismiss(loadingToast)
+      toast.error(error.message || 'Error al aprobar')
     } finally {
       setLoading(false)
       setIsApproving(false)
@@ -207,77 +207,61 @@ export function useProductosCRUD({
   }, [productos, listaIdFromUrl, lista, loading, isApproving, onSuccess, normalizarLista, setLista, setEstadoRevision, router])
 
   const eliminarProducto = useCallback(async (producto: ProductoIdentificado) => {
-    if (!confirm(`¿Estás seguro de que deseas eliminar "${producto.nombre}" de la lista?`)) {
-      return
-    }
+    const confirmado = await confirmar({
+      title: 'Eliminar producto',
+      text: `"${producto.nombre}"`,
+      type: 'warning',
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar'
+    })
+
+    if (!confirmado) return
 
     const idParaUsar = listaIdFromUrl || lista?.id || lista?.documentId
     if (!idParaUsar) {
-      alert('No se puede eliminar: ID de lista no encontrado')
+      toast.error('ID de lista no encontrado')
       return
     }
 
     setLoading(true)
-
-    // Optimistic update - Actualizar UI inmediatamente
     const productosAnteriores = [...productos]
     setProductos(prev => prev.filter(p => p.id !== producto.id))
-    
-    // Si el producto eliminado es el seleccionado, deseleccionarlo
+
     if (setSelectedProduct && setSelectedProductData) {
       setSelectedProduct(null)
       setSelectedProductData(null)
     }
 
     try {
-      const productoIndex = productosAnteriores.findIndex(p => p.id === producto.id)
-
-      console.log('[useProductosCRUD] 🗑️ Eliminando producto:', {
-        productoId: producto.id,
-        productoNombre: producto.nombre,
-        productoIndex,
-      })
-
       const response = await fetch(`/api/crm/listas/${idParaUsar}/productos/${producto.id}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nombre: producto.nombre,
-          index: productoIndex,
+          index: productosAnteriores.findIndex(p => p.id === producto.id),
         }),
       })
 
       const data = await response.json()
 
       if (!response.ok || !data.success) {
-        // Revertir cambio optimista si hay error
         setProductos(productosAnteriores)
-        if (setSelectedProduct && setSelectedProductData) {
-          setSelectedProduct(producto.id)
-          setSelectedProductData(producto)
-        }
-        throw new Error(data.error || 'Error al eliminar el producto')
+        throw new Error(data.error || 'Error al eliminar')
       }
 
-      console.log('[useProductosCRUD] ✅ Producto eliminado exitosamente')
+      toast.success('Producto eliminado')
 
-      // NO recargar - el estado local ya está actualizado con optimistic update
-      // Solo sincronizar en background si es necesario
     } catch (error: any) {
-      console.error('[useProductosCRUD] ❌ Error al eliminar producto:', error)
-      // Revertir cambio optimista
       setProductos(productosAnteriores)
       if (setSelectedProduct && setSelectedProductData) {
         setSelectedProduct(producto.id)
         setSelectedProductData(producto)
       }
-      alert(`Error al eliminar el producto: ${error.message}`)
+      toast.error(error.message || 'Error al eliminar')
     } finally {
       setLoading(false)
     }
-  }, [productos, listaIdFromUrl, lista, onSuccess, setProductos])
+  }, [productos, listaIdFromUrl, lista, setProductos, setSelectedProduct, setSelectedProductData])
 
   return {
     aprobarProducto,

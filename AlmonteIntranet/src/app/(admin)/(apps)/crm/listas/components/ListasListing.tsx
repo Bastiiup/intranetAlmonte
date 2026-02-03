@@ -16,7 +16,7 @@ import {
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
-import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge } from 'react-bootstrap'
+import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge, Spinner } from 'react-bootstrap'
 import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw, LuFileCode, LuPackageSearch } from 'react-icons/lu'
 import { TbEdit, TbTrash } from 'react-icons/tb'
 
@@ -90,6 +90,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
   const [showCursosModal, setShowCursosModal] = useState(false)
   const [colegioIdModal, setColegioIdModal] = useState<string | number | null>(null)
   const [colegioNombreModal, setColegioNombreModal] = useState<string>('')
+  const [navegandoA, setNavegandoA] = useState<string | number | null>(null)
 
   // Los datos ya vienen transformados desde la API /api/crm/listas/por-colegio
   const mappedListas = useMemo(() => {
@@ -200,15 +201,27 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
       enableSorting: true,
       cell: ({ row }) => {
         const cantidad = row.original.cantidadPDFs || 0
-        if (cantidad > 0) {
-          return (
-            <Badge bg="success" className="fs-13">
-              <LuFileText className="me-1" size={12} />
-              {cantidad}
-            </Badge>
-          )
-        }
-        return <Badge bg="secondary">0</Badge>
+        const tienePDF = cantidad > 0
+        return (
+          <Badge
+            bg={tienePDF ? 'success' : 'secondary'}
+            className="fs-13"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            {tienePDF ? (
+              <>
+                <LuFileText size={12} />
+                Si
+              </>
+            ) : (
+              'No'
+            )}
+          </Badge>
+        )
       },
     },
     {
@@ -313,16 +326,35 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               <LuEye className="me-1" />
               Modal
             </Button>
-            <Link href={`/crm/listas/colegio/${colegioId}`}>
-              <Button
-                variant="primary"
-                size="sm"
-                title="Ver cursos en pantalla completa (redirige)"
-              >
-                <LuEye className="me-1" />
-                Ver
-              </Button>
-            </Link>
+            <Button
+              variant="primary"
+              size="sm"
+              title="Ver cursos en pantalla completa"
+              disabled={navegandoA === colegioId}
+              onClick={() => {
+                setNavegandoA(colegioId)
+                router.push(`/crm/listas/colegio/${colegioId}`)
+              }}
+              style={{
+                minWidth: '70px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px'
+              }}
+            >
+              {navegandoA === colegioId ? (
+                <>
+                  <Spinner animation="border" size="sm" style={{ width: '14px', height: '14px' }} />
+                  <span>Cargando...</span>
+                </>
+              ) : (
+                <>
+                  <LuEye />
+                  <span>Ver</span>
+                </>
+              )}
+            </Button>
             <Button
               variant="outline-primary"
               size="sm"
