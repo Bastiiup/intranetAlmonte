@@ -886,7 +886,7 @@ async function procesarConClaude(
       
       if (parsed.productos.length > 0) {
         console.log(`📦 Primer producto:`, JSON.stringify(parsed.productos[0], null, 2))
-        logger.info(`📦 Primer producto:`, JSON.stringify(parsed.productos[0], null, 2))
+        logger.info(`📦 Primer producto:`, { producto: parsed.productos[0] })
       } else {
         console.warn('⚠️ El campo "productos" está vacío (array vacío)')
         logger.warn('⚠️ El campo "productos" está vacío (array vacío)')
@@ -895,7 +895,7 @@ async function procesarConClaude(
       console.error('❌ El JSON no tiene campo "productos"')
       console.log('📄 JSON completo:', JSON.stringify(parsed, null, 2))
       logger.error('❌ El JSON no tiene campo "productos"')
-      logger.info('📄 JSON completo:', JSON.stringify(parsed, null, 2))
+      logger.info('📄 JSON completo:', { parsed })
       throw new Error('El JSON no tiene campo "productos"')
     }
     } catch (parseError) {
@@ -914,13 +914,13 @@ async function procesarConClaude(
       
       if (validado.productos.length === 0) {
         logger.warn('⚠️ ADVERTENCIA: Validación exitosa pero 0 productos en el resultado')
-        logger.info('📄 JSON completo para revisión:', JSON.stringify(parsed, null, 2))
+        logger.info('📄 JSON completo para revisión:', { parsed })
       }
     } catch (zodError) {
       if (zodError instanceof z.ZodError) {
-        logger.error('❌ Error de validación Zod:', JSON.stringify(zodError.errors, null, 2))
+        logger.error('❌ Error de validación Zod:', { errors: zodError.errors })
         logger.info('📄 Errores detallados:', zodError.errors)
-        logger.info('📄 JSON que falló validación:', JSON.stringify(parsed, null, 2))
+        logger.info('📄 JSON que falló validación:', { parsed })
       }
       throw zodError
     }
