@@ -95,7 +95,7 @@ export async function GET(request: Request) {
 
     // Calcular matrícula total para cada colegio
     const colegiosConMatricula = await Promise.all(
-      (Array.isArray(response.data) ? response.data : [response.data]).map(async (colegio) => {
+      (Array.isArray(response.data) ? response.data : [response.data]).map(async (colegio: any) => {
         const colegioId = colegio.id
         const colegioRbd = colegio.attributes?.rbd || colegio.rbd
         
