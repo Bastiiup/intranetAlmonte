@@ -104,7 +104,21 @@ export async function GET(request: NextRequest) {
 
     // Buscar en los materiales de cada curso
     const resultados: ResultadoProducto[] = []
-    const queryLower = query.toLowerCase().trim()
+    
+    // Normalizar query: quitar acentos, normalizar espacios, convertir a minúsculas
+    const normalizar = (texto: string) => {
+      return texto
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Quitar acentos
+        .replace(/\s+/g, ' ') // Normalizar espacios múltiples a uno solo
+        .trim()
+    }
+    
+    const queryNormalizada = normalizar(query)
+    
+    // Si la query tiene múltiples palabras, separar para buscar todas
+    const palabrasBusqueda = queryNormalizada.split(' ').filter(p => p.length > 0)
 
     cursos.forEach((curso: any) => {
       const attrs = curso.attributes || curso
@@ -126,18 +140,30 @@ export async function GET(request: NextRequest) {
 
       materiales.forEach((material: any) => {
         // Buscar en: nombre, ISBN, marca, asignatura, descripcion
-        const nombre = (material.nombre || '').toLowerCase()
-        const isbn = (material.isbn || '').toLowerCase()
-        const marca = (material.marca || '').toLowerCase()
-        const asignatura = (material.asignatura || '').toLowerCase()
-        const descripcion = (material.descripcion || '').toLowerCase()
+        const nombre = normalizar(material.nombre || '')
+        const isbn = normalizar(material.isbn || '')
+        const marca = normalizar(material.marca || '')
+        const asignatura = normalizar(material.asignatura || '')
+        const descripcion = normalizar(material.descripcion || '')
 
-        const coincide = 
-          nombre.includes(queryLower) ||
-          isbn.includes(queryLower) ||
-          marca.includes(queryLower) ||
-          asignatura.includes(queryLower) ||
-          descripcion.includes(queryLower)
+        // Buscar la frase completa primero (más preciso)
+        let coincide = 
+          nombre.includes(queryNormalizada) ||
+          isbn.includes(queryNormalizada) ||
+          marca.includes(queryNormalizada) ||
+          asignatura.includes(queryNormalizada) ||
+          descripcion.includes(queryNormalizada)
+        
+        // Si no coincide la frase completa, buscar que todas las palabras estén presentes
+        if (!coincide && palabrasBusqueda.length > 1) {
+          coincide = palabrasBusqueda.every(palabra => 
+            nombre.includes(palabra) ||
+            isbn.includes(palabra) ||
+            marca.includes(palabra) ||
+            asignatura.includes(palabra) ||
+            descripcion.includes(palabra)
+          )
+        }
 
         if (coincide) {
           const matriculados = attrs.matricula || 0 // Campo correcto según Strapi: "matricula"
