@@ -112,7 +112,7 @@ export async function GET(request: Request) {
           const cursos = Array.isArray(cursosResponse.data) ? cursosResponse.data : [cursosResponse.data]
           
           // Sumar matrícula de todos los cursos
-          const totalMatricula = cursos.reduce((sum, curso) => {
+          const totalMatricula = cursos.reduce((sum: number, curso: any) => {
             const attrs = curso.attributes || curso
             const matricula = attrs.matricula || 0
             return sum + Number(matricula)
