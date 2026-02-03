@@ -22,6 +22,7 @@ import { TbCheck, TbEye, TbX } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
+import SmartPDFUpload from './SmartPDFUpload'
 
 interface CursoType {
   id: number | string
@@ -125,7 +126,9 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
     mensaje: string
     productosEncontrados?: number
   }>>([])
-
+  
+  // Estado para carga inteligente de PDFs
+  const [showSmartUpload, setShowSmartUpload] = useState(false)
   const columns: ColumnDef<CursoType, any>[] = [
     {
       id: 'select',
@@ -554,6 +557,14 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
               </div>
               <div className="d-flex gap-2">
                 <Button
+                  variant="primary"
+                  onClick={() => setShowSmartUpload(true)}
+                  title="Cargar PDFs automáticamente reconociendo el curso"
+                >
+                  <LuZap className="me-2" />
+                  Carga Inteligente
+                </Button>
+                <Button
                   variant="outline-primary"
                   onClick={() => router.refresh()}
                   title="Recargar para ver cambios actualizados"
@@ -805,6 +816,27 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
           )}
         </Modal.Footer>
       </Modal>
+      
+      {/* Modal de Carga Inteligente */}
+      <SmartPDFUpload
+        show={showSmartUpload}
+        onHide={() => setShowSmartUpload(false)}
+        colegioId={colegio?.documentId || colegio?.id || ''}
+        cursos={mappedCursos.map(c => ({
+          id: c.id,
+          documentId: c.documentId,
+          nombre: c.nombre,
+          nivel: c.nivel === 'Básico' ? 'Basica' : c.nivel === 'Medio' ? 'Media' : c.nivel,
+          grado: c.grado,
+          paralelo: c.nombre.match(/\b([A-Z])\b/)?.[1],
+          letra: c.nombre.match(/\b([A-Z])\b/)?.[1],
+          año: c.año
+        }))}
+        onSuccess={() => {
+          setShowSmartUpload(false)
+          router.refresh()
+        }}
+      />
     </>
   )
 }
