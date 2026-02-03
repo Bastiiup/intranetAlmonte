@@ -66,7 +66,7 @@ export default function DetalleListasModal({ show, onHide, colegio }: DetalleLis
                     </tr>
                   </thead>
                   <tbody>
-                    {cursos.map((curso) => (
+                    {cursos.map((curso: any) => (
                       <tr key={curso.id}>
                         <td>
                           <strong>{curso.nombre || 'Sin nombre'}</strong>
