@@ -158,15 +158,15 @@ export default function ProductosTable({
               <th style={{ width: '100px' }}>Comprar</th>
               <th style={{ width: '140px' }}>Disponibilidad</th>
               <th style={{ width: '100px' }}>Precio</th>
-              <th>Asignatura</th>
-              <th style={{ width: '120px' }}>Ubicación PDF</th>
+              {/* <th>Asignatura</th> */}
+              {/* <th style={{ width: '120px' }}>Ubicación PDF</th> */}
               <th style={{ width: '80px', textAlign: 'center' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {productosAMostrar.length === 0 ? (
               <tr>
-                <td colSpan={12} className="text-center py-4">
+                <td colSpan={10} className="text-center py-4">
                   <Alert variant="info" className="mb-0">
                     No hay productos en esta categoría
                   </Alert>

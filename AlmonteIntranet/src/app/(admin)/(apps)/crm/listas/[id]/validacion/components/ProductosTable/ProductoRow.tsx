@@ -147,8 +147,8 @@ export default function ProductoRow({
           '-'
         )}
       </td>
-      <td>{producto.asignatura || '-'}</td>
-      <td>
+      {/* <td>{producto.asignatura || '-'}</td> */}
+      {/* <td>
         {producto.coordenadas ? (
           <Button
             variant="outline-primary"
@@ -172,7 +172,7 @@ export default function ProductoRow({
         ) : (
           <span className="text-muted" style={{ fontSize: '0.75rem' }}>-</span>
         )}
-      </td>
+      </td> */}
       <td style={{ padding: '4px' }}>
         <div className="d-flex gap-1 justify-content-center">
           <Button
