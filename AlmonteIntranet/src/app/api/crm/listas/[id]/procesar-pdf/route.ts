@@ -1149,7 +1149,7 @@ async function buscarEnWooCommerce(
       logger.debug(`📍 Coordenadas APROXIMADAS para "${nombreBuscar}"`, coordenadas)
     }
     
-    const productoConInfo = {
+    const productoConInfo: ProductoIdentificado = {
       id: productoId,
       validado: false,
       nombre: nombreBuscar,
