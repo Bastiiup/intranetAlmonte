@@ -95,6 +95,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
 import * as pdfParse from 'pdf-parse'
+import crypto from 'crypto'
 import { getColaboradorFromCookies } from '@/lib/auth/cookies'
 import { createWooCommerceClient } from '@/lib/woocommerce/client'
 import type { WooCommerceProduct } from '@/lib/woocommerce/types'
@@ -112,16 +113,68 @@ export const maxDuration = 300
 // CONFIGURACIÓN
 // ============================================
 
-// Modelo de Claude AI
-// claude-sonnet-4-20250514: Claude 4 Sonnet (2025) - Soporta Vision API y PDFs
-// Modelo más reciente y potente disponible
-const CLAUDE_MODEL = 'claude-sonnet-4-20250514'
+// Modelos de Claude AI
+// Sonnet: Más preciso, ideal para PDFs complejos o pequeños
+// Haiku: Más rápido y económico, ideal para PDFs grandes
+const CLAUDE_MODEL_SONNET = 'claude-sonnet-4-20250514'
+const CLAUDE_MODEL_HAIKU = 'claude-3-5-haiku-20241022'
+
+// Umbral de páginas para cambiar de modelo
+const PAGINAS_UMBRAL_HAIKU = 6 // PDFs > 6 páginas usan Haiku (más rápido)
 const MAX_TOKENS_RESPUESTA = 4096 // Tokens para la respuesta
 const MAX_TOKENS_CONTEXTO = 200000
 const TOKENS_POR_CARACTER = 0.25
 const MAX_CARACTERES_SEGURO = 50000 // ~12,500 tokens estimados (~12.5% del límite por minuto)
 const MAX_RETRIES_CLAUDE = 3
 const RETRY_DELAY_MS = 2000 // Aumentado para evitar rate limits
+
+// ============================================
+// CACHÉ DE PROCESAMIENTO
+// ============================================
+
+// Caché en memoria para PDFs procesados (evita reprocesar el mismo PDF)
+const cacheProcesamientos = new Map<string, {
+  resultado: { productos: ProductoExtraido[] }
+  timestamp: number
+  paginas: number
+}>()
+
+const CACHE_TTL_MS = 1000 * 60 * 60 // 1 hora
+
+function obtenerHashPDF(pdfBuffer: Buffer): string {
+  return crypto.createHash('sha256').update(pdfBuffer).digest('hex')
+}
+
+function obtenerDesdeCacheProcesamientos(hash: string): { productos: ProductoExtraido[] } | null {
+  const cached = cacheProcesamientos.get(hash)
+  if (!cached) return null
+  
+  // Verificar si expiró
+  if (Date.now() - cached.timestamp > CACHE_TTL_MS) {
+    cacheProcesamientos.delete(hash)
+    return null
+  }
+  
+  return cached.resultado
+}
+
+function guardarEnCacheProcesamientos(
+  hash: string, 
+  resultado: { productos: ProductoExtraido[] },
+  paginas: number
+): void {
+  cacheProcesamientos.set(hash, {
+    resultado,
+    timestamp: Date.now(),
+    paginas
+  })
+  
+  // Limitar tamaño del caché (máximo 50 PDFs)
+  if (cacheProcesamientos.size > 50) {
+    const firstKey = cacheProcesamientos.keys().next().value
+    if (firstKey) cacheProcesamientos.delete(firstKey)
+  }
+}
 
 // ============================================
 // INTERFACES
@@ -621,123 +674,37 @@ function validarLongitudTexto(texto: string, maxCaracteres: number, logger: Logg
 /**
  * Crea el prompt mejorado para Claude
  */
-function crearPromptMejorado(): string {
-  return `Eres un extractor de datos. Tu ÚNICA tarea es copiar EXACTAMENTE los productos que aparecen en el texto, SIN MODIFICAR, SIN AGREGAR, SIN INVENTAR información.
+function crearPromptOptimizado(): string {
+  return `Extrae TODOS los productos de útiles escolares del PDF. Copia el texto EXACTAMENTE como aparece.
 
-REGLA DE ORO: Si NO está en el texto, NO lo pongas. Si ESTÁ en el texto, cópialo EXACTAMENTE.
+REGLAS DE EXTRACCIÓN:
+1. Productos = líneas con cantidad + nombre (ej: "2 Cuadernos")
+2. Cantidad: número exacto del texto (si no hay → 1)
+3. Nombre: EXACTAMENTE como aparece (NO cambies ni agregues palabras)
+4. ISBN: solo si aparece explícito (quita guiones)
+5. Marca: solo si está en el nombre
+6. Precio: solo si aparece explícito
+7. Asignatura: solo si hay encabezado claro
+8. Descripción: solo detalles técnicos adicionales
 
-INSTRUCCIONES:
+IGNORAR:
+- Títulos (LISTA DE ÚTILES, MATERIALES)
+- Instrucciones (Marcar con nombre)
+- URLs y notas
+- Info administrativa
 
-1. IDENTIFICAR PRODUCTOS:
-   - Busca líneas que tengan: número + nombre de material
-   - Ejemplo: "2 Cuadernos" → ES producto
-   - Ejemplo: "Marcar con nombre" → NO es producto (es instrucción)
-   - Ejemplo: "LISTA DE ÚTILES" → NO es producto (es título)
+⚠️ CRÍTICO:
+- Extrae TODOS los productos (si hay 30 en el PDF → devuelve 30)
+- NO omitas ninguno
+- Revisa TODAS las páginas y líneas
+- Copia EXACTAMENTE (no cambies plural/singular ni agregues palabras)
 
-2. CANTIDAD:
-   - Copia EXACTAMENTE el número que aparece: "2 Cuadernos" → 2
-   - Si dice "dos" → 2, "tres" → 3, "un" → 1
-   - Si NO hay número → 1
-   - NO inventes números que no estén en el texto
-
-3. NOMBRE:
-   - Copia el nombre EXACTAMENTE como aparece en el texto
-   - NO agregues palabras que no estén en el texto original
-   - NO quites palabras que SÍ estén en el texto original
-   - Si dice "Cuaderno universitario 100 hojas cuadriculado" → copia EXACTAMENTE eso
-   - NO cambies "Cuaderno" por "Cuadernos" o viceversa
-   - NO agregues detalles que no estén en el texto
-
-4. ISBN:
-   - SOLO si aparece la palabra "ISBN" o números de 10/13 dígitos
-   - Copia el número EXACTAMENTE, solo quita guiones: "978-84-376-0494-7" → "9788437604947"
-   - Si NO aparece ISBN → null
-   - NO inventes ISBNs
-
-5. MARCA:
-   - SOLO si el nombre incluye una marca: "Lápiz Faber-Castell" → marca: "Faber-Castell"
-   - Si NO hay marca en el texto → null
-   - NO inventes marcas
-
-6. PRECIO:
-   - SOLO si aparece explícitamente: "$5.000", "CLP 5000", "5.000 pesos"
-   - Extrae el número EXACTAMENTE: "$5.000" → 5000
-   - Si dice "gratis" → 0
-   - Si NO hay precio → 0
-   - NO inventes precios
-
-7. ASIGNATURA:
-   - SOLO si hay un encabezado claro: "Matemáticas:" seguido de productos
-   - Si NO está claro → null
-   - NO inventes asignaturas
-
-8. DESCRIPCIÓN:
-   - SOLO si hay detalles técnicos en el nombre: "100 hojas", "HB", "triangular"
-   - Si el nombre ya incluye todo → descripcion: null
-   - NO agregues descripciones que no estén en el texto
-
-9. QUÉ IGNORAR (NO extraer):
-   - Títulos: "LISTA DE ÚTILES", "MATERIALES", "TEXTOS ESCOLARES"
-   - Instrucciones: "Marcar con nombre", "Comprar en...", "Link de compra"
-   - URLs: "https://www.booksandbits.cl/..."
-   - Notas: "Pueden reutilizar", "Opcional", "Sin marcar"
-   - Encabezados: "MATERIALES DE LIBRERIA:", "TEXTOS:"
-   - Información administrativa: nombres de colegios, cursos, fechas
-
-10. COMPLETITUD:
-    - Extrae TODOS los productos que aparezcan en el texto
-    - NO omitas productos porque parezcan similares
-    - Si hay 30 productos en el texto, debes extraer 30
-    - Revisa línea por línea para no perder ninguno
-
-11. FIDELIDAD:
-    - Copia el texto EXACTAMENTE como aparece
-    - NO cambies palabras: "Cuaderno" ≠ "Cuadernos"
-    - NO agregues información: si no dice "universitario", NO lo agregues
-    - NO quites información: si dice "100 hojas", NO lo quites
-    - Si el texto dice "2 Cuadernos", el nombre debe ser "Cuadernos" (plural), NO "Cuaderno" (singular)
-
-FORMATO JSON (sin markdown, solo JSON):
+FORMATO (JSON puro, sin markdown):
 {"productos":[{"cantidad":number,"nombre":string,"isbn":string|null,"marca":string|null,"precio":number,"asignatura":string|null,"descripcion":string|null,"comprar":boolean}]}
 
-EJEMPLOS (copia EXACTAMENTE):
-
-Input: "2 Cuadernos universitarios 100 hojas cuadriculado"
-Output: {"cantidad":2,"nombre":"Cuadernos universitarios 100 hojas cuadriculado","isbn":null,"marca":null,"precio":0,"asignatura":null,"descripcion":null,"comprar":true}
-NOTA: El nombre es "Cuadernos" (plural) porque así aparece en el texto
-
-Input: "1 caja de temperas solidas 12 colores"
-Output: {"cantidad":1,"nombre":"caja de temperas solidas 12 colores","isbn":null,"marca":null,"precio":0,"asignatura":null,"descripcion":null,"comprar":true}
-NOTA: Copia EXACTAMENTE, incluso si empieza con minúscula
-
-Input: "Libro: El Quijote ISBN 978-84-376-0494-7 $15.000"
-Output: {"cantidad":1,"nombre":"El Quijote","isbn":"9788437604947","marca":null,"precio":15000,"asignatura":null,"descripcion":null,"comprar":true}
-
-Input: "Marcar todo con nombre"
-Output: NO incluir (es instrucción, no producto)
-
-⚠️ CRÍTICO - LEE ESTO PRIMERO:
-1. EXTRAE TODOS LOS PRODUCTOS SIN EXCEPCIÓN: Si el PDF tiene 12 productos, debes devolver 12. Si tiene 30, devuelve 30. NO omitas ninguno.
-2. REVISA LÍNEA POR LÍNEA: Cada línea del texto puede tener un producto. Revisa TODAS las líneas desde el inicio hasta el final.
-3. NO TE DETENGAS: Si ves muchos productos, continúa extrayendo hasta el final. NO te detengas a mitad de camino.
-4. CUENTA LOS PRODUCTOS: Al final, cuenta cuántos productos extrajiste y verifica que coincida con el PDF. Si el PDF tiene una tabla con 12 filas de productos, debes extraer 12 productos.
-5. SI HAY DUDAS: Si una línea tiene un número y un nombre de material, es un producto. Inclúyelo.
-6. COPIA EXACTAMENTE: El nombre debe ser EXACTAMENTE como aparece en el texto, sin cambios.
-7. TABLAS: Si el PDF tiene una tabla con columnas "Cantidad" y "Artículos", extrae TODOS los productos de esa tabla. NO omitas ninguno.
-8. LISTAS NUMERADAS: Si hay una lista numerada (1, 2, 3...), cada número seguido de un nombre es un producto. Extrae TODOS.
-
-IMPORTANTE SOBRE COMPLETITUD:
-- Si el texto tiene una lista de productos, extrae TODOS
-- NO omitas productos porque parezcan similares
-- NO omitas productos porque estén en diferentes secciones
-- Si hay "1 caja de temperas" y "2 cajas de temperas", son DOS productos diferentes
-- Si hay productos en múltiples páginas, extrae TODOS
-- Al final de tu respuesta, verifica que no hayas omitido ningún producto
-
-FORMATO DE RESPUESTA (JSON puro, sin markdown):
-{"productos":[{"cantidad":number,"nombre":string,"isbn":string|null,"marca":string|null,"precio":number,"asignatura":string|null,"descripcion":string|null,"comprar":boolean}]}
-
-RECUERDA: Tu respuesta debe incluir TODOS los productos del texto, sin excepción.`
+EJEMPLOS:
+"2 Cuadernos universitarios" → {"cantidad":2,"nombre":"Cuadernos universitarios","isbn":null,"marca":null,"precio":0,"asignatura":null,"descripcion":null,"comprar":true}
+"Marcar todo" → NO incluir (instrucción)`
 }
 
 /**
@@ -747,9 +714,19 @@ async function procesarConClaude(
   pdfBase64: string,
   anthropic: Anthropic,
   logger: Logger,
-  intento: number = 1
+  intento: number = 1,
+  paginas: number = 1
 ): Promise<{ productos: ProductoExtraido[] }> {
   try {
+    // ============================================
+    // 🤖 SELECCIÓN DE MODELO ADAPTATIVO
+    // ============================================
+    const usarHaiku = paginas > PAGINAS_UMBRAL_HAIKU
+    const modelo = usarHaiku ? CLAUDE_MODEL_HAIKU : CLAUDE_MODEL_SONNET
+    const motivoModelo = usarHaiku 
+      ? `PDF grande (${paginas} páginas) → Haiku (más rápido)`
+      : `PDF pequeño (${paginas} páginas) → Sonnet (más preciso)`
+    
     // ============================================
     // 🤖 INICIANDO PROCESAMIENTO
     // ============================================
@@ -759,17 +736,24 @@ async function procesarConClaude(
     
     logger.info('\n🤖 ===== PROCESAMIENTO CON CLAUDE VISION (PDF) =====')
     logger.info(`📊 Estadísticas del PDF:`)
+    logger.info(`   - Páginas: ${paginas}`)
     logger.info(`   - Tamaño base64: ${(pdfBase64.length / 1024).toFixed(2)} KB`)
+    logger.info(`   - Modelo seleccionado: ${modelo}`)
+    logger.info(`   - Motivo: ${motivoModelo}`)
     
     console.log('📊 ESTADÍSTICAS DEL PDF:')
+    console.log(`   - Páginas: ${paginas}`)
     console.log(`   - Tamaño base64: ${(pdfBase64.length / 1024).toFixed(2)} KB`)
+    console.log(`   - Modelo: ${modelo} (${motivoModelo})`)
     
     logger.processing(`🔄 Intento ${intento}/${MAX_RETRIES_CLAUDE}`, {
-      modelo: CLAUDE_MODEL,
+      modelo,
+      paginas,
+      seleccion: motivoModelo,
       tamañoPDF: `${(pdfBase64.length / 1024).toFixed(2)} KB`
     })
     
-    const prompt = crearPromptMejorado()
+    const prompt = crearPromptOptimizado()
     
     console.log(`\n📝 PROMPT COMPLETO ENVIADO A CLAUDE:`)
     console.log('=' + '='.repeat(100))
@@ -795,7 +779,7 @@ async function procesarConClaude(
     logger.debug('📄 PDF agregado al mensaje de Claude')
     
     const response = await anthropic.messages.create({
-      model: CLAUDE_MODEL,
+      model: modelo,
       max_tokens: MAX_TOKENS_RESPUESTA,
       messages: [{
         role: 'user',
@@ -998,7 +982,7 @@ async function procesarConClaude(
         const delay = RETRY_DELAY_MS * intento
         logger.warn(`Reintentando en ${delay}ms...`)
         await new Promise(resolve => setTimeout(resolve, delay))
-        return procesarConClaude(pdfBase64, anthropic, logger, intento + 1)
+        return procesarConClaude(pdfBase64, anthropic, logger, intento + 1, paginas)
       }
     }
     
@@ -1489,12 +1473,38 @@ export async function POST(
     })
     
     // Log del PDF que se enviará a Claude
-    logger.info('📤 PDF que se enviará a Claude Vision:', {
-      tamañoMB: tamañoPDFMB.toFixed(2),
-      tamañoBase64KB: (pdfBase64.length / 1024).toFixed(2)
-    })
+    // ============================================
+    // 6A. VERIFICAR CACHÉ DE PROCESAMIENTO
+    // ============================================
+    const pdfHash = obtenerHashPDF(pdfBuffer)
+    const resultadoCacheado = obtenerDesdeCacheProcesamientos(pdfHash)
     
-    const resultado = await procesarConClaude(pdfBase64, anthropic, logger)
+    let resultado: { productos: ProductoExtraido[] }
+    
+    if (resultadoCacheado) {
+      logger.success('⚡ PDF ya procesado anteriormente - usando caché', {
+        hash: pdfHash.substring(0, 16) + '...',
+        productosEnCache: resultadoCacheado.productos.length,
+        ahorro: 'No se usaron tokens de Claude'
+      })
+      console.log('⚡ USANDO RESULTADO CACHEADO - Ahorro de tiempo y tokens')
+      resultado = resultadoCacheado
+    } else {
+      logger.info('📤 PDF que se enviará a Claude Vision:', {
+        tamañoMB: tamañoPDFMB.toFixed(2),
+        tamañoBase64KB: (pdfBase64.length / 1024).toFixed(2),
+        hash: pdfHash.substring(0, 16) + '...'
+      })
+      
+      resultado = await procesarConClaude(pdfBase64, anthropic, logger, 1, paginas)
+      
+      // Guardar en caché
+      guardarEnCacheProcesamientos(pdfHash, resultado, paginas)
+      logger.info('💾 Resultado guardado en caché', {
+        hash: pdfHash.substring(0, 16) + '...',
+        productos: resultado.productos.length
+      })
+    }
     
     logger.info('📊 Resultado de Claude:', {
       productosEncontrados: resultado.productos.length,
