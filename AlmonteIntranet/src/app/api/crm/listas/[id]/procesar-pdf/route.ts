@@ -366,7 +366,13 @@ const ProductoExtraidoSchema = z.object({
     z.null()
   ]).transform((val) => val || null),
   
-  comprar: z.boolean().default(true)
+  comprar: z.boolean().default(true),
+  
+  // Campos de ubicación en el PDF (opcionales para retrocompatibilidad)
+  pagina: z.number().int().positive().optional(),
+  ubicacion_vertical: z.enum(['superior', 'centro', 'inferior']).optional(),
+  ubicacion_horizontal: z.enum(['izquierda', 'centro', 'derecha']).optional(),
+  orden_en_pagina: z.number().int().positive().optional()
 })
 
 const RespuestaClaudeSchema = z.object({
@@ -675,7 +681,7 @@ function validarLongitudTexto(texto: string, maxCaracteres: number, logger: Logg
  * Crea el prompt mejorado para Claude
  */
 function crearPromptOptimizado(): string {
-  return `Extrae TODOS los productos de útiles escolares del PDF. Copia el texto EXACTAMENTE como aparece.
+  return `Extrae TODOS los productos de útiles escolares del PDF. Copia el texto EXACTAMENTE como aparece e indica la ubicación EXACTA de cada producto.
 
 REGLAS DE EXTRACCIÓN:
 1. Productos = líneas con cantidad + nombre (ej: "2 Cuadernos")
@@ -686,6 +692,15 @@ REGLAS DE EXTRACCIÓN:
 6. Precio: solo si aparece explícito
 7. Asignatura: solo si hay encabezado claro
 8. Descripción: solo detalles técnicos adicionales
+
+📍 UBICACIÓN (MUY IMPORTANTE):
+Para CADA producto, analiza el PDF visual y proporciona:
+- pagina: número de página donde aparece (1, 2, 3...)
+- ubicacion_vertical: "superior" (0-33%), "centro" (34-66%), o "inferior" (67-100%)
+- ubicacion_horizontal: "izquierda" (0-33%), "centro" (34-66%), o "derecha" (67-100%)
+- orden_en_pagina: posición relativa en esa página (1=primero, 2=segundo, etc)
+
+Analiza el PDF VISUALMENTE para determinar ubicaciones precisas.
 
 IGNORAR:
 - Títulos (LISTA DE ÚTILES, MATERIALES)
@@ -698,12 +713,15 @@ IGNORAR:
 - NO omitas ninguno
 - Revisa TODAS las páginas y líneas
 - Copia EXACTAMENTE (no cambies plural/singular ni agregues palabras)
+- SIEMPRE incluye ubicación para cada producto
 
 FORMATO (JSON puro, sin markdown):
-{"productos":[{"cantidad":number,"nombre":string,"isbn":string|null,"marca":string|null,"precio":number,"asignatura":string|null,"descripcion":string|null,"comprar":boolean}]}
+{"productos":[{"cantidad":number,"nombre":string,"isbn":string|null,"marca":string|null,"precio":number,"asignatura":string|null,"descripcion":string|null,"comprar":boolean,"pagina":number,"ubicacion_vertical":"superior"|"centro"|"inferior","ubicacion_horizontal":"izquierda"|"centro"|"derecha","orden_en_pagina":number}]}
 
 EJEMPLOS:
-"2 Cuadernos universitarios" → {"cantidad":2,"nombre":"Cuadernos universitarios","isbn":null,"marca":null,"precio":0,"asignatura":null,"descripcion":null,"comprar":true}
+"2 Cuadernos universitarios" en página 1, parte superior izquierda, primer item:
+{"cantidad":2,"nombre":"Cuadernos universitarios","isbn":null,"marca":null,"precio":0,"asignatura":null,"descripcion":null,"comprar":true,"pagina":1,"ubicacion_vertical":"superior","ubicacion_horizontal":"izquierda","orden_en_pagina":1}
+
 "Marcar todo" → NO incluir (instrucción)`
 }
 
@@ -1090,48 +1108,72 @@ async function buscarEnWooCommerce(
         textoEncontrado: coordenadasReales.texto
       })
     } else {
-      // Fallback: usar coordenadas aproximadas mejoradas (sin Math.random para consistencia)
-      const totalProductos = productosExtraidos.length
-      const productosEstimadosPorPagina = Math.max(Math.ceil(totalProductos / totalPaginas), 8)
-      
-      const paginaCalculada = Math.min(
-        Math.floor(i / productosEstimadosPorPagina) + 1,
-        totalPaginas
-      )
-      const posicionEnPagina = i % productosEstimadosPorPagina
-      
-      // Mejorar distribución: usar hash del nombre para posición consistente
-      const hashNombre = nombreBuscar.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
-      
-      const margenSuperior = 18
-      const margenInferior = 88
-      const rangoUtil = margenInferior - margenSuperior
-      
-      const espaciamiento = rangoUtil / (productosEstimadosPorPagina + 1)
-      const posicionBaseY = margenSuperior + (posicionEnPagina + 1) * espaciamiento
-      
-      // Usar hash para variación determinística (no aleatoria)
-      const variacionY = ((hashNombre % 7) - 3) * 0.5 // Variación de -1.5 a 1.5
-      const posicionY = Math.max(margenSuperior, Math.min(margenInferior, posicionBaseY + variacionY))
-      
-      // Posición X basada en hash (más consistente que random)
-      const posicionX = 15 + ((hashNombre % 65)) // Entre 15% y 80%
-      
-      let region = 'centro'
-      if (posicionY < 35) {
-        region = 'superior'
-      } else if (posicionY > 65) {
-        region = 'inferior'
+      // Usar coordenadas de Claude si están disponibles (mucho más precisas)
+      if (prod.pagina && prod.ubicacion_vertical && prod.ubicacion_horizontal) {
+        // Claude proporcionó ubicación precisa
+        const posicionY = prod.ubicacion_vertical === 'superior' ? 25 :
+                          prod.ubicacion_vertical === 'centro' ? 50 :
+                          75
+        
+        const posicionX = prod.ubicacion_horizontal === 'izquierda' ? 25 :
+                          prod.ubicacion_horizontal === 'centro' ? 50 :
+                          75
+        
+        // Ajustar posición según orden_en_pagina si está disponible
+        const ajusteY = prod.orden_en_pagina ? (prod.orden_en_pagina - 1) * 3 : 0
+        
+        coordenadas = {
+          pagina: prod.pagina,
+          posicion_x: posicionX,
+          posicion_y: Math.min(Math.max(posicionY + ajusteY, 15), 85),
+          region: prod.ubicacion_vertical
+        }
+        
+        logger.debug(`🎯 Coordenadas de CLAUDE para "${nombreBuscar}"`, {
+          ...coordenadas,
+          ubicacion_h: prod.ubicacion_horizontal,
+          orden: prod.orden_en_pagina
+        })
+      } else {
+        // Fallback: coordenadas aproximadas por posición en array
+        const totalProductos = productosExtraidos.length
+        const productosEstimadosPorPagina = Math.max(Math.ceil(totalProductos / totalPaginas), 8)
+        
+        const paginaCalculada = Math.min(
+          Math.floor(i / productosEstimadosPorPagina) + 1,
+          totalPaginas
+        )
+        const posicionEnPagina = i % productosEstimadosPorPagina
+        
+        const margenSuperior = 18
+        const margenInferior = 88
+        const rangoUtil = margenInferior - margenSuperior
+        
+        const espaciamiento = rangoUtil / (productosEstimadosPorPagina + 1)
+        const posicionBaseY = margenSuperior + (posicionEnPagina + 1) * espaciamiento
+        
+        // Hash para posición consistente
+        const hashNombre = nombreBuscar.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+        const variacionY = ((hashNombre % 7) - 3) * 0.5
+        const posicionY = Math.max(margenSuperior, Math.min(margenInferior, posicionBaseY + variacionY))
+        const posicionX = 15 + ((hashNombre % 65))
+        
+        let region = 'centro'
+        if (posicionY < 35) {
+          region = 'superior'
+        } else if (posicionY > 65) {
+          region = 'inferior'
+        }
+        
+        coordenadas = {
+          pagina: paginaCalculada,
+          posicion_x: posicionX,
+          posicion_y: Math.round(posicionY * 10) / 10,
+          region
+        }
+        
+        logger.debug(`📍 Coordenadas APROXIMADAS (fallback) para "${nombreBuscar}"`, coordenadas)
       }
-      
-      coordenadas = {
-        pagina: paginaCalculada,
-        posicion_x: posicionX,
-        posicion_y: Math.round(posicionY * 10) / 10,
-        region
-      }
-      
-      logger.debug(`📍 Coordenadas APROXIMADAS para "${nombreBuscar}"`, coordenadas)
     }
     
     const productoConInfo: ProductoIdentificado = {
