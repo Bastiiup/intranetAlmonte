@@ -997,7 +997,7 @@ async function procesarConClaude(
         const delay = RETRY_DELAY_MS * intento
         logger.warn(`Reintentando en ${delay}ms...`)
         await new Promise(resolve => setTimeout(resolve, delay))
-        return procesarConClaude(texto, anthropic, logger, intento + 1)
+        return procesarConClaude(pdfBase64, anthropic, logger, intento + 1)
       }
     }
     
