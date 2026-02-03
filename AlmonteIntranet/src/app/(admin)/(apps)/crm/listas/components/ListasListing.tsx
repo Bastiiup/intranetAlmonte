@@ -970,7 +970,8 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                   Buscar Producto
                 </Button>
               </Link>
-              <Button 
+              {/* Ocultado: Botón Recargar */}
+              {/* <Button 
                 variant="outline-secondary" 
                 onClick={() => recargarListas()}
                 disabled={loading}
@@ -978,13 +979,15 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               >
                 <LuRefreshCw className={`fs-sm me-2 ${loading ? 'spinning' : ''}`} style={loading ? { animation: 'spin 1s linear infinite' } : {}} /> 
                 {loading ? 'Recargando...' : 'Recargar'}
-              </Button>
-              <Button variant="success" onClick={() => setShowImportModal(true)}>
+              </Button> */}
+              {/* Ocultado: Botón Importación Masiva */}
+              {/* <Button variant="success" onClick={() => setShowImportModal(true)}>
                 <LuUpload className="fs-sm me-2" /> Importación Masiva
-              </Button>
-              <Button variant="primary" onClick={() => setShowModal(true)}>
+              </Button> */}
+              {/* Ocultado: Botón Agregar Lista */}
+              {/* <Button variant="primary" onClick={() => setShowModal(true)}>
                 <LuPlus className="fs-sm me-2" /> Agregar Lista
-              </Button>
+              </Button> */}
               {/* Ocultado: Importar Colegios y Cursos */}
               {/* <Button variant="outline-primary" onClick={() => setShowImportColegiosModal(true)}>
                 <LuUpload className="fs-sm me-2" /> Importar Colegios y Cursos
