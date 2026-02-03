@@ -53,23 +53,39 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
   const mappedCursos = useMemo(() => {
     if (!cursosProp || !Array.isArray(cursosProp)) return []
     
-    return cursosProp.map((curso: any) => ({
-      id: curso.id || curso.documentId,
-      documentId: curso.documentId || String(curso.id || ''),
-      nombre: curso.nombre || '',
-      nivel: curso.nivel || 'Basica',
-      grado: curso.grado || 1,
-      año: curso.año || curso.ano || new Date().getFullYear(),
-      pdf_id: curso.pdf_id || undefined,
-      pdf_url: curso.pdf_url || undefined,
-      cantidadProductos: curso.cantidadProductos || 0,
-      cantidadVersiones: curso.cantidadVersiones || 0,
-      matriculados: curso.matricula || curso.matriculados || 0, // Usar "matricula" de Strapi
-      updatedAt: curso.updatedAt || null,
-      estado_revision: curso.estado_revision || null,
-      fecha_publicacion: curso.fecha_publicacion || null,
-      fecha_revision: curso.fecha_revision || null,
-    } as CursoType))
+    return cursosProp.map((curso: any) => {
+      // Normalizar nombre del curso: reemplazar "Básica" por "Básico" y "Media" por "Medio"
+      let nombreNormalizado = (curso.nombre || '').trim()
+      nombreNormalizado = nombreNormalizado.replace(/Básica/gi, 'Básico')
+      nombreNormalizado = nombreNormalizado.replace(/Basica/gi, 'Básico')
+      nombreNormalizado = nombreNormalizado.replace(/\bMedia\b/g, 'Medio')
+      
+      // Normalizar nivel: "Basica" -> "Básico", "Media" -> "Medio"
+      let nivelNormalizado = curso.nivel || 'Basica'
+      if (nivelNormalizado.toLowerCase() === 'basica' || nivelNormalizado.toLowerCase() === 'básica') {
+        nivelNormalizado = 'Básico'
+      } else if (nivelNormalizado.toLowerCase() === 'media') {
+        nivelNormalizado = 'Medio'
+      }
+      
+      return {
+        id: curso.id || curso.documentId,
+        documentId: curso.documentId || String(curso.id || ''),
+        nombre: nombreNormalizado,
+        nivel: nivelNormalizado,
+        grado: curso.grado || 1,
+        año: curso.año || curso.ano || new Date().getFullYear(),
+        pdf_id: curso.pdf_id || undefined,
+        pdf_url: curso.pdf_url || undefined,
+        cantidadProductos: curso.cantidadProductos || 0,
+        cantidadVersiones: curso.cantidadVersiones || 0,
+        matriculados: curso.matricula || curso.matriculados || 0, // Usar "matricula" de Strapi
+        updatedAt: curso.updatedAt || null,
+        estado_revision: curso.estado_revision || null,
+        fecha_publicacion: curso.fecha_publicacion || null,
+        fecha_revision: curso.fecha_revision || null,
+      } as CursoType
+    })
   }, [cursosProp])
 
   // Calcular años únicos para el filtro
@@ -419,6 +435,7 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
           headers: {
             'Content-Type': 'application/json',
           },
+          body: JSON.stringify({ forzarReprocesar: true }), // Forzar reprocesamiento en procesamiento masivo
         })
 
         const result = await response.json()
@@ -427,11 +444,23 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
 
         if (response.ok && result.success) {
           const productosEncontrados = result.data?.productos?.length || 0
+          const guardadoExitoso = result.data?.guardadoEnStrapi || false
+          
+          // Verificar que se guardaron correctamente
+          if (!guardadoExitoso) {
+            console.warn(`[Procesamiento Masivo] ⚠️ Productos extraídos pero no guardados para ${cursoNombre}`)
+          }
+          
+          // Verificar que hay productos
+          if (productosEncontrados === 0) {
+            console.warn(`[Procesamiento Masivo] ⚠️ No se encontraron productos para ${cursoNombre}`)
+          }
+          
           setResultados(prev => prev.map((r, idx) => 
             idx === i ? { 
               ...r, 
               status: 'success', 
-              mensaje: `✓ ${productosEncontrados} productos extraídos con Claude AI`,
+              mensaje: `✓ ${productosEncontrados} productos extraídos${guardadoExitoso ? ' y guardados' : ' (error al guardar)'} con Claude AI`,
               productosEncontrados 
             } : r
           ))
