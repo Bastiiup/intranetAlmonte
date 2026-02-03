@@ -121,7 +121,7 @@ const CLAUDE_MODEL_HAIKU = 'claude-3-5-haiku-20241022'
 
 // Umbral de páginas para cambiar de modelo
 const PAGINAS_UMBRAL_HAIKU = 6 // PDFs > 6 páginas usan Haiku (más rápido)
-const MAX_TOKENS_RESPUESTA = 4096 // Tokens para la respuesta
+const MAX_TOKENS_RESPUESTA = 16384 // Tokens para la respuesta (aumentado para PDFs con muchos productos)
 const MAX_TOKENS_CONTEXTO = 200000
 const TOKENS_POR_CARACTER = 0.25
 const MAX_CARACTERES_SEGURO = 50000 // ~12,500 tokens estimados (~12.5% del límite por minuto)
