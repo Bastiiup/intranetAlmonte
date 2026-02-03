@@ -125,19 +125,19 @@ export async function GET(request: NextRequest) {
       const materiales = ultimaVersion?.materiales || []
 
       materiales.forEach((material: any) => {
-        // Buscar en: nombre, código, ISBN, autor, editorial
+        // Buscar en: nombre, ISBN, marca, asignatura, descripcion
         const nombre = (material.nombre || '').toLowerCase()
-        const codigo = (material.codigo || '').toLowerCase()
         const isbn = (material.isbn || '').toLowerCase()
-        const autor = (material.autor || '').toLowerCase()
-        const editorial = (material.editorial || '').toLowerCase()
+        const marca = (material.marca || '').toLowerCase()
+        const asignatura = (material.asignatura || '').toLowerCase()
+        const descripcion = (material.descripcion || '').toLowerCase()
 
         const coincide = 
           nombre.includes(queryLower) ||
-          codigo.includes(queryLower) ||
           isbn.includes(queryLower) ||
-          autor.includes(queryLower) ||
-          editorial.includes(queryLower)
+          marca.includes(queryLower) ||
+          asignatura.includes(queryLower) ||
+          descripcion.includes(queryLower)
 
         if (coincide) {
           const matriculados = attrs.matricula || 0 // Campo correcto según Strapi: "matricula"
@@ -163,12 +163,14 @@ export async function GET(request: NextRequest) {
             },
             producto: {
               nombre: material.nombre || '',
-              codigo: material.codigo || undefined,
               isbn: material.isbn || undefined,
-              autor: material.autor || undefined,
-              editorial: material.editorial || undefined,
+              marca: material.marca || undefined,
+              asignatura: material.asignatura || undefined,
+              descripcion: material.descripcion || undefined,
               cantidad: cantidadPorAlumno,
-              observaciones: material.observaciones || undefined,
+              precio: material.precio || undefined,
+              woocommerce_id: material.woocommerce_id || undefined,
+              encontrado_en_woocommerce: material.encontrado_en_woocommerce || false,
             },
             totalProductos,
           })
