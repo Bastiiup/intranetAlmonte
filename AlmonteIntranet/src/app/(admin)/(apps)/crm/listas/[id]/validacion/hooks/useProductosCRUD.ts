@@ -249,8 +249,8 @@ export function useProductosCRUD({
 
       console.log('[useProductosCRUD] ✅ Producto eliminado exitosamente')
 
-      // Opcional: Recargar datos del servidor para sincronizar
-      if (onSuccess) await onSuccess()
+      // NO recargar - el estado local ya está actualizado con optimistic update
+      // Solo sincronizar en background si es necesario
     } catch (error: any) {
       console.error('[useProductosCRUD] ❌ Error al eliminar producto:', error)
       // Revertir cambio optimista
