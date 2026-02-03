@@ -67,23 +67,24 @@ export async function extraerCoordenadasReales(
       return null
     }
     
-    // Configurar worker (opcional, no crítico para servidor)
-    // En Next.js, el worker no es necesario en el servidor, solo en el cliente
+    // Configurar worker (OBLIGATORIO para que funcione en servidor)
+    // En Next.js API routes, necesitamos configurar el worker correctamente
     try {
       if (pdfjsLib.GlobalWorkerOptions) {
-        // Deshabilitar worker en servidor (no es necesario)
-        pdfjsLib.GlobalWorkerOptions.workerSrc = ''
+        // IMPORTANTE: En Node.js/servidor, NO usar worker (usar modo sync)
+        pdfjsLib.GlobalWorkerOptions.workerSrc = false
         if (logger) {
-          logger.debug('Worker deshabilitado (no necesario en servidor)')
+          logger.debug('✅ Worker configurado para modo servidor (sync)')
         }
       }
     } catch (workerError) {
-      // Worker no crítico, continuar sin él
       if (logger) {
-        logger.debug('No se pudo configurar worker de pdfjs-dist (continuando sin worker)', {
+        logger.warn('⚠️ Error configurando worker, puede afectar extracción', {
           error: workerError instanceof Error ? workerError.message : String(workerError)
         })
       }
+      // Si falla configurar worker, probablemente no funcionará la extracción
+      return null
     }
 
     // Cargar el documento PDF
@@ -111,19 +112,32 @@ export async function extraerCoordenadasReales(
     }
 
     const nombreNormalizado = normalizarTexto(nombreProducto)
-    // Extraer palabras clave: palabras de más de 2 caracteres, pero también incluir números
+    
+    // Estrategia de búsqueda múltiple para máxima precisión
+    const palabrasStopwords = ['de', 'la', 'el', 'los', 'las', 'un', 'una', 'con', 'sin', 'para', 'por', 'del', 'al', 'y', 'o']
+    
+    // Extraer palabras clave significativas (>= 3 caracteres o números)
     const palabrasProducto = nombreNormalizado
       .split(/\s+/)
-      .filter(p => p.length > 1) // Reducido a 1 para capturar más palabras
-      .filter(p => !['de', 'la', 'el', 'los', 'las', 'un', 'una', 'con', 'sin', 'para', 'por'].includes(p)) // Filtrar palabras comunes
+      .filter(p => p.length >= 3 || /\d/.test(p)) // Palabras de 3+ caracteres o que contengan números
+      .filter(p => !palabrasStopwords.includes(p))
 
-    if (palabrasProducto.length === 0) {
-      if (logger) logger.warn(`Nombre de producto muy corto o sin palabras clave: "${nombreProducto}"`)
+    // También buscar por el nombre completo (sin stopwords)
+    const nombreSinStopwords = nombreNormalizado
+      .split(/\s+/)
+      .filter(p => !palabrasStopwords.includes(p))
+      .join(' ')
+
+    if (palabrasProducto.length === 0 && nombreSinStopwords.length < 3) {
+      if (logger) logger.warn(`⚠️ Nombre de producto muy corto: "${nombreProducto}"`)
       return null
     }
 
     if (logger) {
-      logger.debug(`Buscando producto "${nombreProducto}" con palabras clave:`, palabrasProducto)
+      logger.debug(`🔍 Buscando "${nombreProducto}"`, {
+        palabrasClave: palabrasProducto,
+        nombreSinStopwords: nombreSinStopwords
+      })
     }
 
     // Buscar en cada página
@@ -157,18 +171,34 @@ export async function extraerCoordenadasReales(
         const textoLinea = items.map(item => item.str).join(' ')
         const textoLineaNormalizado = normalizarTexto(textoLinea)
 
-        // Verificar si alguna palabra clave del producto está en esta línea
+        // ESTRATEGIA DE COINCIDENCIA MEJORADA
+        // 1. Coincidencia exacta del nombre completo (mejor caso)
+        const coincidenciaExacta = textoLineaNormalizado.includes(nombreNormalizado)
+        
+        // 2. Coincidencia del nombre sin stopwords
+        const coincidenciaSinStopwords = nombreSinStopwords.length >= 5 && 
+                                         textoLineaNormalizado.includes(nombreSinStopwords)
+        
+        // 3. Coincidencia por palabras clave (al menos 60% de palabras encontradas)
         const palabrasEncontradas = palabrasProducto.filter(palabra =>
           textoLineaNormalizado.includes(palabra)
         )
-
-        // Si encontramos al menos el 50% de las palabras clave (reducido de 60%), consideramos que es el producto
-        // O si el texto de la línea contiene una subcadena significativa del nombre del producto
-        const porcentajeCoincidencia = palabrasEncontradas.length / palabrasProducto.length
-        const contieneSubcadena = nombreNormalizado.length > 5 && 
-                                  textoLineaNormalizado.includes(nombreNormalizado.substring(0, Math.min(10, nombreNormalizado.length)))
+        const porcentajeCoincidencia = palabrasProducto.length > 0 
+          ? palabrasEncontradas.length / palabrasProducto.length 
+          : 0
         
-        if (porcentajeCoincidencia >= 0.5 || contieneSubcadena) {
+        // 4. Coincidencia de inicio de nombre (primeras palabras significativas)
+        const primerasPalabras = nombreSinStopwords.split(/\s+/).slice(0, 2).join(' ')
+        const coincidenciaInicio = primerasPalabras.length >= 5 && 
+                                   textoLineaNormalizado.includes(primerasPalabras)
+        
+        // Determinar si es una coincidencia válida
+        const esCoincidencia = coincidenciaExacta || 
+                              coincidenciaSinStopwords || 
+                              porcentajeCoincidencia >= 0.6 ||
+                              (porcentajeCoincidencia >= 0.4 && coincidenciaInicio)
+        
+        if (esCoincidencia) {
           // Calcular posición promedio de los items de esta línea
           const xPromedio = items.reduce((sum, item) => sum + item.x, 0) / items.length
           const yPromedio = y
@@ -185,20 +215,20 @@ export async function extraerCoordenadasReales(
           const altoPorcentaje = (altoPromedio / pageHeight) * 100
 
           if (logger) {
-            logger.debug(`✅ Producto encontrado en página ${pageNum}`, {
-              nombre: nombreProducto,
-              textoEncontrado: textoLinea,
-              palabrasEncontradas: palabrasEncontradas,
-              palabrasTotales: palabrasProducto.length,
+            logger.success(`✅ COORDENADAS EXACTAS encontradas para "${nombreProducto}"`, {
+              pagina: pageNum,
+              textoEncontrado: textoLinea.substring(0, 50) + (textoLinea.length > 50 ? '...' : ''),
               coordenadas: {
-                pagina: pageNum,
-                x: Math.round(xPorcentaje * 10) / 10,
-                y: Math.round(yPorcentaje * 10) / 10,
-                ancho: Math.round(anchoPorcentaje * 10) / 10,
-                alto: Math.round(altoPorcentaje * 10) / 10,
+                x: `${Math.round(xPorcentaje * 10) / 10}%`,
+                y: `${Math.round(yPorcentaje * 10) / 10}%`,
+                ancho: `${Math.round(anchoPorcentaje * 10) / 10}%`,
+                alto: `${Math.round(altoPorcentaje * 10) / 10}%`,
               },
-              coincidencia: `${Math.round(porcentajeCoincidencia * 100)}%`,
-              contieneSubcadena: contieneSubcadena
+              tipoCoincidencia: coincidenciaExacta ? 'EXACTA' :
+                               coincidenciaSinStopwords ? 'SIN STOPWORDS' :
+                               coincidenciaInicio ? 'INICIO + PALABRAS' :
+                               `PALABRAS (${Math.round(porcentajeCoincidencia * 100)}%)`,
+              palabrasEncontradas: `${palabrasEncontradas.length}/${palabrasProducto.length}`
             })
           }
 

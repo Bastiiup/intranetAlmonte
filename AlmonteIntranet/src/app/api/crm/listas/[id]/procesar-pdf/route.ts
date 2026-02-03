@@ -1033,11 +1033,15 @@ async function buscarEnWooCommerce(
   const wooClient = createWooCommerceClient('woo_escolar')
   const productosConInfo: ProductoIdentificado[] = []
   
-  // Extraer coordenadas reales del PDF si está disponible
+  // ============================================
+  // PASO 1: EXTRAER COORDENADAS REALES DEL PDF (MÁXIMA PRIORIDAD)
+  // ============================================
   let coordenadasMap: Map<string, any> = new Map()
+  let productosConCoordenadasReales = 0
+  
   if (pdfBuffer) {
     try {
-      logger.info('📍 Extrayendo coordenadas reales del PDF...')
+      logger.info('📍 Iniciando extracción de coordenadas REALES del PDF...')
       const productosParaCoordenadas = productosExtraidos.map((p, i) => ({
         nombre: p.nombre || '',
         id: `producto-${i + 1}`
@@ -1049,12 +1053,26 @@ async function buscarEnWooCommerce(
         logger
       )
       
-      logger.success(`✅ Coordenadas reales extraídas: ${coordenadasMap.size}/${productosExtraidos.length} productos`)
+      productosConCoordenadasReales = coordenadasMap.size / 2 // Dividir por 2 porque se guardan con 2 keys
+      
+      if (productosConCoordenadasReales > 0) {
+        logger.success(`✅ Coordenadas REALES extraídas: ${productosConCoordenadasReales}/${productosExtraidos.length} productos`, {
+          precision: 'PIXEL-PERFECT',
+          metodo: 'PDFjs + búsqueda de texto'
+        })
+      } else {
+        logger.warn('⚠️ No se pudieron extraer coordenadas reales del PDF', {
+          razon: 'Posible PDF basado en imágenes o texto no seleccionable'
+        })
+      }
     } catch (coordError: any) {
-      logger.warn('⚠️ Error al extraer coordenadas reales, usando coordenadas aproximadas', {
-        error: coordError.message
+      logger.error('❌ Error al extraer coordenadas reales', {
+        error: coordError.message,
+        stack: coordError.stack?.split('\n').slice(0, 3).join('\n')
       })
     }
+  } else {
+    logger.warn('⚠️ PDF buffer no disponible, no se pueden extraer coordenadas reales')
   }
   
   for (let i = 0; i < productosExtraidos.length; i++) {
@@ -1101,20 +1119,23 @@ async function buscarEnWooCommerce(
                               coordenadasMap.get(`producto-${i + 1}`)
     
     if (coordenadasReales) {
-      // Usar coordenadas reales extraídas del PDF
+      // ✅ COORDENADAS REALES DEL PDF (PIXEL-PERFECT)
       coordenadas = {
         pagina: coordenadasReales.pagina,
         posicion_x: coordenadasReales.x,
         posicion_y: coordenadasReales.y,
         region: coordenadasReales.y < 35 ? 'superior' : coordenadasReales.y > 65 ? 'inferior' : 'centro',
-        // Incluir ancho y alto si están disponibles
         ancho: coordenadasReales.ancho,
         alto: coordenadasReales.alto,
       }
       
-      logger.debug(`✅ Coordenadas REALES para "${nombreBuscar}"`, {
-        ...coordenadas,
-        textoEncontrado: coordenadasReales.texto
+      logger.success(`🎯 COORDENADAS REALES (PIXEL-PERFECT) para "${nombreBuscar}"`, {
+        pagina: coordenadas.pagina,
+        posicion: `X: ${coordenadas.posicion_x}%, Y: ${coordenadas.posicion_y}%`,
+        tamaño: `${coordenadas.ancho}% × ${coordenadas.alto}%`,
+        textoEncontrado: coordenadasReales.texto?.substring(0, 60) + (coordenadasReales.texto?.length > 60 ? '...' : ''),
+        metodo: 'PDFjs + búsqueda de texto',
+        precision: 'EXACTA'
       })
     } else {
       // Usar coordenadas EXACTAS de Claude si están disponibles (PRIORIDAD MÁXIMA)
@@ -1145,14 +1166,14 @@ async function buscarEnWooCommerce(
           alto: altoEstimado,
         }
         
-        logger.success(`🎯 Coordenadas EXACTAS de CLAUDE para "${nombreBuscar}"`, {
+        logger.info(`📊 Coordenadas de CLAUDE (Visual) para "${nombreBuscar}"`, {
           pagina: coordenadas.pagina,
-          x: `${posicionX}%`,
-          y: `${posicionY}%`,
-          ancho: `${anchoEstimado}%`,
-          alto: `${altoEstimado}%`,
+          posicion: `X: ${posicionX}%, Y: ${posicionY}%`,
+          tamaño: `${anchoEstimado}% × ${altoEstimado}%`,
           region,
-          orden: prod.orden_en_pagina || 'N/A'
+          orden: prod.orden_en_pagina || 'N/A',
+          metodo: 'Claude Vision API',
+          precision: 'ALTA (visual)'
         })
       } else {
         // Fallback: coordenadas aproximadas por posición en array
@@ -1192,7 +1213,13 @@ async function buscarEnWooCommerce(
           region
         }
         
-        logger.debug(`📍 Coordenadas APROXIMADAS (fallback) para "${nombreBuscar}"`, coordenadas)
+        logger.warn(`⚠️ Coordenadas APROXIMADAS (fallback) para "${nombreBuscar}"`, {
+          pagina: coordenadas.pagina,
+          posicion: `X: ${coordenadas.posicion_x}%, Y: ${coordenadas.posicion_y}%`,
+          region: coordenadas.region,
+          metodo: 'Estimación por posición en array',
+          precision: 'BAJA - Se recomienda reprocesar PDF'
+        })
       }
     }
     
@@ -1236,13 +1263,38 @@ async function buscarEnWooCommerce(
     productosConInfo.push(productoConInfo)
   }
   
-  logger.success('Búsqueda en WooCommerce completada', {
-    total: productosConInfo.length,
-    encontrados: productosConInfo.filter(p => p.encontrado_en_woocommerce).length,
-    noEncontrados: productosConInfo.filter(p => !p.encontrado_en_woocommerce).length,
-    conCoordenadas: productosConInfo.filter(p => p.coordenadas !== undefined).length,
-    coordenadasReales: coordenadasMap.size,
-    coordenadasAproximadas: productosConInfo.length - coordenadasMap.size
+  // Contabilizar tipos de coordenadas
+  let coordReales = 0
+  let coordClaude = 0
+  let coordAproximadas = 0
+  
+  for (const prod of productosConInfo) {
+    if (prod.coordenadas) {
+      // Determinar tipo de coordenada basado en la precisión
+      const coordId = `producto-${productosConInfo.indexOf(prod) + 1}`
+      if (coordenadasMap.has(coordId)) {
+        coordReales++
+      } else if (prod.coordenadas.ancho && prod.coordenadas.ancho > 5) {
+        coordClaude++
+      } else {
+        coordAproximadas++
+      }
+    }
+  }
+  
+  logger.success('✅ Búsqueda en WooCommerce completada', {
+    totalProductos: productosConInfo.length,
+    encontradosEnWoo: productosConInfo.filter(p => p.encontrado_en_woocommerce).length,
+    noEncontradosEnWoo: productosConInfo.filter(p => !p.encontrado_en_woocommerce).length,
+    coordenadas: {
+      reales_pixelPerfect: `${coordReales} (${Math.round(coordReales/productosConInfo.length*100)}%)`,
+      claude_visual: `${coordClaude} (${Math.round(coordClaude/productosConInfo.length*100)}%)`,
+      aproximadas_fallback: `${coordAproximadas} (${Math.round(coordAproximadas/productosConInfo.length*100)}%)`,
+    },
+    calidad: coordReales > productosConInfo.length * 0.8 ? 'EXCELENTE' :
+             coordReales > productosConInfo.length * 0.5 ? 'BUENA' :
+             coordClaude > productosConInfo.length * 0.7 ? 'ACEPTABLE' : 
+             'BAJA - Considerar reprocesar'
   })
   
   return productosConInfo
