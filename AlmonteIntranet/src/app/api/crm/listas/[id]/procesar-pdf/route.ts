@@ -370,8 +370,8 @@ const ProductoExtraidoSchema = z.object({
   
   // Campos de ubicación en el PDF (opcionales para retrocompatibilidad)
   pagina: z.number().int().positive().optional(),
-  ubicacion_vertical: z.enum(['superior', 'centro', 'inferior']).optional(),
-  ubicacion_horizontal: z.enum(['izquierda', 'centro', 'derecha']).optional(),
+  posicion_y_porcentaje: z.number().min(0).max(100).optional(), // % desde arriba (0-100)
+  posicion_x_porcentaje: z.number().min(0).max(100).optional(), // % desde izquierda (0-100)
   orden_en_pagina: z.number().int().positive().optional()
 })
 
@@ -693,14 +693,20 @@ REGLAS DE EXTRACCIÓN:
 7. Asignatura: solo si hay encabezado claro
 8. Descripción: solo detalles técnicos adicionales
 
-📍 UBICACIÓN (MUY IMPORTANTE):
-Para CADA producto, analiza el PDF visual y proporciona:
+📍 UBICACIÓN EXACTA (CRÍTICO):
+Para CADA producto, analiza el PDF VISUALMENTE y proporciona coordenadas EXACTAS:
 - pagina: número de página donde aparece (1, 2, 3...)
-- ubicacion_vertical: "superior" (0-33%), "centro" (34-66%), o "inferior" (67-100%)
-- ubicacion_horizontal: "izquierda" (0-33%), "centro" (34-66%), o "derecha" (67-100%)
+- posicion_y_porcentaje: distancia EXACTA desde el borde superior (0-100)
+  · Ejemplo: si está al 30% de la altura de la página → 30
+  · Ejemplo: si está casi al final → 85
+  · SÉ PRECISO, analiza VISUALMENTE dónde está en la página
+- posicion_x_porcentaje: distancia EXACTA desde el borde izquierdo (0-100)
+  · Ejemplo: margen izquierdo típico → 15
+  · Ejemplo: centro → 50
+  · Ejemplo: margen derecho → 75
 - orden_en_pagina: posición relativa en esa página (1=primero, 2=segundo, etc)
 
-Analiza el PDF VISUALMENTE para determinar ubicaciones precisas.
+⚠️ IMPORTANTE: Analiza VISUALMENTE el PDF como una imagen. Mide mentalmente dónde está cada producto (arriba/abajo, izquierda/derecha) y proporciona porcentajes precisos.
 
 IGNORAR:
 - Títulos (LISTA DE ÚTILES, MATERIALES)
@@ -716,11 +722,14 @@ IGNORAR:
 - SIEMPRE incluye ubicación para cada producto
 
 FORMATO (JSON puro, sin markdown):
-{"productos":[{"cantidad":number,"nombre":string,"isbn":string|null,"marca":string|null,"precio":number,"asignatura":string|null,"descripcion":string|null,"comprar":boolean,"pagina":number,"ubicacion_vertical":"superior"|"centro"|"inferior","ubicacion_horizontal":"izquierda"|"centro"|"derecha","orden_en_pagina":number}]}
+{"productos":[{"cantidad":number,"nombre":string,"isbn":string|null,"marca":string|null,"precio":number,"asignatura":string|null,"descripcion":string|null,"comprar":boolean,"pagina":number,"posicion_y_porcentaje":number,"posicion_x_porcentaje":number,"orden_en_pagina":number}]}
 
 EJEMPLOS:
-"2 Cuadernos universitarios" en página 1, parte superior izquierda, primer item:
-{"cantidad":2,"nombre":"Cuadernos universitarios","isbn":null,"marca":null,"precio":0,"asignatura":null,"descripcion":null,"comprar":true,"pagina":1,"ubicacion_vertical":"superior","ubicacion_horizontal":"izquierda","orden_en_pagina":1}
+"2 Cuadernos universitarios" que aparece en página 1, visualmente al 28% desde arriba y 18% desde la izquierda, es el 1er item:
+{"cantidad":2,"nombre":"Cuadernos universitarios","isbn":null,"marca":null,"precio":0,"asignatura":null,"descripcion":null,"comprar":true,"pagina":1,"posicion_y_porcentaje":28,"posicion_x_porcentaje":18,"orden_en_pagina":1}
+
+"Tijeras" que aparece en página 2, visualmente al 65% desde arriba y 50% desde la izquierda, es el 8vo item:
+{"cantidad":1,"nombre":"Tijeras","isbn":null,"marca":null,"precio":0,"asignatura":null,"descripcion":null,"comprar":true,"pagina":2,"posicion_y_porcentaje":65,"posicion_x_porcentaje":50,"orden_en_pagina":8}
 
 "Marcar todo" → NO incluir (instrucción)`
 }
@@ -1108,48 +1117,42 @@ async function buscarEnWooCommerce(
         textoEncontrado: coordenadasReales.texto
       })
     } else {
-      // Usar coordenadas de Claude si están disponibles (mucho más precisas)
-      if (prod.pagina && prod.ubicacion_vertical && prod.ubicacion_horizontal) {
-        // Mapeo mejorado de ubicaciones verticales (basado en PDFs reales de listas escolares)
-        // Los productos suelen empezar después del encabezado (~20%) y terminar antes del pie (~90%)
-        let posicionBaseY: number
-        let rangoY: number
+      // Usar coordenadas EXACTAS de Claude si están disponibles (PRIORIDAD MÁXIMA)
+      if (prod.pagina && prod.posicion_y_porcentaje !== undefined && prod.posicion_x_porcentaje !== undefined) {
+        // ✅ Claude proporcionó coordenadas porcentuales EXACTAS
+        const posicionY = Math.min(Math.max(prod.posicion_y_porcentaje, 5), 95) // Limitar entre 5-95%
+        const posicionX = Math.min(Math.max(prod.posicion_x_porcentaje, 5), 95) // Limitar entre 5-95%
         
-        if (prod.ubicacion_vertical === 'superior') {
-          posicionBaseY = 25  // Entre 20% y 35%
-          rangoY = 10
-        } else if (prod.ubicacion_vertical === 'centro') {
-          posicionBaseY = 50  // Entre 40% y 60%
-          rangoY = 15
-        } else { // inferior
-          posicionBaseY = 72  // Entre 65% y 85%
-          rangoY = 12
+        // Determinar región para referencia
+        let region = 'centro'
+        if (posicionY < 33) {
+          region = 'superior'
+        } else if (posicionY > 66) {
+          region = 'inferior'
         }
         
-        // Distribución vertical según orden_en_pagina (más preciso)
-        const ordenOffset = prod.orden_en_pagina ? 
-          Math.min((prod.orden_en_pagina - 1) * 2.5, rangoY) : 0
-        
-        const posicionY = posicionBaseY + ordenOffset
-        
-        // Mapeo horizontal mejorado (considerar márgenes típicos de PDF)
-        const posicionX = prod.ubicacion_horizontal === 'izquierda' ? 20 :  // Margen izquierdo
-                          prod.ubicacion_horizontal === 'centro' ? 50 :     // Centro
-                          65  // Columna derecha (no al borde)
+        // Estimar ancho y alto basado en el nombre del producto
+        const longitudNombre = nombreBuscar.length
+        const anchoEstimado = Math.min(Math.max(longitudNombre * 0.5, 8), 35) // Entre 8% y 35%
+        const altoEstimado = 2.5 // Altura estándar de línea de texto
         
         coordenadas = {
           pagina: prod.pagina,
           posicion_x: posicionX,
-          posicion_y: Math.min(Math.max(posicionY, 18), 88), // Limitar a área útil
-          region: prod.ubicacion_vertical
+          posicion_y: posicionY,
+          region,
+          ancho: anchoEstimado,
+          alto: altoEstimado,
         }
         
-        logger.debug(`🎯 Coordenadas PRECISAS de CLAUDE para "${nombreBuscar}"`, {
-          ...coordenadas,
-          ubicacion_h: prod.ubicacion_horizontal,
-          ubicacion_v: prod.ubicacion_vertical,
-          orden: prod.orden_en_pagina,
-          calculo: `Base: ${posicionBaseY}% + Orden: ${ordenOffset}% = ${posicionY}%`
+        logger.success(`🎯 Coordenadas EXACTAS de CLAUDE para "${nombreBuscar}"`, {
+          pagina: coordenadas.pagina,
+          x: `${posicionX}%`,
+          y: `${posicionY}%`,
+          ancho: `${anchoEstimado}%`,
+          alto: `${altoEstimado}%`,
+          region,
+          orden: prod.orden_en_pagina || 'N/A'
         })
       } else {
         // Fallback: coordenadas aproximadas por posición en array
