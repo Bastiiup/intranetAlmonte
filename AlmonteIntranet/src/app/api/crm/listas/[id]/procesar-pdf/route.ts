@@ -94,6 +94,7 @@ if (typeof globalThis !== 'undefined') {
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
+import pdfParse from 'pdf-parse'
 import { getColaboradorFromCookies } from '@/lib/auth/cookies'
 import { createWooCommerceClient } from '@/lib/woocommerce/client'
 import type { WooCommerceProduct } from '@/lib/woocommerce/types'
