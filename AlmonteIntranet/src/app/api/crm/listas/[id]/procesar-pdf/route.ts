@@ -145,7 +145,7 @@ function obtenerHashPDF(pdfBuffer: Buffer): string {
   return crypto.createHash('sha256').update(pdfBuffer).digest('hex')
 }
 
-function obtenerDesdeCacheProcesamientos(hash: string): { productos: ProductoExtraido[] } | null {
+function obtenerDesdeCacheProcesamientos(hash: string): { productos: ProductoExtraido[], modeloUsado: string } | null {
   const cached = cacheProcesamientos.get(hash)
   if (!cached) return null
   
@@ -160,7 +160,7 @@ function obtenerDesdeCacheProcesamientos(hash: string): { productos: ProductoExt
 
 function guardarEnCacheProcesamientos(
   hash: string, 
-  resultado: { productos: ProductoExtraido[] },
+  resultado: { productos: ProductoExtraido[], modeloUsado: string },
   paginas: number
 ): void {
   cacheProcesamientos.set(hash, {
