@@ -899,8 +899,10 @@ async function procesarConClaude(
       throw new Error('El JSON no tiene campo "productos"')
     }
     } catch (parseError) {
-      logger.error('❌ Error al parsear JSON:', parseError instanceof Error ? parseError.message : 'Error desconocido')
-      logger.info(`📄 JSON que intentó parsear:\n${jsonMatch[0]}`)
+      logger.error('❌ Error al parsear JSON:', { 
+        error: parseError instanceof Error ? parseError.message : 'Error desconocido' 
+      })
+      logger.info('📄 JSON que intentó parsear:', { json: jsonMatch[0] })
       throw parseError
     }
     
