@@ -1110,29 +1110,46 @@ async function buscarEnWooCommerce(
     } else {
       // Usar coordenadas de Claude si están disponibles (mucho más precisas)
       if (prod.pagina && prod.ubicacion_vertical && prod.ubicacion_horizontal) {
-        // Claude proporcionó ubicación precisa
-        const posicionY = prod.ubicacion_vertical === 'superior' ? 25 :
-                          prod.ubicacion_vertical === 'centro' ? 50 :
-                          75
+        // Mapeo mejorado de ubicaciones verticales (basado en PDFs reales de listas escolares)
+        // Los productos suelen empezar después del encabezado (~20%) y terminar antes del pie (~90%)
+        let posicionBaseY: number
+        let rangoY: number
         
-        const posicionX = prod.ubicacion_horizontal === 'izquierda' ? 25 :
-                          prod.ubicacion_horizontal === 'centro' ? 50 :
-                          75
+        if (prod.ubicacion_vertical === 'superior') {
+          posicionBaseY = 25  // Entre 20% y 35%
+          rangoY = 10
+        } else if (prod.ubicacion_vertical === 'centro') {
+          posicionBaseY = 50  // Entre 40% y 60%
+          rangoY = 15
+        } else { // inferior
+          posicionBaseY = 72  // Entre 65% y 85%
+          rangoY = 12
+        }
         
-        // Ajustar posición según orden_en_pagina si está disponible
-        const ajusteY = prod.orden_en_pagina ? (prod.orden_en_pagina - 1) * 3 : 0
+        // Distribución vertical según orden_en_pagina (más preciso)
+        const ordenOffset = prod.orden_en_pagina ? 
+          Math.min((prod.orden_en_pagina - 1) * 2.5, rangoY) : 0
+        
+        const posicionY = posicionBaseY + ordenOffset
+        
+        // Mapeo horizontal mejorado (considerar márgenes típicos de PDF)
+        const posicionX = prod.ubicacion_horizontal === 'izquierda' ? 20 :  // Margen izquierdo
+                          prod.ubicacion_horizontal === 'centro' ? 50 :     // Centro
+                          65  // Columna derecha (no al borde)
         
         coordenadas = {
           pagina: prod.pagina,
           posicion_x: posicionX,
-          posicion_y: Math.min(Math.max(posicionY + ajusteY, 15), 85),
+          posicion_y: Math.min(Math.max(posicionY, 18), 88), // Limitar a área útil
           region: prod.ubicacion_vertical
         }
         
-        logger.debug(`🎯 Coordenadas de CLAUDE para "${nombreBuscar}"`, {
+        logger.debug(`🎯 Coordenadas PRECISAS de CLAUDE para "${nombreBuscar}"`, {
           ...coordenadas,
           ubicacion_h: prod.ubicacion_horizontal,
-          orden: prod.orden_en_pagina
+          ubicacion_v: prod.ubicacion_vertical,
+          orden: prod.orden_en_pagina,
+          calculo: `Base: ${posicionBaseY}% + Orden: ${ordenOffset}% = ${posicionY}%`
         })
       } else {
         // Fallback: coordenadas aproximadas por posición en array

@@ -57,13 +57,7 @@ export function usePDFViewer() {
   const navegarAPagina = useCallback((pagina: number) => {
     if (pagina >= 1 && pagina <= numPages) {
       setPageNumber(pagina)
-      // Scroll suave al visor de PDF
-      setTimeout(() => {
-        const pdfViewer = document.querySelector('.pdf-viewer-container')
-        if (pdfViewer) {
-          pdfViewer.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        }
-      }, 100)
+      // No hacer scroll - mantener la posición actual del usuario
     } else {
       console.warn('[usePDFViewer] Página inválida:', pagina, 'Rango válido: 1-' + numPages)
     }
