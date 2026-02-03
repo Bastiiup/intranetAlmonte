@@ -24,6 +24,12 @@ export function extraerInfoCurso(nombreArchivo: string): CursoMatch | null {
   // Limpiar nombre del archivo (quitar .pdf y normalizar)
   let nombre = nombreArchivo.replace(/\.pdf$/i, '').trim()
   
+  // Quitar sufijos comunes que no aportan información
+  nombre = nombre.replace(/\s*-\s*copia\s*(?:-\s*copia\s*)*$/gi, '') // "- copia - copia"
+  nombre = nombre.replace(/\s*\(\d+\)\s*$/g, '') // "(1)", "(2)"
+  nombre = nombre.replace(/\s*-\s*final\s*$/gi, '') // "- final"
+  nombre = nombre.replace(/\s*-\s*v\d+\s*$/gi, '') // "- v1", "- v2"
+  
   console.log('[Curso Matcher] Analizando:', nombre)
   
   // Normalizar texto (quitar acentos, minúsculas)
@@ -36,13 +42,28 @@ export function extraerInfoCurso(nombreArchivo: string): CursoMatch | null {
   
   const nombreNorm = normalizar(nombre)
   
-  // PASO 1: Detectar nivel (Básico/Medio)
+  // PASO 1: Detectar nivel (Básico/Medio) - MÁS TOLERANTE CON TYPOS
   let nivel: 'Basica' | 'Media' | null = null
   
+  // Búsqueda exacta primero
   if (/\b(basico|basica|basic)\b/.test(nombreNorm)) {
     nivel = 'Basica'
   } else if (/\b(medio|media|secundario|secundaria)\b/.test(nombreNorm)) {
     nivel = 'Media'
+  }
+  
+  // Si no se encontró con búsqueda exacta, intentar con fuzzy matching para typos comunes
+  if (!nivel) {
+    // Typos comunes de "basico": baico, bacico, basio, basci, etc.
+    if (/\b(ba[is]i?co|bac?ico|bas[ic]o|ba[sz]ico)\b/.test(nombreNorm)) {
+      nivel = 'Basica'
+      console.log('[Curso Matcher] ⚠️ Detectado typo en "basico"')
+    } 
+    // Typos comunes de "medio": medoi, medi, mdio, etc.
+    else if (/\b(med[oi]i?o|medi[ao]?|m[ei]dio)\b/.test(nombreNorm)) {
+      nivel = 'Media'
+      console.log('[Curso Matcher] ⚠️ Detectado typo en "medio"')
+    }
   }
   
   // PASO 2: Detectar grado (1-8 para básico, 1-4 para medio)
@@ -78,7 +99,9 @@ export function extraerInfoCurso(nombreArchivo: string): CursoMatch | null {
     }
     
     for (const [palabra, num] of Object.entries(numerosEscritos)) {
-      if (new RegExp(`\\b${palabra}\\b`, 'i').test(nombreNorm)) {
+      // Buscar con límite de palabra al inicio pero flexible al final
+      // Esto captura "cuarto basico2025" correctamente
+      if (new RegExp(`\\b${palabra}`, 'i').test(nombreNorm)) {
         grado = num
         metodoDeteccion = 'Números escritos'
         break
@@ -88,19 +111,35 @@ export function extraerInfoCurso(nombreArchivo: string): CursoMatch | null {
   
   // Método 3: Números arábigos (1°, 2°, 3°, etc.)
   if (!grado) {
-    const matchNumero = nombreNorm.match(/\b(\d+)\s*(°|º|o|do|da)?\s*(basico|basica|medio|media)\b/i)
+    // Intentar con diferentes patrones, más flexible
+    const matchNumero = nombreNorm.match(/\b(\d+)\s*(°|º|o|do|da)?\s*(basico|basica|medio|media|ba[is]i?co|med[oi]o)\b/i)
     if (matchNumero) {
       grado = parseInt(matchNumero[1])
       metodoDeteccion = 'Números arábigos'
     }
   }
   
-  // Método 4: Solo número antes de basico/medio
+  // Método 4: Solo número antes de basico/medio (incluso sin espacio)
   if (!grado) {
-    const matchNumeroSolo = nombreNorm.match(/\b(\d+)\s+(basico|basica|medio|media)\b/i)
+    // Permite "8basico" o "8 basico"
+    const matchNumeroSolo = nombreNorm.match(/\b(\d+)\s*(basico|basica|medio|media|ba[is]i?co|med[oi]o)\b/i)
     if (matchNumeroSolo) {
       grado = parseInt(matchNumeroSolo[1])
       metodoDeteccion = 'Número simple'
+    }
+  }
+  
+  // Método 5: Número al inicio del archivo (muy común)
+  if (!grado && nivel) {
+    const matchInicio = nombreNorm.match(/^(\d+)\s*[°º]?\s*/i)
+    if (matchInicio) {
+      const num = parseInt(matchInicio[1])
+      // Validar que sea un grado razonable
+      if ((nivel === 'Basica' && num >= 1 && num <= 8) || 
+          (nivel === 'Media' && num >= 1 && num <= 4)) {
+        grado = num
+        metodoDeteccion = 'Número al inicio'
+      }
     }
   }
   
