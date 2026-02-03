@@ -87,8 +87,7 @@ export async function GET(
         'populate[materiales]': 'true',
         'populate[lista_utiles]': 'true', // Solo el ID de lista_utiles, sin materiales anidados
         'populate[colegio]': 'true', // Incluir colegio para obtener el nombre
-        'populate[versiones_materiales]': 'true', // Necesario para leer estado_revision desde metadata (lista aprobada)
-        // NO especificar fields[] para obtener TODOS los campos, incluyendo estado_revision, fecha_revision, fecha_publicacion
+        // NO populate[versiones_materiales] aquí: en algunos Strapi provoca 500 y deja la tabla sin datos
         'publicationState': 'preview', // Incluir drafts y publicados
       })
       response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
@@ -105,7 +104,6 @@ export async function GET(
             'filters[colegio][id][$eq]': String(colegioIdNum),
             'populate[materiales]': 'true',
             'populate[colegio]': 'true',
-            'populate[versiones_materiales]': 'true', // Para estado_revision desde metadata
             'publicationState': 'preview',
           })
           response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
@@ -117,7 +115,6 @@ export async function GET(
           debugLog('[API /crm/colegios/[id]/cursos GET] ⚠️ Error también sin lista_utiles, intentando solo campos básicos')
           const paramsObj = new URLSearchParams({
             'filters[colegio][id][$eq]': String(colegioIdNum),
-            'populate[versiones_materiales]': 'true', // Para estado_revision desde metadata
             'publicationState': 'preview',
           })
           response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
