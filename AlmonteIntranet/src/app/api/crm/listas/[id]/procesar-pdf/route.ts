@@ -205,10 +205,6 @@ class Logger {
     this.log('ERROR', '❌', message, context)
   }
   
-  warn(message: string, context?: LogContext) {
-    this.log('WARN', '⚠️', message, context)
-  }
-  
   debug(message: string, context?: LogContext) {
     this.log('DEBUG', '🔍', message, context)
   }
