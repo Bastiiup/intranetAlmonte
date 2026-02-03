@@ -1445,7 +1445,7 @@ export async function POST(
     // Obtener número de páginas del PDF (necesario para coordenadas y metadata)
     let paginas = 1 // Valor por defecto
     try {
-      const pdfData = await pdfParse(pdfBuffer)
+      const pdfData = await (pdfParse as any).default(pdfBuffer)
       paginas = pdfData.numpages
       logger.info('📄 Páginas del PDF:', { paginas })
     } catch (error) {
