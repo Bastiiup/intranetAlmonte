@@ -1665,7 +1665,7 @@ export async function POST(
       })
       
       // Verificar que las coordenadas se guardaron correctamente
-      const respuestaVerificacion = await strapiClient.get(`/api/cursos/${cursoDocumentId}?populate=*`)
+      const respuestaVerificacion = await strapiClient.get<StrapiResponse<any>>(`/api/cursos/${cursoDocumentId}?populate=*`)
       const cursoVerificado = respuestaVerificacion.data
       const versionesVerificadas = cursoVerificado?.versiones_materiales || []
       const versionVerificada = versionesVerificadas.find((v: any) => v.version_numero === versionActualizada.version_numero)
