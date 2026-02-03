@@ -45,7 +45,13 @@ interface ResultadoProducto {
     isbn?: string
     autor?: string
     editorial?: string
+    marca?: string
+    asignatura?: string
+    descripcion?: string
     cantidad: number
+    precio?: number
+    woocommerce_id?: string | number
+    encontrado_en_woocommerce?: boolean
     observaciones?: string
   }
   totalProductos: number
