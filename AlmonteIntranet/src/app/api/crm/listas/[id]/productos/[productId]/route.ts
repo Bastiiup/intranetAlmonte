@@ -79,8 +79,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       fecha_actualizacion: obtenerFechaChileISO(),
     }
 
-    // Actualizar las versiones
-    const otrasVersiones = versiones.filter((v: any) => v !== ultimaVersion)
+    // Actualizar las versiones - Comparar por fecha para evitar duplicados
+    const fechaUltimaVersion = ultimaVersion.fecha_actualizacion || ultimaVersion.fecha_subida
+    const otrasVersiones = versiones.filter((v: any) => {
+      const fechaV = v.fecha_actualizacion || v.fecha_subida
+      return fechaV !== fechaUltimaVersion
+    })
+    
     const versionesActualizadas = [versionActualizada, ...otrasVersiones]
 
     // Guardar en Strapi
@@ -161,6 +166,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // Eliminar el producto del array
     const nuevosMateriales = materiales.filter((_: any, index: number) => index !== productoIndex)
 
+    console.log('[API DELETE] Materiales antes:', materiales.length)
+    console.log('[API DELETE] Materiales después:', nuevosMateriales.length)
+
     // Actualizar la versión
     const versionActualizada = {
       ...ultimaVersion,
@@ -168,16 +176,26 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       fecha_actualizacion: obtenerFechaChileISO(),
     }
 
-    // Actualizar las versiones
-    const otrasVersiones = versiones.filter((v: any) => v !== ultimaVersion)
+    // Actualizar las versiones - Comparar por fecha para evitar duplicados
+    const fechaUltimaVersion = ultimaVersion.fecha_actualizacion || ultimaVersion.fecha_subida
+    const otrasVersiones = versiones.filter((v: any) => {
+      const fechaV = v.fecha_actualizacion || v.fecha_subida
+      return fechaV !== fechaUltimaVersion
+    })
+    
     const versionesActualizadas = [versionActualizada, ...otrasVersiones]
 
+    console.log('[API DELETE] Versiones antes:', versiones.length)
+    console.log('[API DELETE] Versiones después:', versionesActualizadas.length)
+
     // Guardar en Strapi
-    await strapiClient.put(`/api/cursos/${cursoId}`, {
+    const updateResponse = await strapiClient.put(`/api/cursos/${cursoId}`, {
       data: {
         versiones_materiales: versionesActualizadas,
       },
     })
+
+    console.log('[API DELETE] Respuesta de Strapi:', updateResponse ? 'OK' : 'ERROR')
 
     console.log('[API DELETE /productos/:productId] ✅ Producto eliminado exitosamente:', productoEliminado.nombre)
 
