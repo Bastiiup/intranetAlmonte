@@ -214,8 +214,13 @@ export function useProductosCRUD({
     }
 
     setLoading(true)
+
+    // Optimistic update - Actualizar UI inmediatamente
+    const productosAnteriores = [...productos]
+    setProductos(prev => prev.filter(p => p.id !== producto.id))
+
     try {
-      const productoIndex = productos.findIndex(p => p.id === producto.id)
+      const productoIndex = productosAnteriores.findIndex(p => p.id === producto.id)
 
       console.log('[useProductosCRUD] 🗑️ Eliminando producto:', {
         productoId: producto.id,
@@ -237,20 +242,24 @@ export function useProductosCRUD({
       const data = await response.json()
 
       if (!response.ok || !data.success) {
+        // Revertir cambio optimista si hay error
+        setProductos(productosAnteriores)
         throw new Error(data.error || 'Error al eliminar el producto')
       }
 
-      alert('✅ Producto eliminado exitosamente')
+      console.log('[useProductosCRUD] ✅ Producto eliminado exitosamente')
 
-      // Recargar datos
+      // Opcional: Recargar datos del servidor para sincronizar
       if (onSuccess) await onSuccess()
     } catch (error: any) {
       console.error('[useProductosCRUD] ❌ Error al eliminar producto:', error)
+      // Revertir cambio optimista
+      setProductos(productosAnteriores)
       alert(`Error al eliminar el producto: ${error.message}`)
     } finally {
       setLoading(false)
     }
-  }, [productos, listaIdFromUrl, lista, onSuccess])
+  }, [productos, listaIdFromUrl, lista, onSuccess, setProductos])
 
   return {
     aprobarProducto,
