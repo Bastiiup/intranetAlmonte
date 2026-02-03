@@ -26,18 +26,18 @@ interface CrearCursoModalProps {
 }
 
 const NIVELES = [
-  { value: 'Basica', label: 'Básica' },
-  { value: 'Media', label: 'Media' },
+  { value: 'Basica', label: 'Básico' },
+  { value: 'Media', label: 'Medio' },
 ]
 
 const GRADOS_BASICA = Array.from({ length: 8 }, (_, i) => ({
   value: String(i + 1),
-  label: `${i + 1}° Básica`,
+  label: `${i + 1}° Básico`,
 }))
 
 const GRADOS_MEDIA = Array.from({ length: 4 }, (_, i) => ({
   value: String(i + 1),
-  label: `${i + 1}° Media`,
+  label: `${i + 1}° Medio`,
 }))
 
 
