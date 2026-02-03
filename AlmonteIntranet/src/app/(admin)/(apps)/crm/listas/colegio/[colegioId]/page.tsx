@@ -76,6 +76,19 @@ export default async function Page({ params }: PageProps) {
           // Normalizar símbolos de grado: º y ° son el mismo grado
           nombreNormalizado = nombreNormalizado.replace(/º/g, '°') // Cambiar º por °
           nombreNormalizado = nombreNormalizado.replace(/\s+/g, ' ') // Normalizar espacios múltiples
+          // Normalizar género: Básica/Basica -> Básico, Media -> Medio
+          nombreNormalizado = nombreNormalizado.replace(/Básica/gi, 'Básico')
+          nombreNormalizado = nombreNormalizado.replace(/Basica/gi, 'Básico')
+          nombreNormalizado = nombreNormalizado.replace(/\bMedia\b/g, 'Medio')
+          
+          // Normalizar nivel para la clave
+          let nivelNormalizado = (attrs.nivel || curso.nivel || 'Basica').toLowerCase().trim()
+          // Convertir todas las variantes a "basico" o "medio"
+          if (nivelNormalizado === 'basica' || nivelNormalizado === 'básica') {
+            nivelNormalizado = 'basico'
+          } else if (nivelNormalizado === 'media') {
+            nivelNormalizado = 'medio'
+          }
           
           // Leer estado_revision desde attributes, directamente, o desde metadata de la última versión
           let estadoRevision = attrs.estado_revision || curso.estado_revision || null
@@ -85,12 +98,14 @@ export default async function Page({ params }: PageProps) {
             estadoRevision = ultimaVersion.metadata.estado_revision
           }
           
+          const grado = attrs.grado || curso.grado || 0
+          
           const cursoMapeado = {
             id: curso.id || curso.documentId,
             documentId: curso.documentId || String(curso.id),
             nombre: nombreNormalizado,
             nivel: attrs.nivel || curso.nivel || '',
-            grado: attrs.grado || curso.grado || 0,
+            grado: grado,
             año: attrs.anio || attrs.año || curso.anio || curso.año || new Date().getFullYear(),
             matricula: attrs.matricula || curso.matricula || 0,
             cantidadVersiones: versiones.length,
@@ -104,8 +119,8 @@ export default async function Page({ params }: PageProps) {
             ids: [curso.id || curso.documentId], // Guardar IDs originales
           }
           
-          // Crear clave única: SOLO nombre + nivel + grado (sin año para evitar duplicados)
-          const clave = `${nombreNormalizado}-${cursoMapeado.nivel}-${cursoMapeado.grado}`.toLowerCase().trim()
+          // Crear clave única: nivel normalizado + grado (sin nombre para evitar problemas con variaciones)
+          const clave = `${nivelNormalizado}-${grado}`.toLowerCase().trim()
           
           if (cursosMap.has(clave)) {
             // Si ya existe, mantener solo el curso del año 2026
