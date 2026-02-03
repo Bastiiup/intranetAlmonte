@@ -16,6 +16,8 @@ interface UseProductosCRUDParams {
   setEstadoRevision: React.Dispatch<React.SetStateAction<'borrador' | 'revisado' | 'publicado' | null>>
   normalizarLista?: (listaData: any) => ListaData | null
   setLista?: React.Dispatch<React.SetStateAction<ListaData | null>>
+  setSelectedProduct?: React.Dispatch<React.SetStateAction<string | number | null>>
+  setSelectedProductData?: React.Dispatch<React.SetStateAction<ProductoIdentificado | null>>
 }
 
 export function useProductosCRUD({
@@ -26,7 +28,9 @@ export function useProductosCRUD({
   setProductos,
   setEstadoRevision,
   normalizarLista,
-  setLista
+  setLista,
+  setSelectedProduct,
+  setSelectedProductData
 }: UseProductosCRUDParams) {
   const router = useRouter()
   const [isApprovingProduct, setIsApprovingProduct] = useState<string | number | null>(null)
@@ -218,6 +222,12 @@ export function useProductosCRUD({
     // Optimistic update - Actualizar UI inmediatamente
     const productosAnteriores = [...productos]
     setProductos(prev => prev.filter(p => p.id !== producto.id))
+    
+    // Si el producto eliminado es el seleccionado, deseleccionarlo
+    if (setSelectedProduct && setSelectedProductData) {
+      setSelectedProduct(null)
+      setSelectedProductData(null)
+    }
 
     try {
       const productoIndex = productosAnteriores.findIndex(p => p.id === producto.id)
@@ -244,6 +254,10 @@ export function useProductosCRUD({
       if (!response.ok || !data.success) {
         // Revertir cambio optimista si hay error
         setProductos(productosAnteriores)
+        if (setSelectedProduct && setSelectedProductData) {
+          setSelectedProduct(producto.id)
+          setSelectedProductData(producto)
+        }
         throw new Error(data.error || 'Error al eliminar el producto')
       }
 
@@ -255,6 +269,10 @@ export function useProductosCRUD({
       console.error('[useProductosCRUD] ❌ Error al eliminar producto:', error)
       // Revertir cambio optimista
       setProductos(productosAnteriores)
+      if (setSelectedProduct && setSelectedProductData) {
+        setSelectedProduct(producto.id)
+        setSelectedProductData(producto)
+      }
       alert(`Error al eliminar el producto: ${error.message}`)
     } finally {
       setLoading(false)

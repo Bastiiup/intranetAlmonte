@@ -154,7 +154,9 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
     setProductos,
     setEstadoRevision,
     normalizarLista,
-    setLista
+    setLista,
+    setSelectedProduct,
+    setSelectedProductData
   })
 
   // Determinar versión actual
