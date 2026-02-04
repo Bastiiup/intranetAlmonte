@@ -26,8 +26,8 @@ export async function GET(request: NextRequest) {
       'populate[libro][fields][1]': 'isbn_libro',
       'populate[orden_compra][fields][0]': 'numero_po',
       'populate[pedido][fields][0]': 'numero_pedido',
-      'populate[usuario][fields][0]': 'nombre_completo',
-      'populate[usuario][fields][1]': 'email_login',
+      'populate[usuario][fields][0]': 'username',
+      'populate[usuario][fields][1]': 'email',
     })
 
     // Filtrar por libro si se especifica

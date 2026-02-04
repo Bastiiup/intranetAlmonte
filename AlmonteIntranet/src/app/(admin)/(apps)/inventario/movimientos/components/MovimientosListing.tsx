@@ -28,8 +28,8 @@ interface Movimiento {
     numero_po?: string
   }
   usuario?: {
-    nombre_completo?: string
-    email_login?: string
+    username?: string
+    email?: string
   }
 }
 
@@ -308,7 +308,7 @@ export default function MovimientosListing({ libroId, showProductColumn = true }
                         <td>
                           {mov.usuario ? (
                             <div className="small">
-                              {mov.usuario.nombre_completo || mov.usuario.email_login || '-'}
+                              {mov.usuario.username || mov.usuario.email || '-'}
                             </div>
                           ) : (
                             <span className="text-muted small">Sistema</span>

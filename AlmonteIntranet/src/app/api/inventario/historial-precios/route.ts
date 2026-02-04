@@ -22,8 +22,8 @@ export async function GET(request: NextRequest) {
       'sort[0]': 'fecha_cambio:desc',
       'populate[libro][fields][0]': 'nombre_libro',
       'populate[libro][fields][1]': 'isbn_libro',
-      'populate[usuario][fields][0]': 'nombre_completo',
-      'populate[usuario][fields][1]': 'email_login',
+      'populate[usuario][fields][0]': 'username',
+      'populate[usuario][fields][1]': 'email',
     })
 
     // Filtrar por libro si se especifica

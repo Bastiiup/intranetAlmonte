@@ -22,8 +22,8 @@ interface HistorialPrecio {
     isbn_libro?: string
   }
   usuario?: {
-    nombre_completo?: string
-    email_login?: string
+    username?: string
+    email?: string
   }
 }
 
@@ -196,7 +196,7 @@ export default function HistorialPrecios({ libroId }: HistorialPreciosProps) {
                     </td>
                     <td>
                       <small className="text-muted">
-                        {h.usuario?.nombre_completo || h.usuario?.email_login || 'Sistema'}
+                        {h.usuario?.username || h.usuario?.email || 'Sistema'}
                       </small>
                     </td>
                   </tr>
