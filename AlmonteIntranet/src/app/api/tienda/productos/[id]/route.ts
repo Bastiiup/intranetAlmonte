@@ -264,8 +264,15 @@ export async function PUT(
       Object.assign(body, normalizedBody)
     }
 
-    // Obtener producto
-    const endpoint = `/api/libros?filters[id][$eq]=${id}&populate=*`
+    // Obtener producto - detectar si es ID numérico o documentId (string)
+    const esNumerico = !isNaN(parseInt(id)) && /^\d+$/.test(id)
+    const filtro = esNumerico 
+      ? `filters[id][$eq]=${id}` 
+      : `filters[documentId][$eq]=${id}`
+    const endpoint = `/api/libros?${filtro}&populate=*`
+    
+    console.log('[API PUT] 🔍 Buscando producto:', { id, esNumerico, filtro, endpoint })
+    
     const response = await strapiClient.get<any>(endpoint)
 
     let producto: any
