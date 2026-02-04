@@ -645,7 +645,7 @@ export async function PUT(
         // Crear registro en historial-precios
         const historialData = {
           data: {
-            libro: producto.documentId,
+            libro: producto.id, // Usar ID numérico de Strapi, no documentId
             precio_anterior: precioAnterior,
             precio_nuevo: precioNuevo,
             precio_oferta_anterior: precioOfertaAnterior || null,
@@ -653,15 +653,19 @@ export async function PUT(
             motivo: body.motivo_cambio_precio || 'Actualización manual desde intranet',
             origen: 'manual_intranet',
             fecha_cambio: new Date().toISOString(),
-            ...(usuarioDocumentId && { usuario: usuarioDocumentId }),
-            metadata: {
-              ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-              user_agent: request.headers.get('user-agent') || 'unknown',
-            }
+            // Usuario es opcional - solo agregar si existe y es válido
           }
         }
 
-        await strapiClient.post('/api/historial-precios', historialData)
+        console.log('[API PUT] 📝 Datos para historial de precios:', JSON.stringify(historialData, null, 2))
+        
+        try {
+          await strapiClient.post('/api/historial-precios', historialData)
+        } catch (histErr: any) {
+          console.error('[API PUT] ⚠️ Error en POST historial-precios:', histErr.message)
+          console.error('[API PUT] ⚠️ Respuesta:', histErr.response?.data || histErr.details)
+          // No re-lanzar el error - el historial es opcional
+        }
         console.log('[API PUT] ✅ Historial de precios registrado:', {
           libro: producto.documentId,
           precioAnterior,
@@ -1066,11 +1070,27 @@ export async function PUT(
 
   } catch (error: any) {
     console.error('[API PUT] ❌ ERROR:', error)
+    console.error('[API PUT] ❌ Error message:', error.message)
+    console.error('[API PUT] ❌ Error response:', error.response?.data || error.response || 'Sin response')
+    console.error('[API PUT] ❌ Error details:', error.details || 'Sin details')
+    
+    // Extraer mensaje de error más específico
+    let errorMessage = 'Error al actualizar producto'
+    if (error.message) {
+      errorMessage = error.message
+    }
+    if (error.response?.data?.error?.message) {
+      errorMessage = error.response.data.error.message
+    }
+    if (error.details?.errors) {
+      errorMessage = error.details.errors.map((e: any) => e.message || e).join(', ')
+    }
+    
     return NextResponse.json({
       success: false,
-      error: error.message,
-      details: error.details
-    }, { status: 500 })
+      error: errorMessage,
+      details: error.details || error.response?.data
+    }, { status: error.status || 500 })
   }
 }
 
