@@ -240,6 +240,37 @@ export async function POST(
           updateData
         )
         
+        // ═══════════════════════════════════════════════════════════════════
+        // REGISTRAR MOVIMIENTO DE INVENTARIO
+        // ═══════════════════════════════════════════════════════════════════
+        try {
+          const movimientoData = {
+            data: {
+              libro: productoIdParaUpdate,
+              tipo: 'entrada',
+              cantidad: cantidad,
+              stock_anterior: stockActual,
+              stock_nuevo: nuevoStock,
+              motivo: `Recepción de Orden de Compra ${ordenIdParaUpdate}`,
+              referencia_tipo: 'orden_compra',
+              referencia_id: String(ordenIdParaUpdate),
+              orden_compra: ordenIdParaUpdate,
+              fecha_movimiento: new Date().toISOString(),
+              metadata: {
+                producto_nombre: item.producto_nombre || 'Producto',
+                rfq_id: rfq?.documentId || rfq?.id || null,
+                cotizacion_id: cotizacion?.documentId || cotizacion?.id || null,
+              }
+            }
+          }
+
+          await strapiClient.post('/api/movimientos-inventario', movimientoData)
+          console.log(`[Confirmar Recepción] 📦 Movimiento de inventario registrado para producto ${productoId}`)
+        } catch (movimientoError: any) {
+          // No fallar si el registro de movimiento falla
+          console.error(`[Confirmar Recepción] ⚠️ Error al registrar movimiento de inventario (no crítico):`, movimientoError.message)
+        }
+        
         stockResults.push({
           productoId,
           producto_nombre: item.producto_nombre || 'Producto',

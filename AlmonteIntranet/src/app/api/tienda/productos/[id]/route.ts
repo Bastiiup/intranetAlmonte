@@ -606,6 +606,74 @@ export async function PUT(
     )
 
     console.log('[API PUT] ✅ Actualización exitosa')
+
+    // ═══════════════════════════════════════════════════════════════════
+    // REGISTRAR HISTORIAL DE PRECIOS (si hubo cambios de precio)
+    // ═══════════════════════════════════════════════════════════════════
+    try {
+      const precioAnterior = attrs.precio || 0
+      const precioNuevo = body.precio !== undefined ? parseFloat(body.precio.toString()) : precioAnterior
+      const precioOfertaAnterior = attrs.precio_oferta || 0
+      const precioOfertaNuevo = body.precio_oferta !== undefined ? parseFloat(body.precio_oferta.toString()) : precioOfertaAnterior
+
+      const huboCambioPrecio = precioAnterior !== precioNuevo || precioOfertaAnterior !== precioOfertaNuevo
+
+      if (huboCambioPrecio) {
+        console.log('[API PUT] 💰 Detectado cambio de precio, registrando en historial...')
+        
+        // Obtener usuario para el historial
+        let usuarioDocumentId: string | null = null
+        try {
+          const cookieHeader = request.headers.get('cookie')
+          if (cookieHeader) {
+            const cookies = cookieHeader.split(';').reduce((acc: Record<string, string>, cookie: string) => {
+              const [name, ...valueParts] = cookie.trim().split('=')
+              if (name && valueParts.length > 0) {
+                acc[name] = decodeURIComponent(valueParts.join('='))
+              }
+              return acc
+            }, {})
+            if (cookies['colaboradorData']) {
+              const colaborador = JSON.parse(cookies['colaboradorData'])
+              usuarioDocumentId = colaborador.documentId || null
+            }
+          }
+        } catch (e) {
+          console.warn('[API PUT] ⚠️ No se pudo obtener usuario para historial de precios')
+        }
+
+        // Crear registro en historial-precios
+        const historialData = {
+          data: {
+            libro: producto.documentId,
+            precio_anterior: precioAnterior,
+            precio_nuevo: precioNuevo,
+            precio_oferta_anterior: precioOfertaAnterior || null,
+            precio_oferta_nuevo: precioOfertaNuevo || null,
+            motivo: body.motivo_cambio_precio || 'Actualización manual desde intranet',
+            origen: 'manual_intranet',
+            fecha_cambio: new Date().toISOString(),
+            ...(usuarioDocumentId && { usuario: usuarioDocumentId }),
+            metadata: {
+              ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+              user_agent: request.headers.get('user-agent') || 'unknown',
+            }
+          }
+        }
+
+        await strapiClient.post('/api/historial-precios', historialData)
+        console.log('[API PUT] ✅ Historial de precios registrado:', {
+          libro: producto.documentId,
+          precioAnterior,
+          precioNuevo,
+          precioOfertaAnterior,
+          precioOfertaNuevo,
+        })
+      }
+    } catch (historialError: any) {
+      // No fallar la actualización si el historial falla
+      console.error('[API PUT] ⚠️ Error al registrar historial de precios (no crítico):', historialError.message)
+    }
     
     // Verificar que el producto actualizado tenga canales y estado correcto
     const productoActualizado = updateResponse.data?.attributes || updateResponse.data || updateResponse

@@ -53,10 +53,9 @@ export default function InventarioProveedoresPage() {
     notas_internas: '',
   })
   
-  // Estados para edición de inventario y precios
+  // Estados para edición de precios (stock solo lectura - se actualiza via órdenes de compra)
   const [editingProduct, setEditingProduct] = useState<string | null>(null)
   const [editFormData, setEditFormData] = useState<{
-    stock_quantity: number
     precio: number
     precio_oferta?: number
   } | null>(null)
@@ -205,11 +204,10 @@ export default function InventarioProveedoresPage() {
     setProductosCantidades({ ...productosCantidades, [productId]: cantidadNum })
   }
 
-  // Funciones para editar inventario y precios
+  // Funciones para editar precios (stock solo lectura - se actualiza via órdenes de compra)
   const handleEditProduct = (producto: Producto) => {
     setEditingProduct(String(producto.id))
     setEditFormData({
-      stock_quantity: producto.stock_quantity || 0,
       precio: producto.precio || 0,
       precio_oferta: producto.precio_regular && producto.precio_regular !== producto.precio ? producto.precio_regular : undefined,
     })
@@ -227,8 +225,8 @@ export default function InventarioProveedoresPage() {
     try {
       const productId = producto.documentId || producto.id
       
+      // Solo actualizar precios (stock se gestiona via órdenes de compra)
       const updateData: any = {
-        stock_quantity: editFormData.stock_quantity,
         precio: editFormData.precio,
       }
       
@@ -248,15 +246,13 @@ export default function InventarioProveedoresPage() {
         throw new Error(result.error || 'Error al actualizar producto')
       }
 
-      // Actualizar producto en el estado local
+      // Actualizar producto en el estado local (solo precios, stock no cambia)
       setProductos(prev => prev.map(p => {
         if (String(p.id) === String(producto.id)) {
           return {
             ...p,
-            stock_quantity: editFormData.stock_quantity,
             precio: editFormData.precio,
             precio_regular: editFormData.precio_oferta || editFormData.precio,
-            stock_status: editFormData.stock_quantity > 0 ? 'instock' : 'outofstock',
           }
         }
         return p
@@ -264,7 +260,7 @@ export default function InventarioProveedoresPage() {
 
       showNotification({
         title: 'Éxito',
-        message: 'Producto actualizado correctamente',
+        message: 'Precio actualizado correctamente',
         variant: 'success',
       })
 
@@ -599,6 +595,21 @@ export default function InventarioProveedoresPage() {
     <Container fluid>
       <PageBreadcrumb title="Inventario - Proveedores" subtitle="Inventario · Compras" />
       
+      {/* Información sobre gestión de stock */}
+      <Alert variant="info" className="mb-3">
+        <div className="d-flex align-items-center">
+          <LuPackage className="me-2" size={20} />
+          <div>
+            <strong>Gestión de Inventario:</strong> El <strong>precio</strong> se puede editar directamente. 
+            El <strong>stock</strong> solo se actualiza automáticamente cuando se confirma la recepción de una <strong>Orden de Compra</strong>.
+            <br />
+            <small className="text-muted">
+              Para aumentar stock: Crear RFQ → Recibir Cotización → Generar Orden de Compra → Confirmar Recepción
+            </small>
+          </div>
+        </div>
+      </Alert>
+      
       {/* Panel de productos seleccionados */}
       {selectedProducts.size > 0 && (
         <Card className="mb-3 border-primary">
@@ -846,21 +857,8 @@ export default function InventarioProveedoresPage() {
                         <td>{producto.autor}</td>
                         <td>{producto.editorial}</td>
                         <td className="text-center">
-                          {editingProduct === String(producto.id) && editFormData ? (
-                            <FormControl
-                              type="number"
-                              min="0"
-                              size="sm"
-                              style={{ width: '80px' }}
-                              value={editFormData.stock_quantity}
-                              onChange={(e) => setEditFormData({
-                                ...editFormData,
-                                stock_quantity: parseInt(e.target.value) || 0,
-                              })}
-                            />
-                          ) : (
-                            getStockBadge(producto.stock_quantity || 0, producto.stock_status)
-                          )}
+                          {/* Stock solo lectura - se actualiza mediante órdenes de compra */}
+                          {getStockBadge(producto.stock_quantity || 0, producto.stock_status)}
                         </td>
                         <td className="text-end">
                           {editingProduct === String(producto.id) && editFormData ? (
