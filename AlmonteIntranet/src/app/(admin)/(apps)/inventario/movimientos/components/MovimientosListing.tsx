@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Card, CardBody, CardHeader, Table, Badge, Spinner, Alert, Row, Col, Form, Button, InputGroup } from 'react-bootstrap'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { LuPackage, LuTrendingUp, LuTrendingDown, LuSearch, LuRefreshCw, LuArrowUpCircle, LuArrowDownCircle, LuMinusCircle } from 'react-icons/lu'
+import { LuPackage, LuTrendingUp, LuTrendingDown, LuSearch, LuRefreshCw, LuArrowUp, LuArrowDown, LuMinus } from 'react-icons/lu'
 import Link from 'next/link'
 
 interface Movimiento {
@@ -52,14 +52,14 @@ const TIPOS_MOVIMIENTO = [
 
 const getTipoBadge = (tipo: string) => {
   const config: Record<string, { bg: string; icon: React.ReactNode; label: string }> = {
-    entrada: { bg: 'success', icon: <LuArrowUpCircle className="me-1" />, label: 'Entrada' },
-    salida: { bg: 'danger', icon: <LuArrowDownCircle className="me-1" />, label: 'Salida' },
+    entrada: { bg: 'success', icon: <LuArrowUp className="me-1" />, label: 'Entrada' },
+    salida: { bg: 'danger', icon: <LuArrowDown className="me-1" />, label: 'Salida' },
     ajuste_positivo: { bg: 'info', icon: <LuTrendingUp className="me-1" />, label: 'Ajuste (+)' },
     ajuste_negativo: { bg: 'warning', icon: <LuTrendingDown className="me-1" />, label: 'Ajuste (-)' },
     devolucion: { bg: 'primary', icon: <LuRefreshCw className="me-1" />, label: 'Devolución' },
-    merma: { bg: 'dark', icon: <LuMinusCircle className="me-1" />, label: 'Merma' },
-    transferencia_entrada: { bg: 'success-subtle', icon: <LuArrowUpCircle className="me-1" />, label: 'Trans. entrada' },
-    transferencia_salida: { bg: 'danger-subtle', icon: <LuArrowDownCircle className="me-1" />, label: 'Trans. salida' },
+    merma: { bg: 'dark', icon: <LuMinus className="me-1" />, label: 'Merma' },
+    transferencia_entrada: { bg: 'success-subtle', icon: <LuArrowUp className="me-1" />, label: 'Trans. entrada' },
+    transferencia_salida: { bg: 'danger-subtle', icon: <LuArrowDown className="me-1" />, label: 'Trans. salida' },
   }
   const { bg, icon, label } = config[tipo] || { bg: 'secondary', icon: null, label: tipo }
   return (
