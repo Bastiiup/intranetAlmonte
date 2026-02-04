@@ -18,16 +18,12 @@ export async function GET(request: NextRequest) {
     const pageSize = searchParams.get('pageSize') || '20'
 
     // Construir parámetros de query
+    // Simplificado: usar populate=* para evitar errores de campos específicos
     const params = new URLSearchParams({
       'pagination[page]': page,
       'pagination[pageSize]': pageSize,
       'sort[0]': 'fecha_movimiento:desc',
-      'populate[libro][fields][0]': 'nombre_libro',
-      'populate[libro][fields][1]': 'isbn_libro',
-      'populate[orden_compra][fields][0]': 'numero_po',
-      'populate[pedido][fields][0]': 'numero_pedido',
-      'populate[usuario][fields][0]': 'username',
-      'populate[usuario][fields][1]': 'email',
+      'populate': '*',
     })
 
     // Filtrar por libro si se especifica
