@@ -37,13 +37,20 @@ export async function GET(request: Request) {
     const estado = searchParams.get('estado') || ''
     const region = searchParams.get('region') || ''
     const comuna = searchParams.get('comuna') || ''
+    // Filtro por documentId (ej. /crm/listas/colegio/evpgfjn51fu1johiyrtmw3vw)
+    const documentIdFilter = searchParams.get('filters[documentId][$eq]') || ''
 
     // Construir URL con paginación y ordenamiento
     const params = new URLSearchParams({
       'pagination[page]': page,
-      'pagination[pageSize]': pageSize,
+      'pagination[pageSize]': documentIdFilter ? '1' : pageSize, // Un solo resultado si se busca por documentId
       'sort[0]': 'colegio_nombre:asc',
     })
+
+    // Si se pide un colegio por documentId, filtrar en Strapi
+    if (documentIdFilter && documentIdFilter.trim()) {
+      params.append('filters[documentId][$eq]', documentIdFilter.trim())
+    }
 
     // Populate para relaciones (Strapi v4 syntax)
     params.append('populate[comuna]', 'true')

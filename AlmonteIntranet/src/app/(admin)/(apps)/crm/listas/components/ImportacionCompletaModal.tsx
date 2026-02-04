@@ -152,6 +152,10 @@ const extractComponents = (nombre: string) => {
   
   // Normalizar "o" después de números (cualquier número: 1o, 2o, 3o, 5o, 10o, etc.)
   textoLimpio = textoLimpio.replace(/(\d+)\s*[oº°]/gi, '$1')
+  // Números romanos de curso (IV, III, II, I) -> 4, 3, 2, 1 para Medio (ej: II_Medio, I° Medio). Orden: más largo primero.
+  textoLimpio = textoLimpio.replace(/\biv\b/gi, ' 4 ').replace(/\biii\b/gi, ' 3 ').replace(/\bii\b/gi, ' 2 ')
+  textoLimpio = textoLimpio.replace(/\bi\b/gi, ' 1 ') // I solo al final para no tocar "iii" ni "ii"
+  textoLimpio = textoLimpio.replace(/\s+/g, ' ').trim()
   
   // Normalizar plurales y variaciones de nivel
   const nivelNormalizado = textoLimpio
@@ -256,6 +260,8 @@ export default function ImportacionCompletaModal({
   const [agrupado, setAgrupado] = useState<Map<string, AgrupadoPorLista>>(new Map())
   const [processing, setProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadingFile, setUploadingFile] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [minimized, setMinimized] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -372,6 +378,14 @@ export default function ImportacionCompletaModal({
   const [excelPDFsFile, setExcelPDFsFile] = useState<File | null>(null)
   const [zipPDFsFile, setZipPDFsFile] = useState<File | null>(null)
   const [loadingPDFsImport, setLoadingPDFsImport] = useState(false)
+  const [useIAparaMapeo, setUseIAparaMapeo] = useState(false)
+  const [loadingMapeoIA, setLoadingMapeoIA] = useState(false)
+  /** PDFs que no se pudieron mapear automáticamente; el usuario puede asignarlos manualmente a un curso */
+  const [pdfsNoMapeados, setPdfsNoMapeados] = useState<File[]>([])
+  /** Por cada PDF no mapeado, cursos (grupoKeys) seleccionados para asignar (permite varios) */
+  const [asignarGruposPorPdf, setAsignarGruposPorPdf] = useState<Record<string, string[]>>({})
+  /** Modal "Crear curso" para un PDF no mapeado: { file, nombreCurso, grupoKeyOrigen } */
+  const [crearCursoParaPdf, setCrearCursoParaPdf] = useState<{ file: File; nombreCurso: string; grupoKeyOrigen: string } | null>(null)
   const excelPDFsInputRef = useRef<HTMLInputElement>(null)
   const zipPDFsInputRef = useRef<HTMLInputElement>(null)
 
@@ -453,13 +467,66 @@ export default function ImportacionCompletaModal({
     const file = e.target.files?.[0]
     if (!file) return
 
+    setUploadingFile(true)
+    setUploadProgress(0)
+    setError(null)
+
     const reader = new FileReader()
+    reader.onprogress = (ev) => {
+      if (ev.lengthComputable) {
+        const pct = Math.min(35, Math.round((ev.loaded / ev.total) * 35))
+        setUploadProgress(pct)
+      }
+    }
     reader.onload = async (event) => {
       try {
+        setUploadProgress(35)
         const data = new Uint8Array(event.target?.result as ArrayBuffer)
+        setUploadProgress(45)
         const workbook = XLSX.read(data, { type: 'array' })
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { raw: false })
+        // Si la fila 1 es título "Plantilla Importación...", usar desde fila 2 como encabezados (PUNTO ZERO)
+        const firstRowA1 = (firstSheet['A1']?.w ?? '').toString()
+        const hasTitleRow = firstRowA1.includes('Plantilla') || firstRowA1.includes('Listas de Útiles')
+        const jsonDataRaw = XLSX.utils.sheet_to_json(firstSheet, {
+          raw: false,
+          ...(hasTitleRow && { range: 1 }), // Saltar fila de título; fila 2 = encabezados, fila 3+ = datos
+        })
+
+        // Normalizar nombres de columnas: quitar BOM (U+FEFF) y espacios que Excel a veces añade al guardar
+        const normalizarClave = (key: string) => String(key).replace(/^\uFEFF/, '').trim()
+        const jsonData = jsonDataRaw.map((row: any) => {
+          const cleaned: Record<string, any> = {}
+          for (const k of Object.keys(row)) {
+            cleaned[normalizarClave(k)] = row[k]
+          }
+          return cleaned
+        })
+
+        // Resolver nombres de columnas: detectar qué key del Excel corresponde a RBD, Curso, Asignatura, Producto
+        // (por si el archivo tiene variantes: "N° curso", espacios extra, encoding distinto, etc.)
+        const norm = (s: string) => String(s).toLowerCase().replace(/\s+/g, ' ').replace(/[º°]/g, 'o').trim()
+        const keysPrimeraFila = jsonData[0] ? Object.keys(jsonData[0]) : []
+        const findKey = (variantes: string[]) => {
+          const set = new Set(variantes.map(v => norm(v)))
+          return keysPrimeraFila.find(k => set.has(norm(k))) || keysPrimeraFila.find(k => variantes.some(v => norm(k).includes(norm(v)) || norm(v).includes(norm(k))))
+        }
+        const colRBD = findKey(['RBD', 'rbd', 'Codigo RBD', 'Código RBD'])
+        const colCurso = findKey(['Curso', 'curso', 'Nombre Curso'])
+        const colAsignatura = findKey(['Asignatura', 'asignatura', 'Materia', 'Ramo'])
+        const colProducto = findKey(['Producto', 'producto', 'Libro_nombre', 'Libro nombre', 'Item'])
+        const colColegio = findKey(['Colegio', 'colegio', 'Institución', 'Institucion', 'Nombre Colegio'])
+        const colAño = findKey(['Año', 'ano', 'Año_lista', 'Año_curso'])
+        const colNivel = findKey(['Nivel', 'nivel'])
+        const colNcurso = findKey(['Nº curso', 'N° curso', 'No curso', 'Nº curso', 'Grado', 'grado'])
+        const colOrdenAsig = findKey(['Orden Asig.', 'Orden Asignatura', 'Orden_asignatura'])
+        const colOrdenProd = findKey(['Orden Prod.', 'Orden Prod', 'Orden Producto', 'Libro_orden'])
+        const colCodigo = findKey(['Código', 'Codigo', 'Libro_codigo', 'Código producto'])
+        const getVal = (row: Record<string, any>, key: string | undefined, ...fallbacks: string[]) => {
+          if (key && row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') return row[key]
+          for (const f of fallbacks) if (row[f] !== undefined && row[f] !== null && String(row[f]).trim() !== '') return row[f]
+          return undefined
+        }
 
         // Función helper para obtener URL desde múltiples variantes (case-insensitive)
         const obtenerURLLista = (row: any): string | undefined => {
@@ -527,43 +594,58 @@ export default function ImportacionCompletaModal({
           return undefined
         }
 
-        // Detectar formato del Excel (nuevo formato compacto o formato completo)
+        // Detectar formato: si encontramos al menos una columna clave, es formato que podemos leer
+        const tieneColumnasConocidas = !!(colRBD || colCurso || colAsignatura || colProducto || colColegio)
         const primeraFila = (jsonData[0] || {}) as Record<string, any>
-        const tieneFormatoCompacto = primeraFila.nombre_curso || primeraFila['nombre_curso'] || 
-                                     primeraFila.rbd || primeraFila['rbd'] ||
-                                     primeraFila.Producto || primeraFila['Producto'] ||
-                                     primeraFila.asignaura || primeraFila['asignaura']
-        
-        // Normalizar datos - soportar ambos formatos
+        const tieneFormatoCompacto = tieneColumnasConocidas || primeraFila.nombre_curso || primeraFila['nombre_curso'] ||
+                                     primeraFila.rbd || primeraFila.RBD || primeraFila.Curso || primeraFila.Producto || primeraFila.asignaura
+
+        // Normalizar datos - soportar ambos formatos; usar columnas resueltas para mayor compatibilidad
         const normalizedData: ImportRow[] = jsonData.map((row: any) => {
+          const rbdVal = getVal(row, colRBD, 'RBD', 'rbd')
+          const cursoVal = getVal(row, colCurso, 'Curso', 'curso', 'nombre_curso')
+          const asignaturaVal = getVal(row, colAsignatura, 'Asignatura', 'asignatura', 'asignaura')
+          const productoVal = getVal(row, colProducto, 'Producto', 'producto', 'Libro_nombre', 'libro_nombre')
+          const colegioVal = getVal(row, colColegio, 'Colegio', 'colegio', 'Institución')
+          const añoVal = getVal(row, colAño, 'Año', 'ano', 'Año_curso', 'año_curso')
+          const nivelVal = getVal(row, colNivel, 'Nivel', 'nivel')
+          const ncursoVal = getVal(row, colNcurso, 'Nº curso', 'N° curso', 'Grado', 'grado')
+          const ordenAsigVal = getVal(row, colOrdenAsig, 'Orden Asig.', 'Orden_asignatura', 'orden_asignatura')
+          const ordenProdVal = getVal(row, colOrdenProd, 'Orden Prod.', 'Libro_orden', 'orden_prod', 'orden')
+          const codigoVal = getVal(row, colCodigo, 'Código', 'Codigo', 'Libro_codigo', 'codigo')
+
           if (tieneFormatoCompacto) {
-            // Formato compacto: rbd, nombre_curso, nivel, asignaura, grado, año, Producto, etc.
+            // Formato compacto: usar valores de columnas resueltas + fallbacks por nombre
             return {
-              Colegio: row.Colegio || row.colegio || row.colegio_nombre || '', // Si no hay, se buscará por RBD
-              RBD: row.RBD || row.rbd ? parseInt(String(row.RBD || row.rbd)) : undefined,
+              Colegio: String(colegioVal ?? row.Colegio ?? row.colegio ?? row.Institución ?? '').trim(),
+              RBD: rbdVal !== undefined && rbdVal !== null && String(rbdVal).trim() !== '' ? parseInt(String(rbdVal)) : undefined,
               Comuna: row.Comuna || row.comuna,
               Orden_colegio: row.Orden_colegio || row.orden_colegio ? parseInt(String(row.Orden_colegio || row.orden_colegio)) : undefined,
-              Curso: row.Curso || row.curso || row.nombre_curso || '',
-              Año_curso: row.Año_curso || row.año_curso || row.año || row.ano ? parseInt(String(row.Año_curso || row.año_curso || row.año || row.ano)) : undefined,
+              Curso: String(cursoVal ?? row.Curso ?? row.curso ?? row.nombre_curso ?? '').trim(),
+              Año_curso: añoVal !== undefined && añoVal !== null && String(añoVal).trim() !== '' ? parseInt(String(añoVal)) : undefined,
               Orden_curso: row.Orden_curso || row.orden_curso ? parseInt(String(row.Orden_curso || row.orden_curso)) : undefined,
-              Asignatura: row.Asignatura || row.asignatura || row.asignaura || '', // Soporta typo "asignaura"
-              Orden_asignatura: row.Orden_asignatura || row.orden_asignatura || row.orden_asigna ? parseInt(String(row.Orden_asignatura || row.orden_asignatura || row.orden_asigna)) : undefined,
-              Lista_nombre: row.Lista_nombre || row.lista_nombre || row.Lista || row.lista || (row.Asignatura || row.asignatura || row.asignaura || 'Lista de Útiles'), // Usar asignatura como lista si no hay
-              Año_lista: row.Año_lista || row.año_lista || row.año || row.ano ? parseInt(String(row.Año_lista || row.año_lista || row.año || row.ano)) : undefined,
+              Asignatura: String(asignaturaVal ?? row.Asignatura ?? row.asignatura ?? row.asignaura ?? '').trim(),
+              Orden_asignatura: ordenAsigVal !== undefined && ordenAsigVal !== null && String(ordenAsigVal).trim() !== '' ? parseInt(String(ordenAsigVal)) : undefined,
+              Lista_nombre: row.Lista_nombre || row.lista_nombre || row.Lista || row.lista || (asignaturaVal || row.Asignatura || row.asignatura || 'Lista de Útiles'),
+              Año_lista: añoVal !== undefined && añoVal !== null && String(añoVal).trim() !== '' ? parseInt(String(añoVal)) : undefined,
               Fecha_actualizacion: row.Fecha_actualizacion || row.fecha_actualizacion,
               Fecha_publicacion: row.Fecha_publicacion || row.fecha_publicacion,
-              URL_lista: obtenerURLLista(row), // Buscar URL en múltiples variantes
+              URL_lista: obtenerURLLista(row),
               URL_publicacion: row.URL_publicacion || row.url_publicacion,
               Orden_lista: row.Orden_lista || row.orden_lista ? parseInt(String(row.Orden_lista || row.orden_lista)) : undefined,
-              Libro_nombre: row.Libro_nombre || row.libro_nombre || row.Producto || row.producto || '',
-              Libro_codigo: row.Libro_codigo || row.libro_codigo || row.codigo_prod || row.codigo || '',
+              Libro_nombre: String(productoVal ?? row.Libro_nombre ?? row.Producto ?? row.producto ?? '').trim(),
+              Libro_codigo: String(codigoVal ?? row.Libro_codigo ?? row.codigo ?? '').trim(),
               Libro_isbn: row.Libro_isbn || row.libro_isbn || row.ISBN || row.isbn,
               Libro_autor: row.Libro_autor || row.libro_autor || row.Autor || row.autor,
               Libro_editorial: row.Libro_editorial || row.libro_editorial || row.Editorial || row.editorial,
-              Libro_orden: row.Libro_orden || row.libro_orden || row.ordden_prdo || row.orden_prod || row.orden ? parseInt(String(row.Libro_orden || row.libro_orden || row.ordden_prdo || row.orden_prod || row.orden)) : undefined,
+              Libro_orden: ordenProdVal !== undefined && ordenProdVal !== null && String(ordenProdVal).trim() !== '' ? parseInt(String(ordenProdVal)) : (row.Libro_orden != null ? parseInt(String(row.Libro_orden)) : undefined),
               Libro_cantidad: row.Libro_cantidad || row.libro_cantidad || row.Cantidad || row.cantidad ? parseInt(String(row.Libro_cantidad || row.libro_cantidad || row.Cantidad || row.cantidad)) : 1,
               Libro_observaciones: row.Libro_observaciones || row.libro_observaciones || row.Observaciones || row.observaciones,
               Libro_mes_uso: row.Libro_mes_uso || row.libro_mes_uso || row.Mes_uso || row.mes_uso,
+              nivel: nivelVal ?? row.Nivel ?? row.nivel,
+              Nivel: nivelVal ?? row.Nivel ?? row.nivel,
+              grado: ncursoVal !== undefined && ncursoVal !== null && String(ncursoVal).trim() !== '' ? parseInt(String(ncursoVal)) : (row.Grado ?? row.grado),
+              Grado: ncursoVal !== undefined && ncursoVal !== null && String(ncursoVal).trim() !== '' ? parseInt(String(ncursoVal)) : (row.Grado ?? row.grado ?? row['Nº curso']),
             }
           } else {
             // Formato completo original
@@ -599,9 +681,12 @@ export default function ImportacionCompletaModal({
 
         if (normalizedData.length === 0) {
           setError('El archivo está vacío o no contiene datos válidos')
+          setUploadingFile(false)
+          setUploadProgress(0)
           return
         }
 
+        setUploadProgress(50)
         // OPTIMIZACIÓN: Cargar colegios existentes con TODOS sus datos para auto-completar
         const colegiosExistentesMap = new Map<number, boolean>() // RBD -> existe
         const colegiosExistentesPorNombre = new Map<string, boolean>() // Nombre normalizado -> existe
@@ -642,7 +727,7 @@ export default function ImportacionCompletaModal({
         } catch (err) {
           console.warn('[Importación Completa] No se pudieron cargar colegios existentes para verificación previa:', err)
         }
-
+        setUploadProgress(70)
         // Agrupar por colegio + curso + asignatura + lista
         const agrupadoMap = new Map<string, AgrupadoPorLista>()
         
@@ -683,9 +768,9 @@ export default function ImportacionCompletaModal({
               }
             }
             
-            if (row.grado || row.Grado) {
-              // Grado viene en columna separada
-              grado = parseInt(String(row.grado || row.Grado)) || 1
+            if (row.grado || row.Grado || row['Nº curso']) {
+              // Grado viene en columna separada (PUNTO ZERO: E = "Nº curso")
+              grado = parseInt(String(row.grado || row.Grado || row['Nº curso'])) || 1
             } else {
               // Extraer del nombre del curso
               if (row.Curso) {
@@ -793,12 +878,28 @@ export default function ImportacionCompletaModal({
           })),
         })
 
+        if (normalizedData.length > 0 && agrupadoMap.size === 0) {
+          const columnasEnArchivo = keysPrimeraFila.length ? keysPrimeraFila.join(', ') : '(no detectadas)'
+          setError(`El archivo se leyó pero no hay filas válidas. Cada fila debe tener: RBD (o Colegio), Curso, Asignatura y Producto. Columnas detectadas en tu archivo: ${columnasEnArchivo}. Si no coinciden con la plantilla, revisa que la primera fila tenga exactamente: RBD, Curso, Nivel, Nº curso, Año, Asignatura, Orden Asig., Orden Prod., Código, Producto, URL PDF.`)
+          setUploadingFile(false)
+          setUploadProgress(0)
+          return
+        }
+
+        setUploadProgress(95)
         setImportData(normalizedData)
         setAgrupado(agrupadoMap)
+        setPdfsNoMapeados([])
+        setAsignarGruposPorPdf({})
+        setCrearCursoParaPdf(null)
+        setUploadProgress(100)
         setStep('review')
         setError(null)
       } catch (err: any) {
         setError(`Error al leer el archivo: ${err.message}`)
+      } finally {
+        setUploadingFile(false)
+        setUploadProgress(0)
       }
     }
     reader.readAsArrayBuffer(file)
@@ -852,33 +953,23 @@ export default function ImportacionCompletaModal({
       }
 
       // Ordenar grupos por orden (colegio -> curso -> asignatura -> lista)
-      const gruposArray = Array.from(agrupado.values()).sort((a, b) => {
-        // Orden por colegio
-        const ordenColegioA = a.colegio.orden || 0
-        const ordenColegioB = b.colegio.orden || 0
-        if (ordenColegioA !== ordenColegioB) {
-          return ordenColegioA - ordenColegioB
-        }
-        
-        // Orden por curso
-        const ordenCursoA = a.curso.orden || 0
-        const ordenCursoB = b.curso.orden || 0
-        if (ordenCursoA !== ordenCursoB) {
-          return ordenCursoA - ordenCursoB
-        }
-        
-        // Orden por asignatura
-        const ordenAsignaturaA = a.asignatura.orden || 0
-        const ordenAsignaturaB = b.asignatura.orden || 0
-        if (ordenAsignaturaA !== ordenAsignaturaB) {
-          return ordenAsignaturaA - ordenAsignaturaB
-        }
-        
-        // Orden por lista
-        const ordenListaA = a.lista.orden || 0
-        const ordenListaB = b.lista.orden || 0
-        return ordenListaA - ordenListaB
-      })
+      // Usar entries() para conservar la clave exacta del mapa (igual que en la tabla y en pdfsPorGrupo)
+      const gruposArray = Array.from(agrupado.entries())
+        .map(([key, grupo]) => ({ key, grupo }))
+        .sort((a, b) => {
+          const ordenColegioA = a.grupo.colegio.orden || 0
+          const ordenColegioB = b.grupo.colegio.orden || 0
+          if (ordenColegioA !== ordenColegioB) return ordenColegioA - ordenColegioB
+          const ordenCursoA = a.grupo.curso.orden || 0
+          const ordenCursoB = b.grupo.curso.orden || 0
+          if (ordenCursoA !== ordenCursoB) return ordenCursoA - ordenCursoB
+          const ordenAsignaturaA = a.grupo.asignatura.orden || 0
+          const ordenAsignaturaB = b.grupo.asignatura.orden || 0
+          if (ordenAsignaturaA !== ordenAsignaturaB) return ordenAsignaturaA - ordenAsignaturaB
+          const ordenListaA = a.grupo.lista.orden || 0
+          const ordenListaB = b.grupo.lista.orden || 0
+          return ordenListaA - ordenListaB
+        })
       
       console.log(`[Importación Completa] 🚀 Iniciando procesamiento de ${gruposArray.length} grupos...`)
       let procesados = 0
@@ -888,7 +979,8 @@ export default function ImportacionCompletaModal({
       const cursosProcesadosMap = new Map<string, number | string>()
 
       // Procesar cada grupo (colegio + curso + asignatura + lista) en orden
-      for (const grupo of gruposArray) {
+      // grupoKey es la clave exacta del Map (igual que en la tabla y en pdfsPorGrupo)
+      for (const { key: grupoKey, grupo } of gruposArray) {
         const progreso = Math.round((procesados / gruposArray.length) * 100)
         setProgress(progreso)
         procesados++
@@ -1255,13 +1347,7 @@ export default function ImportacionCompletaModal({
             continue
           }
 
-          // ⚡ MOVER DECLARACIÓN DE grupoKey AQUÍ (ANTES de usarlo)
-          // Generar grupoKey usando la misma lógica que al agrupar (para que coincida con las claves de pdfsPorGrupo)
-          // Usar el identificador del colegio (RBD_xxx o nombre) en lugar del nombre completo
-          const identificadorColegio = grupo.colegio.rbd ? `RBD_${grupo.colegio.rbd}` : (grupo.colegio.nombre || '')
-          const grupoKey = `${identificadorColegio}|${grupo.curso.nombre}|${grupo.asignatura.nombre}|${grupo.lista.nombre}`
-          
-          // También buscar con la clave alternativa (nombre del colegio con guiones) por compatibilidad
+          // grupoKey ya viene de la entrada del Map (misma clave que la tabla y pdfsPorGrupo)
           const grupoKeyAlternativo = `${grupo.colegio.nombre}-${grupo.curso.nombre}-${grupo.asignatura.nombre}-${grupo.lista.nombre}`
 
           // Ordenar productos por Libro_orden antes de procesarlos
@@ -1375,7 +1461,6 @@ export default function ImportacionCompletaModal({
             todasLasClaves: Array.from(pdfsPorGrupo.keys()),
             colegioRBD: grupo.colegio.rbd,
             colegioNombre: grupo.colegio.nombre,
-            identificadorColegio,
           })
           
           // Enviar log al sistema de logs
@@ -2204,14 +2289,19 @@ export default function ImportacionCompletaModal({
     try {
       // Validar que la URL sea válida
       if (!url || !url.trim()) {
-        console.error('[Importación Completa] URL vacía o inválida')
         return { pdfUrl: null, pdfId: null }
       }
 
       // Validar formato de URL
       let urlValidada = url.trim()
       if (!urlValidada.startsWith('http://') && !urlValidada.startsWith('https://')) {
-        console.error('[Importación Completa] URL debe comenzar con http:// o https://')
+        return { pdfUrl: null, pdfId: null }
+      }
+
+      // No intentar descargar URLs de ejemplo de la plantilla (evita 404 y ruido en consola)
+      const esUrlEjemplo = /https?:\/\/(www\.)?colegio\.com\/lista/i.test(urlValidada) ||
+        /example\.com|ejemplo\.com/i.test(urlValidada)
+      if (esUrlEjemplo) {
         return { pdfUrl: null, pdfId: null }
       }
 
@@ -2227,8 +2317,12 @@ export default function ImportacionCompletaModal({
       })
 
       if (!downloadResponse.ok) {
-        const errorData = await downloadResponse.json().catch(() => ({}))
-        console.error(`[Importación Completa] Error al descargar PDF: ${downloadResponse.status}`, errorData)
+        // 404 = URL no existe (ej. de plantilla). No es error crítico: se puede subir el PDF después manualmente
+        if (downloadResponse.status === 404) {
+          console.warn(`[Importación Completa] URL no disponible (404): ${urlValidada.substring(0, 60)}... — Puede agregar el PDF manualmente.`)
+        } else {
+          console.warn(`[Importación Completa] No se pudo descargar PDF (${downloadResponse.status}): ${urlValidada.substring(0, 60)}...`)
+        }
         return { pdfUrl: null, pdfId: null }
       }
 
@@ -2564,6 +2658,9 @@ export default function ImportacionCompletaModal({
   const handleReset = () => {
     setImportData([])
     setAgrupado(new Map())
+    setPdfsNoMapeados([])
+    setAsignarGruposPorPdf({})
+    setCrearCursoParaPdf(null)
     setStep('upload')
     setError(null)
     setProcessResults([])
@@ -2595,172 +2692,15 @@ export default function ImportacionCompletaModal({
   }
 
   const downloadTemplate = () => {
-    // Plantilla en formato compacto (más corto y fácil de usar)
-    // Orden optimizado: primero datos del colegio, luego curso, luego producto
-    const template = [
-      // Fila de ayuda (se agregará manualmente después)
-      {},
-      // Datos de ejemplo realistas
-      {
-        rbd: 12345,
-        Colegio: '',
-        nombre_curso: '1º Básico',
-        nivel: 'Basica',
-        grado: 1,
-        año: 2026,
-        asignaura: 'Lenguaje y Comunicación',
-        orden_asigna: 1,
-        ordden_prdo: 1,
-        codigo_prod: '9789566430346',
-        Producto: 'Lenguaje y Comunicación 1º Básico - Editorial SM',
-        URL_lista: 'https://colegio.com/listas/2026/1basico-lenguaje.pdf',
-      },
-      {
-        rbd: 12345,
-        Colegio: '',
-        nombre_curso: '1º Básico',
-        nivel: 'Basica',
-        grado: 1,
-        año: 2026,
-        asignaura: 'Lenguaje y Comunicación',
-        orden_asigna: 1,
-        ordden_prdo: 2,
-        codigo_prod: '9789566430353',
-        Producto: 'Cuaderno Universitario 100 hojas',
-        URL_lista: 'https://colegio.com/listas/2026/1basico-lenguaje.pdf',
-      },
-      {
-        rbd: 12345,
-        Colegio: '',
-        nombre_curso: '1º Básico',
-        nivel: 'Basica',
-        grado: 1,
-        año: 2026,
-        asignaura: 'Matemáticas',
-        orden_asigna: 2,
-        ordden_prdo: 1,
-        codigo_prod: '9789566430407',
-        Producto: 'Matemáticas 1º Básico - Editorial Santillana',
-        URL_lista: 'https://colegio.com/listas/2026/1basico-matematicas.pdf',
-      },
-      {
-        rbd: 12345,
-        Colegio: '',
-        nombre_curso: '1º Básico',
-        nivel: 'Basica',
-        grado: 1,
-        año: 2026,
-        asignaura: 'Matemáticas',
-        orden_asigna: 2,
-        ordden_prdo: 2,
-        codigo_prod: 'CUAD-001',
-        Producto: 'Cuaderno de Matemáticas cuadriculado',
-        URL_lista: 'https://colegio.com/listas/2026/1basico-matematicas.pdf',
-      },
-    ]
-    
-    // Crear hoja con encabezados y datos
-    const headers = [
-      'RBD',
-      'Colegio',
-      'Curso',
-      'Nivel',
-      'Grado',
-      'Año',
-      'Asignatura',
-      'Orden Asig.',
-      'Orden Prod.',
-      'Código',
-      'Producto',
-      'URL PDF',
-    ]
-    
-    // Crear array de arrays para mejor control
-    const dataRows: any[][] = [
-      headers, // Fila 1: Encabezados
-      [
-        '12345',
-        '(Opcional si ya existe)',
-        '1º Básico',
-        'Basica',
-        '1',
-        '2026',
-        'Lenguaje y Comunicación',
-        '1',
-        '1',
-        '9789566430346',
-        'Lenguaje y Comunicación 1º Básico',
-        'https://colegio.com/lista.pdf',
-      ],
-      [
-        '12345',
-        '',
-        '1º Básico',
-        'Basica',
-        '1',
-        '2026',
-        'Lenguaje y Comunicación',
-        '1',
-        '2',
-        '9789566430353',
-        'Cuaderno Universitario 100 hojas',
-        'https://colegio.com/lista.pdf',
-      ],
-      [
-        '12345',
-        '',
-        '1º Básico',
-        'Basica',
-        '1',
-        '2026',
-        'Matemáticas',
-        '2',
-        '1',
-        '9789566430407',
-        'Matemáticas 1º Básico',
-        'https://colegio.com/lista.pdf',
-      ],
-      [
-        '12345',
-        '',
-        '1º Básico',
-        'Basica',
-        '1',
-        '2026',
-        'Matemáticas',
-        '2',
-        '2',
-        'CUAD-001',
-        'Cuaderno de Matemáticas cuadriculado',
-        'https://colegio.com/lista.pdf',
-      ],
-    ]
-    
-    const ws = XLSX.utils.aoa_to_sheet(dataRows)
-    
-    // Ajustar ancho de columnas para formato compacto (optimizado)
-    ws['!cols'] = [
-      { wch: 10 }, // RBD
-      { wch: 25 }, // Colegio
-      { wch: 15 }, // Curso
-      { wch: 8 },  // Nivel
-      { wch: 6 },  // Grado
-      { wch: 6 },  // Año
-      { wch: 22 }, // Asignatura
-      { wch: 10 }, // Orden Asig.
-      { wch: 10 }, // Orden Prod.
-      { wch: 15 }, // Código
-      { wch: 40 }, // Producto
-      { wch: 45 }, // URL PDF
-    ]
-    
-    // Usar directamente los datos sin fila de ayuda
-    const wsFinal = XLSX.utils.aoa_to_sheet(dataRows)
-    wsFinal['!cols'] = ws['!cols']
-    
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, wsFinal, 'Plantilla')
-    XLSX.writeFile(wb, 'plantilla-importacion-completa.xlsx')
+    // Plantilla de descarga: archivo estático en public/plantilla-importacion-completa.xlsx
+    const url = '/plantilla-importacion-completa.xlsx'
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'plantilla-importacion-completa.xlsx'
+    link.target = '_blank'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   const successCount = processResults.filter((r) => r.success).length
@@ -2858,12 +2798,12 @@ export default function ImportacionCompletaModal({
             <Alert variant="info" className="mb-3">
               <strong>Instrucciones:</strong>
               <ul className="mb-0 mt-2">
-                <li><strong>Columnas requeridas:</strong> Colegio, RBD, Curso, Año_curso, Asignatura, Lista_nombre, Libro_nombre</li>
-                <li><strong>🔍 Verificación automática:</strong> El sistema verifica si el colegio ya existe en la base de datos buscando por <strong>RBD</strong> o <strong>nombre</strong>.</li>
-                <li><strong>✅ Si el colegio está en el sistema:</strong> Solo necesitas poner su <strong>RBD</strong> o <strong>nombre</strong> en el Excel. El sistema usará automáticamente los datos existentes (dirección, teléfono, etc.). No necesitas completar todos los campos.</li>
-                <li><strong>➕ Si el colegio NO está en el sistema:</strong> Necesitas <strong>RBD</strong> (obligatorio) y <strong>nombre</strong>. La comuna es opcional. El sistema creará el colegio nuevo.</li>
-                <li><strong>📄 PDFs:</strong> Sube en el paso de revisión o usa <strong>URL_lista</strong> en el Excel para descarga automática.</li>
-                <li>El sistema agrupa automáticamente y crea cursos si no existen.</li>
+                <li><strong>Obligatorio por fila (solo 4 cosas):</strong> <strong>RBD</strong> (o nombre de colegio), <strong>Curso</strong>, <strong>Asignatura</strong> y <strong>Producto</strong>. El resto de columnas (Nivel, Nº curso, Año, Orden Asig., Orden Prod., Código, URL PDF) son opcionales.</li>
+                <li><strong>🔍 Verificación automática:</strong> El sistema verifica si el colegio ya existe buscando por <strong>RBD</strong> o <strong>nombre</strong>.</li>
+                <li><strong>✅ Si el colegio está en el sistema:</strong> Pon su <strong>RBD</strong> (o nombre). No hace falta completar todo.</li>
+                <li><strong>➕ Si el colegio NO está:</strong> Necesitas <strong>RBD</strong> para que se cree el colegio nuevo.</li>
+                <li><strong>📄 PDFs:</strong> Opcional. Puedes poner <strong>URL PDF</strong> en el Excel o subir los PDFs en el paso de revisión.</li>
+                <li>El sistema agrupa por colegio/curso/asignatura y crea cursos si no existen.</li>
               </ul>
             </Alert>
 
@@ -2876,14 +2816,25 @@ export default function ImportacionCompletaModal({
                     accept=".xlsx,.xls,.csv"
                     onChange={handleFileUpload}
                     ref={fileInputRef}
+                    disabled={uploadingFile}
                   />
                 </FormGroup>
               </div>
-              <Button variant="outline-primary" onClick={downloadTemplate}>
+              <Button variant="outline-primary" onClick={downloadTemplate} disabled={uploadingFile}>
                 <LuDownload className="me-2" />
                 Descargar Plantilla
               </Button>
             </div>
+
+            {uploadingFile && (
+              <div className="mb-3">
+                <div className="d-flex justify-content-between small text-muted mb-1">
+                  <span>Leyendo y procesando archivo...</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <ProgressBar now={uploadProgress} label={`${uploadProgress}%`} variant="primary" animated striped />
+              </div>
+            )}
 
             {error && <Alert variant="danger" className="mt-3">{error}</Alert>}
           </div>
@@ -2971,11 +2922,25 @@ export default function ImportacionCompletaModal({
                 <FormLabel className="mb-2">
                   <strong>📁 O sube múltiples PDFs directamente (sin Excel - mapeo automático):</strong>
                 </FormLabel>
+                <div className="mb-2 d-flex align-items-center gap-2">
+                  <Form.Check
+                    type="checkbox"
+                    id="use-ia-mapeo"
+                    label="Usar IA (Gemini) para un match más específico"
+                    checked={useIAparaMapeo}
+                    onChange={(e) => setUseIAparaMapeo((e.target as HTMLInputElement).checked)}
+                    disabled={loadingMapeoIA}
+                  />
+                  {loadingMapeoIA && (
+                    <Spinner animation="border" size="sm" />
+                  )}
+                </div>
                 <FormControl
                   type="file"
                   accept=".pdf,application/pdf"
                   multiple
-                  onChange={(e) => {
+                  disabled={loadingMapeoIA}
+                  onChange={async (e) => {
                     const target = e.target as HTMLInputElement
                     const files = Array.from(target.files || [])
                     const pdfFiles = files.filter(file => 
@@ -2987,11 +2952,49 @@ export default function ImportacionCompletaModal({
                       return
                     }
                     
-                    // Intentar mapear automáticamente por nombre del archivo
                     const nuevosPdfs = new Map(pdfsPorGrupo)
                     let mapeados = 0
-                    
-                    pdfFiles.forEach(pdfFile => {
+                    let pdfsParaReglas = pdfFiles
+
+                    // Opción IA: llamar a la API para mapeo con Gemini
+                    if (useIAparaMapeo) {
+                      setLoadingMapeoIA(true)
+                      setError(null)
+                      try {
+                        const gruposParaIA = Array.from(agrupado.entries()).map(([key, grupo]) => ({
+                          key,
+                          curso: grupo.curso.nombre,
+                          colegio: grupo.colegio.nombre,
+                        }))
+                        const res = await fetch('/api/crm/listas/mapear-pdfs-ia', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            pdfFileNames: pdfFiles.map((f) => f.name),
+                            grupos: gruposParaIA,
+                          }),
+                        })
+                        const data = await res.json()
+                        if (data.success && data.mapping && Object.keys(data.mapping).length > 0) {
+                          for (const pdfFile of pdfFiles) {
+                            const grupoKey = data.mapping[pdfFile.name]
+                            if (grupoKey) {
+                              const list = nuevosPdfs.get(grupoKey) || []
+                              nuevosPdfs.set(grupoKey, [...list, pdfFile])
+                              mapeados++
+                            }
+                          }
+                          pdfsParaReglas = pdfFiles.filter((f) => !data.mapping[f.name])
+                        }
+                      } catch (err) {
+                        console.warn('[Importación Completa] IA de mapeo falló, usando solo reglas:', err)
+                      }
+                      setLoadingMapeoIA(false)
+                    }
+
+                    // Mapeo por reglas (siempre para los no mapeados por IA, o todo si no se usó IA)
+                    const noMapeados: File[] = []
+                    pdfsParaReglas.forEach(pdfFile => {
                       const fileName = pdfFile.name
                       const pdfComponents = extractComponents(fileName)
                       
@@ -3093,15 +3096,19 @@ export default function ImportacionCompletaModal({
                           console.log(`[Importación Completa] ✅ PDF "${fileName}" mapeado a curso "${match.cursoNombre}" (score: ${match.score}, había ${matches.length} matches)`)
                         }
                       } else {
+                        noMapeados.push(pdfFile)
                         console.warn(`[Importación Completa] ❌ No se pudo mapear PDF "${fileName}"`)
                         console.warn(`[Importación Completa] Componentes extraídos:`, pdfComponents)
                         console.warn(`[Importación Completa] Total grupos disponibles: ${agrupado.size}`)
                       }
                     })
                     
+                    setPdfsNoMapeados(prev => [...prev, ...noMapeados])
                     setPdfsPorGrupo(nuevosPdfs)
                     if (mapeados > 0) {
-                      alert(`✅ ${mapeados} PDF(s) mapeado(s) automáticamente. ${pdfFiles.length - mapeados > 0 ? `${pdfFiles.length - mapeados} PDF(s) no se pudieron mapear automáticamente - agrégalos manualmente.` : ''}`)
+                      alert(`✅ ${mapeados} PDF(s) mapeado(s) automáticamente.${noMapeados.length > 0 ? ` ${noMapeados.length} PDF(s) no mapeados: asígnalos abajo en "PDFs no mapeados" o en la fila del curso.` : ''}`)
+                    } else if (noMapeados.length > 0) {
+                      alert(`⚠️ Ningún PDF se mapeó automáticamente. Asigna cada uno abajo en "PDFs no mapeados" o en la fila del curso.`)
                     } else {
                       alert(`⚠️ No se pudieron mapear automáticamente. Agrega los PDFs manualmente en cada fila usando el botón "Seleccionar archivo".`)
                     }
@@ -3111,10 +3118,173 @@ export default function ImportacionCompletaModal({
                   title="Selecciona múltiples PDFs (Ctrl+Click o Shift+Click). El sistema intentará mapearlos automáticamente por nombre."
                 />
                 <Form.Text className="text-muted">
-                  Selecciona múltiples PDFs y el sistema intentará mapearlos automáticamente a los cursos según el nombre del archivo (ej: "1o-Basicos-2026.pdf" → curso "1 Basico 2026").
+                  Selecciona múltiples PDFs y el sistema los mapeará a los cursos por nombre. Si activas <strong>Usar IA</strong>, Gemini hará un match más específico (ej. "257_Colegio_Chuquicamata_1_Basico.pdf" → 1º Básico, "II_Medio" → II° Medio).
                 </Form.Text>
               </div>
             </Alert>
+
+            {pdfsNoMapeados.length > 0 && (
+              <Alert variant="warning" className="mb-3">
+                <strong>📎 PDFs no mapeados ({pdfsNoMapeados.length})</strong>
+                <p className="mb-2 small">Asigna cada PDF a uno o varios cursos (mantén Ctrl/Cmd para elegir varios), o crea un curso nuevo con el botón &quot;Crear curso&quot;.</p>
+                <Table size="sm" bordered>
+                  <thead>
+                    <tr>
+                      <th>Archivo</th>
+                      <th>Asignar a curso(s)</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pdfsNoMapeados.map((file) => {
+                      const selectedKeys = asignarGruposPorPdf[file.name] || []
+                      return (
+                        <tr key={file.name}>
+                          <td className="align-middle">
+                            <LuFileText className="me-1" size={14} />
+                            {file.name}
+                          </td>
+                          <td>
+                            <Form.Control
+                              as="select"
+                              size="sm"
+                              multiple
+                              value={selectedKeys}
+                              onChange={(e) => {
+                                const sel = e.target as unknown as HTMLSelectElement
+                                const vals = Array.from(sel.selectedOptions).map((o) => o.value)
+                                setAsignarGruposPorPdf(prev => ({ ...prev, [file.name]: vals }))
+                              }}
+                              style={{ minHeight: '60px' }}
+                            >
+                              {Array.from(agrupado.entries()).map(([grupoKey, grupo]) => (
+                                <option key={grupoKey} value={grupoKey}>
+                                  {grupo.colegio.nombre} → {grupo.curso.nombre} – {grupo.asignatura.nombre}
+                                </option>
+                              ))}
+                            </Form.Control>
+                            <small className="text-muted">Ctrl/Cmd + clic para varios</small>
+                          </td>
+                          <td className="align-middle">
+                            <div className="d-flex gap-1 flex-wrap">
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                disabled={selectedKeys.length === 0}
+                                onClick={() => {
+                                  if (selectedKeys.length === 0) return
+                                  setPdfsPorGrupo(prev => {
+                                    const next = new Map(prev)
+                                    selectedKeys.forEach(grupoKey => {
+                                      const list = next.get(grupoKey) || []
+                                      next.set(grupoKey, [...list, file])
+                                    })
+                                    return next
+                                  })
+                                  setPdfsNoMapeados(prev => prev.filter(f => f.name !== file.name))
+                                  setAsignarGruposPorPdf(prev => { const u = { ...prev }; delete u[file.name]; return u })
+                                }}
+                              >
+                                Asignar
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline-secondary"
+                                title="Crear un curso nuevo para este PDF (ej. Kinder, Prekinder)"
+                                onClick={() => {
+                                  const base = file.name.replace(/\.pdf$/i, '').split('_')
+                                  const nombreCurso = base.length > 3 ? base.slice(3).join(' ').trim() : base.slice(2).join(' ').trim() || 'Nuevo curso'
+                                  const primerGrupo = Array.from(agrupado.keys())[0] || ''
+                                  setCrearCursoParaPdf({ file, nombreCurso, grupoKeyOrigen: primerGrupo })
+                                }}
+                              >
+                                Crear curso
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </Table>
+              </Alert>
+            )}
+
+            {/* Modal: Crear curso nuevo para un PDF no mapeado */}
+            {crearCursoParaPdf && (
+              <Modal show size="sm" centered onHide={() => setCrearCursoParaPdf(null)}>
+                <Modal.Header closeButton>
+                  <Modal.Title>Crear curso y asignar PDF</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                  <p className="small text-muted mb-2">Archivo: <strong>{crearCursoParaPdf.file.name}</strong></p>
+                  <FormGroup>
+                    <FormLabel>Colegio (origen)</FormLabel>
+                    <Form.Control
+                      as="select"
+                      value={crearCursoParaPdf.grupoKeyOrigen}
+                      onChange={(e) => setCrearCursoParaPdf(prev => prev ? { ...prev, grupoKeyOrigen: e.target.value } : null)}
+                    >
+                      {(() => {
+                        const seen = new Set<string>()
+                        return Array.from(agrupado.entries())
+                          .filter(([, g]) => {
+                            const id = `${g.colegio.nombre}|${g.colegio.rbd ?? ''}`
+                            if (seen.has(id)) return false
+                            seen.add(id)
+                            return true
+                          })
+                          .map(([grupoKey, grupo]) => (
+                            <option key={grupoKey} value={grupoKey}>
+                              {grupo.colegio.nombre} {grupo.colegio.rbd && `(RBD: ${grupo.colegio.rbd})`}
+                            </option>
+                          ))
+                      })()}
+                    </Form.Control>
+                  </FormGroup>
+                  <FormGroup>
+                    <FormLabel>Nombre del curso</FormLabel>
+                    <FormControl
+                      value={crearCursoParaPdf.nombreCurso}
+                      onChange={(e) => setCrearCursoParaPdf(prev => prev ? { ...prev, nombreCurso: e.target.value } : null)}
+                      placeholder="Ej. Kinder, Prekinder, Lactante Mayor"
+                    />
+                  </FormGroup>
+                </Modal.Body>
+                <Modal.Footer>
+                  <Button variant="secondary" onClick={() => setCrearCursoParaPdf(null)}>Cancelar</Button>
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      const { file, nombreCurso, grupoKeyOrigen } = crearCursoParaPdf
+                      const grupoOrigen = agrupado.get(grupoKeyOrigen)
+                      if (!grupoOrigen || !nombreCurso.trim()) return
+                      const listaNombre = 'Lista de Útiles'
+                      const asignaturaNombre = grupoOrigen.asignatura?.nombre || 'Lista de Útiles'
+                      const clave = `${grupoOrigen.colegio.nombre}|${nombreCurso.trim()}|${asignaturaNombre}|${listaNombre}`
+                      const nuevoGrupo: AgrupadoPorLista = {
+                        colegio: { ...grupoOrigen.colegio },
+                        curso: { nombre: nombreCurso.trim(), año: grupoOrigen.curso?.año || new Date().getFullYear() },
+                        asignatura: { nombre: asignaturaNombre, orden: grupoOrigen.asignatura?.orden },
+                        lista: { nombre: listaNombre, año: grupoOrigen.lista?.año },
+                        productos: [],
+                      }
+                      setAgrupado(prev => new Map(prev).set(clave, nuevoGrupo))
+                      setPdfsPorGrupo(prev => {
+                        const next = new Map(prev)
+                        next.set(clave, [file])
+                        return next
+                      })
+                      setPdfsNoMapeados(prev => prev.filter(f => f.name !== file.name))
+                      setAsignarGruposPorPdf(prev => { const u = { ...prev }; delete u[file.name]; return u })
+                      setCrearCursoParaPdf(null)
+                    }}
+                  >
+                    Crear curso y asignar PDF
+                  </Button>
+                </Modal.Footer>
+              </Modal>
+            )}
 
             <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
               <Table striped bordered hover size="sm">

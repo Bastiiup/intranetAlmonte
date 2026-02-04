@@ -45,11 +45,9 @@ export async function GET(request: NextRequest) {
       filters.push(`filters[colegio][documentId][$eq]=${colegioId}`)
     }
     
-    // Populate necesario
+    // Populate solo para relaciones. versiones_materiales es campo JSON en Strapi, NO relación → no usar populate (evita "Invalid key versiones_materiales")
     filters.push('populate[colegio][populate][comuna]=true')
     filters.push('populate[colegio][populate][direcciones]=true')
-    // No especificar fields[] para obtener todos los campos del colegio
-    // Esto evita el error "Invalid key" si algún campo no existe
     filters.push('publicationState=preview')
 
     const queryString = filters.join('&')
@@ -140,6 +138,7 @@ export async function GET(request: NextRequest) {
       const versiones = attrs.versiones_materiales || []
       const ultimaVersion = versiones.length > 0 ? versiones[versiones.length - 1] : null
       const materiales = ultimaVersion?.materiales || []
+      const estadoRevision = attrs.estado_revision ?? ultimaVersion?.metadata?.estado_revision ?? null
       
       colegio.cursos.push({
         id: curso.id || curso.documentId,
@@ -156,6 +155,9 @@ export async function GET(request: NextRequest) {
         pdf_id: ultimaVersion?.pdf_id || null,
         pdf_url: ultimaVersion?.pdf_url || null,
         updatedAt: curso.updatedAt || curso.attributes?.updatedAt || null,
+        estado_revision: estadoRevision,
+        fecha_revision: attrs.fecha_revision ?? curso.fecha_revision ?? null,
+        fecha_publicacion: attrs.fecha_publicacion ?? curso.fecha_publicacion ?? null,
       })
 
       // Actualizar fecha de última actualización del colegio
