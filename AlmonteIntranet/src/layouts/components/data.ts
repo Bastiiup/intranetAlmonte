@@ -210,6 +210,7 @@ export const menuItems: MenuItemType[] = [
       { key: 'mira-licencias', label: 'Licencias de libros', url: '/mira/licencias' },
       { key: 'mira-evaluaciones-omr', label: 'Evaluaciones OMR', url: '/mira/evaluaciones-omr' },
       { key: 'mira-analiticas', label: 'Analíticas', url: '/mira/analiticas' },
+      { key: 'mira-gestor-multimedia', label: 'Gestión Multimedia', url: '/mira/recursos' },
     ],
   },
   { key: 'aplicaciones', label: 'APLICACIONES', isTitle: true },
