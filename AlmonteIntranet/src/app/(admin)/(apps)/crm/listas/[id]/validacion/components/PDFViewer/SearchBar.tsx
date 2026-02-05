@@ -8,7 +8,7 @@
 import { Badge, Spinner } from 'react-bootstrap'
 import { TbSearch, TbChevronUp, TbChevronDown, TbX, TbCheck, TbAlertTriangle } from 'react-icons/tb'
 import type { ProductoIdentificado } from '../../types'
-import type { SearchState } from '../../hooks/useTextSearch'
+import type { SearchState } from '../../hooks/usePDFViewer'
 
 interface SearchBarProps {
   selectedProduct: ProductoIdentificado | null

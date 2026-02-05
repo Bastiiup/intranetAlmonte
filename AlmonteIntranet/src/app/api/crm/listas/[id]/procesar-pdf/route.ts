@@ -681,16 +681,20 @@ function validarLongitudTexto(texto: string, maxCaracteres: number, logger: Logg
  * Crea el prompt mejorado para Claude
  */
 function crearPromptOptimizado(): string {
-  return `Extrae TODOS los productos de útiles escolares del PDF. Copia el texto EXACTAMENTE como aparece e indica la ubicación EXACTA de cada producto.
+  return `Extrae TODOS los ítems de la lista escolar del PDF. Incluye TODO lo que sea parte de la lista:
+- Útiles escolares (cuadernos, lápices, tijeras, etc.)
+- LIBROS y textos de estudio (libros de lectura, textos escolares, textos por asignatura)
+- Materiales de lectura y cualquier otro material pedido por el colegio
+Copia el texto EXACTAMENTE como aparece e indica la ubicación EXACTA de cada ítem.
 
 REGLAS DE EXTRACCIÓN:
-1. Productos = líneas con cantidad + nombre (ej: "2 Cuadernos")
+1. Productos = líneas con cantidad + nombre (ej: "2 Cuadernos", "1 Texto Lenguaje 1° Básico")
 2. Cantidad: número exacto del texto (si no hay → 1)
 3. Nombre: EXACTAMENTE como aparece (NO cambies ni agregues palabras)
 4. ISBN: solo si aparece explícito (quita guiones)
 5. Marca: solo si está en el nombre
 6. Precio: solo si aparece explícito
-7. Asignatura: solo si hay encabezado claro
+7. Asignatura: solo si hay encabezado claro (Lenguaje, Matemáticas, Religión, etc.)
 8. Descripción: solo detalles técnicos adicionales
 
 📍 UBICACIÓN EXACTA (CRÍTICO):
@@ -715,8 +719,8 @@ IGNORAR:
 - Info administrativa
 
 ⚠️ CRÍTICO:
-- Extrae TODOS los productos (si hay 30 en el PDF → devuelve 30)
-- NO omitas ninguno
+- Extrae TODOS los ítems: útiles, LIBROS, textos de estudio, textos escolares y cualquier material listado
+- Si hay 30 ítems en el PDF → devuelve 30 (no omitas libros ni textos)
 - Revisa TODAS las páginas y líneas
 - Copia EXACTAMENTE (no cambies plural/singular ni agregues palabras)
 - SIEMPRE incluye ubicación para cada producto
@@ -1017,6 +1021,95 @@ async function procesarConClaude(
   }
 }
       
+/** Normalizar texto para búsqueda (quitar acentos, minúsculas) */
+function normalizarBusqueda(texto: string): string {
+  return (texto || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Busca producto en Strapi (libros o producto-libro-edicion) como fallback
+ */
+async function buscarEnStrapi(
+  prod: ProductoExtraido,
+  logger: Logger
+): Promise<{ documentId: string; nombre_libro: string; isbn_libro?: string; precio?: number; stock_quantity?: number; imagen?: string; woocommerce_id?: number } | null> {
+  const nombreBuscar = (prod.nombre || '').trim()
+  const isbnBuscar = (prod.isbn || '').replace(/[-\s]/g, '').trim()
+
+  if (!nombreBuscar || nombreBuscar.length < 2) return null
+
+  const nombreNorm = normalizarBusqueda(nombreBuscar)
+  const palabras = nombreNorm.split(/\s+/).filter(p => p.length >= 2)
+
+  const endpoints = ['/api/libros']
+  const searchTerms = [nombreBuscar]
+  if (palabras.length > 1) {
+    searchTerms.push(palabras.slice(0, 2).join(' '))
+    if (palabras[0].length >= 4) searchTerms.push(palabras[0])
+  }
+
+  for (const base of endpoints) {
+    try {
+      for (const term of searchTerms) {
+        const params = new URLSearchParams()
+        params.set('pagination[pageSize]', '100')
+        params.set('populate', '*')
+        params.set('publicationState', 'preview')
+        if (isbnBuscar && isbnBuscar.length >= 10) {
+          params.set('filters[isbn_libro][$containsi]', isbnBuscar)
+        } else {
+          params.set('filters[nombre_libro][$containsi]', term)
+        }
+        const res = await strapiClient.get<any>(`${base}?${params}`)
+        const items = Array.isArray(res?.data) ? res.data : res?.data ? [res.data] : []
+
+        for (const item of items) {
+          const attrs = item.attributes || item
+          const nombre = (attrs.nombre_libro || attrs.nombreLibro || attrs.NOMBRE_LIBRO || '').trim()
+          const isbn = (attrs.isbn_libro || attrs.isbnLibro || attrs.ISBN_LIBRO || '').toString().replace(/[-\s]/g, '')
+          const nombreNormItem = normalizarBusqueda(nombre)
+
+          let coincide = false
+          if (isbnBuscar && isbn && isbn.includes(isbnBuscar)) {
+            coincide = true
+          } else if (nombreNormItem.includes(nombreNorm) || nombreNorm.includes(nombreNormItem)) {
+            coincide = true
+          } else if (palabras.length >= 2) {
+            const encontradas = palabras.filter(p => nombreNormItem.includes(p)).length
+            coincide = encontradas >= Math.min(palabras.length, 2)
+          }
+
+          if (coincide) {
+            const imagen = attrs.portada_libro?.data?.attributes?.url || attrs.portada_libro?.url
+            const imagenUrl = imagen
+              ? (imagen.startsWith('http') ? imagen : `${process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'}${imagen}`)
+              : undefined
+            return {
+              documentId: String(item.documentId || item.id),
+              nombre_libro: nombre,
+              isbn_libro: attrs.isbn_libro || attrs.isbnLibro,
+              precio: parseFloat(attrs.precio || attrs.precio_venta || 0) || undefined,
+              stock_quantity: parseInt(attrs.stock_quantity || attrs.STOCK_QUANTITY || 0, 10) || undefined,
+              imagen: imagenUrl,
+              woocommerce_id: attrs.woocommerce_id || attrs.wooId,
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      if (e?.status !== 404) {
+        logger.debug(`Endpoint ${base} no disponible o error:`, e?.message)
+      }
+    }
+  }
+  return null
+}
+
 /**
  * Busca productos en WooCommerce
  */
@@ -1106,6 +1199,31 @@ async function buscarEnWooCommerce(
       logger.warn(`Error buscando "${nombreBuscar}" en WooCommerce`, {
         error: wooError.message
       })
+    }
+
+    // Fallback: buscar en Strapi (libros / producto-libro-edicion) cuando WooCommerce no encuentra
+    if (!encontrado) {
+      try {
+        const strapiProduct = await buscarEnStrapi(prod, logger)
+        if (strapiProduct) {
+          encontrado = true
+          wooProduct = {
+            id: strapiProduct.woocommerce_id || 0,
+            name: strapiProduct.nombre_libro || nombreBuscar,
+            sku: strapiProduct.isbn_libro || '',
+            price: String(strapiProduct.precio ?? 0),
+            regular_price: String(strapiProduct.precio ?? 0),
+            stock_quantity: strapiProduct.stock_quantity ?? 0,
+            images: strapiProduct.imagen ? [{ src: strapiProduct.imagen }] : [],
+          } as WooCommerceProduct
+          logger.info(`Producto encontrado en Strapi (libros): ${nombreBuscar}`, {
+            documentId: strapiProduct.documentId,
+            isbn: strapiProduct.isbn_libro,
+          })
+        }
+      } catch (strapiErr: any) {
+        logger.debug(`No encontrado en Strapi: ${nombreBuscar}`, { error: strapiErr.message })
+      }
     }
     
     // ============================================
@@ -1223,6 +1341,10 @@ async function buscarEnWooCommerce(
       }
     }
     
+    const stock = wooProduct?.stock_quantity ?? 0
+    const disponibilidad: 'disponible' | 'no_disponible' | 'no_encontrado' =
+      !encontrado ? 'no_encontrado' : (stock > 0 ? 'disponible' : 'no_disponible')
+
     const productoConInfo: ProductoIdentificado = {
       id: productoId,
       validado: false,
@@ -1233,7 +1355,7 @@ async function buscarEnWooCommerce(
       asignatura: prod.asignatura || undefined,
       descripcion: prod.descripcion || undefined,
       comprar: prod.comprar,
-      disponibilidad: encontrado ? 'disponible' : 'no_encontrado',
+      disponibilidad,
       precio: wooProduct ? parseFloat(wooProduct.price) : prod.precio || 0,
       precio_woocommerce: wooProduct ? parseFloat(wooProduct.price) : undefined,
       woocommerce_id: wooProduct?.id || undefined,

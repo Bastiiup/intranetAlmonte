@@ -74,6 +74,8 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
   const [showLogsModal, setShowLogsModal] = useState(false)
   const [logs, setLogs] = useState<Array<{ timestamp: string; level: string; message: string; data?: any }>>([])
   const [loadingLogs, setLoadingLogs] = useState(false)
+  const [sugiriendoIA, setSugiriendoIA] = useState(false)
+  const [verificandoDisponibilidad, setVerificandoDisponibilidad] = useState(false)
 
   // Cargar lista desde API si no viene del servidor
   useEffect(() => {
@@ -208,6 +210,104 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
       await cargarProductos(true)
     } catch (error: any) {
       toast.error('Error al editar', error.message)
+    }
+  }
+
+  const handleReorder = async (orderedProductos: ProductoIdentificado[]) => {
+    const idParaUsar = listaIdFromUrl || lista?.id || lista?.documentId
+    if (!idParaUsar) {
+      toast.error('Error', 'No se puede reordenar: ID de lista no encontrado')
+      return
+    }
+    setProductos(orderedProductos)
+    try {
+      const response = await fetch(`/api/crm/listas/${idParaUsar}/productos/reorder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderedIds: orderedProductos.map((p) => p.id),
+          productos: orderedProductos.map((p) => ({
+            id: p.id,
+            orden: p.orden,
+            categoria: p.categoria,
+            asignatura: p.asignatura,
+          })),
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Error al reordenar')
+      }
+      toast.success('Orden actualizado', 'El orden se guardó correctamente')
+    } catch (error: any) {
+      cargarProductos(true)
+      toast.error('Error al reordenar', error.message)
+    }
+  }
+
+  const handleVerificarDisponibilidad = async () => {
+    const idParaUsar = listaIdFromUrl || lista?.id || lista?.documentId
+    if (!idParaUsar) {
+      toast.error('Error', 'No se puede verificar: ID de lista no encontrado')
+      return
+    }
+    setVerificandoDisponibilidad(true)
+    const loadingId = toast.loading('Consultando disponibilidad en WooCommerce y Strapi...', 'bottom-center')
+    try {
+      const response = await fetch(`/api/crm/listas/${idParaUsar}/verificar-disponibilidad`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      const data = await response.json()
+      toast.dismiss(loadingId)
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Error al verificar disponibilidad')
+      }
+      const resumen = data.resumen || {}
+      await cargarProductos(true)
+      toast.success(
+        'Disponibilidad actualizada',
+        `${resumen.disponibles ?? 0} disponibles, ${resumen.noDisponibles ?? 0} sin stock, ${resumen.noEncontrados ?? 0} no encontrados`
+      )
+    } catch (error: any) {
+      toast.dismiss(loadingId)
+      toast.error('Error', error.message)
+    } finally {
+      setVerificandoDisponibilidad(false)
+    }
+  }
+
+  const handleSugerirAsignaturasIA = async () => {
+    if (productos.length === 0) return
+    setSugiriendoIA(true)
+    try {
+      const response = await fetch('/api/crm/listas/detectar-asignaturas-ia', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productos: productos.map((p) => ({ id: p.id, nombre: p.nombre })),
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Error al sugerir')
+      }
+      const suggestions = data.suggestions || {}
+      const actualizados = productos.map((p) => {
+        const s = suggestions[String(p.id)]
+        return {
+          ...p,
+          asignatura: s?.asignatura ?? p.asignatura,
+          categoria: s?.categoria ?? p.categoria,
+        }
+      })
+      setProductos(actualizados)
+      await handleReorder(actualizados)
+      toast.success('Asignaturas sugeridas', 'Se aplicaron las sugerencias de la IA. Puedes editarlas en cada producto.')
+    } catch (error: any) {
+      toast.error('Error al sugerir', error.message)
+    } finally {
+      setSugiriendoIA(false)
     }
   }
 
@@ -371,6 +471,12 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
         versionActual={versionActual}
         processingPDF={processingPDF}
         autoProcessAttempted={autoProcessAttempted}
+        onReorder={handleReorder}
+        listaIdFromUrl={listaIdFromUrl}
+        onSugerirAsignaturasIA={handleSugerirAsignaturasIA}
+        sugiriendoIA={sugiriendoIA}
+        onVerificarDisponibilidad={handleVerificarDisponibilidad}
+        verificandoDisponibilidad={verificandoDisponibilidad}
       />
     </div>
   )

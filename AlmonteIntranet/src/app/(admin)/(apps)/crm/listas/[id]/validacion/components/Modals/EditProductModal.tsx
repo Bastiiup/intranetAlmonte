@@ -29,6 +29,8 @@ export default function EditProductModal({
     isbn: '',
     marca: '',
     precio: 0,
+    orden: 1,
+    categoria: '',
     asignatura: '',
     descripcion: '',
     comprar: true,
@@ -43,6 +45,8 @@ export default function EditProductModal({
         isbn: producto.isbn || '',
         marca: producto.marca || '',
         precio: producto.precio || 0,
+        orden: producto.orden ?? 1,
+        categoria: producto.categoria || '',
         asignatura: producto.asignatura || '',
         descripcion: producto.descripcion || '',
         comprar: producto.comprar !== false,
@@ -157,14 +161,41 @@ export default function EditProductModal({
             </Col>
           </Row>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Asignatura</Form.Label>
-            <Form.Control
-              type="text"
-              value={formData.asignatura}
-              onChange={(e) => setFormData({ ...formData, asignatura: e.target.value })}
-            />
-          </Form.Group>
+          <Row>
+            <Col md={4}>
+              <Form.Group className="mb-3">
+                <Form.Label>Orden (posición en PDF)</Form.Label>
+                <Form.Control
+                  type="number"
+                  min={1}
+                  value={formData.orden}
+                  onChange={(e) => setFormData({ ...formData, orden: parseInt(e.target.value, 10) || 1 })}
+                />
+              </Form.Group>
+            </Col>
+            <Col md={4}>
+              <Form.Group className="mb-3">
+                <Form.Label>Categoría</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={formData.categoria}
+                  onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
+                  placeholder="Ej. Libro, Útil"
+                />
+              </Form.Group>
+            </Col>
+            <Col md={4}>
+              <Form.Group className="mb-3">
+                <Form.Label>Asignatura</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={formData.asignatura}
+                  onChange={(e) => setFormData({ ...formData, asignatura: e.target.value })}
+                  placeholder="Ej. Matemáticas, Lenguaje"
+                />
+              </Form.Group>
+            </Col>
+          </Row>
 
           <Form.Group className="mb-3">
             <Form.Label>Descripción</Form.Label>

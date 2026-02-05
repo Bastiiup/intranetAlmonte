@@ -37,12 +37,13 @@ export function useTextSearch() {
   const clearHighlights = useCallback(() => {
     highlightedElements.current.forEach(el => {
       try {
-        el.style.backgroundColor = ''
-        el.style.color = ''
-        el.style.borderRadius = ''
-        el.style.boxShadow = ''
-        el.style.outline = ''
-        el.style.transition = ''
+        el.style.removeProperty('background-color')
+        el.style.removeProperty('color')
+        el.style.removeProperty('border-radius')
+        el.style.removeProperty('padding')
+        el.style.removeProperty('margin')
+        el.style.removeProperty('box-shadow')
+        el.style.removeProperty('outline')
         el.classList.remove('pdf-search-highlight', 'pdf-search-highlight-active')
       } catch (e) {
         // Elemento ya no existe
@@ -82,123 +83,185 @@ export function useTextSearch() {
     return null
   }, [])
 
-  // Ejecutar la búsqueda real (definido antes de searchInPDF para evitar referencia circular)
+  /**
+   * REGLAS DE COINCIDENCIA ESTRICTA:
+   * 1. La coincidencia debe ser CASI EXACTA.
+   * 2. El nombre del producto debe contener las mismas palabras clave principales.
+   * 3. El nivel educativo (ej: 8° Básico) debe coincidir exactamente.
+   * 4. La asignatura debe coincidir exactamente.
+   * 5. NO aceptar coincidencias solo por palabras parecidas.
+   * 6. NO inferir ni adivinar.
+   * 7. Si no existe coincidencia clara → "SIN COINCIDENCIA" (not-found).
+   */
   const performSearch = useCallback((
     query: string,
     textLayer: Element,
     options?: { isbn?: string; marca?: string }
   ) => {
-    const textSpans = textLayer.querySelectorAll('span')
+    // Filtrar spans válidos (sin markedContent, con texto)
+    const allSpans = textLayer.querySelectorAll('span')
+    const textSpans: HTMLElement[] = []
+    allSpans.forEach((span) => {
+      const el = span as HTMLElement
+      if (!el.classList.contains('markedContent') && (el.textContent || '').trim().length > 0) {
+        textSpans.push(el)
+      }
+    })
+
     const matches: TextMatch[] = []
     const normalizedQuery = normalizeText(query)
-
-    // Términos de búsqueda ordenados por prioridad
-    const searchTerms: { term: string; type: 'exact' | 'partial' | 'word' }[] = []
-
-    // 1. ISBN (si está disponible)
-    if (options?.isbn) {
-      const cleanIsbn = options.isbn.replace(/[-\s]/g, '')
-      searchTerms.push({ term: cleanIsbn, type: 'exact' })
-      searchTerms.push({ term: options.isbn, type: 'exact' })
-    }
-
-    // 2. Nombre completo normalizado
-    searchTerms.push({ term: normalizedQuery, type: 'exact' })
-
-    // 3. Palabras clave del nombre (mínimo 4 caracteres)
-    const words = normalizedQuery
-      .split(' ')
-      .filter(w => w.length >= 4)
-      .sort((a, b) => b.length - a.length)
-
-    words.forEach(word => {
-      searchTerms.push({ term: word, type: 'word' })
-    })
-
-    // Buscar coincidencias
     const matchedElements = new Set<HTMLElement>()
 
-    for (const { term, type } of searchTerms) {
-      if (term.length < 3) continue
+    // Stop words en español - se ignoran para la comparación de palabras clave
+    const STOP_WORDS = new Set([
+      'y', 'de', 'la', 'el', 'para', 'con', 'un', 'una', 'los', 'las',
+      'del', 'en', 'al', 'por', 'su', 'se', 'que', 'es', 'no', 'o', 'a'
+    ])
 
-      textSpans.forEach((span, index) => {
-        const el = span as HTMLElement
-        if (matchedElements.has(el)) return
+    // Extraer palabras significativas del nombre del producto (sin stop words, >= 2 chars)
+    const significantWords = normalizedQuery
+      .split(' ')
+      .filter(w => w.length >= 2 && !STOP_WORDS.has(w))
 
-        const spanText = normalizeText(span.textContent || '')
+    // Extraer números de nivel educativo (1, 2, 3, 4, 5, 6, 7, 8, etc.)
+    const gradeNumbers = normalizedQuery.match(/\d+/g) || []
 
-        if (spanText.includes(term)) {
-          matchedElements.add(el)
-          matches.push({
-            element: el,
-            text: span.textContent || '',
-            index,
-            matchType: type
-          })
+    // Umbral mínimo: al menos 70% de palabras significativas deben coincidir
+    const MIN_MATCH_RATIO = 0.70
+
+    // Helper: aplicar highlights a los spans encontrados
+    const applyHighlightsAndFinish = () => {
+      matches.sort((a, b) => {
+        const typeOrder = { exact: 0, partial: 1, word: 2 }
+        if (typeOrder[a.matchType] !== typeOrder[b.matchType]) {
+          return typeOrder[a.matchType] - typeOrder[b.matchType]
         }
+        return a.index - b.index
       })
 
-      // Si encontramos matches exactos, detenernos
-      if (matches.length > 0 && type === 'exact') {
-        break
+      matches.forEach((match) => {
+        const el = match.element
+        const isExact = match.matchType === 'exact'
+        const bg = isExact ? 'rgba(76, 175, 80, 0.75)' : 'rgba(255, 235, 59, 0.9)'
+        el.classList.add('pdf-search-highlight')
+        el.style.setProperty('background-color', bg, 'important')
+        el.style.setProperty('color', 'transparent', 'important')
+        el.style.setProperty('border-radius', '2px', 'important')
+        el.style.setProperty('padding', '1px 0', 'important')
+        el.style.setProperty('margin', '0 -1px', 'important')
+        highlightedElements.current.push(el)
+      })
+
+      if (matches.length > 0) {
+        const firstMatch = matches[0].element
+        firstMatch.classList.add('pdf-search-highlight-active')
+        firstMatch.style.setProperty('background-color', 'rgba(255, 152, 0, 0.95)', 'important')
+        firstMatch.style.setProperty('outline', '2px solid rgba(255, 152, 0, 0.9)', 'important')
+        firstMatch.style.setProperty('box-shadow', '0 0 8px rgba(255, 152, 0, 0.6)', 'important')
+
+        setTimeout(() => {
+          try {
+            firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+          } catch (e) { /* Ignorar */ }
+        }, 100)
       }
+
+      setSearchState({
+        query,
+        matches,
+        currentMatchIndex: 0,
+        totalMatches: matches.length,
+        isSearching: false,
+        searchStatus: matches.length > 0 ? 'found' : 'not-found'
+      })
     }
 
-    // Ordenar matches
-    matches.sort((a, b) => {
-      const typeOrder = { exact: 0, partial: 1, word: 2 }
-      if (typeOrder[a.matchType] !== typeOrder[b.matchType]) {
-        return typeOrder[a.matchType] - typeOrder[b.matchType]
-      }
-      return a.index - b.index
-    })
-
-    // Aplicar highlights
-    matches.forEach((match) => {
-      const el = match.element
-      el.classList.add('pdf-search-highlight')
-
-      const isExact = match.matchType === 'exact'
-      el.style.backgroundColor = isExact
-        ? 'rgba(76, 175, 80, 0.6)'
-        : 'rgba(255, 235, 59, 0.6)'
-      el.style.color = '#000'
-      el.style.borderRadius = '2px'
-      el.style.transition = 'all 0.2s ease'
-
-      highlightedElements.current.push(el)
-    })
-
-    // Marcar el primer match como activo
-    if (matches.length > 0) {
-      const firstMatch = matches[0].element
-      firstMatch.classList.add('pdf-search-highlight-active')
-      firstMatch.style.backgroundColor = 'rgba(255, 87, 34, 0.85)'
-      firstMatch.style.outline = '3px solid rgba(255, 87, 34, 0.9)'
-      firstMatch.style.boxShadow = '0 0 12px rgba(255, 87, 34, 0.6)'
-
-      // Scroll al primer match
-      setTimeout(() => {
-        try {
-          firstMatch.scrollIntoView({
-            behavior: 'smooth',
-            block: 'center',
-            inline: 'center'
-          })
-        } catch (e) {
-          // Ignorar errores de scroll
+    // === FASE 1: Buscar por ISBN (máxima prioridad, coincidencia exacta) ===
+    if (options?.isbn) {
+      const cleanIsbn = options.isbn.replace(/[-\s]/g, '')
+      for (let i = 0; i < textSpans.length; i++) {
+        const el = textSpans[i]
+        const spanText = normalizeText(el.textContent || '')
+        if (spanText.includes(cleanIsbn) || spanText.includes(normalizeText(options.isbn))) {
+          matchedElements.add(el)
+          matches.push({ element: el, text: el.textContent || '', index: i, matchType: 'exact' })
         }
-      }, 100)
+      }
+      if (matches.length > 0) {
+        applyHighlightsAndFinish()
+        return
+      }
     }
 
-    setSearchState({
-      query,
-      matches,
-      currentMatchIndex: 0,
-      totalMatches: matches.length,
-      isSearching: false,
-      searchStatus: matches.length > 0 ? 'found' : 'not-found'
-    })
+    // === FASE 2: Buscar nombre completo exacto como substring ===
+    for (let i = 0; i < textSpans.length; i++) {
+      const el = textSpans[i]
+      const spanText = normalizeText(el.textContent || '')
+      if (spanText.includes(normalizedQuery)) {
+        matchedElements.add(el)
+        matches.push({ element: el, text: el.textContent || '', index: i, matchType: 'exact' })
+      }
+    }
+    if (matches.length > 0) {
+      applyHighlightsAndFinish()
+      return
+    }
+
+    // === FASE 3: Buscar en ventanas de spans adyacentes con coincidencia ESTRICTA ===
+    // Concatena 1, 2 o 3 spans adyacentes y verifica que:
+    //   - Al menos 70% de las palabras significativas coincidan
+    //   - TODOS los números de nivel educativo coincidan exactamente
+    //   - No se aceptan coincidencias parciales por palabras sueltas
+    for (let windowSize = 1; windowSize <= Math.min(5, textSpans.length); windowSize++) {
+      if (matches.length > 0) break
+
+      for (let i = 0; i <= textSpans.length - windowSize; i++) {
+        const windowSpans = textSpans.slice(i, i + windowSize)
+        if (windowSpans.some(s => matchedElements.has(s))) continue
+
+        const combinedText = normalizeText(
+          windowSpans.map(s => s.textContent || '').join(' ')
+        )
+
+        // Contar cuántas palabras significativas del producto aparecen en el texto
+        const wordsFound = significantWords.filter(word => combinedText.includes(word))
+        const matchRatio = significantWords.length > 0
+          ? wordsFound.length / significantWords.length
+          : 0
+
+        // REGLA 3: Los números de nivel educativo DEBEN coincidir exactamente
+        const numbersOK = gradeNumbers.length === 0 ||
+          gradeNumbers.every(num => {
+            // Buscar el número como palabra completa (ej: "8" no debe matchear "18")
+            const regex = new RegExp(`(?:^|\\s|\\b)${num}(?:\\s|\\b|$)`)
+            return regex.test(combinedText)
+          })
+
+        if (!numbersOK) continue // Nivel educativo no coincide → descartar
+
+        // REGLA 1 y 2: Coincidencia casi exacta de palabras clave
+        const minWordsRequired = Math.min(significantWords.length, Math.max(2, Math.ceil(significantWords.length * MIN_MATCH_RATIO)))
+        const isStrictMatch = wordsFound.length >= minWordsRequired && matchRatio >= MIN_MATCH_RATIO
+
+        if (isStrictMatch) {
+          const matchType: 'exact' | 'partial' = matchRatio >= 0.90 ? 'exact' : 'partial'
+          windowSpans.forEach((span, j) => {
+            if (!matchedElements.has(span)) {
+              matchedElements.add(span)
+              matches.push({
+                element: span,
+                text: span.textContent || '',
+                index: i + j,
+                matchType
+              })
+            }
+          })
+          break // Encontramos la mejor coincidencia, no seguir buscando
+        }
+      }
+    }
+
+    applyHighlightsAndFinish()
   }, [normalizeText])
 
   // Buscar texto en el PDF con reintentos robustos
@@ -228,10 +291,10 @@ export function useTextSearch() {
       const textLayer = findTextLayer(container)
 
       // Verificar que el TextLayer tenga contenido (spans)
-      const hasContent = textLayer && textLayer.querySelectorAll('span').length > 0
+      const spanCount = textLayer?.querySelectorAll('span').length ?? 0
+      const hasContent = textLayer && spanCount > 0
 
       if (hasContent && textLayer) {
-        console.log(`[useTextSearch] TextLayer encontrado en intento ${attempt}, spans: ${textLayer.querySelectorAll('span').length}`)
         performSearch(query, textLayer, options)
         return
       }
@@ -262,25 +325,22 @@ export function useTextSearch() {
 
     const newIndex = (searchState.currentMatchIndex + 1) % searchState.matches.length
 
-    // Quitar highlight activo del actual
     const currentEl = searchState.matches[searchState.currentMatchIndex]?.element
     if (currentEl) {
       currentEl.classList.remove('pdf-search-highlight-active')
       const isExact = searchState.matches[searchState.currentMatchIndex].matchType === 'exact'
-      currentEl.style.backgroundColor = isExact
-        ? 'rgba(76, 175, 80, 0.6)'
-        : 'rgba(255, 235, 59, 0.6)'
-      currentEl.style.outline = ''
-      currentEl.style.boxShadow = ''
+      const bg = isExact ? 'rgba(76, 175, 80, 0.75)' : 'rgba(255, 235, 59, 0.9)'
+      currentEl.style.setProperty('background-color', bg, 'important')
+      currentEl.style.removeProperty('outline')
+      currentEl.style.removeProperty('box-shadow')
     }
 
-    // Agregar highlight activo al nuevo
     const newEl = searchState.matches[newIndex]?.element
     if (newEl) {
       newEl.classList.add('pdf-search-highlight-active')
-      newEl.style.backgroundColor = 'rgba(255, 87, 34, 0.85)'
-      newEl.style.outline = '3px solid rgba(255, 87, 34, 0.9)'
-      newEl.style.boxShadow = '0 0 12px rgba(255, 87, 34, 0.6)'
+      newEl.style.setProperty('background-color', 'rgba(255, 152, 0, 0.95)', 'important')
+      newEl.style.setProperty('outline', '2px solid rgba(255, 152, 0, 0.9)', 'important')
+      newEl.style.setProperty('box-shadow', '0 0 8px rgba(255, 152, 0, 0.6)', 'important')
       newEl.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
@@ -303,19 +363,18 @@ export function useTextSearch() {
     if (currentEl) {
       currentEl.classList.remove('pdf-search-highlight-active')
       const isExact = searchState.matches[searchState.currentMatchIndex].matchType === 'exact'
-      currentEl.style.backgroundColor = isExact
-        ? 'rgba(76, 175, 80, 0.6)'
-        : 'rgba(255, 235, 59, 0.6)'
-      currentEl.style.outline = ''
-      currentEl.style.boxShadow = ''
+      const bg = isExact ? 'rgba(76, 175, 80, 0.75)' : 'rgba(255, 235, 59, 0.9)'
+      currentEl.style.setProperty('background-color', bg, 'important')
+      currentEl.style.removeProperty('outline')
+      currentEl.style.removeProperty('box-shadow')
     }
 
     const newEl = searchState.matches[newIndex]?.element
     if (newEl) {
       newEl.classList.add('pdf-search-highlight-active')
-      newEl.style.backgroundColor = 'rgba(255, 87, 34, 0.85)'
-      newEl.style.outline = '3px solid rgba(255, 87, 34, 0.9)'
-      newEl.style.boxShadow = '0 0 12px rgba(255, 87, 34, 0.6)'
+      newEl.style.setProperty('background-color', 'rgba(255, 152, 0, 0.95)', 'important')
+      newEl.style.setProperty('outline', '2px solid rgba(255, 152, 0, 0.9)', 'important')
+      newEl.style.setProperty('box-shadow', '0 0 8px rgba(255, 152, 0, 0.6)', 'important')
       newEl.scrollIntoView({
         behavior: 'smooth',
         block: 'center',

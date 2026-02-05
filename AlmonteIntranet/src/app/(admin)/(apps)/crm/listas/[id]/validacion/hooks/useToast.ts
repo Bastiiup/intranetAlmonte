@@ -101,15 +101,16 @@ export function useToast() {
     return result.isConfirmed
   }, [])
 
-  // Loading toast
-  const loading = useCallback((message: string = 'Procesando...') => {
+  // Loading toast (opción position: 'bottom-center' para consultas largas)
+  const loading = useCallback((message: string = 'Procesando...', position: 'top-right' | 'bottom-center' = 'top-right') => {
     return hotToast.loading(message, {
-      position: 'top-right',
+      position,
+      duration: Infinity,
       style: {
         background: '#1f2937',
         color: 'white',
         fontWeight: 500,
-        padding: '12px 16px',
+        padding: '14px 20px',
         borderRadius: '8px',
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
       },
@@ -204,14 +205,15 @@ export const toast = {
       },
     })
   },
-  loading: (message: string = 'Procesando...') => {
+  loading: (message: string = 'Procesando...', position: 'top-right' | 'bottom-center' = 'top-right') => {
     return hotToast.loading(message, {
-      position: 'top-right',
+      position,
+      duration: Infinity,
       style: {
         background: '#1f2937',
         color: 'white',
         fontWeight: 500,
-        padding: '12px 16px',
+        padding: '14px 20px',
         borderRadius: '8px',
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
       },

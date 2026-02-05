@@ -72,13 +72,18 @@ export function useProductos({
       // Determinar qué versión usar
       let versionActual: any = null
       
+      // Extraer array de materiales de una versión (Strapi/IA puede usar "materiales" o "productos")
+      const getMaterialesDeVersion = (version: any): any[] => {
+        if (!version) return []
+        const arr = version.materiales ?? version.productos
+        return Array.isArray(arr) ? arr : []
+      }
+
       if (mostrarTodosLosProductos && listaActual.versiones_materiales) {
         // Combinar todos los productos de todas las versiones
         const todosLosProductos: any[] = []
         listaActual.versiones_materiales.forEach((version: any) => {
-          if (version.materiales && Array.isArray(version.materiales)) {
-            todosLosProductos.push(...version.materiales)
-          }
+          todosLosProductos.push(...getMaterialesDeVersion(version))
         })
         versionActual = { materiales: todosLosProductos }
       } else if (versionSeleccionada !== null && listaActual.versiones_materiales) {
@@ -93,21 +98,28 @@ export function useProductos({
         versionActual = versionesOrdenadas[0]
       }
 
-      if (!versionActual || !versionActual.materiales || !Array.isArray(versionActual.materiales)) {
-        console.log('[useProductos] No hay materiales en la versión seleccionada')
+      const materiales = versionActual ? getMaterialesDeVersion(versionActual) : []
+      if (materiales.length === 0) {
+        console.log('[useProductos] No hay materiales en la versión seleccionada', {
+          versionActual: !!versionActual,
+          keys: versionActual ? Object.keys(versionActual) : []
+        })
         setProductos([])
         setLoading(false)
         return
       }
 
+      // Normalizar para que el resto del código use siempre .materiales
+      const versionConMateriales = { ...versionActual, materiales }
+
       console.log('[useProductos] Materiales encontrados:', {
-        cantidad: versionActual.materiales.length,
+        cantidad: materiales.length,
         version: versionSeleccionada,
         mostrarTodos: mostrarTodosLosProductos
       })
 
       // Transformar materiales a ProductoIdentificado
-      const productosTransformados: ProductoIdentificado[] = versionActual.materiales.map((material: any, index: number) => {
+      const productosTransformados: ProductoIdentificado[] = versionConMateriales.materiales.map((material: any, index: number) => {
         const nombreProducto = 
           material.nombre || 
           material.nombre_producto || 
@@ -142,6 +154,8 @@ export function useProductos({
         return {
           id: material.id || `producto-${index + 1}`,
           validado: material.aprobado !== undefined ? material.aprobado : (material.validado || false),
+          orden: material.orden !== undefined ? Number(material.orden) : index + 1,
+          categoria: material.categoria || material.tipo || undefined,
           imagen: material.imagen || material.imagen_url || material.image || material.image_url || undefined,
           isbn: material.isbn || material.sku || material.woocommerce_sku || undefined,
           nombre: nombreProducto,

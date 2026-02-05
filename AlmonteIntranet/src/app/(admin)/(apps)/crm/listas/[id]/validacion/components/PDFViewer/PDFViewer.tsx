@@ -5,7 +5,8 @@
 
 'use client'
 
-import { useMemo, useEffect, useRef, useCallback } from 'react'
+import { useMemo, useEffect, useRef, useCallback, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Card, CardBody, Button, Spinner, Alert } from 'react-bootstrap'
 import { TbSparkles, TbFileText, TbDownload, TbSearch } from 'react-icons/tb'
 import { Document, Page as PDFPage, pdfjs } from 'react-pdf'
@@ -14,35 +15,55 @@ import 'react-pdf/dist/esm/Page/TextLayer.css'
 import PDFControls from './PDFControls'
 import SearchBar from './SearchBar'
 import VersionSelector from './VersionSelector'
-import { useTextSearch } from '../../hooks/useTextSearch'
 import type { ProductoIdentificado, ListaData } from '../../types'
 import { STRAPI_API_URL } from '@/lib/strapi/config'
 
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs'
 
+// Suprimir solo el aviso "AbortException: TextLayer task cancelled" (react-pdf al cambiar de página). Condición muy estricta para no afectar el resaltado.
+function isTextLayerCancelledOnly(args: unknown[]): boolean {
+  const msg = args.map(a => (a != null && typeof a === 'string' ? a : a != null ? String(a) : '')).join(' ')
+  return msg.includes('AbortException') && msg.includes('TextLayer') && msg.toLowerCase().includes('cancel')
+}
+
+function installTextLayerWarningFilter() {
+  const orig = console.error
+  console.error = function (...args: unknown[]) {
+    if (isTextLayerCancelledOnly(args)) return
+    orig.apply(console, args as [string?, ...unknown[]])
+  }
+  return () => { console.error = orig }
+}
+
 // Estilos globales para los highlights
 const globalStyles = `
-  .pdf-search-highlight {
-    background-color: rgba(255, 235, 59, 0.6) !important;
+  /* Resaltado visible en el PDF (como Ctrl+F) - override height:0 de markedContent en react-pdf */
+  .react-pdf__Page__textContent span.pdf-search-highlight,
+  .textLayer span.pdf-search-highlight {
+    background-color: rgba(255, 235, 59, 0.92) !important;
     color: #000 !important;
     border-radius: 2px !important;
-    box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.4) !important;
-    transition: all 0.3s ease !important;
+    padding: 2px 1px !important;
+    margin: -2px -1px !important;
+    min-height: 1.2em !important;
+    line-height: 1.2 !important;
+    z-index: 10 !important;
   }
 
-  .pdf-search-highlight-active {
-    background-color: rgba(255, 152, 0, 0.9) !important;
-    box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.6), 0 4px 12px rgba(0,0,0,0.3) !important;
-    animation: pulse-highlight 1.5s ease-in-out infinite !important;
+  .react-pdf__Page__textContent span.pdf-search-highlight-active,
+  .textLayer span.pdf-search-highlight-active {
+    background-color: rgba(255, 152, 0, 0.95) !important;
+    box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.9) !important;
+    z-index: 11 !important;
   }
 
   @keyframes pulse-highlight {
-    0%, 100% {
-      box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.6), 0 4px 12px rgba(0,0,0,0.3);
-    }
-    50% {
-      box-shadow: 0 0 0 6px rgba(255, 87, 34, 0.3), 0 6px 20px rgba(0,0,0,0.4);
-    }
+    0%, 100% { box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.9); }
+    50% { box-shadow: 0 0 0 4px rgba(255, 152, 0, 0.5); }
+  }
+
+  .textLayer span.pdf-search-highlight-active {
+    animation: pulse-highlight 1.5s ease-in-out infinite !important;
   }
 
   .react-pdf__Page__textContent span {
@@ -70,6 +91,17 @@ const globalStyles = `
 
   .pdf-viewer-container::-webkit-scrollbar-thumb:hover {
     background: rgba(0,0,0,0.3);
+  }
+
+  /* Overlay de resaltado (React, persistente) - detrás del texto para que se vea negro */
+  .pdf-highlight-overlay-react {
+    position: absolute !important;
+    inset: 0 !important;
+    pointer-events: none !important;
+    z-index: 1 !important;
+  }
+  .react-pdf__Page__textContent {
+    z-index: 10 !important;
   }
 `
 
@@ -114,26 +146,23 @@ export default function PDFViewer({
     scale,
     pageDimensions,
     setPageDimensions,
+    containerRef: pdfContainerRef,
     onDocumentLoadSuccess,
     nextPage,
     prevPage,
     onZoomIn,
     onZoomOut,
-    onZoomReset
-  } = pdfViewer
-
-  // Hook de búsqueda de texto
-  const {
+    onZoomReset,
     searchState,
     searchInPDF,
     nextMatch,
     prevMatch,
     clearSearch
-  } = useTextSearch()
-
-  // Ref para el contenedor del PDF
-  const pdfContainerRef = useRef<HTMLDivElement>(null)
+  } = pdfViewer
   const lastSearchedProductRef = useRef<string | null>(null)
+  const onRenderSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const executeSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [pageElement, setPageElement] = useState<HTMLElement | null>(null)
 
   // Inyectar estilos globales
   useEffect(() => {
@@ -146,66 +175,98 @@ export default function PDFViewer({
     }
   }, [])
 
+  // Suprimir solo "TextLayer task cancelled" en consola (no afecta al resaltado)
+  useEffect(() => installTextLayerWarningFilter(), [])
+
+  // Encontrar el contenedor de la página para el overlay (cuando hay coincidencias)
+  useEffect(() => {
+    if (searchState.matches.length > 0 && pdfContainerRef.current) {
+      const page = pdfContainerRef.current.querySelector('.react-pdf__Page') as HTMLElement | null
+      if (page) {
+        if (getComputedStyle(page).position === 'static') {
+          page.style.position = 'relative'
+        }
+        setPageElement(page)
+      } else {
+        setPageElement(null)
+      }
+    } else {
+      setPageElement(null)
+    }
+  }, [searchState.matches, searchState.searchStatus])
+
+  // Cancelar todos los timeouts de búsqueda pendientes
+  const cancelPendingSearches = useCallback(() => {
+    if (executeSearchTimeoutRef.current) {
+      clearTimeout(executeSearchTimeoutRef.current)
+      executeSearchTimeoutRef.current = null
+    }
+    if (onRenderSearchTimeoutRef.current) {
+      clearTimeout(onRenderSearchTimeoutRef.current)
+      onRenderSearchTimeoutRef.current = null
+    }
+  }, [])
+
+  // Ejecutar búsqueda en el PDF para el producto seleccionado
+  const doSearch = useCallback(() => {
+    if (!selectedProductData) return
+    searchInPDF(selectedProductData.nombre, {
+      isbn: selectedProductData.isbn,
+      marca: selectedProductData.marca,
+      asignatura: selectedProductData.asignatura
+    })
+    lastSearchedProductRef.current = `${selectedProductData.id}-${pageNumber}`
+  }, [selectedProductData, pageNumber, searchInPDF])
+
   // Ejecutar búsqueda cuando cambia el producto seleccionado o la página
-  const executeSearch = useCallback((forceSearch: boolean = false) => {
-    if (!selectedProductData || !pdfContainerRef.current) {
-      if (!selectedProductData && lastSearchedProductRef.current) {
+  useEffect(() => {
+    // Sin producto seleccionado: limpiar todo
+    if (!selectedProductData) {
+      cancelPendingSearches()
+      if (lastSearchedProductRef.current) {
         clearSearch()
         lastSearchedProductRef.current = null
       }
       return
     }
 
-    // Clave única para esta búsqueda (producto + página)
     const productKey = `${selectedProductData.id}-${pageNumber}`
 
-    // Evitar búsquedas repetidas a menos que sea forzada
-    if (!forceSearch && lastSearchedProductRef.current === productKey) {
+    // Evitar búsquedas repetidas para el mismo producto+página
+    if (lastSearchedProductRef.current === productKey) {
       return
     }
 
-    // Limpiar highlights anteriores antes de buscar en nueva página
-    clearSearch()
+    // Cancelar timeouts anteriores para evitar race conditions
+    cancelPendingSearches()
 
-    // Esperar a que el TextLayer se renderice completamente
-    const timeoutId = setTimeout(() => {
-      console.log('[PDFViewer] Buscando en página', pageNumber, ':', selectedProductData.nombre)
-      searchInPDF(
-        selectedProductData.nombre,
-        pdfContainerRef.current,
-        {
-          isbn: selectedProductData.isbn,
-          marca: selectedProductData.marca
-        }
-      )
-      lastSearchedProductRef.current = productKey
-    }, 400)
+    // Programar la búsqueda con delay para dar tiempo al TextLayer (especialmente tras cambiar de página)
+    const delay = 700
+    executeSearchTimeoutRef.current = setTimeout(() => {
+      executeSearchTimeoutRef.current = null
+      if (lastSearchedProductRef.current === productKey) return
+      doSearch()
+    }, delay)
 
-    return () => clearTimeout(timeoutId)
-  }, [selectedProductData, pageNumber, searchInPDF, clearSearch])
-
-  // Ejecutar búsqueda cuando cambia el producto o la página
-  useEffect(() => {
-    executeSearch()
-  }, [executeSearch])
-
-  // Limpiar cuando se deselecciona el producto
-  useEffect(() => {
-    if (!selectedProductData) {
-      clearSearch()
-      lastSearchedProductRef.current = null
+    return () => {
+      // Cleanup: cancelar timeout pendiente al re-ejecutar el efecto
+      if (executeSearchTimeoutRef.current) {
+        clearTimeout(executeSearchTimeoutRef.current)
+        executeSearchTimeoutRef.current = null
+      }
     }
-  }, [selectedProductData, clearSearch])
+  }, [selectedProductData, pageNumber, cancelPendingSearches, clearSearch, doSearch])
 
   // Manejar la limpieza de búsqueda
   const handleClearSearch = useCallback(() => {
+    cancelPendingSearches()
     clearSearch()
     lastSearchedProductRef.current = null
     // También limpiar la selección en el componente padre
     if (onClearSelection) {
       onClearSelection()
     }
-  }, [clearSearch, onClearSelection])
+  }, [cancelPendingSearches, clearSearch, onClearSelection])
 
   // Determinar URL del PDF
   const pdfUrl = useMemo(() => {
@@ -544,11 +605,49 @@ export default function PDFViewer({
                 </div>
               }
             >
+              {pageElement &&
+                searchState.matches.length > 0 &&
+                searchState.matches.some(m => m.rect) &&
+                createPortal(
+                  <div className="pdf-highlight-overlay-react">
+                    {searchState.matches.map(
+                      (m, i) =>
+                        m.rect && (
+                          <div
+                            key={i}
+                            style={{
+                              position: 'absolute',
+                              left: `${m.rect.left}%`,
+                              top: `${m.rect.top}%`,
+                              width: `${m.rect.width}%`,
+                              height: `${m.rect.height}%`,
+                              background:
+                                i === searchState.currentMatchIndex
+                                  ? 'rgba(255,152,0,0.85)'
+                                  : 'rgba(255,235,59,0.8)',
+                              borderRadius: 2,
+                              boxShadow:
+                                i === searchState.currentMatchIndex
+                                  ? '0 0 0 2px rgba(255,152,0,0.8)'
+                                  : 'none'
+                            }}
+                          />
+                        )
+                    )}
+                  </div>,
+                  pageElement
+                )}
               <PDFPage
                 pageNumber={pageNumber}
                 scale={scale}
                 renderTextLayer={true}
                 renderAnnotationLayer={true}
+                onRenderTextLayerError={(error) => {
+                  if (error?.name === 'AbortException' || (error?.message && String(error.message).toLowerCase().includes('cancel'))) {
+                    return
+                  }
+                  console.error('[PDFViewer] TextLayer error:', error)
+                }}
                 onRenderSuccess={(page) => {
                   if (page.width && page.height) {
                     setPageDimensions({
@@ -556,23 +655,27 @@ export default function PDFViewer({
                       height: page.height
                     })
                   }
-                  // Esperar a que el TextLayer se renderice después del canvas
-                  // El TextLayer se renderiza después del onRenderSuccess del canvas
-                  if (selectedProductData) {
-                    // Intentar múltiples veces con delays incrementales
-                    const attempts = [300, 600, 1000]
-                    attempts.forEach((delay, index) => {
-                      setTimeout(() => {
-                        if (pdfContainerRef.current) {
-                          const textLayer = pdfContainerRef.current.querySelector('.react-pdf__Page__textContent')
-                          if (textLayer && textLayer.children.length > 0) {
-                            console.log(`[PDFViewer] TextLayer encontrado en intento ${index + 1} (${delay}ms)`)
-                            executeSearch(true)
-                          }
-                        }
-                      }, delay)
-                    })
+                  if (!selectedProductData) return
+                  // Cancelar el timeout de executeSearch - onRenderSuccess tiene prioridad
+                  // porque sabe que el TextLayer acaba de renderizarse
+                  if (executeSearchTimeoutRef.current) {
+                    clearTimeout(executeSearchTimeoutRef.current)
+                    executeSearchTimeoutRef.current = null
                   }
+                  if (onRenderSearchTimeoutRef.current) {
+                    clearTimeout(onRenderSearchTimeoutRef.current)
+                    onRenderSearchTimeoutRef.current = null
+                  }
+                  onRenderSearchTimeoutRef.current = setTimeout(() => {
+                    onRenderSearchTimeoutRef.current = null
+                    if (!selectedProductData) return
+                    searchInPDF(selectedProductData.nombre, {
+                      isbn: selectedProductData.isbn,
+                      marca: selectedProductData.marca,
+                      asignatura: selectedProductData.asignatura
+                    })
+                    lastSearchedProductRef.current = `${selectedProductData.id}-${pageNumber}`
+                  }, 300)
                 }}
               />
             </Document>

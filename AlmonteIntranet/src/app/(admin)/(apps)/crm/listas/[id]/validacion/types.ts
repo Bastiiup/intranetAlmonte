@@ -14,6 +14,10 @@ export interface CoordenadasProducto {
 export interface ProductoIdentificado {
   id: string | number
   validado: boolean
+  /** Posición en el PDF / orden de aparición (1, 2, 3...) */
+  orden?: number
+  /** Categoría del producto (ej. Libro, Útil, etc.) */
+  categoria?: string
   imagen?: string
   isbn?: string
   nombre: string
@@ -23,6 +27,7 @@ export interface ProductoIdentificado {
   disponibilidad: 'disponible' | 'no_disponible' | 'no_encontrado'
   precio: number
   precio_woocommerce?: number
+  /** Asignatura (ej. Matemáticas, Lenguaje) */
   asignatura?: string
   descripcion?: string
   woocommerce_id?: number
