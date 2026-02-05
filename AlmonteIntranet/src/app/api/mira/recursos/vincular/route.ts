@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
       data: {
         nombre,
         tipo: 'video',
-        proveedor: 'bunny',
+        proveedor: 'bunny_stream',
         video_id: id,
         libro_mira: libroId,
         orden,
