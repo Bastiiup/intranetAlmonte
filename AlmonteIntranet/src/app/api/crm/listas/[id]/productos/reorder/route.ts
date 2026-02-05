@@ -49,7 +49,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       const id = String(orderedIds[i])
       const mat = materiales.find((m: any) => String(m.id) === id)
       if (mat) {
-        const extra = mapPayload.get(id) || {}
+        const extra = mapPayload.get(id) || ({} as { categoria?: string; asignatura?: string })
         reordenados.push({
           ...mat,
           orden: i + 1,
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     materiales.forEach((m: any) => {
       const id = String(m.id)
       if (!used.has(id)) {
-        const extra = mapPayload.get(id) || {}
+        const extra = mapPayload.get(id) || ({} as { categoria?: string; asignatura?: string })
         reordenados.push({
           ...m,
           orden: reordenados.length + 1,
