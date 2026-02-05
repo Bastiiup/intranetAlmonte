@@ -8,6 +8,7 @@
 
 import { FormCheck, Badge, Button, Spinner } from 'react-bootstrap'
 import { TbEdit, TbTrash, TbSearch, TbGripVertical } from 'react-icons/tb'
+import type { DraggableProvidedDragHandleProps } from '@hello-pangea/dnd'
 import type { ProductoIdentificado } from '../../types'
 
 export interface ProductoRowCellsProps {
@@ -19,7 +20,7 @@ export interface ProductoRowCellsProps {
   isApproving: boolean
   onNavegarAPDF?: (producto: ProductoIdentificado) => void
   /** Props del handle de arrastre (solo cuando la fila es draggable) */
-  dragHandleProps?: Record<string, unknown> | null
+  dragHandleProps?: DraggableProvidedDragHandleProps | null
   hasDragHandle?: boolean
 }
 

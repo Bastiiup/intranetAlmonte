@@ -7,12 +7,13 @@
 'use client'
 
 import ProductoRowCells from './ProductoRowCells'
+import type { DraggableProvidedDragHandleProps } from '@hello-pangea/dnd'
 import type { ProductoIdentificado } from '../../types'
 
 export type DraggableProvided = {
   innerRef: (el: HTMLTableRowElement | null) => void
   draggableProps: Record<string, unknown>
-  dragHandleProps: Record<string, unknown> | null
+  dragHandleProps: DraggableProvidedDragHandleProps | null
 }
 
 interface ProductoRowProps {
