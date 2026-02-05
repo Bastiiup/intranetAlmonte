@@ -42,7 +42,9 @@ interface ImportRow {
   Año_lista?: number
   Fecha_actualizacion?: string
   Fecha_publicacion?: string
-  URL_lista?: string
+  URL_lista?: string | string[] // Puede ser una URL o múltiples URLs
+  URL_original?: string // URL de la página de origen
+  Fecha_actualizacion_lista?: string // Fecha de actualización de la lista de útiles
   URL_publicacion?: string
   Orden_lista?: number
   Libro_nombre?: string
@@ -84,7 +86,9 @@ interface AgrupadoPorLista {
     año?: number
     fecha_actualizacion?: string
     fecha_publicacion?: string
-    url_lista?: string
+    url_lista?: string | string[] // Puede ser una URL o múltiples URLs
+    url_original?: string // URL de la página de origen
+    fecha_actualizacion_lista?: string // Fecha de actualización de la lista de útiles
     url_publicacion?: string
     orden?: number
   }
@@ -263,6 +267,7 @@ export default function ImportacionCompletaModal({
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadingFile, setUploadingFile] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [colegioActual, setColegioActual] = useState<{ nombre: string; rbd?: number | string } | null>(null)
   const [minimized, setMinimized] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('importacion-completa-minimized')
@@ -495,7 +500,7 @@ export default function ImportacionCompletaModal({
 
         // Normalizar nombres de columnas: quitar BOM (U+FEFF) y espacios que Excel a veces añade al guardar
         const normalizarClave = (key: string) => String(key).replace(/^\uFEFF/, '').trim()
-        const jsonData = jsonDataRaw.map((row: any) => {
+        let jsonData = jsonDataRaw.map((row: any) => {
           const cleaned: Record<string, any> = {}
           for (const k of Object.keys(row)) {
             cleaned[normalizarClave(k)] = row[k]
@@ -506,7 +511,53 @@ export default function ImportacionCompletaModal({
         // Resolver nombres de columnas: detectar qué key del Excel corresponde a RBD, Curso, Asignatura, Producto
         // (por si el archivo tiene variantes: "N° curso", espacios extra, encoding distinto, etc.)
         const norm = (s: string) => String(s).toLowerCase().replace(/\s+/g, ' ').replace(/[º°]/g, 'o').trim()
-        const keysPrimeraFila = jsonData[0] ? Object.keys(jsonData[0]) : []
+        let keysPrimeraFila = jsonData[0] ? Object.keys(jsonData[0]) : []
+        
+        // 🔍 DETECCIÓN MEJORADA: Verificar si la primera fila son datos en lugar de encabezados
+        // Si los "encabezados" parecen ser valores (números, URLs, fechas), entonces la primera fila son datos
+        const primeraFilaValores = jsonData[0] ? Object.values(jsonData[0]) : []
+        const pareceSerDatos = primeraFilaValores.some((val: any) => {
+          const str = String(val || '').trim()
+          return (
+            /^\d+$/.test(str) || // Números puros (ej: "1", "2026", "12781")
+            /^https?:\/\//.test(str) || // URLs
+            /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(str) || // Fechas (ej: "2/5/26")
+            /^\d+º|\d+°/.test(str) || // Grados con símbolo (ej: "1º Básico")
+            str.length > 50 // URLs largas
+          )
+        })
+        
+        // Si parece ser datos, crear encabezados automáticos basados en el orden esperado
+        if (pareceSerDatos && keysPrimeraFila.length > 0) {
+          console.log('[Importación Completa] 🔍 DEBUG: Primera fila parece ser datos, no encabezados. Creando encabezados automáticos.')
+          console.log('[Importación Completa] 🔍 DEBUG: Valores de primera fila:', primeraFilaValores)
+          
+          // Orden esperado: RBD, Curso, Nº curso, Año, URL PDF, URL ORIGINAL, FECHA DE ACTUALIZACION DE LISTA DE UTILES
+          const encabezadosEsperados = ['RBD', 'Curso', 'Nº curso', 'Año', 'URL PDF', 'URL ORIGINAL', 'FECHA DE ACTUALIZACION DE LISTA DE UTILES']
+          
+          // Reconstruir jsonData con los nuevos encabezados
+          const jsonDataConEncabezados = jsonData.map((row: any) => {
+            const nuevoRow: any = {}
+            const valores = Object.values(row)
+            encabezadosEsperados.forEach((encabezado, i) => {
+              if (valores[i] !== undefined && valores[i] !== null) {
+                nuevoRow[encabezado] = valores[i]
+              }
+            })
+            return nuevoRow
+          })
+          
+          // Reemplazar jsonData con la versión con encabezados
+          jsonData = jsonDataConEncabezados
+          keysPrimeraFila = encabezadosEsperados
+          
+          console.log('[Importación Completa] 🔍 DEBUG: Datos reconstruidos con encabezados automáticos:', {
+            encabezados: encabezadosEsperados,
+            primeraFila: jsonData[0],
+            totalFilas: jsonData.length,
+          })
+        }
+        
         const findKey = (variantes: string[]) => {
           const set = new Set(variantes.map(v => norm(v)))
           return keysPrimeraFila.find(k => set.has(norm(k))) || keysPrimeraFila.find(k => variantes.some(v => norm(k).includes(norm(v)) || norm(v).includes(norm(k))))
@@ -528,9 +579,10 @@ export default function ImportacionCompletaModal({
           return undefined
         }
 
-        // Función helper para obtener URL desde múltiples variantes (case-insensitive)
-        const obtenerURLLista = (row: any): string | undefined => {
-          if (!row) return undefined
+        // Función helper para obtener múltiples URLs desde la columna "URL PDF" (case-insensitive)
+        // Soporta múltiples URLs separadas por coma, punto y coma, o salto de línea
+        const obtenerURLsPDF = (row: any): string[] => {
+          if (!row) return []
           
           // Buscar en todas las posibles variantes (case-insensitive)
           const posiblesNombres = [
@@ -543,65 +595,256 @@ export default function ImportacionCompletaModal({
             'pdf', 'PDF', 'Pdf'
           ]
           
+          let urlsEncontradas: string[] = []
+          
           // Primero buscar exacto (más rápido)
           for (const nombre of posiblesNombres) {
             if (row[nombre] && String(row[nombre]).trim()) {
-              const url = String(row[nombre]).trim()
-              // Validar que sea una URL válida
-              if (url.startsWith('http://') || url.startsWith('https://')) {
-                console.log(`[Importación Completa] ✅ URL encontrada en columna "${nombre}": ${url}`)
-                return url
+              const urlsRaw = String(row[nombre]).trim()
+              // Separar por coma, punto y coma, o salto de línea
+              const urls = urlsRaw
+                .split(/[,;\n\r]+/)
+                .map(url => url.trim())
+                .filter(url => url && (url.startsWith('http://') || url.startsWith('https://')))
+              
+              if (urls.length > 0) {
+                console.log(`[Importación Completa] ✅ ${urls.length} URL(s) encontrada(s) en columna "${nombre}"`)
+                urlsEncontradas = urls
+                break
               }
             }
           }
           
           // Si no se encontró exacto, buscar case-insensitive en todas las keys
-          const keys = Object.keys(row)
-          // Solo loggear en modo debug para reducir verbosidad
-          // console.log(`[Importación Completa] 🔍 Buscando URL en columnas:`, keys)
-          
-          // Normalizar nombres de columnas para comparación (case-insensitive, normalizar espacios)
-          const normalizarNombre = (str: string) => str.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[^\w\s]/g, '')
-          
-          for (const key of keys) {
-            const keyNormalizado = normalizarNombre(key)
+          if (urlsEncontradas.length === 0) {
+            const keys = Object.keys(row)
+            const normalizarNombre = (str: string) => str.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[^\w\s]/g, '')
             
-            // Buscar match con cualquiera de los posibles nombres
-            for (const nombre of posiblesNombres) {
-              const nombreNormalizado = normalizarNombre(nombre)
+            for (const key of keys) {
+              const keyNormalizado = normalizarNombre(key)
               
-              if (keyNormalizado === nombreNormalizado) {
-                const url = String(row[key]).trim()
-                if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
-                  console.log(`[Importación Completa] ✅ URL encontrada en columna "${key}" (match con "${nombre}"): ${url}`)
-                  return url
+              // Buscar match con cualquiera de los posibles nombres
+              for (const nombre of posiblesNombres) {
+                const nombreNormalizado = normalizarNombre(nombre)
+                
+                if (keyNormalizado === nombreNormalizado) {
+                  const urlsRaw = String(row[key]).trim()
+                  const urls = urlsRaw
+                    .split(/[,;\n\r]+/)
+                    .map(url => url.trim())
+                    .filter(url => url && (url.startsWith('http://') || url.startsWith('https://')))
+                  
+                  if (urls.length > 0) {
+                    console.log(`[Importación Completa] ✅ ${urls.length} URL(s) encontrada(s) en columna "${key}" (match con "${nombre}")`)
+                    urlsEncontradas = urls
+                    break
+                  }
                 }
               }
+              
+              // También buscar si la key contiene "url" y "pdf"
+              if (keyNormalizado.includes('url') && keyNormalizado.includes('pdf')) {
+                const urlsRaw = String(row[key]).trim()
+                const urls = urlsRaw
+                  .split(/[,;\n\r]+/)
+                  .map(url => url.trim())
+                  .filter(url => url && (url.startsWith('http://') || url.startsWith('https://')))
+                
+                if (urls.length > 0) {
+                  console.log(`[Importación Completa] ✅ ${urls.length} URL(s) encontrada(s) en columna "${key}" (contiene "url" y "pdf")`)
+                  urlsEncontradas = urls
+                  break
+                }
+              }
+              
+              if (urlsEncontradas.length > 0) break
             }
-            
-            // También buscar si la key contiene "url" y "pdf" (para casos como "URL PDF" con encoding issues)
-            if (keyNormalizado.includes('url') && keyNormalizado.includes('pdf')) {
-              const url = String(row[key]).trim()
+          }
+          
+          return urlsEncontradas
+        }
+
+        // Función helper para obtener URL original (página de origen)
+        const obtenerURLOriginal = (row: any): string | undefined => {
+          if (!row) return undefined
+          
+          const posiblesNombres = [
+            'URL ORIGINAL', 'url original', 'Url Original', 'URL_ORIGINAL', 'url_original',
+            'URL_ORIGEN', 'url_origen', 'URL Origen', 'url origen',
+            'ORIGEN', 'origen', 'Origen',
+            'FUENTE', 'fuente', 'Fuente',
+            'PAGINA_ORIGEN', 'pagina_origen', 'Página Origen', 'pagina origen'
+          ]
+          
+          const normalizarNombre = (str: string) => str.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[^\w\s]/g, '')
+          
+          // Buscar exacto primero
+          for (const nombre of posiblesNombres) {
+            if (row[nombre] && String(row[nombre]).trim()) {
+              const url = String(row[nombre]).trim()
               if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
-                console.log(`[Importación Completa] ✅ URL encontrada en columna "${key}" (contiene "url" y "pdf"): ${url}`)
+                console.log(`[Importación Completa] ✅ URL Original encontrada en columna "${nombre}": ${url}`)
                 return url
               }
             }
           }
           
-          // No loggear warning si no hay URL - es normal que no todas las filas tengan URL
-          // console.log(`[Importación Completa] ⚠️ No se encontró URL en la fila. Columnas disponibles:`, keys)
+          // Buscar case-insensitive
+          const keys = Object.keys(row)
+          for (const key of keys) {
+            const keyNormalizado = normalizarNombre(key)
+            for (const nombre of posiblesNombres) {
+              const nombreNormalizado = normalizarNombre(nombre)
+              if (keyNormalizado === nombreNormalizado) {
+                const url = String(row[key]).trim()
+                if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+                  console.log(`[Importación Completa] ✅ URL Original encontrada en columna "${key}": ${url}`)
+                  return url
+                }
+              }
+            }
+          }
+          
           return undefined
         }
 
-        // Detectar formato: si encontramos al menos una columna clave, es formato que podemos leer
+        // Función helper para obtener fecha de actualización de lista
+        const obtenerFechaActualizacionLista = (row: any): string | undefined => {
+          if (!row) return undefined
+          
+          const posiblesNombres = [
+            'FECHA DE ACTUALIZACION DE LISTA DE UTILES', 'fecha de actualizacion de lista de utiles',
+            'FECHA_ACTUALIZACION_LISTA', 'fecha_actualizacion_lista',
+            'FECHA ACTUALIZACION LISTA', 'fecha actualizacion lista',
+            'FECHA_ACTUALIZACION', 'fecha_actualizacion',
+            'FECHA ACTUALIZACION', 'fecha actualizacion'
+          ]
+          
+          const normalizarNombre = (str: string) => str.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[^\w\s]/g, '')
+          
+          // Buscar exacto primero
+          for (const nombre of posiblesNombres) {
+            if (row[nombre] && String(row[nombre]).trim()) {
+              const fecha = String(row[nombre]).trim()
+              if (fecha) {
+                console.log(`[Importación Completa] ✅ Fecha de actualización encontrada en columna "${nombre}": ${fecha}`)
+                return fecha
+              }
+            }
+          }
+          
+          // Buscar case-insensitive
+          const keys = Object.keys(row)
+          for (const key of keys) {
+            const keyNormalizado = normalizarNombre(key)
+            for (const nombre of posiblesNombres) {
+              const nombreNormalizado = normalizarNombre(nombre)
+              if (keyNormalizado === nombreNormalizado || keyNormalizado.includes('fecha') && keyNormalizado.includes('actualizacion')) {
+                const fecha = String(row[key]).trim()
+                if (fecha) {
+                  console.log(`[Importación Completa] ✅ Fecha de actualización encontrada en columna "${key}": ${fecha}`)
+                  return fecha
+                }
+              }
+            }
+          }
+          
+          return undefined
+        }
+
+        // 🔍 DEBUG: Si no se detectaron columnas, intentar usar la primera fila como encabezados
+        let jsonDataFinal = jsonData
+        let keysPrimeraFilaFinal = keysPrimeraFila
+        
+        // Si no se detectaron columnas conocidas, puede ser que la primera fila sean los datos (sin encabezados)
         const tieneColumnasConocidas = !!(colRBD || colCurso || colAsignatura || colProducto || colColegio)
-        const primeraFila = (jsonData[0] || {}) as Record<string, any>
+        
+        if (!tieneColumnasConocidas && jsonData.length > 0) {
+          // Intentar interpretar la primera fila como encabezados
+          const primeraFilaComoEncabezados = jsonData[0] as Record<string, any>
+          const valoresPrimeraFila = Object.values(primeraFilaComoEncabezados)
+          
+          // Verificar si los valores parecen datos (números, URLs, fechas) en lugar de encabezados
+          const pareceSerDatos = valoresPrimeraFila.some((val: any) => {
+            const str = String(val || '')
+            return (
+              /^\d+$/.test(str) || // Números
+              /^https?:\/\//.test(str) || // URLs
+              /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(str) || // Fechas
+              /º|°/.test(str) // Grados (1º, 2º, etc.)
+            )
+          })
+          
+          if (pareceSerDatos) {
+            console.log('[Importación Completa] 🔍 DEBUG: Primera fila parece ser datos, no encabezados. Creando encabezados automáticos.')
+            
+            // Crear encabezados basados en el orden esperado: RBD, Curso, Nº curso, Año, URL PDF, URL ORIGINAL, FECHA...
+            const encabezadosEsperados = ['RBD', 'Curso', 'Nº curso', 'Año', 'URL PDF', 'URL ORIGINAL', 'FECHA DE ACTUALIZACION DE LISTA DE UTILES']
+            const nuevasKeys = Object.keys(primeraFilaComoEncabezados).slice(0, encabezadosEsperados.length)
+            
+            // Reconstruir jsonData con los nuevos encabezados
+            jsonDataFinal = jsonData.map((row: any, index: number) => {
+              const nuevoRow: any = {}
+              const valores = Object.values(row)
+              encabezadosEsperados.forEach((encabezado, i) => {
+                if (valores[i] !== undefined) {
+                  nuevoRow[encabezado] = valores[i]
+                }
+              })
+              return nuevoRow
+            })
+            
+            keysPrimeraFilaFinal = encabezadosEsperados
+            console.log('[Importación Completa] 🔍 DEBUG: Datos reconstruidos con encabezados automáticos:', {
+              encabezados: encabezadosEsperados,
+              primeraFila: jsonDataFinal[0],
+            })
+            
+            // Re-detectar columnas con los nuevos encabezados
+            const norm2 = (s: string) => String(s).toLowerCase().replace(/\s+/g, ' ').replace(/[º°]/g, 'o').trim()
+            const findKey2 = (variantes: string[]) => {
+              const set = new Set(variantes.map(v => norm2(v)))
+              return keysPrimeraFilaFinal.find(k => set.has(norm2(k))) || keysPrimeraFilaFinal.find(k => variantes.some(v => norm2(k).includes(norm2(v)) || norm2(v).includes(norm2(k))))
+            }
+            
+            // Actualizar referencias de columnas
+            const colRBDNew = findKey2(['RBD', 'rbd', 'Codigo RBD', 'Código RBD'])
+            const colCursoNew = findKey2(['Curso', 'curso', 'Nombre Curso'])
+            const colNcursoNew = findKey2(['Nº curso', 'N° curso', 'No curso', 'Grado', 'grado'])
+            const colAñoNew = findKey2(['Año', 'ano', 'Año_curso', 'Año_curso'])
+            
+            if (colRBDNew || colCursoNew || colNcursoNew || colAñoNew) {
+              // Usar las nuevas columnas detectadas
+              Object.assign({}, { colRBD: colRBDNew || colRBD, colCurso: colCursoNew || colCurso, colNcurso: colNcursoNew || colNcurso, colAño: colAñoNew || colAño })
+            }
+          }
+        }
+        
+        // Detectar formato: si encontramos al menos una columna clave, es formato que podemos leer
+        // FORMATO SIMPLIFICADO: Solo RBD, Curso, Nº curso, Año, URL PDF, URL ORIGINAL, FECHA DE ACTUALIZACION DE LISTA DE UTILES
+        const tieneFormatoSimplificado = !!(colRBD && colCurso && colNcurso && colAño)
+        const primeraFila = (jsonDataFinal[0] || {}) as Record<string, any>
         const tieneFormatoCompacto = tieneColumnasConocidas || primeraFila.nombre_curso || primeraFila['nombre_curso'] ||
                                      primeraFila.rbd || primeraFila.RBD || primeraFila.Curso || primeraFila.Producto || primeraFila.asignaura
 
+        // 🔍 DEBUG: Log de datos crudos antes de normalizar
+        console.log('[Importación Completa] 🔍 DEBUG - Datos crudos del Excel:', {
+          totalFilas: jsonData.length,
+          primeraFila: jsonData[0],
+          keysPrimeraFila: jsonData[0] ? Object.keys(jsonData[0]) : [],
+          columnasDetectadas: keysPrimeraFila,
+          colRBD,
+          colCurso,
+          colNcurso,
+          colAño,
+        })
+        
         // Normalizar datos - soportar ambos formatos; usar columnas resueltas para mayor compatibilidad
-        const normalizedData: ImportRow[] = jsonData.map((row: any) => {
+        const normalizedData: ImportRow[] = jsonDataFinal.map((row: any, index: number) => {
+          // 🔍 DEBUG: Log de cada fila normalizada
+          if (index < 3) {
+            console.log(`[Importación Completa] 🔍 DEBUG - Fila ${index + 1} antes de normalizar:`, row)
+          }
           const rbdVal = getVal(row, colRBD, 'RBD', 'rbd')
           const cursoVal = getVal(row, colCurso, 'Curso', 'curso', 'nombre_curso')
           const asignaturaVal = getVal(row, colAsignatura, 'Asignatura', 'asignatura', 'asignaura')
@@ -630,7 +873,9 @@ export default function ImportacionCompletaModal({
               Año_lista: añoVal !== undefined && añoVal !== null && String(añoVal).trim() !== '' ? parseInt(String(añoVal)) : undefined,
               Fecha_actualizacion: row.Fecha_actualizacion || row.fecha_actualizacion,
               Fecha_publicacion: row.Fecha_publicacion || row.fecha_publicacion,
-              URL_lista: obtenerURLLista(row),
+              URL_lista: obtenerURLsPDF(row), // Ahora retorna array de URLs
+              URL_original: obtenerURLOriginal(row), // URL de la página de origen
+              Fecha_actualizacion_lista: obtenerFechaActualizacionLista(row), // Fecha de actualización de la lista
               URL_publicacion: row.URL_publicacion || row.url_publicacion,
               Orden_lista: row.Orden_lista || row.orden_lista ? parseInt(String(row.Orden_lista || row.orden_lista)) : undefined,
               Libro_nombre: String(productoVal ?? row.Libro_nombre ?? row.Producto ?? row.producto ?? '').trim(),
@@ -663,7 +908,9 @@ export default function ImportacionCompletaModal({
               Año_lista: row.Año_lista || row.año_lista ? parseInt(String(row.Año_lista || row.año_lista)) : undefined,
               Fecha_actualizacion: row.Fecha_actualizacion || row.fecha_actualizacion,
               Fecha_publicacion: row.Fecha_publicacion || row.fecha_publicacion,
-              URL_lista: row.URL_lista || row.url_lista,
+              URL_lista: obtenerURLsPDF(row), // Ahora retorna array de URLs
+              URL_original: obtenerURLOriginal(row), // URL de la página de origen
+              Fecha_actualizacion_lista: obtenerFechaActualizacionLista(row), // Fecha de actualización de la lista
               URL_publicacion: row.URL_publicacion || row.url_publicacion,
               Orden_lista: row.Orden_lista || row.orden_lista ? parseInt(String(row.Orden_lista || row.orden_lista)) : undefined,
               Libro_nombre: row.Libro_nombre || row.libro_nombre,
@@ -731,17 +978,172 @@ export default function ImportacionCompletaModal({
         // Agrupar por colegio + curso + asignatura + lista
         const agrupadoMap = new Map<string, AgrupadoPorLista>()
         
-        normalizedData.forEach((row) => {
-          // Validación flexible: necesita RBD o Colegio, Curso, Asignatura, y Producto
-          const tieneDatosMinimos = (row.RBD || row.Colegio) && row.Curso && row.Asignatura && row.Libro_nombre
+        normalizedData.forEach((row, index) => {
+          // 🔍 DEBUG: Log de validación para primeras filas
+          if (index < 3) {
+            console.log(`[Importación Completa] 🔍 DEBUG - Validando fila ${index + 1}:`, {
+              RBD: row.RBD,
+              Curso: row.Curso,
+              Grado: row.Grado,
+              Año_curso: row.Año_curso,
+              Colegio: row.Colegio,
+              Asignatura: row.Asignatura,
+              Libro_nombre: row.Libro_nombre,
+            })
+          }
           
-          if (!tieneDatosMinimos) {
+          // Validación: FORMATO SIMPLIFICADO (solo cursos con PDFs, sin productos)
+          // Requiere: RBD, Curso, Nº curso (o Grado), Año
+          // En formato simplificado, "Nº curso" viene como "Grado" después de la normalización
+          const tieneFormatoSimplificado = row.RBD && row.Curso && (row.Grado || row.grado || row['Nº curso'] || row['N° curso']) && row.Año_curso
+          
+          // Validación: FORMATO COMPLETO (con productos)
+          // Requiere: RBD o Colegio, Curso, Asignatura, y Producto
+          const tieneFormatoCompleto = (row.RBD || row.Colegio) && row.Curso && row.Asignatura && row.Libro_nombre
+          
+          // 🔍 DEBUG: Log de resultado de validación
+          if (index < 3) {
+            console.log(`[Importación Completa] 🔍 DEBUG - Resultado validación fila ${index + 1}:`, {
+              tieneFormatoSimplificado,
+              tieneFormatoCompleto,
+              esValida: tieneFormatoSimplificado || tieneFormatoCompleto,
+            })
+          }
+          
+          // Aceptar cualquiera de los dos formatos
+          if (!tieneFormatoSimplificado && !tieneFormatoCompleto) {
             return // Saltar filas incompletas
           }
           
           // Si no hay Colegio pero hay RBD, usar RBD como identificador temporal
           const identificadorColegio = row.Colegio || (row.RBD ? `RBD_${row.RBD}` : '')
           
+          // Si es formato simplificado, no hay asignatura ni productos
+          if (tieneFormatoSimplificado) {
+            // Para formato simplificado: crear un grupo por curso (sin asignatura)
+            const listaNombre = 'Lista de Útiles' // Nombre por defecto para formato simplificado
+            const clave = `${identificadorColegio}|${row.Curso}|General|${listaNombre}`
+            
+            if (!agrupadoMap.has(clave)) {
+              // Extraer nivel y grado
+              let nivel = 'Basica'
+              let grado = row.Grado || row.grado || 1
+              
+              if (row.nivel || row.Nivel) {
+                const nivelStr = String(row.nivel || row.Nivel || '').toLowerCase()
+                nivel = nivelStr.includes('media') ? 'Media' : 'Basica'
+              } else if (row.Curso) {
+                const nivelMatch = row.Curso.match(/(Básica|Basica|Media)/i)
+                if (nivelMatch) {
+                  nivel = nivelMatch[0].toLowerCase().includes('basica') ? 'Basica' : 'Media'
+                }
+              }
+              
+              if (!grado && row.Curso) {
+                const gradoMatch = row.Curso.match(/(\d+)/)
+                if (gradoMatch) {
+                  grado = parseInt(gradoMatch[1]) || 1
+                }
+              }
+              
+              // Verificar si el colegio ya existe
+              let colegioExiste = false
+              let colegioDatosCompletos: any = null
+              
+              if (row.RBD) {
+                const rbdNum = parseInt(String(row.RBD))
+                if (!isNaN(rbdNum)) {
+                  colegioExiste = colegiosExistentesMap.get(rbdNum) || false
+                  if (colegioExiste) {
+                    colegioDatosCompletos = colegiosDatosCompletosPorRBD.get(rbdNum)
+                  }
+                }
+              }
+              
+              // Obtener nombre del colegio: priorizar datos completos, luego nombre del Excel, luego RBD
+              let nombreColegio = row.Colegio || ''
+              
+              if (colegioDatosCompletos) {
+                // Si el colegio existe, usar su nombre real
+                nombreColegio = colegioDatosCompletos.colegio_nombre || colegioDatosCompletos.nombre || nombreColegio
+                console.log(`[Importación Completa] 🔍 Colegio encontrado por RBD ${row.RBD}: "${nombreColegio}"`)
+              }
+              
+              // Si no hay nombre y hay RBD, usar formato temporal (se actualizará después)
+              if (!nombreColegio && row.RBD) {
+                nombreColegio = `Colegio RBD ${row.RBD}`
+              }
+              
+              agrupadoMap.set(clave, {
+                colegio: {
+                  nombre: nombreColegio,
+                  rbd: row.RBD ? parseInt(String(row.RBD)) : undefined,
+                  comuna: row.Comuna,
+                  orden: row.Orden_colegio,
+                  existe: colegioExiste,
+                  datosCompletos: colegioDatosCompletos,
+                },
+                curso: {
+                  nombre: row.Curso || '',
+                  año: row.Año_curso,
+                  orden: row.Orden_curso,
+                },
+                asignatura: {
+                  nombre: 'General', // Asignatura por defecto para formato simplificado
+                  orden: 1,
+                },
+                lista: {
+                  nombre: listaNombre,
+                  año: row.Año_curso,
+                  fecha_actualizacion: row.Fecha_actualizacion,
+                  fecha_publicacion: row.Fecha_publicacion,
+                  url_lista: obtenerURLsPDF(row), // Array de URLs
+                  url_original: obtenerURLOriginal(row),
+                  fecha_actualizacion_lista: obtenerFechaActualizacionLista(row),
+                  url_publicacion: row.URL_publicacion || row.url_publicacion,
+                  orden: row.Orden_lista,
+                },
+                productos: [], // Sin productos en formato simplificado
+              })
+            }
+            
+            // Actualizar URLs y fechas si esta fila tiene valores más recientes
+            const grupo = agrupadoMap.get(clave)!
+            const urlsPDF = obtenerURLsPDF(row)
+            if (urlsPDF.length > 0 && (!grupo.lista.url_lista || (Array.isArray(grupo.lista.url_lista) && grupo.lista.url_lista.length === 0))) {
+              grupo.lista.url_lista = urlsPDF
+            } else if (urlsPDF.length > 0 && Array.isArray(grupo.lista.url_lista)) {
+              const urlsExistentes = new Set(grupo.lista.url_lista)
+              urlsPDF.forEach(url => urlsExistentes.add(url))
+              grupo.lista.url_lista = Array.from(urlsExistentes)
+            }
+            
+            const urlOriginal = obtenerURLOriginal(row)
+            if (!grupo.lista.url_original && urlOriginal) {
+              grupo.lista.url_original = urlOriginal
+            }
+            
+            const fechaActualizacionLista = obtenerFechaActualizacionLista(row)
+            if (fechaActualizacionLista) {
+              if (!grupo.lista.fecha_actualizacion_lista) {
+                grupo.lista.fecha_actualizacion_lista = fechaActualizacionLista
+              } else {
+                try {
+                  const fechaExistente = new Date(grupo.lista.fecha_actualizacion_lista)
+                  const fechaNueva = new Date(fechaActualizacionLista)
+                  if (fechaNueva > fechaExistente) {
+                    grupo.lista.fecha_actualizacion_lista = fechaActualizacionLista
+                  }
+                } catch (e) {
+                  grupo.lista.fecha_actualizacion_lista = fechaActualizacionLista
+                }
+              }
+            }
+            
+            return // Continuar con siguiente fila (formato simplificado no tiene productos)
+          }
+          
+          // FORMATO COMPLETO (con productos) - código original
           // Si no hay Lista_nombre, usar asignatura como lista
           const listaNombre = row.Lista_nombre || row.Asignatura || 'Lista de Útiles'
 
@@ -811,9 +1213,19 @@ export default function ImportacionCompletaModal({
             }
 
             // Si el colegio existe, usar sus datos completos; si no, usar los datos del Excel
-            const nombreColegio = colegioDatosCompletos 
-              ? (colegioDatosCompletos.colegio_nombre || colegioDatosCompletos.nombre || row.Colegio || `Colegio RBD ${row.RBD}`)
-              : (row.Colegio || (row.RBD ? `Colegio RBD ${row.RBD}` : ''))
+            // Obtener nombre del colegio: priorizar datos completos, luego nombre del Excel, luego RBD
+            let nombreColegio = row.Colegio || ''
+            
+            if (colegioDatosCompletos) {
+              // Si el colegio existe, usar su nombre real
+              nombreColegio = colegioDatosCompletos.colegio_nombre || colegioDatosCompletos.nombre || nombreColegio
+              console.log(`[Importación Completa] 🔍 Colegio encontrado por RBD ${row.RBD}: "${nombreColegio}"`)
+            }
+            
+            // Si no hay nombre y hay RBD, usar formato temporal (se actualizará después)
+            if (!nombreColegio && row.RBD) {
+              nombreColegio = `Colegio RBD ${row.RBD}`
+            }
             
             const comunaColegio = colegioDatosCompletos?.comuna?.comuna_nombre || colegioDatosCompletos?.comuna || row.Comuna
 
@@ -840,7 +1252,9 @@ export default function ImportacionCompletaModal({
                 año: row.Año_lista || row.Año_curso,
                 fecha_actualizacion: row.Fecha_actualizacion,
                 fecha_publicacion: row.Fecha_publicacion,
-                url_lista: obtenerURLLista(row),
+                url_lista: obtenerURLsPDF(row), // Array de URLs
+                url_original: obtenerURLOriginal(row), // URL de la página de origen
+                fecha_actualizacion_lista: obtenerFechaActualizacionLista(row), // Fecha de actualización de la lista
                 url_publicacion: row.URL_publicacion || row.url_publicacion,
                 orden: row.Orden_lista,
               },
@@ -853,16 +1267,68 @@ export default function ImportacionCompletaModal({
           grupo.productos.push(row)
           
           // Si el grupo no tiene URL_lista pero esta fila sí la tiene, actualizarla
-          const urlLista = obtenerURLLista(row)
-          if (!grupo.lista.url_lista && urlLista) {
-            grupo.lista.url_lista = urlLista
+          const urlsPDF = obtenerURLsPDF(row)
+          if (urlsPDF.length > 0 && (!grupo.lista.url_lista || (Array.isArray(grupo.lista.url_lista) && grupo.lista.url_lista.length === 0))) {
+            grupo.lista.url_lista = urlsPDF
+          } else if (urlsPDF.length > 0 && Array.isArray(grupo.lista.url_lista)) {
+            // Combinar URLs únicas
+            const urlsExistentes = new Set(grupo.lista.url_lista)
+            urlsPDF.forEach(url => urlsExistentes.add(url))
+            grupo.lista.url_lista = Array.from(urlsExistentes)
           }
+          
+          // Si esta fila tiene URL_original y el grupo no, actualizarla
+          const urlOriginal = obtenerURLOriginal(row)
+          if (!grupo.lista.url_original && urlOriginal) {
+            grupo.lista.url_original = urlOriginal
+          }
+          
+          // Si esta fila tiene fecha_actualizacion_lista y el grupo no, o si es más reciente, actualizarla
+          const fechaActualizacionLista = obtenerFechaActualizacionLista(row)
+          if (fechaActualizacionLista) {
+            if (!grupo.lista.fecha_actualizacion_lista) {
+              grupo.lista.fecha_actualizacion_lista = fechaActualizacionLista
+            } else {
+              // Comparar fechas y usar la más reciente
+              try {
+                const fechaExistente = new Date(grupo.lista.fecha_actualizacion_lista)
+                const fechaNueva = new Date(fechaActualizacionLista)
+                if (fechaNueva > fechaExistente) {
+                  grupo.lista.fecha_actualizacion_lista = fechaActualizacionLista
+                }
+              } catch (e) {
+                // Si hay error al parsear fechas, usar la nueva
+                grupo.lista.fecha_actualizacion_lista = fechaActualizacionLista
+              }
+            }
+          }
+          
           // Si esta fila tiene URL_publicacion y el grupo no, actualizarla también
           if (!grupo.lista.url_publicacion && row.URL_publicacion) {
             grupo.lista.url_publicacion = row.URL_publicacion
           }
         })
 
+        // 🔍 ACTUALIZAR NOMBRES DE COLEGIOS: Si el colegio existe, usar su nombre real
+        agrupadoMap.forEach((grupo, clave) => {
+          if (grupo.colegio.rbd) {
+            const rbdNum = grupo.colegio.rbd
+            const colegioExiste = colegiosExistentesMap.get(rbdNum)
+            if (colegioExiste) {
+              const colegioDatosCompletos = colegiosDatosCompletosPorRBD.get(rbdNum)
+              if (colegioDatosCompletos) {
+                const nombreReal = colegioDatosCompletos.colegio_nombre || colegioDatosCompletos.nombre
+                if (nombreReal && (grupo.colegio.nombre.startsWith('Colegio RBD') || !grupo.colegio.nombre)) {
+                  grupo.colegio.nombre = nombreReal
+                  grupo.colegio.datosCompletos = colegioDatosCompletos
+                  grupo.colegio.existe = true
+                  console.log(`[Importación Completa] ✅ Actualizado nombre del colegio RBD ${rbdNum}: "${nombreReal}"`)
+                }
+              }
+            }
+          }
+        })
+        
         // Log para verificar agrupamiento
         console.log(`[Importación Completa] 📊 Agrupamiento completado:`, {
           totalFilas: normalizedData.length,
@@ -870,6 +1336,7 @@ export default function ImportacionCompletaModal({
           grupos: Array.from(agrupadoMap.entries()).map(([key, grupo]) => ({
             clave: key,
             colegio: grupo.colegio.nombre,
+            rbd: grupo.colegio.rbd,
             curso: grupo.curso.nombre,
             asignatura: grupo.asignatura.nombre,
             lista: grupo.lista.nombre,
@@ -880,7 +1347,15 @@ export default function ImportacionCompletaModal({
 
         if (normalizedData.length > 0 && agrupadoMap.size === 0) {
           const columnasEnArchivo = keysPrimeraFila.length ? keysPrimeraFila.join(', ') : '(no detectadas)'
-          setError(`El archivo se leyó pero no hay filas válidas. Cada fila debe tener: RBD (o Colegio), Curso, Asignatura y Producto. Columnas detectadas en tu archivo: ${columnasEnArchivo}. Si no coinciden con la plantilla, revisa que la primera fila tenga exactamente: RBD, Curso, Nivel, Nº curso, Año, Asignatura, Orden Asig., Orden Prod., Código, Producto, URL PDF.`)
+          setError(`El archivo se leyó pero no hay filas válidas. 
+
+FORMATO SIMPLIFICADO (recomendado):
+Cada fila debe tener: RBD, Curso, Nº curso, Año, URL PDF (opcional), URL ORIGINAL (opcional), FECHA DE ACTUALIZACION DE LISTA DE UTILES (opcional)
+
+FORMATO COMPLETO (con productos):
+Cada fila debe tener: RBD (o Colegio), Curso, Asignatura y Producto.
+
+Columnas detectadas en tu archivo: ${columnasEnArchivo}`)
           setUploadingFile(false)
           setUploadProgress(0)
           return
@@ -985,6 +1460,12 @@ export default function ImportacionCompletaModal({
         setProgress(progreso)
         procesados++
         
+        // Actualizar colegio actual para mostrar en la UI
+        setColegioActual({
+          nombre: grupo.colegio.nombre || 'Sin nombre',
+          rbd: grupo.colegio.rbd
+        })
+        
         console.log(`[Importación Completa] 📊 Procesando grupo ${procesados}/${gruposArray.length} (${progreso}%): ${grupo.colegio.nombre} → ${grupo.curso.nombre} → ${grupo.asignatura.nombre} → ${grupo.lista.nombre}`)
 
         try {
@@ -1008,7 +1489,14 @@ export default function ImportacionCompletaModal({
                 if (!grupo.colegio.nombre || grupo.colegio.nombre.startsWith('Colegio RBD')) {
                   grupo.colegio.nombre = colegio.nombre || colegio.datosCompletos?.colegio_nombre || grupo.colegio.nombre
                 }
-                console.log(`[Importación Completa] ✅ Colegio encontrado por RBD: ${grupo.colegio.rbd} → ${grupo.colegio.nombre} (ID: ${colegio.id})`)
+                console.log(`[Importación Completa] ✅ Colegio encontrado por RBD: ${grupo.colegio.rbd} → ${grupo.colegio.nombre}`)
+                console.log(`[Importación Completa] 📋 IDs del colegio:`, {
+                  id: colegio.id,
+                  documentId: colegio.datosCompletos?.documentId || colegio.datosCompletos?.id,
+                  tipoId: typeof colegio.id,
+                  colegioIdAsignado: colegioId,
+                  tipoColegioId: typeof colegioId,
+                })
               }
             }
           }
@@ -1232,10 +1720,37 @@ export default function ImportacionCompletaModal({
           }
 
           // Extraer nivel y grado del nombre del curso
-          const nivelMatch = grupo.curso.nombre.match(/(Básica|Basica|Media)/i)
-          const gradoMatch = grupo.curso.nombre.match(/(\d+)/)
-          const nivel = nivelMatch ? (nivelMatch[0].toLowerCase().includes('basica') ? 'Basica' : 'Media') : 'Basica'
-          const grado = gradoMatch ? parseInt(gradoMatch[1]) : 1
+          // Si el grupo tiene grado en los datos, usarlo directamente (formato simplificado)
+          let nivel = 'Basica'
+          let grado = 1
+          
+          // Buscar grado en los productos del grupo (puede venir en formato simplificado)
+          if (grupo.productos && grupo.productos.length > 0) {
+            const primerProducto = grupo.productos[0]
+            if (primerProducto.Grado || primerProducto.grado) {
+              grado = parseInt(String(primerProducto.Grado || primerProducto.grado)) || 1
+            }
+            if (primerProducto.Nivel || primerProducto.nivel) {
+              const nivelStr = String(primerProducto.Nivel || primerProducto.nivel || '').toLowerCase()
+              nivel = nivelStr.includes('media') ? 'Media' : 'Basica'
+            }
+          }
+          
+          // Si no se encontró, extraer del nombre del curso
+          if (grado === 1 && !grupo.productos?.length) {
+            const nivelMatch = grupo.curso.nombre.match(/(Básica|Basica|Media)/i)
+            const gradoMatch = grupo.curso.nombre.match(/(\d+)/)
+            nivel = nivelMatch ? (nivelMatch[0].toLowerCase().includes('basica') ? 'Basica' : 'Media') : 'Basica'
+            grado = gradoMatch ? parseInt(gradoMatch[1]) : 1
+          } else {
+            // Si ya tenemos grado, solo extraer nivel del nombre si no lo tenemos
+            if (!grupo.productos?.length || !grupo.productos[0]?.Nivel) {
+              const nivelMatch = grupo.curso.nombre.match(/(Básica|Basica|Media)/i)
+              if (nivelMatch) {
+                nivel = nivelMatch[0].toLowerCase().includes('basica') ? 'Basica' : 'Media'
+              }
+            }
+          }
 
           // Crear clave única para el curso: colegioId|nombreCurso|nivel|grado|año
           // Esto permite reutilizar el mismo curso cuando aparece con diferentes asignaturas/PDFs
@@ -1278,6 +1793,16 @@ export default function ImportacionCompletaModal({
 
           // Crear curso si no existe
           if (!cursoId) {
+            console.log(`[Importación Completa] ➕ Creando curso: ${grupo.curso.nombre} para colegio ${colegioId} (tipo: ${typeof colegioId})`)
+            console.log(`[Importación Completa] 📋 Datos del curso a crear:`, {
+              nombre: grupo.curso.nombre,
+              nivel,
+              grado: String(grado),
+              año: grupo.curso.año || new Date().getFullYear(),
+              colegioId: colegioId,
+              tipoColegioId: typeof colegioId,
+            })
+            
             const createCursoResponse = await fetch(`/api/crm/colegios/${colegioId}/cursos`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -1290,7 +1815,14 @@ export default function ImportacionCompletaModal({
               }),
             })
 
+            console.log(`[Importación Completa] 📡 Respuesta de creación de curso: Status ${createCursoResponse.status}`)
             const createCursoResult = await createCursoResponse.json()
+            console.log(`[Importación Completa] 📦 Resultado de creación:`, {
+              success: createCursoResult.success,
+              error: createCursoResult.error,
+              message: createCursoResult.message,
+              tieneData: !!createCursoResult.data,
+            })
             
             if (createCursoResponse.ok && createCursoResult.success) {
               const nuevoCurso = createCursoResult.data
@@ -1308,7 +1840,21 @@ export default function ImportacionCompletaModal({
                 cursoIdAsignado: cursoId,
                 tipoCursoId: typeof cursoId,
               })
-              console.log(`[Importación Completa] 📋 Respuesta completa de creación:`, JSON.stringify(createCursoResult, null, 2))
+              
+              // Verificar que el curso se creó correctamente consultándolo
+              if (cursoId) {
+                console.log(`[Importación Completa] 🔍 Verificando que el curso se creó correctamente...`)
+                await new Promise(resolve => setTimeout(resolve, 1000)) // Esperar 1 segundo
+                
+                const verifyCursoResponse = await fetch(`/api/crm/cursos/${cursoId}`)
+                const verifyCursoData = await verifyCursoResponse.json()
+                
+                if (verifyCursoData.success && verifyCursoData.data) {
+                  console.log(`[Importación Completa] ✅ Curso verificado correctamente en Strapi`)
+                } else {
+                  console.warn(`[Importación Completa] ⚠️ No se pudo verificar el curso inmediatamente después de crearlo`)
+                }
+              }
               
               // Guardar en el mapa para reutilizar en siguientes grupos con el mismo curso
               if (cursoId) {
@@ -1318,8 +1864,8 @@ export default function ImportacionCompletaModal({
               
               // Esperar un momento para que Strapi procese el curso recién creado
               // Aumentar el tiempo de espera para dar más tiempo a Strapi
-              console.log(`[Importación Completa] ⏳ Esperando 1.5s para que Strapi procese el curso recién creado...`)
-              await new Promise(resolve => setTimeout(resolve, 1500))
+              console.log(`[Importación Completa] ⏳ Esperando 2s para que Strapi procese el curso recién creado...`)
+              await new Promise(resolve => setTimeout(resolve, 2000))
               
               results.push({
                 success: true,
@@ -1328,9 +1874,15 @@ export default function ImportacionCompletaModal({
                 datos: { id: cursoId, nombre: grupo.curso.nombre },
               })
             } else {
+              console.error(`[Importación Completa] ❌ Error al crear curso:`, {
+                status: createCursoResponse.status,
+                error: createCursoResult.error,
+                message: createCursoResult.message,
+                details: createCursoResult.details,
+              })
               results.push({
                 success: false,
-                message: `Error al crear curso: ${createCursoResult.error || 'Error desconocido'}`,
+                message: `Error al crear curso: ${createCursoResult.error || createCursoResult.message || 'Error desconocido'}`,
                 tipo: 'curso',
               })
               continue
@@ -1350,39 +1902,45 @@ export default function ImportacionCompletaModal({
           // grupoKey ya viene de la entrada del Map (misma clave que la tabla y pdfsPorGrupo)
           const grupoKeyAlternativo = `${grupo.colegio.nombre}-${grupo.curso.nombre}-${grupo.asignatura.nombre}-${grupo.lista.nombre}`
 
-          // Ordenar productos por Libro_orden antes de procesarlos
-          const productosOrdenados = grupo.productos
-            .filter(p => p.Libro_nombre) // Solo productos con nombre
-            .sort((a, b) => {
-              const ordenA = a.Libro_orden || 999999
-              const ordenB = b.Libro_orden || 999999
-              return ordenA - ordenB
-            })
+          // Ordenar productos por Libro_orden antes de procesarlos (solo si hay productos)
+          let productosOrdenados: ImportRow[] = []
+          if (grupo.productos && grupo.productos.length > 0) {
+            productosOrdenados = grupo.productos
+              .filter(p => p.Libro_nombre) // Solo productos con nombre
+              .sort((a, b) => {
+                const ordenA = a.Libro_orden || 999999
+                const ordenB = b.Libro_orden || 999999
+                return ordenA - ordenB
+              })
 
-          const logProductosOrdenados = {
-            grupo: grupoKey,
-            totalProductosOrdenados: productosOrdenados.length,
-            primeros3ProductosOrdenados: productosOrdenados.slice(0, 3).map((p: any) => p.Libro_nombre),
-          }
-          
-          console.log(`[Importación Completa] 📦 Productos ordenados y filtrados:`, logProductosOrdenados)
-          
-          // Enviar al servidor para debug
-          try {
-            await fetch('/api/crm/listas/importacion-completa-logs', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                level: 'log',
-                message: `[Importación Completa] 📦 Productos ordenados y filtrados para ${grupoKey}`,
-                data: logProductosOrdenados,
-              }),
-            })
-          } catch (e) {
-            // Ignorar errores de logging
+            const logProductosOrdenados = {
+              grupo: grupoKey,
+              totalProductosOrdenados: productosOrdenados.length,
+              primeros3ProductosOrdenados: productosOrdenados.slice(0, 3).map((p: any) => p.Libro_nombre),
+            }
+            
+            console.log(`[Importación Completa] 📦 Productos ordenados y filtrados:`, logProductosOrdenados)
+            
+            // Enviar al servidor para debug
+            try {
+              await fetch('/api/crm/listas/importacion-completa-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  level: 'log',
+                  message: `[Importación Completa] 📦 Productos ordenados y filtrados para ${grupoKey}`,
+                  data: logProductosOrdenados,
+                }),
+              })
+            } catch (e) {
+              // Ignorar errores de logging
+            }
+          } else {
+            console.log(`[Importación Completa] 📦 Formato simplificado: Sin productos, solo PDFs`)
           }
 
           // Convertir productos a formato de materiales (formato usado en versiones_materiales)
+          // Si no hay productos (formato simplificado), materiales será un array vacío
           const materiales = productosOrdenados.map((producto, index) => ({
               cantidad: producto.Libro_cantidad || 1,
               nombre: producto.Libro_nombre || '',
@@ -1489,15 +2047,18 @@ export default function ImportacionCompletaModal({
           
           // 🔍 LOG: Verificar qué PDFs tenemos disponibles
           const urlListaValue = grupo.lista.url_lista
-          const urlListaTrimmed = urlListaValue ? String(urlListaValue).trim() : ''
-          const tieneURL = !!(urlListaValue && urlListaTrimmed)
+          // Manejar tanto string como array de URLs
+          const urlsPDF = Array.isArray(urlListaValue) 
+            ? urlListaValue.filter((url: any) => url && String(url).trim())
+            : (urlListaValue ? [String(urlListaValue).trim()].filter(url => url) : [])
+          const tieneURLs = urlsPDF.length > 0
           
           console.log(`[Importación Completa] 🔍 Verificando PDFs para grupo ${grupoKey}:`)
           console.log(`  - PDFs subidos manualmente: ${pdfsSubidos.length}`)
-          console.log(`  - URL_lista (raw): ${urlListaValue}`)
-          console.log(`  - URL_lista (trimmed): ${urlListaTrimmed}`)
-          console.log(`  - Tiene URL válida: ${tieneURL}`)
-          console.log(`  - Tipo de url_lista: ${typeof urlListaValue}`)
+          console.log(`  - URLs PDF encontradas: ${urlsPDF.length}`)
+          console.log(`  - URLs: ${urlsPDF.join(', ')}`)
+          console.log(`  - Tiene URLs válidas: ${tieneURLs}`)
+          console.log(`  - Tipo de url_lista: ${Array.isArray(urlListaValue) ? 'array' : typeof urlListaValue}`)
           
           if (pdfsSubidos.length > 0) {
             console.log(`[Importación Completa] 📄 Subiendo ${pdfsSubidos.length} PDF(s) para el grupo: ${grupoKey}`)
@@ -1591,106 +2152,109 @@ export default function ImportacionCompletaModal({
             }
           }
           
-          // Prioridad 2: URL_lista - descargar y subir automáticamente desde la URL
+          // Prioridad 2: URL_lista - descargar y subir automáticamente desde las URLs
           // Solo si NO hay PDFs subidos manualmente O si ninguno se subió exitosamente
-          const urlListaParaDescarga = grupo.lista.url_lista
-          const urlListaTrimmedParaDescarga = urlListaParaDescarga ? String(urlListaParaDescarga).trim() : ''
-          const tieneURLParaDescarga = !!(urlListaParaDescarga && urlListaTrimmedParaDescarga && (urlListaTrimmedParaDescarga.startsWith('http://') || urlListaTrimmedParaDescarga.startsWith('https://')))
-          const debeDescargarDesdeURL = pdfsSubidosConExito.length === 0 && tieneURLParaDescarga
+          const debeDescargarDesdeURLs = pdfsSubidosConExito.length === 0 && urlsPDF.length > 0
           
-          console.log(`[Importación Completa] 🔍 Evaluando descarga desde URL para grupo ${grupoKey}:`)
+          console.log(`[Importación Completa] 🔍 Evaluando descarga desde URLs para grupo ${grupoKey}:`)
           console.log(`  - PDFs subidos exitosamente: ${pdfsSubidosConExito.length}`)
-          console.log(`  - URL_lista (raw): ${urlListaParaDescarga}`)
-          console.log(`  - URL_lista (trimmed): ${urlListaTrimmedParaDescarga}`)
-          console.log(`  - URL empieza con http:// o https://: ${urlListaTrimmedParaDescarga ? (urlListaTrimmedParaDescarga.startsWith('http://') || urlListaTrimmedParaDescarga.startsWith('https://')) : false}`)
-          console.log(`  - Tiene URL válida: ${tieneURLParaDescarga}`)
-          console.log(`  - Debe descargar desde URL: ${debeDescargarDesdeURL}`)
-          console.log(`  - Condición completa: pdfsSubidosConExito.length (${pdfsSubidosConExito.length}) === 0 && tieneURLParaDescarga (${tieneURLParaDescarga})`)
+          console.log(`  - URLs PDF disponibles: ${urlsPDF.length}`)
+          console.log(`  - Debe descargar desde URLs: ${debeDescargarDesdeURLs}`)
           
-          if (debeDescargarDesdeURL) {
+          if (debeDescargarDesdeURLs) {
+            console.log(`[Importación Completa] 📥 Descargando ${urlsPDF.length} PDF(s) desde URL(s)`)
+            
+            // Descargar cada URL
+            for (let i = 0; i < urlsPDF.length; i++) {
+              const urlParaDescargar = urlsPDF[i]
+              const nombrePDF = urlsPDF.length === 1
+                ? `${grupo.lista.nombre || 'lista'}-${grupo.asignatura.nombre || 'asignatura'}.pdf`
+                : `${grupo.lista.nombre || 'lista'}-${grupo.asignatura.nombre || 'asignatura'}_${i + 1}.pdf`
+              
+              try {
+                console.log(`[Importación Completa] 📥 Descargando PDF ${i + 1}/${urlsPDF.length} desde URL: ${urlParaDescargar}`)
+                
+                // 🔍 LOG CRÍTICO: Enviar a logs del servidor
+                try {
+                  await fetch('/api/crm/listas/importacion-completa-logs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      level: 'log',
+                      message: `[Importación Completa] 📥 Descargando PDF ${i + 1}/${urlsPDF.length} desde URL: ${urlParaDescargar}`,
+                      data: {
+                        grupo: grupoKey,
+                        url: urlParaDescargar,
+                        nombrePDF,
+                        indice: i + 1,
+                        total: urlsPDF.length,
+                      },
+                    }),
+                  })
+                } catch (e) {
+                  // Ignorar errores de logging
+                }
+                
+                const resultadoPDF = await descargarYSubirPDF(urlParaDescargar, nombrePDF)
+                
+                // Agregar a pdfsSubidosConExito para que se incluya en las versiones
+                if (resultadoPDF.pdfUrl && resultadoPDF.pdfId) {
+                  pdfsSubidosConExito.push({
+                    pdfUrl: resultadoPDF.pdfUrl,
+                    pdfId: resultadoPDF.pdfId,
+                    nombre: nombrePDF,
+                    fecha: new Date().toISOString(),
+                  })
+                  console.log(`[Importación Completa] ✅ PDF ${i + 1}/${urlsPDF.length} descargado y subido exitosamente`)
+                  
+                  // Usar el último PDF descargado exitosamente como PDF principal
+                  if (i === urlsPDF.length - 1) {
+                    pdfUrl = resultadoPDF.pdfUrl
+                    pdfId = resultadoPDF.pdfId
+                  }
+                } else {
+                  console.warn(`[Importación Completa] ⚠️ PDF ${i + 1}/${urlsPDF.length} no se pudo descargar/subir correctamente`)
+                }
+                
+                // Delay entre descargas para evitar saturar
+                if (i < urlsPDF.length - 1) {
+                  await new Promise(resolve => setTimeout(resolve, 1000))
+                }
+              } catch (err: any) {
+                console.error(`[Importación Completa] ❌ Error al procesar PDF ${i + 1}/${urlsPDF.length} desde URL: ${urlParaDescargar}`, err)
+                // Continuar con los demás PDFs
+              }
+            }
+            
+            // 🔍 LOG CRÍTICO: Resultado de descarga y subida
+            console.log(`[Importación Completa] 📥 Resultado de descarga/subida PDFs:`, {
+              urlsTotal: urlsPDF.length,
+              pdfsSubidosConExito: pdfsSubidosConExito.length,
+              pdfUrlFinal: pdfUrl ? pdfUrl.substring(0, 80) + '...' : null,
+              pdfIdFinal: pdfId,
+            })
+            
+            // 🔍 LOG CRÍTICO: Enviar a logs del servidor
             try {
-              const nombrePDF = `${grupo.lista.nombre || 'lista'}-${grupo.asignatura.nombre || 'asignatura'}.pdf`
-              const urlParaDescargar = urlListaTrimmedParaDescarga
-              console.log(`[Importación Completa] 📥 Descargando PDF desde URL: ${urlParaDescargar}`)
-              console.log(`[Importación Completa] 📥 Nombre del PDF: ${nombrePDF}`)
-              
-              // 🔍 LOG CRÍTICO: Enviar a logs del servidor
-              try {
-                await fetch('/api/crm/listas/importacion-completa-logs', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    level: 'log',
-                    message: `[Importación Completa] 📥 Descargando PDF desde URL: ${grupo.lista.url_lista}`,
-                    data: {
-                      grupo: grupoKey,
-                      url: grupo.lista.url_lista,
-                      nombrePDF,
-                    },
-                  }),
-                })
-              } catch (e) {
-                // Ignorar errores de logging
-              }
-              
-              const resultadoPDF = await descargarYSubirPDF(urlParaDescargar, nombrePDF)
-              pdfUrl = resultadoPDF.pdfUrl
-              pdfId = resultadoPDF.pdfId
-              
-              // Agregar a pdfsSubidosConExito para que se incluya en las versiones
-              if (pdfUrl && pdfId && resultadoPDF.pdfUrl && resultadoPDF.pdfId) {
-                pdfsSubidosConExito.push({
-                  pdfUrl: resultadoPDF.pdfUrl,
-                  pdfId: resultadoPDF.pdfId,
-                  nombre: nombrePDF,
-                  fecha: new Date().toISOString(),
-                })
-                console.log(`[Importación Completa] ✅ PDF descargado y agregado a pdfsSubidosConExito: ${pdfUrl.substring(0, 80)}...`)
-              }
-              
-              // 🔍 LOG CRÍTICO: Resultado de descarga y subida
-              console.log(`[Importación Completa] 📥 Resultado de descarga/subida PDF:`, {
-                url: grupo.lista.url_lista,
-                nombrePDF,
-                pdfUrl: pdfUrl ? pdfUrl.substring(0, 80) + '...' : null,
-                pdfId,
-                tienePDF: !!(pdfUrl && pdfId),
-                agregadoAPdfsSubidos: pdfsSubidosConExito.length,
+              await fetch('/api/crm/listas/importacion-completa-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  level: pdfsSubidosConExito.length > 0 ? 'log' : 'warn',
+                  message: pdfsSubidosConExito.length > 0
+                    ? `[Importación Completa] ✅ ${pdfsSubidosConExito.length}/${urlsPDF.length} PDF(s) descargado(s) y subido(s) correctamente`
+                    : `[Importación Completa] ⚠️ No se pudo descargar/subir ningún PDF desde las URLs`,
+                  data: {
+                    grupo: grupoKey,
+                    urlsTotal: urlsPDF.length,
+                    pdfsSubidosConExito: pdfsSubidosConExito.length,
+                    pdfUrlFinal: pdfUrl,
+                    pdfIdFinal: pdfId,
+                  },
+                }),
               })
-              
-              // 🔍 LOG CRÍTICO: Enviar a logs del servidor
-              try {
-                await fetch('/api/crm/listas/importacion-completa-logs', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    level: pdfUrl && pdfId ? 'log' : 'warn',
-                    message: pdfUrl && pdfId 
-                      ? `[Importación Completa] ✅ PDF descargado y subido correctamente: ${pdfUrl.substring(0, 80)}...`
-                      : `[Importación Completa] ⚠️ No se pudo descargar/subir PDF desde: ${grupo.lista.url_lista}`,
-                    data: {
-                      grupo: grupoKey,
-                      url: grupo.lista.url_lista,
-                      nombrePDF,
-                      pdfUrl,
-                      pdfId,
-                      tienePDF: !!(pdfUrl && pdfId),
-                      agregadoAPdfsSubidos: pdfsSubidosConExito.length,
-                    },
-                  }),
-                })
-              } catch (e) {
-                // Ignorar errores de logging
-              }
-              
-              if (pdfUrl && pdfId) {
-                console.log(`[Importación Completa] ✅ PDF descargado y subido correctamente: ${pdfUrl}`)
-              } else {
-                console.warn(`[Importación Completa] ⚠️ No se pudo descargar/subir PDF desde: ${grupo.lista.url_lista}`)
-              }
-            } catch (err: any) {
-              console.error(`[Importación Completa] ❌ Error al procesar PDF desde URL: ${grupo.lista.url_lista}`, err)
-              // Continuar sin PDF (solo se guarda la URL en metadata)
+            } catch (e) {
+              // Ignorar errores de logging
             }
           }
 
@@ -1758,10 +2322,77 @@ export default function ImportacionCompletaModal({
           }
           
           // Crear versión de materiales (después de obtener versionesExistentes)
-          // IMPORTANTE: Solo crear versión si hay PDF o materiales
+          // IMPORTANTE: Solo crear versión si hay PDF (en formato simplificado puede no haber materiales)
+          // En formato simplificado, se permite crear versión solo con PDF, sin materiales
           if (!pdfUrl && !pdfId && materiales.length === 0) {
             console.warn(`[Importación Completa] ⚠️ Grupo ${grupoKey} no tiene PDF ni materiales, omitiendo versión`)
             continue
+          }
+          
+          // Si es formato simplificado (sin productos), crear versión vacía pero con PDF
+          const esFormatoSimplificado = materiales.length === 0 && (pdfUrl || pdfId)
+          
+          // 🔍 LÓGICA DE VERSIONADO: Comparar fechas para determinar si es nueva versión o actualización
+          const fechaActualizacionLista = grupo.lista.fecha_actualizacion_lista
+          let numeroVersion = 1
+          let esNuevaVersion = true
+          let versionExistenteParaActualizar: any = null
+          
+          if (fechaActualizacionLista && versionesExistentes.length > 0) {
+            try {
+              const fechaNueva = new Date(fechaActualizacionLista)
+              
+              // Buscar versión existente con la misma asignatura
+              const versionesMismaAsignatura = versionesExistentes.filter((v: any) => {
+                const metadata = v.metadata || {}
+                return metadata.asignatura === grupo.asignatura.nombre
+              })
+              
+              if (versionesMismaAsignatura.length > 0) {
+                // Ordenar por fecha de actualización (más reciente primero)
+                const versionesOrdenadas = [...versionesMismaAsignatura].sort((a: any, b: any) => {
+                  const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
+                  const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
+                  return fechaB - fechaA
+                })
+                
+                const ultimaVersion = versionesOrdenadas[0]
+                const fechaUltimaVersion = new Date(ultimaVersion.fecha_actualizacion || ultimaVersion.fecha_subida || 0)
+                
+                // Comparar fechas
+                if (fechaNueva > fechaUltimaVersion) {
+                  // Es una nueva versión (fecha más reciente)
+                  numeroVersion = versionesMismaAsignatura.length + 1
+                  esNuevaVersion = true
+                  console.log(`[Importación Completa] 📅 Nueva versión detectada: v${numeroVersion} (fecha: ${fechaActualizacionLista} > ${ultimaVersion.fecha_actualizacion || ultimaVersion.fecha_subida})`)
+                } else if (fechaNueva.getTime() === fechaUltimaVersion.getTime() || Math.abs(fechaNueva.getTime() - fechaUltimaVersion.getTime()) < 86400000) {
+                  // Misma fecha o diferencia menor a 1 día = actualizar versión existente
+                  versionExistenteParaActualizar = ultimaVersion
+                  numeroVersion = versionesMismaAsignatura.length
+                  esNuevaVersion = false
+                  console.log(`[Importación Completa] 📅 Actualizando versión existente: v${numeroVersion} (misma fecha o muy cercana)`)
+                } else {
+                  // Fecha más antigua = crear nueva versión pero con número basado en total
+                  numeroVersion = versionesMismaAsignatura.length + 1
+                  esNuevaVersion = true
+                  console.log(`[Importación Completa] 📅 Nueva versión con fecha anterior: v${numeroVersion} (fecha: ${fechaActualizacionLista} < ${ultimaVersion.fecha_actualizacion || ultimaVersion.fecha_subida})`)
+                }
+              } else {
+                // No hay versiones de esta asignatura, es la primera
+                numeroVersion = 1
+                esNuevaVersion = true
+                console.log(`[Importación Completa] 📅 Primera versión para esta asignatura: v${numeroVersion}`)
+              }
+            } catch (err: any) {
+              console.warn(`[Importación Completa] ⚠️ Error al comparar fechas, creando nueva versión:`, err)
+              numeroVersion = versionesExistentes.length + 1
+              esNuevaVersion = true
+            }
+          } else {
+            // No hay fecha de actualización o no hay versiones existentes
+            numeroVersion = versionesExistentes.length + 1
+            esNuevaVersion = true
+            console.log(`[Importación Completa] 📅 Creando versión inicial: v${numeroVersion}`)
           }
           
           // 🔍 LOG CRÍTICO: Verificar PDF antes de crear versión
@@ -1771,16 +2402,15 @@ export default function ImportacionCompletaModal({
             curso: grupo.curso.nombre,
             asignatura: grupo.asignatura.nombre,
             lista: grupo.lista.nombre,
-            url_lista: grupo.lista.url_lista ? grupo.lista.url_lista.substring(0, 80) + '...' : null,
+            fecha_actualizacion_lista: fechaActualizacionLista,
+            numeroVersion,
+            esNuevaVersion,
+            url_lista: Array.isArray(grupo.lista.url_lista) ? grupo.lista.url_lista.join(', ') : grupo.lista.url_lista,
+            url_original: grupo.lista.url_original,
             pdfUrl: pdfUrl ? pdfUrl.substring(0, 80) + '...' : null,
             pdfId,
             tienePDF: !!(pdfUrl && pdfId),
             pdfsSubidosConExito: pdfsSubidosConExito.length,
-            pdfsSubidos: pdfsSubidosConExito.map(p => ({
-              nombre: p.nombre,
-              pdfId: p.pdfId,
-              pdfUrl: p.pdfUrl ? p.pdfUrl.substring(0, 60) + '...' : null,
-            })),
           })
           
           // 🔍 LOG CRÍTICO: Enviar a logs del servidor
@@ -1790,14 +2420,18 @@ export default function ImportacionCompletaModal({
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 level: 'log',
-                message: `[Importación Completa] 🔍 Verificando PDF antes de crear versión: ${grupoKey}`,
+                message: `[Importación Completa] 🔍 Verificando PDF antes de crear versión: ${grupoKey} (v${numeroVersion})`,
                 data: {
                   grupo: grupoKey,
                   colegio: grupo.colegio.nombre,
                   curso: grupo.curso.nombre,
                   asignatura: grupo.asignatura.nombre,
                   lista: grupo.lista.nombre,
+                  fecha_actualizacion_lista: fechaActualizacionLista,
+                  numeroVersion,
+                  esNuevaVersion,
                   url_lista: grupo.lista.url_lista,
+                  url_original: grupo.lista.url_original,
                   pdfUrl: pdfUrl,
                   pdfId: pdfId,
                   tienePDF: !!(pdfUrl && pdfId),
@@ -1809,23 +2443,44 @@ export default function ImportacionCompletaModal({
             // Ignorar errores de logging
           }
           
+          // Construir nombre de archivo con versión
+          const nombreBase = grupo.lista.nombre || 'Lista de útiles'
+          const nombreConVersion = esNuevaVersion ? `${nombreBase} (v${numeroVersion})` : nombreBase
+          
+          // Usar el mismo formato que import-pdf para garantizar compatibilidad
           const versionMaterial = {
-            id: versionesExistentes.length + 1,
-            nombre_archivo: grupo.lista.nombre || 'Lista de útiles',
-            fecha_subida: grupo.lista.fecha_actualizacion || new Date().toISOString(),
-            fecha_actualizacion: grupo.lista.fecha_actualizacion || new Date().toISOString(),
-            fecha_publicacion: grupo.lista.fecha_publicacion,
-            materiales: materiales,
+            id: esNuevaVersion ? versionesExistentes.length + 1 : (versionExistenteParaActualizar?.id || versionesExistentes.length + 1),
+            nombre_archivo: nombreConVersion,
+            fecha_subida: fechaActualizacionLista || grupo.lista.fecha_actualizacion || new Date().toISOString(),
+            fecha_actualizacion: fechaActualizacionLista || grupo.lista.fecha_actualizacion || new Date().toISOString(),
+            // IMPORTANTE: Usar 'materiales' (no 'productos') para mantener consistencia con import-pdf
+            materiales: materiales, // Array de productos/materiales
             // Incluir PDF si se subió correctamente (puede ser null si no hay PDF)
             pdf_url: pdfUrl || null,
             pdf_id: pdfId || null,
+            // Metadata adicional (opcional, pero útil para tracking)
             metadata: {
               nombre: grupo.lista.nombre,
               asignatura: grupo.asignatura.nombre,
               orden_asignatura: grupo.asignatura.orden,
-              url_lista: grupo.lista.url_lista,
-              url_publicacion: grupo.lista.url_publicacion,
+              url_lista: Array.isArray(grupo.lista.url_lista) ? grupo.lista.url_lista : (grupo.lista.url_lista || null),
+              url_original: grupo.lista.url_original || null, // URL de la página de origen
+              url_publicacion: grupo.lista.url_publicacion || null,
+              fecha_actualizacion_lista: fechaActualizacionLista || null,
+              version: numeroVersion, // Número de versión en metadata también
+              version_numero: numeroVersion, // Duplicado para compatibilidad
             },
+          }
+          
+          // Si es actualización de versión existente, combinar datos
+          if (!esNuevaVersion && versionExistenteParaActualizar) {
+            versionMaterial.id = versionExistenteParaActualizar.id
+            versionMaterial.fecha_subida = versionExistenteParaActualizar.fecha_subida || versionMaterial.fecha_subida
+            // Mantener PDF anterior si no hay nuevo PDF
+            if (!versionMaterial.pdf_url && versionExistenteParaActualizar.pdf_url) {
+              versionMaterial.pdf_url = versionExistenteParaActualizar.pdf_url
+              versionMaterial.pdf_id = versionExistenteParaActualizar.pdf_id
+            }
           }
           
           // 🔍 LOG CRÍTICO: Verificar que la versión tenga PDF antes de agregarla
@@ -1848,44 +2503,72 @@ export default function ImportacionCompletaModal({
             pdfsSubidosConExito: pdfsSubidosConExito.length,
           })
           
-          // Agregar nueva versión
+          // Agregar nueva versión o actualizar existente
           // Si hay múltiples PDFs subidos, crear una versión por cada PDF
           const versionesParaAgregar: any[] = []
           
-          // Crear versión principal con el último PDF (o la única versión si solo hay un PDF)
-          versionesParaAgregar.push(versionMaterial)
+          // Si es actualización, reemplazar la versión existente
+          let versionesActualizadas: any[] = []
           
-          // Si hay múltiples PDFs subidos, crear versiones adicionales para cada uno
-          if (pdfsSubidosConExito.length > 1) {
-            console.log(`[Importación Completa] 📄 Creando ${pdfsSubidosConExito.length - 1} versión(es) adicional(es) para PDFs múltiples`)
+          if (esNuevaVersion) {
+            // Crear versión principal con el último PDF (o la única versión si solo hay un PDF)
+            versionesParaAgregar.push(versionMaterial)
             
-            // Crear una versión por cada PDF adicional (excepto el último que ya está en versionMaterial)
-            for (let i = 0; i < pdfsSubidosConExito.length - 1; i++) {
-              const pdfInfo = pdfsSubidosConExito[i]
-              const versionAdicional = {
-                id: versionesExistentes.length + versionesParaAgregar.length + 1,
-                nombre_archivo: pdfInfo.nombre,
-                fecha_subida: pdfInfo.fecha,
-                fecha_actualizacion: pdfInfo.fecha,
-                fecha_publicacion: grupo.lista.fecha_publicacion,
-                materiales: materiales, // Mismos materiales para todas las versiones
-                pdf_url: pdfInfo.pdfUrl,
-                pdf_id: pdfInfo.pdfId,
-                metadata: {
-                  nombre: grupo.lista.nombre,
-                  asignatura: grupo.asignatura.nombre,
-                  orden_asignatura: grupo.asignatura.orden,
-                  url_lista: grupo.lista.url_lista,
-                  url_publicacion: grupo.lista.url_publicacion,
-                  version: i + 1, // Número de versión
-                },
+            // Si hay múltiples PDFs subidos, crear versiones adicionales para cada uno
+            if (pdfsSubidosConExito.length > 1) {
+              console.log(`[Importación Completa] 📄 Creando ${pdfsSubidosConExito.length - 1} versión(es) adicional(es) para PDFs múltiples`)
+              
+              // Crear una versión por cada PDF adicional (excepto el último que ya está en versionMaterial)
+              for (let i = 0; i < pdfsSubidosConExito.length - 1; i++) {
+                const pdfInfo = pdfsSubidosConExito[i]
+                const versionAdicional = {
+                  id: versionesExistentes.length + versionesParaAgregar.length + 1,
+                  nombre_archivo: `${nombreBase} (v${numeroVersion}_${i + 1})`,
+                  fecha_subida: pdfInfo.fecha,
+                  fecha_actualizacion: fechaActualizacionLista || pdfInfo.fecha,
+                  fecha_publicacion: grupo.lista.fecha_publicacion,
+                  materiales: materiales, // Mismos materiales para todas las versiones
+                  pdf_url: pdfInfo.pdfUrl,
+                  pdf_id: pdfInfo.pdfId,
+                  version_numero: numeroVersion,
+                  metadata: {
+                    nombre: grupo.lista.nombre,
+                    asignatura: grupo.asignatura.nombre,
+                    orden_asignatura: grupo.asignatura.orden,
+                    url_lista: Array.isArray(grupo.lista.url_lista) ? grupo.lista.url_lista : (grupo.lista.url_lista || null),
+                    url_original: grupo.lista.url_original || null,
+                    url_publicacion: grupo.lista.url_publicacion || null,
+                    fecha_actualizacion_lista: fechaActualizacionLista || null,
+                    version: numeroVersion,
+                    subversion: i + 1,
+                  },
+                }
+                versionesParaAgregar.push(versionAdicional)
+                console.log(`[Importación Completa] ✅ Versión adicional ${i + 1} creada para PDF: ${pdfInfo.nombre}`)
               }
-              versionesParaAgregar.push(versionAdicional)
-              console.log(`[Importación Completa] ✅ Versión ${i + 1} creada para PDF: ${pdfInfo.nombre}`)
             }
+            
+            // Agregar nuevas versiones a las existentes
+            versionesActualizadas = [...versionesExistentes, ...versionesParaAgregar]
+          } else {
+            // Actualizar versión existente
+            versionesActualizadas = versionesExistentes.map((v: any) => {
+              if (v.id === versionExistenteParaActualizar?.id || 
+                  (v.metadata?.asignatura === grupo.asignatura.nombre && 
+                   v.fecha_actualizacion === versionExistenteParaActualizar?.fecha_actualizacion)) {
+                // Reemplazar la versión existente con la nueva
+                return versionMaterial
+              }
+              return v
+            })
+            
+            // Si no se encontró la versión para actualizar, agregarla como nueva
+            if (!versionExistenteParaActualizar) {
+              versionesActualizadas.push(versionMaterial)
+            }
+            
+            console.log(`[Importación Completa] ✅ Versión v${numeroVersion} actualizada`)
           }
-          
-          const versionesActualizadas = [...versionesExistentes, ...versionesParaAgregar]
           console.log(`[Importación Completa] 📋 Total de versiones después de agregar: ${versionesActualizadas.length} (existentes: ${versionesExistentes.length}, nuevas: ${versionesParaAgregar.length})`)
           
           // 🔍 LOG: Verificar que las versiones tengan PDFs
@@ -1992,6 +2675,16 @@ export default function ImportacionCompletaModal({
           while (updateIntentos < maxUpdateIntentos && !updateSuccess) {
             try {
               console.log(`[Importación Completa] 📤 Intento ${updateIntentos + 1}/${maxUpdateIntentos}: Actualizando curso ${cursoIdParaActualizar}...`)
+              console.log(`[Importación Completa] 📦 Versiones a guardar:`, {
+                cantidad: versionesActualizadas.length,
+                primeraVersion: versionesActualizadas[0] ? {
+                  id: versionesActualizadas[0].id,
+                  nombre: versionesActualizadas[0].nombre_archivo,
+                  tienePDF: !!(versionesActualizadas[0].pdf_url && versionesActualizadas[0].pdf_id),
+                  materiales: versionesActualizadas[0].materiales?.length || 0,
+                } : null,
+              })
+              
               const updateResponse = await fetch(`/api/crm/cursos/${cursoIdParaActualizar}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -2010,19 +2703,65 @@ export default function ImportacionCompletaModal({
               })
               
               if (updateResponse.ok && updateResult.success) {
-                updateSuccess = true
-                console.log(`[Importación Completa] ✅ Lista "${grupo.lista.nombre}" (${grupo.asignatura.nombre}) creada exitosamente con ${materiales.length} productos`)
-                results.push({
-                  success: true,
-                  message: `Lista "${grupo.lista.nombre}" (${grupo.asignatura.nombre}) creada con ${materiales.length} productos`,
-                  tipo: 'lista',
-                  datos: { cursoId: cursoIdParaActualizar, productos: materiales.length },
-                })
-                break
+                // Verificar que las versiones se guardaron correctamente
+                console.log(`[Importación Completa] 🔍 Verificando que las versiones se guardaron...`)
+                await new Promise(resolve => setTimeout(resolve, 1000)) // Esperar 1 segundo
+                
+                const verifyResponse = await fetch(`/api/crm/cursos/${cursoIdParaActualizar}`)
+                const verifyData = await verifyResponse.json()
+                
+                if (verifyData.success && verifyData.data) {
+                  const cursoVerificado = verifyData.data
+                  const attrsVerificado = cursoVerificado.attributes || cursoVerificado
+                  const versionesGuardadas = attrsVerificado.versiones_materiales || []
+                  
+                  console.log(`[Importación Completa] ✅ Verificación: ${versionesGuardadas.length} versiones guardadas en Strapi`)
+                  
+                  if (versionesGuardadas.length === 0) {
+                    console.warn(`[Importación Completa] ⚠️ ADVERTENCIA: Las versiones no se guardaron correctamente (array vacío)`)
+                    updateError = 'Las versiones no se guardaron correctamente en Strapi'
+                    if (updateIntentos < maxUpdateIntentos - 1) {
+                      const waitTime = 2000 * (updateIntentos + 1)
+                      console.log(`[Importación Completa] ⏳ Reintentando actualización en ${waitTime}ms...`)
+                      await new Promise(resolve => setTimeout(resolve, waitTime))
+                      updateIntentos++
+                      continue
+                    }
+                  } else {
+                    updateSuccess = true
+                    const mensajeVersion = esNuevaVersion 
+                      ? `Lista "${grupo.lista.nombre}" (${grupo.asignatura.nombre}) creada v${numeroVersion} con ${materiales.length} productos`
+                      : `Lista "${grupo.lista.nombre}" (${grupo.asignatura.nombre}) actualizada v${numeroVersion} con ${materiales.length} productos`
+                    
+                    console.log(`[Importación Completa] ✅ ${mensajeVersion}`)
+                    results.push({
+                      success: true,
+                      message: mensajeVersion,
+                      tipo: 'lista',
+                      datos: { 
+                        cursoId: cursoIdParaActualizar, 
+                        productos: materiales.length,
+                        version: numeroVersion,
+                        esNuevaVersion,
+                        url_original: grupo.lista.url_original,
+                      },
+                    })
+                    break
+                  }
+                } else {
+                  updateError = 'No se pudo verificar que las versiones se guardaron'
+                  if (updateIntentos < maxUpdateIntentos - 1) {
+                    const waitTime = 2000 * (updateIntentos + 1)
+                    console.log(`[Importación Completa] ⏳ Reintentando actualización en ${waitTime}ms...`)
+                    await new Promise(resolve => setTimeout(resolve, waitTime))
+                    updateIntentos++
+                    continue
+                  }
+                }
               } else {
                 updateError = updateResult.error || 'Error desconocido'
                 if (updateIntentos < maxUpdateIntentos - 1) {
-                  const waitTime = 1000 * (updateIntentos + 1)
+                  const waitTime = 2000 * (updateIntentos + 1)
                   console.log(`[Importación Completa] ⏳ Reintentando actualización en ${waitTime}ms...`)
                   await new Promise(resolve => setTimeout(resolve, waitTime))
                   updateIntentos++
@@ -2033,7 +2772,7 @@ export default function ImportacionCompletaModal({
             } catch (err: any) {
               updateError = err?.message || String(err) || 'Error desconocido'
               if (updateIntentos < maxUpdateIntentos - 1) {
-                const waitTime = 1000 * (updateIntentos + 1)
+                const waitTime = 2000 * (updateIntentos + 1)
                 console.log(`[Importación Completa] ⏳ Error en actualización, reintentando en ${waitTime}ms...`)
                 await new Promise(resolve => setTimeout(resolve, waitTime))
                 updateIntentos++
@@ -2109,6 +2848,7 @@ export default function ImportacionCompletaModal({
       )
     } finally {
       setProcessing(false)
+      setColegioActual(null) // Limpiar colegio actual al terminar
       // Limpiar localStorage cuando termine el procesamiento
       if (typeof window !== 'undefined') {
         localStorage.removeItem('importacion-completa-processing')
@@ -2692,15 +3432,61 @@ export default function ImportacionCompletaModal({
   }
 
   const downloadTemplate = () => {
-    // Plantilla de descarga: archivo estático en public/plantilla-importacion-completa.xlsx
-    const url = '/plantilla-importacion-completa.xlsx'
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'plantilla-importacion-completa.xlsx'
-    link.target = '_blank'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    // Generar plantilla con el formato simplificado: RBD DEBE SER PRIMERO
+    // Orden correcto: RBD, Curso, Nº curso, Año, URL PDF, URL ORIGINAL, FECHA DE ACTUALIZACION DE LISTA DE UTILES
+    const template = [
+      {
+        'RBD': 12781,
+        'Curso': '1º Básico',
+        'Nº curso': 1,
+        'Año': 2026,
+        'URL PDF': 'https://amazinggracels.cl/wp-content/uploads/2024/12/Lista-utiles-_1-basico-2025.pdf',
+        'URL ORIGINAL': 'https://amazinggracels.cl/',
+        'FECHA DE ACTUALIZACION DE LISTA DE UTILES': '',
+      },
+      {
+        'RBD': 12781,
+        'Curso': '3º Básico',
+        'Nº curso': 3,
+        'Año': 2026,
+        'URL PDF': 'https://amazinggracels.cl/wp-content/uploads/2024/12/Lista-utiles-_3-basico-2025.pdf',
+        'URL ORIGINAL': 'https://amazinggracels.cl/',
+        'FECHA DE ACTUALIZACION DE LISTA DE UTILES': '',
+      },
+      {
+        'RBD': 12781,
+        'Curso': '4º Medio',
+        'Nº curso': 4,
+        'Año': 2026,
+        'URL PDF': 'https://amazinggracels.cl/wp-content/uploads/2024/12/Lista-utiles-_4-medio-2025.pdf',
+        'URL ORIGINAL': 'https://amazinggracels.cl/',
+        'FECHA DE ACTUALIZACION DE LISTA DE UTILES': '',
+      },
+    ]
+
+    // Crear workbook y worksheet
+    // IMPORTANTE: Usar json_to_sheet asegura que el orden de las columnas sea el mismo que en el objeto
+    const ws = XLSX.utils.json_to_sheet(template, {
+      header: ['RBD', 'Curso', 'Nº curso', 'Año', 'URL PDF', 'URL ORIGINAL', 'FECHA DE ACTUALIZACION DE LISTA DE UTILES'], // Orden explícito
+      skipHeader: false, // Incluir encabezados
+    })
+    
+    const wb = XLSX.utils.book_new()
+    
+    // Ajustar ancho de columnas (en el orden correcto)
+    const colWidths = [
+      { wch: 12 }, // RBD (columna A)
+      { wch: 20 }, // Curso (columna B)
+      { wch: 12 }, // Nº curso (columna C)
+      { wch: 8 },  // Año (columna D)
+      { wch: 60 }, // URL PDF (columna E)
+      { wch: 50 }, // URL ORIGINAL (columna F)
+      { wch: 40 }, // FECHA DE ACTUALIZACION DE LISTA DE UTILES (columna G)
+    ]
+    ws['!cols'] = colWidths
+    
+    XLSX.utils.book_append_sheet(wb, ws, 'Plantilla')
+    XLSX.writeFile(wb, 'plantilla-importacion-completa.xlsx')
   }
 
   const successCount = processResults.filter((r) => r.success).length
@@ -2764,6 +3550,16 @@ export default function ImportacionCompletaModal({
           <div className="mb-2">
             <ProgressBar now={progress} label={`${progress}%`} />
           </div>
+          {colegioActual && (
+            <div className="mb-2 small">
+              <strong>Colegio:</strong> {colegioActual.nombre}
+              {colegioActual.rbd && (
+                <span className="ms-2">
+                  <strong>RBD:</strong> {colegioActual.rbd}
+                </span>
+              )}
+            </div>
+          )}
           <small className="text-muted">
             Procesando grupos... Puedes continuar trabajando en otra pestaña.
           </small>
@@ -2796,14 +3592,16 @@ export default function ImportacionCompletaModal({
         {step === 'upload' && (
           <div>
             <Alert variant="info" className="mb-3">
-              <strong>Instrucciones:</strong>
+              <strong>Instrucciones - Formato Simplificado:</strong>
               <ul className="mb-0 mt-2">
-                <li><strong>Obligatorio por fila (solo 4 cosas):</strong> <strong>RBD</strong> (o nombre de colegio), <strong>Curso</strong>, <strong>Asignatura</strong> y <strong>Producto</strong>. El resto de columnas (Nivel, Nº curso, Año, Orden Asig., Orden Prod., Código, URL PDF) son opcionales.</li>
-                <li><strong>🔍 Verificación automática:</strong> El sistema verifica si el colegio ya existe buscando por <strong>RBD</strong> o <strong>nombre</strong>.</li>
-                <li><strong>✅ Si el colegio está en el sistema:</strong> Pon su <strong>RBD</strong> (o nombre). No hace falta completar todo.</li>
+                <li><strong>Columnas obligatorias:</strong> <strong>RBD</strong>, <strong>Curso</strong>, <strong>Nº curso</strong>, <strong>Año</strong></li>
+                <li><strong>Columnas opcionales:</strong> <strong>URL PDF</strong> (puede tener múltiples URLs separadas por coma), <strong>URL ORIGINAL</strong>, <strong>FECHA DE ACTUALIZACION DE LISTA DE UTILES</strong></li>
+                <li><strong>📄 URL PDF:</strong> Puedes poner una o múltiples URLs separadas por coma (ej: "https://url1.pdf, https://url2.pdf"). El sistema descargará automáticamente todos los PDFs.</li>
+                <li><strong>🔄 Versionado:</strong> Si subes una lista con fecha más reciente, se creará una nueva versión (v1, v2, v3, etc.). Si la fecha es la misma, se actualizará la versión existente.</li>
+                <li><strong>🔍 Verificación automática:</strong> El sistema verifica si el colegio ya existe buscando por <strong>RBD</strong>.</li>
+                <li><strong>✅ Si el colegio está en el sistema:</strong> Solo necesitas el <strong>RBD</strong>.</li>
                 <li><strong>➕ Si el colegio NO está:</strong> Necesitas <strong>RBD</strong> para que se cree el colegio nuevo.</li>
-                <li><strong>📄 PDFs:</strong> Opcional. Puedes poner <strong>URL PDF</strong> en el Excel o subir los PDFs en el paso de revisión.</li>
-                <li>El sistema agrupa por colegio/curso/asignatura y crea cursos si no existen.</li>
+                <li><strong>📋 Formato completo (con productos):</strong> También puedes usar el formato completo con Asignatura y Producto si necesitas importar productos específicos.</li>
               </ul>
             </Alert>
 
@@ -3407,6 +4205,16 @@ export default function ImportacionCompletaModal({
           <div className="text-center">
             <Spinner animation="border" className="mb-3" />
             <p>Procesando {gruposCount} listas...</p>
+            {colegioActual && (
+              <Alert variant="info" className="mb-3">
+                <strong>Colegio actual:</strong> {colegioActual.nombre}
+                {colegioActual.rbd && (
+                  <span className="ms-2">
+                    <strong>RBD:</strong> {colegioActual.rbd}
+                  </span>
+                )}
+              </Alert>
+            )}
             <ProgressBar now={progress} label={`${Math.round(progress)}%`} className="mb-3" />
           </div>
         )}

@@ -24,9 +24,12 @@ export default function VersionSelector({
   onChangeMostrarTodos,
   onRecargarProductos
 }: VersionSelectorProps) {
-  if (versiones.length <= 1) return null
+  // Filtrar solo versiones activas (activo !== false)
+  const versionesActivas = versiones.filter((v: any) => v.activo !== false)
+  
+  if (versionesActivas.length <= 1) return null
 
-  const versionesOrdenadas = [...versiones].sort((a: any, b: any) => {
+  const versionesOrdenadas = [...versionesActivas].sort((a: any, b: any) => {
     const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
     const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
     return fechaB - fechaA

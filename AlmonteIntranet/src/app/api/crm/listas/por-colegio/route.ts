@@ -74,13 +74,102 @@ export async function GET(request: NextRequest) {
     const cursosConListas = cursos.filter((curso: any) => {
       const attrs = curso.attributes || curso
       const versiones = attrs.versiones_materiales || []
-      return Array.isArray(versiones) && versiones.length > 0
+      
+      // Verificar si versiones_materiales es un array válido con elementos
+      let tieneVersiones = false
+      
+      if (Array.isArray(versiones)) {
+        // Filtrar solo versiones activas (activo !== false)
+        const versionesActivas = versiones.filter((v: any) => v.activo !== false)
+        
+        // Verificar que el array tenga elementos activos y que no esté vacío
+        // IMPORTANTE: Una versión es válida si tiene al menos un elemento activo en el array
+        // No importa si tiene materiales o no, solo que exista la versión activa
+        tieneVersiones = versionesActivas.length > 0
+        
+        // Debug: Verificar estructura de versiones para RBD 24508
+        const colegioData = attrs.colegio?.data || attrs.colegio
+        const colegioAttrs = colegioData?.attributes || colegioData
+        const rbd = colegioAttrs?.rbd
+        if (rbd === 24508 || rbd === '24508' || Number(rbd) === 24508) {
+          debugLog(`[API /crm/listas/por-colegio GET] 🔍 Curso RBD 24508:`, {
+            cursoId: curso.id || curso.documentId,
+            nombre: attrs.nombre_curso,
+            colegio: colegioAttrs?.colegio_nombre,
+            rbd: rbd,
+            tieneVersiones: tieneVersiones,
+            cantidadVersiones: versionesActivas.length,
+            cantidadVersionesTotal: versiones.length,
+            primeraVersion: versiones[0] ? {
+              id: versiones[0].id,
+              nombre: versiones[0].nombre_archivo,
+              tienePDF: !!(versiones[0].pdf_url && versiones[0].pdf_id),
+              tieneMateriales: !!(versiones[0].materiales && versiones[0].materiales.length > 0),
+              cantidadMateriales: versiones[0].materiales?.length || 0,
+            } : null,
+          })
+        }
+      } else if (versiones && typeof versiones === 'object') {
+        // Si es un objeto, intentar convertirlo a array
+        const versionesArray = Object.values(versiones)
+        tieneVersiones = versionesArray.length > 0
+        debugLog(`[API /crm/listas/por-colegio GET] ⚠️ versiones_materiales es objeto, convirtiendo a array:`, {
+          cursoId: curso.id || curso.documentId,
+          cantidad: versionesArray.length,
+        })
+      }
+      
+      // Debug: Log cursos sin versiones para diagnosticar
+      if (!tieneVersiones) {
+        const colegioData = attrs.colegio?.data || attrs.colegio
+        const colegioAttrs = colegioData?.attributes || colegioData
+        const rbd = colegioAttrs?.rbd
+        if (rbd === 24508 || rbd === '24508' || Number(rbd) === 24508) {
+          debugLog(`[API /crm/listas/por-colegio GET] ⚠️ Curso sin versiones para RBD 24508:`, {
+            cursoId: curso.id || curso.documentId,
+            nombre: attrs.nombre_curso,
+            colegio: colegioAttrs?.colegio_nombre,
+            rbd: rbd,
+            versiones: versiones,
+            tipoVersiones: typeof versiones,
+            esArray: Array.isArray(versiones),
+            esObjeto: typeof versiones === 'object' && versiones !== null,
+            keys: typeof versiones === 'object' && versiones !== null ? Object.keys(versiones) : [],
+          })
+        }
+      }
+      
+      return tieneVersiones
     })
 
     debugLog('[API /crm/listas/por-colegio GET] Cursos con listas:', cursosConListas.length)
 
     // Agrupar por colegio
     const colegiosMap = new Map<string, any>()
+
+    // Debug: Verificar si hay cursos del colegio RBD 24508
+    const cursosRBD24508 = cursos.filter((curso: any) => {
+      const attrs = curso.attributes || curso
+      const colegioData = attrs.colegio?.data || attrs.colegio
+      const colegioAttrs = colegioData?.attributes || colegioData
+      const rbd = colegioAttrs?.rbd
+      return rbd === 24508 || rbd === '24508'
+    })
+    
+    if (cursosRBD24508.length > 0) {
+      debugLog(`[API /crm/listas/por-colegio GET] 🔍 Encontrados ${cursosRBD24508.length} cursos para RBD 24508`)
+      cursosRBD24508.forEach((curso: any) => {
+        const attrs = curso.attributes || curso
+        const versiones = attrs.versiones_materiales || []
+        debugLog(`[API /crm/listas/por-colegio GET] Curso RBD 24508:`, {
+          id: curso.id || curso.documentId,
+          nombre: attrs.nombre_curso,
+          tieneVersiones: Array.isArray(versiones) && versiones.length > 0,
+          cantidadVersiones: Array.isArray(versiones) ? versiones.length : 'NO ES ARRAY',
+          tipoVersiones: typeof versiones,
+        })
+      })
+    }
 
     // Agrupar solo cursos con listas
     cursosConListas.forEach((curso: any) => {
@@ -136,7 +225,15 @@ export async function GET(request: NextRequest) {
       // Agregar curso al colegio
       const colegio = colegiosMap.get(colegioId)
       const versiones = attrs.versiones_materiales || []
-      const ultimaVersion = versiones.length > 0 ? versiones[versiones.length - 1] : null
+      // Filtrar solo versiones activas (activo !== false)
+      const versionesActivas = versiones.filter((v: any) => v.activo !== false)
+      // Ordenar por fecha y obtener la última versión activa
+      const versionesOrdenadas = [...versionesActivas].sort((a: any, b: any) => {
+        const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
+        const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
+        return fechaB - fechaA
+      })
+      const ultimaVersion = versionesOrdenadas.length > 0 ? versionesOrdenadas[0] : null
       const materiales = ultimaVersion?.materiales || []
       const estadoRevision = attrs.estado_revision ?? ultimaVersion?.metadata?.estado_revision ?? null
       
@@ -147,9 +244,9 @@ export async function GET(request: NextRequest) {
         nivel: attrs.nivel || '',
         grado: attrs.grado || 0,
         año: attrs.anio || attrs.año || new Date().getFullYear(),
-        cantidadVersiones: versiones.length,
+        cantidadVersiones: versionesActivas.length, // Solo contar versiones activas
         cantidadProductos: materiales.length,
-        versiones: versiones.length, // Mantener por compatibilidad
+        versiones: versionesActivas.length, // Mantener por compatibilidad
         materiales: materiales.length, // Mantener por compatibilidad
         matriculados: attrs.matricula || 0, // Campo correcto según Strapi: "matricula"
         pdf_id: ultimaVersion?.pdf_id || null,

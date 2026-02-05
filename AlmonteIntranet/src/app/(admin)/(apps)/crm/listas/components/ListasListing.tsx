@@ -17,7 +17,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge, Spinner } from 'react-bootstrap'
-import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw, LuFileCode, LuPackageSearch } from 'react-icons/lu'
+import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw, LuFileCode, LuPackageSearch, LuSparkles } from 'react-icons/lu'
 import { TbEdit, TbTrash } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
@@ -27,6 +27,7 @@ import TablePagination from '@/components/table/TablePagination'
 import ImportacionMasivaModal from './ImportacionMasivaModal'
 import ImportacionMasivaColegiosModal from './ImportacionMasivaColegiosModal'
 import ImportacionCompletaModal from './ImportacionCompletaModal'
+import CargaMasivaPDFsPorColegioModal from './CargaMasivaPDFsPorColegioModal'
 import DetalleListasModal from './DetalleListasModal'
 import EdicionColegioModal from './EdicionColegioModal'
 import CursosColegioModal from './CursosColegioModal'
@@ -84,6 +85,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
   const [showImportModal, setShowImportModal] = useState(false)
   const [showImportColegiosModal, setShowImportColegiosModal] = useState(false)
   const [showImportCompletaModal, setShowImportCompletaModal] = useState(false)
+  const [showCargaMasivaPDFsModal, setShowCargaMasivaPDFsModal] = useState(false)
   const [showDetalleListasModal, setShowDetalleListasModal] = useState(false)
   const [colegioSeleccionado, setColegioSeleccionado] = useState<ColegioType | null>(null)
   const [showEdicionColegioModal, setShowEdicionColegioModal] = useState(false)
@@ -703,10 +705,10 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
     setLoading(true)
     try {
       console.log(`[ListasListing] 🔄 Recargando listas desde API... (intento ${retryCount + 1})`)
-      // Usar múltiples parámetros para forzar cache busting
+      // Usar la misma API que usa la página principal: /api/crm/listas/por-colegio
       const timestamp = Date.now()
       const random = Math.random()
-      const response = await fetch(`/api/crm/listas?_t=${timestamp}&_r=${random}`, {
+      const response = await fetch(`/api/crm/listas/por-colegio?_t=${timestamp}&_r=${random}`, {
         cache: 'no-store',
         method: 'GET',
         headers: {
@@ -749,31 +751,54 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
         success: result.success, 
         count: result.data?.length || 0,
         ids: result.data?.map((l: any) => l.id || l.documentId) || [],
+        colegiosConRBD24508: result.data?.filter((c: any) => c.rbd === 24508 || c.rbd === '24508').length || 0,
       })
       
+      // Debug: Verificar si hay colegios con RBD 24508 en la respuesta
       if (result.success && Array.isArray(result.data)) {
-        const nuevasListas = result.data.map((lista: any) => ({
-          id: lista.id || lista.documentId,
-          documentId: lista.documentId || String(lista.id || ''),
-          nombre: lista.nombre || '',
-          nivel: lista.nivel || 'Basica',
-          grado: lista.grado || 1,
-          paralelo: lista.paralelo || '',
-          año: lista.año || lista.ano || new Date().getFullYear(),
-          descripcion: lista.descripcion || '',
-          activo: lista.activo !== false,
-          pdf_id: lista.pdf_id || undefined,
-          pdf_url: lista.pdf_url || undefined,
-          pdf_nombre: lista.pdf_nombre || undefined,
-          colegio: lista.colegio || undefined,
-          curso: lista.curso || undefined,
-          materiales: lista.materiales || [],
-          createdAt: lista.createdAt || null,
-          updatedAt: lista.updatedAt || null,
-          versiones: lista.versiones || 0,
-        } as ListaType))
+        const colegiosRBD24508 = result.data.filter((c: any) => c.rbd === 24508 || c.rbd === '24508')
+        if (colegiosRBD24508.length > 0) {
+          console.log('[ListasListing] ✅ Encontrado colegio RBD 24508 en respuesta:', colegiosRBD24508)
+        } else {
+          console.warn('[ListasListing] ⚠️ No se encontró colegio RBD 24508 en la respuesta de la API')
+          console.log('[ListasListing] 🔍 Colegios en respuesta:', result.data.map((c: any) => ({
+            nombre: c.nombre,
+            rbd: c.rbd,
+            cantidadListas: c.cantidadListas,
+          })))
+        }
+      }
+      
+      if (result.success && Array.isArray(result.data)) {
+        // Mapear los datos correctamente según la estructura de la API /api/crm/listas/por-colegio
+        const nuevasListas = result.data.map((colegio: any) => ({
+          id: colegio.id || colegio.documentId,
+          documentId: colegio.documentId || String(colegio.id || ''),
+          nombre: colegio.nombre || colegio.colegio_nombre || '',
+          rbd: colegio.rbd || undefined,
+          comuna: colegio.comuna || '',
+          region: colegio.region || '',
+          direccion: colegio.direccion || '',
+          telefono: colegio.telefono || '',
+          email: colegio.email || '',
+          total_matriculados: colegio.total_matriculados !== undefined ? colegio.total_matriculados : null,
+          cantidadCursos: colegio.cantidadCursos || 0,
+          cantidadPDFs: colegio.cantidadPDFs || 0,
+          cantidadListas: colegio.cantidadListas || 0,
+          updatedAt: colegio.updatedAt || null,
+          cursos: colegio.cursos || [],
+        } as ColegioType))
         
-        console.log('[ListasListing] ✅ Listas actualizadas en la UI:', nuevasListas.length, 'listas')
+        console.log('[ListasListing] ✅ Listas actualizadas en la UI:', nuevasListas.length, 'colegios')
+        
+        // Debug: Verificar si el colegio RBD 24508 está en los datos mapeados
+        const colegioEnDatos = nuevasListas.find((c: ColegioType) => c.rbd === 24508 || c.rbd === '24508')
+        if (colegioEnDatos) {
+          console.log('[ListasListing] ✅ Colegio RBD 24508 encontrado en datos mapeados:', colegioEnDatos)
+        } else {
+          console.warn('[ListasListing] ⚠️ Colegio RBD 24508 NO encontrado en datos mapeados')
+        }
+        
         setData(nuevasListas)
       } else {
         console.error('[ListasListing] ❌ Respuesta de API no válida:', result)
@@ -1032,6 +1057,9 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               <Button variant="outline-success" onClick={() => setShowImportCompletaModal(true)}>
                 <LuUpload className="fs-sm me-2" /> Importación Completa (Plantilla)
               </Button>
+              <Button variant="outline-primary" onClick={() => setShowCargaMasivaPDFsModal(true)}>
+                <LuSparkles className="fs-sm me-2" /> Carga Masiva PDFs por Colegio
+              </Button>
               {/* Ocultado: Ver Logs */}
               {/* <Link href="/crm/listas/logs">
                 <Button variant="outline-info" title="Ver logs de procesamiento">
@@ -1116,7 +1144,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
           onHide={() => setShowImportCompletaModal(false)}
           onSuccess={() => {
             console.log('[ListasListing] ✅ Importación completa exitosa, recargando listas...')
-            // Recargar listas después de dar más tiempo a Strapi para procesar
+            // Recargar listas sin hacer redirect, solo actualizar el estado local
             setTimeout(() => {
               console.log('[ListasListing] 🔄 Primera recarga (después de 2s)...')
               recargarListas()
@@ -1131,6 +1159,23 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               console.log('[ListasListing] 🔄 Tercera recarga final (después de 8s)...')
               recargarListas()
             }, 8000)
+            // No hacer router.push ni router.refresh - solo actualizar datos localmente
+          }}
+        />
+
+        <CargaMasivaPDFsPorColegioModal
+          show={showCargaMasivaPDFsModal}
+          onHide={() => setShowCargaMasivaPDFsModal(false)}
+          onSuccess={() => {
+            console.log('[ListasListing] ✅ Carga masiva de PDFs exitosa, recargando listas...')
+            // Recargar listas sin hacer redirect, solo actualizar el estado local
+            setTimeout(() => {
+              recargarListas()
+            }, 2000)
+            setTimeout(() => {
+              recargarListas()
+            }, 5000)
+            // No hacer router.push ni router.refresh - solo actualizar datos localmente
           }}
         />
 
