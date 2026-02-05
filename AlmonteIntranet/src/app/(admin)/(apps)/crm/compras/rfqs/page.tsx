@@ -106,8 +106,21 @@ export default function RFQsPage() {
       }
       
       const rfqsData = Array.isArray(result.data) ? result.data : [result.data]
-      setRfqs(rfqsData)
-      setTotalRows(result.meta?.pagination?.total || rfqsData.length)
+      
+      // Normalizar datos para asegurar que siempre tengamos id y documentId
+      const normalizedRFQs = rfqsData.map((rfq: any) => {
+        const attrs = rfq.attributes || rfq
+        return {
+          ...rfq,
+          id: rfq.id || rfq.documentId || attrs?.id || attrs?.documentId,
+          documentId: rfq.documentId || rfq.id || attrs?.documentId || attrs?.id,
+          // Asegurar que los atributos estén en el nivel superior para fácil acceso
+          ...attrs,
+        }
+      })
+      
+      setRfqs(normalizedRFQs)
+      setTotalRows(result.meta?.pagination?.total || normalizedRFQs.length)
     } catch (err: any) {
       console.error('Error al cargar RFQs:', err)
       setError(err.message || 'Error al cargar RFQs')
@@ -142,9 +155,11 @@ export default function RFQsPage() {
       cell: ({ row }) => {
         const attrs = row.original as any
         const nombre = attrs.nombre || attrs.attributes?.nombre || 'Sin nombre'
+        // Usar documentId si está disponible (preferido en Strapi), sino usar id
+        const rfqId = row.original.documentId || row.original.id
         return (
           <Link 
-            href={`/crm/compras/rfqs/${row.original.id || row.original.documentId}`}
+            href={`/crm/compras/rfqs/${rfqId}`}
             className="text-decoration-none fw-medium"
           >
             {nombre}
@@ -358,8 +373,18 @@ export default function RFQsPage() {
     if (!deleteModal.rfq) return
     
     try {
-      const rfqId = deleteModal.rfq.id || deleteModal.rfq.documentId
-      const response = await fetch(`/api/compras/rfqs/${rfqId}`, {
+      // En Strapi v5, para operaciones DELETE debemos usar documentId, no el id numérico
+      const rfqId = deleteModal.rfq.documentId || deleteModal.rfq.id
+      const url = `/api/compras/rfqs/${rfqId}`
+      
+      console.log('[RFQs Page] Eliminando RFQ:', {
+        url,
+        documentId: deleteModal.rfq.documentId,
+        id: deleteModal.rfq.id,
+        rfqIdUsado: rfqId,
+      })
+      
+      const response = await fetch(url, {
         method: 'DELETE',
       })
       

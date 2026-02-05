@@ -152,7 +152,7 @@ export async function GET(
       nivel: attrs.nivel || 'Basica',
       grado: parseInt(attrs.grado) || 1,
       paralelo: attrs.paralelo || '',
-      año: attrs.año || attrs.ano || new Date().getFullYear(),
+      año: attrs.anio || attrs.año || attrs.ano || new Date().getFullYear(),
       descripcion: `Curso: ${nombreCompleto}`,
       activo: attrs.activo !== false,
       pdf_id: ultimaVersion?.pdf_id || null,

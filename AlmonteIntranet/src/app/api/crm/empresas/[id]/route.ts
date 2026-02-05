@@ -262,6 +262,8 @@ export async function PUT(
             ...(body.datos_facturacion.country && { country: body.datos_facturacion.country || 'CL' }),
           },
         }),
+        // Empresa propia (compradora)
+        ...(body.es_empresa_propia !== undefined && { es_empresa_propia: Boolean(body.es_empresa_propia) }),
       },
     }
 

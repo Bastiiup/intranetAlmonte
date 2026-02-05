@@ -40,6 +40,7 @@ interface EmpresaType {
   createdAt?: string
   estado?: string
   createdAtTimestamp?: number
+  es_empresa_propia?: boolean
 }
 
 const columnHelper = createColumnHelper<EmpresaType>()
@@ -74,6 +75,7 @@ const EmpresasListing = ({ empresas: initialEmpresas, error: initialError }: { e
   // Estados de búsqueda y filtros
   const [globalFilter, setGlobalFilter] = useState('')
   const [region, setRegion] = useState('')
+  const [tipoEmpresa, setTipoEmpresa] = useState<'all' | 'propia' | 'proveedora'>('all')
   
   // Estados de tabla
   const [sorting, setSorting] = useState<SortingState>([
@@ -256,6 +258,7 @@ const EmpresasListing = ({ empresas: initialEmpresas, error: initialError }: { e
         estado: data.estado || '',
         createdAt,
         createdAtTimestamp: createdDate.getTime(),
+        es_empresa_propia: data.es_empresa_propia || false,
       }
     })
   }, [empresas])
@@ -299,15 +302,26 @@ const EmpresasListing = ({ empresas: initialEmpresas, error: initialError }: { e
                 {iniciales}
               </span>
             </div>
-            <div>
-              <Link 
-                href={`/crm/empresas/${empresa.id}`}
-                className="text-decoration-none"
-              >
-                <h5 className="mb-0 fw-semibold text-primary" style={{ cursor: 'pointer' }}>
-                  {empresa.nombre}
-                </h5>
-              </Link>
+            <div className="flex-grow-1">
+              <div className="d-flex align-items-center gap-2">
+                <Link 
+                  href={`/crm/empresas/${empresa.id}`}
+                  className="text-decoration-none"
+                >
+                  <h5 className="mb-0 fw-semibold text-primary" style={{ cursor: 'pointer' }}>
+                    {empresa.nombre}
+                  </h5>
+                </Link>
+                {empresa.es_empresa_propia ? (
+                  <span className="badge bg-success-subtle text-success border border-success-subtle">
+                    Empresa Propia
+                  </span>
+                ) : (
+                  <span className="badge bg-info-subtle text-info border border-info-subtle">
+                    Proveedora
+                  </span>
+                )}
+              </div>
               {empresa.razon_social && empresa.razon_social !== empresa.nombre && (
                 <div className="text-muted small">{empresa.razon_social}</div>
               )}
@@ -505,8 +519,24 @@ const EmpresasListing = ({ empresas: initialEmpresas, error: initialError }: { e
     },
   ], [empresas])
 
+  // Filtrar datos antes de pasarlos a la tabla
+  const filteredData = useMemo(() => {
+    let filtered = mappedEmpresas
+    
+    // Aplicar filtro de tipo de empresa
+    if (tipoEmpresa !== 'all') {
+      filtered = filtered.filter(empresa => {
+        if (tipoEmpresa === 'propia') return empresa.es_empresa_propia === true
+        if (tipoEmpresa === 'proveedora') return !empresa.es_empresa_propia
+        return true
+      })
+    }
+    
+    return filtered
+  }, [mappedEmpresas, tipoEmpresa])
+
   const table = useReactTable<EmpresaType>({
-    data: mappedEmpresas,
+    data: filteredData,
     columns,
     state: { sorting, columnFilters, pagination, rowSelection: selectedRowIds },
     onSortingChange: setSorting,
@@ -532,7 +562,7 @@ const EmpresasListing = ({ empresas: initialEmpresas, error: initialError }: { e
 
   const pageIndex = table.getState().pagination.pageIndex
   const pageSize = table.getState().pagination.pageSize
-  const totalItems = globalFilter || region ? (totalRows > 0 ? totalRows : mappedEmpresas.length) : mappedEmpresas.length
+  const totalItems = globalFilter || region || tipoEmpresa !== 'all' ? (totalRows > 0 ? totalRows : filteredData.length) : filteredData.length
 
   const start = pageIndex * pageSize + 1
   const end = Math.min(start + pageSize - 1, totalItems)
@@ -696,6 +726,16 @@ const EmpresasListing = ({ empresas: initialEmpresas, error: initialError }: { e
 
             <div className="d-flex align-items-center gap-2">
               <span className="me-2 fw-semibold">Filtrar por:</span>
+              <select
+                className="form-select form-select-sm"
+                style={{ width: 'auto' }}
+                value={tipoEmpresa}
+                onChange={(e) => setTipoEmpresa(e.target.value as 'all' | 'propia' | 'proveedora')}
+              >
+                <option value="all">Todas las empresas</option>
+                <option value="propia">Empresas Propias</option>
+                <option value="proveedora">Proveedoras</option>
+              </select>
               <select
                 className="form-select form-select-sm"
                 style={{ width: 'auto' }}

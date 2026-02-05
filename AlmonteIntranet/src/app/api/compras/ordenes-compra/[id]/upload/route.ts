@@ -28,13 +28,73 @@ export async function POST(
       )
     }
     
-    if (!type || (type !== 'factura' && type !== 'despacho')) {
+    if (!type || (type !== 'factura' && type !== 'despacho' && type !== 'pago')) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Tipo de archivo inválido. Debe ser "factura" o "despacho"',
+          error: 'Tipo de archivo inválido. Debe ser "factura", "despacho" o "pago"',
         },
         { status: 400 }
+      )
+    }
+    
+    // Primero, buscar la orden de compra para obtener el documentId correcto
+    const isNumericId = /^\d+$/.test(id)
+    let ordenCompra: StrapiEntity<any> | null = null
+    let ordenIdParaUpdate: string | number = id
+    
+    try {
+      const ordenResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+        `/api/ordenes-compra/${id}?fields[0]=id&fields[1]=documentId`
+      )
+      
+      if (ordenResponse.data) {
+        ordenCompra = Array.isArray(ordenResponse.data) ? ordenResponse.data[0] : ordenResponse.data
+        ordenIdParaUpdate = ordenCompra.documentId || ordenCompra.id || id
+        console.log('[API /compras/ordenes-compra/[id]/upload POST] ✅ Orden encontrada:', {
+          idOriginal: id,
+          idParaUpdate: ordenIdParaUpdate,
+          documentId: ordenCompra.documentId,
+        })
+      }
+    } catch (ordenError: any) {
+      // Si falla con 404, intentar buscar por filtros
+      if (ordenError.status === 404) {
+        try {
+          const searchParams = new URLSearchParams({
+            ...(isNumericId ? { 'filters[id][$eq]': id } : { 'filters[documentId][$eq]': id }),
+            'fields[0]': 'id',
+            'fields[1]': 'documentId',
+          })
+          
+          const filterResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+            `/api/ordenes-compra?${searchParams.toString()}`
+          )
+          
+          if (filterResponse.data) {
+            const ordenes = Array.isArray(filterResponse.data) ? filterResponse.data : [filterResponse.data]
+            if (ordenes.length > 0) {
+              ordenCompra = ordenes[0]
+              ordenIdParaUpdate = ordenCompra.documentId || ordenCompra.id || id
+              console.log('[API /compras/ordenes-compra/[id]/upload POST] ✅ Orden encontrada por filtro:', {
+                idOriginal: id,
+                idParaUpdate: ordenIdParaUpdate,
+              })
+            }
+          }
+        } catch (filterError: any) {
+          console.error('[API /compras/ordenes-compra/[id]/upload POST] Error al buscar orden:', filterError.message)
+        }
+      }
+    }
+    
+    if (!ordenCompra) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Orden de compra no encontrada con ID: ${id}`,
+        },
+        { status: 404 }
       )
     }
     
@@ -72,7 +132,7 @@ export async function POST(
     const uploadData = await uploadResponse.json()
     const uploadedFile = Array.isArray(uploadData) ? uploadData[0] : uploadData
     
-    // Actualizar la orden de compra con el archivo
+    // Actualizar la orden de compra con el archivo usando el ID correcto
     const updateData: any = {
       data: {},
     }
@@ -81,20 +141,31 @@ export async function POST(
       updateData.data.factura = uploadedFile.id
     } else if (type === 'despacho') {
       updateData.data.orden_despacho = uploadedFile.id
+    } else if (type === 'pago') {
+      updateData.data.documento_pago = uploadedFile.id
     }
     
+    console.log('[API /compras/ordenes-compra/[id]/upload POST] Actualizando orden:', {
+      ordenIdParaUpdate,
+      tipo: type,
+      archivoId: uploadedFile.id,
+    })
+    
     const response = await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
-      `/api/ordenes-compra/${id}`,
+      `/api/ordenes-compra/${ordenIdParaUpdate}`,
       updateData
     )
+    
+    // Normalizar response.data que puede ser array o objeto
+    const ordenData = Array.isArray(response.data) ? response.data[0] : response.data
     
     return NextResponse.json({
       success: true,
       data: {
-        ...response.data,
-        [type === 'factura' ? 'factura' : 'orden_despacho']: uploadedFile,
+        ...ordenData,
+        [type === 'factura' ? 'factura' : type === 'despacho' ? 'orden_despacho' : 'documento_pago']: uploadedFile,
       },
-      message: `${type === 'factura' ? 'Factura' : 'Despacho'} subido exitosamente`,
+      message: `${type === 'factura' ? 'Factura' : type === 'despacho' ? 'Despacho' : 'Documento de Pago'} subido exitosamente`,
     }, { status: 200 })
   } catch (error: any) {
     console.error('[API /compras/ordenes-compra/[id]/upload POST] Error:', error)

@@ -157,10 +157,10 @@ export default function CotizacionesRecibidasPage() {
     },
     {
       id: 'monto_total',
-      header: 'Monto Total',
+      header: 'Precio Total',
       cell: ({ row }) => {
         const attrs = row.original as any
-        const monto = attrs.monto_total || attrs.attributes?.monto_total
+        const monto = attrs.precio_total || attrs.monto_total || attrs.attributes?.precio_total || attrs.attributes?.monto_total
         const moneda = attrs.moneda || attrs.attributes?.moneda || 'CLP'
         if (!monto) return <span className="text-muted">-</span>
         return (

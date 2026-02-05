@@ -246,7 +246,7 @@ export async function POST(request: NextRequest) {
       nivel: attrs.nivel,
       grado: attrs.grado,
       paralelo: attrs.paralelo,
-      año: attrs.año,
+      año: attrs.anio || attrs.año,
       ano: attrs.ano,
       activo: attrs.activo,
       tieneVersiones: !!attrs.versiones_materiales,
@@ -374,14 +374,15 @@ export async function POST(request: NextRequest) {
     // Año: asegurar que sea un número válido
     // IMPORTANTE: Si el año no existe o es inválido, NO incluirlo en el payload
     // Strapi mantendrá el valor existente del curso
-    const añoValue = attrs.año !== undefined && attrs.año !== null && attrs.año !== '' ? attrs.año : 
-                     (attrs.ano !== undefined && attrs.ano !== null && attrs.ano !== '' ? attrs.ano : null)
+    const añoValue = attrs.anio !== undefined && attrs.anio !== null && attrs.anio !== '' ? attrs.anio : 
+                     (attrs.año !== undefined && attrs.año !== null && attrs.año !== '' ? attrs.año : 
+                     (attrs.ano !== undefined && attrs.ano !== null && attrs.ano !== '' ? attrs.ano : null))
     
     if (añoValue !== null && añoValue !== undefined && añoValue !== '') {
       const añoNum = Number(añoValue)
       if (!isNaN(añoNum) && añoNum > 1900 && añoNum < 2100) {
         // Solo incluir si es un año válido
-        updateData.data.año = añoNum
+        updateData.data.anio = añoNum
         debugLog('[API /crm/cursos/import-pdf POST] ✅ Año incluido:', añoNum)
       } else {
         debugLog('[API /crm/cursos/import-pdf POST] ⚠️ Año inválido, NO incluyendo en payload:', { añoValue, añoNum })

@@ -86,6 +86,7 @@ export async function GET(request: Request) {
     const estado = searchParams.get('estado') || ''
     const region = searchParams.get('region') || ''
     const comuna = searchParams.get('comuna') || ''
+    const esEmpresaPropia = searchParams.get('es_empresa_propia') // Filtro para empresas propias
 
     // Construir URL con paginación y ordenamiento
     const params = new URLSearchParams({
@@ -124,15 +125,45 @@ export async function GET(request: Request) {
       params.append('filters[comuna][id][$eq]', comuna)
     }
 
+    // Agregar filtro por es_empresa_propia
+    if (esEmpresaPropia !== null) {
+      // Si es 'true' o '1', filtrar por empresas propias
+      if (esEmpresaPropia === 'true' || esEmpresaPropia === '1') {
+        params.append('filters[es_empresa_propia][$eq]', 'true')
+      } else if (esEmpresaPropia === 'false' || esEmpresaPropia === '0') {
+        // Si es 'false' o '0', filtrar por empresas que NO son propias
+        params.append('filters[es_empresa_propia][$eq]', 'false')
+      }
+    }
+
     const url = `/api/empresas?${params.toString()}`
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<EmpresaAttributes>>>(
       url
     )
 
+    // Validar que la respuesta tenga la estructura esperada
+    if (!response || typeof response !== 'object' || !('data' in response)) {
+      console.error('[API /crm/empresas] ❌ Respuesta inválida de Strapi:', {
+        responseType: typeof response,
+        responseKeys: response ? Object.keys(response) : 'null/undefined',
+        response,
+      })
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Respuesta inválida de Strapi',
+          details: {
+            hint: 'La respuesta no tiene la estructura esperada. Verifica la conexión con Strapi.',
+          },
+        },
+        { status: 500 }
+      )
+    }
+
     return NextResponse.json({
       success: true,
-      data: response.data,
-      meta: response.meta,
+      data: response.data || [],
+      meta: response.meta || {},
     }, { status: 200 })
   } catch (error: any) {
     // Manejar errores de autenticación
@@ -270,6 +301,8 @@ export async function POST(request: Request) {
             ...(body.datos_facturacion.country && { country: body.datos_facturacion.country || 'CL' }),
           },
         }),
+        // Empresa propia (compradora)
+        ...(body.es_empresa_propia !== undefined && { es_empresa_propia: Boolean(body.es_empresa_propia) }),
       },
     }
 

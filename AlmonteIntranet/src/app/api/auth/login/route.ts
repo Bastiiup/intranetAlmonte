@@ -239,6 +239,9 @@ export async function POST(request: Request) {
       const cookieValue = JSON.stringify(colaboradorParaCookie)
       console.log('[API /auth/login] 💾 Valor de cookie a guardar (primeros 200 chars):', cookieValue.substring(0, 200))
       
+      // 🚫 COOKIES DESACTIVADAS TEMPORALMENTE PARA DEBUGGING
+      // Desactivar cookies para ver el estado real de la conexión a Strapi
+      /*
       // Guardar en múltiples nombres de cookie para compatibilidad:
       // 1. colaboradorData - usado por logging y middleware
       // 2. colaborador - compatibilidad con código existente
@@ -266,8 +269,9 @@ export async function POST(request: Request) {
         path: '/',
         maxAge: 60 * 60 * 24 * 7,
       })
+      */
       
-      console.log('[API /auth/login] ✅ Cookies guardadas exitosamente:', {
+      console.log('[API /auth/login] 🚫 Cookies DESACTIVADAS temporalmente para debugging:', {
         nombres: ['colaboradorData', 'colaborador', 'auth_colaborador'],
         id: colaboradorParaCookie.id,
         documentId: colaboradorParaCookie.documentId,
@@ -275,13 +279,13 @@ export async function POST(request: Request) {
         tienePersona: !!colaboradorParaCookie.persona,
         personaRut: colaboradorParaCookie.persona?.rut || 'NO RUT',
         cookieSize: cookieValue.length,
-        maxAge: '7 días',
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
+        nota: 'Cookies desactivadas para ver estado real de conexión a Strapi',
       })
     }
 
     if (data.usuario) {
+      // 🚫 COOKIES DESACTIVADAS TEMPORALMENTE PARA DEBUGGING
+      /*
       response.cookies.set('user', JSON.stringify(data.usuario), {
         httpOnly: false,
         secure: process.env.NODE_ENV === 'production',
@@ -289,6 +293,7 @@ export async function POST(request: Request) {
         path: '/',
         maxAge: 60 * 60 * 24 * 7,
       })
+      */
     }
 
     return response

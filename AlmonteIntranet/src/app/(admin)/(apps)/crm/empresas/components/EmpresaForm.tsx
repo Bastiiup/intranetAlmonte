@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Form, FormGroup, FormLabel, FormControl, Button, Alert, Row, Col, Card, CardHeader, CardBody } from 'react-bootstrap'
+import { Form, FormGroup, FormLabel, FormControl, FormCheck, Button, Alert, Row, Col, Card, CardHeader, CardBody } from 'react-bootstrap'
 import { LuSave, LuPlus, LuX } from 'react-icons/lu'
 import ChileRegionComuna from '@/components/common/ChileRegionsComunas'
 
@@ -59,6 +59,7 @@ interface EmpresaFormData {
   emails: EmailItem[]
   direcciones: DireccionItem[]
   datos_facturacion?: DatosFacturacion
+  es_empresa_propia?: boolean
 }
 
 interface EmpresaFormProps {
@@ -85,6 +86,7 @@ const EmpresaForm = ({ initialData, onSubmit, onCancel, loading = false, error: 
     datos_facturacion: {
       country: 'CL',
     },
+    es_empresa_propia: false,
   })
 
   useEffect(() => {
@@ -101,6 +103,7 @@ const EmpresaForm = ({ initialData, onSubmit, onCancel, loading = false, error: 
         emails: initialData.emails || [],
         direcciones: initialData.direcciones || [],
         datos_facturacion: initialData.datos_facturacion || { country: 'CL' },
+        es_empresa_propia: initialData.es_empresa_propia || false,
       })
     }
   }, [initialData])
@@ -291,6 +294,29 @@ const EmpresaForm = ({ initialData, onSubmit, onCancel, loading = false, error: 
                     </option>
                   ))}
                 </FormControl>
+              </FormGroup>
+            </Col>
+          </Row>
+
+          <Row>
+            <Col md={12}>
+              <FormGroup className="mb-3">
+                <FormCheck
+                  type="checkbox"
+                  id="es_empresa_propia"
+                  checked={formData.es_empresa_propia || false}
+                  onChange={(e) => handleFieldChange('es_empresa_propia', e.target.checked)}
+                  disabled={loading}
+                  label={
+                    <div>
+                      <strong>Empresa Propia (Compradora)</strong>
+                      <small className="text-muted d-block">
+                        Marca esta opción si esta empresa es propiedad de Almonte (Almonte, Moraleja, Escolar). 
+                        Estas empresas aparecerán al seleccionar datos de facturación para órdenes de compra.
+                      </small>
+                    </div>
+                  }
+                />
               </FormGroup>
             </Col>
           </Row>

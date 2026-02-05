@@ -29,6 +29,7 @@ const NuevoEmpresaPage = () => {
         emails: data.emails.filter((e: any) => e.email),
         direcciones: data.direcciones.filter((d: any) => d.nombre_calle || d.numero_calle),
         datos_facturacion: data.datos_facturacion,
+        es_empresa_propia: data.es_empresa_propia || false,
       }
 
       const response = await fetch('/api/crm/empresas', {

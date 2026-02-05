@@ -13,39 +13,9 @@ const GeneralTab = memo(function GeneralTab({ formData, updateField }: GeneralTa
     <div>
       <h5 className="mb-4">Información General del Producto</h5>
       
-      <Row>
-        <Col md={6}>
-          <FormGroup className="mb-3">
-            <FormLabel>
-              Precio normal ($) <span className="text-danger">*</span>
-            </FormLabel>
-            <FormControl
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="0.00"
-              value={formData.precio || ''}
-              onChange={(e) => updateField('precio', e.target.value)}
-            />
-            <small className="text-muted">Precio regular del producto</small>
-          </FormGroup>
-        </Col>
-
-        <Col md={6}>
-          <FormGroup className="mb-3">
-            <FormLabel>Precio rebajado ($)</FormLabel>
-            <FormControl
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="0.00"
-              value={formData.precio_oferta || ''}
-              onChange={(e) => updateField('precio_oferta', e.target.value)}
-            />
-            <small className="text-muted">Precio de oferta (opcional)</small>
-          </FormGroup>
-        </Col>
-      </Row>
+      <Alert variant="info" className="mb-4">
+        <strong>ℹ️ Nota:</strong> Los precios y el inventario se gestionan desde el módulo de <strong>Inventario/Proveedores</strong>.
+      </Alert>
 
       <Row>
         <Col md={6}>
@@ -105,10 +75,6 @@ const GeneralTab = memo(function GeneralTab({ formData, updateField }: GeneralTa
           </FormGroup>
         </Col>
       </Row>
-
-      <Alert variant="info" className="mt-3">
-        <strong>Nota:</strong> El precio es obligatorio para que el producto se sincronice correctamente con WooCommerce.
-      </Alert>
     </div>
   )
 })

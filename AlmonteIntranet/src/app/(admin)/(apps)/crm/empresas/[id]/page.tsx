@@ -18,6 +18,7 @@ interface EmpresaData {
   rut?: string
   giro?: string
   estado?: string
+  es_empresa_propia?: boolean
   region?: string
   comuna?: {
     comuna_nombre?: string
@@ -53,7 +54,7 @@ interface EmpresaData {
   updatedAt?: string
 }
 
-type TabType = 'informacion' | 'contactos' | 'cotizaciones' | 'oportunidades' | 'rfqs' | 'cotizaciones-recibidas'
+type TabType = 'informacion' | 'contactos' | 'oportunidades' | 'rfqs' | 'cotizaciones-recibidas' | 'ordenes-compra' | 'inventario'
 
 export default function EmpresaDetailPage() {
   const params = useParams()
@@ -64,14 +65,14 @@ export default function EmpresaDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabType>('informacion')
-  const [cotizaciones, setCotizaciones] = useState<any[]>([])
-  const [loadingCotizaciones, setLoadingCotizaciones] = useState(false)
   const [contactos, setContactos] = useState<any[]>([])
   const [loadingContactos, setLoadingContactos] = useState(false)
   const [rfqs, setRfqs] = useState<any[]>([])
   const [loadingRfqs, setLoadingRfqs] = useState(false)
   const [cotizacionesRecibidas, setCotizacionesRecibidas] = useState<any[]>([])
   const [loadingCotizacionesRecibidas, setLoadingCotizacionesRecibidas] = useState(false)
+  const [ordenesCompra, setOrdenesCompra] = useState<any[]>([])
+  const [loadingOrdenesCompra, setLoadingOrdenesCompra] = useState(false)
 
   useEffect(() => {
     const fetchEmpresa = async () => {
@@ -98,6 +99,7 @@ export default function EmpresaDetailPage() {
           rut: attrs.rut,
           giro: attrs.giro,
           estado: attrs.estado,
+          es_empresa_propia: attrs.es_empresa_propia || false,
           region: attrs.region,
           comuna: attrs.comuna?.data?.attributes || attrs.comuna,
           telefonos: attrs.telefonos || [],
@@ -121,27 +123,27 @@ export default function EmpresaDetailPage() {
     }
   }, [empresaId])
 
-  // Cargar cotizaciones cuando se activa la pestaña
+  // Cargar órdenes de compra cuando se activa la pestaña (solo para empresas propias)
   useEffect(() => {
-    if (activeTab === 'cotizaciones' && empresaId && cotizaciones.length === 0 && !loadingCotizaciones) {
-      const loadCotizaciones = async () => {
-        setLoadingCotizaciones(true)
+    if (activeTab === 'ordenes-compra' && empresaId && empresa?.es_empresa_propia && ordenesCompra.length === 0 && !loadingOrdenesCompra) {
+      const loadOrdenesCompra = async () => {
+        setLoadingOrdenesCompra(true)
         try {
-          const response = await fetch(`/api/crm/empresas/${empresaId}/cotizaciones`)
+          const response = await fetch(`/api/compras/ordenes-compra?empresaPropiaId=${empresaId}`)
           const result = await response.json()
           
           if (result.success && result.data) {
-            setCotizaciones(Array.isArray(result.data) ? result.data : [result.data])
+            setOrdenesCompra(Array.isArray(result.data) ? result.data : [result.data])
           }
         } catch (err: any) {
-          console.error('Error al cargar cotizaciones:', err)
+          console.error('Error al cargar órdenes de compra:', err)
         } finally {
-          setLoadingCotizaciones(false)
+          setLoadingOrdenesCompra(false)
         }
       }
-      loadCotizaciones()
+      loadOrdenesCompra()
     }
-  }, [activeTab, empresaId, cotizaciones.length, loadingCotizaciones])
+  }, [activeTab, empresaId, empresa?.es_empresa_propia, ordenesCompra.length, loadingOrdenesCompra])
 
   // Cargar contactos cuando se activa la pestaña
   useEffect(() => {
@@ -615,91 +617,109 @@ export default function EmpresaDetailPage() {
     }
   }
 
-  const renderCotizacionesTab = () => (
+  const renderOrdenesCompraTab = () => (
     <Card>
       <CardHeader className="d-flex justify-content-between align-items-center">
-        <h5 className="mb-0">Cotizaciones ({cotizaciones.length})</h5>
-        <Link href="/crm/estimations" className="btn btn-primary btn-sm">
+        <h5 className="mb-0">
+          Órdenes de Compra Generadas
+          {ordenesCompra.length > 0 && (
+            <Badge bg="primary" className="ms-2">{ordenesCompra.length}</Badge>
+          )}
+        </h5>
+        <Link href="/crm/compras/ordenes-compra" className="btn btn-primary btn-sm">
           Ver Todas
         </Link>
       </CardHeader>
       <CardBody>
-        {loadingCotizaciones ? (
+        {loadingOrdenesCompra ? (
           <div className="text-center py-4">
             <Spinner animation="border" size="sm" />
-            <p className="text-muted mt-2 mb-0">Cargando cotizaciones...</p>
+            <p className="text-muted mt-2 mb-0">Cargando órdenes de compra...</p>
           </div>
-        ) : cotizaciones.length === 0 ? (
+        ) : ordenesCompra.length === 0 ? (
           <Alert variant="info">
-            <p className="mb-0">No hay cotizaciones asociadas a esta empresa.</p>
+            <p className="mb-0">Esta empresa no ha generado órdenes de compra aún.</p>
           </Alert>
         ) : (
           <div className="table-responsive">
             <table className="table table-hover">
               <thead>
                 <tr>
-                  <th>Nombre</th>
-                  <th>Monto</th>
+                  <th>Número PO</th>
+                  <th>Proveedor</th>
+                  <th>Cotización</th>
+                  <th>Monto Total</th>
+                  <th>Fecha Emisión</th>
                   <th>Estado</th>
-                  <th>Fecha Vencimiento</th>
-                  <th>Productos</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {cotizaciones.map((cotizacion) => (
-                  <tr key={cotizacion.id || cotizacion.documentId || `cot-${cotizacion.nombre}`}>
-                    <td>
-                      <div>
-                        <div className="fw-semibold">{cotizacion.nombre}</div>
-                        {cotizacion.descripcion && (
-                          <small className="text-muted">{cotizacion.descripcion.substring(0, 50)}...</small>
-                        )}
-                      </div>
-                    </td>
-                    <td>{formatCurrency(cotizacion.monto, cotizacion.moneda)}</td>
-                    <td>
-                      <Badge bg={getEstadoColor(cotizacion.estado)}>
-                        {cotizacion.estado}
-                      </Badge>
-                    </td>
-                    <td>
-                      {cotizacion.fecha_vencimiento
-                        ? format(new Date(cotizacion.fecha_vencimiento), 'dd MMM yyyy', { locale: es })
-                        : '-'}
-                    </td>
-                    <td>
-                      {cotizacion.productos && cotizacion.productos.length > 0 ? (
-                        <div>
-                          {cotizacion.productos.slice(0, 2).map((prod: any, idx: number) => {
-                            const nombre = prod.attributes?.nombre_libro || prod.nombre_libro || prod.attributes?.nombre || prod.nombre || 'Producto'
-                            return (
-                              <div key={idx} className="small">
-                                {nombre}
-                              </div>
-                            )
-                          })}
-                          {cotizacion.productos.length > 2 && (
-                            <small className="text-muted">+{cotizacion.productos.length - 2} más</small>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted">-</span>
-                      )}
-                    </td>
-                    <td>
-                      <div className="d-flex gap-1">
+                {ordenesCompra.map((po: any) => {
+                  const attrs = po.attributes || po
+                  const empresaProveedora = attrs.empresa?.data || attrs.empresa
+                  const empProveedoraAttrs = empresaProveedora?.attributes || empresaProveedora || {}
+                  const cotizacion = attrs.cotizacion_recibida?.data || attrs.cotizacion_recibida
+                  const cotAttrs = cotizacion?.attributes || cotizacion || {}
+                  
+                  const getEstadoBadgePO = (estado?: string) => {
+                    const estados: Record<string, { variant: string; label: string }> = {
+                      pendiente: { variant: 'warning', label: 'Pendiente' },
+                      emitida: { variant: 'info', label: 'Emitida' },
+                      confirmada: { variant: 'primary', label: 'Confirmada' },
+                      en_transito: { variant: 'info', label: 'En Tránsito' },
+                      recibida: { variant: 'success', label: 'Recibida' },
+                      cancelada: { variant: 'danger', label: 'Cancelada' },
+                    }
+                    const estadoData = estados[estado || 'pendiente'] || estados.pendiente
+                    return <Badge bg={estadoData.variant}>{estadoData.label}</Badge>
+                  }
+                  
+                  return (
+                    <tr key={po.id || po.documentId}>
+                      <td>
                         <Link
-                          href={`/crm/estimations`}
+                          href={`/crm/compras/ordenes-compra/${po.id || po.documentId}`}
+                          className="text-decoration-none fw-semibold"
+                        >
+                          {attrs.numero_po || '-'}
+                        </Link>
+                      </td>
+                      <td>{empProveedoraAttrs.empresa_nombre || empProveedoraAttrs.nombre || '-'}</td>
+                      <td>
+                        {cotAttrs.numero_cotizacion ? (
+                          <Link
+                            href={`/crm/compras/cotizaciones/${cotizacion?.id || cotizacion?.documentId}`}
+                            className="text-decoration-none"
+                          >
+                            {cotAttrs.numero_cotizacion}
+                          </Link>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                      <td>
+                        {attrs.monto_total
+                          ? `${attrs.moneda || 'CLP'} ${Number(attrs.monto_total).toLocaleString()}`
+                          : '-'}
+                      </td>
+                      <td>
+                        {attrs.fecha_emision
+                          ? format(new Date(attrs.fecha_emision), 'dd MMM yyyy', { locale: es })
+                          : '-'}
+                      </td>
+                      <td>{getEstadoBadgePO(attrs.estado)}</td>
+                      <td>
+                        <Link
+                          href={`/crm/compras/ordenes-compra/${po.id || po.documentId}`}
                           className="btn btn-sm btn-outline-primary"
-                          title="Ver detalles"
                         >
                           Ver
                         </Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -725,7 +745,7 @@ export default function EmpresaDetailPage() {
     <Card>
       <CardHeader className="d-flex justify-content-between align-items-center">
         <h5 className="mb-0">
-          Solicitudes de Cotización (RFQ)
+          RFQs Enviadas a esta Empresa (como Proveedor)
           {rfqs.length > 0 && (
             <Badge bg="primary" className="ms-2">{rfqs.length}</Badge>
           )}
@@ -742,7 +762,7 @@ export default function EmpresaDetailPage() {
           </div>
         ) : rfqs.length === 0 ? (
           <Alert variant="info">
-            <p className="mb-0">No hay solicitudes de cotización para esta empresa.</p>
+            <p className="mb-0">No se han enviado solicitudes de cotización (RFQ) a esta empresa como proveedor.</p>
           </Alert>
         ) : (
           <div className="table-responsive">
@@ -808,7 +828,7 @@ export default function EmpresaDetailPage() {
     <Card>
       <CardHeader className="d-flex justify-content-between align-items-center">
         <h5 className="mb-0">
-          Cotizaciones Recibidas
+          Cotizaciones Enviadas por esta Empresa (como Proveedor)
           {cotizacionesRecibidas.length > 0 && (
             <Badge bg="primary" className="ms-2">{cotizacionesRecibidas.length}</Badge>
           )}
@@ -821,11 +841,11 @@ export default function EmpresaDetailPage() {
         {loadingCotizacionesRecibidas ? (
           <div className="text-center py-4">
             <Spinner animation="border" size="sm" />
-            <p className="text-muted mt-2 mb-0">Cargando cotizaciones recibidas...</p>
+            <p className="text-muted mt-2 mb-0">Cargando cotizaciones...</p>
           </div>
         ) : cotizacionesRecibidas.length === 0 ? (
           <Alert variant="info">
-            <p className="mb-0">No hay cotizaciones recibidas de esta empresa.</p>
+            <p className="mb-0">Esta empresa no ha enviado cotizaciones aún.</p>
           </Alert>
         ) : (
           <div className="table-responsive">
@@ -982,15 +1002,6 @@ export default function EmpresaDetailPage() {
             </NavItem>
             <NavItem>
               <NavLink
-                active={activeTab === 'cotizaciones'}
-                onClick={() => setActiveTab('cotizaciones')}
-                style={{ cursor: 'pointer' }}
-              >
-                Cotizaciones
-              </NavLink>
-            </NavItem>
-            <NavItem>
-              <NavLink
                 active={activeTab === 'oportunidades'}
                 onClick={() => setActiveTab('oportunidades')}
                 style={{ cursor: 'pointer' }}
@@ -1004,7 +1015,7 @@ export default function EmpresaDetailPage() {
                 onClick={() => setActiveTab('rfqs')}
                 style={{ cursor: 'pointer' }}
               >
-                RFQs
+                RFQs Enviadas
               </NavLink>
             </NavItem>
             <NavItem>
@@ -1013,18 +1024,29 @@ export default function EmpresaDetailPage() {
                 onClick={() => setActiveTab('cotizaciones-recibidas')}
                 style={{ cursor: 'pointer' }}
               >
-                Cotizaciones Recibidas
+                Cotizaciones Enviadas
               </NavLink>
             </NavItem>
+            {empresa?.es_empresa_propia && (
+              <NavItem>
+                <NavLink
+                  active={activeTab === 'ordenes-compra'}
+                  onClick={() => setActiveTab('ordenes-compra')}
+                  style={{ cursor: 'pointer' }}
+                >
+                  Órdenes de Compra
+                </NavLink>
+              </NavItem>
+            )}
           </Nav>
         </CardHeader>
         <CardBody>
           {activeTab === 'informacion' && renderInformacionTab()}
           {activeTab === 'contactos' && renderContactosTab()}
-          {activeTab === 'cotizaciones' && renderCotizacionesTab()}
           {activeTab === 'oportunidades' && renderOportunidadesTab()}
           {activeTab === 'rfqs' && renderRfqsTab()}
           {activeTab === 'cotizaciones-recibidas' && renderCotizacionesRecibidasTab()}
+          {activeTab === 'ordenes-compra' && renderOrdenesCompraTab()}
         </CardBody>
       </Card>
     </Container>
