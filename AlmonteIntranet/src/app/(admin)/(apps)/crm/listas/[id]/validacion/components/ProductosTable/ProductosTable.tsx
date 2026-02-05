@@ -349,7 +349,7 @@ export default function ProductosTable({
                                 onEliminar={() => onEliminarProducto(producto)}
                                 isApproving={isApprovingProduct === producto.id}
                                 onNavegarAPDF={onNavegarAPDF}
-                                dragHandleProps={provided.dragHandleProps as Record<string, unknown>}
+                                dragHandleProps={provided.dragHandleProps as unknown as Record<string, unknown>}
                                 hasDragHandle
                               />
                             </tr>
