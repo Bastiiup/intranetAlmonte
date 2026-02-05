@@ -1,25 +1,29 @@
 /**
- * API para mapear nombres de PDFs a grupos de curso usando IA (Gemini).
+ * API para mapear nombres de PDFs a grupos de curso usando IA (Claude).
  * POST /api/crm/listas/mapear-pdfs-ia
  * Body: { pdfFileNames: string[], grupos: { key: string, curso: string, colegio: string }[] }
  * Response: { success: true, mapping: Record<string, string>, sinMatch: string[] }
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import Anthropic from '@anthropic-ai/sdk'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 30
 
-const MODELOS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+const MODELOS = [
+  'claude-3-5-haiku-20241022',    // Más rápido y económico
+  'claude-sonnet-4-20250514',     // Más preciso
+  'claude-3-5-sonnet-20241022',   // Fallback
+]
 
 export async function POST(request: NextRequest) {
   try {
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY
-    if (!GEMINI_API_KEY) {
+    const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
+    if (!ANTHROPIC_API_KEY) {
       return NextResponse.json(
-        { success: false, error: 'GEMINI_API_KEY no está configurada' },
+        { success: false, error: 'ANTHROPIC_API_KEY no está configurada' },
         { status: 500 }
       )
     }
@@ -65,20 +69,34 @@ INSTRUCCIONES:
 5. En "sinMatch" pon los nombres de archivo que no pudiste asignar a ningún curso.
 6. Si un PDF coincide con un solo curso, usa ese key. Si hay varios cursos del mismo colegio/nivel, elige el que mejor coincida con el nombre del PDF.`
 
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY)
+    const anthropic = new Anthropic({
+      apiKey: ANTHROPIC_API_KEY,
+    })
     let lastError: Error | null = null
 
     for (const modelName of MODELOS) {
       try {
-        const model = genAI.getGenerativeModel({ model: modelName })
-        const result = await model.generateContent(prompt)
-        const text = result.response.text()
-        if (!text) continue
+        const response = await anthropic.messages.create({
+          model: modelName,
+          max_tokens: 4000,
+          messages: [{
+            role: 'user',
+            content: prompt
+          }]
+        })
+
+        // Extraer texto de la respuesta
+        const contenido = response.content[0]
+        if (contenido.type !== 'text') {
+          throw new Error('Claude no devolvió texto')
+        }
+
+        let jsonStr = contenido.text.trim()
 
         // Extraer JSON (puede venir envuelto en ```json ... ```)
-        let jsonStr = text.trim()
         const jsonMatch = jsonStr.match(/\{[\s\S]*\}/)
         if (jsonMatch) jsonStr = jsonMatch[0]
+        
         const parsed = JSON.parse(jsonStr) as {
           mapping?: Record<string, string>
           sinMatch?: string[]

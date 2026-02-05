@@ -45,12 +45,21 @@ export async function POST(request: NextRequest) {
     for (const cursoId of cursosIds) {
       try {
         const response = await strapiClient.get<any>(
-          `/api/cursos/${cursoId}?populate=colegio&populate=versiones_materiales`
+          `/api/cursos/${cursoId}?populate=colegio&publicationState=preview`
         )
         const cursoData = response.data?.attributes || response.data
+        // Asegurar que versiones_materiales esté presente
+        const versiones = cursoData.versiones_materiales || []
         cursos.push({
           id: cursoId,
           ...cursoData,
+          versiones_materiales: versiones, // Asegurar que esté presente
+        })
+        debugLog('Curso obtenido:', {
+          id: cursoId,
+          nombre: cursoData.nombre_curso,
+          versiones: versiones.length,
+          versionesActivas: versiones.filter((v: any) => v.activo !== false).length,
         })
       } catch (err) {
         debugLog('Error al obtener curso:', cursoId, err)
@@ -233,65 +242,159 @@ function exportarCSV(cursos: any[], colegio: any) {
 }
 
 function exportarEscolar(cursos: any[], colegio: any) {
-  debugLog('Generando formato para escolar.cl...')
+  debugLog('Generando formato para escolar.cl (mismo formato que CSV)...')
   
-  // Formato específico para escolar.cl
+  // Usar el mismo formato que exportarCSV pero en Excel
   const rows: string[][] = []
   
-  // Headers específicos de escolar.cl
+  // Headers según la plantilla (igual que CSV, agregando URL ORIGINAL)
   rows.push([
-    'Establecimiento',
+    'Colegio',
     'RBD',
-    'Nivel',
+    'Comuna',
+    'Orden_colegio',
     'Curso',
-    'Producto',
-    'ISBN',
-    'Cantidad por Alumno',
-    'Total Estudiantes',
-    'Total Productos',
+    'Año_curso',
+    'Orden_curso',
+    'Asignatura',
+    'Orden_asignatura',
+    'Lista_nombre',
+    'Año_lista',
+    'Fecha_actualizacion',
+    'Fecha_publicacion',
+    'URL_lista',
+    'URL_publicacion',
+    'URL ORIGINAL', // Campo agregado
+    'Orden_lista',
+    'Libro_nombre',
+    'Libro_codigo',
+    'Libro_isbn',
+    'Libro_autor',
+    'Libro_editorial',
+    'Libro_orden',
+    'Libro_cantidad',
+    'Libro_observaciones',
+    'Libro_mes_uso',
   ])
 
-  // Data
-  cursos.forEach((curso) => {
+  // Data (igual que CSV pero filtrando solo versiones activas)
+  cursos.forEach((curso, cursoIdx) => {
     const colegioNombre = colegio?.colegio_nombre || curso.colegio?.data?.attributes?.colegio_nombre || ''
     const colegioRBD = colegio?.rbd || curso.colegio?.data?.attributes?.rbd || ''
+    const colegioComuna = colegio?.comuna?.comuna_nombre || 
+                          curso.colegio?.data?.attributes?.comuna?.data?.attributes?.comuna_nombre || 
+                          ''
     const cursoNombre = curso.nombre_curso || ''
-    const nivel = curso.nivel || ''
-    const matriculados = curso.matricula || 0 // Campo correcto según Strapi: "matricula"
+    const año = curso.anio || curso.año || new Date().getFullYear()
 
     const versiones = curso.versiones_materiales || []
-    const ultimaVersion = versiones[versiones.length - 1]
+    // Filtrar solo versiones activas
+    const versionesActivas = versiones.filter((v: any) => v.activo !== false)
+    // Ordenar por fecha y procesar solo las activas
+    const versionesOrdenadas = [...versionesActivas].sort((a: any, b: any) => {
+      const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
+      const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
+      return fechaB - fechaA
+    })
     
-    if (ultimaVersion) {
-      const materiales = ultimaVersion.materiales || []
+    versionesOrdenadas.forEach((version: any, versionIdx: number) => {
+      const materiales = version.materiales || []
+      const listaNombre = version.nombre || `Lista de Útiles ${año}`
+      const fechaActualizacion = version.fecha_actualizacion || curso.updatedAt || ''
+      const fechaPublicacion = version.fecha_publicacion || curso.publishedAt || ''
+      const urlLista = version.pdf_url || ''
+      const urlPublicacion = version.url_publicacion || ''
+      // Obtener URL ORIGINAL de la versión (puede estar en metadata.url_original)
+      const urlOriginal = version.metadata?.url_original || version.url_original || ''
+      
+      // Agrupar por asignatura
+      const materialesPorAsignatura = new Map<string, any[]>()
       
       materiales.forEach((material: any) => {
-        const cantidadPorAlumno = material.cantidad || 1
-        const totalProductos = cantidadPorAlumno * matriculados
-        
+        const asignatura = material.asignatura || 'General'
+        if (!materialesPorAsignatura.has(asignatura)) {
+          materialesPorAsignatura.set(asignatura, [])
+        }
+        materialesPorAsignatura.get(asignatura)!.push(material)
+      })
+
+      // Si no hay materiales, crear una fila vacía
+      if (materiales.length === 0) {
         rows.push([
           colegioNombre,
           String(colegioRBD),
-          nivel,
+          colegioComuna,
+          String(1), // Orden_colegio
           cursoNombre,
-          material.nombre || '',
-          material.isbn || '',
-          String(cantidadPorAlumno),
-          String(matriculados),
-          String(totalProductos),
+          String(año),
+          String(cursoIdx + 1), // Orden_curso
+          '', // Asignatura
+          '', // Orden_asignatura
+          listaNombre,
+          String(año),
+          fechaActualizacion ? new Date(fechaActualizacion).toISOString().split('T')[0] : '',
+          fechaPublicacion ? new Date(fechaPublicacion).toISOString().split('T')[0] : '',
+          urlLista,
+          urlPublicacion,
+          urlOriginal, // URL ORIGINAL agregada
+          String(versionIdx + 1), // Orden_lista
+          '', // Libro_nombre
+          '', // Libro_codigo
+          '', // Libro_isbn
+          '', // Libro_autor
+          '', // Libro_editorial
+          '', // Libro_orden
+          '', // Libro_cantidad
+          '', // Libro_observaciones
+          '', // Libro_mes_uso
         ])
-      })
-    }
+      } else {
+        // Procesar por asignatura
+        let asignaturaIdx = 0
+        materialesPorAsignatura.forEach((materialesAsignatura, asignatura) => {
+          asignaturaIdx++
+          
+          materialesAsignatura.forEach((material: any, materialIdx: number) => {
+            rows.push([
+              colegioNombre,
+              String(colegioRBD),
+              colegioComuna,
+              String(1), // Orden_colegio
+              cursoNombre,
+              String(año),
+              String(cursoIdx + 1), // Orden_curso
+              asignatura,
+              String(asignaturaIdx), // Orden_asignatura
+              listaNombre,
+              String(año),
+              fechaActualizacion ? new Date(fechaActualizacion).toISOString().split('T')[0] : '',
+              fechaPublicacion ? new Date(fechaPublicacion).toISOString().split('T')[0] : '',
+              urlLista,
+              urlPublicacion,
+              urlOriginal, // URL ORIGINAL agregada
+              String(versionIdx + 1), // Orden_lista
+              material.nombre || '',
+              material.codigo || '',
+              material.isbn || '',
+              material.autor || '',
+              material.editorial || '',
+              String(material.orden || materialIdx + 1), // Libro_orden
+              String(material.cantidad || 1),
+              material.observaciones || '',
+              material.mes_uso || '',
+            ])
+          })
+        })
+      }
+    })
   })
 
-  // Convertir a CSV (escolar.cl usa CSV con formato específico)
+  // Convertir a CSV (UTF-8 sin BOM)
   const csvContent = rows
     .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
     .join('\n')
 
-  // Agregar BOM para Excel UTF-8
-  const bom = '\uFEFF'
-  const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' })
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
 
   return new NextResponse(blob, {
     headers: {

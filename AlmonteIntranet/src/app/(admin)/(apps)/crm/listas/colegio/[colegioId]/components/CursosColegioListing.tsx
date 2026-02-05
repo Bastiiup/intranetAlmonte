@@ -23,6 +23,7 @@ import { TbCheck, TbEye, TbX } from 'react-icons/tb'
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import SmartPDFUpload from './SmartPDFUpload'
+import GestionVersionesModal from './GestionVersionesModal'
 
 interface CursoType {
   id: number | string
@@ -129,6 +130,10 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
   
   // Estado para carga inteligente de PDFs
   const [showSmartUpload, setShowSmartUpload] = useState(false)
+  
+  // Estado para modal de gestión de versiones
+  const [showGestionVersiones, setShowGestionVersiones] = useState(false)
+  const [cursoSeleccionado, setCursoSeleccionado] = useState<{ id: string | number; nombre: string } | null>(null)
   const columns: ColumnDef<CursoType, any>[] = [
     {
       id: 'select',
@@ -259,9 +264,41 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
       header: 'ACCIONES',
       cell: ({ row }) => {
         const cursoId = row.original.documentId || row.original.id
+        const pdfId = row.original.pdf_id
+        const pdfUrl = row.original.pdf_url
         
         return (
           <div className="d-flex gap-1">
+            {pdfId && (
+              <Button
+                variant="outline-info"
+                size="sm"
+                onClick={() => {
+                  // Abrir PDF en nueva pestaña usando el endpoint proxy
+                  const url = `/api/crm/cursos/pdf/${pdfId}`
+                  window.open(url, '_blank')
+                }}
+                title="Visualizar PDF"
+              >
+                <LuEye className="me-1" />
+                Ver PDF
+              </Button>
+            )}
+            <Button
+              variant="outline-warning"
+              size="sm"
+              onClick={() => {
+                setCursoSeleccionado({
+                  id: cursoId,
+                  nombre: row.original.nombre
+                })
+                setShowGestionVersiones(true)
+              }}
+              title="Gestionar versiones (ocultar/activar/reemplazar listas)"
+            >
+              <LuPencil className="me-1" />
+              Versiones
+            </Button>
             <Link href={`/crm/listas/${cursoId}/validacion`}>
               <Button
                 variant="primary"
@@ -363,7 +400,7 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `escolar_${colegio?.nombre || 'colegio'}_${new Date().toISOString().split('T')[0]}.xlsx`
+      a.download = `escolar_${colegio?.nombre || 'colegio'}_${new Date().toISOString().split('T')[0]}.csv`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
@@ -837,6 +874,20 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
           router.refresh()
         }}
       />
+      
+      {/* Modal de Gestión de Versiones */}
+      {cursoSeleccionado && (
+        <GestionVersionesModal
+          show={showGestionVersiones}
+          onHide={() => {
+            setShowGestionVersiones(false)
+            setCursoSeleccionado(null)
+          }}
+          cursoId={cursoSeleccionado.id}
+          colegioId={colegio?.documentId || colegio?.id || ''}
+          cursoNombre={cursoSeleccionado.nombre}
+        />
+      )}
     </>
   )
 }
