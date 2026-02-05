@@ -96,7 +96,7 @@ export function useTextSearch() {
   const performSearch = useCallback((
     query: string,
     textLayer: Element,
-    options?: { isbn?: string; marca?: string }
+    options?: { isbn?: string; marca?: string; asignatura?: string }
   ) => {
     // Filtrar spans válidos (sin markedContent, con texto)
     const allSpans = textLayer.querySelectorAll('span')
@@ -268,7 +268,7 @@ export function useTextSearch() {
   const searchInPDF = useCallback((
     query: string,
     container: HTMLElement | null,
-    options?: { isbn?: string; marca?: string }
+    options?: { isbn?: string; marca?: string; asignatura?: string }
   ) => {
     if (!container || !query.trim()) {
       clearHighlights()

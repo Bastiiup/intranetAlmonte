@@ -289,7 +289,7 @@ export function usePDFViewer() {
 
   const searchInPDF = useCallback((
     query: string,
-    options?: { isbn?: string; marca?: string }
+    options?: { isbn?: string; marca?: string; asignatura?: string }
   ) => {
     const container = containerRef.current
     if (!container || !query.trim()) {
