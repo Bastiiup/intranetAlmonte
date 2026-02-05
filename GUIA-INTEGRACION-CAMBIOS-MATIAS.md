@@ -4,6 +4,38 @@
 
 Acá está todo lo que hemos trabajado para que puedas integrarlo sin problemas. Estamos en la rama `intranet-matias`, así que dale con confianza.
 
+## 🤖 Para Cursor AI (Integración Automática)
+
+**Si estás usando Cursor AI, copia y pega esto en el chat:**
+
+```
+Necesito integrar los cambios de la rama intranet-matias. Por favor:
+
+1. Verifica en qué rama estoy actualmente
+2. Haz fetch de origin y cambia a la rama intranet-matias
+3. Haz pull de origin/intranet-matias
+4. Verifica si hay nuevas dependencias en package.json (especialmente react-hot-toast)
+5. Si hay nuevas dependencias, ejecuta npm install en AlmonteIntranet
+6. Verifica que exista el archivo .env.local y que tenga la variable ANTHROPIC_API_KEY configurada
+7. Si falta ANTHROPIC_API_KEY, avísame para que la configure
+8. Revisa los archivos nuevos y modificados listados en esta guía
+9. Verifica que no haya conflictos de merge
+10. Si todo está bien, reinicia el servidor con npm run dev
+
+Archivos nuevos que deberían existir:
+- src/app/(admin)/(apps)/crm/listas/components/CargaMasivaPDFsPorColegioModal.tsx
+- src/app/(admin)/(apps)/crm/listas/colegio/[colegioId]/components/GestionVersionesModal.tsx
+- src/app/(admin)/(apps)/crm/listas/debug-importacion/page.tsx
+- src/app/api/crm/listas/debug-colegio/route.ts
+
+Archivos modificados importantes:
+- src/app/api/crm/listas/carga-masiva-ia/route.ts (ahora usa Claude en lugar de Gemini)
+- src/app/api/crm/listas/exportar-cursos/route.ts (exportación escolar ahora es CSV)
+- src/app/api/crm/listas/mapear-pdfs-ia/route.ts (ahora usa Claude)
+
+Si encuentras algún problema o conflicto, detente y avísame antes de continuar.
+```
+
 ## 📋 Cambios Principales
 
 ### 1. **Carga Masiva de PDFs por Colegio** 🎯
