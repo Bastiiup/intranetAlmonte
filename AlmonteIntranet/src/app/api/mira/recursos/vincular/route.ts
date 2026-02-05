@@ -49,6 +49,8 @@ export async function POST(request: NextRequest) {
   const creados: { id: string; nombre: string; orden: number }[] = []
   const errores: { id: string; nombre: string; error: string }[] = []
 
+  console.log('[MIRA vincular] Inicio:', { libroId, totalVideos: videos.length, baseUrl })
+
   for (let orden = 0; orden < videos.length; orden++) {
     const v = videos[orden]
     const id = v?.id ?? ''
@@ -72,22 +74,37 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify(payload),
       })
 
+      const text = await res.text()
+      let errorMsg = text || res.statusText
+
       if (!res.ok) {
-        const text = await res.text()
-        errores.push({ id, nombre, error: text || res.statusText })
+        try {
+          const errJson = JSON.parse(text) as { error?: { message?: string; details?: unknown } }
+          errorMsg = errJson.error?.message ?? text
+        } catch {
+          // mantener text si no es JSON
+        }
+        console.error('[MIRA vincular] Strapi error:', res.status, errorMsg, text.slice(0, 500))
+        errores.push({ id, nombre, error: errorMsg })
         continue
       }
       creados.push({ id, nombre, orden })
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Error de red'
+      console.error('[MIRA vincular] Excepción:', msg, e)
       errores.push({ id, nombre, error: msg })
     }
+  }
+
+  if (errores.length > 0) {
+    console.warn('[MIRA vincular] Resumen errores:', errores.map((e) => e.error))
   }
 
   return NextResponse.json({
     success: true,
     creados: creados.length,
     errores: errores.length,
+    primerError: errores[0]?.error ?? null,
     detalle: { creados, errores },
   })
 }

@@ -33,3 +33,12 @@ STRAPI_API_TOKEN=tu_token
 ```
 
 Sin `BUNNY_API_KEY` y `BUNNY_LIBRARY_ID`, la pestaña de subida y el listado de videos en “Asignar a libro” devolverán 503. Sin `STRAPI_API_TOKEN`, la vinculación a libros fallará.
+
+## Logs al vincular videos
+
+Si "Vincular videos" falla (ej. "Vinculados 0. Errores: 1"):
+
+1. **En la UI:** El mensaje de error muestra el detalle que devuelve Strapi.
+2. **En Railway:** Proyecto → servicio Intranet → Deployments → último deploy → View Logs. Busca líneas `[MIRA vincular]` (Inicio, Strapi error, Resumen errores).
+
+Así puedes ver si es 404 (no existe recursos-mira en Strapi), 400 (campos incorrectos) o 403 (permisos).

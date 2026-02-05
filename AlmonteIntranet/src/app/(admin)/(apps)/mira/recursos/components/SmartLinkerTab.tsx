@@ -115,10 +115,20 @@ export default function SmartLinkerTab() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error al vincular')
-      setMessage({
-        type: 'success',
-        text: `Vinculados ${data.creados ?? toLink.length} videos.${data.errores ? ` Errores: ${data.errores}.` : ''}`,
-      })
+      const creados = data.creados ?? 0
+      const errores = data.errores ?? 0
+      const primerError = data.primerError ?? null
+      if (errores > 0 && primerError) {
+        setMessage({
+          type: 'danger',
+          text: `Vinculados ${creados} videos. Errores: ${errores}. Detalle: ${primerError}`,
+        })
+      } else {
+        setMessage({
+          type: 'success',
+          text: `Vinculados ${creados} videos.${errores ? ` Errores: ${errores}.` : ''}`,
+        })
+      }
       setSelectedVideoIds(new Set())
     } catch (e: unknown) {
       setMessage({ type: 'danger', text: e instanceof Error ? e.message : 'Error al vincular' })
