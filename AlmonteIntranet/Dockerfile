@@ -1,16 +1,8 @@
-# Usar imagen base Debian (glibc) para compatibilidad con @napi-rs/canvas y pdf-parse
-# Alpine (musl) puede fallar al compilar/ejecutar módulos nativos
-FROM node:20-slim
+# Usar imagen base de Node.js 20 LTS (más estable y disponible)
+FROM node:20-alpine
 
-# Dependencias de runtime para @napi-rs/canvas (Cairo, Pango, etc.)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libcairo2 \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libjpeg62-turbo \
-    libgif7 \
-    librsvg2-2 \
-    && rm -rf /var/lib/apt/lists/*
+# Instalar solo lo necesario para build
+RUN apk add --no-cache libc6-compat
 
 # Establecer directorio de trabajo
 WORKDIR /app
@@ -29,7 +21,8 @@ ENV SKIP_TYPE_CHECK=true
 ENV NEXT_PRIVATE_SKIP_TYPE_CHECK=true
 # Deshabilitar validaciones y checks innecesarios
 ENV NEXT_PRIVATE_SKIP_VALIDATION=true
-# TURBOPACK eliminado: puede causar fallos en builds de producción en Railway
+# Habilitar Turbopack para builds más rápidos
+ENV TURBOPACK=1
 # Habilitar cache de build
 ENV NEXT_PRIVATE_BUILD_CACHE=true
 
@@ -61,7 +54,7 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV NODE_ENV=production
 
-# Comando para iniciar la aplicación (standalone está en .next/standalone)
-WORKDIR /app/.next/standalone
+# Comando para iniciar la aplicación
+# Ejecutar server.js desde /app
+WORKDIR /app
 CMD ["node", "server.js"]
-
