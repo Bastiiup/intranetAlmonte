@@ -1,13 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createHash } from 'node:crypto'
 import { getBunnyApiKey, getBunnyLibraryId, BUNNY_VIDEO_BASE } from '@/lib/bunny/config'
 
 export const dynamic = 'force-dynamic'
 
+type CreateUploadBody = {
+  title?: string
+}
+
 /**
  * POST /api/bunny/videos/upload
- * Multipart: title (string), file (archivo de video).
- * Crea el video en Bunny (POST) y luego sube el archivo (PUT).
- * Proxy para no exponer BUNNY_API_KEY en el cliente.
+ *
+ * En lugar de recibir el archivo de video (que rompe el límite de 10MB de Next.js),
+ * este endpoint solo:
+ *   1) Crea el video en Bunny (POST /library/{id}/videos) y obtiene el GUID.
+ *   2) Genera una firma SHA256 para subida directa vía TUS desde el navegador.
+ *
+ * Devuelve los datos necesarios para que el cliente haga upload directo a:
+ *   https://video.bunnycdn.com/tusupload
+ *
+ * Headers que deberá usar el cliente (tus-js-client):
+ *   - AuthorizationSignature: SHA256(libraryId + apiKey + expiration + videoId)
+ *   - AuthorizationExpire:   expiration (UNIX seconds)
+ *   - VideoId:               video GUID
+ *   - LibraryId:             libraryId
  */
 export async function POST(request: NextRequest) {
   const apiKey = getBunnyApiKey()
@@ -20,26 +36,15 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  let title = ''
-  let file: File | null = null
-
+  let body: CreateUploadBody
   try {
-    const formData = await request.formData()
-    title = (formData.get('title') as string)?.trim() || 'Sin título'
-    file = formData.get('file') as File | null
+    body = (await request.json()) as CreateUploadBody
   } catch {
-    return NextResponse.json(
-      { error: 'FormData inválido' },
-      { status: 400 }
-    )
+    body = {}
   }
 
-  if (!file || !file.size) {
-    return NextResponse.json(
-      { error: 'Falta el archivo de video' },
-      { status: 400 }
-    )
-  }
+  const rawTitle = (body.title ?? '').trim()
+  const title = rawTitle || 'Sin título'
 
   const headers: HeadersInit = {
     AccessKey: apiKey,
@@ -70,30 +75,22 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // 2) Subir archivo (PUT) — cuerpo binario
-  const uploadUrl = `${BUNNY_VIDEO_BASE}/library/${libraryId}/videos/${videoId}`
-  const arrayBuffer = await file.arrayBuffer()
-  const uploadRes = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: {
-      AccessKey: apiKey,
-      'Content-Type': file.type || 'application/octet-stream',
-      'Content-Length': String(arrayBuffer.byteLength),
-    },
-    body: arrayBuffer,
-  })
+  // 2) Generar firma para subida directa via TUS
+  const expires = Math.floor(Date.now() / 1000) + 60 * 60 // 1 hora
+  // Fórmula oficial Bunny Stream pre-signed upload:
+  // SHA256(libraryId + apiKey + expiration + videoId)
+  const raw = `${libraryId}${apiKey}${expires}${videoId}`
+  const signature = createHash('sha256').update(raw).digest('hex')
 
-  if (!uploadRes.ok) {
-    const errText = await uploadRes.text()
-    return NextResponse.json(
-      { error: errText || uploadRes.statusText, videoId },
-      { status: uploadRes.status }
-    )
-  }
+  const uploadUrl = `${BUNNY_VIDEO_BASE}/tusupload`
 
   return NextResponse.json({
     success: true,
-    videoId,
     title,
+    videoId,
+    libraryId,
+    uploadUrl,
+    expires,
+    signature,
   })
 }

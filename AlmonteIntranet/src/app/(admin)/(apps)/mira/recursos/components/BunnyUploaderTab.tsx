@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { Card, CardBody, ProgressBar, Button, Alert } from 'react-bootstrap'
 import { LuUpload, LuX } from 'react-icons/lu'
+import * as tus from 'tus-js-client'
 
 const CONCURRENCY = 3
 
@@ -41,27 +42,79 @@ export default function BunnyUploaderTab() {
     const pending = current.filter((i) => i.status === 'pending')
     if (pending.length === 0) return
     runningRef.current = true
+
     const runOne = async (item: FileItem) => {
-      updateItem(item.id, { status: 'uploading', progress: 10 })
-      const form = new FormData()
-      form.set('title', item.file.name.replace(/\.[^.]+$/, '') || item.file.name)
-      form.set('file', item.file)
+      updateItem(item.id, { status: 'uploading', progress: 5 })
+
+      const title = item.file.name.replace(/\.[^.]+$/, '') || item.file.name
+
       try {
-        const res = await fetch('/api/bunny/videos/upload', { method: 'POST', body: form })
-        updateItem(item.id, { progress: 90 })
+        // 1) Pedir a nuestra API los datos para subida directa (crear video + firma)
+        const res = await fetch('/api/bunny/videos/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title }),
+        })
         const data = await res.json().catch(() => ({}))
         if (!res.ok) {
-          updateItem(item.id, { status: 'error', progress: 0, error: data.error || res.statusText })
+          updateItem(item.id, {
+            status: 'error',
+            progress: 0,
+            error: data.error || res.statusText,
+          })
           return
         }
-        updateItem(item.id, { status: 'done', progress: 100, videoId: data.videoId })
+
+        const { uploadUrl, videoId, libraryId, expires, signature } = data as {
+          uploadUrl: string
+          videoId: string
+          libraryId: string
+          expires: number
+          signature: string
+        }
+
+        // 2) Subir archivo directo a Bunny via TUS
+        await new Promise<void>((resolve, reject) => {
+          const upload = new tus.Upload(item.file, {
+            endpoint: uploadUrl,
+            chunkSize: 5 * 1024 * 1024, // 5MB por chunk
+            retryDelays: [0, 3000, 5000, 10000],
+            metadata: {
+              filename: item.file.name,
+              filetype: item.file.type || 'video/mp4',
+            },
+            headers: {
+              AuthorizationSignature: signature,
+              AuthorizationExpire: String(expires),
+              LibraryId: String(libraryId),
+              VideoId: String(videoId),
+            },
+            onProgress(bytesSent, bytesTotal) {
+              if (!bytesTotal) return
+              const pct = Math.round((bytesSent / bytesTotal) * 100)
+              updateItem(item.id, { progress: Math.min(99, Math.max(pct, 10)) })
+            },
+            onSuccess() {
+              resolve()
+            },
+            onError(error) {
+              reject(error)
+            },
+          })
+
+          upload.start()
+        })
+
+        updateItem(item.id, { status: 'done', progress: 100, videoId })
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'Error de red'
         updateItem(item.id, { status: 'error', progress: 0, error: msg })
       }
     }
+
     const batch = pending.slice(0, CONCURRENCY)
     await Promise.all(batch.map(runOne))
+
     runningRef.current = false
     if (itemsRef.current.some((i) => i.status === 'pending')) setTimeout(runQueue, 0)
   }, [updateItem])
