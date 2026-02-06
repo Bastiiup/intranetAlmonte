@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { Card, CardBody, ProgressBar, Button, Alert } from 'react-bootstrap'
+import { Card, CardBody, ProgressBar, Button, Alert, Form } from 'react-bootstrap'
 import { LuUpload, LuX } from 'react-icons/lu'
 import * as tus from 'tus-js-client'
 
 const CONCURRENCY = 3
+
+const SECCIONES = ['Teorico', 'Ensayo', 'Ejercitacion', 'Solucionario', 'Clase_Grabada', 'Otro'] as const
 
 type FileItem = {
   file: File
@@ -24,13 +26,19 @@ export default function BunnyUploaderTab() {
   const [items, setItems] = useState<FileItem[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [globalError, setGlobalError] = useState<string | null>(null)
+  const [numeroCapitulo, setNumeroCapitulo] = useState('')
+  const [seccion, setSeccion] = useState<string>(SECCIONES[0])
   const inputRef = useRef<HTMLInputElement>(null)
   const itemsRef = useRef<FileItem[]>(items)
   const runningRef = useRef(false)
+  const configRef = useRef({ numeroCapitulo: '', seccion: SECCIONES[0] })
 
   useEffect(() => {
     itemsRef.current = items
   }, [items])
+  useEffect(() => {
+    configRef.current = { numeroCapitulo, seccion }
+  }, [numeroCapitulo, seccion])
 
   const updateItem = useCallback((id: string, patch: Partial<FileItem>) => {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)))
@@ -106,6 +114,32 @@ export default function BunnyUploaderTab() {
 
           upload.start()
         })
+
+        // 3) Registrar en Strapi (recurso-mira) con capítulo y sección (sin libro_mira)
+        const cfg = configRef.current
+        const refRes = await fetch('/api/mira/recursos/crear-referencia', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nombre: item.file.name,
+            video_id: videoId,
+            tipo: 'video',
+            proveedor: 'bunny_stream',
+            numero_capitulo: cfg.numeroCapitulo || undefined,
+            seccion: cfg.seccion,
+            orden: 0,
+          }),
+        })
+        const refData = await refRes.json().catch(() => ({}))
+        if (!refRes.ok) {
+          updateItem(item.id, {
+            status: 'error',
+            progress: 0,
+            error: refData.error || refRes.statusText || 'Error al registrar en Strapi',
+          })
+          setGlobalError(refData.error || 'Error al registrar en Strapi')
+          return
+        }
 
         updateItem(item.id, { status: 'done', progress: 100, videoId })
       } catch (e: unknown) {
@@ -212,6 +246,43 @@ export default function BunnyUploaderTab() {
 
         {total > 0 && (
           <>
+            <Card className="mt-3 mb-2 border-secondary">
+              <CardBody className="py-3">
+                <p className="text-muted small mb-2">
+                  Clasificación para todos los videos de esta lista (se aplica al subir).
+                </p>
+                <div className="row g-2">
+                  <div className="col-12 col-md-4">
+                    <Form.Group>
+                      <Form.Label className="small">Capítulo</Form.Label>
+                      <Form.Control
+                        type="text"
+                        placeholder="ej. 1, 2.5, 2A"
+                        value={numeroCapitulo}
+                        onChange={(e) => setNumeroCapitulo(e.target.value)}
+                        size="sm"
+                      />
+                    </Form.Group>
+                  </div>
+                  <div className="col-12 col-md-4">
+                    <Form.Group>
+                      <Form.Label className="small">Sección</Form.Label>
+                      <Form.Select
+                        size="sm"
+                        value={seccion}
+                        onChange={(e) => setSeccion(e.target.value)}
+                      >
+                        {SECCIONES.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </Form.Select>
+                    </Form.Group>
+                  </div>
+                </div>
+              </CardBody>
+            </Card>
             <div className="d-flex justify-content-between align-items-center mt-3 mb-2">
               <span>
                 Progreso total: {done}/{total}
