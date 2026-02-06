@@ -62,21 +62,26 @@ export async function POST(request: NextRequest) {
       const searchUrl = `${baseUrl}?filters[video_id][$eq]=${encodeURIComponent(guid)}`
       const searchRes = await fetch(searchUrl, { method: 'GET', headers })
       const searchText = await searchRes.text()
-      let existingId: number | null = null
+      // Strapi v5 usa documentId en la URL; v4 usa id numérico
+      let existingDocId: string | null = null
       if (searchRes.ok && searchText) {
         try {
-          const searchJson = JSON.parse(searchText) as { data?: { id: number }[] }
+          const searchJson = JSON.parse(searchText) as {
+            data?: { documentId?: string; id?: number }[]
+          }
           if (Array.isArray(searchJson.data) && searchJson.data.length > 0) {
-            existingId = searchJson.data[0].id
+            const first = searchJson.data[0]
+            existingDocId =
+              first.documentId ?? (first.id != null ? String(first.id) : null)
           }
         } catch {
           // ignorar parse error
         }
       }
 
-      if (existingId != null) {
+      if (existingDocId != null) {
         // 2a) Existe: PUT solo libro_mira y orden (no tocamos numero_capitulo ni seccion)
-        const putUrl = `${baseUrl}/${existingId}`
+        const putUrl = `${baseUrl}/${encodeURIComponent(existingDocId)}`
         const putPayload = { data: { libro_mira: libroId, orden } }
         const putRes = await fetch(putUrl, {
           method: 'PUT',
