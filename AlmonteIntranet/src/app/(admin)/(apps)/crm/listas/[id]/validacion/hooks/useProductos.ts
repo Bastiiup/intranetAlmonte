@@ -69,7 +69,7 @@ export function useProductos({
         }
       }
 
-      // Determinar qué versión usar
+      // Determinar qué versión usar (solo versiones activas)
       let versionActual: any = null
       
       // Extraer array de materiales de una versión (Strapi/IA puede usar "materiales" o "productos")
@@ -79,18 +79,42 @@ export function useProductos({
         return Array.isArray(arr) ? arr : []
       }
 
-      if (mostrarTodosLosProductos && listaActual.versiones_materiales) {
-        // Combinar todos los productos de todas las versiones
+      // Filtrar solo versiones activas (activo !== false)
+      const versionesActivas = listaActual.versiones_materiales?.filter((v: any) => v.activo !== false) || []
+
+      if (mostrarTodosLosProductos && versionesActivas.length > 0) {
+        // Combinar todos los productos de todas las versiones activas
         const todosLosProductos: any[] = []
-        listaActual.versiones_materiales.forEach((version: any) => {
+        versionesActivas.forEach((version: any) => {
           todosLosProductos.push(...getMaterialesDeVersion(version))
         })
         versionActual = { materiales: todosLosProductos }
-      } else if (versionSeleccionada !== null && listaActual.versiones_materiales) {
-        versionActual = listaActual.versiones_materiales[versionSeleccionada]
-      } else if (listaActual.versiones_materiales && listaActual.versiones_materiales.length > 0) {
-        // Usar la última versión (más reciente)
-        const versionesOrdenadas = [...listaActual.versiones_materiales].sort((a: any, b: any) => {
+      } else if (versionSeleccionada !== null && versionesActivas.length > 0) {
+        // Si hay una versión seleccionada, buscar en las versiones activas
+        const todasVersiones = [...(listaActual.versiones_materiales || [])].sort((a: any, b: any) => {
+          const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
+          const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
+          return fechaB - fechaA
+        })
+        const versionSeleccionadaOriginal = todasVersiones[versionSeleccionada]
+        if (versionSeleccionadaOriginal && versionSeleccionadaOriginal.activo !== false) {
+          const versionesOrdenadas = [...versionesActivas].sort((a: any, b: any) => {
+            const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
+            const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
+            return fechaB - fechaA
+          })
+          const indexEnActivas = versionesOrdenadas.findIndex((v: any) => 
+            v.id === versionSeleccionadaOriginal.id || 
+            (v.fecha_subida === versionSeleccionadaOriginal.fecha_subida && 
+             v.nombre_archivo === versionSeleccionadaOriginal.nombre_archivo)
+          )
+          if (indexEnActivas >= 0) {
+            versionActual = versionesOrdenadas[indexEnActivas]
+          }
+        }
+      } else if (versionesActivas.length > 0) {
+        // Usar la última versión activa (más reciente)
+        const versionesOrdenadas = [...versionesActivas].sort((a: any, b: any) => {
           const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
           const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
           return fechaB - fechaA

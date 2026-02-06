@@ -363,6 +363,17 @@ export async function PUT(
       debugLog('[API /crm/cursos/[id] PUT] 📦 Productos en primera versión:', versionesGuardadas[0].productos.length)
     }
 
+    // Revalidar rutas relacionadas para asegurar que los cambios se reflejen
+    try {
+      const { revalidatePath } = await import('next/cache')
+      revalidatePath(`/crm/listas/${id}/validacion`)
+      revalidatePath(`/crm/listas/colegio`)
+      revalidatePath('/crm/listas')
+      debugLog('[API /crm/cursos/[id] PUT] ✅ Rutas revalidadas')
+    } catch (revalidateError: any) {
+      debugLog('[API /crm/cursos/[id] PUT] ⚠️ Error al revalidar rutas (no crítico):', revalidateError.message)
+    }
+
     return NextResponse.json({
       success: true,
       data: response.data,

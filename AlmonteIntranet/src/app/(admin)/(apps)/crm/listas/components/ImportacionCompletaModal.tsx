@@ -1497,6 +1497,11 @@ Columnas detectadas en tu archivo: ${columnasEnArchivo}`)
                   colegioIdAsignado: colegioId,
                   tipoColegioId: typeof colegioId,
                 })
+                // Actualizar colegio actual con datos encontrados
+                setColegioActual({
+                  nombre: colegio.nombre || grupo.colegio.nombre || 'Sin nombre',
+                  rbd: grupo.colegio.rbd || colegio.rbd
+                })
               }
             }
           }
@@ -1516,6 +1521,11 @@ Columnas detectadas en tu archivo: ${columnasEnArchivo}`)
               colegioExistente = colegio.datosCompletos || colegiosCompletosMap.get(colegio.id)
               colegioEncontrado = colegio
               console.log(`[Importación Completa] ✅ Colegio encontrado por nombre: ${colegio.nombre} (ID: ${colegio.id})`)
+              // Actualizar colegio actual con datos encontrados
+              setColegioActual({
+                nombre: colegio.nombre || grupo.colegio.nombre || 'Sin nombre',
+                rbd: grupo.colegio.rbd || colegio.rbd
+              })
             }
           }
 
@@ -1536,6 +1546,11 @@ Columnas detectadas en tu archivo: ${columnasEnArchivo}`)
                   colegioExistente = colegio.datosCompletos || colegiosCompletosMap.get(colegio.id)
                   colegioEncontrado = colegio
                   console.log(`[Importación Completa] ✅ Colegio encontrado en búsqueda flexible: ${colegio.nombre}`)
+                  // Actualizar colegio actual con datos encontrados
+                  setColegioActual({
+                    nombre: colegio.nombre || grupo.colegio.nombre || 'Sin nombre',
+                    rbd: grupo.colegio.rbd || colegio.rbd
+                  })
                   break
                 }
               }
@@ -1553,6 +1568,12 @@ Columnas detectadas en tu archivo: ${columnasEnArchivo}`)
               }
 
               console.log(`[Importación Completa] ➕ Creando nuevo colegio: ${grupo.colegio.nombre} (RBD: ${grupo.colegio.rbd})`)
+              // Actualizar colegio actual antes de crear
+              setColegioActual({
+                nombre: grupo.colegio.nombre || 'Sin nombre',
+                rbd: grupo.colegio.rbd
+              })
+              
               const createColegioResponse = await fetch('/api/crm/colegios', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1568,6 +1589,11 @@ Columnas detectadas en tu archivo: ${columnasEnArchivo}`)
               if (createColegioResponse.ok && createColegioResult.success) {
                 const nuevoColegio = createColegioResult.data
                 colegioId = nuevoColegio.id || nuevoColegio.documentId
+                // Actualizar colegio actual con datos del nuevo colegio creado
+                setColegioActual({
+                  nombre: nuevoColegio.colegio_nombre || grupo.colegio.nombre || 'Sin nombre',
+                  rbd: nuevoColegio.rbd || grupo.colegio.rbd
+                })
                 
                 // Guardar datos completos del nuevo colegio
                 if (colegioId) {
@@ -3551,14 +3577,18 @@ Columnas detectadas en tu archivo: ${columnasEnArchivo}`)
             <ProgressBar now={progress} label={`${progress}%`} />
           </div>
           {colegioActual && (
-            <div className="mb-2 small">
-              <strong>Colegio:</strong> {colegioActual.nombre}
-              {colegioActual.rbd && (
-                <span className="ms-2">
-                  <strong>RBD:</strong> {colegioActual.rbd}
-                </span>
-              )}
-            </div>
+            <Alert variant="primary" className="mb-2" style={{ fontSize: '0.95rem' }}>
+              <div className="d-flex align-items-center justify-content-center gap-3">
+                <div>
+                  <strong>🏫 Colegio:</strong> <span className="fw-bold">{colegioActual.nombre}</span>
+                </div>
+                {colegioActual.rbd && (
+                  <div>
+                    <strong>🔢 RBD:</strong> <span className="fw-bold">{colegioActual.rbd}</span>
+                  </div>
+                )}
+              </div>
+            </Alert>
           )}
           <small className="text-muted">
             Procesando grupos... Puedes continuar trabajando en otra pestaña.
@@ -4204,18 +4234,23 @@ Columnas detectadas en tu archivo: ${columnasEnArchivo}`)
         {step === 'processing' && (
           <div className="text-center">
             <Spinner animation="border" className="mb-3" />
-            <p>Procesando {gruposCount} listas...</p>
+            <h5 className="mb-3">Procesando {gruposCount} listas...</h5>
             {colegioActual && (
-              <Alert variant="info" className="mb-3">
-                <strong>Colegio actual:</strong> {colegioActual.nombre}
-                {colegioActual.rbd && (
-                  <span className="ms-2">
-                    <strong>RBD:</strong> {colegioActual.rbd}
-                  </span>
-                )}
+              <Alert variant="primary" className="mb-3" style={{ fontSize: '1.1rem' }}>
+                <div className="d-flex align-items-center justify-content-center gap-3">
+                  <div>
+                    <strong>🏫 Colegio:</strong> <span className="fw-bold">{colegioActual.nombre}</span>
+                  </div>
+                  {colegioActual.rbd && (
+                    <div>
+                      <strong>🔢 RBD:</strong> <span className="fw-bold">{colegioActual.rbd}</span>
+                    </div>
+                  )}
+                </div>
               </Alert>
             )}
-            <ProgressBar now={progress} label={`${Math.round(progress)}%`} className="mb-3" />
+            <ProgressBar now={progress} label={`${Math.round(progress)}%`} className="mb-3" style={{ height: '30px', fontSize: '1rem' }} />
+            <p className="text-muted mt-2">Por favor, espere mientras se procesan los datos...</p>
           </div>
         )}
 

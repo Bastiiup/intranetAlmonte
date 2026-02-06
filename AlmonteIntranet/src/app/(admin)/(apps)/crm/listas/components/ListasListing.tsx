@@ -16,7 +16,7 @@ import {
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo } from 'react'
-import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge, Spinner } from 'react-bootstrap'
+import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge, Spinner, OverlayTrigger, Tooltip } from 'react-bootstrap'
 import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw, LuFileCode, LuPackageSearch, LuSparkles } from 'react-icons/lu'
 import { TbEdit, TbTrash } from 'react-icons/tb'
 
@@ -1054,12 +1054,47 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                 <LuFileCode className="me-1" />
                 Logs Importación
               </Link> */}
-              <Button variant="outline-success" onClick={() => setShowImportCompletaModal(true)}>
-                <LuUpload className="fs-sm me-2" /> Importación Completa (Plantilla)
-              </Button>
-              <Button variant="outline-primary" onClick={() => setShowCargaMasivaPDFsModal(true)}>
-                <LuSparkles className="fs-sm me-2" /> Carga Masiva PDFs por Colegio
-              </Button>
+              <OverlayTrigger
+                placement="top"
+                overlay={
+                  <Tooltip>
+                    <div className="text-start">
+                      <strong>Importación Completa (Plantilla)</strong>
+                      <br />
+                      Permite cargar masivamente colegios, cursos, asignaturas y productos/libros desde un archivo Excel/CSV usando una plantilla predefinida.
+                      <br />
+                      <small className="d-block mt-1">• Importa colegios, cursos y asignaturas</small>
+                      <small className="d-block">• Permite subir PDFs de listas de útiles</small>
+                      <small className="d-block">• Procesa múltiples registros de forma masiva</small>
+                    </div>
+                  </Tooltip>
+                }
+              >
+                <Button variant="outline-success" onClick={() => setShowImportCompletaModal(true)}>
+                  <LuUpload className="fs-sm me-2" /> Importación Completa (Plantilla)
+                </Button>
+              </OverlayTrigger>
+              <OverlayTrigger
+                placement="top"
+                overlay={
+                  <Tooltip>
+                    <div className="text-start">
+                      <strong>Carga Masiva PDFs por Colegio</strong>
+                      <br />
+                      Permite subir múltiples PDFs de listas de útiles para un colegio específico y procesarlos automáticamente con Inteligencia Artificial.
+                      <br />
+                      <small className="d-block mt-1">• Sube múltiples PDFs a la vez</small>
+                      <small className="d-block">• Procesa automáticamente con IA (Claude AI)</small>
+                      <small className="d-block">• Extrae productos y materiales automáticamente</small>
+                      <small className="d-block">• Asocia PDFs a cursos específicos</small>
+                    </div>
+                  </Tooltip>
+                }
+              >
+                <Button variant="outline-primary" onClick={() => setShowCargaMasivaPDFsModal(true)}>
+                  <LuSparkles className="fs-sm me-2" /> Carga Masiva PDFs por Colegio
+                </Button>
+              </OverlayTrigger>
               {/* Ocultado: Ver Logs */}
               {/* <Link href="/crm/listas/logs">
                 <Button variant="outline-info" title="Ver logs de procesamiento">

@@ -58,9 +58,25 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
     return cursosProp.map((curso: any) => {
       // Normalizar nombre del curso: reemplazar "Básica" por "Básico" y "Media" por "Medio"
       let nombreNormalizado = (curso.nombre || '').trim()
+      // Eliminar años (4 dígitos) del nombre en cualquier posición:
+      // - Años entre paréntesis: (2022), (2023), etc.
+      // - Años al final: "I Medio 2022" → "I Medio"
+      // - Años al inicio: "2022 I Medio" → "I Medio"
+      // - Años en medio: "I Medio 2022 A" → "I Medio A"
+      // Primero eliminar años entre paréntesis
+      nombreNormalizado = nombreNormalizado.replace(/\s*\(\s*\d{4}\s*\)\s*/g, ' ')
+      // Luego eliminar cualquier año de 4 dígitos como palabra completa (con espacios alrededor)
+      nombreNormalizado = nombreNormalizado.replace(/\s+\d{4}\s+/g, ' ') // Años en medio
+      nombreNormalizado = nombreNormalizado.replace(/\s+\d{4}$/g, '') // Años al final
+      nombreNormalizado = nombreNormalizado.replace(/^\d{4}\s+/g, '') // Años al inicio
+      // También eliminar años pegados sin espacios (por si acaso)
+      nombreNormalizado = nombreNormalizado.replace(/\d{4}/g, '')
+      // Normalizar términos
       nombreNormalizado = nombreNormalizado.replace(/Básica/gi, 'Básico')
       nombreNormalizado = nombreNormalizado.replace(/Basica/gi, 'Básico')
       nombreNormalizado = nombreNormalizado.replace(/\bMedia\b/g, 'Medio')
+      // Limpiar espacios múltiples y espacios al inicio/final
+      nombreNormalizado = nombreNormalizado.replace(/\s+/g, ' ').trim()
       
       // Normalizar nivel: "Basica" -> "Básico", "Media" -> "Medio"
       let nivelNormalizado = curso.nivel || 'Basica'
@@ -611,10 +627,11 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
                 </Button>
                 <Button
                   variant="outline-secondary"
-                  onClick={() => router.back()}
+                  onClick={() => router.push('/crm/listas')}
+                  title="Volver a la lista de colegios"
                 >
                   <LuArrowLeft className="me-2" />
-                  Volver
+                  Volver a Listas
                 </Button>
               </div>
             </CardHeader>

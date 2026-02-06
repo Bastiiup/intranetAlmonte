@@ -388,6 +388,7 @@ export default function PDFViewer({
                 onChangeVersion={onChangeVersion}
                 onChangeMostrarTodos={onChangeMostrarTodos}
                 onRecargarProductos={onRecargarProductos}
+                versionActual={versionActual}
               />
               <h5 style={{
                 margin: '0.5rem 0 0.25rem',

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Modal, Table, Button, Badge, Alert, Spinner, Form } from 'react-bootstrap'
-import { LuX, LuCheck, LuPencil, LuDownload, LuEye, LuFileText, LuUpload } from 'react-icons/lu'
+import { LuX, LuCheck, LuPencil, LuDownload, LuEye, LuFileText, LuUpload, LuTrash2 } from 'react-icons/lu'
 import { useRouter } from 'next/navigation'
 
 interface GestionVersionesModalProps {
@@ -51,13 +51,26 @@ export default function GestionVersionesModal({
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch(`/api/crm/cursos/${cursoId}`, {
+      // Usar cache busting con timestamp para forzar recarga
+      const timestamp = new Date().getTime()
+      const response = await fetch(`/api/crm/cursos/${cursoId}?t=${timestamp}`, {
         cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
       })
       const data = await response.json()
       
       if (data.success && data.data) {
-        setCurso(data.data)
+        // Normalizar los datos del curso
+        const cursoData = data.data
+        // Asegurar que versiones_materiales sea un array
+        if (cursoData.versiones_materiales && !Array.isArray(cursoData.versiones_materiales)) {
+          cursoData.versiones_materiales = []
+        }
+        setCurso(cursoData)
       } else {
         setError(data.error || 'Error al cargar el curso')
       }
@@ -81,11 +94,21 @@ export default function GestionVersionesModal({
     setProcesando(version.id || 'ocultar')
     
     try {
-      const versionesActualizadas = curso.versiones_materiales.map((v: any) => 
-        v.id === version.id || (v.fecha_subida === version.fecha_subida && v.nombre_archivo === version.nombre_archivo)
-          ? { ...v, activo: false }
-          : v
-      )
+      // Obtener todas las versiones actuales del curso
+      const versionesActuales = curso.versiones_materiales || []
+      
+      // Actualizar la versión específica
+      const versionesActualizadas = versionesActuales.map((v: any) => {
+        // Comparar por id, fecha_subida y nombre_archivo para mayor seguridad
+        const esLaVersion = v.id === version.id || 
+          (v.fecha_subida === version.fecha_subida && v.nombre_archivo === version.nombre_archivo) ||
+          (v.pdf_id === version.pdf_id && version.pdf_id)
+        
+        if (esLaVersion) {
+          return { ...v, activo: false }
+        }
+        return v
+      })
       
       const response = await fetch(`/api/crm/cursos/${cursoId}`, {
         method: 'PUT',
@@ -95,11 +118,22 @@ export default function GestionVersionesModal({
         })
       })
       
-      if (response.ok) {
+      const data = await response.json()
+      
+      if (response.ok && data.success) {
+        // Esperar un momento para que Strapi procese el cambio
+        await new Promise(resolve => setTimeout(resolve, 500))
+        // Recargar el curso con cache busting
         await cargarCurso()
+        // Forzar refresh del router
         router.refresh()
+        // Recargar de nuevo después de un momento
+        setTimeout(() => {
+          cargarCurso()
+          router.refresh()
+        }, 1000)
       } else {
-        throw new Error('Error al ocultar la versión')
+        throw new Error(data.error || 'Error al ocultar la versión')
       }
     } catch (error: any) {
       alert('Error: ' + error.message)
@@ -112,11 +146,21 @@ export default function GestionVersionesModal({
     setProcesando(version.id || 'activar')
     
     try {
-      const versionesActualizadas = curso.versiones_materiales.map((v: any) => 
-        v.id === version.id || (v.fecha_subida === version.fecha_subida && v.nombre_archivo === version.nombre_archivo)
-          ? { ...v, activo: true }
-          : v
-      )
+      // Obtener todas las versiones actuales del curso
+      const versionesActuales = curso.versiones_materiales || []
+      
+      // Actualizar la versión específica
+      const versionesActualizadas = versionesActuales.map((v: any) => {
+        // Comparar por id, fecha_subida y nombre_archivo para mayor seguridad
+        const esLaVersion = v.id === version.id || 
+          (v.fecha_subida === version.fecha_subida && v.nombre_archivo === version.nombre_archivo) ||
+          (v.pdf_id === version.pdf_id && version.pdf_id)
+        
+        if (esLaVersion) {
+          return { ...v, activo: true }
+        }
+        return v
+      })
       
       const response = await fetch(`/api/crm/cursos/${cursoId}`, {
         method: 'PUT',
@@ -126,11 +170,80 @@ export default function GestionVersionesModal({
         })
       })
       
-      if (response.ok) {
+      const data = await response.json()
+      
+      if (response.ok && data.success) {
+        // Esperar un momento para que Strapi procese el cambio
+        await new Promise(resolve => setTimeout(resolve, 500))
+        // Recargar el curso con cache busting
         await cargarCurso()
+        // Forzar refresh del router
         router.refresh()
+        // Recargar de nuevo después de un momento
+        setTimeout(() => {
+          cargarCurso()
+          router.refresh()
+        }, 1000)
       } else {
-        throw new Error('Error al activar la versión')
+        throw new Error(data.error || 'Error al activar la versión')
+      }
+    } catch (error: any) {
+      alert('Error: ' + error.message)
+    } finally {
+      setProcesando(null)
+    }
+  }
+
+  const eliminarVersion = async (version: any) => {
+    const confirmar = window.confirm(
+      `¿Estás seguro de que deseas ELIMINAR permanentemente esta versión?\n\n` +
+      `Versión: ${version.nombre_archivo || 'Sin nombre'}\n` +
+      `Fecha: ${new Date(version.fecha_subida || version.fecha_actualizacion).toLocaleDateString('es-CL')}\n\n` +
+      `⚠️ ADVERTENCIA: Esta acción NO se puede deshacer. La versión será eliminada permanentemente.`
+    )
+    
+    if (!confirmar) return
+    
+    setProcesando(version.id || 'eliminar')
+    
+    try {
+      // Obtener todas las versiones actuales del curso
+      const versionesActuales = curso.versiones_materiales || []
+      
+      // Eliminar la versión del array (filtrar)
+      const versionesActualizadas = versionesActuales.filter((v: any) => {
+        // Comparar por id, fecha_subida, nombre_archivo y pdf_id para mayor seguridad
+        const esLaVersion = v.id === version.id || 
+          (v.fecha_subida === version.fecha_subida && v.nombre_archivo === version.nombre_archivo) ||
+          (v.pdf_id === version.pdf_id && version.pdf_id)
+        return !esLaVersion
+      })
+      
+      const response = await fetch(`/api/crm/cursos/${cursoId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          versiones_materiales: versionesActualizadas
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok && data.success) {
+        // Esperar un momento para que Strapi procese el cambio
+        await new Promise(resolve => setTimeout(resolve, 500))
+        // Recargar el curso con cache busting
+        await cargarCurso()
+        // Forzar refresh del router
+        router.refresh()
+        // Recargar de nuevo después de un momento
+        setTimeout(() => {
+          cargarCurso()
+          router.refresh()
+        }, 1000)
+        alert('Versión eliminada exitosamente')
+      } else {
+        throw new Error(data.error || 'Error al eliminar la versión')
       }
     } catch (error: any) {
       alert('Error: ' + error.message)
@@ -142,7 +255,8 @@ export default function GestionVersionesModal({
   const reemplazarVersiones = async () => {
     if (!curso) return
     
-    const versionesActivas = curso.versiones_materiales?.filter((v: any) => v.activo !== false) || []
+    const versionesActuales = curso.versiones_materiales || []
+    const versionesActivas = versionesActuales.filter((v: any) => v.activo !== false) || []
     if (versionesActivas.length === 0) {
       alert('No hay versiones activas para reemplazar')
       return
@@ -159,7 +273,7 @@ export default function GestionVersionesModal({
     setProcesando('reemplazar')
     
     try {
-      const versionesActualizadas = curso.versiones_materiales.map((v: any) => 
+      const versionesActualizadas = versionesActuales.map((v: any) => 
         v.activo !== false ? { ...v, activo: false } : v
       )
       
@@ -171,13 +285,24 @@ export default function GestionVersionesModal({
         })
       })
       
-      if (response.ok) {
+      const data = await response.json()
+      
+      if (response.ok && data.success) {
+        // Esperar un momento para que Strapi procese el cambio
+        await new Promise(resolve => setTimeout(resolve, 500))
+        // Recargar el curso con cache busting
         await cargarCurso()
+        // Forzar refresh del router
         router.refresh()
+        // Recargar de nuevo después de un momento
+        setTimeout(() => {
+          cargarCurso()
+          router.refresh()
+        }, 1000)
         // Abrir modal de subida después de ocultar
         setShowUploadModal(true)
       } else {
-        throw new Error('Error al ocultar las versiones')
+        throw new Error(data.error || 'Error al ocultar las versiones')
       }
     } catch (error: any) {
       alert('Error: ' + error.message)
@@ -221,11 +346,73 @@ export default function GestionVersionesModal({
       const data = await response.json()
       
       if (response.ok && data.success) {
-        alert('PDF subido exitosamente. La nueva versión se ha creado y está activa.')
+        // Esperar un momento para que Strapi procese el cambio
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
+        // Recargar el curso para obtener la nueva versión
+        await cargarCurso()
+        
+        // Asegurar que la nueva versión quede como activa y sea la primera
+        const timestamp = new Date().getTime()
+        const cursoActualizado = await fetch(`/api/crm/cursos/${cursoId}?t=${timestamp}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
+        }).then(r => r.json())
+        
+        if (cursoActualizado.success && cursoActualizado.data) {
+          const versiones = cursoActualizado.data.versiones_materiales || []
+          
+          // Ordenar versiones por fecha (más reciente primero)
+          const versionesOrdenadas = [...versiones].sort((a: any, b: any) => {
+            const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
+            const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
+            return fechaB - fechaA
+          })
+          
+          // Asegurar que la primera versión (más reciente) esté activa
+          const versionesActualizadas = versionesOrdenadas.map((v: any, index: number) => ({
+            ...v,
+            activo: index === 0 ? true : (v.activo !== undefined ? v.activo : true) // La primera siempre activa
+          }))
+          
+          // Actualizar el curso con las versiones ordenadas
+          const updateResponse = await fetch(`/api/crm/cursos/${cursoId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              versiones_materiales: versionesActualizadas
+            })
+          })
+          
+          const updateData = await updateResponse.json()
+          
+          if (!updateResponse.ok || !updateData.success) {
+            console.warn('Advertencia: No se pudo actualizar el orden de versiones, pero el PDF se subió correctamente')
+          }
+        }
+        
+        // Esperar otro momento para que Strapi procese completamente
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        alert('PDF subido exitosamente. La nueva versión se ha creado y está activa como primera versión.')
         setSelectedFile(null)
         setShowUploadModal(false)
+        
+        // Recargar múltiples veces para asegurar que se reflejen los cambios
         await cargarCurso()
         router.refresh()
+        setTimeout(() => {
+          cargarCurso()
+          router.refresh()
+        }, 1000)
+        setTimeout(() => {
+          cargarCurso()
+          router.refresh()
+        }, 2000)
       } else {
         throw new Error(data.error || 'Error al subir el PDF')
       }
@@ -650,6 +837,19 @@ export default function GestionVersionesModal({
                                   )}
                                 </Button>
                               )}
+                              <Button
+                                variant="outline-danger"
+                                size="sm"
+                                onClick={() => eliminarVersion(version)}
+                                disabled={estaProcesando}
+                                title="Eliminar versión permanentemente"
+                              >
+                                {estaProcesando && procesando === (version.id || 'eliminar') ? (
+                                  <Spinner animation="border" size="sm" />
+                                ) : (
+                                  <LuTrash2 size={14} />
+                                )}
+                              </Button>
                               {version.pdf_id && (
                                 <>
                                   <Button
