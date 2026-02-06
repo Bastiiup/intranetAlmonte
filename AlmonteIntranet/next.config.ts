@@ -117,7 +117,8 @@ const nextConfig: NextConfig = {
     const cspValue = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.getstream.io https://*.stream-io-api.com",
-      "connect-src 'self' https://*.getstream.io https://*.stream-io-api.com wss://*.getstream.io wss://*.stream-io-api.com wss://chat.stream-io-api.com",
+      // Permitir conexiones a Bunny.net para subidas de video (TUS) y reproducción
+      "connect-src 'self' https://video.bunnycdn.com https://*.getstream.io https://*.stream-io-api.com wss://*.getstream.io wss://*.stream-io-api.com wss://chat.stream-io-api.com",
       "img-src 'self' data: blob: https: http: https://*.getstream.io https://ui-avatars.com https://strapi.moraleja.cl",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' data: https://fonts.gstatic.com",

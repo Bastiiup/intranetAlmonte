@@ -62,6 +62,7 @@ export default function BunnyUploaderTab() {
             progress: 0,
             error: data.error || res.statusText,
           })
+          setGlobalError(data.error || res.statusText || 'Error al preparar subida en Bunny')
           return
         }
 
@@ -98,6 +99,7 @@ export default function BunnyUploaderTab() {
               resolve()
             },
             onError(error) {
+              console.error('[BunnyUploader] Error TUS upload:', error)
               reject(error)
             },
           })
@@ -108,7 +110,9 @@ export default function BunnyUploaderTab() {
         updateItem(item.id, { status: 'done', progress: 100, videoId })
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'Error de red'
+        console.error('[BunnyUploader] Error general upload:', e)
         updateItem(item.id, { status: 'error', progress: 0, error: msg })
+        setGlobalError(msg)
       }
     }
 
