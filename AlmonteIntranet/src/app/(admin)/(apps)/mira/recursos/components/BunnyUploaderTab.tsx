@@ -32,7 +32,7 @@ export default function BunnyUploaderTab() {
   const inputRef = useRef<HTMLInputElement>(null)
   const itemsRef = useRef<FileItem[]>(items)
   const runningRef = useRef(false)
-  const configRef = useRef({ numeroCapitulo: '', seccion: SECCIONES[0] })
+  const configRef = useRef<{ numeroCapitulo: string; seccion: Seccion }>({ numeroCapitulo: '', seccion: SECCIONES[0] })
 
   useEffect(() => {
     itemsRef.current = items
