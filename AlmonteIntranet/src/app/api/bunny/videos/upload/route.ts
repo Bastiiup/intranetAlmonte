@@ -61,10 +61,12 @@ export async function POST(request: NextRequest) {
 
   const createData = await createRes.json().catch(() => ({}))
   if (!createRes.ok) {
-    return NextResponse.json(
-      { error: createData.Message || createData.message || createRes.statusText },
-      { status: createRes.status }
-    )
+    const bunnyMsg = createData.Message ?? createData.message ?? createRes.statusText
+    const isAuthError = createRes.status === 401 || createRes.status === 403 || /denied|unauthorized|forbidden/i.test(String(bunnyMsg))
+    const error = isAuthError
+      ? `Bunny rechazó la solicitud (${createRes.status}). Verifica en el servidor que BUNNY_API_KEY y BUNNY_LIBRARY_ID estén configurados y sean correctos (Stream API key de la biblioteca). Detalle: ${bunnyMsg}`
+      : bunnyMsg
+    return NextResponse.json({ error }, { status: createRes.status })
   }
 
   const videoId = createData.guid ?? createData.id
