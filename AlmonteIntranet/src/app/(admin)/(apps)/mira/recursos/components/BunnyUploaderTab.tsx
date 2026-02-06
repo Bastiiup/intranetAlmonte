@@ -8,6 +8,7 @@ import * as tus from 'tus-js-client'
 const CONCURRENCY = 3
 
 const SECCIONES = ['Teorico', 'Ensayo', 'Ejercitacion', 'Solucionario', 'Clase_Grabada', 'Otro'] as const
+type Seccion = (typeof SECCIONES)[number]
 
 type FileItem = {
   file: File
@@ -27,7 +28,7 @@ export default function BunnyUploaderTab() {
   const [isDragging, setIsDragging] = useState(false)
   const [globalError, setGlobalError] = useState<string | null>(null)
   const [numeroCapitulo, setNumeroCapitulo] = useState('')
-  const [seccion, setSeccion] = useState<string>(SECCIONES[0])
+  const [seccion, setSeccion] = useState<Seccion>(SECCIONES[0])
   const inputRef = useRef<HTMLInputElement>(null)
   const itemsRef = useRef<FileItem[]>(items)
   const runningRef = useRef(false)
@@ -270,7 +271,7 @@ export default function BunnyUploaderTab() {
                       <Form.Select
                         size="sm"
                         value={seccion}
-                        onChange={(e) => setSeccion(e.target.value)}
+                        onChange={(e) => setSeccion(e.target.value as Seccion)}
                       >
                         {SECCIONES.map((s) => (
                           <option key={s} value={s}>
