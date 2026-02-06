@@ -158,6 +158,7 @@ export default function BunnyUploaderTab() {
 
     const stillPending = itemsRef.current.some((i) => i.status === 'pending')
     if (stillPending) {
+      runningRef.current = false
       setTimeout(runQueue, 0)
     } else {
       runningRef.current = false
