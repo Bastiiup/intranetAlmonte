@@ -26,6 +26,7 @@ function generateId() {
 export default function BunnyUploaderTab() {
   const [items, setItems] = useState<FileItem[]>([])
   const [isDragging, setIsDragging] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
   const [globalError, setGlobalError] = useState<string | null>(null)
   const [numeroCapitulo, setNumeroCapitulo] = useState('')
   const [seccion, setSeccion] = useState<Seccion>(SECCIONES[0])
@@ -51,6 +52,7 @@ export default function BunnyUploaderTab() {
     const pending = current.filter((i) => i.status === 'pending')
     if (pending.length === 0) return
     runningRef.current = true
+    setIsUploading(true)
 
     const runOne = async (item: FileItem) => {
       updateItem(item.id, { status: 'uploading', progress: 5 })
@@ -154,8 +156,13 @@ export default function BunnyUploaderTab() {
     const batch = pending.slice(0, CONCURRENCY)
     await Promise.all(batch.map(runOne))
 
-    runningRef.current = false
-    if (itemsRef.current.some((i) => i.status === 'pending')) setTimeout(runQueue, 0)
+    const stillPending = itemsRef.current.some((i) => i.status === 'pending')
+    if (stillPending) {
+      setTimeout(runQueue, 0)
+    } else {
+      runningRef.current = false
+      setIsUploading(false)
+    }
   }, [updateItem])
 
   const addFiles = useCallback(
@@ -172,9 +179,9 @@ export default function BunnyUploaderTab() {
       }))
       setItems((prev) => [...prev, ...newItems])
       setGlobalError(null)
-      if (newItems.length > 0) setTimeout(runQueue, 100)
+      // No iniciar subida automáticamente; el usuario debe pulsar "Comenzar Subida"
     },
-    [runQueue]
+    []
   )
 
   const handleDrop = useCallback(
@@ -262,6 +269,7 @@ export default function BunnyUploaderTab() {
                         value={numeroCapitulo}
                         onChange={(e) => setNumeroCapitulo(e.target.value)}
                         size="sm"
+                        disabled={isUploading}
                       />
                     </Form.Group>
                   </div>
@@ -272,6 +280,7 @@ export default function BunnyUploaderTab() {
                         size="sm"
                         value={seccion}
                         onChange={(e) => setSeccion(e.target.value as Seccion)}
+                        disabled={isUploading}
                       >
                         {SECCIONES.map((s) => (
                           <option key={s} value={s}>
@@ -281,6 +290,17 @@ export default function BunnyUploaderTab() {
                       </Form.Select>
                     </Form.Group>
                   </div>
+                </div>
+                <div className="mt-3">
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    onClick={() => runQueue()}
+                    disabled={isUploading || !items.some((i) => i.status === 'pending')}
+                  >
+                    <LuUpload className="me-2" />
+                    Comenzar Subida
+                  </Button>
                 </div>
               </CardBody>
             </Card>

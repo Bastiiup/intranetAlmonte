@@ -10,9 +10,10 @@ type VincularBody = {
 
 /**
  * POST /api/mira/recursos/vincular
- * Crea entradas en Strapi (recursos-mira) vinculando videos de Bunny a un libro MIRA.
+ * Vincula videos de Bunny a un libro MIRA (upsert por video_id).
+ * - Si ya existe recurso con ese video_id: PUT solo libro_mira y orden (no sobrescribe capítulo/sección).
+ * - Si no existe: POST crea nuevo recurso.
  * Body: { libroId: number, videos: { id: string, nombre: string }[] }
- * Asigna orden incremental. Tipo fijo: "video", proveedor: Bunny.
  */
 export async function POST(request: NextRequest) {
   if (!STRAPI_API_TOKEN) {
@@ -46,53 +47,93 @@ export async function POST(request: NextRequest) {
     'Content-Type': 'application/json',
   }
 
-  const creados: { id: string; nombre: string; orden: number }[] = []
+  const creados: { id: string; nombre: string; orden: number; actualizado?: boolean }[] = []
   const errores: { id: string; nombre: string; error: string }[] = []
 
-  console.log('[MIRA vincular] Inicio:', { libroId, totalVideos: videos.length, baseUrl })
+  console.log('[MIRA vincular] Inicio upsert:', { libroId, totalVideos: videos.length, baseUrl })
 
   for (let orden = 0; orden < videos.length; orden++) {
     const v = videos[orden]
-    const id = v?.id ?? ''
-    const nombre = (v?.nombre ?? id) || `Video ${orden + 1}`
-
-    const payload = {
-      data: {
-        nombre,
-        tipo: 'video',
-        proveedor: 'bunny_stream',
-        video_id: id,
-        libro_mira: libroId,
-        orden,
-      },
-    }
+    const guid = v?.id ?? ''
+    const nombre = (v?.nombre ?? guid) || `Video ${orden + 1}`
 
     try {
-      const res = await fetch(baseUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-      })
-
-      const text = await res.text()
-      let errorMsg = text || res.statusText
-
-      if (!res.ok) {
+      // 1) Buscar si ya existe un recurso con este video_id
+      const searchUrl = `${baseUrl}?filters[video_id][$eq]=${encodeURIComponent(guid)}`
+      const searchRes = await fetch(searchUrl, { method: 'GET', headers })
+      const searchText = await searchRes.text()
+      let existingId: number | null = null
+      if (searchRes.ok && searchText) {
         try {
-          const errJson = JSON.parse(text) as { error?: { message?: string; details?: unknown } }
-          errorMsg = errJson.error?.message ?? text
+          const searchJson = JSON.parse(searchText) as { data?: { id: number }[] }
+          if (Array.isArray(searchJson.data) && searchJson.data.length > 0) {
+            existingId = searchJson.data[0].id
+          }
         } catch {
-          // mantener text si no es JSON
+          // ignorar parse error
         }
-        console.error('[MIRA vincular] Strapi error:', res.status, errorMsg, text.slice(0, 500))
-        errores.push({ id, nombre, error: errorMsg })
-        continue
       }
-      creados.push({ id, nombre, orden })
+
+      if (existingId != null) {
+        // 2a) Existe: PUT solo libro_mira y orden (no tocamos numero_capitulo ni seccion)
+        const putUrl = `${baseUrl}/${existingId}`
+        const putPayload = { data: { libro_mira: libroId, orden } }
+        const putRes = await fetch(putUrl, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify(putPayload),
+        })
+        const putText = await putRes.text()
+        if (!putRes.ok) {
+          let errorMsg = putText || putRes.statusText
+          try {
+            const errJson = JSON.parse(putText) as { error?: { message?: string } }
+            errorMsg = errJson.error?.message ?? putText
+          } catch {
+            // mantener putText
+          }
+          console.error('[MIRA vincular] Strapi PUT error:', putRes.status, errorMsg)
+          errores.push({ id: guid, nombre, error: errorMsg })
+          continue
+        }
+        creados.push({ id: guid, nombre, orden, actualizado: true })
+      } else {
+        // 2b) No existe: POST crear nuevo
+        const payload = {
+          data: {
+            nombre,
+            tipo: 'video',
+            proveedor: 'bunny_stream',
+            video_id: guid,
+            libro_mira: libroId,
+            orden,
+          },
+        }
+        const res = await fetch(baseUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
+        })
+        const text = await res.text()
+        let errorMsg = text || res.statusText
+
+        if (!res.ok) {
+          try {
+            const errJson = JSON.parse(text) as { error?: { message?: string; details?: unknown } }
+            errorMsg = errJson.error?.message ?? text
+          } catch {
+            // mantener text si no es JSON
+          }
+          console.error('[MIRA vincular] Strapi POST error:', res.status, errorMsg, text.slice(0, 500))
+          errores.push({ id: guid, nombre, error: errorMsg })
+          continue
+        }
+        creados.push({ id: guid, nombre, orden })
+      }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Error de red'
       console.error('[MIRA vincular] Excepción:', msg, e)
-      errores.push({ id, nombre, error: msg })
+      errores.push({ id: guid, nombre, error: msg })
     }
   }
 
