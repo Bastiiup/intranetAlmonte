@@ -238,10 +238,7 @@ export default function ProductosTable({
         productosAMostrar={productosAMostrar}
       />
       
-      <div style={{ 
-        overflowY: 'auto', 
-        flex: '1 1 auto',
-        minHeight: 0,
+      <div style={{
         position: 'relative',
         zIndex: 10,
         backgroundColor: 'white'

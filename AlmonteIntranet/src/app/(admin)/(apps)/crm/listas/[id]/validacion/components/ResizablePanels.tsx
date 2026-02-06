@@ -98,24 +98,20 @@ export default function ResizablePanels({
         flex: '1 1 auto',
         minHeight: 0,
         position: 'relative',
-        overflow: 'hidden'
       }}
     >
-      {/* Panel izquierdo */}
+      {/* Panel izquierdo - crece libre, el scroll es de la página */}
       <div
         style={{
           width: `${leftWidth}%`,
           minWidth: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
           transition: isDragging ? 'none' : 'width 0.1s ease'
         }}
       >
         {leftPanel}
       </div>
 
-      {/* Separador / Resize Handle */}
+      {/* Separador / Resize Handle - sticky para que acompañe */}
       <div
         onMouseDown={handleMouseDown}
         onDoubleClick={handleDoubleClick}
@@ -127,7 +123,10 @@ export default function ResizablePanels({
             : 'linear-gradient(180deg, #e9ecef 0%, #dee2e6 100%)',
           borderLeft: '1px solid #dee2e6',
           borderRight: '1px solid #dee2e6',
-          position: 'relative',
+          position: 'sticky',
+          top: 0,
+          alignSelf: 'flex-start',
+          height: '100vh',
           flexShrink: 0,
           transition: 'background 0.2s ease',
           zIndex: 100
@@ -174,7 +173,7 @@ export default function ResizablePanels({
         />
       </div>
 
-      {/* Panel derecho */}
+      {/* Panel derecho - sticky para que se quede fijo al hacer scroll */}
       <div
         style={{
           flex: 1,
@@ -182,6 +181,10 @@ export default function ResizablePanels({
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
+          position: 'sticky',
+          top: 0,
+          alignSelf: 'flex-start',
+          height: '100vh',
           transition: isDragging ? 'none' : 'flex 0.1s ease'
         }}
       >
@@ -192,7 +195,7 @@ export default function ResizablePanels({
       {isDragging && (
         <div
           style={{
-            position: 'absolute',
+            position: 'fixed',
             top: 0,
             left: 0,
             right: 0,

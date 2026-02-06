@@ -451,7 +451,6 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
     <div style={{
       display: 'flex',
       flexDirection: 'column',
-      height: '100%',
       backgroundColor: 'white'
     }}>
       <ProductosTable
