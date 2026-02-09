@@ -13,6 +13,7 @@ type CrearReferenciaBody = {
   numero_capitulo?: string
   seccion?: string
   orden?: number
+  contenido?: string
 }
 
 /**
@@ -43,6 +44,7 @@ export async function POST(request: NextRequest) {
     numero_capitulo = '',
     seccion = 'Teorico',
     orden = 0,
+    contenido = '',
   } = body
 
   if (!nombre || !video_id) {
@@ -65,6 +67,7 @@ export async function POST(request: NextRequest) {
       orden,
       ...(numero_capitulo !== undefined && numero_capitulo !== '' && { numero_capitulo: String(numero_capitulo).trim() }),
       ...(seccionValida && { seccion: seccionValida }),
+      ...(contenido && { contenido: contenido.trim() }),
       // libro_mira no se envía; se asigna en la pestaña "Asignar a libro"
     },
   }

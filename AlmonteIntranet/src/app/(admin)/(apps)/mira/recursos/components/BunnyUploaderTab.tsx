@@ -30,17 +30,22 @@ export default function BunnyUploaderTab() {
   const [globalError, setGlobalError] = useState<string | null>(null)
   const [numeroCapitulo, setNumeroCapitulo] = useState('')
   const [seccion, setSeccion] = useState<Seccion>(SECCIONES[0])
+  const [contenido, setContenido] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const itemsRef = useRef<FileItem[]>(items)
   const runningRef = useRef(false)
-  const configRef = useRef<{ numeroCapitulo: string; seccion: Seccion }>({ numeroCapitulo: '', seccion: SECCIONES[0] })
+  const configRef = useRef<{ numeroCapitulo: string; seccion: Seccion; contenido: string }>({
+    numeroCapitulo: '',
+    seccion: SECCIONES[0],
+    contenido: '',
+  })
 
   useEffect(() => {
     itemsRef.current = items
   }, [items])
   useEffect(() => {
-    configRef.current = { numeroCapitulo, seccion }
-  }, [numeroCapitulo, seccion])
+    configRef.current = { numeroCapitulo, seccion, contenido }
+  }, [numeroCapitulo, seccion, contenido])
 
   const updateItem = useCallback((id: string, patch: Partial<FileItem>) => {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)))
@@ -118,7 +123,7 @@ export default function BunnyUploaderTab() {
           upload.start()
         })
 
-        // 3) Registrar en Strapi (recurso-mira) con capítulo y sección (sin libro_mira)
+        // 3) Registrar en Strapi (recurso-mira) con capítulo, sección y contenido (sin libro_mira)
         const cfg = configRef.current
         const refRes = await fetch('/api/mira/recursos/crear-referencia', {
           method: 'POST',
@@ -130,6 +135,7 @@ export default function BunnyUploaderTab() {
             proveedor: 'bunny_stream',
             numero_capitulo: cfg.numeroCapitulo || undefined,
             seccion: cfg.seccion,
+            contenido: cfg.contenido || undefined,
             orden: 0,
           }),
         })
@@ -289,6 +295,19 @@ export default function BunnyUploaderTab() {
                           </option>
                         ))}
                       </Form.Select>
+                    </Form.Group>
+                  </div>
+                  <div className="col-12 col-md-4">
+                    <Form.Group>
+                      <Form.Label className="small">Contenido / Tema</Form.Label>
+                      <Form.Control
+                        type="text"
+                        placeholder="Ej: NÚMEROS ENTEROS"
+                        value={contenido}
+                        onChange={(e) => setContenido(e.target.value.toUpperCase())}
+                        size="sm"
+                        disabled={isUploading}
+                      />
                     </Form.Group>
                   </div>
                 </div>
