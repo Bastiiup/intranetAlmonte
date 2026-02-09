@@ -7,17 +7,20 @@
 'use client'
 
 import { FormCheck, Badge, Button, Spinner } from 'react-bootstrap'
-import { TbEdit, TbTrash, TbSearch, TbGripVertical } from 'react-icons/tb'
+import { TbEdit, TbTrash, TbSearch, TbGripVertical, TbCheck, TbAlertTriangle, TbPlus } from 'react-icons/tb'
 import type { ProductoIdentificado } from '../../types'
 
 export interface ProductoRowCellsProps {
   producto: ProductoIdentificado
   selected: boolean
+  searchStatus?: 'idle' | 'searching' | 'found' | 'not-found'
   onToggleValidado: () => void
   onEditar: () => void
   onEliminar: () => void
   isApproving: boolean
   onNavegarAPDF?: (producto: ProductoIdentificado) => void
+  /** Alta en catálogo: solo se muestra si el producto no está en WooCommerce */
+  onAltaProductoCatalogo?: (producto: ProductoIdentificado) => void
   /** Props del handle de arrastre (solo cuando la fila es draggable) */
   dragHandleProps?: Record<string, unknown> | null
   hasDragHandle?: boolean
@@ -26,14 +29,17 @@ export interface ProductoRowCellsProps {
 export default function ProductoRowCells({
   producto,
   selected,
+  searchStatus = 'idle',
   onToggleValidado,
   onEditar,
   onEliminar,
   isApproving,
   onNavegarAPDF,
+  onAltaProductoCatalogo,
   dragHandleProps = null,
   hasDragHandle = false,
 }: ProductoRowCellsProps) {
+  const noEstaEnCatalogo = producto.encontrado_en_woocommerce !== true
   return (
     <>
       <td style={{ verticalAlign: 'middle', width: '40px', padding: '4px' }} {...(dragHandleProps || {})}>
@@ -158,17 +164,33 @@ export default function ProductoRowCells({
                 alignItems: 'center',
                 gap: '4px',
                 padding: '4px 8px',
-                background: 'linear-gradient(135deg, #2196f3 0%, #1976d2 100%)',
+                background: searchStatus === 'found'
+                  ? 'linear-gradient(135deg, #4caf50 0%, #388e3c 100%)'
+                  : searchStatus === 'not-found'
+                    ? 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)'
+                    : 'linear-gradient(135deg, #2196f3 0%, #1976d2 100%)',
                 borderRadius: '6px',
                 color: 'white',
                 fontSize: '0.7rem',
                 fontWeight: 500,
-                boxShadow: '0 2px 6px rgba(33, 150, 243, 0.3)',
-                animation: 'pulse-badge 2s ease-in-out infinite'
+                boxShadow: searchStatus === 'found'
+                  ? '0 2px 6px rgba(76, 175, 80, 0.3)'
+                  : searchStatus === 'not-found'
+                    ? '0 2px 6px rgba(255, 152, 0, 0.3)'
+                    : '0 2px 6px rgba(33, 150, 243, 0.3)',
+                animation: searchStatus === 'searching' ? 'pulse-badge 2s ease-in-out infinite' : 'none',
+                maxWidth: searchStatus === 'not-found' ? '180px' : undefined,
+                lineHeight: 1.2,
               }}
+              title={searchStatus === 'not-found' ? 'Prueba navegar a otras páginas del PDF' : undefined}
             >
-              <TbSearch size={12} />
-              Buscando
+              {(searchStatus === 'searching' || searchStatus === 'idle') && <TbSearch size={12} />}
+              {searchStatus === 'found' && <TbCheck size={12} />}
+              {searchStatus === 'not-found' && <TbAlertTriangle size={12} />}
+              {searchStatus === 'searching' && 'Buscando...'}
+              {searchStatus === 'found' && 'Encontrado'}
+              {searchStatus === 'not-found' && 'No encontrado, prueba otra página'}
+              {searchStatus === 'idle' && 'Buscando...'}
             </div>
           )}
         </div>
@@ -277,7 +299,28 @@ export default function ProductoRowCells({
         )}
       </td>
       <td style={{ verticalAlign: 'middle', padding: '4px 8px' }}>
-        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>
+          {noEstaEnCatalogo && onAltaProductoCatalogo && (
+            <Button
+              variant="outline-success"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                onAltaProductoCatalogo(producto)
+              }}
+              title="Alta producto en catálogo (relleno automático)"
+              style={{
+                padding: '4px 8px',
+                fontSize: '14px',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <TbPlus />
+            </Button>
+          )}
           <Button
             variant="outline-primary"
             size="sm"

@@ -25,6 +25,7 @@ import PDFViewer from './PDFViewer/PDFViewer'
 import ResizablePanels from './ResizablePanels'
 import EditProductModal from './Modals/EditProductModal'
 import AddProductModal from './Modals/AddProductModal'
+import AddProductQuickAccessModal from './Modals/AddProductQuickAccessModal'
 import ExcelImportModal from './Modals/ExcelImportModal'
 import LogsModal from './Modals/LogsModal'
 
@@ -70,6 +71,8 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
   const [showEditModal, setShowEditModal] = useState(false)
   const [productoEditando, setProductoEditando] = useState<ProductoIdentificado | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showAddProductQuickAccessModal, setShowAddProductQuickAccessModal] = useState(false)
+  const [productoParaAltaCatalogo, setProductoParaAltaCatalogo] = useState<ProductoIdentificado | null>(null)
   const [showExcelModal, setShowExcelModal] = useState(false)
   const [showLogsModal, setShowLogsModal] = useState(false)
   const [logs, setLogs] = useState<Array<{ timestamp: string; level: string; message: string; data?: any }>>([])
@@ -192,24 +195,107 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
       return
     }
 
+    // Cerrar modal y actualizar localmente primero (optimistic update)
+    const productosAnteriores = [...productos]
+    const productoIndex = productos.findIndex(p => p.id === productoEditando.id)
+    setProductos(prev => prev.map(p =>
+      p.id === productoEditando.id ? { ...p, ...formData } : p
+    ))
+    setShowEditModal(false)
+    setProductoEditando(null)
+
     try {
       const response = await fetch(`/api/crm/listas/${idParaUsar}/productos/${productoEditando.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          _originalNombre: productoEditando.nombre,
+          _productoIndex: productoIndex,
+        }),
       })
 
-      const data = await response.json()
+      let data: any
+      try {
+        data = await response.json()
+      } catch {
+        throw new Error(`Error del servidor (${response.status})`)
+      }
+
       if (!response.ok || !data.success) {
         throw new Error(data.error || 'Error al editar el producto')
       }
 
       toast.success('Producto editado', 'Los cambios se guardaron correctamente')
-      setShowEditModal(false)
-      setProductoEditando(null)
-      await cargarProductos(true)
     } catch (error: any) {
+      // Revertir cambios locales si falla
+      setProductos(productosAnteriores)
       toast.error('Error al editar', error.message)
+      console.error('[handleGuardarEdicion] Error:', error)
+    }
+  }
+
+  const handleAgregarProducto = async (formData: any) => {
+    const idParaUsar = listaIdFromUrl || lista?.id || lista?.documentId
+    if (!idParaUsar) {
+      toast.error('Error', 'No se puede agregar: ID de lista no encontrado')
+      return
+    }
+
+    // Cerrar modal y agregar localmente (optimistic update)
+    const productosAnteriores = [...productos]
+    const nuevoId = `producto-${productos.length + 1}-nuevo`
+    const nuevoProducto: ProductoIdentificado = {
+      id: nuevoId,
+      nombre: formData.nombre,
+      cantidad: formData.cantidad || 1,
+      isbn: formData.isbn || '',
+      marca: formData.marca || '',
+      precio: formData.precio || 0,
+      orden: formData.orden || productos.length + 1,
+      categoria: formData.categoria || '',
+      asignatura: formData.asignatura || '',
+      descripcion: formData.descripcion || '',
+      comprar: formData.comprar !== false,
+      validado: false,
+      disponibilidad: 'no_encontrado',
+      encontrado_en_woocommerce: false,
+    }
+
+    // Insertar en posición correcta según orden
+    const insertIndex = Math.min(Math.max((nuevoProducto.orden! - 1), 0), productos.length)
+    const nuevosProductos = [...productos]
+    nuevosProductos.splice(insertIndex, 0, nuevoProducto)
+    nuevosProductos.forEach((p, i) => { p.orden = i + 1 })
+
+    setProductos(nuevosProductos)
+    setShowAddModal(false)
+
+    try {
+      const response = await fetch(`/api/crm/listas/${idParaUsar}/productos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      })
+
+      let data: any
+      try {
+        data = await response.json()
+      } catch {
+        throw new Error(`Error del servidor (${response.status})`)
+      }
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Error al agregar el producto')
+      }
+
+      toast.success('Producto agregado', `"${formData.nombre}" se agregó correctamente`)
+      // Recargar para obtener los IDs reales de Strapi
+      cargarProductos(true)
+    } catch (error: any) {
+      setProductos(productosAnteriores)
+      toast.error('Error al agregar', error.message)
+      console.error('[handleAgregarProducto] Error:', error)
     }
   }
 
@@ -458,6 +544,7 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
         productos={productos}
         loading={loading}
         selectedProduct={selectedProduct}
+        searchStatus={pdfViewer.searchState.searchStatus}
         onProductoClick={handleProductoClick}
         onToggleValidado={aprobarProducto}
         onEditarProducto={handleEditarProducto}
@@ -477,6 +564,11 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
         sugiriendoIA={sugiriendoIA}
         onVerificarDisponibilidad={handleVerificarDisponibilidad}
         verificandoDisponibilidad={verificandoDisponibilidad}
+        onAgregarProducto={() => setShowAddModal(true)}
+        onAltaProductoCatalogo={(producto) => {
+          setProductoParaAltaCatalogo(producto)
+          setShowAddProductQuickAccessModal(true)
+        }}
       />
     </div>
   )
@@ -513,7 +605,7 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
   )
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Header */}
       <div style={{
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -612,8 +704,22 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
       <AddProductModal
         show={showAddModal}
         onHide={() => setShowAddModal(false)}
-        onAdd={async () => {}}
+        onAdd={handleAgregarProducto}
         loading={loading}
+        nextOrden={productos.length + 1}
+      />
+
+      <AddProductQuickAccessModal
+        show={showAddProductQuickAccessModal}
+        onHide={() => {
+          setShowAddProductQuickAccessModal(false)
+          setProductoParaAltaCatalogo(null)
+        }}
+        productPrecargado={productoParaAltaCatalogo}
+        onSuccess={() => {
+          toast.success('Producto creado en catálogo')
+          cargarProductos(true)
+        }}
       />
 
       <ExcelImportModal

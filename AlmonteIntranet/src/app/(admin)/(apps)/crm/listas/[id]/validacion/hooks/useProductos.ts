@@ -151,8 +151,12 @@ export function useProductos({
           }
         }
 
+        // Id único: si el material tiene id lo usamos; si no, generamos uno por lista+índice para evitar claves duplicadas (ej. dos "producto-1")
+        const idUnico = material.id != null && material.id !== ''
+          ? material.id
+          : `producto-${listaIdFromUrl}-${index + 1}`
         return {
-          id: material.id || `producto-${index + 1}`,
+          id: idUnico,
           validado: material.aprobado !== undefined ? material.aprobado : (material.validado || false),
           orden: material.orden !== undefined ? Number(material.orden) : index + 1,
           categoria: material.categoria || material.tipo || undefined,

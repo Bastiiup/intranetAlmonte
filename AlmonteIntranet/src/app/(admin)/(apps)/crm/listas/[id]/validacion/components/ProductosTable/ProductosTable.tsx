@@ -17,6 +17,7 @@ interface ProductosTableProps {
   productos: ProductoIdentificado[]
   loading: boolean
   selectedProduct: string | number | null
+  searchStatus?: 'idle' | 'searching' | 'found' | 'not-found'
   onProductoClick: (id: string | number) => void
   onToggleValidado: (id: string | number) => Promise<void>
   onEditarProducto: (producto: ProductoIdentificado) => void
@@ -36,12 +37,16 @@ interface ProductosTableProps {
   sugiriendoIA?: boolean
   onVerificarDisponibilidad?: () => Promise<void>
   verificandoDisponibilidad?: boolean
+  onAgregarProducto?: () => void
+  /** Abre modal de alta en catálogo con el producto de la fila precargado (se llama desde cada fila) */
+  onAltaProductoCatalogo?: (producto: ProductoIdentificado) => void
 }
 
 export default function ProductosTable({
   productos,
   loading,
   selectedProduct,
+  searchStatus = 'idle',
   onProductoClick,
   onToggleValidado,
   onEditarProducto,
@@ -61,6 +66,8 @@ export default function ProductosTable({
   sugiriendoIA = false,
   onVerificarDisponibilidad,
   verificandoDisponibilidad = false,
+  onAgregarProducto,
+  onAltaProductoCatalogo,
 }: ProductosTableProps) {
   const [tabActivo, setTabActivo] = useState<'todos' | 'disponibles' | 'no-disponibles'>('todos')
   const [filtroEstado, setFiltroEstado] = useState<'todos' | 'aprobados' | 'pendientes'>('todos')
@@ -199,8 +206,18 @@ export default function ProductosTable({
 
   return (
     <>
-      {((onSugerirAsignaturasIA || onVerificarDisponibilidad) && productos.length > 0) && (
+      {((onSugerirAsignaturasIA || onVerificarDisponibilidad || onAgregarProducto) && productos.length > 0) && (
         <div style={{ padding: '0.5rem 1rem', borderBottom: '1px solid #dee2e6', background: '#f0f4ff', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {onAgregarProducto && (
+            <button
+              type="button"
+              className="btn btn-sm btn-success"
+              onClick={onAgregarProducto}
+              title="Agregar un producto manualmente a la lista"
+            >
+              + Agregar Producto
+            </button>
+          )}
           {onSugerirAsignaturasIA && (
             <button
               type="button"
@@ -311,10 +328,13 @@ export default function ProductosTable({
                         )
                       }
                       const producto = item.product
+                      // Key y draggableId únicos: si dos productos comparten id (ej. datos legacy), index evita duplicados
+                      const rowKey = `producto-${index}-${producto.id}`
+                      const draggableId = `producto-${producto.id}-${index}`
                       return (
                         <Draggable
-                          key={String(producto.id)}
-                          draggableId={String(producto.id)}
+                          key={rowKey}
+                          draggableId={draggableId}
                           index={index}
                           isDragDisabled={reordering}
                         >
@@ -344,11 +364,13 @@ export default function ProductosTable({
                               <ProductoRowCells
                                 producto={producto}
                                 selected={selectedProduct === producto.id}
+                                searchStatus={selectedProduct === producto.id ? searchStatus : 'idle'}
                                 onToggleValidado={() => onToggleValidado(producto.id)}
                                 onEditar={() => onEditarProducto(producto)}
                                 onEliminar={() => onEliminarProducto(producto)}
                                 isApproving={isApprovingProduct === producto.id}
                                 onNavegarAPDF={onNavegarAPDF}
+                                onAltaProductoCatalogo={onAltaProductoCatalogo}
                                 dragHandleProps={provided.dragHandleProps as unknown as Record<string, unknown>}
                                 hasDragHandle
                               />

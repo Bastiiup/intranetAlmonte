@@ -1,8 +1,17 @@
+/**
+ * API Route para editar y eliminar un producto individual
+ * PUT    /api/crm/listas/[id]/productos/[productId]
+ * DELETE /api/crm/listas/[id]/productos/[productId]
+ *
+ * Usa el mismo patrón que /productos/reorder (que funciona)
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse } from '@/lib/strapi/types'
 import { obtenerUltimaVersion } from '@/lib/utils/strapi'
 import { obtenerFechaChileISO } from '@/lib/utils/dates'
+import { buscarProductoFlexible } from '@/lib/utils/productos'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,96 +30,84 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const { id: cursoId, productId } = await params
     const body = await request.json()
 
-    console.log('[API PUT /productos/:productId] Editando producto:', { cursoId, productId, body })
+    console.log('[API PUT] Editando producto:', { cursoId, productId })
 
-    // Obtener el curso
+    // Mismo patrón que reorder (que funciona)
     const cursoResponse = await strapiClient.get<StrapiResponse<any>>(`/api/cursos/${cursoId}?populate=*`)
-    
-    if (!cursoResponse || !cursoResponse.data) {
-      return NextResponse.json(
-        { success: false, error: 'Curso no encontrado' },
-        { status: 404 }
-      )
+    if (!cursoResponse?.data) {
+      return NextResponse.json({ success: false, error: 'Curso no encontrado' }, { status: 404 })
     }
 
     const curso = cursoResponse.data
     const attrs = curso.attributes || curso
     const versiones = attrs.versiones_materiales || []
-    
-    // Obtener la última versión
     const ultimaVersion = obtenerUltimaVersion(versiones)
-    
+
     if (!ultimaVersion) {
-      return NextResponse.json(
-        { success: false, error: 'No hay versiones de materiales' },
-        { status: 404 }
-      )
+      return NextResponse.json({ success: false, error: 'No hay versiones de materiales' }, { status: 404 })
     }
 
     const materiales = ultimaVersion.materiales || []
-    
-    // Buscar el producto por ID
-    const productoIndex = materiales.findIndex((p: any) => String(p.id) === String(productId))
-    
-    if (productoIndex === -1) {
-      return NextResponse.json(
-        { success: false, error: 'Producto no encontrado' },
-        { status: 404 }
-      )
+
+    // Extraer datos de identificación flexible del body
+    const { _originalNombre, _productoIndex, ...datosProducto } = body
+
+    // Usar buscarProductoFlexible (mismo patrón que aprobar-producto que funciona)
+    const productoEncontrado = buscarProductoFlexible(
+      materiales,
+      productId,
+      _originalNombre,
+      _productoIndex !== undefined ? Number(_productoIndex) : undefined
+    )
+
+    if (!productoEncontrado) {
+      console.error('[API PUT] Producto no encontrado:', { productId, _originalNombre, _productoIndex, ids: materiales.map((m: any) => m.id), nombres: materiales.map((m: any) => m.nombre) })
+      return NextResponse.json({ success: false, error: 'Producto no encontrado' }, { status: 404 })
     }
 
-    // Actualizar el producto
+    const productoIndex = materiales.findIndex((p: any) => p === productoEncontrado)
+
+    // Actualizar producto conservando campos internos
     const productoActualizado = {
       ...materiales[productoIndex],
-      ...body,
-      // Mantener campos que no deberían cambiar
+      ...datosProducto,
       id: materiales[productoIndex].id,
       coordenadas: materiales[productoIndex].coordenadas,
+      fecha_edicion: obtenerFechaChileISO(),
     }
 
-    // Actualizar el array de materiales
     const nuevosMateriales = [...materiales]
     nuevosMateriales[productoIndex] = productoActualizado
 
-    // Actualizar la versión
+    // Mismo patrón de versiones que reorder
     const versionActualizada = {
       ...ultimaVersion,
       materiales: nuevosMateriales,
       fecha_actualizacion: obtenerFechaChileISO(),
     }
-
-    // Actualizar las versiones - Comparar por fecha para evitar duplicados
     const fechaUltimaVersion = ultimaVersion.fecha_actualizacion || ultimaVersion.fecha_subida
     const otrasVersiones = versiones.filter((v: any) => {
       const fechaV = v.fecha_actualizacion || v.fecha_subida
       return fechaV !== fechaUltimaVersion
     })
-    
     const versionesActualizadas = [versionActualizada, ...otrasVersiones]
 
-    // Guardar en Strapi
+    // Guardar en Strapi (mismo patrón que reorder)
     await strapiClient.put(`/api/cursos/${cursoId}`, {
-      data: {
-        versiones_materiales: versionesActualizadas,
-      },
+      data: { versiones_materiales: versionesActualizadas },
     })
 
-    console.log('[API PUT /productos/:productId] ✅ Producto editado exitosamente')
+    console.log('[API PUT] Producto editado exitosamente')
 
     return NextResponse.json({
       success: true,
       message: 'Producto editado exitosamente',
-      data: {
-        producto: productoActualizado,
-      },
+      data: { producto: productoActualizado },
     })
   } catch (error: any) {
-    console.error('[API PUT /productos/:productId] ❌ Error:', error)
+    console.error('[API PUT] Error:', error)
     return NextResponse.json(
-      {
-        success: false,
-        error: error.message || 'Error al editar el producto',
-      },
+      { success: false, error: error.message || 'Error al editar el producto' },
       { status: 500 }
     )
   }
@@ -122,98 +119,76 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { id: cursoId, productId } = await params
+    const body = await request.json().catch(() => ({}))
 
-    console.log('[API DELETE /productos/:productId] Eliminando producto:', { cursoId, productId })
+    console.log('[API DELETE] Eliminando producto:', { cursoId, productId })
 
-    // Obtener el curso
+    // Mismo patrón que reorder (que funciona)
     const cursoResponse = await strapiClient.get<StrapiResponse<any>>(`/api/cursos/${cursoId}?populate=*`)
-    
-    if (!cursoResponse || !cursoResponse.data) {
-      return NextResponse.json(
-        { success: false, error: 'Curso no encontrado' },
-        { status: 404 }
-      )
+    if (!cursoResponse?.data) {
+      return NextResponse.json({ success: false, error: 'Curso no encontrado' }, { status: 404 })
     }
 
     const curso = cursoResponse.data
     const attrs = curso.attributes || curso
     const versiones = attrs.versiones_materiales || []
-    
-    // Obtener la última versión
     const ultimaVersion = obtenerUltimaVersion(versiones)
-    
+
     if (!ultimaVersion) {
-      return NextResponse.json(
-        { success: false, error: 'No hay versiones de materiales' },
-        { status: 404 }
-      )
+      return NextResponse.json({ success: false, error: 'No hay versiones de materiales' }, { status: 404 })
     }
 
     const materiales = ultimaVersion.materiales || []
-    
-    // Buscar el producto por ID
-    const productoIndex = materiales.findIndex((p: any) => String(p.id) === String(productId))
-    
-    if (productoIndex === -1) {
-      return NextResponse.json(
-        { success: false, error: 'Producto no encontrado' },
-        { status: 404 }
-      )
+
+    // Usar buscarProductoFlexible para encontrar el producto
+    const productoEncontrado = buscarProductoFlexible(
+      materiales,
+      productId,
+      body?.nombre,
+      body?.index !== undefined ? Number(body.index) : undefined
+    )
+
+    if (!productoEncontrado) {
+      console.error('[API DELETE] Producto no encontrado:', { productId, ids: materiales.map((m: any) => m.id) })
+      return NextResponse.json({ success: false, error: 'Producto no encontrado' }, { status: 404 })
     }
 
+    const productoIndex = materiales.findIndex((p: any) => p === productoEncontrado)
     const productoEliminado = materiales[productoIndex]
-
-    // Eliminar el producto del array
     const nuevosMateriales = materiales.filter((_: any, index: number) => index !== productoIndex)
 
-    console.log('[API DELETE] Materiales antes:', materiales.length)
-    console.log('[API DELETE] Materiales después:', nuevosMateriales.length)
-
-    // Actualizar la versión
+    // Mismo patrón de versiones que reorder
     const versionActualizada = {
       ...ultimaVersion,
       materiales: nuevosMateriales,
       fecha_actualizacion: obtenerFechaChileISO(),
     }
-
-    // Actualizar las versiones - Comparar por fecha para evitar duplicados
     const fechaUltimaVersion = ultimaVersion.fecha_actualizacion || ultimaVersion.fecha_subida
     const otrasVersiones = versiones.filter((v: any) => {
       const fechaV = v.fecha_actualizacion || v.fecha_subida
       return fechaV !== fechaUltimaVersion
     })
-    
     const versionesActualizadas = [versionActualizada, ...otrasVersiones]
 
-    console.log('[API DELETE] Versiones antes:', versiones.length)
-    console.log('[API DELETE] Versiones después:', versionesActualizadas.length)
-
-    // Guardar en Strapi
-    const updateResponse = await strapiClient.put(`/api/cursos/${cursoId}`, {
-      data: {
-        versiones_materiales: versionesActualizadas,
-      },
+    // Guardar en Strapi (mismo patrón que reorder)
+    await strapiClient.put(`/api/cursos/${cursoId}`, {
+      data: { versiones_materiales: versionesActualizadas },
     })
 
-    console.log('[API DELETE] Respuesta de Strapi:', updateResponse ? 'OK' : 'ERROR')
-
-    console.log('[API DELETE /productos/:productId] ✅ Producto eliminado exitosamente:', productoEliminado.nombre)
+    console.log('[API DELETE] Producto eliminado:', productoEliminado.nombre)
 
     return NextResponse.json({
       success: true,
       message: 'Producto eliminado exitosamente',
       data: {
-        productoEliminado,
+        productoEliminado: productoEliminado.nombre,
         productosRestantes: nuevosMateriales.length,
       },
     })
   } catch (error: any) {
-    console.error('[API DELETE /productos/:productId] ❌ Error:', error)
+    console.error('[API DELETE] Error:', error)
     return NextResponse.json(
-      {
-        success: false,
-        error: error.message || 'Error al eliminar el producto',
-      },
+      { success: false, error: error.message || 'Error al eliminar el producto' },
       { status: 500 }
     )
   }
