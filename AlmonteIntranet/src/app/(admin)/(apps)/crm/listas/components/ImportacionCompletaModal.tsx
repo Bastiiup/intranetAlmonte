@@ -1497,10 +1497,10 @@ Columnas detectadas en tu archivo: ${columnasEnArchivo}`)
                   colegioIdAsignado: colegioId,
                   tipoColegioId: typeof colegioId,
                 })
-                // Actualizar colegio actual con datos encontrados
+                // Actualizar colegio actual con datos encontrados (colegiosMap no tiene rbd; usamos rbdNum)
                 setColegioActual({
                   nombre: colegio.nombre || grupo.colegio.nombre || 'Sin nombre',
-                  rbd: grupo.colegio.rbd || colegio.rbd
+                  rbd: grupo.colegio.rbd ?? rbdNum
                 })
               }
             }
