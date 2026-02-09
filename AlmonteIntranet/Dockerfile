@@ -28,7 +28,7 @@ ENV NEXT_PRIVATE_BUILD_CACHE=true
 
 # Copiar archivos de dependencias primero (para mejor cache de Docker)
 COPY package*.json ./
-
+# 
 # Instalar dependencias incluyendo devDependencies (TypeScript es necesario para next.config.ts)
 # No usar NODE_ENV=production aquí para que npm instale devDependencies
 # Optimizaciones: --prefer-offline usa cache local, --no-audit salta auditoría de seguridad
