@@ -184,6 +184,100 @@ Con esto deberías tener todo funcionando. Si tienes algún problema, avísame y
 
 ---
 
-**Última actualización:** 2025-01-XX
+**Última actualización:** Febrero 2026
 **Rama:** `intranet-matias`
-**Commit:** `cd3556b7`
+**Último commit:** `2456f64d`
+
+---
+
+## 📋 Cambios Recientes (Febrero 2026)
+
+### Mejoras en Gestión de Versiones y UI
+
+#### 1. Tooltips Informativos
+- ✅ Agregados tooltips en botones "Importación Completa (Plantilla)" y "Carga Masiva PDFs por Colegio"
+- **Archivo:** `ListasListing.tsx`
+- **Ubicación:** `/crm/listas`
+
+#### 2. Botones de Navegación en Validación
+- ✅ Botón "Listas del Curso" - navega a `/crm/listas/colegio/[colegioId]`
+- ✅ Botón "Volver a Colegios" - navega a `/crm/listas`
+- **Archivo:** `ValidacionLista.tsx`
+- **Ubicación:** `/crm/listas/[id]/validacion`
+
+#### 3. Normalización de Nombres de Cursos
+- ✅ Eliminación automática de años en nombres de cursos (ej: "I Medio 2022" → "I Medio")
+- **Archivo:** `CursosColegioListing.tsx`
+- **Ubicación:** `/crm/listas/colegio/[colegioId]`
+
+#### 4. Filtrado de Versiones Ocultas
+- ✅ Solo se muestran versiones activas en página de validación
+- ✅ Versiones con `activo: false` están ocultas
+- **Archivos:** `ValidacionLista.tsx`, `useProductos.ts`, `VersionSelector.tsx`, `PDFViewer.tsx`
+- **Ubicación:** `/crm/listas/[id]/validacion`
+
+#### 5. Eliminación de PDFs
+- ✅ Botón para eliminar permanentemente versiones de PDFs
+- ✅ Confirmación antes de eliminar
+- **Archivo:** `GestionVersionesModal.tsx`
+
+#### 6. Ordenamiento de Nuevos PDFs
+- ✅ Nuevos PDFs subidos quedan como primera versión visible
+- ✅ Ordenamiento automático por fecha (más reciente primero)
+- **Archivo:** `GestionVersionesModal.tsx`
+
+#### 7. Persistencia Mejorada
+- ✅ Cache busting en recarga de datos
+- ✅ Múltiples recargas para asegurar persistencia
+- ✅ Revalidación de rutas en API
+- **Archivos:** `GestionVersionesModal.tsx`, `api/crm/cursos/[id]/route.ts`
+
+#### 8. Visualización Durante Procesamiento
+- ✅ Muestra colegio y RBD actual durante importación masiva
+- ✅ Alert más visible con iconos
+- **Archivo:** `ImportacionCompletaModal.tsx`
+
+### Archivos Modificados en Último Commit
+
+1. `ListasListing.tsx` - Tooltips informativos
+2. `ImportacionCompletaModal.tsx` - Visualización mejorada
+3. `ValidacionLista.tsx` - Botones de navegación y filtrado
+4. `PDFViewer.tsx` - Mejoras en sincronización
+5. `VersionSelector.tsx` - Cálculo mejorado de índices
+6. `useProductos.ts` - Filtrado de versiones activas
+7. `CursosColegioListing.tsx` - Normalización de nombres
+8. `GestionVersionesModal.tsx` - Eliminación, ordenamiento y persistencia
+9. `api/crm/cursos/[id]/route.ts` - Revalidación de rutas
+
+### Instrucciones de Integración Rápida
+
+```bash
+# 1. Obtener la rama
+git fetch origin intranet-matias
+git checkout intranet-matias
+git pull origin intranet-matias
+
+# 2. Verificar cambios
+git log --oneline origin/main..intranet-matias
+
+# 3. Integrar en main
+git checkout main
+git pull origin main
+git merge intranet-matias --no-ff -m "Merge: Mejoras en gestión de versiones y UI"
+git push origin main
+```
+
+### Testing Recomendado
+
+- [ ] Tooltips aparecen al pasar mouse sobre botones
+- [ ] Botones de navegación funcionan en página de validación
+- [ ] Nombres de cursos no muestran años
+- [ ] Versiones ocultas no aparecen en validación
+- [ ] Eliminación de PDFs funciona correctamente
+- [ ] Nuevos PDFs quedan como primera versión
+- [ ] Cambios persisten después de recargar página
+- [ ] Colegio y RBD se muestran durante procesamiento
+
+---
+
+**Ver documento completo:** `GUIA-INTEGRACION-COMPLETA-MATIAS.md` para detalles técnicos completos.

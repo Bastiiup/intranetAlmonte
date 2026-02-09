@@ -18,7 +18,7 @@ import {
   Spinner,
   ProgressBar,
 } from 'react-bootstrap'
-import { LuUpload, LuFileText, LuCheck, LuX, LuSparkles } from 'react-icons/lu'
+import { LuUpload, LuFileText, LuCheck, LuX, LuSparkles, LuMinimize2, LuMaximize2 } from 'react-icons/lu'
 import Select from 'react-select'
 
 interface CargaMasivaPDFsPorColegioModalProps {
@@ -61,21 +61,268 @@ export default function CargaMasivaPDFsPorColegioModal({
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [loadingColegios, setLoadingColegios] = useState(false)
+  const [minimized, setMinimized] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('carga-masiva-pdfs-minimized')
+      return saved === 'true'
+    }
+    return false
+  })
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Cargar colegios al abrir el modal
+  // Solicitar permiso de notificaciones al montar el componente
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then((permission) => {
+        setNotificationPermission(permission)
+      })
+    } else if ('Notification' in window) {
+      setNotificationPermission(Notification.permission)
+    }
+  }, [])
+
+  // Resetear estado cuando se abre el modal (permitir iniciar nuevo proceso incluso si hay uno en curso)
   useEffect(() => {
     if (show) {
       loadColegios()
-      setSelectedColegio(null)
-      setAño(new Date().getFullYear())
-      setUrlOriginal('')
-      setPdfs([])
-      setStep('config')
-      setError(null)
-      setProgress(0)
+      
+      if (typeof window !== 'undefined') {
+        const isProcessing = localStorage.getItem('carga-masiva-pdfs-processing') === 'true'
+        const isMinimized = localStorage.getItem('carga-masiva-pdfs-minimized') === 'true'
+        const savedProgress = localStorage.getItem('carga-masiva-pdfs-progress')
+        const savedColegio = localStorage.getItem('carga-masiva-pdfs-colegio')
+        const savedAño = localStorage.getItem('carga-masiva-pdfs-año')
+        const savedUrlOriginal = localStorage.getItem('carga-masiva-pdfs-url-original')
+        
+        // Si hay un proceso en curso, restaurar el estado de procesamiento (sin importar si estaba minimizado)
+        // También verificar si está minimizado pero con progreso guardado (puede ser que se recargó la página)
+        if ((isProcessing && savedProgress) || (isMinimized && savedProgress)) {
+          setProcessing(isProcessing) // Mantener el estado de procesamiento real
+          setProgress(parseInt(savedProgress, 10))
+          setStep('processing')
+          setMinimized(false) // Siempre mostrar el modal cuando se restaura
+          
+          // Restaurar año y URL primero
+          if (savedAño) {
+            setAño(parseInt(savedAño, 10))
+          }
+          if (savedUrlOriginal) {
+            setUrlOriginal(savedUrlOriginal)
+          }
+
+          // Restaurar información de PDFs
+          const savedPdfsInfo = localStorage.getItem('carga-masiva-pdfs-pdfs-info')
+          if (savedPdfsInfo) {
+            try {
+              const pdfsInfo = JSON.parse(savedPdfsInfo)
+              // Crear objetos PDFInfo con información restaurada (sin File object)
+              const pdfsRestaurados: PDFInfo[] = pdfsInfo.map((info: any) => ({
+                file: new File([], info.nombre || 'archivo.pdf', { type: 'application/pdf' }), // File vacío como placeholder
+                estado: info.estado || 'pendiente',
+                cursoDetectado: info.cursoDetectado,
+                fechaPublicacion: info.fechaPublicacion,
+                mensaje: info.mensaje
+              }))
+              setPdfs(pdfsRestaurados)
+            } catch (e) {
+              console.error('Error al restaurar PDFs:', e)
+            }
+          }
+          
+          // Restaurar colegio (usar un efecto separado para esperar a que los colegios se carguen)
+          if (savedColegio) {
+            try {
+              const colegioData = JSON.parse(savedColegio)
+              // Usar un efecto separado para restaurar el colegio después de que se carguen
+              const restoreColegio = () => {
+                if (colegios.length > 0) {
+                  const colegioEncontrado = colegios.find(c => 
+                    String(c.value) === String(colegioData.value) || 
+                    c.label === colegioData.label ||
+                    (c.rbd && colegioData.rbd && c.rbd === colegioData.rbd)
+                  )
+                  if (colegioEncontrado && !selectedColegio) {
+                    setSelectedColegio(colegioEncontrado)
+                  }
+                }
+              }
+              // Intentar restaurar inmediatamente
+              restoreColegio()
+              // Si los colegios aún no están cargados, intentar de nuevo después de un momento
+              setTimeout(restoreColegio, 500)
+              setTimeout(restoreColegio, 1000) // Un intento más por si acaso
+            } catch (e) {
+              console.error('Error al restaurar colegio:', e)
+            }
+          }
+        } else if (!isProcessing && !processing) {
+          // Si NO hay proceso en curso, resetear todo
+          setMinimized(false)
+          localStorage.removeItem('carga-masiva-pdfs-minimized')
+          setSelectedColegio(null)
+          setAño(new Date().getFullYear())
+          setUrlOriginal('')
+          setPdfs([])
+          setStep('config')
+          setError(null)
+          setProgress(0)
+        } else {
+          // Si hay un proceso pero no estaba minimizado, mostrar config para iniciar uno nuevo
+          setStep('config')
+          setError(null)
+        }
+      } else {
+        // Si no hay localStorage, resetear todo
+        setSelectedColegio(null)
+        setAño(new Date().getFullYear())
+        setUrlOriginal('')
+        setPdfs([])
+        setStep('config')
+        setError(null)
+        setProgress(0)
+      }
     }
   }, [show])
+
+  // Guardar estado de PDFs en localStorage cuando cambian
+  useEffect(() => {
+    if (typeof window !== 'undefined' && processing && pdfs.length > 0) {
+      // Guardar información de los PDFs (sin el File object que no es serializable)
+      const pdfsInfo = pdfs.map(pdf => ({
+        nombre: pdf.file.name,
+        tamaño: pdf.file.size,
+        estado: pdf.estado,
+        cursoDetectado: pdf.cursoDetectado,
+        fechaPublicacion: pdf.fechaPublicacion,
+        mensaje: pdf.mensaje
+      }))
+      localStorage.setItem('carga-masiva-pdfs-pdfs-info', JSON.stringify(pdfsInfo))
+    }
+  }, [pdfs, processing])
+
+  // Persistir estado de minimización en localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (minimized) {
+        localStorage.setItem('carga-masiva-pdfs-minimized', 'true')
+        localStorage.setItem('carga-masiva-pdfs-processing', processing ? 'true' : 'false')
+        localStorage.setItem('carga-masiva-pdfs-progress', progress.toString())
+        if (selectedColegio) {
+          localStorage.setItem('carga-masiva-pdfs-colegio', JSON.stringify({
+            value: selectedColegio.value,
+            label: selectedColegio.label,
+            rbd: selectedColegio.rbd
+          }))
+        }
+        if (año) {
+          localStorage.setItem('carga-masiva-pdfs-año', año.toString())
+        }
+        if (urlOriginal) {
+          localStorage.setItem('carga-masiva-pdfs-url-original', urlOriginal)
+        }
+        // Guardar también el estado actual de los PDFs cuando se minimiza
+        if (pdfs.length > 0) {
+          const pdfsInfo = pdfs.map(pdf => ({
+            nombre: pdf.file.name,
+            tamaño: pdf.file.size,
+            estado: pdf.estado,
+            cursoDetectado: pdf.cursoDetectado,
+            fechaPublicacion: pdf.fechaPublicacion,
+            mensaje: pdf.mensaje
+          }))
+          localStorage.setItem('carga-masiva-pdfs-pdfs-info', JSON.stringify(pdfsInfo))
+        }
+        // Disparar evento para actualizar el componente global (diferir para evitar actualizar durante renderizado)
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('carga-masiva-pdfs-update'))
+        }, 0)
+      } else {
+        localStorage.removeItem('carga-masiva-pdfs-minimized')
+        if (!processing) {
+          localStorage.removeItem('carga-masiva-pdfs-processing')
+          localStorage.removeItem('carga-masiva-pdfs-progress')
+          localStorage.removeItem('carga-masiva-pdfs-colegio')
+          localStorage.removeItem('carga-masiva-pdfs-pdfs-info')
+          localStorage.removeItem('carga-masiva-pdfs-año')
+          localStorage.removeItem('carga-masiva-pdfs-url-original')
+        }
+        // Disparar evento para actualizar el componente global (diferir para evitar actualizar durante renderizado)
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('carga-masiva-pdfs-update'))
+        }, 0)
+      }
+    }
+  }, [minimized, processing, progress, selectedColegio, año, urlOriginal, pdfs])
+
+  // Escuchar evento de apertura del modal (desde componente global)
+  useEffect(() => {
+    const handleOpenModal = (event: CustomEvent) => {
+      // Si el modal está minimizado, restaurarlo
+      if (minimized) {
+        setMinimized(false)
+        localStorage.removeItem('carga-masiva-pdfs-minimized')
+      }
+      // Si el modal no está abierto, abrirlo
+      if (!show && event.detail?.restore) {
+        // Disparar evento para que el componente padre abra el modal
+        window.dispatchEvent(new CustomEvent('carga-masiva-pdfs-force-open'))
+      }
+    }
+
+    window.addEventListener('carga-masiva-pdfs-open-modal', handleOpenModal as EventListener)
+    return () => {
+      window.removeEventListener('carga-masiva-pdfs-open-modal', handleOpenModal as EventListener)
+    }
+  }, [show, minimized])
+
+
+  // Restaurar colegio cuando se carguen los colegios y haya un proceso en curso
+  useEffect(() => {
+    if (colegios.length > 0 && processing && step === 'processing') {
+      const savedColegio = localStorage.getItem('carga-masiva-pdfs-colegio')
+      if (savedColegio && !selectedColegio) {
+        try {
+          const colegioData = JSON.parse(savedColegio)
+          const colegioEncontrado = colegios.find(c => 
+            String(c.value) === String(colegioData.value) || 
+            c.label === colegioData.label ||
+            (c.rbd && colegioData.rbd && c.rbd === colegioData.rbd)
+          )
+          if (colegioEncontrado) {
+            setSelectedColegio(colegioEncontrado)
+          }
+        } catch (e) {
+          console.error('Error al restaurar colegio:', e)
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [colegios.length, processing, step])
+
+  // Función para mostrar notificación
+  const mostrarNotificacion = (titulo: string, mensaje: string, tipo: 'success' | 'error' | 'info' = 'info') => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const icon = tipo === 'success' ? '✅' : tipo === 'error' ? '❌' : 'ℹ️'
+      const notification = new Notification(`${icon} ${titulo}`, {
+        body: mensaje,
+        icon: '/favicon.ico',
+        tag: 'carga-masiva-pdfs',
+        requireInteraction: false,
+      })
+
+      notification.onclick = () => {
+        window.focus()
+        setMinimized(false)
+        notification.close()
+      }
+
+      // Cerrar automáticamente después de 5 segundos
+      setTimeout(() => {
+        notification.close()
+      }, 5000)
+    }
+  }
 
   const loadColegios = async () => {
     setLoadingColegios(true)
@@ -218,13 +465,51 @@ export default function CargaMasivaPDFsPorColegioModal({
       // Procesar cada PDF
       for (let i = 0; i < pdfs.length; i++) {
         const pdfInfo = pdfs[i]
-        setProgress(Math.round((i / pdfs.length) * 50))
+        const nuevoProgreso = Math.round((i / pdfs.length) * 50)
+        setProgress(nuevoProgreso)
+        // Persistir progreso en localStorage
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('carga-masiva-pdfs-progress', nuevoProgreso.toString())
+          // Guardar también el estado actual de los PDFs
+          const pdfsInfo = pdfs.map(p => ({
+            nombre: p.file.name,
+            tamaño: p.file.size,
+            estado: p.estado,
+            cursoDetectado: p.cursoDetectado,
+            fechaPublicacion: p.fechaPublicacion,
+            mensaje: p.mensaje
+          }))
+          localStorage.setItem('carga-masiva-pdfs-pdfs-info', JSON.stringify(pdfsInfo))
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('carga-masiva-pdfs-update'))
+          }, 0)
+        }
 
         try {
           // Actualizar estado
-          setPdfs(prev => prev.map((p, idx) => 
-            idx === i ? { ...p, estado: 'procesando' } : p
-          ))
+          setPdfs(prev => {
+            const updated = prev.map((p, idx) => 
+              idx === i ? { ...p, estado: 'procesando' } : p
+            )
+            
+            // Guardar estado actualizado en localStorage
+            if (typeof window !== 'undefined') {
+              const pdfsInfo = updated.map(p => ({
+                nombre: p.file.name,
+                tamaño: p.file.size,
+                estado: p.estado,
+                cursoDetectado: p.cursoDetectado,
+                fechaPublicacion: p.fechaPublicacion,
+                mensaje: p.mensaje
+              }))
+              localStorage.setItem('carga-masiva-pdfs-pdfs-info', JSON.stringify(pdfsInfo))
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('carga-masiva-pdfs-update'))
+              }, 0)
+            }
+            
+            return updated
+          })
 
           // Subir PDF a Strapi primero
           const formData = new FormData()
@@ -487,33 +772,73 @@ export default function CargaMasivaPDFsPorColegioModal({
 
               if (procesarData.success) {
                 const fechaPublicacion = procesarData.fechaPublicacion || new Date().toISOString()
-                setPdfs(prev => prev.map((p, idx) => 
-                  idx === i ? { 
-                    ...p, 
-                    estado: 'completado',
-                    cursoDetectado: {
-                      nombre: nombreCurso,
-                      nivel,
-                      grado,
-                      score: 70,
-                    },
-                    fechaPublicacion,
-                    mensaje: cursoExistente ? 'Curso detectado y procesado desde nombre' : 'Curso creado y procesado desde nombre',
-                  } : p
-                ))
+                setPdfs(prev => {
+                  const updated = prev.map((p, idx) => 
+                    idx === i ? { 
+                      ...p, 
+                      estado: 'completado',
+                      cursoDetectado: {
+                        nombre: nombreCurso,
+                        nivel,
+                        grado,
+                        score: 70,
+                      },
+                      fechaPublicacion,
+                      mensaje: cursoExistente ? 'Curso detectado y procesado desde nombre' : 'Curso creado y procesado desde nombre',
+                    } : p
+                  )
+                  
+                  // Guardar estado actualizado en localStorage
+                  if (typeof window !== 'undefined') {
+                    const pdfsInfo = updated.map(p => ({
+                      nombre: p.file.name,
+                      tamaño: p.file.size,
+                      estado: p.estado,
+                      cursoDetectado: p.cursoDetectado,
+                      fechaPublicacion: p.fechaPublicacion,
+                      mensaje: p.mensaje
+                    }))
+                    localStorage.setItem('carga-masiva-pdfs-pdfs-info', JSON.stringify(pdfsInfo))
+                    setTimeout(() => {
+                      window.dispatchEvent(new CustomEvent('carga-masiva-pdfs-update'))
+                    }, 0)
+                  }
+                  
+                  return updated
+                })
               } else {
                 throw new Error(procesarData.error || 'Error al procesar PDF')
               }
             } else {
               // No se pudo detectar grado o nivel
               console.warn(`[Carga Masiva PDFs] ⚠️ No se pudo detectar curso desde nombre: "${pdfInfo.file.name}"`)
-              setPdfs(prev => prev.map((p, idx) => 
-                idx === i ? { 
-                  ...p, 
-                  estado: 'error',
-                  mensaje: 'No se pudo detectar el curso desde el nombre del archivo',
-                } : p
-              ))
+              setPdfs(prev => {
+                const updated = prev.map((p, idx) => 
+                  idx === i ? { 
+                    ...p, 
+                    estado: 'error',
+                    mensaje: 'No se pudo detectar el curso desde el nombre del archivo',
+                  } : p
+                )
+                
+                // Guardar estado actualizado en localStorage
+                if (typeof window !== 'undefined') {
+                  const pdfsInfo = updated.map(p => ({
+                    nombre: p.file.name,
+                    tamaño: p.file.size,
+                    estado: p.estado,
+                    cursoDetectado: p.cursoDetectado,
+                    fechaPublicacion: p.fechaPublicacion,
+                    mensaje: p.mensaje
+                  }))
+                  localStorage.setItem('carga-masiva-pdfs-pdfs-info', JSON.stringify(pdfsInfo))
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('carga-masiva-pdfs-update'))
+                  }, 0)
+                }
+                
+                return updated
+              })
             }
             continue
           }
@@ -605,68 +930,294 @@ export default function CargaMasivaPDFsPorColegioModal({
             // Extraer fecha de publicación si está disponible
             const fechaPublicacion = procesarData.fechaPublicacion || new Date().toISOString()
 
-            setPdfs(prev => prev.map((p, idx) => 
-              idx === i ? { 
-                ...p, 
-                estado: 'completado',
-                cursoDetectado: {
-                  nombre: nombreCurso,
-                  nivel,
-                  grado,
-                  score: 95,
-                },
-                fechaPublicacion,
-                mensaje: cursoExistente ? 'Procesado exitosamente' : 'Curso creado y procesado exitosamente',
-              } : p
-            ))
+            setPdfs(prev => {
+              const updated = prev.map((p, idx) => 
+                idx === i ? { 
+                  ...p, 
+                  estado: 'completado',
+                  cursoDetectado: {
+                    nombre: nombreCurso,
+                    nivel,
+                    grado,
+                    score: 95,
+                  },
+                  fechaPublicacion,
+                  mensaje: cursoExistente ? 'Procesado exitosamente' : 'Curso creado y procesado exitosamente',
+                } : p
+              )
+              
+              // Guardar estado actualizado en localStorage
+              if (typeof window !== 'undefined') {
+                const pdfsInfo = updated.map(p => ({
+                  nombre: p.file.name,
+                  tamaño: p.file.size,
+                  estado: p.estado,
+                  cursoDetectado: p.cursoDetectado,
+                  fechaPublicacion: p.fechaPublicacion,
+                  mensaje: p.mensaje
+                }))
+                localStorage.setItem('carga-masiva-pdfs-pdfs-info', JSON.stringify(pdfsInfo))
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent('carga-masiva-pdfs-update'))
+                }, 0)
+              }
+              
+              return updated
+            })
           } else {
             throw new Error(procesarData.error || 'Error al procesar PDF')
           }
 
         } catch (err: any) {
           console.error(`Error procesando PDF ${pdfInfo.file.name}:`, err)
-          setPdfs(prev => prev.map((p, idx) => 
-            idx === i ? { 
-              ...p, 
-              estado: 'error',
-              mensaje: err.message || 'Error al procesar',
-            } : p
-          ))
+          setPdfs(prev => {
+            const updated = prev.map((p, idx) => 
+              idx === i ? { 
+                ...p, 
+                estado: 'error',
+                mensaje: err.message || 'Error al procesar',
+              } : p
+            )
+            
+            // Guardar estado actualizado en localStorage
+            if (typeof window !== 'undefined') {
+              const pdfsInfo = updated.map(p => ({
+                nombre: p.file.name,
+                tamaño: p.file.size,
+                estado: p.estado,
+                cursoDetectado: p.cursoDetectado,
+                fechaPublicacion: p.fechaPublicacion,
+                mensaje: p.mensaje
+              }))
+              localStorage.setItem('carga-masiva-pdfs-pdfs-info', JSON.stringify(pdfsInfo))
+            }
+            
+            return updated
+          })
         }
       }
 
       setProgress(100)
       setStep('results')
+      
+      // Mostrar notificación de éxito
+      const successCount = pdfs.filter(p => p.estado === 'completado').length
+      const errorCount = pdfs.filter(p => p.estado === 'error').length
+      
+      // Limpiar localStorage inmediatamente cuando termine
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('carga-masiva-pdfs-minimized')
+        localStorage.removeItem('carga-masiva-pdfs-processing')
+        localStorage.removeItem('carga-masiva-pdfs-progress')
+        localStorage.removeItem('carga-masiva-pdfs-colegio')
+        localStorage.removeItem('carga-masiva-pdfs-pdfs-info')
+        localStorage.removeItem('carga-masiva-pdfs-año')
+        localStorage.removeItem('carga-masiva-pdfs-url-original')
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('carga-masiva-pdfs-update'))
+        }, 0)
+      }
+      
+      if (successCount > 0) {
+        // Construir mensaje de notificación con colegio y RBD
+        const colegioNombre = selectedColegio?.label || 'Colegio'
+        const colegioRBD = selectedColegio?.rbd ? ` (RBD: ${selectedColegio.rbd})` : ''
+        const mensajeNotificacion = `${colegioNombre}${colegioRBD} procesado, listo para su uso!`
+        
+        mostrarNotificacion(
+          'Carga Masiva Completada',
+          mensajeNotificacion,
+          errorCount > 0 ? 'info' : 'success'
+        )
+        
+        // Disparar evento para que la tabla se actualice automáticamente
+        if (typeof window !== 'undefined') {
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('carga-masiva-pdfs-completada', {
+              detail: {
+                colegioId: selectedColegio?.value,
+                colegioNombre: selectedColegio?.label,
+                colegioRBD: selectedColegio?.rbd,
+                successCount,
+                errorCount
+              }
+            }))
+          }, 0)
+        }
+        
+        // Cerrar el modal automáticamente después de mostrar la notificación (si está minimizado o no)
+        setTimeout(() => {
+          // Limpiar estado antes de cerrar
+          setPdfs([])
+          setSelectedColegio(null)
+          setAño(new Date().getFullYear())
+          setStep('config')
+          setError(null)
+          setProgress(0)
+          setMinimized(false)
+          
+          // Cerrar el modal
+          onHide()
+          
+          // Llamar callback de éxito si existe
+          if (onSuccess) {
+            onSuccess()
+          }
+        }, 2000) // Esperar 2 segundos para que el usuario vea la notificación
+      } else {
+        // Si no hubo éxitos, también cerrar después de un tiempo
+        setTimeout(() => {
+          setPdfs([])
+          setSelectedColegio(null)
+          setAño(new Date().getFullYear())
+          setStep('config')
+          setError(null)
+          setProgress(0)
+          setMinimized(false)
+          onHide()
+        }, 3000)
+      }
     } catch (err: any) {
       console.error('Error en detección de cursos:', err)
       setError('Error al procesar PDFs: ' + err.message)
       setStep('upload')
+      mostrarNotificacion('Error en Carga Masiva', err.message || 'Error al procesar PDFs', 'error')
     } finally {
       setProcessing(false)
+      // El localStorage ya se limpió en el bloque anterior cuando terminó exitosamente
+      // Solo limpiar aquí si hubo un error
+      if (typeof window !== 'undefined' && step !== 'results') {
+        // Si terminó con error, limpiar también
+        localStorage.removeItem('carga-masiva-pdfs-minimized')
+        localStorage.removeItem('carga-masiva-pdfs-processing')
+        localStorage.removeItem('carga-masiva-pdfs-progress')
+        localStorage.removeItem('carga-masiva-pdfs-colegio')
+        localStorage.removeItem('carga-masiva-pdfs-pdfs-info')
+        localStorage.removeItem('carga-masiva-pdfs-año')
+        localStorage.removeItem('carga-masiva-pdfs-url-original')
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('carga-masiva-pdfs-update'))
+        }, 0)
+      }
     }
   }
 
   const handleClose = () => {
+    // Si hay procesamiento en curso, minimizar en lugar de cerrar
+    if (processing) {
+      // Guardar estado actual antes de minimizar
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('carga-masiva-pdfs-minimized', 'true')
+        localStorage.setItem('carga-masiva-pdfs-processing', 'true')
+        localStorage.setItem('carga-masiva-pdfs-progress', progress.toString())
+        if (selectedColegio) {
+          localStorage.setItem('carga-masiva-pdfs-colegio', JSON.stringify({
+            value: selectedColegio.value,
+            label: selectedColegio.label,
+            rbd: selectedColegio.rbd
+          }))
+        }
+        if (año) {
+          localStorage.setItem('carga-masiva-pdfs-año', año.toString())
+        }
+        if (urlOriginal) {
+          localStorage.setItem('carga-masiva-pdfs-url-original', urlOriginal)
+        }
+        if (pdfs.length > 0) {
+          const pdfsInfo = pdfs.map(pdf => ({
+            nombre: pdf.file.name,
+            tamaño: pdf.file.size,
+            estado: pdf.estado,
+            cursoDetectado: pdf.cursoDetectado,
+            fechaPublicacion: pdf.fechaPublicacion,
+            mensaje: pdf.mensaje
+          }))
+          localStorage.setItem('carga-masiva-pdfs-pdfs-info', JSON.stringify(pdfsInfo))
+        }
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('carga-masiva-pdfs-update'))
+        }, 0)
+      }
+      setMinimized(true)
+      return
+    }
+    
+    // Solo limpiar si no hay procesamiento en curso
     setPdfs([])
     setSelectedColegio(null)
     setAño(new Date().getFullYear())
     setStep('config')
     setError(null)
     setProgress(0)
+    setMinimized(false)
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('carga-masiva-pdfs-minimized')
+      localStorage.removeItem('carga-masiva-pdfs-processing')
+      localStorage.removeItem('carga-masiva-pdfs-progress')
+      localStorage.removeItem('carga-masiva-pdfs-colegio')
+      localStorage.removeItem('carga-masiva-pdfs-pdfs-info')
+      localStorage.removeItem('carga-masiva-pdfs-año')
+      localStorage.removeItem('carga-masiva-pdfs-url-original')
+    }
+    // NO minimizar automáticamente - solo cuando el usuario haga clic en el botón
     onHide()
   }
 
   const successCount = pdfs.filter(p => p.estado === 'completado').length
   const errorCount = pdfs.filter(p => p.estado === 'error').length
 
+  // Verificar si hay un proceso en curso guardado en localStorage (para persistencia)
+  const [hasPersistedProcess, setHasPersistedProcess] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('carga-masiva-pdfs-processing') === 'true'
+    }
+    return false
+  })
+
+  // Actualizar hasPersistedProcess cuando cambie processing
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setHasPersistedProcess(processing || localStorage.getItem('carga-masiva-pdfs-processing') === 'true')
+    }
+  }, [processing])
+
   return (
-    <Modal show={show} onHide={handleClose} size="xl" centered>
-      <ModalHeader closeButton>
-        <ModalTitle>
-          <LuSparkles className="me-2" />
-          Carga Masiva de PDFs por Colegio
-        </ModalTitle>
-      </ModalHeader>
+    <>
+      <Modal 
+        show={show && !minimized} 
+        onHide={() => {
+          // Si está procesando, minimizar en lugar de cerrar
+          if (processing) {
+            setMinimized(true)
+          } else {
+            handleClose()
+          }
+        }}
+        size="xl" 
+        centered
+        backdrop={processing ? 'static' : true} // Prevenir cerrar con click fuera si está procesando
+      >
+        <ModalHeader closeButton={!processing}>
+          <div className="d-flex align-items-center justify-content-between w-100 me-3">
+            <ModalTitle>
+              <LuSparkles className="me-2" />
+              Carga Masiva de PDFs por Colegio
+            </ModalTitle>
+            {processing && (
+              <div className="d-flex align-items-center gap-2">
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={() => setMinimized(true)}
+                  className="p-0"
+                  title="Minimizar (continuará en segundo plano)"
+                >
+                  <LuMinimize2 size={20} />
+                </Button>
+              </div>
+            )}
+          </div>
+        </ModalHeader>
       <ModalBody>
         {error && (
           <Alert variant="danger" className="mb-3">
@@ -847,8 +1398,26 @@ export default function CargaMasivaPDFsPorColegioModal({
         {step === 'processing' && (
           <div>
             <Alert variant="info" className="mb-3">
-              <Spinner size="sm" className="me-2" />
-              Procesando PDFs con IA... Por favor espera.
+              <div className="d-flex align-items-center justify-content-between">
+                <div className="d-flex align-items-center">
+                  <Spinner size="sm" className="me-2" />
+                  <span>Procesando PDFs con IA... Por favor espera.</span>
+                </div>
+                <Button
+                  variant="outline-primary"
+                  size="sm"
+                  onClick={() => setMinimized(true)}
+                  className="d-flex align-items-center gap-1"
+                >
+                  <LuMinimize2 size={16} />
+                  Minimizar
+                </Button>
+              </div>
+              <small className="mt-2 d-block">
+                💡 <strong>Tip:</strong> Puedes minimizar este modal (botón arriba o aquí) y seguir trabajando. 
+                El progreso se mostrará en la esquina inferior derecha. También puedes hacer click fuera del modal 
+                para minimizarlo automáticamente.
+              </small>
             </Alert>
             {selectedColegio && (
               <Alert variant="secondary" className="mb-3">
@@ -965,5 +1534,6 @@ export default function CargaMasivaPDFsPorColegioModal({
         )}
       </ModalFooter>
     </Modal>
+    </>
   )
 }

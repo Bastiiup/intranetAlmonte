@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('[Carga Masiva IA] 🚀 Iniciando procesamiento de', archivos.length, 'archivos')
+    console.log('[Carga Masiva IA] 🚀 Iniciando procesamiento de', archivos.length, 'archivos para colegio:', colegioId)
 
     const anthropic = new Anthropic({
       apiKey: ANTHROPIC_API_KEY,
@@ -303,15 +303,19 @@ FORMATO (JSON puro, sin markdown):
           // Buscar curso existente
           try {
             // Obtener ID numérico del colegio si es documentId
-            let colegioIdNum = colegioId
+            let colegioIdNum: number | string = colegioId
             if (typeof colegioId === 'string' && !/^\d+$/.test(colegioId)) {
+              console.log(`[Carga Masiva IA] 🔍 Obteniendo ID numérico del colegio para búsqueda de curso: ${colegioId}`)
               const colegioResponse = await strapiClient.get<any>(
-                `/api/colegios/${colegioId}?fields=id&publicationState=preview`
+                `/api/colegios/${colegioId}?fields=id,documentId&publicationState=preview`
               )
               const colegioData = Array.isArray(colegioResponse.data) ? colegioResponse.data[0] : colegioResponse.data
-              colegioIdNum = colegioData?.id || colegioData?.attributes?.id || colegioId
+              const colegioAttrs = colegioData?.attributes || colegioData
+              colegioIdNum = colegioData?.id || colegioAttrs?.id || colegioId
+              console.log(`[Carga Masiva IA] 🔄 ID numérico para búsqueda: ${colegioIdNum}`)
             }
             
+            console.log(`[Carga Masiva IA] 🔍 Buscando curso existente: colegio=${colegioIdNum}, nivel=${nivel}, grado=${grado}, año=${año}`)
             const buscarCursosResponse = await strapiClient.get<any>(
               `/api/cursos?filters[colegio][id][$eq]=${colegioIdNum}&filters[nivel][$eq]=${nivel}&filters[grado][$eq]=${grado}&filters[anio][$eq]=${año}&fields[0]=id&fields[1]=documentId&pagination[pageSize]=1&publicationState=preview`
             )
@@ -324,10 +328,15 @@ FORMATO (JSON puro, sin markdown):
               const cursoExistente = cursosExistentes[0]
               cursoId = cursoExistente.documentId || cursoExistente.id
               console.log(`[Carga Masiva IA] ✅ Curso existente encontrado: ${cursoId}`)
+            } else {
+              console.log(`[Carga Masiva IA] ℹ️ No se encontró curso existente, se creará uno nuevo`)
             }
           } catch (error: any) {
-            console.warn(`[Carga Masiva IA] ⚠️ Error buscando curso existente:`, error.message)
+            console.error(`[Carga Masiva IA] ❌ Error buscando curso existente:`, error)
+            // Continuar para crear curso nuevo
           }
+        } else {
+          console.log(`[Carga Masiva IA] ℹ️ Usando cursoId proporcionado: ${cursoId}`)
         }
 
         if (cursoId) {
@@ -374,25 +383,52 @@ FORMATO (JSON puro, sin markdown):
           console.log(`[Carga Masiva IA] ➕ Creando nuevo curso`)
           
           // Obtener ID numérico del colegio si es documentId
-          let colegioIdNum = colegioId
-          if (typeof colegioId === 'string' && !/^\d+$/.test(colegioId)) {
+          let colegioIdNum: number | string | null = null
+          
+          // Si es un número, usarlo directamente
+          if (typeof colegioId === 'number' || (typeof colegioId === 'string' && /^\d+$/.test(colegioId))) {
+            colegioIdNum = typeof colegioId === 'number' ? colegioId : parseInt(colegioId, 10)
+            console.log(`[Carga Masiva IA] 🔄 Usando ID numérico directo: ${colegioIdNum}`)
+          } else {
+            // Es un documentId, necesitamos obtener el ID numérico
             try {
+              console.log(`[Carga Masiva IA] 🔍 Obteniendo ID numérico del colegio con documentId: ${colegioId}`)
               const colegioResponse = await strapiClient.get<any>(
-                `/api/colegios/${colegioId}?fields=id&publicationState=preview`
+                `/api/colegios/${colegioId}?fields=id,documentId&publicationState=preview`
               )
               const colegioData = Array.isArray(colegioResponse.data) ? colegioResponse.data[0] : colegioResponse.data
-              colegioIdNum = colegioData?.id || colegioData?.attributes?.id || colegioId
-              console.log(`[Carga Masiva IA] 🔄 Convertido documentId ${colegioId} a ID numérico ${colegioIdNum}`)
+              const colegioAttrs = colegioData?.attributes || colegioData
+              
+              if (colegioData && colegioAttrs) {
+                colegioIdNum = colegioData.id || colegioAttrs.id || null
+                console.log(`[Carga Masiva IA] ✅ ID numérico obtenido: ${colegioIdNum}`)
+                
+                if (!colegioIdNum) {
+                  throw new Error('No se pudo obtener el ID numérico del colegio desde la respuesta')
+                }
+              } else {
+                throw new Error('Colegio no encontrado en la respuesta de Strapi')
+              }
             } catch (error: any) {
-              console.warn(`[Carga Masiva IA] ⚠️ Error obteniendo ID numérico del colegio:`, error.message)
-              // Intentar usar el colegioId original
+              console.error(`[Carga Masiva IA] ❌ Error obteniendo ID numérico del colegio:`, error)
+              throw new Error(`Error al obtener ID del colegio: ${error.message}`)
             }
           }
+          
+          // Validar que tenemos un ID numérico válido
+          if (!colegioIdNum || (typeof colegioIdNum === 'string' && !/^\d+$/.test(colegioIdNum))) {
+            throw new Error(`ID de colegio inválido: ${colegioIdNum}`)
+          }
+          
+          // Asegurar que es un número
+          const colegioIdFinal = typeof colegioIdNum === 'number' ? colegioIdNum : parseInt(colegioIdNum, 10)
+          
+          console.log(`[Carga Masiva IA] 🔄 Creando curso con colegio ID: ${colegioIdFinal} (tipo: ${typeof colegioIdFinal})`)
           
           const cursoData: any = {
             data: {
               nombre_curso: `${grado}° ${nivel}`,
-              colegio: { connect: [colegioIdNum] }, // Usar ID numérico para la relación
+              colegio: { connect: [colegioIdFinal] }, // Usar ID numérico para la relación
               nivel: nivel,
               grado: String(grado),
               anio: año, // Strapi usa "anio" sin tilde
@@ -401,19 +437,28 @@ FORMATO (JSON puro, sin markdown):
             },
           }
 
-          const cursoResponse = await strapiClient.post<StrapiResponse<StrapiEntity<any>>>(
-            '/api/cursos',
-            cursoData
-          )
+          try {
+            const cursoResponse = await strapiClient.post<StrapiResponse<StrapiEntity<any>>>(
+              '/api/cursos',
+              cursoData
+            )
 
-          // Manejar respuesta que puede ser objeto único o array
-          const cursoCreado = Array.isArray(cursoResponse.data) 
-            ? cursoResponse.data[0] 
-            : cursoResponse.data
-          
-          cursoId = cursoCreado?.id || cursoCreado?.documentId || undefined
-          
-          console.log(`[Carga Masiva IA] ✅ Curso creado: ${cursoId}`)
+            // Manejar respuesta que puede ser objeto único o array
+            const cursoCreado = Array.isArray(cursoResponse.data) 
+              ? cursoResponse.data[0] 
+              : cursoResponse.data
+            
+            cursoId = cursoCreado?.id || cursoCreado?.documentId || undefined
+            
+            if (!cursoId) {
+              throw new Error('No se recibió ID del curso creado')
+            }
+            
+            console.log(`[Carga Masiva IA] ✅ Curso creado exitosamente: ${cursoId}`)
+          } catch (error: any) {
+            console.error(`[Carga Masiva IA] ❌ Error al crear curso:`, error)
+            throw new Error(`Error al crear curso: ${error.message || 'Error desconocido'}`)
+          }
         }
 
         resultados.push({
