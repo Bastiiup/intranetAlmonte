@@ -489,7 +489,7 @@ export default function CargaMasivaPDFsPorColegioModal({
           // Actualizar estado
           setPdfs(prev => {
             const updated = prev.map((p, idx) => 
-              idx === i ? { ...p, estado: 'procesando' } : p
+              idx === i ? { ...p, estado: 'procesando' as const } : p
             )
             
             // Guardar estado actualizado en localStorage
@@ -730,7 +730,7 @@ export default function CargaMasivaPDFsPorColegioModal({
                   setPdfs(prev => prev.map((p, idx) => 
                     idx === i ? { 
                       ...p, 
-                      estado: 'error',
+                      estado: 'error' as const,
                       mensaje: `Error al crear curso: ${err.message}`,
                     } : p
                   ))
@@ -776,7 +776,7 @@ export default function CargaMasivaPDFsPorColegioModal({
                   const updated = prev.map((p, idx) => 
                     idx === i ? { 
                       ...p, 
-                      estado: 'completado',
+                      estado: 'completado' as const,
                       cursoDetectado: {
                         nombre: nombreCurso,
                         nivel,
@@ -816,7 +816,7 @@ export default function CargaMasivaPDFsPorColegioModal({
                 const updated = prev.map((p, idx) => 
                   idx === i ? { 
                     ...p, 
-                    estado: 'error',
+                    estado: 'error' as const,
                     mensaje: 'No se pudo detectar el curso desde el nombre del archivo',
                   } : p
                 )
@@ -934,7 +934,7 @@ export default function CargaMasivaPDFsPorColegioModal({
               const updated = prev.map((p, idx) => 
                 idx === i ? { 
                   ...p, 
-                  estado: 'completado',
+                  estado: 'completado' as const,
                   cursoDetectado: {
                     nombre: nombreCurso,
                     nivel,
@@ -974,7 +974,7 @@ export default function CargaMasivaPDFsPorColegioModal({
             const updated = prev.map((p, idx) => 
               idx === i ? { 
                 ...p, 
-                estado: 'error',
+                estado: 'error' as const,
                 mensaje: err.message || 'Error al procesar',
               } : p
             )
