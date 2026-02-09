@@ -143,16 +143,44 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
     setSelectedProductData
   })
 
-  // Determinar versión actual
+  // Determinar versión actual (solo versiones activas)
   const versionActual = useMemo(() => {
     if (!lista?.versiones_materiales || lista.versiones_materiales.length === 0) return null
-    const versionesOrdenadas = [...lista.versiones_materiales].sort((a: any, b: any) => {
+    
+    // Filtrar solo versiones activas (activo !== false)
+    const versionesActivas = lista.versiones_materiales.filter((v: any) => v.activo !== false)
+    
+    if (versionesActivas.length === 0) return null
+    
+    const versionesOrdenadas = [...versionesActivas].sort((a: any, b: any) => {
       const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
       const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
       return fechaB - fechaA
     })
-    const index = versionSeleccionada !== null ? versionSeleccionada : 0
-    return versionesOrdenadas[index] || versionesOrdenadas[0] || null
+    
+    // Si hay una versión seleccionada, buscar su índice en las versiones activas
+    if (versionSeleccionada !== null) {
+      // Mapear el índice seleccionado al índice en versiones activas
+      const todasVersiones = [...lista.versiones_materiales].sort((a: any, b: any) => {
+        const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
+        const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
+        return fechaB - fechaA
+      })
+      const versionSeleccionadaOriginal = todasVersiones[versionSeleccionada]
+      if (versionSeleccionadaOriginal && versionSeleccionadaOriginal.activo !== false) {
+        const indexEnActivas = versionesOrdenadas.findIndex((v: any) => 
+          v.id === versionSeleccionadaOriginal.id || 
+          (v.fecha_subida === versionSeleccionadaOriginal.fecha_subida && 
+           v.nombre_archivo === versionSeleccionadaOriginal.nombre_archivo)
+        )
+        if (indexEnActivas >= 0) {
+          return versionesOrdenadas[indexEnActivas]
+        }
+      }
+    }
+    
+    // Por defecto, usar la primera versión activa (más reciente)
+    return versionesOrdenadas[0] || null
   }, [lista, versionSeleccionada])
 
   // Handlers
@@ -462,7 +490,36 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
   }
 
   const cambiarVersion = (index: number) => {
-    setVersionSeleccionada(index)
+    // El índice viene del VersionSelector que ya filtra versiones activas
+    // Necesitamos encontrar la versión correspondiente en todas las versiones
+    if (!lista?.versiones_materiales) return
+    
+    // Filtrar versiones activas y ordenarlas
+    const versionesActivas = lista.versiones_materiales.filter((v: any) => v.activo !== false)
+    const versionesActivasOrdenadas = [...versionesActivas].sort((a: any, b: any) => {
+      const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
+      const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
+      return fechaB - fechaA
+    })
+    
+    // Obtener la versión seleccionada de las versiones activas
+    const versionSeleccionadaActiva = versionesActivasOrdenadas[index]
+    if (!versionSeleccionadaActiva) return
+    
+    // Encontrar el índice de esta versión en todas las versiones ordenadas
+    const todasVersionesOrdenadas = [...lista.versiones_materiales].sort((a: any, b: any) => {
+      const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
+      const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
+      return fechaB - fechaA
+    })
+    
+    const indexEnTodas = todasVersionesOrdenadas.findIndex((v: any) => 
+      v.id === versionSeleccionadaActiva.id || 
+      (v.fecha_subida === versionSeleccionadaActiva.fecha_subida && 
+       v.nombre_archivo === versionSeleccionadaActiva.nombre_archivo)
+    )
+    
+    setVersionSeleccionada(indexEnTodas >= 0 ? indexEnTodas : null)
     setMostrarTodosLosProductos(false)
   }
 
@@ -499,6 +556,34 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
 
   const loading = loadingProductos || loadingCRUD
 
+  // Helper para obtener el colegioId/documentId del colegio
+  const obtenerColegioId = (): string | null => {
+    if (!lista?.colegio) return null
+    
+    // Intentar diferentes estructuras posibles
+    const colegio = lista.colegio as any
+    
+    // Caso 1: colegio.id o colegio.documentId directo
+    if (colegio.id) return String(colegio.id)
+    if (colegio.documentId) return String(colegio.documentId)
+    
+    // Caso 2: colegio.data.id o colegio.data.documentId
+    if (colegio.data?.id) return String(colegio.data.id)
+    if (colegio.data?.documentId) return String(colegio.data.documentId)
+    
+    // Caso 3: colegio.data.attributes.id (Strapi v5)
+    if (colegio.data?.attributes?.id) return String(colegio.data.attributes.id)
+    if (colegio.data?.attributes?.documentId) return String(colegio.data.attributes.documentId)
+    
+    // Caso 4: colegio.attributes.id (Strapi v5)
+    if (colegio.attributes?.id) return String(colegio.attributes.id)
+    if (colegio.attributes?.documentId) return String(colegio.attributes.documentId)
+    
+    return null
+  }
+
+  const colegioId = obtenerColegioId()
+
   // Estados de error y carga
   if (error) {
     return (
@@ -507,10 +592,12 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
         <Alert variant="danger">
           <strong>Error:</strong> {error}
         </Alert>
-        <Button variant="primary" onClick={() => router.push('/crm/listas')}>
-          <TbArrowLeft className="me-2" />
-          Volver a Listas
-        </Button>
+        <div className="d-flex gap-2 mt-3">
+          <Button variant="primary" onClick={() => router.push('/crm/listas')}>
+            <TbArrowLeft className="me-2" />
+            Volver a Colegios
+          </Button>
+        </div>
       </Container>
     )
   }
@@ -522,15 +609,21 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
         <Alert variant="warning">
           No se encontro la lista solicitada.
         </Alert>
-        <Button variant="primary" onClick={() => router.push('/crm/listas')}>
-          <TbArrowLeft className="me-2" />
-          Volver a Listas
-        </Button>
+        <div className="d-flex gap-2 mt-3">
+          <Button variant="primary" onClick={() => router.push('/crm/listas')}>
+            <TbArrowLeft className="me-2" />
+            Volver a Colegios
+          </Button>
+        </div>
       </Container>
     )
   }
 
-  const versiones = lista.versiones_materiales || []
+  // Filtrar solo versiones activas para pasar al componente
+  const versiones = useMemo(() => {
+    if (!lista?.versiones_materiales) return []
+    return lista.versiones_materiales.filter((v: any) => v.activo !== false)
+  }, [lista?.versiones_materiales])
 
   // Panel izquierdo: Tabla de productos
   const leftPanel = (
@@ -651,15 +744,30 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
               </Badge>
             </div>
           </div>
-          <Button
-            variant="light"
-            size="sm"
-            onClick={() => router.push('/crm/listas')}
-            className="d-flex align-items-center"
-          >
-            <TbArrowLeft className="me-1" />
-            Volver
-          </Button>
+          <div className="d-flex gap-2">
+            {colegioId && (
+              <Button
+                variant="outline-light"
+                size="sm"
+                onClick={() => router.push(`/crm/listas/colegio/${colegioId}`)}
+                className="d-flex align-items-center"
+                title="Volver a las listas de este curso"
+              >
+                <TbArrowLeft className="me-1" />
+                Listas del Curso
+              </Button>
+            )}
+            <Button
+              variant="light"
+              size="sm"
+              onClick={() => router.push('/crm/listas')}
+              className="d-flex align-items-center"
+              title="Volver a la lista de colegios"
+            >
+              <TbArrowLeft className="me-1" />
+              Volver a Colegios
+            </Button>
+          </div>
         </div>
       </div>
 

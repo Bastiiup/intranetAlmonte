@@ -14,6 +14,7 @@ interface VersionSelectorProps {
   onChangeVersion: (index: number) => void
   onChangeMostrarTodos: (mostrar: boolean) => void
   onRecargarProductos: () => void
+  versionActual?: any
 }
 
 export default function VersionSelector({
@@ -22,7 +23,8 @@ export default function VersionSelector({
   mostrarTodosLosProductos,
   onChangeVersion,
   onChangeMostrarTodos,
-  onRecargarProductos
+  onRecargarProductos,
+  versionActual
 }: VersionSelectorProps) {
   // Filtrar solo versiones activas (activo !== false)
   const versionesActivas = versiones.filter((v: any) => v.activo !== false)
@@ -35,13 +37,45 @@ export default function VersionSelector({
     return fechaB - fechaA
   })
 
+  // Calcular el índice correcto dentro de las versiones activas
+  // Si hay versionActual, buscar su índice en versionesOrdenadas
+  let indiceSeleccionado = 0
+  if (versionActual) {
+    const indexEnActivas = versionesOrdenadas.findIndex((v: any) => 
+      v.id === versionActual.id || 
+      (v.fecha_subida === versionActual.fecha_subida && 
+       v.nombre_archivo === versionActual.nombre_archivo)
+    )
+    if (indexEnActivas >= 0) {
+      indiceSeleccionado = indexEnActivas
+    }
+  } else if (versionSeleccionada !== null) {
+    // Si no hay versionActual pero hay versionSeleccionada, buscar la versión correspondiente
+    const todasVersionesOrdenadas = [...versiones].sort((a: any, b: any) => {
+      const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
+      const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
+      return fechaB - fechaA
+    })
+    const versionSeleccionadaOriginal = todasVersionesOrdenadas[versionSeleccionada]
+    if (versionSeleccionadaOriginal && versionSeleccionadaOriginal.activo !== false) {
+      const indexEnActivas = versionesOrdenadas.findIndex((v: any) => 
+        v.id === versionSeleccionadaOriginal.id || 
+        (v.fecha_subida === versionSeleccionadaOriginal.fecha_subida && 
+         v.nombre_archivo === versionSeleccionadaOriginal.nombre_archivo)
+      )
+      if (indexEnActivas >= 0) {
+        indiceSeleccionado = indexEnActivas
+      }
+    }
+  }
+
   return (
     <div className="mb-2">
       <div className="d-flex align-items-center gap-3 mb-2">
         <div style={{ flex: 1 }}>
           <Form.Label className="mb-1 fw-bold">Seleccionar Lista de Materiales:</Form.Label>
           <Form.Select
-            value={versionSeleccionada !== null ? versionSeleccionada : 0}
+            value={indiceSeleccionado}
             onChange={(e) => onChangeVersion(parseInt(e.target.value, 10))}
             style={{ maxWidth: '400px' }}
             disabled={mostrarTodosLosProductos}
