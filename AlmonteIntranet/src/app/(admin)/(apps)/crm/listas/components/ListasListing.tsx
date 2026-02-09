@@ -86,6 +86,39 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
   const [showImportColegiosModal, setShowImportColegiosModal] = useState(false)
   const [showImportCompletaModal, setShowImportCompletaModal] = useState(false)
   const [showCargaMasivaPDFsModal, setShowCargaMasivaPDFsModal] = useState(false)
+
+  // Escuchar evento para abrir el modal desde cualquier página
+  useEffect(() => {
+    const handleForceOpen = () => {
+      setShowCargaMasivaPDFsModal(true)
+    }
+
+    window.addEventListener('carga-masiva-pdfs-force-open', handleForceOpen)
+    return () => {
+      window.removeEventListener('carga-masiva-pdfs-force-open', handleForceOpen)
+    }
+  }, [])
+
+  // Escuchar evento de carga masiva completada para recargar automáticamente
+  useEffect(() => {
+    const handleCargaCompletada = (event: CustomEvent) => {
+      console.log('[ListasListing] ✅ Carga masiva completada, recargando listas...', event.detail)
+      // Recargar después de un breve delay para asegurar que los datos estén guardados
+      setTimeout(() => {
+        recargarListas()
+      }, 500)
+      // Recargar de nuevo después de 2 segundos por si acaso
+      setTimeout(() => {
+        recargarListas()
+      }, 2000)
+    }
+
+    window.addEventListener('carga-masiva-pdfs-completada', handleCargaCompletada as EventListener)
+    return () => {
+      window.removeEventListener('carga-masiva-pdfs-completada', handleCargaCompletada as EventListener)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // recargarListas está definida en el mismo componente, no necesita estar en dependencias
   const [showDetalleListasModal, setShowDetalleListasModal] = useState(false)
   const [colegioSeleccionado, setColegioSeleccionado] = useState<ColegioType | null>(null)
   const [showEdicionColegioModal, setShowEdicionColegioModal] = useState(false)

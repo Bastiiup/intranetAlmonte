@@ -5,6 +5,8 @@ import HorizontalLayout from '@/layouts/HorizontalLayout'
 import VerticalLayout from '@/layouts/VerticalLayout'
 import { ChildrenType } from '@/types'
 import { Fragment, useEffect, useState } from 'react'
+import CargaMasivaPDFsMinimized from '@/components/CargaMasivaPDFsMinimized'
+import CargaMasivaPDFsModalGlobal from '@/components/CargaMasivaPDFsModalGlobal'
 
 const MainLayout = ({ children }: ChildrenType) => {
   const { orientation } = useLayoutContext()
@@ -21,6 +23,8 @@ const MainLayout = ({ children }: ChildrenType) => {
     <Fragment>
       {orientation === 'vertical' && <VerticalLayout>{children}</VerticalLayout>}
       {orientation === 'horizontal' && <HorizontalLayout>{children}</HorizontalLayout>}
+      <CargaMasivaPDFsMinimized />
+      <CargaMasivaPDFsModalGlobal />
     </Fragment>
   )
 }
