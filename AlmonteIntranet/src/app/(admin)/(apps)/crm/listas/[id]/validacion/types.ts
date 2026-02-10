@@ -50,6 +50,10 @@ export interface ListaData {
   colegio?: {
     id: number | string
     nombre: string
+    /** Nombre del colegio (forma alternativa usada por Strapi/normalización) */
+    colegio_nombre?: string
+    /** RBD del establecimiento */
+    rbd?: string
   }
   materiales?: any[]
   versiones_materiales?: any[]
