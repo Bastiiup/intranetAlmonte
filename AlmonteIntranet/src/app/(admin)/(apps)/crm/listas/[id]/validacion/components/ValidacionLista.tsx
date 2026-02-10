@@ -714,11 +714,34 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
             </h2>
             <div className="d-flex gap-2 flex-wrap align-items-center" style={{ fontSize: '0.9rem' }}>
               <span><strong>Colegio:</strong> {
-                lista.colegio?.nombre ||
-                (lista.colegio as any)?.data?.attributes?.nombre ||
-                (lista.colegio as any)?.data?.nombre ||
-                (lista.colegio as any)?.attributes?.nombre ||
-                'N/A'
+                (() => {
+                  // Intentar obtener nombre del colegio desde diferentes estructuras posibles
+                  const colegio = lista.colegio
+                  if (!colegio) return 'N/A'
+                  
+                  // Estructura normalizada (después de normalizarCursoStrapi)
+                  const nombre = colegio.colegio_nombre || 
+                                 colegio.nombre ||
+                                 (colegio as any)?.data?.attributes?.colegio_nombre ||
+                                 (colegio as any)?.data?.attributes?.nombre ||
+                                 (colegio as any)?.data?.colegio_nombre ||
+                                 (colegio as any)?.data?.nombre ||
+                                 (colegio as any)?.attributes?.colegio_nombre ||
+                                 (colegio as any)?.attributes?.nombre ||
+                                 null
+                  
+                  // Obtener RBD
+                  const rbd = colegio.rbd ||
+                              (colegio as any)?.data?.attributes?.rbd ||
+                              (colegio as any)?.data?.rbd ||
+                              (colegio as any)?.attributes?.rbd ||
+                              null
+                  
+                  if (nombre) {
+                    return rbd ? `${nombre} (RBD: ${rbd})` : nombre
+                  }
+                  return 'N/A'
+                })()
               }</span>
               <Badge bg="light" text="dark" style={{ fontSize: '0.8rem' }}>
                 {lista.nombre}

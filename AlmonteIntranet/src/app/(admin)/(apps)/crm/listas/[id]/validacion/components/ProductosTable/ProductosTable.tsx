@@ -73,6 +73,7 @@ export default function ProductosTable({
   const [filtroEstado, setFiltroEstado] = useState<'todos' | 'aprobados' | 'pendientes'>('todos')
   const [busqueda, setBusqueda] = useState('')
   const [reordering, setReordering] = useState(false)
+  const [seleccionandoTodos, setSeleccionandoTodos] = useState(false)
 
   // Scroll la fila seleccionada into view (como Ctrl+F)
   useEffect(() => {
@@ -119,6 +120,43 @@ export default function ProductosTable({
 
     return productosFiltrados
   }, [productos, productosDisponibles, productosNoDisponibles, tabActivo, filtroEstado, busqueda])
+
+  // Calcular si todos los productos visibles están validados
+  const todosValidados = useMemo(() => {
+    if (productosAMostrar.length === 0) return false
+    return productosAMostrar.every(p => p.validado)
+  }, [productosAMostrar])
+
+  // Calcular si algunos (pero no todos) están validados
+  const algunosValidados = useMemo(() => {
+    if (productosAMostrar.length === 0) return false
+    const validados = productosAMostrar.filter(p => p.validado).length
+    return validados > 0 && validados < productosAMostrar.length
+  }, [productosAMostrar])
+
+  // Función para seleccionar/deseleccionar todos los productos visibles
+  const handleSeleccionarTodos = useCallback(async () => {
+    if (productosAMostrar.length === 0) return
+    
+    setSeleccionandoTodos(true)
+    try {
+      // Si todos están validados, desvalidar todos
+      // Si no todos están validados, validar todos
+      const debeValidar = !todosValidados
+      
+      // Validar/desvalidar todos los productos visibles
+      for (const producto of productosAMostrar) {
+        // Solo cambiar el estado si es necesario
+        if ((debeValidar && !producto.validado) || (!debeValidar && producto.validado)) {
+          await onToggleValidado(producto.id)
+        }
+      }
+    } catch (error) {
+      console.error('[ProductosTable] Error al seleccionar todos:', error)
+    } finally {
+      setSeleccionandoTodos(false)
+    }
+  }, [productosAMostrar, todosValidados, onToggleValidado])
 
   // Agrupar por asignatura y ordenar: grupos (LENGUAJE, MATEMÁTICAS, RELIGIÓN...) y dentro de cada grupo por orden del PDF
   type RowItem = { type: 'section'; asignatura: string } | { type: 'product'; product: ProductoIdentificado }
@@ -269,7 +307,27 @@ export default function ProductosTable({
               <tr>
                 <th style={{ width: '40px' }} title="Arrastrar para reordenar"></th>
                 <th style={{ width: '56px' }}>Orden</th>
-                <th style={{ width: '50px' }}>Validado</th>
+                <th style={{ width: '50px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input
+                      type="checkbox"
+                      className="form-check-input"
+                      checked={todosValidados}
+                      ref={(input) => {
+                        if (input) {
+                          input.indeterminate = algunosValidados
+                        }
+                      }}
+                      onChange={handleSeleccionarTodos}
+                      disabled={seleccionandoTodos || productosAMostrar.length === 0}
+                      title={todosValidados ? 'Deseleccionar todos' : 'Seleccionar todos'}
+                      style={{ cursor: seleccionandoTodos || productosAMostrar.length === 0 ? 'not-allowed' : 'pointer' }}
+                    />
+                    {seleccionandoTodos && (
+                      <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" style={{ width: '14px', height: '14px' }}></span>
+                    )}
+                  </div>
+                </th>
                 <th style={{ width: '100px' }}>Imagen</th>
                 <th>ISBN</th>
                 <th>Nombre Producto</th>

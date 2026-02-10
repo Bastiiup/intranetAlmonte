@@ -45,7 +45,7 @@ export async function GET(
         // NO especificar fields[] para que Strapi devuelva TODOS los campos, incluyendo versiones_materiales
         const paramsDocId = new URLSearchParams({
           'filters[documentId][$eq]': String(cursoId),
-          'populate[colegio]': 'true', // Solo populate para relaciones reales
+          'populate[colegio][populate][comuna]': 'true', // Populate colegio con comuna
           'publicationState': 'preview',
         })
         const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
@@ -62,7 +62,7 @@ export async function GET(
         try {
           const paramsDocId = new URLSearchParams({
             'filters[documentId][$eq]': String(cursoId),
-            'populate[colegio]': 'true',
+            'populate[colegio][populate][comuna]': 'true', // Populate colegio con comuna
             'publicationState': 'preview',
           })
           const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
@@ -84,7 +84,7 @@ export async function GET(
       try {
         // NO especificar fields[] para que Strapi devuelva TODOS los campos, incluyendo versiones_materiales
         const paramsObj = new URLSearchParams({
-          'populate[colegio]': 'true', // Solo populate para relaciones reales
+          'populate[colegio][populate][comuna]': 'true', // Populate colegio con comuna
           'publicationState': 'preview',
         })
         const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
@@ -100,7 +100,7 @@ export async function GET(
         // Intentar sin fields específicos (traer todos los campos)
         try {
           const paramsObj = new URLSearchParams({
-            'populate[colegio]': 'true',
+            'populate[colegio][populate][comuna]': 'true', // Populate colegio con comuna
             'publicationState': 'preview',
           })
           const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(

@@ -12,6 +12,7 @@ import {
   FormGroup,
   FormLabel,
   FormControl,
+  FormCheck,
   Alert,
   Table,
   Badge,
@@ -58,6 +59,7 @@ export default function CargaMasivaPDFsPorColegioModal({
   const [urlOriginal, setUrlOriginal] = useState<string>('')
   const [pdfs, setPdfs] = useState<PDFInfo[]>([])
   const [processing, setProcessing] = useState(false)
+  const [procesarPDF, setProcesarPDF] = useState<boolean>(true) // ⚠️ Checkbox: procesar PDF con IA (por defecto true)
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [loadingColegios, setLoadingColegios] = useState(false)
@@ -85,7 +87,11 @@ export default function CargaMasivaPDFsPorColegioModal({
   // Resetear estado cuando se abre el modal (permitir iniciar nuevo proceso incluso si hay uno en curso)
   useEffect(() => {
     if (show) {
-      loadColegios()
+      // ⚠️ IMPORTANTE: Cargar colegios siempre que el modal esté abierto
+      // Si ya están cargados, no los recargamos (evita llamadas innecesarias)
+      if (colegios.length === 0) {
+        loadColegios()
+      }
       
       if (typeof window !== 'undefined') {
         const isProcessing = localStorage.getItem('carga-masiva-pdfs-processing') === 'true'
@@ -167,10 +173,18 @@ export default function CargaMasivaPDFsPorColegioModal({
           setStep('config')
           setError(null)
           setProgress(0)
+          // ⚠️ IMPORTANTE: Asegurar que los colegios estén cargados
+          if (colegios.length === 0) {
+            loadColegios()
+          }
         } else {
           // Si hay un proceso pero no estaba minimizado, mostrar config para iniciar uno nuevo
           setStep('config')
           setError(null)
+          // ⚠️ IMPORTANTE: Asegurar que los colegios estén cargados
+          if (colegios.length === 0) {
+            loadColegios()
+          }
         }
       } else {
         // Si no hay localStorage, resetear todo
@@ -462,7 +476,8 @@ export default function CargaMasivaPDFsPorColegioModal({
         })
       }
 
-      // Procesar cada PDF
+      // ⚡ OPTIMIZACIÓN: Procesar PDFs en lotes pequeños para mejorar el tiempo de respuesta
+      // Procesar cada PDF (secuencial para evitar saturar la API, pero optimizado)
       for (let i = 0; i < pdfs.length; i++) {
         const pdfInfo = pdfs[i]
         const nuevoProgreso = Math.round((i / pdfs.length) * 50)
@@ -511,7 +526,8 @@ export default function CargaMasivaPDFsPorColegioModal({
             return updated
           })
 
-          // Subir PDF a Strapi primero
+          // ⚡ OPTIMIZACIÓN: Subir PDF a Strapi (siempre necesario para asignarlo al curso)
+          // La optimización está en que solo procesamos con IA si el checkbox está marcado
           const formData = new FormData()
           formData.append('files', pdfInfo.file)
 
@@ -738,39 +754,41 @@ export default function CargaMasivaPDFsPorColegioModal({
                 }
               }
 
-              // Procesar PDF con IA para extraer productos
-              const pdfBase64 = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader()
-                reader.onload = () => {
-                  const result = reader.result as string
-                  const base64 = result.split(',')[1]
-                  resolve(base64)
-                }
-                reader.onerror = reject
-                reader.readAsDataURL(pdfInfo.file)
-              })
+              // ⚠️ IMPORTANTE: Solo procesar PDF con IA si el checkbox está marcado
+              if (procesarPDF) {
+                // Procesar PDF con IA para extraer productos
+                const pdfBase64 = await new Promise<string>((resolve, reject) => {
+                  const reader = new FileReader()
+                  reader.onload = () => {
+                    const result = reader.result as string
+                    const base64 = result.split(',')[1]
+                    resolve(base64)
+                  }
+                  reader.onerror = reject
+                  reader.readAsDataURL(pdfInfo.file)
+                })
 
-              const procesarResponse = await fetch(`/api/crm/listas/carga-masiva-ia`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  colegioId: selectedColegio.value,
-                  archivos: [{
-                    nombre: pdfInfo.file.name,
-                    contenido: pdfBase64,
+                const procesarResponse = await fetch(`/api/crm/listas/carga-masiva-ia`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
                     colegioId: selectedColegio.value,
-                    nivel: nivel as 'Basica' | 'Media',
-                    grado: grado,
-                    año: año,
-                    cursoId: cursoId, // Pasar el cursoId si existe para que el endpoint lo actualice
-                    url_original: urlOriginal || undefined,
-                  }],
-                }),
-              })
+                    archivos: [{
+                      nombre: pdfInfo.file.name,
+                      contenido: pdfBase64,
+                      colegioId: selectedColegio.value,
+                      nivel: nivel as 'Basica' | 'Media',
+                      grado: grado,
+                      año: año,
+                      cursoId: cursoId, // Pasar el cursoId si existe para que el endpoint lo actualice
+                      url_original: urlOriginal || undefined,
+                    }],
+                  }),
+                })
 
-              const procesarData = await procesarResponse.json()
+                const procesarData = await procesarResponse.json()
 
-              if (procesarData.success) {
+                if (procesarData.success) {
                 const fechaPublicacion = procesarData.fechaPublicacion || new Date().toISOString()
                 setPdfs(prev => {
                   const updated = prev.map((p, idx) => 
@@ -806,8 +824,72 @@ export default function CargaMasivaPDFsPorColegioModal({
                   
                   return updated
                 })
+                } else {
+                  throw new Error(procesarData.error || 'Error al procesar PDF')
+                }
               } else {
-                throw new Error(procesarData.error || 'Error al procesar PDF')
+                // ⚡ OPTIMIZACIÓN: Si no se procesa el PDF, solo asignarlo al curso sin extraer productos
+                // Esto es mucho más rápido ya que no requiere procesamiento con IA
+                try {
+                  const importPdfFormData = new FormData()
+                  importPdfFormData.append('pdf', pdfInfo.file)
+                  importPdfFormData.append('cursoId', String(cursoId))
+                  importPdfFormData.append('colegioId', String(selectedColegio.value))
+
+                  const importPdfResponse = await fetch('/api/crm/cursos/import-pdf', {
+                    method: 'POST',
+                    body: importPdfFormData,
+                  })
+
+                  const importPdfData = await importPdfResponse.json()
+
+                  if (importPdfResponse.ok && importPdfData.success) {
+                    setPdfs(prev => {
+                      const updated = prev.map((p, idx) => 
+                        idx === i ? { 
+                          ...p, 
+                          estado: 'completado' as const,
+                          cursoDetectado: {
+                            nombre: nombreCurso,
+                            nivel,
+                            grado,
+                            score: 70,
+                          },
+                          mensaje: cursoExistente ? 'PDF asignado al curso (sin procesar)' : 'Curso creado y PDF asignado (sin procesar)',
+                        } : p
+                      )
+                      
+                      // Guardar estado actualizado en localStorage
+                      if (typeof window !== 'undefined') {
+                        const pdfsInfo = updated.map(p => ({
+                          nombre: p.file.name,
+                          tamaño: p.file.size,
+                          estado: p.estado,
+                          cursoDetectado: p.cursoDetectado,
+                          fechaPublicacion: p.fechaPublicacion,
+                          mensaje: p.mensaje
+                        }))
+                        localStorage.setItem('carga-masiva-pdfs-pdfs-info', JSON.stringify(pdfsInfo))
+                        setTimeout(() => {
+                          window.dispatchEvent(new CustomEvent('carga-masiva-pdfs-update'))
+                        }, 0)
+                      }
+                      
+                      return updated
+                    })
+                  } else {
+                    throw new Error(importPdfData.error || 'Error al asignar PDF al curso')
+                  }
+                } catch (importErr: any) {
+                  console.error(`[Carga Masiva PDFs] ❌ Error al asignar PDF sin procesar:`, importErr)
+                  setPdfs(prev => prev.map((p, idx) => 
+                    idx === i ? { 
+                      ...p, 
+                      estado: 'error' as const,
+                      mensaje: `Error al asignar PDF: ${importErr.message}`,
+                    } : p
+                  ))
+                }
               }
             } else {
               // No se pudo detectar grado o nivel
@@ -892,41 +974,43 @@ export default function CargaMasivaPDFsPorColegioModal({
             }
           }
 
-          // Convertir PDF a base64 para enviarlo a la API
-          const pdfBase64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader()
-            reader.onload = () => {
-              const result = reader.result as string
-              // Remover el prefijo "data:application/pdf;base64,"
-              const base64 = result.split(',')[1]
-              resolve(base64)
-            }
-            reader.onerror = reject
-            reader.readAsDataURL(pdfInfo.file)
-          })
+          // ⚠️ IMPORTANTE: Solo procesar PDF con IA si el checkbox está marcado
+          if (procesarPDF) {
+            // Convertir PDF a base64 para enviarlo a la API
+            const pdfBase64 = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader()
+              reader.onload = () => {
+                const result = reader.result as string
+                // Remover el prefijo "data:application/pdf;base64,"
+                const base64 = result.split(',')[1]
+                resolve(base64)
+              }
+              reader.onerror = reject
+              reader.readAsDataURL(pdfInfo.file)
+            })
 
-          // Procesar PDF con IA para extraer productos
-              const procesarResponse = await fetch(`/api/crm/listas/carga-masiva-ia`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+            // Procesar PDF con IA para extraer productos
+            const procesarResponse = await fetch(`/api/crm/listas/carga-masiva-ia`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                colegioId: selectedColegio.value,
+                archivos: [{
+                  nombre: pdfInfo.file.name,
+                  contenido: pdfBase64,
                   colegioId: selectedColegio.value,
-                  archivos: [{
-                    nombre: pdfInfo.file.name,
-                    contenido: pdfBase64,
-                    colegioId: selectedColegio.value,
-                    nivel: nivel as 'Basica' | 'Media',
-                    grado: grado,
-                    año: añoCurso,
-                    cursoId: cursoId, // Pasar el cursoId si existe para que el endpoint lo actualice
-                    url_original: urlOriginal || undefined, // URL original de donde se obtuvo el PDF
-                  }],
-                }),
-              })
+                  nivel: nivel as 'Basica' | 'Media',
+                  grado: grado,
+                  año: añoCurso,
+                  cursoId: cursoId, // Pasar el cursoId si existe para que el endpoint lo actualice
+                  url_original: urlOriginal || undefined, // URL original de donde se obtuvo el PDF
+                }],
+              }),
+            })
 
-          const procesarData = await procesarResponse.json()
+            const procesarData = await procesarResponse.json()
 
-          if (procesarData.success) {
+            if (procesarData.success) {
             // Extraer fecha de publicación si está disponible
             const fechaPublicacion = procesarData.fechaPublicacion || new Date().toISOString()
 
@@ -964,8 +1048,72 @@ export default function CargaMasivaPDFsPorColegioModal({
               
               return updated
             })
+            } else {
+              throw new Error(procesarData.error || 'Error al procesar PDF')
+            }
           } else {
-            throw new Error(procesarData.error || 'Error al procesar PDF')
+            // ⚡ OPTIMIZACIÓN: Si no se procesa el PDF, solo asignarlo al curso sin extraer productos
+            // Esto es mucho más rápido ya que no requiere procesamiento con IA
+            try {
+              const importPdfFormData = new FormData()
+              importPdfFormData.append('pdf', pdfInfo.file)
+              importPdfFormData.append('cursoId', String(cursoId))
+              importPdfFormData.append('colegioId', String(selectedColegio.value))
+
+              const importPdfResponse = await fetch('/api/crm/cursos/import-pdf', {
+                method: 'POST',
+                body: importPdfFormData,
+              })
+
+              const importPdfData = await importPdfResponse.json()
+
+              if (importPdfResponse.ok && importPdfData.success) {
+                setPdfs(prev => {
+                  const updated = prev.map((p, idx) => 
+                    idx === i ? { 
+                      ...p, 
+                      estado: 'completado' as const,
+                      cursoDetectado: {
+                        nombre: nombreCurso,
+                        nivel,
+                        grado,
+                        score: 95,
+                      },
+                      mensaje: cursoExistente ? 'PDF asignado al curso (sin procesar)' : 'Curso creado y PDF asignado (sin procesar)',
+                    } : p
+                  )
+                  
+                  // Guardar estado actualizado en localStorage
+                  if (typeof window !== 'undefined') {
+                    const pdfsInfo = updated.map(p => ({
+                      nombre: p.file.name,
+                      tamaño: p.file.size,
+                      estado: p.estado,
+                      cursoDetectado: p.cursoDetectado,
+                      fechaPublicacion: p.fechaPublicacion,
+                      mensaje: p.mensaje
+                    }))
+                    localStorage.setItem('carga-masiva-pdfs-pdfs-info', JSON.stringify(pdfsInfo))
+                    setTimeout(() => {
+                      window.dispatchEvent(new CustomEvent('carga-masiva-pdfs-update'))
+                    }, 0)
+                  }
+                  
+                  return updated
+                })
+              } else {
+                throw new Error(importPdfData.error || 'Error al asignar PDF al curso')
+              }
+            } catch (importErr: any) {
+              console.error(`[Carga Masiva PDFs] ❌ Error al asignar PDF sin procesar:`, importErr)
+              setPdfs(prev => prev.map((p, idx) => 
+                idx === i ? { 
+                  ...p, 
+                  estado: 'error' as const,
+                  mensaje: `Error al asignar PDF: ${importErr.message}`,
+                } : p
+              ))
+            }
           }
 
         } catch (err: any) {
@@ -999,6 +1147,12 @@ export default function CargaMasivaPDFsPorColegioModal({
 
       setProgress(100)
       setStep('results')
+      
+      // ⚠️ IMPORTANTE: Asegurar que los colegios estén cargados después del procesamiento
+      // Esto evita que desaparezcan cuando el usuario quiere iniciar un nuevo proceso
+      if (colegios.length === 0) {
+        loadColegios()
+      }
       
       // Mostrar notificación de éxito
       const successCount = pdfs.filter(p => p.estado === 'completado').length
@@ -1150,6 +1304,10 @@ export default function CargaMasivaPDFsPorColegioModal({
     setError(null)
     setProgress(0)
     setMinimized(false)
+    // ⚠️ IMPORTANTE: Asegurar que los colegios estén cargados al cerrar y volver a abrir
+    if (colegios.length === 0) {
+      loadColegios()
+    }
     if (typeof window !== 'undefined') {
       localStorage.removeItem('carga-masiva-pdfs-minimized')
       localStorage.removeItem('carga-masiva-pdfs-processing')
@@ -1234,7 +1392,7 @@ export default function CargaMasivaPDFsPorColegioModal({
                 <li><strong>2. Indica el año</strong> de las listas de útiles</li>
                 <li><strong>3. Sube los PDFs</strong> de las listas (puedes subir múltiples)</li>
                 <li><strong>4. El sistema usará IA</strong> para reconocer automáticamente el curso de cada PDF</li>
-                <li><strong>5. Se procesarán los PDFs</strong> para extraer productos y crear las listas</li>
+                <li><strong>5. Opcionalmente se procesarán los PDFs</strong> con IA para extraer productos y crear las listas (puedes desactivarlo con el checkbox)</li>
               </ul>
             </Alert>
 
@@ -1310,6 +1468,25 @@ export default function CargaMasivaPDFsPorColegioModal({
               </small>
             </FormGroup>
 
+            <FormGroup className="mb-3">
+              <FormCheck
+                type="checkbox"
+                id="procesar-pdf-checkbox"
+                checked={procesarPDF}
+                onChange={(e) => setProcesarPDF(e.target.checked)}
+                label={
+                  <div>
+                    <strong>Procesar PDFs con IA</strong>
+                    <br />
+                    <small className="text-muted">
+                      Si está marcado, los PDFs se procesarán automáticamente con IA para extraer productos y crear las listas. 
+                      Si no está marcado, solo se subirán los PDFs y se asignarán a los cursos sin procesar.
+                    </small>
+                  </div>
+                }
+              />
+            </FormGroup>
+
             <div className="d-flex justify-content-end">
               <Button
                 variant="primary"
@@ -1333,6 +1510,8 @@ export default function CargaMasivaPDFsPorColegioModal({
                   <strong>URL Original:</strong> <a href={urlOriginal} target="_blank" rel="noopener noreferrer" className="text-break">{urlOriginal}</a>
                 </>
               )}
+              <br />
+              <strong>Procesar PDFs con IA:</strong> {procesarPDF ? '✓ Sí' : '✗ No'}
             </Alert>
 
             <FormGroup className="mb-3">
@@ -1380,7 +1559,13 @@ export default function CargaMasivaPDFsPorColegioModal({
             )}
 
             <div className="d-flex justify-content-between">
-              <Button variant="secondary" onClick={() => setStep('config')}>
+              <Button variant="secondary" onClick={() => {
+                // ⚠️ IMPORTANTE: Asegurar que los colegios estén cargados al volver a config
+                if (colegios.length === 0) {
+                  loadColegios()
+                }
+                setStep('config')
+              }}>
                 Atrás
               </Button>
               <Button

@@ -1783,6 +1783,7 @@ export async function POST(
     })
     
     // FILTRADO MÍNIMO - Solo lo esencial
+    // ⚠️ IMPORTANTE: Solo extraer productos que están en el PDF, sin agregar más
     const productosFiltrados = resultado.productos.filter((producto) => {
       // Solo validar que tenga nombre y no esté vacío
       if (!producto.nombre || producto.nombre.trim().length === 0) {
@@ -1803,13 +1804,31 @@ export async function POST(
       return producto.nombre.length > 0
     })
     
-    logger.info('✅ Filtrado completado', {
+    // ⚠️ ELIMINAR DUPLICADOS - Solo mantener productos únicos (basado en nombre normalizado)
+    const productosUnicos: ProductoExtraido[] = []
+    const nombresVistos = new Set<string>()
+    
+    for (const producto of productosFiltrados) {
+      const nombreNormalizado = normalizarBusqueda(producto.nombre)
+      if (!nombresVistos.has(nombreNormalizado)) {
+        nombresVistos.add(nombreNormalizado)
+        productosUnicos.push(producto)
+      } else {
+        logger.warn(`⚠️ Producto duplicado detectado y omitido: "${producto.nombre}"`)
+      }
+    }
+    
+    const productosFiltradosFinal = productosUnicos
+    
+    logger.info('✅ Filtrado y deduplicación completados', {
       totalAntes: resultado.productos.length,
-      totalDespues: productosFiltrados.length,
-      productosFiltrados: productosFiltrados.map(p => `${p.cantidad}x ${p.nombre}`)
+      totalDespuesFiltrado: productosFiltrados.length,
+      totalDespuesDedup: productosFiltradosFinal.length,
+      duplicadosEliminados: productosFiltrados.length - productosFiltradosFinal.length,
+      productosFinales: productosFiltradosFinal.map(p => `${p.cantidad}x ${p.nombre}`)
     })
     
-    if (productosFiltrados.length === 0) {
+    if (productosFiltradosFinal.length === 0) {
       logger.error('❌ Todos los productos fueron filtrados', {
         productosOriginales: resultado.productos.map(p => ({
           cantidad: p.cantidad,
@@ -1832,22 +1851,25 @@ export async function POST(
       }, { status: 200 })
     }
     
-    // Log detallado de productos filtrados
+    // Log detallado de productos filtrados y deduplicados
     const productosOmitidos = resultado.productos.length - productosFiltrados.length
-    logger.info(`✅ Productos extraídos por Claude: ${resultado.productos.length} → ${productosFiltrados.length} válidos (${productosOmitidos} omitidos)`, {
-      productos: productosFiltrados.slice(0, 10).map(p => `${p.cantidad}x ${p.nombre}`),
-      total: productosFiltrados.length,
+    const duplicadosEliminados = productosFiltrados.length - productosFiltradosFinal.length
+    logger.info(`✅ Productos extraídos por Claude: ${resultado.productos.length} → ${productosFiltradosFinal.length} válidos únicos (${productosOmitidos} omitidos, ${duplicadosEliminados} duplicados eliminados)`, {
+      productos: productosFiltradosFinal.slice(0, 10).map(p => `${p.cantidad}x ${p.nombre}`),
+      total: productosFiltradosFinal.length,
       omitidos: productosOmitidos,
+      duplicadosEliminados: duplicadosEliminados,
       resumen: {
-        conISBN: productosFiltrados.filter(p => p.isbn).length,
-        conMarca: productosFiltrados.filter(p => p.marca).length,
-        conPrecio: productosFiltrados.filter(p => p.precio > 0).length,
-        conAsignatura: productosFiltrados.filter(p => p.asignatura).length,
+        conISBN: productosFiltradosFinal.filter(p => p.isbn).length,
+        conMarca: productosFiltradosFinal.filter(p => p.marca).length,
+        conPrecio: productosFiltradosFinal.filter(p => p.precio > 0).length,
+        conAsignatura: productosFiltradosFinal.filter(p => p.asignatura).length,
       }
     })
     
-    // Usar productos filtrados en lugar de los originales
-    resultado.productos = productosFiltrados
+    // ⚠️ IMPORTANTE: Usar solo productos únicos (sin duplicados)
+    // Esto asegura que solo se guarden los productos que están en el PDF, sin agregar más
+    resultado.productos = productosFiltradosFinal
     
     // ============================================
     // 7. BUSCAR EN WOOCOMMERCE Y EXTRAER COORDENADAS REALES

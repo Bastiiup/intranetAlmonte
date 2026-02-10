@@ -25,7 +25,7 @@ const initialForm = {
   descripcion: '',
   subtitulo_libro: '',
   stock_quantity: '1',
-  plataformas: ['woo_moraleja', 'woo_escolar'] as string[],
+  plataformas: [] as string[], // Array vacío por defecto - si no se selecciona nada, se guarda solo en Strapi
   portada_libro: null as File | null,
 }
 
@@ -43,16 +43,22 @@ export default function AddProductQuickAccessModal({
 
   const handlePlatformChange = (platform: string, checked: boolean) => {
     if (checked) {
-      if (!formData.plataformas.includes(platform)) {
-        setFormData((prev) => ({ ...prev, plataformas: [...prev.plataformas, platform] }))
-      }
+      setFormData((prev) => ({
+        ...prev,
+        plataformas: prev.plataformas && Array.isArray(prev.plataformas)
+          ? (prev.plataformas.includes(platform) ? prev.plataformas : [...prev.plataformas, platform])
+          : [platform]
+      }))
     } else {
       setFormData((prev) => ({
         ...prev,
-        plataformas: prev.plataformas.filter((p) => p !== platform),
+        plataformas: prev.plataformas && Array.isArray(prev.plataformas)
+          ? prev.plataformas.filter((p) => p !== platform)
+          : []
       }))
     }
   }
+
 
   useEffect(() => {
     if (!show) return
@@ -66,7 +72,7 @@ export default function AddProductQuickAccessModal({
         descripcion: productPrecargado.descripcion || '',
         subtitulo_libro: (productPrecargado.nombre || '').slice(0, 160),
         stock_quantity: String(productPrecargado.cantidad ?? 1),
-        plataformas: ['woo_moraleja', 'woo_escolar'],
+        plataformas: [], // Por defecto sin plataformas - se guarda solo en Strapi
         portada_libro: null,
       })
     } else {
@@ -119,7 +125,8 @@ export default function AddProductQuickAccessModal({
       if (portadaLibroId) payload.portada_libro_id = portadaLibroId
       if (portadaLibroUrl) payload.portada_libro = portadaLibroUrl
 
-      if (formData.plataformas.length > 0) {
+      // Si se seleccionaron plataformas, asignar los canales correspondientes
+      if (formData.plataformas && formData.plataformas.length > 0) {
         let canalesIds: string[] = []
         try {
           const canalesRes = await fetch('/api/tienda/canales')
@@ -137,10 +144,19 @@ export default function AddProductQuickAccessModal({
             }
           }
         } catch (_) {
+          // Si hay error al obtener canales, usar IDs por defecto
           if (formData.plataformas.includes('woo_moraleja')) canalesIds.push('1')
           if (formData.plataformas.includes('woo_escolar')) canalesIds.push('2')
         }
-        if (canalesIds.length > 0) payload.canales = canalesIds
+        if (canalesIds.length > 0) {
+          payload.canales = canalesIds
+          console.log('[AddProductQuickAccessModal] ✅ Canales asignados:', canalesIds)
+        }
+      } else {
+        // Si NO se seleccionó ninguna plataforma, NO se asignan canales
+        // El producto se guarda solo en Strapi con estado "Pendiente"
+        console.log('[AddProductQuickAccessModal] ⚠️ No se seleccionaron plataformas - se guarda solo en Strapi sin canales')
+        console.log('[AddProductQuickAccessModal] ℹ️ El producto se sincronizará a "escolar" cuando se apruebe')
       }
 
       const response = await fetch('/api/tienda/productos', {
@@ -204,19 +220,20 @@ export default function AddProductQuickAccessModal({
                 type="checkbox"
                 id="platform_moraleja"
                 label="Moraleja"
-                checked={formData.plataformas.includes('woo_moraleja')}
+                checked={formData.plataformas?.includes('woo_moraleja') || false}
                 onChange={(e) => handlePlatformChange('woo_moraleja', e.target.checked)}
               />
               <FormCheck
                 type="checkbox"
                 id="platform_escolar"
                 label="Escolar"
-                checked={formData.plataformas.includes('woo_escolar')}
+                checked={formData.plataformas?.includes('woo_escolar') || false}
                 onChange={(e) => handlePlatformChange('woo_escolar', e.target.checked)}
               />
             </div>
             <Form.Text className="text-muted">
-              Moraleja - Escolar. Si no seleccionas ninguna, se publicará en ambas.
+              Si seleccionas plataformas, el producto se enviará directamente a esos canales. 
+              Si no seleccionas ninguna, se guardará solo en Strapi y se sincronizará a "Escolar" cuando se apruebe.
             </Form.Text>
           </div>
 

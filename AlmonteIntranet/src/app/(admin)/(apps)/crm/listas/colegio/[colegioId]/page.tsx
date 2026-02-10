@@ -31,12 +31,68 @@ export default async function Page({ params }: PageProps) {
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
     const baseUrl = `${protocol}://${host}`
 
-    // Obtener colegio
-    const colegioResponse = await fetch(`${baseUrl}/api/crm/colegios?filters[documentId][$eq]=${colegioId}`, {
+    console.log(`[colegio/[colegioId]/page] 🔍 Buscando colegio con ID: ${colegioId}`)
+
+    // Obtener colegio - intentar primero por documentId, luego por id numérico
+    let colegioData: any = null
+    let colegioResponse: Response | null = null
+    
+    // Intentar buscar por documentId (string)
+    const urlDocumentId = `${baseUrl}/api/crm/colegios?filters[documentId][$eq]=${colegioId}`
+    console.log(`[colegio/[colegioId]/page] 📡 Intentando buscar por documentId: ${urlDocumentId}`)
+    
+    colegioResponse = await fetch(urlDocumentId, {
       cache: 'no-store',
     })
+    colegioData = await colegioResponse.json()
 
-    const colegioData = await colegioResponse.json()
+    console.log(`[colegio/[colegioId]/page] 📥 Respuesta por documentId:`, {
+      success: colegioData.success,
+      tieneData: !!colegioData.data,
+      cantidad: colegioData.data?.length || 0,
+    })
+
+    // Si no se encontró por documentId, intentar por id numérico
+    if (!colegioData.success || !colegioData.data || colegioData.data.length === 0) {
+      if (/^\d+$/.test(colegioId)) {
+        console.log(`[colegio/[colegioId]/page] ⚠️ No se encontró por documentId, intentando por id numérico: ${colegioId}`)
+        const urlId = `${baseUrl}/api/crm/colegios?filters[id][$eq]=${colegioId}`
+        colegioResponse = await fetch(urlId, {
+          cache: 'no-store',
+        })
+        colegioData = await colegioResponse.json()
+        
+        console.log(`[colegio/[colegioId]/page] 📥 Respuesta por id numérico:`, {
+          success: colegioData.success,
+          tieneData: !!colegioData.data,
+          cantidad: colegioData.data?.length || 0,
+        })
+      } else {
+        // Si no es numérico y no se encontró por documentId, intentar buscar todos y filtrar
+        console.log(`[colegio/[colegioId]/page] ⚠️ No se encontró por documentId y no es numérico, intentando búsqueda amplia`)
+        colegioResponse = await fetch(`${baseUrl}/api/crm/colegios?pagination[pageSize]=1000`, {
+          cache: 'no-store',
+        })
+        const todosLosColegios = await colegioResponse.json()
+        
+        if (todosLosColegios.success && todosLosColegios.data) {
+          // Buscar por documentId o id en todos los resultados
+          const colegioEncontrado = todosLosColegios.data.find((c: any) => 
+            c.documentId === colegioId || 
+            String(c.id) === colegioId ||
+            c.id === colegioId
+          )
+          
+          if (colegioEncontrado) {
+            colegioData = {
+              success: true,
+              data: [colegioEncontrado]
+            }
+            console.log(`[colegio/[colegioId]/page] ✅ Colegio encontrado en búsqueda amplia`)
+          }
+        }
+      }
+    }
 
     if (colegioData.success && colegioData.data && colegioData.data.length > 0) {
       const colegioInfo = colegioData.data[0]

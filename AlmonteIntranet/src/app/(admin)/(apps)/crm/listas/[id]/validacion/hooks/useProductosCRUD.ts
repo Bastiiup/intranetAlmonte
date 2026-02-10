@@ -181,22 +181,21 @@ export function useProductosCRUD({
           if (listaData.success && listaData.data) {
             const listaNormalizada = normalizarLista(listaData.data)
             setLista(listaNormalizada)
-            setEstadoRevision((listaNormalizada as any)?.estado_revision || 'revisado')
+            // ⚠️ IMPORTANTE: El estado ahora es "publicado" (lista para exportación)
+            setEstadoRevision((listaNormalizada as any)?.estado_revision || 'publicado')
           }
         } catch {
-          setEstadoRevision('revisado')
+          setEstadoRevision('publicado')
         }
       } else {
-        setEstadoRevision('revisado')
+        setEstadoRevision('publicado')
       }
 
-      toast.success('Lista aprobada correctamente')
+      toast.success('Lista aprobada correctamente', 'El estado ha cambiado a "Lista para Exportar"')
 
-      const colegioId = lista?.colegio?.id || (lista?.colegio as any)?.data?.id
-      if (colegioId) {
-        router.refresh()
-        router.push(`/crm/listas/colegio/${colegioId}?t=${Date.now()}`)
-      }
+      // ⚠️ IMPORTANTE: NO redirigir, solo refrescar la página actual para actualizar el estado
+      // El usuario debe permanecer en la página de validación para ver los cambios
+      router.refresh()
     } catch (error: any) {
       toast.dismiss(loadingToast)
       toast.error(error.message || 'Error al aprobar')

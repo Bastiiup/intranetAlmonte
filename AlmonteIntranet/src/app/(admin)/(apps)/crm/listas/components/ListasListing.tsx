@@ -15,8 +15,8 @@ import {
 } from '@tanstack/react-table'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState, useEffect, useMemo } from 'react'
-import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge, Spinner, OverlayTrigger, Tooltip } from 'react-bootstrap'
+import { useState, useEffect, useMemo, startTransition } from 'react'
+import { Button, Card, CardBody, CardFooter, CardHeader, Col, Row, Alert, Badge, Spinner, OverlayTrigger, Tooltip } from 'react-bootstrap'
 import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw, LuFileCode, LuPackageSearch, LuSparkles } from 'react-icons/lu'
 import { TbEdit, TbTrash } from 'react-icons/tb'
 
@@ -86,6 +86,15 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
   const [showImportColegiosModal, setShowImportColegiosModal] = useState(false)
   const [showImportCompletaModal, setShowImportCompletaModal] = useState(false)
   const [showCargaMasivaPDFsModal, setShowCargaMasivaPDFsModal] = useState(false)
+  const [showDetalleListasModal, setShowDetalleListasModal] = useState(false)
+  const [colegioSeleccionado, setColegioSeleccionado] = useState<ColegioType | null>(null)
+  const [showEdicionColegioModal, setShowEdicionColegioModal] = useState(false)
+  const [showCursosModal, setShowCursosModal] = useState(false)
+  const [colegioIdModal, setColegioIdModal] = useState<string | number | null>(null)
+  const [colegioNombreModal, setColegioNombreModal] = useState<string>('')
+  const [navegandoA, setNavegandoA] = useState<string | number | null>(null)
+  const [productosPendientes, setProductosPendientes] = useState<number>(0)
+  const [loadingProductosPendientes, setLoadingProductosPendientes] = useState(false)
 
   // Escuchar evento para abrir el modal desde cualquier página
   useEffect(() => {
@@ -119,13 +128,78 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // recargarListas está definida en el mismo componente, no necesita estar en dependencias
-  const [showDetalleListasModal, setShowDetalleListasModal] = useState(false)
-  const [colegioSeleccionado, setColegioSeleccionado] = useState<ColegioType | null>(null)
-  const [showEdicionColegioModal, setShowEdicionColegioModal] = useState(false)
-  const [showCursosModal, setShowCursosModal] = useState(false)
-  const [colegioIdModal, setColegioIdModal] = useState<string | number | null>(null)
-  const [colegioNombreModal, setColegioNombreModal] = useState<string>('')
-  const [navegandoA, setNavegandoA] = useState<string | number | null>(null)
+
+  // Cargar contador de productos pendientes
+  useEffect(() => {
+    let mounted = true
+
+    const cargarProductosPendientes = async () => {
+      if (!mounted) return
+      
+      startTransition(() => {
+        setLoadingProductosPendientes(true)
+      })
+
+      try {
+        // Obtener todos los productos con publicationState=preview para incluir pendientes
+        const response = await fetch('/api/tienda/productos?pagination[pageSize]=1000', {
+          cache: 'no-store',
+        })
+        
+        if (!mounted) return
+        
+        const data = await response.json()
+        if (data.success && data.data) {
+          const productos = Array.isArray(data.data) ? data.data : [data.data]
+          // Contar productos con estado "Pendiente" (case-insensitive)
+          const pendientes = productos.filter((p: any) => {
+            const attrs = p.attributes || p
+            const estado = (attrs.estado_publicacion || '').toString().trim()
+            // Normalizar: "Pendiente", "pendiente", "PENDIENTE" todos cuentan
+            return estado.toLowerCase() === 'pendiente'
+          })
+          
+          if (mounted) {
+            startTransition(() => {
+              setProductosPendientes(pendientes.length)
+              setLoadingProductosPendientes(false)
+            })
+            console.log('[ListasListing] 📊 Productos pendientes encontrados:', pendientes.length)
+          }
+        } else if (mounted) {
+          startTransition(() => {
+            setLoadingProductosPendientes(false)
+          })
+        }
+      } catch (error: any) {
+        console.error('[ListasListing] Error al cargar productos pendientes:', error.message)
+        if (mounted) {
+          startTransition(() => {
+            setProductosPendientes(0)
+            setLoadingProductosPendientes(false)
+          })
+        }
+      }
+    }
+
+    // Ejecutar después del montaje para evitar problemas con Suspense
+    const timeoutId = setTimeout(() => {
+      cargarProductosPendientes()
+    }, 0)
+
+    // Recargar cada 30 segundos para mantener el contador actualizado
+    const interval = setInterval(() => {
+      if (mounted) {
+        cargarProductosPendientes()
+      }
+    }, 30000)
+
+    return () => {
+      mounted = false
+      clearTimeout(timeoutId)
+      clearInterval(interval)
+    }
+  }, [])
 
   // Los datos ya vienen transformados desde la API /api/crm/listas/por-colegio
   const mappedListas = useMemo(() => {
@@ -937,6 +1011,66 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
   return (
     <Row>
       <Col xs={12}>
+        {/* Card de productos pendientes para aprobar */}
+        {productosPendientes > 0 && (
+          <Card 
+            className="mb-3 border-warning" 
+            style={{ 
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)'
+              e.currentTarget.style.transform = 'translateY(-2px)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.boxShadow = ''
+              e.currentTarget.style.transform = ''
+            }}
+            onClick={() => router.push('/products/solicitudes')}
+          >
+            <CardBody className="d-flex align-items-center justify-content-between p-3">
+              <div className="d-flex align-items-center gap-3">
+                <div 
+                  className="d-flex align-items-center justify-content-center"
+                  style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '50%',
+                    backgroundColor: '#fff3cd',
+                  }}
+                >
+                  <LuPackageSearch size={24} className="text-warning" />
+                </div>
+                <div>
+                  <h6 className="mb-0 fw-bold">
+                    {productosPendientes} {productosPendientes === 1 ? 'producto' : 'productos'} pendiente{productosPendientes > 1 ? 's' : ''} de aprobación
+                  </h6>
+                  <small className="text-muted">
+                    Haz clic para ir a la página de solicitudes y aprobar productos
+                  </small>
+                </div>
+              </div>
+              <div className="d-flex align-items-center gap-2">
+                {loadingProductosPendientes && <Spinner size="sm" />}
+                <Badge bg="warning" className="fs-6 px-3 py-2">
+                  {productosPendientes}
+                </Badge>
+                <Button 
+                  variant="warning" 
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    router.push('/products/solicitudes')
+                  }}
+                >
+                  Ver Solicitudes
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+        )}
+        
         <Card className="mb-4">
           <CardHeader className="d-flex justify-content-between align-items-center">
             <div className="d-flex gap-2">

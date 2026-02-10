@@ -165,11 +165,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Combinar actualización de versiones_materiales Y estado_revision en una sola llamada
+    // ⚠️ IMPORTANTE: Al aprobar la lista completa, el estado cambia a "publicado" (lista para exportación)
     const updateData = {
       data: {
         versiones_materiales: versionesActualizadas,
-        estado_revision: 'revisado',
+        estado_revision: 'publicado', // Cambiar a "publicado" para indicar que está lista para exportación
         fecha_revision: obtenerFechaChileISO(),
+        fecha_publicacion: obtenerFechaChileISO(), // Agregar fecha de publicación
       },
     }
 
@@ -209,8 +211,9 @@ export async function POST(request: NextRequest) {
               ...v,
               metadata: {
                 ...v.metadata,
-                estado_revision: 'revisado',
+                estado_revision: 'publicado', // Cambiar a "publicado" para indicar que está lista para exportación
                 fecha_revision: obtenerFechaChileISO(),
+                fecha_publicacion: obtenerFechaChileISO(), // Agregar fecha de publicación
               }
             }
           }
@@ -232,14 +235,44 @@ export async function POST(request: NextRequest) {
 
     console.log('[Aprobar Lista] ✅ Lista aprobada exitosamente')
 
+    // Obtener el colegio_id si existe (una sola vez, reutilizar)
+    // El colegio normalizado tiene id y documentId directamente (no dentro de data)
+    let colegioId: string | number | null = cursoNormalizado.colegio?.documentId || 
+                      cursoNormalizado.colegio?.id || 
+                      cursoNormalizado.colegio_id ||
+                      null
+    
+    // Si no se encontró en el curso normalizado, intentar desde el curso original de Strapi
+    if (!colegioId) {
+      const cursoAttrs = curso.attributes || curso
+      const colegioData = cursoAttrs.colegio?.data || cursoAttrs.colegio
+      if (colegioData) {
+        // Priorizar documentId sobre id (más confiable para navegación)
+        colegioId = colegioData.documentId || colegioData.id || null
+      }
+    }
+    
+    console.log('[Aprobar Lista] 📋 Colegio ID obtenido:', colegioId, {
+      desdeNormalizado: !!(cursoNormalizado.colegio?.documentId || cursoNormalizado.colegio?.id),
+      desdeOriginal: !!(curso.attributes?.colegio || curso.colegio),
+      estructuraColegio: {
+        normalizado: cursoNormalizado.colegio ? {
+          tieneId: !!cursoNormalizado.colegio.id,
+          tieneDocumentId: !!cursoNormalizado.colegio.documentId,
+          id: cursoNormalizado.colegio.id,
+          documentId: cursoNormalizado.colegio.documentId,
+        } : null,
+        original: curso.attributes?.colegio ? {
+          tieneData: !!curso.attributes.colegio.data,
+          tieneId: !!curso.attributes.colegio.data?.id,
+          tieneDocumentId: !!curso.attributes.colegio.data?.documentId,
+        } : null,
+      }
+    })
+
     // Revalidar todas las rutas relacionadas para que el estado se actualice en el listado
     try {
       console.log('[Aprobar Lista] 🔄 Revalidando rutas del caché de Next.js...')
-      
-      // Obtener el colegio_id si existe
-      const colegioId = cursoNormalizado.colegio?.data?.id || 
-                        cursoNormalizado.colegio?.data?.documentId || 
-                        cursoNormalizado.colegio_id
       
       // Revalidar la página de validación individual
       revalidatePath(`/crm/listas/${cursoDocumentId}/validacion`)
@@ -264,6 +297,7 @@ export async function POST(request: NextRequest) {
       message: 'Lista aprobada exitosamente',
       data: {
         listaId,
+        colegioId: colegioId, // ⚠️ IMPORTANTE: Incluir colegioId en la respuesta para que el frontend pueda navegar
         totalProductos: materialesAprobados.length,
         productosAprobados: materialesAprobados.length,
         listaAprobada: true,
