@@ -17,15 +17,13 @@ import {
 import {
   LuUpload,
   LuX,
-  LuPencil,
   LuCheck,
   LuClock,
   LuFileVideo,
   LuTrash2,
   LuChevronDown,
   LuChevronUp,
-  LuWand2,
-  LuPlay,
+  LuWand,
 } from 'react-icons/lu'
 import * as tus from 'tus-js-client'
 
@@ -401,7 +399,7 @@ export default function BunnyUploaderTab() {
             <Card className="mb-3 border-primary border-opacity-25">
               <CardBody className="py-3">
                 <div className="d-flex align-items-center gap-2 mb-2">
-                  <LuWand2 className="text-primary" />
+                  <LuWand className="text-primary" />
                   <span className="fw-semibold small text-primary">Aplicar a todos los pendientes</span>
                 </div>
                 <div className="row g-2">
