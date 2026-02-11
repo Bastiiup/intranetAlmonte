@@ -63,34 +63,137 @@ function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-/* ── Regex para autodetección de metadata desde nombre de archivo ── */
-function parseFilename(filename: string): {
+/* ── Diccionarios de mapeo para nomenclatura del cliente ──────────── */
+
+// Primer paréntesis → Sección
+const SECCION_MAP: [RegExp, Seccion][] = [
+  [/Eval\./i, 'Ejercitacion'],        // (Eval. M1) → Ejercitación
+  [/Evaluaci[oó]n/i, 'Ejercitacion'], // (Evaluación ...) → Ejercitación
+  [/M\.\s*Te[oó]ri/i, 'Teorico'],    // (M. Teorico) → Teórico
+  [/Te[oó]ri/i, 'Teorico'],           // (Teorico ...) → Teórico
+  [/Ensayo/i, 'Ensayo'],
+  [/Soluci[oó]n/i, 'Solucionario'],
+  [/Clase/i, 'Clase_Grabada'],
+  [/Ejercit/i, 'Ejercitacion'],
+]
+
+// Segundo grupo → Sub-sección
+const SUB_SECCION_MAP: [RegExp, string][] = [
+  [/Ejer\.|Ejercicio/i, 'Ejercicio'],
+  [/Ejem\.|Ejemplo/i, 'Ejemplo'],
+  [/Lectura/i, 'Lectura'],
+  [/Soluci[oó]n/i, 'Solución'],
+  [/Resumen/i, 'Resumen'],
+  [/Pr[aá]ctica/i, 'Práctica'],
+]
+
+/* ── Autodetección de metadata desde nombre de archivo ────────────── */
+type ParseResult = {
   ejercicio: string
   capitulo: string
   seccion: Seccion | null
-} {
-  const name = filename.replace(/\.[^.]+$/, '')
+  subSeccion: string
+  tituloGenerado: string
+}
+
+function parseFilename(filename: string): ParseResult {
+  const name = filename.replace(/\.[^.]+$/, '') // quitar extensión
+
+  // ── Intentar formato estándar del cliente ──
+  // Formato: (Sección Abreviada) - (Sub Categoría) (Número).ext
+  // Ejemplo: "(Eval. M1) - Ejer. 65.mkv", "(M. Teorico) - Ejem. 12.mp4"
+  const clientFormat = name.match(
+    /^\(([^)]+)\)\s*-\s*(.+?)(?:\s+(\d+[a-zA-Z]?(?:\.\d+)?))?$/
+  )
+
+  if (clientFormat) {
+    const [, primerGrupo, segundoGrupo, numero] = clientFormat
+
+    // Mapear sección desde primer grupo
+    let seccion: Seccion | null = null
+    for (const [regex, sec] of SECCION_MAP) {
+      if (regex.test(primerGrupo)) {
+        seccion = sec
+        break
+      }
+    }
+    if (!seccion) seccion = 'Otro'
+
+    // Mapear sub-sección desde segundo grupo
+    let subSeccion = ''
+    for (const [regex, sub] of SUB_SECCION_MAP) {
+      if (regex.test(segundoGrupo)) {
+        subSeccion = sub
+        break
+      }
+    }
+    // Si no matcheó ningún diccionario, usar el texto limpio del segundo grupo
+    if (!subSeccion) subSeccion = segundoGrupo.trim()
+
+    const ejercicio = numero || ''
+
+    // Generar título personalizado: "[Sección Mapeada] - [Sub-Sección] [Número]"
+    const secLabel = seccion ? SECCION_LABELS[seccion] : 'Otro'
+    const tituloGenerado = [
+      secLabel,
+      ' - ',
+      subSeccion,
+      ejercicio ? ` ${ejercicio}` : '',
+    ].join('')
+
+    return {
+      ejercicio,
+      capitulo: '', // NO se puede deducir del nombre → vacío
+      seccion,
+      subSeccion,
+      tituloGenerado,
+    }
+  }
+
+  // ── Fallback: lógica genérica para archivos sin formato estándar ──
   let ejercicio = ''
   let capitulo = ''
   let seccion: Seccion | null = null
+  let subSeccion = ''
 
+  // Número de ejercicio genérico
   const ejerMatch = name.match(/(?:Ejer\.?|Ejercicio|Ej\.?)\s*(?:N°?\s*)?(\d+[a-zA-Z]?(?:\.\d+)?)/i)
   if (ejerMatch) ejercicio = ejerMatch[1]
 
-  const capMatch = name.match(/(?:Cap[íi]?tulo|Cap\.?|C)\s*(\d+[a-zA-Z]?)/i)
+  // Sub-sección genérica
+  for (const [regex, sub] of SUB_SECCION_MAP) {
+    if (regex.test(name)) {
+      subSeccion = sub
+      break
+    }
+  }
+
+  // Capítulo genérico
+  const capMatch = name.match(/(?:Cap[íi]?tulo|Cap\.?)\s*(\d+[a-zA-Z]?)/i)
   if (capMatch) capitulo = capMatch[1]
 
-  const lower = name.toLowerCase()
-  if (/te[oó]ri/i.test(lower)) seccion = 'Teorico'
-  else if (/ensayo/i.test(lower)) seccion = 'Ensayo'
-  else if (/ejercit/i.test(lower)) seccion = 'Ejercitacion'
-  else if (/solucion/i.test(lower)) seccion = 'Solucionario'
-  else if (/clase/i.test(lower)) seccion = 'Clase_Grabada'
+  // Sección genérica
+  for (const [regex, sec] of SECCION_MAP) {
+    if (regex.test(name)) {
+      seccion = sec
+      break
+    }
+  }
 
+  // Patrón evaluación: "(Eval. M1)" sin segundo grupo
   const evalMatch = name.match(/\(Eval\.?\s*([A-Z]\d+)\)/i)
-  if (evalMatch && !capitulo) capitulo = evalMatch[1]
+  if (evalMatch) {
+    if (!seccion) seccion = 'Ejercitacion'
+    // No asignar a capítulo (el usuario lo ingresa manualmente)
+  }
 
-  return { ejercicio, capitulo, seccion }
+  return {
+    ejercicio,
+    capitulo,
+    seccion,
+    subSeccion,
+    tituloGenerado: '', // sin título auto-generado en fallback
+  }
 }
 
 /* ── Formatear duración ──────────────────────────────────── */
@@ -160,15 +263,16 @@ export default function BunnyUploaderTab() {
 
     const newItems: FileItem[] = videoFiles.map((file) => {
       const parsed = parseFilename(file.name)
+      const rawName = file.name.replace(/\.[^.]+$/, '')
       return {
         file,
         id: generateId(),
         status: 'pending',
         progress: 0,
-        titulo: file.name.replace(/\.[^.]+$/, ''),
+        titulo: parsed.tituloGenerado || rawName,
         capitulo: parsed.capitulo,
         seccion: parsed.seccion || 'Teorico',
-        subSeccion: '',
+        subSeccion: parsed.subSeccion,
         numeroEjercicio: parsed.ejercicio,
         contenido: '',
         duracionSegundos: null,
