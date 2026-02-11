@@ -137,7 +137,7 @@ export default function CargaMasivaPorURLModal({
       toast.dismiss('scrape')
       if (!json.success) {
         setError(json.error || 'Error al escrapear')
-        toast.error('Error', json.error)
+        toast.error(json.error || 'Error')
         return
       }
       const items: ProcessedItem[] = (json.data || []).map((x: ScrapedItem) => ({
@@ -146,11 +146,11 @@ export default function CargaMasivaPorURLModal({
       }))
       setScrapedItems(items)
       setStep('list')
-      toast.success('Listo', `Se encontraron ${items.length} enlaces`)
+      toast.success(`Listo. Se encontraron ${items.length} enlaces`)
     } catch (err: any) {
       toast.dismiss('scrape')
       setError(err.message || 'Error al escrapear')
-      toast.error('Error', err.message)
+      toast.error(err.message || 'Error')
     } finally {
       setScraping(false)
     }
