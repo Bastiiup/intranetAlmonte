@@ -3,7 +3,10 @@ import { getStrapiUrl, STRAPI_API_TOKEN } from '@/lib/strapi/config'
 
 export const dynamic = 'force-dynamic'
 
-const SECCIONES = ['Teorico', 'Ensayo', 'Ejercitacion', 'Solucionario', 'Clase_Grabada', 'Otro'] as const
+const SECCIONES = [
+  'Teorico', 'Ensayo', 'Ejercitacion', 'Solucionario', 'Clase_Grabada',
+  'Marco_Teorico', 'Evaluacion_Matematicas_M1', 'Evaluacion_Matematicas_M2', 'Otro',
+] as const
 
 type CrearReferenciaBody = {
   nombre: string

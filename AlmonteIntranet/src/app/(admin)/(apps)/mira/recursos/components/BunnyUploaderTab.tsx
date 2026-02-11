@@ -27,15 +27,31 @@ import * as tus from 'tus-js-client'
 
 /* ── Constantes ────────────────────────────────────────────────── */
 const CONCURRENCY = 3
-const SECCIONES = ['Teorico', 'Ensayo', 'Ejercitacion', 'Solucionario', 'Clase_Grabada', 'Otro'] as const
+
+// Valores del enum en Strapi (deben coincidir con schema.json recurso-mira)
+const SECCIONES = [
+  'Teorico',
+  'Ensayo',
+  'Ejercitacion',
+  'Solucionario',
+  'Clase_Grabada',
+  'Marco_Teorico',
+  'Evaluacion_Matematicas_M1',
+  'Evaluacion_Matematicas_M2',
+  'Otro',
+] as const
 type Seccion = (typeof SECCIONES)[number]
 
+// Labels legibles para el usuario en los selects
 const SECCION_LABELS: Record<Seccion, string> = {
   Teorico: 'Teórico',
   Ensayo: 'Ensayo',
   Ejercitacion: 'Ejercitación',
   Solucionario: 'Solucionario',
   Clase_Grabada: 'Clase Grabada',
+  Marco_Teorico: 'Marco Teórico',
+  Evaluacion_Matematicas_M1: 'Evaluación Matemáticas M1',
+  Evaluacion_Matematicas_M2: 'Evaluación Matemáticas M2',
   Otro: 'Otro',
 }
 
@@ -65,19 +81,24 @@ function generateId() {
 
 /* ── Diccionarios de mapeo para nomenclatura del cliente ──────────── */
 
-// Primer paréntesis → Sección
+// Mapeo LITERAL del primer paréntesis → Sección (valor enum de Strapi)
+// Orden importa: reglas más específicas primero
 const SECCION_MAP: [RegExp, Seccion][] = [
-  [/Eval\./i, 'Ejercitacion'],        // (Eval. M1) → Ejercitación
-  [/Evaluaci[oó]n/i, 'Ejercitacion'], // (Evaluación ...) → Ejercitación
-  [/M\.\s*Te[oó]ri/i, 'Teorico'],    // (M. Teorico) → Teórico
-  [/Te[oó]ri/i, 'Teorico'],           // (Teorico ...) → Teórico
+  // Evaluaciones específicas por módulo
+  [/Eval\.?\s*M1/i, 'Evaluacion_Matematicas_M1'],   // (Eval. M1) → Evaluación Matemáticas M1
+  [/Eval\.?\s*M2/i, 'Evaluacion_Matematicas_M2'],   // (Eval. M2) → Evaluación Matemáticas M2
+  // Marco Teórico (antes que Teórico genérico)
+  [/M\.\s*Te[oó]ri/i, 'Marco_Teorico'],             // (M. Teorico) → Marco Teórico
+  [/Marco\s*Te[oó]ri/i, 'Marco_Teorico'],           // (Marco Teorico) → Marco Teórico
+  // Genéricos
+  [/Te[oó]ri/i, 'Teorico'],                          // (Teorico) → Teórico
   [/Ensayo/i, 'Ensayo'],
+  [/Ejercit/i, 'Ejercitacion'],
   [/Soluci[oó]n/i, 'Solucionario'],
   [/Clase/i, 'Clase_Grabada'],
-  [/Ejercit/i, 'Ejercitacion'],
 ]
 
-// Segundo grupo → Sub-sección
+// Segundo grupo → Sub-sección (texto libre, no enum)
 const SUB_SECCION_MAP: [RegExp, string][] = [
   [/Ejer\.|Ejercicio/i, 'Ejercicio'],
   [/Ejem\.|Ejemplo/i, 'Ejemplo'],
@@ -109,7 +130,7 @@ function parseFilename(filename: string): ParseResult {
   if (clientFormat) {
     const [, primerGrupo, segundoGrupo, numero] = clientFormat
 
-    // Mapear sección desde primer grupo
+    // Mapear sección desde primer grupo (reglas literales)
     let seccion: Seccion | null = null
     for (const [regex, sec] of SECCION_MAP) {
       if (regex.test(primerGrupo)) {
@@ -127,13 +148,12 @@ function parseFilename(filename: string): ParseResult {
         break
       }
     }
-    // Si no matcheó ningún diccionario, usar el texto limpio del segundo grupo
     if (!subSeccion) subSeccion = segundoGrupo.trim()
 
     const ejercicio = numero || ''
 
-    // Generar título personalizado: "[Sección Mapeada] - [Sub-Sección] [Número]"
-    const secLabel = seccion ? SECCION_LABELS[seccion] : 'Otro'
+    // Generar título personalizado: "[Sección Label] - [Sub-Sección] [Número]"
+    const secLabel = SECCION_LABELS[seccion]
     const tituloGenerado = [
       secLabel,
       ' - ',
@@ -156,35 +176,22 @@ function parseFilename(filename: string): ParseResult {
   let seccion: Seccion | null = null
   let subSeccion = ''
 
-  // Número de ejercicio genérico
+  // Número de ejercicio
   const ejerMatch = name.match(/(?:Ejer\.?|Ejercicio|Ej\.?)\s*(?:N°?\s*)?(\d+[a-zA-Z]?(?:\.\d+)?)/i)
   if (ejerMatch) ejercicio = ejerMatch[1]
 
-  // Sub-sección genérica
+  // Sub-sección
   for (const [regex, sub] of SUB_SECCION_MAP) {
-    if (regex.test(name)) {
-      subSeccion = sub
-      break
-    }
+    if (regex.test(name)) { subSeccion = sub; break }
   }
 
-  // Capítulo genérico
+  // Capítulo
   const capMatch = name.match(/(?:Cap[íi]?tulo|Cap\.?)\s*(\d+[a-zA-Z]?)/i)
   if (capMatch) capitulo = capMatch[1]
 
-  // Sección genérica
+  // Sección (usa los mismos mapeos literales)
   for (const [regex, sec] of SECCION_MAP) {
-    if (regex.test(name)) {
-      seccion = sec
-      break
-    }
-  }
-
-  // Patrón evaluación: "(Eval. M1)" sin segundo grupo
-  const evalMatch = name.match(/\(Eval\.?\s*([A-Z]\d+)\)/i)
-  if (evalMatch) {
-    if (!seccion) seccion = 'Ejercitacion'
-    // No asignar a capítulo (el usuario lo ingresa manualmente)
+    if (regex.test(name)) { seccion = sec; break }
   }
 
   return {
@@ -192,7 +199,7 @@ function parseFilename(filename: string): ParseResult {
     capitulo,
     seccion,
     subSeccion,
-    tituloGenerado: '', // sin título auto-generado en fallback
+    tituloGenerado: '',
   }
 }
 

@@ -140,10 +140,12 @@ const nextConfig: NextConfig = {
   // IMPORTANTE: Solo debe haber un CSP, configurado aquí en next.config.ts
   async headers() {
     const cspValue = [
-      "default-src 'self'",
+      "default-src 'self' blob: data:",
       "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.getstream.io https://*.stream-io-api.com",
       // Permitir conexiones a Bunny.net para subidas de video (TUS) y reproducción
-      "connect-src 'self' https://video.bunnycdn.com https://*.getstream.io https://*.stream-io-api.com wss://*.getstream.io wss://*.stream-io-api.com wss://chat.stream-io-api.com",
+      "connect-src 'self' blob: https://video.bunnycdn.com https://*.getstream.io https://*.stream-io-api.com wss://*.getstream.io wss://*.stream-io-api.com wss://chat.stream-io-api.com",
+      // Permitir blob: para detección de duración de video local (URL.createObjectURL)
+      "media-src 'self' blob: data:",
       "img-src 'self' data: blob: https: http: https://*.getstream.io https://ui-avatars.com https://strapi.moraleja.cl",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' data: https://fonts.gstatic.com",
