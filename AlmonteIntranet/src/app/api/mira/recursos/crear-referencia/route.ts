@@ -14,6 +14,10 @@ type CrearReferenciaBody = {
   seccion?: string
   orden?: number
   contenido?: string
+  sub_seccion?: string
+  numero_ejercicio?: string
+  titulo_personalizado?: string
+  duracion_segundos?: number
 }
 
 /**
@@ -45,6 +49,10 @@ export async function POST(request: NextRequest) {
     seccion = 'Teorico',
     orden = 0,
     contenido = '',
+    sub_seccion = '',
+    numero_ejercicio = '',
+    titulo_personalizado = '',
+    duracion_segundos,
   } = body
 
   if (!nombre || !video_id) {
@@ -68,6 +76,10 @@ export async function POST(request: NextRequest) {
       ...(numero_capitulo !== undefined && numero_capitulo !== '' && { numero_capitulo: String(numero_capitulo).trim() }),
       ...(seccionValida && { seccion: seccionValida }),
       ...(contenido && { contenido: contenido.trim() }),
+      ...(sub_seccion && { sub_seccion: sub_seccion.trim() }),
+      ...(numero_ejercicio && { numero_ejercicio: numero_ejercicio.trim() }),
+      ...(titulo_personalizado && { titulo_personalizado: titulo_personalizado.trim() }),
+      ...(duracion_segundos != null && duracion_segundos > 0 && { duracion_segundos }),
       // libro_mira no se envía; se asigna en la pestaña "Asignar a libro"
     },
   }
