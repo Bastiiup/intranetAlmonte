@@ -9,7 +9,6 @@ import {
   Alert,
   Form,
   Badge,
-  Table,
   Spinner,
   OverlayTrigger,
   Tooltip,
@@ -21,9 +20,8 @@ import {
   LuClock,
   LuFileVideo,
   LuTrash2,
-  LuChevronDown,
-  LuChevronUp,
   LuWand,
+  LuTriangleAlert,
 } from 'react-icons/lu'
 import * as tus from 'tus-js-client'
 
@@ -49,15 +47,16 @@ type FileItem = {
   progress: number
   error?: string
   videoId?: string
-  // Metadata editable por fila
+  // Metadata editable
   titulo: string
   capitulo: string
   seccion: Seccion
   subSeccion: string
   numeroEjercicio: string
   contenido: string
-  duracionSegundos: number | null // autodetectado
+  duracionSegundos: number | null
   duracionDetectando: boolean
+  duracionAutodetectada: boolean // si fue detectada automáticamente
 }
 
 function generateId() {
@@ -70,20 +69,17 @@ function parseFilename(filename: string): {
   capitulo: string
   seccion: Seccion | null
 } {
-  const name = filename.replace(/\.[^.]+$/, '') // quitar extensión
+  const name = filename.replace(/\.[^.]+$/, '')
   let ejercicio = ''
   let capitulo = ''
   let seccion: Seccion | null = null
 
-  // Detectar número de ejercicio: "Ejer. 62", "Ejercicio 15b", "Ej 3.2", "Ej. N°62"
   const ejerMatch = name.match(/(?:Ejer\.?|Ejercicio|Ej\.?)\s*(?:N°?\s*)?(\d+[a-zA-Z]?(?:\.\d+)?)/i)
   if (ejerMatch) ejercicio = ejerMatch[1]
 
-  // Detectar capítulo: "Cap 1", "Cap. 2A", "Capítulo 3", "C1", "(C1)"
   const capMatch = name.match(/(?:Cap[íi]?tulo|Cap\.?|C)\s*(\d+[a-zA-Z]?)/i)
   if (capMatch) capitulo = capMatch[1]
 
-  // Detectar sección desde nombre
   const lower = name.toLowerCase()
   if (/te[oó]ri/i.test(lower)) seccion = 'Teorico'
   else if (/ensayo/i.test(lower)) seccion = 'Ensayo'
@@ -91,7 +87,6 @@ function parseFilename(filename: string): {
   else if (/solucion/i.test(lower)) seccion = 'Solucionario'
   else if (/clase/i.test(lower)) seccion = 'Clase_Grabada'
 
-  // Detectar patrón de evaluación: "(Eval. M1)", "(Eval. L2)"
   const evalMatch = name.match(/\(Eval\.?\s*([A-Z]\d+)\)/i)
   if (evalMatch && !capitulo) capitulo = evalMatch[1]
 
@@ -100,7 +95,7 @@ function parseFilename(filename: string): {
 
 /* ── Formatear duración ──────────────────────────────────── */
 function formatDuration(seconds: number | null): string {
-  if (seconds == null || seconds <= 0) return '--:--'
+  if (seconds == null || seconds <= 0) return ''
   const m = Math.floor(seconds / 60)
   const s = Math.round(seconds % 60)
   return `${m}:${s.toString().padStart(2, '0')}`
@@ -109,15 +104,23 @@ function formatDuration(seconds: number | null): string {
 /* ── Detectar duración de un archivo de video local ────────── */
 function detectDuration(file: File): Promise<number> {
   return new Promise((resolve) => {
+    // Timeout de 8s para archivos donde el navegador no soporta el codec (ej: MKV)
+    const timeout = setTimeout(() => {
+      URL.revokeObjectURL(url)
+      resolve(0)
+    }, 8000)
+
     const url = URL.createObjectURL(file)
     const video = document.createElement('video')
     video.preload = 'metadata'
     video.onloadedmetadata = () => {
+      clearTimeout(timeout)
       const dur = Math.round(video.duration)
       URL.revokeObjectURL(url)
-      resolve(isNaN(dur) ? 0 : dur)
+      resolve(isNaN(dur) || !isFinite(dur) ? 0 : dur)
     }
     video.onerror = () => {
+      clearTimeout(timeout)
       URL.revokeObjectURL(url)
       resolve(0)
     }
@@ -125,13 +128,17 @@ function detectDuration(file: File): Promise<number> {
   })
 }
 
+/* ── Estilos reutilizables para inputs inline ──────────────── */
+const INPUT_STYLE: React.CSSProperties = { fontSize: '0.8rem' }
+const INPUT_CLS = 'border-0 bg-transparent px-1'
+const INPUT_CLS_FOCUS = 'px-1'
+
 /* ── Componente principal ──────────────────────────────────── */
 export default function BunnyUploaderTab() {
   const [items, setItems] = useState<FileItem[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [globalError, setGlobalError] = useState<string | null>(null)
-  const [expandedRow, setExpandedRow] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const itemsRef = useRef<FileItem[]>(items)
   const runningRef = useRef(false)
@@ -166,6 +173,7 @@ export default function BunnyUploaderTab() {
         contenido: '',
         duracionSegundos: null,
         duracionDetectando: true,
+        duracionAutodetectada: false,
       }
     })
 
@@ -177,7 +185,14 @@ export default function BunnyUploaderTab() {
       detectDuration(item.file).then((dur) => {
         setItems((prev) =>
           prev.map((it) =>
-            it.id === item.id ? { ...it, duracionSegundos: dur, duracionDetectando: false } : it
+            it.id === item.id
+              ? {
+                  ...it,
+                  duracionSegundos: dur > 0 ? dur : it.duracionSegundos,
+                  duracionDetectando: false,
+                  duracionAutodetectada: dur > 0,
+                }
+              : it
           )
         )
       })
@@ -194,7 +209,7 @@ export default function BunnyUploaderTab() {
     setIsUploading(true)
 
     const runOne = async (item: FileItem) => {
-      updateItem(item.id, { status: 'uploading', progress: 5 })
+      updateItem(item.id, { status: 'uploading', progress: 2 })
       const title = item.titulo || item.file.name.replace(/\.[^.]+$/, '')
 
       try {
@@ -213,6 +228,8 @@ export default function BunnyUploaderTab() {
         const { uploadUrl, videoId, libraryId, expires, signature } = data as {
           uploadUrl: string; videoId: string; libraryId: string; expires: number; signature: string
         }
+
+        updateItem(item.id, { progress: 5 })
 
         // 2) Subir archivo directo a Bunny via TUS
         await new Promise<void>((resolve, reject) => {
@@ -233,7 +250,7 @@ export default function BunnyUploaderTab() {
             onProgress(bytesSent, bytesTotal) {
               if (!bytesTotal) return
               const pct = Math.round((bytesSent / bytesTotal) * 100)
-              updateItem(item.id, { progress: Math.min(99, Math.max(pct, 10)) })
+              updateItem(item.id, { progress: Math.min(95, Math.max(pct, 5)) })
             },
             onSuccess: () => resolve(),
             onError: (error) => reject(error),
@@ -241,8 +258,9 @@ export default function BunnyUploaderTab() {
           upload.start()
         })
 
-        // 3) Registrar en Strapi con TODA la metadata de esta fila
-        // Leer estado actualizado del item (el usuario puede haber editado mientras subía)
+        updateItem(item.id, { progress: 97 })
+
+        // 3) Registrar en Strapi con metadata actualizada de la fila
         const freshItem = itemsRef.current.find((i) => i.id === item.id) || item
         const refRes = await fetch('/api/mira/recursos/crear-referencia', {
           method: 'POST',
@@ -299,14 +317,14 @@ export default function BunnyUploaderTab() {
 
   const removeItem = useCallback((id: string) => {
     setItems((prev) => prev.filter((i) => i.id !== id))
-    if (expandedRow === id) setExpandedRow(null)
-  }, [expandedRow])
+  }, [])
 
-  const clearAll = useCallback(() => { setItems([]); setGlobalError(null); setExpandedRow(null) }, [])
+  const clearAll = useCallback(() => { setItems([]); setGlobalError(null) }, [])
 
-  /* ── Aplicar metadata global a todos los pendientes ──── */
+  /* ── Metadata global ─────────────────────────────────── */
   const [globalCapitulo, setGlobalCapitulo] = useState('')
   const [globalSeccion, setGlobalSeccion] = useState<Seccion>('Teorico')
+  const [globalSubSeccion, setGlobalSubSeccion] = useState('')
   const [globalContenido, setGlobalContenido] = useState('')
 
   const applyGlobalToAll = useCallback(() => {
@@ -317,28 +335,37 @@ export default function BunnyUploaderTab() {
               ...it,
               capitulo: globalCapitulo || it.capitulo,
               seccion: globalSeccion || it.seccion,
+              subSeccion: globalSubSeccion || it.subSeccion,
               contenido: globalContenido || it.contenido,
             }
           : it
       )
     )
-  }, [globalCapitulo, globalSeccion, globalContenido])
+  }, [globalCapitulo, globalSeccion, globalSubSeccion, globalContenido])
 
   /* ── Resumen ──────────────────────────────────────────── */
-  const done = items.filter((i) => i.status === 'done').length
-  const errors = items.filter((i) => i.status === 'error').length
-  const pending = items.filter((i) => i.status === 'pending').length
-  const uploading = items.filter((i) => i.status === 'uploading').length
+  const doneCount = items.filter((i) => i.status === 'done').length
+  const errorCount = items.filter((i) => i.status === 'error').length
+  const pendingCount = items.filter((i) => i.status === 'pending').length
+  const uploadingCount = items.filter((i) => i.status === 'uploading').length
   const total = items.length
   const totalProgress = total ? Math.round(items.reduce((a, i) => a + i.progress, 0) / total) : 0
+
+  /* ── Helper: color de la barra según estado ──────────── */
+  const progressVariant = (it: FileItem) => {
+    if (it.status === 'done') return 'success'
+    if (it.status === 'error') return 'danger'
+    if (it.status === 'uploading') return undefined // default azul
+    return 'warning'
+  }
 
   return (
     <Card>
       <CardBody>
         {/* ── Zona de Drag & Drop ─────────────────────────── */}
         <p className="text-muted mb-3">
-          Arrastra archivos de video o haz clic para seleccionar. Podrás editar la metadata de cada
-          video antes de subir.
+          Arrastra archivos de video o haz clic para seleccionar. Edita la metadata directamente en
+          la tabla antes de subir.
         </p>
 
         {globalError && (
@@ -352,10 +379,10 @@ export default function BunnyUploaderTab() {
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onClick={() => !isUploading && inputRef.current?.click()}
-          className={`border-2 border-dashed rounded-3 p-5 text-center transition-colors ${
+          className={`border-2 border-dashed rounded-3 p-4 text-center ${
             isDragging ? 'border-primary bg-primary bg-opacity-10' : 'border-secondary'
           }`}
-          style={{ cursor: isUploading ? 'not-allowed' : 'pointer', minHeight: 120 }}
+          style={{ cursor: isUploading ? 'not-allowed' : 'pointer', minHeight: 100 }}
         >
           <input
             ref={inputRef}
@@ -369,8 +396,8 @@ export default function BunnyUploaderTab() {
               e.target.value = ''
             }}
           />
-          <LuUpload size={32} className="text-muted mb-2" />
-          <p className="mb-0 text-muted">
+          <LuUpload size={28} className="text-muted mb-1" />
+          <p className="mb-0 text-muted small">
             {isDragging ? 'Suelta los archivos aquí' : 'Arrastra videos o haz clic para elegir'}
           </p>
         </div>
@@ -381,39 +408,43 @@ export default function BunnyUploaderTab() {
             {/* Barra de resumen */}
             <div className="d-flex flex-wrap gap-2 align-items-center mt-3 mb-2">
               <Badge bg="secondary">{total} archivos</Badge>
-              {pending > 0 && <Badge bg="warning" text="dark">{pending} pendientes</Badge>}
-              {uploading > 0 && <Badge bg="info">{uploading} subiendo</Badge>}
-              {done > 0 && <Badge bg="success">{done} completados</Badge>}
-              {errors > 0 && <Badge bg="danger">{errors} errores</Badge>}
+              {pendingCount > 0 && <Badge bg="warning" text="dark">{pendingCount} pendientes</Badge>}
+              {uploadingCount > 0 && <Badge bg="info">{uploadingCount} subiendo</Badge>}
+              {doneCount > 0 && <Badge bg="success">{doneCount} completados</Badge>}
+              {errorCount > 0 && <Badge bg="danger">{errorCount} errores</Badge>}
               <div className="ms-auto d-flex gap-2">
                 <Button variant="outline-danger" size="sm" onClick={clearAll} disabled={isUploading}>
-                  <LuTrash2 className="me-1" />
-                  Limpiar todo
+                  <LuTrash2 className="me-1" size={14} />
+                  Limpiar
                 </Button>
               </div>
             </div>
 
-            {isUploading && <ProgressBar now={totalProgress} label={`${totalProgress}%`} className="mb-3" />}
+            {isUploading && (
+              <ProgressBar now={totalProgress} label={`Total: ${totalProgress}%`} className="mb-3" style={{ height: 8 }} />
+            )}
 
             {/* ── Metadata global (aplicar a todos) ────────── */}
             <Card className="mb-3 border-primary border-opacity-25">
-              <CardBody className="py-3">
+              <CardBody className="py-2 px-3">
                 <div className="d-flex align-items-center gap-2 mb-2">
-                  <LuWand className="text-primary" />
+                  <LuWand size={14} className="text-primary" />
                   <span className="fw-semibold small text-primary">Aplicar a todos los pendientes</span>
                 </div>
-                <div className="row g-2">
-                  <div className="col-12 col-md-3">
+                <div className="row g-2 align-items-end">
+                  <div className="col-6 col-md-2">
+                    <Form.Label className="small mb-0 text-muted">Capítulo</Form.Label>
                     <Form.Control
                       type="text"
-                      placeholder="Capítulo (ej. 1, 2A)"
+                      placeholder="ej. 1, 2A"
                       value={globalCapitulo}
                       onChange={(e) => setGlobalCapitulo(e.target.value)}
                       size="sm"
                       disabled={isUploading}
                     />
                   </div>
-                  <div className="col-12 col-md-3">
+                  <div className="col-6 col-md-2">
+                    <Form.Label className="small mb-0 text-muted">Sección</Form.Label>
                     <Form.Select
                       size="sm"
                       value={globalSeccion}
@@ -425,264 +456,328 @@ export default function BunnyUploaderTab() {
                       ))}
                     </Form.Select>
                   </div>
-                  <div className="col-12 col-md-4">
+                  <div className="col-6 col-md-2">
+                    <Form.Label className="small mb-0 text-muted">Sub-Sección</Form.Label>
                     <Form.Control
                       type="text"
-                      placeholder="Contenido / Tema (ej: NÚMEROS ENTEROS)"
+                      placeholder="ej. Ec. Cuadráticas"
+                      value={globalSubSeccion}
+                      onChange={(e) => setGlobalSubSeccion(e.target.value)}
+                      size="sm"
+                      disabled={isUploading}
+                    />
+                  </div>
+                  <div className="col-6 col-md-3">
+                    <Form.Label className="small mb-0 text-muted">Contenido / Tema</Form.Label>
+                    <Form.Control
+                      type="text"
+                      placeholder="ej: NÚMEROS ENTEROS"
                       value={globalContenido}
                       onChange={(e) => setGlobalContenido(e.target.value.toUpperCase())}
                       size="sm"
                       disabled={isUploading}
                     />
                   </div>
-                  <div className="col-12 col-md-2">
+                  <div className="col-12 col-md-3">
                     <Button
                       variant="outline-primary"
                       size="sm"
                       className="w-100"
                       onClick={applyGlobalToAll}
-                      disabled={isUploading || pending === 0}
+                      disabled={isUploading || pendingCount === 0}
                     >
-                      <LuCheck className="me-1" />
-                      Aplicar
+                      <LuCheck className="me-1" size={14} />
+                      Aplicar a {pendingCount} pendientes
                     </Button>
                   </div>
                 </div>
               </CardBody>
             </Card>
 
-            {/* ── Tabla de edición masiva ───────────────────── */}
-            <div className="table-responsive" style={{ maxHeight: 500, overflowY: 'auto' }}>
-              <Table size="sm" hover className="mb-0 align-middle">
-                <thead className="table-light sticky-top">
-                  <tr>
-                    <th style={{ width: 32 }}></th>
-                    <th>Archivo</th>
-                    <th style={{ width: 180 }}>Título</th>
-                    <th style={{ width: 70 }}>Cap.</th>
-                    <th style={{ width: 130 }}>Sección</th>
-                    <th style={{ width: 70 }}>Ejer.</th>
-                    <th style={{ width: 65 }}>
-                      <LuClock size={14} className="me-1" />
-                      Dur.
-                    </th>
-                    <th style={{ width: 100 }}>Estado</th>
-                    <th style={{ width: 40 }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((it) => {
-                    const isExpanded = expandedRow === it.id
-                    const isPending = it.status === 'pending'
-                    const canEdit = isPending && !isUploading
+            {/* ── Lista de edición masiva inline ────────────── */}
+            <div style={{ maxHeight: 600, overflowY: 'auto' }}>
+              {items.map((it, idx) => {
+                const canEdit = it.status === 'pending'
+                const isMkv = /\.mkv$/i.test(it.file.name)
+                const durFailed = !it.duracionDetectando && (!it.duracionSegundos || it.duracionSegundos <= 0)
 
-                    return (
-                      <>
-                        <tr key={it.id} className={it.status === 'error' ? 'table-danger' : it.status === 'done' ? 'table-success' : ''}>
-                          {/* Expand */}
-                          <td>
-                            <Button
-                              variant="link"
-                              size="sm"
-                              className="p-0 text-muted"
-                              onClick={() => setExpandedRow(isExpanded ? null : it.id)}
-                              title="Expandir detalles"
-                            >
-                              {isExpanded ? <LuChevronUp size={16} /> : <LuChevronDown size={16} />}
-                            </Button>
-                          </td>
-                          {/* Nombre archivo */}
-                          <td>
-                            <div className="d-flex align-items-center gap-1">
-                              <LuFileVideo size={14} className="text-muted shrink-0" />
-                              <span className="text-truncate small" style={{ maxWidth: 200 }} title={it.file.name}>
-                                {it.file.name}
-                              </span>
-                              <span className="text-muted small">
-                                ({(it.file.size / 1024 / 1024).toFixed(1)}MB)
-                              </span>
+                return (
+                  <Card
+                    key={it.id}
+                    className={`mb-2 ${
+                      it.status === 'error'
+                        ? 'border-danger'
+                        : it.status === 'done'
+                        ? 'border-success'
+                        : it.status === 'uploading'
+                        ? 'border-info'
+                        : 'border-light'
+                    }`}
+                  >
+                    <CardBody className="py-2 px-3">
+                      {/* ── Fila 1: Archivo + Estado + Progreso ── */}
+                      <div className="d-flex align-items-center gap-2 mb-2">
+                        <span className="text-muted small fw-bold" style={{ minWidth: 20 }}>
+                          {idx + 1}
+                        </span>
+                        <LuFileVideo size={16} className="text-muted flex-shrink-0" />
+                        <span className="text-truncate small fw-semibold" title={it.file.name} style={{ maxWidth: 280 }}>
+                          {it.file.name}
+                        </span>
+                        <span className="text-muted small flex-shrink-0">
+                          ({(it.file.size / 1024 / 1024).toFixed(1)} MB)
+                        </span>
+
+                        {/* Estado inline */}
+                        <div className="ms-auto d-flex align-items-center gap-2">
+                          {it.status === 'pending' && <Badge bg="warning" text="dark">Pendiente</Badge>}
+                          {it.status === 'uploading' && (
+                            <div className="d-flex align-items-center gap-2" style={{ minWidth: 160 }}>
+                              <Spinner animation="border" size="sm" />
+                              <ProgressBar
+                                now={it.progress}
+                                variant="info"
+                                animated
+                                style={{ width: 100, height: 10 }}
+                              />
+                              <span className="small fw-bold">{it.progress}%</span>
                             </div>
-                          </td>
-                          {/* Título */}
-                          <td>
+                          )}
+                          {it.status === 'done' && (
+                            <OverlayTrigger overlay={<Tooltip>Bunny ID: {it.videoId}</Tooltip>}>
+                              <Badge bg="success">
+                                <LuCheck size={12} className="me-1" />
+                                Subido
+                              </Badge>
+                            </OverlayTrigger>
+                          )}
+                          {it.status === 'error' && (
+                            <OverlayTrigger overlay={<Tooltip>{it.error || 'Error desconocido'}</Tooltip>}>
+                              <Badge bg="danger">
+                                <LuTriangleAlert size={12} className="me-1" />
+                                Error
+                              </Badge>
+                            </OverlayTrigger>
+                          )}
+
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="p-0 text-danger flex-shrink-0"
+                            onClick={() => removeItem(it.id)}
+                            disabled={it.status === 'uploading'}
+                            title="Quitar de la lista"
+                          >
+                            <LuX size={18} />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* ── Barra de progreso individual (visible solo subiendo/completado) ── */}
+                      {(it.status === 'uploading' || it.status === 'done' || it.status === 'error') && (
+                        <ProgressBar
+                          now={it.status === 'error' ? 100 : it.progress}
+                          variant={progressVariant(it)}
+                          animated={it.status === 'uploading'}
+                          className="mb-2"
+                          style={{ height: 4 }}
+                        />
+                      )}
+
+                      {/* ── Fila 2: Inputs inline directos ─────── */}
+                      <div className="row g-2">
+                        {/* Título */}
+                        <div className="col-12 col-md-4">
+                          <div className="d-flex align-items-center gap-1">
+                            <Form.Label className="small mb-0 text-muted flex-shrink-0" style={{ minWidth: 42 }}>
+                              Título
+                            </Form.Label>
                             <Form.Control
                               type="text"
                               value={it.titulo}
                               onChange={(e) => updateItem(it.id, { titulo: e.target.value })}
                               size="sm"
                               disabled={!canEdit}
-                              className="border-0 bg-transparent px-1"
-                              style={{ fontSize: '0.8rem' }}
+                              className={canEdit ? INPUT_CLS_FOCUS : INPUT_CLS}
+                              style={INPUT_STYLE}
+                              placeholder="Título del video"
                             />
-                          </td>
-                          {/* Capítulo */}
-                          <td>
+                          </div>
+                        </div>
+                        {/* Capítulo */}
+                        <div className="col-4 col-md-1">
+                          <div className="d-flex align-items-center gap-1">
+                            <Form.Label className="small mb-0 text-muted flex-shrink-0" style={{ minWidth: 28 }}>
+                              Cap.
+                            </Form.Label>
                             <Form.Control
                               type="text"
                               value={it.capitulo}
                               onChange={(e) => updateItem(it.id, { capitulo: e.target.value })}
                               size="sm"
                               disabled={!canEdit}
-                              className="border-0 bg-transparent px-1 text-center"
-                              style={{ fontSize: '0.8rem' }}
+                              className={`text-center ${canEdit ? INPUT_CLS_FOCUS : INPUT_CLS}`}
+                              style={{ ...INPUT_STYLE, maxWidth: 60 }}
                               placeholder="--"
                             />
-                          </td>
-                          {/* Sección */}
-                          <td>
+                          </div>
+                        </div>
+                        {/* Sección */}
+                        <div className="col-8 col-md-2">
+                          <div className="d-flex align-items-center gap-1">
+                            <Form.Label className="small mb-0 text-muted flex-shrink-0" style={{ minWidth: 28 }}>
+                              Sec.
+                            </Form.Label>
                             <Form.Select
                               size="sm"
                               value={it.seccion}
                               onChange={(e) => updateItem(it.id, { seccion: e.target.value as Seccion })}
                               disabled={!canEdit}
-                              className="border-0 bg-transparent px-1"
-                              style={{ fontSize: '0.8rem' }}
+                              className={canEdit ? INPUT_CLS_FOCUS : INPUT_CLS}
+                              style={INPUT_STYLE}
                             >
                               {SECCIONES.map((s) => (
                                 <option key={s} value={s}>{SECCION_LABELS[s]}</option>
                               ))}
                             </Form.Select>
-                          </td>
-                          {/* Ejercicio */}
-                          <td>
+                          </div>
+                        </div>
+                        {/* Ejercicio */}
+                        <div className="col-4 col-md-2">
+                          <div className="d-flex align-items-center gap-1">
+                            <Form.Label className="small mb-0 text-muted flex-shrink-0" style={{ minWidth: 32 }}>
+                              Ejer.
+                            </Form.Label>
                             <Form.Control
                               type="text"
                               value={it.numeroEjercicio}
                               onChange={(e) => updateItem(it.id, { numeroEjercicio: e.target.value })}
                               size="sm"
                               disabled={!canEdit}
-                              className="border-0 bg-transparent px-1 text-center"
-                              style={{ fontSize: '0.8rem' }}
+                              className={`text-center ${canEdit ? INPUT_CLS_FOCUS : INPUT_CLS}`}
+                              style={{ ...INPUT_STYLE, maxWidth: 70 }}
                               placeholder="--"
                             />
-                          </td>
-                          {/* Duración */}
-                          <td className="text-center">
+                          </div>
+                        </div>
+                        {/* Duración (editable si no se detectó) */}
+                        <div className="col-8 col-md-3">
+                          <div className="d-flex align-items-center gap-1">
+                            <LuClock size={14} className="text-muted flex-shrink-0" />
                             {it.duracionDetectando ? (
-                              <Spinner animation="border" size="sm" className="text-muted" />
-                            ) : (
-                              <span className="small text-muted">{formatDuration(it.duracionSegundos)}</span>
-                            )}
-                          </td>
-                          {/* Estado */}
-                          <td>
-                            {it.status === 'pending' && <Badge bg="warning" text="dark">Pendiente</Badge>}
-                            {it.status === 'uploading' && (
                               <div className="d-flex align-items-center gap-1">
-                                <Spinner animation="border" size="sm" />
-                                <span className="small">{it.progress}%</span>
+                                <Spinner animation="border" size="sm" className="text-muted" />
+                                <span className="small text-muted">Detectando...</span>
                               </div>
+                            ) : (
+                              <>
+                                <Form.Control
+                                  type="number"
+                                  value={it.duracionSegundos ?? ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value ? parseInt(e.target.value, 10) : null
+                                    updateItem(it.id, { duracionSegundos: val })
+                                  }}
+                                  size="sm"
+                                  disabled={!canEdit}
+                                  className={`text-center ${canEdit ? INPUT_CLS_FOCUS : INPUT_CLS}`}
+                                  style={{ ...INPUT_STYLE, maxWidth: 75 }}
+                                  placeholder="seg."
+                                  min={0}
+                                />
+                                <span className="small text-muted flex-shrink-0">
+                                  {it.duracionSegundos && it.duracionSegundos > 0
+                                    ? formatDuration(it.duracionSegundos)
+                                    : ''}
+                                </span>
+                                {durFailed && (
+                                  <OverlayTrigger
+                                    overlay={
+                                      <Tooltip>
+                                        {isMkv
+                                          ? 'MKV: el navegador no puede leer la duración. Ingresala manualmente en segundos.'
+                                          : 'No se pudo detectar la duración. Ingresala manualmente en segundos.'}
+                                      </Tooltip>
+                                    }
+                                  >
+                                    <LuTriangleAlert size={14} className="text-warning flex-shrink-0" />
+                                  </OverlayTrigger>
+                                )}
+                                {it.duracionAutodetectada && it.duracionSegundos && it.duracionSegundos > 0 && (
+                                  <OverlayTrigger overlay={<Tooltip>Duración auto-detectada. Puedes editarla.</Tooltip>}>
+                                    <LuCheck size={14} className="text-success flex-shrink-0" />
+                                  </OverlayTrigger>
+                                )}
+                              </>
                             )}
-                            {it.status === 'done' && (
-                              <OverlayTrigger overlay={<Tooltip>ID: {it.videoId}</Tooltip>}>
-                                <Badge bg="success">
-                                  <LuCheck size={12} className="me-1" />
-                                  Listo
-                                </Badge>
-                              </OverlayTrigger>
-                            )}
-                            {it.status === 'error' && (
-                              <OverlayTrigger overlay={<Tooltip>{it.error}</Tooltip>}>
-                                <Badge bg="danger">Error</Badge>
-                              </OverlayTrigger>
-                            )}
-                          </td>
-                          {/* Eliminar */}
-                          <td>
-                            <Button
-                              variant="link"
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ── Fila 3: Sub-Sección + Contenido (siempre visible, inline) ── */}
+                      <div className="row g-2 mt-1">
+                        <div className="col-12 col-md-4">
+                          <div className="d-flex align-items-center gap-1">
+                            <Form.Label className="small mb-0 text-muted flex-shrink-0" style={{ minWidth: 65 }}>
+                              Sub-Sec.
+                            </Form.Label>
+                            <Form.Control
+                              type="text"
+                              value={it.subSeccion}
+                              onChange={(e) => updateItem(it.id, { subSeccion: e.target.value })}
                               size="sm"
-                              className="p-0 text-danger"
-                              onClick={() => removeItem(it.id)}
-                              disabled={it.status === 'uploading'}
-                              title="Quitar"
-                            >
-                              <LuX size={16} />
-                            </Button>
-                          </td>
-                        </tr>
-                        {/* Fila expandida con campos extra */}
-                        {isExpanded && (
-                          <tr key={`${it.id}-expand`} className="bg-light">
-                            <td></td>
-                            <td colSpan={8}>
-                              <div className="row g-2 py-2">
-                                <div className="col-12 col-md-4">
-                                  <Form.Group>
-                                    <Form.Label className="small mb-1 fw-semibold">Sub-Sección</Form.Label>
-                                    <Form.Control
-                                      type="text"
-                                      value={it.subSeccion}
-                                      onChange={(e) => updateItem(it.id, { subSeccion: e.target.value })}
-                                      size="sm"
-                                      disabled={!canEdit}
-                                      placeholder="ej: Ecuaciones Cuadráticas"
-                                    />
-                                  </Form.Group>
-                                </div>
-                                <div className="col-12 col-md-8">
-                                  <Form.Group>
-                                    <Form.Label className="small mb-1 fw-semibold">Contenido / Descripción</Form.Label>
-                                    <Form.Control
-                                      as="textarea"
-                                      rows={2}
-                                      value={it.contenido}
-                                      onChange={(e) => updateItem(it.id, { contenido: e.target.value })}
-                                      size="sm"
-                                      disabled={!canEdit}
-                                      placeholder="Descripción detallada del video, teoría asociada, etc."
-                                    />
-                                  </Form.Group>
-                                </div>
-                                <div className="col-12">
-                                  <div className="d-flex flex-wrap gap-3 small text-muted">
-                                    <span>
-                                      <strong>Duración:</strong>{' '}
-                                      {it.duracionDetectando
-                                        ? 'Detectando...'
-                                        : it.duracionSegundos
-                                        ? `${formatDuration(it.duracionSegundos)} (${it.duracionSegundos}s)`
-                                        : 'No detectada'}
-                                    </span>
-                                    <span>
-                                      <strong>Tamaño:</strong> {(it.file.size / 1024 / 1024).toFixed(2)} MB
-                                    </span>
-                                    <span>
-                                      <strong>Tipo:</strong> {it.file.type || 'desconocido'}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </>
-                    )
-                  })}
-                </tbody>
-              </Table>
+                              disabled={!canEdit}
+                              className={canEdit ? INPUT_CLS_FOCUS : INPUT_CLS}
+                              style={INPUT_STYLE}
+                              placeholder="ej: Ecuaciones Cuadráticas"
+                            />
+                          </div>
+                        </div>
+                        <div className="col-12 col-md-8">
+                          <div className="d-flex align-items-start gap-1">
+                            <Form.Label className="small mb-0 text-muted flex-shrink-0 pt-1" style={{ minWidth: 60 }}>
+                              Contenido
+                            </Form.Label>
+                            <Form.Control
+                              as="textarea"
+                              rows={1}
+                              value={it.contenido}
+                              onChange={(e) => updateItem(it.id, { contenido: e.target.value })}
+                              size="sm"
+                              disabled={!canEdit}
+                              className={canEdit ? INPUT_CLS_FOCUS : INPUT_CLS}
+                              style={{ ...INPUT_STYLE, resize: 'vertical', minHeight: 30 }}
+                              placeholder="Descripción, teoría asociada..."
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </CardBody>
+                  </Card>
+                )
+              })}
             </div>
 
             {/* ── Botón principal de subida ─────────────────── */}
-            <div className="d-flex justify-content-between align-items-center mt-3">
+            <div className="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
               <p className="small text-muted mb-0">
-                Se suben de a {CONCURRENCY} en paralelo. La metadata se guarda junto al registro en Strapi.
+                Subida en paralelo (x{CONCURRENCY}). Toda la metadata se guarda en Strapi al completar.
               </p>
               <Button
                 variant="primary"
                 size="lg"
                 onClick={() => runQueue()}
-                disabled={isUploading || pending === 0}
+                disabled={isUploading || pendingCount === 0}
               >
                 {isUploading ? (
                   <>
                     <Spinner animation="border" size="sm" className="me-2" />
-                    Subiendo... ({done}/{total})
+                    Subiendo... ({doneCount}/{total})
                   </>
                 ) : (
                   <>
                     <LuUpload className="me-2" />
-                    Procesar y Subir Todo ({pending})
+                    Procesar y Subir Todo ({pendingCount})
                   </>
                 )}
               </Button>
