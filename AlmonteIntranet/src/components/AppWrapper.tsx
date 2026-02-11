@@ -1,5 +1,6 @@
 'use client'
 import { useEffect } from 'react'
+import { Toaster } from 'react-hot-toast'
 import { LayoutProvider } from '@/context/useLayoutContext'
 import { NotificationProvider } from '@/context/useNotificationContext'
 import { ChildrenType } from '@/types'
@@ -13,7 +14,17 @@ const AppWrapper = ({ children }: ChildrenType) => {
 
   return (
     <LayoutProvider>
-      <NotificationProvider>{children}</NotificationProvider>
+      <NotificationProvider>
+        {children}
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: { zIndex: 99999 },
+          }}
+          containerStyle={{ zIndex: 99999 }}
+        />
+      </NotificationProvider>
     </LayoutProvider>
   )
 }

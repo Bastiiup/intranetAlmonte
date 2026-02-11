@@ -79,6 +79,7 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
   const [loadingLogs, setLoadingLogs] = useState(false)
   const [sugiriendoIA, setSugiriendoIA] = useState(false)
   const [verificandoDisponibilidad, setVerificandoDisponibilidad] = useState(false)
+  const [navegandoAColegio, setNavegandoAColegio] = useState(false)
 
   // Cargar lista desde API si no viene del servidor
   useEffect(() => {
@@ -584,6 +585,49 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
 
   const colegioId = obtenerColegioId()
 
+  // Helper para obtener el RBD del colegio (para fallback cuando no hay colegioId)
+  const obtenerRbdColegio = (): string | null => {
+    if (!lista?.colegio) return null
+    const colegio = lista.colegio as any
+    const rbd = colegio.rbd ?? colegio.data?.attributes?.rbd ?? colegio.data?.rbd ?? colegio.attributes?.rbd ?? null
+    return rbd != null ? String(rbd) : null
+  }
+
+  const rbdColegio = obtenerRbdColegio()
+
+  const handleIrAListasDelCurso = async () => {
+    // Priorizar siempre el RBD mostrado en pantalla para evitar ir al colegio equivocado
+    // (lista.colegio a veces trae un ID que no coincide con el RBD del header)
+    if (rbdColegio) {
+      setNavegandoAColegio(true)
+      try {
+        const res = await fetch(`/api/crm/colegios?search=${encodeURIComponent(rbdColegio)}&pagination[pageSize]=1`)
+        const json = await res.json()
+        if (!res.ok || !json.success || !json.data?.length) {
+          toast.error('No se pudo cargar el colegio para ver los cursos.')
+          return
+        }
+        const colegio = json.data[0]
+        const id = colegio.documentId ?? colegio.id ?? colegio.attributes?.documentId ?? colegio.attributes?.id
+        if (id) {
+          router.push(`/crm/listas/colegio/${id}`)
+        } else {
+          toast.error('No se encontró el colegio.')
+        }
+      } catch {
+        toast.error('Error al cargar los cursos del colegio.')
+      } finally {
+        setNavegandoAColegio(false)
+      }
+      return
+    }
+    if (colegioId) {
+      router.push(`/crm/listas/colegio/${colegioId}`)
+    }
+  }
+
+  const puedeIrAListasDelCurso = Boolean(colegioId || rbdColegio)
+
   // Estados de error y carga
   if (error) {
     return (
@@ -768,16 +812,17 @@ export default function ValidacionLista({ lista: initialLista, error: initialErr
             </div>
           </div>
           <div className="d-flex gap-2">
-            {colegioId && (
+            {puedeIrAListasDelCurso && (
               <Button
                 variant="outline-light"
                 size="sm"
-                onClick={() => router.push(`/crm/listas/colegio/${colegioId}`)}
+                onClick={handleIrAListasDelCurso}
+                disabled={navegandoAColegio}
                 className="d-flex align-items-center"
-                title="Volver a las listas de este curso"
+                title="Ver cursos de este colegio (RBD)"
               >
                 <TbArrowLeft className="me-1" />
-                Listas del Curso
+                {navegandoAColegio ? 'Cargando cursos...' : 'Listas del Curso'}
               </Button>
             )}
             <Button

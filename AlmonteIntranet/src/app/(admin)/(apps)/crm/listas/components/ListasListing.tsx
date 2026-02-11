@@ -17,7 +17,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo, startTransition } from 'react'
 import { Button, Card, CardBody, CardFooter, CardHeader, Col, Row, Alert, Badge, Spinner, OverlayTrigger, Tooltip } from 'react-bootstrap'
-import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw, LuFileCode, LuPackageSearch, LuSparkles } from 'react-icons/lu'
+import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw, LuFileCode, LuPackageSearch, LuSparkles, LuLink } from 'react-icons/lu'
 import { TbEdit, TbTrash } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
@@ -28,6 +28,7 @@ import ImportacionMasivaModal from './ImportacionMasivaModal'
 import ImportacionMasivaColegiosModal from './ImportacionMasivaColegiosModal'
 import ImportacionCompletaModal from './ImportacionCompletaModal'
 import CargaMasivaPDFsPorColegioModal from './CargaMasivaPDFsPorColegioModal'
+import CargaMasivaPorURLModal from './CargaMasivaPorURLModal'
 import DetalleListasModal from './DetalleListasModal'
 import EdicionColegioModal from './EdicionColegioModal'
 import CursosColegioModal from './CursosColegioModal'
@@ -86,6 +87,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
   const [showImportColegiosModal, setShowImportColegiosModal] = useState(false)
   const [showImportCompletaModal, setShowImportCompletaModal] = useState(false)
   const [showCargaMasivaPDFsModal, setShowCargaMasivaPDFsModal] = useState(false)
+  const [showCargaMasivaPorURLModal, setShowCargaMasivaPorURLModal] = useState(false)
   const [showDetalleListasModal, setShowDetalleListasModal] = useState(false)
   const [colegioSeleccionado, setColegioSeleccionado] = useState<ColegioType | null>(null)
   const [showEdicionColegioModal, setShowEdicionColegioModal] = useState(false)
@@ -1246,6 +1248,22 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                 overlay={
                   <Tooltip>
                     <div className="text-start">
+                      <strong>Carga Masiva por URL</strong>
+                      <br />
+                      Permite cargar listas de útiles desde una URL (página web o listado con enlaces a PDFs).
+                    </div>
+                  </Tooltip>
+                }
+              >
+                <Button variant="outline-secondary" onClick={() => setShowCargaMasivaPorURLModal(true)}>
+                  <LuLink className="fs-sm me-2" /> Carga Masiva por URL
+                </Button>
+              </OverlayTrigger>
+              <OverlayTrigger
+                placement="top"
+                overlay={
+                  <Tooltip>
+                    <div className="text-start">
                       <strong>Carga Masiva PDFs por Colegio</strong>
                       <br />
                       Permite subir múltiples PDFs de listas de útiles para un colegio específico y procesarlos automáticamente con Inteligencia Artificial.
@@ -1379,6 +1397,12 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
             }, 5000)
             // No hacer router.push ni router.refresh - solo actualizar datos localmente
           }}
+        />
+
+        <CargaMasivaPorURLModal
+          show={showCargaMasivaPorURLModal}
+          onHide={() => setShowCargaMasivaPorURLModal(false)}
+          onSuccess={() => recargarListas()}
         />
 
         <DetalleListasModal
