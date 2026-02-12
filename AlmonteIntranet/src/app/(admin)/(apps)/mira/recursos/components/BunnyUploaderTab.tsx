@@ -432,27 +432,20 @@ export default function BunnyUploaderTab() {
 
   const clearAll = useCallback(() => { setItems([]); setGlobalError(null) }, [])
 
-  /* ── Metadata global ─────────────────────────────────── */
+  /* ── Metadata global (aplicar individualmente por campo) ── */
   const [globalCapitulo, setGlobalCapitulo] = useState('')
-  const [globalSeccion, setGlobalSeccion] = useState<Seccion>('Teorico')
+  const [globalSeccion, setGlobalSeccion] = useState<Seccion | ''>('')
   const [globalSubSeccion, setGlobalSubSeccion] = useState('')
   const [globalContenido, setGlobalContenido] = useState('')
 
-  const applyGlobalToAll = useCallback(() => {
+  const applyField = useCallback((field: keyof FileItem, value: string) => {
+    if (!value) return
     setItems((prev) =>
       prev.map((it) =>
-        it.status === 'pending'
-          ? {
-              ...it,
-              capitulo: globalCapitulo || it.capitulo,
-              seccion: globalSeccion || it.seccion,
-              subSeccion: globalSubSeccion || it.subSeccion,
-              contenido: globalContenido || it.contenido,
-            }
-          : it
+        it.status === 'pending' ? { ...it, [field]: value } : it
       )
     )
-  }, [globalCapitulo, globalSeccion, globalSubSeccion, globalContenido])
+  }, [])
 
   /* ── Resumen ──────────────────────────────────────────── */
   const doneCount = items.filter((i) => i.status === 'done').length
@@ -535,71 +528,119 @@ export default function BunnyUploaderTab() {
               <ProgressBar now={totalProgress} label={`Total: ${totalProgress}%`} className="mb-3" style={{ height: 8 }} />
             )}
 
-            {/* ── Metadata global (aplicar a todos) ────────── */}
+            {/* ── Metadata global (aplicar individualmente) ── */}
             <Card className="mb-3 border-primary border-opacity-25">
               <CardBody className="py-2 px-3">
                 <div className="d-flex align-items-center gap-2 mb-2">
                   <LuWand size={14} className="text-primary" />
-                  <span className="fw-semibold small text-primary">Aplicar a todos los pendientes</span>
+                  <span className="fw-semibold small text-primary">
+                    Aplicar a los {pendingCount} pendientes
+                  </span>
+                  <span className="text-muted small ms-1">(cada campo por separado)</span>
                 </div>
                 <div className="row g-2 align-items-end">
-                  <div className="col-6 col-md-2">
+                  {/* Capítulo */}
+                  <div className="col-6 col-md-3">
                     <Form.Label className="small mb-0 text-muted">Capítulo</Form.Label>
-                    <Form.Control
-                      type="text"
-                      placeholder="ej. 1, 2A"
-                      value={globalCapitulo}
-                      onChange={(e) => setGlobalCapitulo(e.target.value)}
-                      size="sm"
-                      disabled={isUploading}
-                    />
+                    <div className="d-flex gap-1">
+                      <Form.Control
+                        type="text"
+                        placeholder="ej. 1, 2A"
+                        value={globalCapitulo}
+                        onChange={(e) => setGlobalCapitulo(e.target.value)}
+                        size="sm"
+                        disabled={isUploading}
+                      />
+                      <OverlayTrigger overlay={<Tooltip>Aplicar capítulo &quot;{globalCapitulo || '...'}&quot; a todos los pendientes</Tooltip>}>
+                        <Button
+                          variant="outline-primary"
+                          size="sm"
+                          onClick={() => applyField('capitulo', globalCapitulo)}
+                          disabled={isUploading || pendingCount === 0 || !globalCapitulo}
+                          className="flex-shrink-0"
+                        >
+                          <LuCheck size={14} />
+                        </Button>
+                      </OverlayTrigger>
+                    </div>
                   </div>
-                  <div className="col-6 col-md-2">
+                  {/* Sección */}
+                  <div className="col-6 col-md-3">
                     <Form.Label className="small mb-0 text-muted">Sección</Form.Label>
-                    <Form.Select
-                      size="sm"
-                      value={globalSeccion}
-                      onChange={(e) => setGlobalSeccion(e.target.value as Seccion)}
-                      disabled={isUploading}
-                    >
-                      {SECCIONES.map((s) => (
-                        <option key={s} value={s}>{SECCION_LABELS[s]}</option>
-                      ))}
-                    </Form.Select>
+                    <div className="d-flex gap-1">
+                      <Form.Select
+                        size="sm"
+                        value={globalSeccion}
+                        onChange={(e) => setGlobalSeccion(e.target.value as Seccion | '')}
+                        disabled={isUploading}
+                      >
+                        <option value="">-- Elegir --</option>
+                        {SECCIONES.map((s) => (
+                          <option key={s} value={s}>{SECCION_LABELS[s]}</option>
+                        ))}
+                      </Form.Select>
+                      <OverlayTrigger overlay={<Tooltip>Aplicar sección a todos los pendientes</Tooltip>}>
+                        <Button
+                          variant="outline-primary"
+                          size="sm"
+                          onClick={() => applyField('seccion', globalSeccion)}
+                          disabled={isUploading || pendingCount === 0 || !globalSeccion}
+                          className="flex-shrink-0"
+                        >
+                          <LuCheck size={14} />
+                        </Button>
+                      </OverlayTrigger>
+                    </div>
                   </div>
-                  <div className="col-6 col-md-2">
+                  {/* Sub-Sección */}
+                  <div className="col-6 col-md-3">
                     <Form.Label className="small mb-0 text-muted">Sub-Sección</Form.Label>
-                    <Form.Control
-                      type="text"
-                      placeholder="ej. Ec. Cuadráticas"
-                      value={globalSubSeccion}
-                      onChange={(e) => setGlobalSubSeccion(e.target.value)}
-                      size="sm"
-                      disabled={isUploading}
-                    />
+                    <div className="d-flex gap-1">
+                      <Form.Control
+                        type="text"
+                        placeholder="ej. Ec. Cuadráticas"
+                        value={globalSubSeccion}
+                        onChange={(e) => setGlobalSubSeccion(e.target.value)}
+                        size="sm"
+                        disabled={isUploading}
+                      />
+                      <OverlayTrigger overlay={<Tooltip>Aplicar sub-sección a todos los pendientes</Tooltip>}>
+                        <Button
+                          variant="outline-primary"
+                          size="sm"
+                          onClick={() => applyField('subSeccion', globalSubSeccion)}
+                          disabled={isUploading || pendingCount === 0 || !globalSubSeccion}
+                          className="flex-shrink-0"
+                        >
+                          <LuCheck size={14} />
+                        </Button>
+                      </OverlayTrigger>
+                    </div>
                   </div>
+                  {/* Contenido / Tema */}
                   <div className="col-6 col-md-3">
                     <Form.Label className="small mb-0 text-muted">Contenido / Tema</Form.Label>
-                    <Form.Control
-                      type="text"
-                      placeholder="ej: NÚMEROS ENTEROS"
-                      value={globalContenido}
-                      onChange={(e) => setGlobalContenido(e.target.value.toUpperCase())}
-                      size="sm"
-                      disabled={isUploading}
-                    />
-                  </div>
-                  <div className="col-12 col-md-3">
-                    <Button
-                      variant="outline-primary"
-                      size="sm"
-                      className="w-100"
-                      onClick={applyGlobalToAll}
-                      disabled={isUploading || pendingCount === 0}
-                    >
-                      <LuCheck className="me-1" size={14} />
-                      Aplicar a {pendingCount} pendientes
-                    </Button>
+                    <div className="d-flex gap-1">
+                      <Form.Control
+                        type="text"
+                        placeholder="ej: NÚMEROS ENTEROS"
+                        value={globalContenido}
+                        onChange={(e) => setGlobalContenido(e.target.value.toUpperCase())}
+                        size="sm"
+                        disabled={isUploading}
+                      />
+                      <OverlayTrigger overlay={<Tooltip>Aplicar contenido a todos los pendientes</Tooltip>}>
+                        <Button
+                          variant="outline-primary"
+                          size="sm"
+                          onClick={() => applyField('contenido', globalContenido)}
+                          disabled={isUploading || pendingCount === 0 || !globalContenido}
+                          className="flex-shrink-0"
+                        >
+                          <LuCheck size={14} />
+                        </Button>
+                      </OverlayTrigger>
+                    </div>
                   </div>
                 </div>
               </CardBody>
