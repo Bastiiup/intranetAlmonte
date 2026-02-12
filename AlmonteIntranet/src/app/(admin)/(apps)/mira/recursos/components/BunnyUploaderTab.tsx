@@ -625,7 +625,7 @@ export default function BunnyUploaderTab() {
                         type="text"
                         placeholder="ej: NÚMEROS ENTEROS"
                         value={globalContenido}
-                        onChange={(e) => setGlobalContenido(e.target.value.toUpperCase())}
+                        onChange={(e) => setGlobalContenido(e.target.value)}
                         size="sm"
                         disabled={isUploading}
                       />
