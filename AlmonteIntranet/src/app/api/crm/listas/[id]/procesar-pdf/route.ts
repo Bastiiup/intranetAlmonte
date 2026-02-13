@@ -36,6 +36,26 @@ if (typeof globalThis !== 'undefined') {
     ;(globalThis as any).DOMMatrix = DOMMatrixPolyfill
   }
   
+  // Polyfill para ImageData (requerido por pdfjs-dist en Node cuando @napi-rs/canvas no está)
+  if (typeof (globalThis as any).ImageData === 'undefined') {
+    ;(globalThis as any).ImageData = class ImageData {
+      data: Uint8ClampedArray
+      width: number
+      height: number
+      constructor(dataOrWidth: Uint8ClampedArray | number, widthOrHeight?: number, height?: number) {
+        if (typeof dataOrWidth === 'number') {
+          this.width = dataOrWidth
+          this.height = widthOrHeight ?? 0
+          this.data = new Uint8ClampedArray(this.width * this.height * 4)
+        } else {
+          this.data = dataOrWidth
+          this.width = widthOrHeight ?? 0
+          this.height = height ?? (this.data.length / 4 / (this.width || 1))
+        }
+      }
+    }
+  }
+
   // Polyfill para Path2D (requerido por pdfjs-dist)
   if (typeof (globalThis as any).Path2D === 'undefined') {
     class Path2DPolyfill {
@@ -94,7 +114,8 @@ if (typeof globalThis !== 'undefined') {
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
-import * as pdfParse from 'pdf-parse'
+// pdf-parse se carga dinámicamente en extraerTextoDelPDF() para evitar cargar
+// pdfjs-dist/@napi-rs/canvas al arranque del servidor (evita warnings en despliegue)
 import crypto from 'crypto'
 import { getColaboradorFromCookies } from '@/lib/auth/cookies'
 import { createWooCommerceClient } from '@/lib/woocommerce/client'
@@ -1665,7 +1686,9 @@ export async function POST(
     // Obtener número de páginas del PDF (necesario para coordenadas y metadata)
     let paginas = 1 // Valor por defecto
     try {
-      const pdfData = await (pdfParse as any).default(pdfBuffer)
+      const pdfParseModule = require('pdf-parse')
+      const pdfParseFn = typeof pdfParseModule?.default === 'function' ? pdfParseModule.default : pdfParseModule
+      const pdfData = await pdfParseFn(pdfBuffer)
       paginas = pdfData.numpages
       logger.info('📄 Páginas del PDF:', { paginas })
     } catch (error) {
