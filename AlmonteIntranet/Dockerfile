@@ -24,6 +24,7 @@ ENV NEXT_PRIVATE_SKIP_LINT=true
 ENV SKIP_TYPE_CHECK=true
 ENV NEXT_PRIVATE_SKIP_TYPE_CHECK=true
 ENV NEXT_PRIVATE_SKIP_VALIDATION=true
+ENV NEXT_PRIVATE_BUILD_CACHE=true
 ENV TURBOPACK=1
 ENV NODE_ENV=production
 
@@ -46,7 +47,7 @@ ENV HOSTNAME="0.0.0.0"
 
 # Copiar solo lo necesario para ejecutar
 COPY --from=builder /app/server.js ./server.js
-COPY --from=builder /app/.next/standalone ./. 
+COPY --from=builder /app/.next/standalone ./.
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 

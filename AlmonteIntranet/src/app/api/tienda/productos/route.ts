@@ -252,156 +252,27 @@ export async function POST(request: NextRequest) {
     if (body.coleccion) strapiProductData.data.coleccion = body.coleccion
 
     // === RELACIONES MÚLTIPLES (array de documentIds) ===
-    // CRÍTICO: Los canales son necesarios para sincronizar con WordPress
-    // Según la estructura de Strapi:
+    // ⚠️ IMPORTANTE: Los canales determinan a qué plataforma WooCommerce se sincroniza el producto
     // - ID 1 = Moraleja (key: "moraleja")
     // - ID 2 = Escolar (key: "escolar")
-    // Si no se especifican canales, asignar automáticamente ambos (Moraleja y Escolar)
+    // 
+    // Si se crea desde "Alta producto en catálogo" (sin canales), NO se asignan canales automáticamente.
+    // El producto se guarda solo en Strapi con estado "Pendiente".
+    // Cuando se apruebe (estado_publicacion = "Publicado"), se asignará automáticamente el canal "escolar"
+    // en los lifecycles de Strapi o en la API de actualización.
     if (body.canales && Array.isArray(body.canales) && body.canales.length > 0) {
       // Convertir a números si vienen como strings
       strapiProductData.data.canales = body.canales.map((c: any) => typeof c === 'string' ? parseInt(c) : c)
       console.log('[API POST] 📡 Canales asignados (desde formulario):', strapiProductData.data.canales)
     } else {
-      // ⚠️ ASIGNAR AMBOS CANALES POR DEFECTO
-      // Intentar obtener IDs de canales dinámicamente desde Strapi
-      let canalesDefault: number[] = []
-      
-      try {
-        console.log('[API POST] 🔍 Intentando obtener canales directamente desde Strapi...')
-        
-        let canalesItems: any[] = []
-        
-        try {
-          const canalesResponse = await strapiClient.get<any>('/api/canales?populate=*&pagination[pageSize]=1000')
-          console.log('[API POST] ✅ Respuesta de Strapi recibida:', {
-            tipo: typeof canalesResponse,
-            esArray: Array.isArray(canalesResponse),
-            tieneData: !!canalesResponse?.data,
-          })
-          
-          if (Array.isArray(canalesResponse)) {
-            canalesItems = canalesResponse
-          } else if (canalesResponse?.data && Array.isArray(canalesResponse.data)) {
-            canalesItems = canalesResponse.data
-          } else if (canalesResponse?.data) {
-            canalesItems = [canalesResponse.data]
-          } else if (canalesResponse) {
-            canalesItems = [canalesResponse]
-          }
-        } catch (directError: any) {
-          console.warn('[API POST] ⚠️ Error al obtener canales con populate:', {
-            message: directError.message,
-            status: directError.status,
-          })
-          // Intentar sin populate
-          try {
-            const canalesResponse = await strapiClient.get<any>('/api/canales?pagination[pageSize]=1000')
-            if (Array.isArray(canalesResponse)) {
-              canalesItems = canalesResponse
-            } else if (canalesResponse?.data && Array.isArray(canalesResponse.data)) {
-              canalesItems = canalesResponse.data
-            } else if (canalesResponse?.data) {
-              canalesItems = [canalesResponse.data]
-            }
-          } catch (simpleError: any) {
-            console.error('[API POST] ❌ Error también sin populate:', {
-              message: simpleError.message,
-              status: simpleError.status,
-            })
-            // No lanzar error, continuar sin canales
-          }
-        }
-        
-        console.log('[API POST] 📋 Canales procesados:', canalesItems.length)
-        if (canalesItems.length > 0) {
-          console.log('[API POST] 📋 Estructura del primer canal:', {
-            id: canalesItems[0].id,
-            documentId: canalesItems[0].documentId,
-            attributes: canalesItems[0].attributes,
-            keys: Object.keys(canalesItems[0]),
-          })
-          console.log('[API POST] 📋 Todos los canales:', canalesItems.slice(0, 5).map((c: any) => {
-            const attrs = c.attributes || c
-            return {
-              id: c.id,
-              documentId: c.documentId,
-              name: attrs?.name || attrs?.nombre,
-              key: attrs?.key,
-            }
-          }))
-          
-          // Buscar canales por key (según documentación: key debe ser "moraleja" o "escolar")
-          const canalMoraleja = canalesItems.find((c: any) => {
-            const attrs = c.attributes || c
-            const key = (attrs?.key || '').toLowerCase()
-            const name = (attrs?.name || attrs?.nombre || '').toLowerCase()
-            return key === 'moraleja' || name.includes('moraleja')
-          })
-          
-          const canalEscolar = canalesItems.find((c: any) => {
-            const attrs = c.attributes || c
-            const key = (attrs?.key || '').toLowerCase()
-            const name = (attrs?.name || attrs?.nombre || '').toLowerCase()
-            return key === 'escolar' || name.includes('escolar')
-          })
-          
-          console.log('[API POST] 🔍 Canales encontrados:', {
-            tieneMoraleja: !!canalMoraleja,
-            tieneEscolar: !!canalEscolar,
-            moralejaId: canalMoraleja ? (canalMoraleja.id || canalMoraleja.documentId) : null,
-            escolarId: canalEscolar ? (canalEscolar.id || canalEscolar.documentId) : null,
-          })
-          
-          // Usar ID numérico (no documentId) para relaciones manyToMany en Strapi
-          if (canalMoraleja) {
-            const id = canalMoraleja.id || (typeof canalMoraleja.documentId === 'number' ? canalMoraleja.documentId : null)
-            if (id && typeof id === 'number') {
-              canalesDefault.push(id)
-            } else {
-              console.warn('[API POST] ⚠️ Canal Moraleja encontrado pero sin ID numérico válido:', {
-                id: canalMoraleja.id,
-                documentId: canalMoraleja.documentId,
-              })
-            }
-          }
-          
-          if (canalEscolar) {
-            const id = canalEscolar.id || (typeof canalEscolar.documentId === 'number' ? canalEscolar.documentId : null)
-            if (id && typeof id === 'number') {
-              canalesDefault.push(id)
-            } else {
-              console.warn('[API POST] ⚠️ Canal Escolar encontrado pero sin ID numérico válido:', {
-                id: canalEscolar.id,
-                documentId: canalEscolar.documentId,
-              })
-            }
-          }
-          
-          if (canalesDefault.length > 0) {
-            strapiProductData.data.canales = canalesDefault
-            console.log('[API POST] ✅ Canales asignados automáticamente (desde Strapi):', canalesDefault)
-            console.log('[API POST] ✅ Producto se sincronizará con canales:', canalesDefault)
-          }
-        } else {
-          console.warn('[API POST] ⚠️ No se encontraron canales en la respuesta de Strapi')
-        }
-      } catch (canalesError: any) {
-        console.error('[API POST] ❌ Error al obtener canales desde Strapi:', {
-          message: canalesError.message,
-          status: canalesError.status,
-        })
-      }
-      
-      // ⚠️ IMPORTANTE: Si no se pudieron obtener canales, NO asignar el campo
-      // Eliminar el campo canales del objeto si está vacío para evitar errores en Strapi
-      if (canalesDefault.length === 0) {
-        console.warn('[API POST] ⚠️ No se pudieron obtener canales dinámicamente desde Strapi')
-        console.warn('[API POST] ⚠️ El producto se creará SIN canales asignados')
-        console.warn('[API POST] ⚠️ IMPORTANTE: El producto NO se sincronizará con WooCommerce hasta que se asignen canales manualmente')
-        console.warn('[API POST] ⚠️ Solución:')
-        console.warn('[API POST]   1. Verificar que el endpoint /api/canales funcione correctamente en Strapi')
-        console.warn('[API POST]   2. Asignar canales manualmente desde la interfaz de edición de productos')
-        // Eliminar el campo canales si está vacío para evitar errores
+      // ⚠️ NO asignar canales automáticamente si no vienen en el body
+      // Esto permite que productos creados desde "Alta producto en catálogo" se guarden sin canales
+      // Los canales se asignarán cuando se apruebe el producto (estado_publicacion = "Publicado")
+      console.log('[API POST] ⚠️ No se asignan canales automáticamente - el producto se guardará sin canales')
+      console.log('[API POST] ℹ️ Los canales se asignarán cuando se apruebe el producto (estado_publicacion = "Publicado")')
+      // NO asignar canales - dejar que se asigne automáticamente cuando se apruebe
+      // Asegurar que el campo canales no esté presente en el payload
+      if (strapiProductData.data.canales) {
         delete strapiProductData.data.canales
       }
     }
@@ -515,15 +386,31 @@ export async function POST(request: NextRequest) {
       tieneCanales: !!strapiProductData.data.canales,
       canales: strapiProductData.data.canales,
       campos: Object.keys(strapiProductData.data).length,
+      payloadKeys: Object.keys(strapiProductData.data),
     })
+    
+    // Log completo del payload para debugging
+    console.log('[API POST] 📋 Payload completo:', JSON.stringify(strapiProductData, null, 2))
 
     // Usar Promise.race con timeout para evitar que se quede colgado
-    const strapiPromise = strapiClient.post<any>('/api/libros', strapiProductData)
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Timeout: Strapi tardó más de 20 segundos')), 20000)
-    )
-    
-    const strapiProduct = await Promise.race([strapiPromise, timeoutPromise]) as any
+    let strapiProduct: any
+    try {
+      const strapiPromise = strapiClient.post<any>('/api/libros', strapiProductData)
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout: Strapi tardó más de 20 segundos')), 20000)
+      )
+      
+      strapiProduct = await Promise.race([strapiPromise, timeoutPromise]) as any
+    } catch (strapiError: any) {
+      console.error('[API POST] ❌ Error al crear producto en Strapi:', {
+        message: strapiError.message,
+        status: strapiError.status,
+        details: strapiError.details,
+        response: strapiError.response,
+        stack: strapiError.stack,
+      })
+      throw strapiError
+    }
     console.log('[API POST] ✅ Producto creado en Strapi:', {
       id: strapiProduct.data?.id,
       documentId: strapiProduct.data?.documentId,
@@ -563,12 +450,30 @@ export async function POST(request: NextRequest) {
       message: error.message,
       status: error.status,
       details: error.details,
+      response: error.response?.data || error.response,
+      stack: error.stack,
     })
+    
+    // Si el error es de Strapi, intentar extraer más información
+    let errorMessage = error.message || 'Error al crear el producto en Strapi'
+    let errorDetails = error.details
+    
+    if (error.response?.data) {
+      const strapiError = error.response.data
+      if (strapiError.error) {
+        errorMessage = strapiError.error.message || strapiError.error
+        errorDetails = strapiError.error.details || errorDetails
+      } else if (strapiError.message) {
+        errorMessage = strapiError.message
+        errorDetails = strapiError.details || errorDetails
+      }
+    }
     
     return NextResponse.json({
       success: false,
-      error: error.message || 'Error al crear el producto en Strapi',
-      details: error.details
+      error: errorMessage,
+      details: errorDetails,
+      status: error.status || 500
     }, { status: error.status || 500 })
   }
 }

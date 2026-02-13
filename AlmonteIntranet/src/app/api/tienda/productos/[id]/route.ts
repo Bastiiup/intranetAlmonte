@@ -429,6 +429,57 @@ export async function PUT(
       }
       updateData.data.estado_publicacion = estadoNormalizado
       console.log('[API PUT] 📝 Estado de publicación actualizado:', estadoNormalizado)
+      
+      // ⚠️ IMPORTANTE: Si se aprueba el producto (cambia a "Publicado") y no tiene canales asignados,
+      // asignar automáticamente el canal "escolar"
+      if (estadoNormalizado === 'Publicado') {
+        const productoActual = await strapiClient.get<any>(`/api/libros/${id}?populate[canales]=*`)
+        const canalesActuales = productoActual?.data?.attributes?.canales?.data || 
+                               productoActual?.attributes?.canales?.data ||
+                               productoActual?.canales?.data ||
+                               []
+        
+        if (canalesActuales.length === 0) {
+          console.log('[API PUT] ⚠️ Producto aprobado sin canales - asignando canal "escolar" automáticamente')
+          
+          // Buscar el canal "escolar"
+          try {
+            const canalesResponse = await strapiClient.get<any>('/api/canales?pagination[pageSize]=100')
+            let canalesItems: any[] = []
+            
+            if (Array.isArray(canalesResponse?.data)) {
+              canalesItems = canalesResponse.data
+            } else if (canalesResponse?.data) {
+              canalesItems = [canalesResponse.data]
+            } else if (Array.isArray(canalesResponse)) {
+              canalesItems = canalesResponse
+            }
+            
+            const canalEscolar = canalesItems.find((c: any) => {
+              const attrs = c.attributes || c
+              const key = (attrs?.key || '').toLowerCase()
+              const name = (attrs?.name || attrs?.nombre || '').toLowerCase()
+              return key === 'escolar' || key === 'woo_escolar' || name.includes('escolar')
+            })
+            
+            if (canalEscolar) {
+              const canalId = canalEscolar.id || (typeof canalEscolar.documentId === 'number' ? canalEscolar.documentId : null)
+              if (canalId && typeof canalId === 'number') {
+                updateData.data.canales = [canalId]
+                console.log('[API PUT] ✅ Canal "escolar" asignado automáticamente (ID:', canalId, ')')
+              } else {
+                console.warn('[API PUT] ⚠️ Canal Escolar encontrado pero sin ID numérico válido')
+              }
+            } else {
+              console.warn('[API PUT] ⚠️ No se encontró el canal "escolar" en Strapi')
+            }
+          } catch (canalError: any) {
+            console.error('[API PUT] ❌ Error al obtener canal "escolar":', canalError.message)
+          }
+        } else {
+          console.log('[API PUT] ℹ️ Producto ya tiene canales asignados:', canalesActuales.length)
+        }
+      }
     } else {
       // ⚠️ CRÍTICO: Si no se envía estado_publicacion en el body, mantener el estado actual
       // Si el producto está publicado, mantenerlo publicado para que los lifecycles se ejecuten
@@ -457,7 +508,13 @@ export async function PUT(
     if (body.coleccion) updateData.data.coleccion = body.coleccion
 
     // Relaciones múltiples
-    if (body.canales?.length > 0) updateData.data.canales = body.canales
+    // ⚠️ IMPORTANTE: Solo asignar canales desde body si vienen explícitamente
+    // Si no vienen canales en el body pero el producto se aprobó (cambió a "Publicado"),
+    // ya se asignó automáticamente el canal "escolar" arriba
+    if (body.canales?.length > 0) {
+      updateData.data.canales = body.canales
+      console.log('[API PUT] 📡 Canales asignados desde body:', body.canales)
+    }
     if (body.marcas?.length > 0) updateData.data.marcas = body.marcas
     if (body.etiquetas?.length > 0) updateData.data.etiquetas = body.etiquetas
     if (body.categorias_producto?.length > 0) {

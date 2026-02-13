@@ -15,49 +15,60 @@ import {
 } from '@tanstack/react-table'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState, useEffect, useMemo } from 'react'
-import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge } from 'react-bootstrap'
-import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw, LuFileCode } from 'react-icons/lu'
+import { useState, useEffect, useMemo, startTransition } from 'react'
+import { Button, Card, CardBody, CardFooter, CardHeader, Col, Row, Alert, Badge, Spinner, OverlayTrigger, Tooltip } from 'react-bootstrap'
+import { LuSearch, LuFileText, LuDownload, LuEye, LuPlus, LuUpload, LuRefreshCw, LuFileCode, LuPackageSearch, LuSparkles, LuLink } from 'react-icons/lu'
 import { TbEdit, TbTrash } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 import TablePagination from '@/components/table/TablePagination'
-import ListaModal from './ListaModal'
+// import ListaModal from './ListaModal' // Temporalmente deshabilitado - TODO: Crear modal para colegios
 import ImportacionMasivaModal from './ImportacionMasivaModal'
+import ImportacionMasivaColegiosModal from './ImportacionMasivaColegiosModal'
+import ImportacionCompletaModal from './ImportacionCompletaModal'
+import CargaMasivaPDFsPorColegioModal from './CargaMasivaPDFsPorColegioModal'
+import CargaMasivaPorURLModal from './CargaMasivaPorURLModal'
+import DetalleListasModal from './DetalleListasModal'
+import EdicionColegioModal from './EdicionColegioModal'
+import CursosColegioModal from './CursosColegioModal'
 
-interface ListaType {
+interface ColegioType {
   id: number | string
   documentId?: string
   nombre: string
-  nivel: 'Basica' | 'Media'
-  grado: number
-  paralelo?: string
-  año?: number
-  descripcion?: string
-  activo: boolean
-  pdf_id?: number | string
-  pdf_url?: string
-  pdf_nombre?: string
-  colegio?: {
-    id: number | string
-    nombre: string
-    rbd?: string | number
-    direccion?: string
-    comuna?: string
-    region?: string
-  }
-  curso?: {
-    id: number | string
-    nombre: string
-  }
-  materiales?: any[]
-  createdAt?: string
+  rbd?: string | number
+  comuna?: string
+  region?: string
+  direccion?: string
+  telefono?: string
+  email?: string
+  total_matriculados?: number | null
+  cantidadCursos?: number
+  cantidadPDFs?: number
+  cantidadListas?: number
   updatedAt?: string
-  versiones?: number
+  cursos?: CursoType[]
 }
 
-const columnHelper = createColumnHelper<ListaType>()
+interface CursoType {
+  id: number | string
+  documentId?: string
+  nombre: string
+  nivel?: string
+  grado?: number
+  año?: number
+  versiones?: number
+  materiales?: number
+  pdf_id?: number | string
+  pdf_url?: string
+  updatedAt?: string
+}
+
+// Legacy interface para compatibilidad
+interface ListaType extends ColegioType {}
+
+const columnHelper = createColumnHelper<ColegioType>()
 
 interface ListasListingProps {
   listas: any[]
@@ -67,45 +78,160 @@ interface ListasListingProps {
 export default function ListasListing({ listas: listasProp, error }: ListasListingProps) {
   const router = useRouter()
   const [showModal, setShowModal] = useState(false)
-  const [editingLista, setEditingLista] = useState<ListaType | null>(null)
+  const [editingLista, setEditingLista] = useState<ColegioType | null>(null)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [selectedListaId, setSelectedListaId] = useState<string | number | null>(null)
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
+  const [showImportColegiosModal, setShowImportColegiosModal] = useState(false)
+  const [showImportCompletaModal, setShowImportCompletaModal] = useState(false)
+  const [showCargaMasivaPDFsModal, setShowCargaMasivaPDFsModal] = useState(false)
+  const [showCargaMasivaPorURLModal, setShowCargaMasivaPorURLModal] = useState(false)
+  const [showDetalleListasModal, setShowDetalleListasModal] = useState(false)
+  const [colegioSeleccionado, setColegioSeleccionado] = useState<ColegioType | null>(null)
+  const [showEdicionColegioModal, setShowEdicionColegioModal] = useState(false)
+  const [showCursosModal, setShowCursosModal] = useState(false)
+  const [colegioIdModal, setColegioIdModal] = useState<string | number | null>(null)
+  const [colegioNombreModal, setColegioNombreModal] = useState<string>('')
+  const [navegandoA, setNavegandoA] = useState<string | number | null>(null)
+  const [productosPendientes, setProductosPendientes] = useState<number>(0)
+  const [loadingProductosPendientes, setLoadingProductosPendientes] = useState(false)
 
-  // Los datos ya vienen transformados desde la API /api/crm/listas
+  // Escuchar evento para abrir el modal desde cualquier página
+  useEffect(() => {
+    const handleForceOpen = () => {
+      setShowCargaMasivaPDFsModal(true)
+    }
+
+    window.addEventListener('carga-masiva-pdfs-force-open', handleForceOpen)
+    return () => {
+      window.removeEventListener('carga-masiva-pdfs-force-open', handleForceOpen)
+    }
+  }, [])
+
+  // Escuchar evento de carga masiva completada para recargar automáticamente
+  useEffect(() => {
+    const handleCargaCompletada = (event: CustomEvent) => {
+      console.log('[ListasListing] ✅ Carga masiva completada, recargando listas...', event.detail)
+      // Recargar después de un breve delay para asegurar que los datos estén guardados
+      setTimeout(() => {
+        recargarListas()
+      }, 500)
+      // Recargar de nuevo después de 2 segundos por si acaso
+      setTimeout(() => {
+        recargarListas()
+      }, 2000)
+    }
+
+    window.addEventListener('carga-masiva-pdfs-completada', handleCargaCompletada as EventListener)
+    return () => {
+      window.removeEventListener('carga-masiva-pdfs-completada', handleCargaCompletada as EventListener)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // recargarListas está definida en el mismo componente, no necesita estar en dependencias
+
+  // Cargar contador de productos pendientes
+  useEffect(() => {
+    let mounted = true
+
+    const cargarProductosPendientes = async () => {
+      if (!mounted) return
+      
+      startTransition(() => {
+        setLoadingProductosPendientes(true)
+      })
+
+      try {
+        // Obtener todos los productos con publicationState=preview para incluir pendientes
+        const response = await fetch('/api/tienda/productos?pagination[pageSize]=1000', {
+          cache: 'no-store',
+        })
+        
+        if (!mounted) return
+        
+        const data = await response.json()
+        if (data.success && data.data) {
+          const productos = Array.isArray(data.data) ? data.data : [data.data]
+          // Contar productos con estado "Pendiente" (case-insensitive)
+          const pendientes = productos.filter((p: any) => {
+            const attrs = p.attributes || p
+            const estado = (attrs.estado_publicacion || '').toString().trim()
+            // Normalizar: "Pendiente", "pendiente", "PENDIENTE" todos cuentan
+            return estado.toLowerCase() === 'pendiente'
+          })
+          
+          if (mounted) {
+            startTransition(() => {
+              setProductosPendientes(pendientes.length)
+              setLoadingProductosPendientes(false)
+            })
+            console.log('[ListasListing] 📊 Productos pendientes encontrados:', pendientes.length)
+          }
+        } else if (mounted) {
+          startTransition(() => {
+            setLoadingProductosPendientes(false)
+          })
+        }
+      } catch (error: any) {
+        console.error('[ListasListing] Error al cargar productos pendientes:', error.message)
+        if (mounted) {
+          startTransition(() => {
+            setProductosPendientes(0)
+            setLoadingProductosPendientes(false)
+          })
+        }
+      }
+    }
+
+    // Ejecutar después del montaje para evitar problemas con Suspense
+    const timeoutId = setTimeout(() => {
+      cargarProductosPendientes()
+    }, 0)
+
+    // Recargar cada 30 segundos para mantener el contador actualizado
+    const interval = setInterval(() => {
+      if (mounted) {
+        cargarProductosPendientes()
+      }
+    }, 30000)
+
+    return () => {
+      mounted = false
+      clearTimeout(timeoutId)
+      clearInterval(interval)
+    }
+  }, [])
+
+  // Los datos ya vienen transformados desde la API /api/crm/listas/por-colegio
   const mappedListas = useMemo(() => {
     if (!listasProp || !Array.isArray(listasProp)) return []
     
-    return listasProp.map((lista: any) => ({
-      id: lista.id || lista.documentId,
-      documentId: lista.documentId || String(lista.id || ''),
-      nombre: lista.nombre || '',
-      nivel: lista.nivel || 'Basica',
-      grado: lista.grado || 1,
-      paralelo: lista.paralelo || '',
-      año: lista.año || lista.ano || new Date().getFullYear(),
-      descripcion: lista.descripcion || '',
-      activo: lista.activo !== false,
-      pdf_id: lista.pdf_id || undefined,
-      pdf_url: lista.pdf_url || undefined,
-      pdf_nombre: lista.pdf_nombre || undefined,
-      colegio: lista.colegio || undefined,
-      curso: lista.curso || undefined,
-      materiales: lista.materiales || [],
-      createdAt: lista.createdAt || null,
-      updatedAt: lista.updatedAt || null,
-      versiones: lista.versiones || 0,
-    } as ListaType))
+    return listasProp.map((colegio: any) => ({
+      id: colegio.id || colegio.documentId,
+      documentId: colegio.documentId || String(colegio.id || ''),
+      nombre: colegio.nombre || '',
+      rbd: colegio.rbd || undefined,
+      comuna: colegio.comuna || '',
+      region: colegio.region || '',
+      direccion: colegio.direccion || '',
+      telefono: colegio.telefono || '',
+      email: colegio.email || '',
+      total_matriculados: colegio.total_matriculados !== undefined ? colegio.total_matriculados : null,
+      cantidadCursos: colegio.cantidadCursos || 0,
+      cantidadPDFs: colegio.cantidadPDFs || 0,
+      cantidadListas: colegio.cantidadListas || 0,
+      updatedAt: colegio.updatedAt || null,
+      cursos: colegio.cursos || [],
+    } as ColegioType))
   }, [listasProp])
 
-  const columns: ColumnDef<ListaType, any>[] = [
+  const columns: ColumnDef<ColegioType, any>[] = [
     {
       id: 'select',
       maxSize: 45,
       size: 45,
-      header: ({ table }: { table: TableType<ListaType> }) => (
+      header: ({ table }: { table: TableType<ColegioType> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -113,7 +239,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
           onChange={table.getToggleAllRowsSelectedHandler()}
         />
       ),
-      cell: ({ row }: { row: TableRow<ListaType> }) => (
+      cell: ({ row }: { row: TableRow<ColegioType> }) => (
         <input
           type="checkbox"
           className="form-check-input form-check-input-light fs-14"
@@ -125,279 +251,293 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
       enableColumnFilter: false,
     },
     {
-      id: 'nombre',
-      header: 'Nombre',
+      id: 'institucion',
+      header: 'INSTITUCIÓN',
       accessorKey: 'nombre',
       enableSorting: true,
+      enableColumnFilter: true,
       cell: ({ row }) => (
         <div>
-          <h6 className="mb-0">{row.original.nombre || 'Sin nombre'}</h6>
-          {row.original.descripcion && (
-            <small className="text-muted">{row.original.descripcion}</small>
+          <div 
+            className="fw-bold text-primary" 
+            style={{ cursor: 'pointer', textDecoration: 'underline' }}
+            onClick={() => {
+              setColegioSeleccionado(row.original)
+              setShowEdicionColegioModal(true)
+            }}
+            title="Clic para editar colegio"
+          >
+            {row.original.nombre || 'Sin nombre'}
+          </div>
+          {row.original.rbd && (
+            <small className="text-muted">RBD: {row.original.rbd}</small>
           )}
         </div>
       ),
     },
     {
-      id: 'nivel',
-      header: 'Nivel',
-      accessorKey: 'nivel',
+      id: 'comuna',
+      header: 'COMUNA',
+      accessorKey: 'comuna',
       enableSorting: true,
       enableColumnFilter: true,
-      cell: ({ row }) => (
-        <Badge bg={row.original.nivel === 'Basica' ? 'primary' : 'info'}>
-          {row.original.nivel}
-        </Badge>
-      ),
+      cell: ({ row }) => row.original.comuna || '-',
     },
     {
-      id: 'grado',
-      header: 'Grado',
-      accessorKey: 'grado',
-      enableSorting: true,
-      cell: ({ row }) => `${row.original.grado}°`,
-    },
-    {
-      id: 'paralelo',
-      header: 'Paralelo',
-      accessorKey: 'paralelo',
+      id: 'region',
+      header: 'REGIÓN',
+      accessorKey: 'region',
       enableSorting: true,
       enableColumnFilter: true,
-      filterFn: 'equalsString',
-      cell: ({ row }) => row.original.paralelo || '-',
+      cell: ({ row }) => row.original.region || '-',
     },
     {
-      id: 'año',
-      header: 'Año',
-      accessorKey: 'año',
+      id: 'cursos',
+      header: 'CURSO',
+      accessorKey: 'cantidadCursos',
       enableSorting: true,
-      enableColumnFilter: true,
-      filterFn: 'equalsString',
-      cell: ({ row }) => row.original.año || '-',
-    },
-    {
-      id: 'colegio',
-      header: 'Colegio',
-      accessorFn: (row) => row.colegio?.nombre || '',
-      enableSorting: true,
-      enableColumnFilter: true,
-      filterFn: 'includesString',
       cell: ({ row }) => {
-        const colegio = row.original.colegio
-        if (!colegio) return '-'
+        const cantidad = row.original.cantidadCursos || 0
         return (
-          <div>
-            <div className="fw-semibold">{colegio.nombre || '-'}</div>
-            {colegio.direccion && (
-              <small className="text-muted d-block">{colegio.direccion}</small>
-            )}
-            {(colegio.comuna || colegio.region) && (
-              <small className="text-muted d-block">
-                {colegio.comuna && colegio.region 
-                  ? `${colegio.comuna}, ${colegio.region}`
-                  : colegio.comuna || colegio.region}
-              </small>
-            )}
-          </div>
+          <Badge bg="primary" className="fs-13">
+            {cantidad} {cantidad === 1 ? 'curso' : 'cursos'}
+          </Badge>
         )
       },
     },
     {
-      id: 'curso',
-      header: 'Curso',
+      id: 'pdfs',
+      header: 'PDF',
+      accessorKey: 'cantidadPDFs',
+      enableSorting: true,
       cell: ({ row }) => {
-        const nombre = row.original.curso?.nombre || row.original.nombre || '-'
-        // Priorizar documentId si existe, sino usar id numérico
-        const listaId = row.original.documentId || row.original.id
-        
-        console.log('[ListasListing] Curso clickeado:', {
-          nombre,
-          id: row.original.id,
-          documentId: row.original.documentId,
-          listaIdUsado: listaId,
-          rowOriginal: row.original
-        })
-        
-        if (!listaId) {
-          console.warn('[ListasListing] ⚠️ No hay ID disponible para el curso:', nombre)
-          return <span>{nombre}</span>
-        }
-        
+        const cantidad = row.original.cantidadPDFs || 0
+        const tienePDF = cantidad > 0
         return (
-          <Link 
-            href={`/crm/listas/${listaId}/validacion`}
-            className="link-reset fw-semibold"
-            style={{ 
-              cursor: 'pointer',
-              color: '#667eea',
-              textDecoration: 'none'
-            }}
-            onClick={(e) => {
-              console.log('[ListasListing] Navegando a validación con ID:', listaId)
-              // Permitir que el clic navegue normalmente
-              e.stopPropagation()
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.textDecoration = 'underline'
-              e.currentTarget.style.color = '#764ba2'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.textDecoration = 'none'
-              e.currentTarget.style.color = '#667eea'
+          <Badge
+            bg={tienePDF ? 'success' : 'secondary'}
+            className="fs-13"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
             }}
           >
-            {nombre}
-          </Link>
+            {tienePDF ? (
+              <>
+                <LuFileText size={12} />
+                Si
+              </>
+            ) : (
+              'No'
+            )}
+          </Badge>
         )
       },
     },
     {
-      id: 'pdf',
-      header: 'PDF',
+      id: 'listas',
+      header: 'CANTIDAD DE LISTAS POR CURSOS',
+      accessorKey: 'cantidadListas',
+      enableSorting: true,
       cell: ({ row }) => {
-        if (row.original.pdf_id) {
+        const cantidad = row.original.cantidadListas || 0
+        return (
+          <Badge 
+            bg="info" 
+            className="fs-13 cursor-pointer" 
+            style={{ cursor: 'pointer' }}
+            onClick={() => {
+              setColegioSeleccionado(row.original)
+              setShowDetalleListasModal(true)
+            }}
+            title="Clic para ver detalle de listas"
+          >
+            {cantidad} {cantidad === 1 ? 'lista' : 'listas'}
+          </Badge>
+        )
+      },
+    },
+    {
+      id: 'matriculados',
+      header: 'MATRICULADOS',
+      accessorKey: 'total_matriculados',
+      enableSorting: true,
+      cell: ({ row }) => {
+        const cantidad = row.original.total_matriculados
+        if (cantidad === null || cantidad === undefined) {
           return (
-            <Badge bg="success">
-              <LuFileText className="me-1" size={14} />
-              Disponible
+            <Badge bg="secondary" className="fs-13">
+              No disponible
             </Badge>
           )
         }
-        return <Badge bg="secondary">Sin PDF</Badge>
+        if (cantidad > 0) {
+          return (
+            <Badge bg="warning" text="dark" className="fs-13">
+              {cantidad.toLocaleString('es-CL')} estudiantes
+            </Badge>
+          )
+        }
+        return (
+          <Badge bg="secondary" className="fs-13">
+            0 estudiantes
+          </Badge>
+        )
       },
     },
     {
-      id: 'activo',
-      header: 'Estado',
-      accessorKey: 'activo',
+      id: 'fecha',
+      header: 'FECHA DE ÚLTIMA ACTUALIZACIÓN',
       enableSorting: true,
-      enableColumnFilter: true,
-      cell: ({ row }) => (
-        <Badge bg={row.original.activo ? 'success' : 'secondary'}>
-          {row.original.activo ? 'Activo' : 'Inactivo'}
-        </Badge>
-      ),
-    },
-    {
-      id: 'fechas',
-      header: 'Fechas',
-      enableSorting: true,
-      accessorFn: (row) => row.updatedAt || row.createdAt || '',
+      accessorKey: 'updatedAt',
       cell: ({ row }) => {
         const updatedAt = row.original.updatedAt
-        const createdAt = row.original.createdAt
         
-        const formatDate = (dateStr: string | null | undefined) => {
-          if (!dateStr) return '-'
-          try {
-            const date = new Date(dateStr)
-            return date.toLocaleDateString('es-CL', { 
-              day: '2-digit', 
-              month: '2-digit', 
-              year: 'numeric' 
-            })
-          } catch {
-            return '-'
-          }
+        if (!updatedAt) return '-'
+        
+        try {
+          const date = new Date(updatedAt)
+          return (
+            <div className="small">
+              <div>{date.toLocaleDateString('es-CL', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric' 
+              })}</div>
+              <div className="text-muted">{date.toLocaleTimeString('es-CL', {
+                hour: '2-digit',
+                minute: '2-digit'
+              })}</div>
+            </div>
+          )
+        } catch {
+          return '-'
         }
-        
-        return (
-          <div className="small">
-            {updatedAt && (
-              <div>
-                <span className="text-muted">Mod:</span> {formatDate(updatedAt)}
-              </div>
-            )}
-            {createdAt && (
-              <div>
-                <span className="text-muted">Creado:</span> {formatDate(createdAt)}
-              </div>
-            )}
-            {!updatedAt && !createdAt && '-'}
-          </div>
-        )
       },
     },
     {
       id: 'acciones',
-      header: 'Acciones',
-      cell: ({ row }) => (
-        <div className="d-flex gap-1">
-          {row.original.pdf_id && (
-            <>
-              <Button
-                variant="outline-primary"
-                size="sm"
-                className="btn-icon rounded-circle"
-                onClick={() => {
-                  const pdfUrl = `/api/crm/cursos/pdf/${row.original.pdf_id}`
-                  window.open(pdfUrl, '_blank')
-                }}
-                title="Visualizar PDF"
-              >
-                <LuEye className="fs-lg" />
-              </Button>
-              <Button
-                variant="outline-success"
-                size="sm"
-                className="btn-icon rounded-circle"
-                onClick={() => {
-                  const pdfUrl = `/api/crm/cursos/pdf/${row.original.pdf_id}`
-                  const link = document.createElement('a')
-                  link.href = pdfUrl
-                  link.download = row.original.pdf_nombre || `${row.original.nombre}.pdf`
-                  link.target = '_blank'
-                  document.body.appendChild(link)
-                  link.click()
-                  document.body.removeChild(link)
-                }}
-                title="Descargar PDF"
-              >
-                <LuDownload className="fs-lg" />
-              </Button>
-            </>
-          )}
-          <Button
-            variant="outline-primary"
-            size="sm"
-            className="btn-icon rounded-circle"
-            onClick={() => {
-              setEditingLista(row.original)
-              setShowModal(true)
-            }}
-            title="Editar"
-          >
-            <TbEdit className="fs-lg" />
-          </Button>
-          <Button
-            variant="outline-danger"
-            size="sm"
-            className="btn-icon rounded-circle"
-            onClick={() => {
-              setSelectedRowIds({}) // Limpiar selección múltiple
-              setSelectedListaId(row.original.id)
-              setShowDeleteModal(true)
-            }}
-            title="Eliminar"
-          >
-            <TbTrash className="fs-lg" />
-          </Button>
-        </div>
-      ),
+      header: 'ACCIONES',
+      cell: ({ row }) => {
+        const colegioId = row.original.documentId || row.original.id
+        
+        return (
+          <div className="d-flex gap-1">
+            <Button
+              variant="info"
+              size="sm"
+              title="Ver cursos en modal (sin salir de esta página)"
+              onClick={() => {
+                setColegioIdModal(colegioId)
+                setColegioNombreModal(row.original.nombre)
+                setShowCursosModal(true)
+              }}
+            >
+              <LuEye className="me-1" />
+              Modal
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              title="Ver cursos en pantalla completa"
+              disabled={navegandoA === colegioId}
+              onClick={() => {
+                setNavegandoA(colegioId)
+                router.push(`/crm/listas/colegio/${colegioId}`)
+              }}
+              style={{
+                minWidth: '70px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px'
+              }}
+            >
+              {navegandoA === colegioId ? (
+                <>
+                  <Spinner animation="border" size="sm" style={{ width: '14px', height: '14px' }} />
+                  <span>Cargando...</span>
+                </>
+              ) : (
+                <>
+                  <LuEye />
+                  <span>Ver</span>
+                </>
+              )}
+            </Button>
+            <Button
+              variant="outline-primary"
+              size="sm"
+              className="btn-icon rounded-circle"
+              onClick={() => {
+                setColegioSeleccionado(row.original)
+                setShowEdicionColegioModal(true)
+              }}
+              title="Editar colegio"
+            >
+              <TbEdit className="fs-lg" />
+            </Button>
+          </div>
+        )
+      },
     },
   ]
 
-  const [data, setData] = useState<ListaType[]>([])
+  const [data, setData] = useState<ColegioType[]>([])
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([
-    { id: 'año', desc: true },
+    { id: 'fecha', desc: true }, // Cambiado de 'updatedAt' a 'fecha' (id de la columna)
   ])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
+  const [filtroListas, setFiltroListas] = useState<'todos' | 'con' | 'sin'>('todos')
 
   useEffect(() => {
-    setData(mappedListas)
-  }, [mappedListas])
+    let filtered = mappedListas
+
+    // Aplicar filtro de listas
+    if (filtroListas === 'con') {
+      filtered = filtered.filter(colegio => (colegio.cantidadListas || 0) > 0)
+    } else if (filtroListas === 'sin') {
+      filtered = filtered.filter(colegio => (colegio.cantidadListas || 0) === 0)
+    }
+
+    setData(filtered)
+  }, [mappedListas, filtroListas])
+
+  // Función de filtro global personalizada que busca en nombre, colegio.nombre y colegio.rbd
+  const globalFilterFn = (row: any, columnId: string, filterValue: string) => {
+    if (!filterValue) return true
+    
+    // Normalizar el valor de búsqueda: eliminar espacios y convertir a minúsculas
+    const searchValue = String(filterValue).toLowerCase().trim().replace(/\s+/g, '')
+    
+    if (!searchValue) return true
+    
+    // Buscar en nombre del colegio (normalizado)
+    const nombre = String(row.original.nombre || '').toLowerCase().trim().replace(/\s+/g, '')
+    if (nombre.includes(searchValue)) return true
+    
+    // Buscar en RBD del colegio (normalizado, sin espacios)
+    const rbd = row.original.rbd
+    if (rbd !== undefined && rbd !== null) {
+      // Convertir a string, eliminar espacios y convertir a minúsculas
+      const rbdStr = String(rbd).trim().replace(/\s+/g, '').toLowerCase()
+      // También buscar coincidencia exacta o parcial
+      if (rbdStr === searchValue || rbdStr.includes(searchValue)) return true
+    }
+    
+    // Buscar en comuna (normalizado)
+    const comuna = String(row.original.comuna || '').toLowerCase().trim().replace(/\s+/g, '')
+    if (comuna.includes(searchValue)) return true
+    
+    // Buscar en región (normalizado)
+    const region = String(row.original.region || '').toLowerCase().trim().replace(/\s+/g, '')
+    if (region.includes(searchValue)) return true
+    
+    return false
+  }
 
   const table = useReactTable<ListaType>({
     data,
@@ -413,7 +553,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    globalFilterFn: 'includesString',
+    globalFilterFn: globalFilterFn as any,
     enableColumnFilters: true,
     enableRowSelection: true,
   })
@@ -585,7 +725,6 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               nombre: lista.nombre || '',
               nivel: lista.nivel || 'Basica',
               grado: lista.grado || 1,
-              paralelo: lista.paralelo || '',
               año: lista.año || lista.ano || new Date().getFullYear(),
               descripcion: lista.descripcion || '',
               activo: lista.activo !== false,
@@ -675,10 +814,10 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
     setLoading(true)
     try {
       console.log(`[ListasListing] 🔄 Recargando listas desde API... (intento ${retryCount + 1})`)
-      // Usar múltiples parámetros para forzar cache busting
+      // Usar la misma API que usa la página principal: /api/crm/listas/por-colegio
       const timestamp = Date.now()
       const random = Math.random()
-      const response = await fetch(`/api/crm/listas?_t=${timestamp}&_r=${random}`, {
+      const response = await fetch(`/api/crm/listas/por-colegio?_t=${timestamp}&_r=${random}`, {
         cache: 'no-store',
         method: 'GET',
         headers: {
@@ -721,31 +860,54 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
         success: result.success, 
         count: result.data?.length || 0,
         ids: result.data?.map((l: any) => l.id || l.documentId) || [],
+        colegiosConRBD24508: result.data?.filter((c: any) => c.rbd === 24508 || c.rbd === '24508').length || 0,
       })
       
+      // Debug: Verificar si hay colegios con RBD 24508 en la respuesta
       if (result.success && Array.isArray(result.data)) {
-        const nuevasListas = result.data.map((lista: any) => ({
-          id: lista.id || lista.documentId,
-          documentId: lista.documentId || String(lista.id || ''),
-          nombre: lista.nombre || '',
-          nivel: lista.nivel || 'Basica',
-          grado: lista.grado || 1,
-          paralelo: lista.paralelo || '',
-          año: lista.año || lista.ano || new Date().getFullYear(),
-          descripcion: lista.descripcion || '',
-          activo: lista.activo !== false,
-          pdf_id: lista.pdf_id || undefined,
-          pdf_url: lista.pdf_url || undefined,
-          pdf_nombre: lista.pdf_nombre || undefined,
-          colegio: lista.colegio || undefined,
-          curso: lista.curso || undefined,
-          materiales: lista.materiales || [],
-          createdAt: lista.createdAt || null,
-          updatedAt: lista.updatedAt || null,
-          versiones: lista.versiones || 0,
-        } as ListaType))
+        const colegiosRBD24508 = result.data.filter((c: any) => c.rbd === 24508 || c.rbd === '24508')
+        if (colegiosRBD24508.length > 0) {
+          console.log('[ListasListing] ✅ Encontrado colegio RBD 24508 en respuesta:', colegiosRBD24508)
+        } else {
+          console.warn('[ListasListing] ⚠️ No se encontró colegio RBD 24508 en la respuesta de la API')
+          console.log('[ListasListing] 🔍 Colegios en respuesta:', result.data.map((c: any) => ({
+            nombre: c.nombre,
+            rbd: c.rbd,
+            cantidadListas: c.cantidadListas,
+          })))
+        }
+      }
+      
+      if (result.success && Array.isArray(result.data)) {
+        // Mapear los datos correctamente según la estructura de la API /api/crm/listas/por-colegio
+        const nuevasListas = result.data.map((colegio: any) => ({
+          id: colegio.id || colegio.documentId,
+          documentId: colegio.documentId || String(colegio.id || ''),
+          nombre: colegio.nombre || colegio.colegio_nombre || '',
+          rbd: colegio.rbd || undefined,
+          comuna: colegio.comuna || '',
+          region: colegio.region || '',
+          direccion: colegio.direccion || '',
+          telefono: colegio.telefono || '',
+          email: colegio.email || '',
+          total_matriculados: colegio.total_matriculados !== undefined ? colegio.total_matriculados : null,
+          cantidadCursos: colegio.cantidadCursos || 0,
+          cantidadPDFs: colegio.cantidadPDFs || 0,
+          cantidadListas: colegio.cantidadListas || 0,
+          updatedAt: colegio.updatedAt || null,
+          cursos: colegio.cursos || [],
+        } as ColegioType))
         
-        console.log('[ListasListing] ✅ Listas actualizadas en la UI:', nuevasListas.length, 'listas')
+        console.log('[ListasListing] ✅ Listas actualizadas en la UI:', nuevasListas.length, 'colegios')
+        
+        // Debug: Verificar si el colegio RBD 24508 está en los datos mapeados
+        const colegioEnDatos = nuevasListas.find((c: ColegioType) => c.rbd === 24508 || c.rbd === '24508')
+        if (colegioEnDatos) {
+          console.log('[ListasListing] ✅ Colegio RBD 24508 encontrado en datos mapeados:', colegioEnDatos)
+        } else {
+          console.warn('[ListasListing] ⚠️ Colegio RBD 24508 NO encontrado en datos mapeados')
+        }
+        
         setData(nuevasListas)
       } else {
         console.error('[ListasListing] ❌ Respuesta de API no válida:', result)
@@ -851,6 +1013,66 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
   return (
     <Row>
       <Col xs={12}>
+        {/* Card de productos pendientes para aprobar */}
+        {productosPendientes > 0 && (
+          <Card 
+            className="mb-3 border-warning" 
+            style={{ 
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)'
+              e.currentTarget.style.transform = 'translateY(-2px)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.boxShadow = ''
+              e.currentTarget.style.transform = ''
+            }}
+            onClick={() => router.push('/products/solicitudes')}
+          >
+            <CardBody className="d-flex align-items-center justify-content-between p-3">
+              <div className="d-flex align-items-center gap-3">
+                <div 
+                  className="d-flex align-items-center justify-content-center"
+                  style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '50%',
+                    backgroundColor: '#fff3cd',
+                  }}
+                >
+                  <LuPackageSearch size={24} className="text-warning" />
+                </div>
+                <div>
+                  <h6 className="mb-0 fw-bold">
+                    {productosPendientes} {productosPendientes === 1 ? 'producto' : 'productos'} pendiente{productosPendientes > 1 ? 's' : ''} de aprobación
+                  </h6>
+                  <small className="text-muted">
+                    Haz clic para ir a la página de solicitudes y aprobar productos
+                  </small>
+                </div>
+              </div>
+              <div className="d-flex align-items-center gap-2">
+                {loadingProductosPendientes && <Spinner size="sm" />}
+                <Badge bg="warning" className="fs-6 px-3 py-2">
+                  {productosPendientes}
+                </Badge>
+                <Button 
+                  variant="warning" 
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    router.push('/products/solicitudes')
+                  }}
+                >
+                  Ver Solicitudes
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+        )}
+        
         <Card className="mb-4">
           <CardHeader className="d-flex justify-content-between align-items-center">
             <div className="d-flex gap-2">
@@ -858,7 +1080,7 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                 <input
                   type="search"
                   className="form-control"
-                  placeholder="Buscar por nombre..."
+                  placeholder="Buscar por nombre, colegio o RBD..."
                   value={globalFilter ?? ''}
                   onChange={(e) => setGlobalFilter(e.target.value)}
                 />
@@ -870,110 +1092,54 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               <div className="app-search">
                 <select
                   className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('colegio')?.getFilterValue() as string) ?? ''}
+                  value={(table.getColumn('region')?.getFilterValue() as string) ?? ''}
                   onChange={(e) => {
                     const value = e.target.value
-                    table.getColumn('colegio')?.setFilterValue(value === '' ? undefined : value)
+                    table.getColumn('region')?.setFilterValue(value === '' ? undefined : value)
                   }}>
-                  <option value="">Todos los Colegios</option>
-                  {Array.from(new Set(data.map(l => l.colegio?.nombre).filter(Boolean))).sort().map((nombre) => (
-                    <option key={nombre} value={nombre}>{nombre}</option>
-                  ))}
+                  <option value="">Todas las Regiones</option>
+                  {Array.from(new Set(data.map(l => l.region).filter(Boolean))).sort().map((region) => {
+                    const filteredRows = table.getFilteredRowModel().rows
+                    const count = filteredRows.filter(row => row.original.region === region).length
+                    return (
+                      <option key={region} value={region}>
+                        {region} {count > 0 ? `(${count})` : ''}
+                      </option>
+                    )
+                  })}
                 </select>
               </div>
 
               <div className="app-search">
                 <select
                   className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('nivel')?.getFilterValue() as string) ?? ''}
+                  value={(table.getColumn('comuna')?.getFilterValue() as string) ?? ''}
                   onChange={(e) => {
                     const value = e.target.value
-                    table.getColumn('nivel')?.setFilterValue(value === '' ? undefined : value)
+                    table.getColumn('comuna')?.setFilterValue(value === '' ? undefined : value)
                   }}>
-                  <option value="">Todos los Niveles</option>
-                  <option value="Basica">Básica</option>
-                  <option value="Media">Media</option>
+                  <option value="">Todas las Comunas</option>
+                  {Array.from(new Set(data.map(l => l.comuna).filter(Boolean))).sort().map((comuna) => {
+                    const filteredRows = table.getFilteredRowModel().rows
+                    const count = filteredRows.filter(row => row.original.comuna === comuna).length
+                    return (
+                      <option key={comuna} value={comuna}>
+                        {comuna} {count > 0 ? `(${count})` : ''}
+                      </option>
+                    )
+                  })}
                 </select>
               </div>
 
               <div className="app-search">
                 <select
                   className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('año')?.getFilterValue() as string) ?? ''}
-                  onChange={(e) =>
-                    table.getColumn('año')?.setFilterValue(e.target.value === '' ? undefined : e.target.value)
-                  }>
-                  <option value="">Todos los Años</option>
-                  {Array.from(new Set(data.map(l => l.año).filter(Boolean))).sort((a, b) => (b || 0) - (a || 0)).map((año) => (
-                    <option key={año} value={String(año)}>{año}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="app-search">
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('paralelo')?.getFilterValue() as string) ?? ''}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    table.getColumn('paralelo')?.setFilterValue(value === '' ? undefined : value)
-                  }}>
-                  <option value="">Todos los Paralelos</option>
-                  {Array.from(new Set(data.map(l => l.paralelo).filter(Boolean))).sort().map((paralelo) => (
-                    <option key={paralelo} value={paralelo}>{paralelo}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="app-search">
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('activo')?.getFilterValue() as string) ?? ''}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    if (value === '') {
-                      table.getColumn('activo')?.setFilterValue(undefined)
-                    } else {
-                      table.getColumn('activo')?.setFilterValue(value === 'true')
-                    }
-                  }}>
-                  <option value="">Todos los Estados</option>
-                  <option value="true">Activo</option>
-                  <option value="false">Inactivo</option>
-                </select>
-              </div>
-
-              <div className="app-search">
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={(table.getColumn('nivel')?.getFilterValue() as string) ?? 'All'}
-                  onChange={(e) =>
-                    table.getColumn('nivel')?.setFilterValue(e.target.value === 'All' ? undefined : e.target.value)
-                  }>
-                  <option value="All">Nivel</option>
-                  <option value="Basica">Básica</option>
-                  <option value="Media">Media</option>
-                </select>
-              </div>
-
-              <div className="app-search">
-                <select
-                  className="form-select form-control my-1 my-md-0"
-                  value={
-                    (() => {
-                      const filterValue = table.getColumn('activo')?.getFilterValue()
-                      if (filterValue === undefined) return 'All'
-                      if (typeof filterValue === 'boolean') return filterValue ? 'true' : 'false'
-                      return String(filterValue)
-                    })()
-                  }
-                  onChange={(e) => {
-                    const value = e.target.value
-                    table.getColumn('activo')?.setFilterValue(value === 'All' ? undefined : value === 'true')
-                  }}>
-                  <option value="All">Estado</option>
-                  <option value="true">Activo</option>
-                  <option value="false">Inactivo</option>
+                  value={filtroListas}
+                  onChange={(e) => setFiltroListas(e.target.value as 'todos' | 'con' | 'sin')}
+                >
+                  <option value="todos">Todos los Colegios</option>
+                  <option value="con">Con Listas</option>
+                  <option value="sin">Sin Listas</option>
                 </select>
               </div>
 
@@ -1021,7 +1187,17 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                   <TbTrash className="fs-sm me-2" /> Eliminar Seleccionados ({Object.keys(selectedRowIds).length})
                 </Button>
               )}
-              <Button 
+              <Link href="/crm/listas/buscar-producto">
+                <Button 
+                  variant="info"
+                  title="Buscar un producto en todos los colegios y cursos"
+                >
+                  <LuPackageSearch className="fs-sm me-2" /> 
+                  Buscar Producto
+                </Button>
+              </Link>
+              {/* Ocultado: Botón Recargar */}
+              {/* <Button 
                 variant="outline-secondary" 
                 onClick={() => recargarListas()}
                 disabled={loading}
@@ -1029,18 +1205,93 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
               >
                 <LuRefreshCw className={`fs-sm me-2 ${loading ? 'spinning' : ''}`} style={loading ? { animation: 'spin 1s linear infinite' } : {}} /> 
                 {loading ? 'Recargando...' : 'Recargar'}
-              </Button>
-              <Button variant="success" onClick={() => setShowImportModal(true)}>
+              </Button> */}
+              {/* Ocultado: Botón Importación Masiva */}
+              {/* <Button variant="success" onClick={() => setShowImportModal(true)}>
                 <LuUpload className="fs-sm me-2" /> Importación Masiva
-              </Button>
-              <Button variant="primary" onClick={() => setShowModal(true)}>
+              </Button> */}
+              {/* Ocultado: Botón Agregar Lista */}
+              {/* <Button variant="primary" onClick={() => setShowModal(true)}>
                 <LuPlus className="fs-sm me-2" /> Agregar Lista
-              </Button>
-              <Link href="/crm/listas/logs">
+              </Button> */}
+              {/* Ocultado: Importar Colegios y Cursos */}
+              {/* <Button variant="outline-primary" onClick={() => setShowImportColegiosModal(true)}>
+                <LuUpload className="fs-sm me-2" /> Importar Colegios y Cursos
+              </Button> */}
+              {/* Ocultado: Logs Importación */}
+              {/* <Link href="/crm/listas/importacion-completa-logs" className="btn btn-outline-info me-2">
+                <LuFileCode className="me-1" />
+                Logs Importación
+              </Link> */}
+              <OverlayTrigger
+                placement="top"
+                overlay={
+                  <Tooltip>
+                    <div className="text-start">
+                      <strong>Importación Completa (Plantilla)</strong>
+                      <br />
+                      Permite cargar masivamente colegios, cursos, asignaturas y productos/libros desde un archivo Excel/CSV usando una plantilla predefinida.
+                      <br />
+                      <small className="d-block mt-1">• Importa colegios, cursos y asignaturas</small>
+                      <small className="d-block">• Permite subir PDFs de listas de útiles</small>
+                      <small className="d-block">• Procesa múltiples registros de forma masiva</small>
+                    </div>
+                  </Tooltip>
+                }
+              >
+                <Button variant="outline-success" onClick={() => setShowImportCompletaModal(true)}>
+                  <LuUpload className="fs-sm me-2" /> Importación Completa (Plantilla)
+                </Button>
+              </OverlayTrigger>
+              <OverlayTrigger
+                placement="top"
+                overlay={
+                  <Tooltip>
+                    <div className="text-start">
+                      <strong>Carga Masiva por URL</strong>
+                      <br />
+                      Permite cargar listas de útiles desde una URL (página web o listado con enlaces a PDFs).
+                    </div>
+                  </Tooltip>
+                }
+              >
+                <Button variant="outline-secondary" onClick={() => setShowCargaMasivaPorURLModal(true)}>
+                  <LuLink className="fs-sm me-2" /> Carga Masiva por URL
+                </Button>
+              </OverlayTrigger>
+              <OverlayTrigger
+                placement="top"
+                overlay={
+                  <Tooltip>
+                    <div className="text-start">
+                      <strong>Carga Masiva PDFs por Colegio</strong>
+                      <br />
+                      Permite subir múltiples PDFs de listas de útiles para un colegio específico y procesarlos automáticamente con Inteligencia Artificial.
+                      <br />
+                      <small className="d-block mt-1">• Sube múltiples PDFs a la vez</small>
+                      <small className="d-block">• Procesa automáticamente con IA (Claude AI)</small>
+                      <small className="d-block">• Extrae productos y materiales automáticamente</small>
+                      <small className="d-block">• Asocia PDFs a cursos específicos</small>
+                    </div>
+                  </Tooltip>
+                }
+              >
+                <Button variant="outline-primary" onClick={() => setShowCargaMasivaPDFsModal(true)}>
+                  <LuSparkles className="fs-sm me-2" /> Carga Masiva PDFs por Colegio
+                </Button>
+              </OverlayTrigger>
+              {/* Ocultado: Ver Logs */}
+              {/* <Link href="/crm/listas/logs">
                 <Button variant="outline-info" title="Ver logs de procesamiento">
                   <LuFileCode className="fs-sm me-2" /> Ver Logs
                 </Button>
-              </Link>
+              </Link> */}
+              {/* Ocultado: Logs Importación Completa */}
+              {/* <Link href="/crm/listas/importacion-completa-logs">
+                <Button variant="outline-warning" title="Ver logs de importación completa">
+                  <LuFileCode className="fs-sm me-2" /> Logs Importación Completa
+                </Button>
+              </Link> */}
             </div>
           </CardHeader>
 
@@ -1081,20 +1332,111 @@ export default function ListasListing({ listas: listasProp, error }: ListasListi
                 : Object.keys(selectedRowIds).length
             }
             itemName="curso"
+            modalTitle="Confirmar Eliminación"
+            confirmButtonText="Eliminar"
+            cancelButtonText="Cancelar"
+            loading={loading}
           />
         </Card>
 
-        <ListaModal
+        {/* <ListaModal
           show={showModal}
           onHide={handleModalClose}
           lista={editingLista}
           onSuccess={handleModalSuccess}
-        />
+        /> */}
 
         <ImportacionMasivaModal
           show={showImportModal}
           onHide={() => setShowImportModal(false)}
           onSuccess={handleModalSuccess}
+        />
+
+        {/* Ocultado: Modal de Importación Masiva de Colegios */}
+        {/* <ImportacionMasivaColegiosModal
+          show={showImportColegiosModal}
+          onHide={() => setShowImportColegiosModal(false)}
+          onSuccess={handleModalSuccess}
+        /> */}
+
+        <ImportacionCompletaModal
+          show={showImportCompletaModal}
+          onHide={() => setShowImportCompletaModal(false)}
+          onSuccess={() => {
+            console.log('[ListasListing] ✅ Importación completa exitosa, recargando listas...')
+            // Recargar listas sin hacer redirect, solo actualizar el estado local
+            setTimeout(() => {
+              console.log('[ListasListing] 🔄 Primera recarga (después de 2s)...')
+              recargarListas()
+            }, 2000)
+            // Recargar de nuevo después de más tiempo para asegurar que se reflejen todos los cambios
+            setTimeout(() => {
+              console.log('[ListasListing] 🔄 Segunda recarga (después de 5s)...')
+              recargarListas()
+            }, 5000)
+            // Tercera recarga final para asegurar que todo esté sincronizado
+            setTimeout(() => {
+              console.log('[ListasListing] 🔄 Tercera recarga final (después de 8s)...')
+              recargarListas()
+            }, 8000)
+            // No hacer router.push ni router.refresh - solo actualizar datos localmente
+          }}
+        />
+
+        <CargaMasivaPDFsPorColegioModal
+          show={showCargaMasivaPDFsModal}
+          onHide={() => setShowCargaMasivaPDFsModal(false)}
+          onSuccess={() => {
+            console.log('[ListasListing] ✅ Carga masiva de PDFs exitosa, recargando listas...')
+            // Recargar listas sin hacer redirect, solo actualizar el estado local
+            setTimeout(() => {
+              recargarListas()
+            }, 2000)
+            setTimeout(() => {
+              recargarListas()
+            }, 5000)
+            // No hacer router.push ni router.refresh - solo actualizar datos localmente
+          }}
+        />
+
+        <CargaMasivaPorURLModal
+          show={showCargaMasivaPorURLModal}
+          onHide={() => setShowCargaMasivaPorURLModal(false)}
+          onSuccess={() => recargarListas()}
+        />
+
+        <DetalleListasModal
+          show={showDetalleListasModal}
+          onHide={() => {
+            setShowDetalleListasModal(false)
+            setColegioSeleccionado(null)
+          }}
+          colegio={colegioSeleccionado as any}
+        />
+
+        <EdicionColegioModal
+          show={showEdicionColegioModal}
+          onHide={() => {
+            setShowEdicionColegioModal(false)
+            setColegioSeleccionado(null)
+          }}
+          colegio={colegioSeleccionado as any}
+          onSuccess={() => {
+            recargarListas()
+            setShowEdicionColegioModal(false)
+            setColegioSeleccionado(null)
+          }}
+        />
+
+        <CursosColegioModal
+          show={showCursosModal}
+          onHide={() => {
+            setShowCursosModal(false)
+            setColegioIdModal(null)
+            setColegioNombreModal('')
+          }}
+          colegioId={colegioIdModal}
+          colegioNombre={colegioNombreModal}
         />
       </Col>
     </Row>

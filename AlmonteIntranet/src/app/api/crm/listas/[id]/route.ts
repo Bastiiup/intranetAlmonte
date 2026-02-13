@@ -1,186 +1,199 @@
-/**
- * API Route para obtener una lista específica con todos sus datos
- * GET /api/crm/listas/[id]
- */
-
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import { normalizarCursoStrapi } from '@/lib/utils/strapi'
 
-export const dynamic = 'force-dynamic'
-
-const DEBUG = process.env.NODE_ENV === 'development' || process.env.DEBUG_CRM === 'true'
+const DEBUG = process.env.NODE_ENV === 'development'
 const debugLog = (...args: any[]) => {
   if (DEBUG) {
-    console.log(...args)
+    console.log('[API /crm/listas/[id]]', ...args)
   }
 }
 
 /**
  * GET /api/crm/listas/[id]
- * Obtiene una lista específica con todos sus datos del curso
+ * Obtiene los datos completos de un curso/lista específico
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const { id } = await params
+    const params = await Promise.resolve(context.params)
+    const cursoId = params.id
 
-    if (!id) {
+    debugLog('📋 Obteniendo curso/lista:', cursoId)
+
+    if (!cursoId) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'ID de lista es requerido',
-        },
+        { error: 'ID de curso no proporcionado' },
         { status: 400 }
       )
     }
 
-    debugLog('[API /crm/listas/[id] GET] Obteniendo lista:', id)
-    console.log('[API /crm/listas/[id] GET] ID recibido:', id, 'Tipo:', typeof id)
-
-    // Intentar obtener el curso por documentId o id numérico
+    // Usar strapiClient en lugar de fetch directo (más robusto)
     let curso: any = null
-    let cursoResponse: any = null
-    let errorMessages: string[] = []
-
-    // Primero intentar con documentId (puede ser string alfanumérico)
-    try {
-      console.log('[API /crm/listas/[id] GET] Intentando buscar por documentId:', id)
-      const paramsDocId = new URLSearchParams({
-        'filters[documentId][$eq]': String(id),
-        'publicationState': 'preview',
-        'populate[colegio]': 'true',
-      })
-      cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
-        `/api/cursos?${paramsDocId.toString()}`
-      )
-      
-      console.log('[API /crm/listas/[id] GET] Respuesta por documentId:', {
-        hasData: !!cursoResponse.data,
-        isArray: Array.isArray(cursoResponse.data),
-        length: Array.isArray(cursoResponse.data) ? cursoResponse.data.length : (cursoResponse.data ? 1 : 0)
-      })
-      
-      if (cursoResponse.data && Array.isArray(cursoResponse.data) && cursoResponse.data.length > 0) {
-        curso = cursoResponse.data[0]
-        console.log('[API /crm/listas/[id] GET] ✅ Curso encontrado por documentId:', curso.id || curso.documentId)
-        debugLog('[API /crm/listas/[id] GET] ✅ Curso encontrado por documentId')
-      } else if (cursoResponse.data && !Array.isArray(cursoResponse.data)) {
-        curso = cursoResponse.data
-        console.log('[API /crm/listas/[id] GET] ✅ Curso encontrado por documentId (no array)')
-        debugLog('[API /crm/listas/[id] GET] ✅ Curso encontrado por documentId (no array)')
-      } else {
-        errorMessages.push('No se encontró curso con documentId: ' + id)
-      }
-    } catch (docIdError: any) {
-      const errorMsg = `Error al buscar por documentId: ${docIdError.message || docIdError}`
-      errorMessages.push(errorMsg)
-      console.error('[API /crm/listas/[id] GET] ⚠️', errorMsg)
-      debugLog('[API /crm/listas/[id] GET] ⚠️', errorMsg)
-    }
-
-    // Si no se encontró con documentId, intentar con id numérico
-    if (!curso) {
-      const isNumeric = /^\d+$/.test(String(id))
-      console.log('[API /crm/listas/[id] GET] ID es numérico?', isNumeric)
-      
-      if (isNumeric) {
+    
+    // IMPORTANTE: versiones_materiales es un campo JSON, NO una relación
+    // Por lo tanto, NO usar populate para versiones_materiales
+    // Solo usar fields[] para incluirlo explícitamente
+    
+    // Intentar primero buscar por documentId si no es numérico
+    if (isNaN(Number(cursoId))) {
+      debugLog('🔍 Buscando por documentId:', cursoId)
+      try {
+        // NO especificar fields[] para que Strapi devuelva TODOS los campos, incluyendo versiones_materiales
+        const paramsDocId = new URLSearchParams({
+          'filters[documentId][$eq]': String(cursoId),
+          'populate[colegio][populate][comuna]': 'true', // Populate colegio con comuna
+          'publicationState': 'preview',
+        })
+        const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
+          `/api/cursos?${paramsDocId.toString()}`
+        )
+        
+        if (cursoResponse.data && Array.isArray(cursoResponse.data) && cursoResponse.data.length > 0) {
+          curso = cursoResponse.data[0]
+          debugLog('✅ Curso encontrado por documentId')
+        }
+      } catch (docIdError: any) {
+        debugLog('⚠️ Error buscando por documentId:', docIdError.message)
+        // Intentar sin fields específicos (traer todos los campos)
         try {
-          console.log('[API /crm/listas/[id] GET] Intentando buscar por id numérico:', id)
-          cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-            `/api/cursos/${id}?publicationState=preview&populate[colegio]=true`
-          )
-          
-          console.log('[API /crm/listas/[id] GET] Respuesta por id numérico:', {
-            hasData: !!cursoResponse.data,
-            isArray: Array.isArray(cursoResponse.data)
+          const paramsDocId = new URLSearchParams({
+            'filters[documentId][$eq]': String(cursoId),
+            'populate[colegio][populate][comuna]': 'true', // Populate colegio con comuna
+            'publicationState': 'preview',
           })
-          
-          if (cursoResponse.data) {
-            curso = Array.isArray(cursoResponse.data) ? cursoResponse.data[0] : cursoResponse.data
-            console.log('[API /crm/listas/[id] GET] ✅ Curso encontrado por id numérico:', curso.id || curso.documentId)
-            debugLog('[API /crm/listas/[id] GET] ✅ Curso encontrado por id numérico')
-          } else {
-            errorMessages.push('No se encontró curso con id numérico: ' + id)
+          const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
+            `/api/cursos?${paramsDocId.toString()}`
+          )
+          if (cursoResponse.data && Array.isArray(cursoResponse.data) && cursoResponse.data.length > 0) {
+            curso = cursoResponse.data[0]
+            debugLog('✅ Curso encontrado por documentId (sin fields específicos)')
           }
-        } catch (idError: any) {
-          const errorMsg = `Error al buscar por id numérico: ${idError.message || idError}`
-          errorMessages.push(errorMsg)
-          console.error('[API /crm/listas/[id] GET] ⚠️', errorMsg)
-          debugLog('[API /crm/listas/[id] GET] ⚠️', errorMsg)
+        } catch (fallbackError: any) {
+          debugLog('❌ Error también sin fields:', fallbackError.message)
         }
       }
     }
-
+    
+    // Si no se encontró, intentar con ID numérico
+    if (!curso && /^\d+$/.test(String(cursoId))) {
+      debugLog('🔍 Buscando por ID numérico:', cursoId)
+      try {
+        // NO especificar fields[] para que Strapi devuelva TODOS los campos, incluyendo versiones_materiales
+        const paramsObj = new URLSearchParams({
+          'populate[colegio][populate][comuna]': 'true', // Populate colegio con comuna
+          'publicationState': 'preview',
+        })
+        const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+          `/api/cursos/${cursoId}?${paramsObj.toString()}`
+        )
+        
+        if (cursoResponse.data) {
+          curso = Array.isArray(cursoResponse.data) ? cursoResponse.data[0] : cursoResponse.data
+          debugLog('✅ Curso encontrado por ID numérico')
+        }
+      } catch (idError: any) {
+        debugLog('⚠️ Error buscando por ID:', idError.message)
+        // Intentar sin fields específicos (traer todos los campos)
+        try {
+          const paramsObj = new URLSearchParams({
+            'populate[colegio][populate][comuna]': 'true', // Populate colegio con comuna
+            'publicationState': 'preview',
+          })
+          const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+            `/api/cursos/${cursoId}?${paramsObj.toString()}`
+          )
+          if (cursoResponse.data) {
+            curso = Array.isArray(cursoResponse.data) ? cursoResponse.data[0] : cursoResponse.data
+            debugLog('✅ Curso encontrado por ID numérico (sin fields específicos)')
+          }
+        } catch (fallbackError: any) {
+          debugLog('❌ Error también sin fields:', fallbackError.message)
+        }
+      }
+    }
+    
     if (!curso) {
-      console.error('[API /crm/listas/[id] GET] ❌ Curso no encontrado. ID buscado:', id)
-      console.error('[API /crm/listas/[id] GET] Errores:', errorMessages)
+      debugLog('❌ Curso no encontrado con ningún método')
       return NextResponse.json(
-        {
+        { 
           success: false,
-          error: 'Lista no encontrada',
-          details: `No se pudo encontrar el curso con ID: ${id}`,
-          errors: errorMessages,
+          error: 'Curso no encontrado',
+          details: `No se encontró curso con ID: ${cursoId}`
         },
         { status: 404 }
       )
     }
-
-    const attrs = curso.attributes || curso
-    const versiones = attrs.versiones_materiales || []
-    const ultimaVersion = versiones.length > 0 
-      ? versiones.sort((a: any, b: any) => {
-          const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
-          const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
-          return fechaB - fechaA
-        })[0]
-      : null
-
-    const colegioData = attrs.colegio?.data || attrs.colegio
-    const colegioAttrs = colegioData?.attributes || colegioData
-
-    const nombreCurso = attrs.nombre_curso || attrs.curso_nombre || 'Sin nombre'
-    const paralelo = attrs.paralelo ? ` ${attrs.paralelo}` : ''
-    const nombreCompleto = `${nombreCurso}${paralelo}`
-
-    const lista = {
-      id: curso.id || curso.documentId,
-      documentId: curso.documentId || String(curso.id || ''),
-      nombre: nombreCompleto,
-      nivel: attrs.nivel || 'Basica',
-      grado: parseInt(attrs.grado) || 1,
-      paralelo: attrs.paralelo || '',
-      año: attrs.anio || attrs.año || attrs.ano || new Date().getFullYear(),
-      descripcion: `Curso: ${nombreCompleto}`,
-      activo: attrs.activo !== false,
-      pdf_id: ultimaVersion?.pdf_id || null,
-      pdf_url: ultimaVersion?.pdf_url || null,
-      pdf_nombre: ultimaVersion?.nombre_archivo || ultimaVersion?.metadata?.nombre || null,
-      colegio: colegioData ? {
-        id: colegioData.id || colegioData.documentId,
-        nombre: colegioAttrs?.colegio_nombre || '',
-      } : null,
-      curso: {
-        id: curso.id || curso.documentId,
-        nombre: nombreCompleto,
-      },
-      versiones: versiones,
-      versiones_materiales: versiones,
-      materiales: ultimaVersion?.materiales || [],
+    
+    debugLog('✅ Curso obtenido exitosamente')
+    debugLog('📦 Estructura de respuesta RAW:', {
+      tieneData: !!curso,
+      dataKeys: curso ? Object.keys(curso) : [],
+      tieneAttributes: !!curso?.attributes,
+      attributesKeys: curso?.attributes ? Object.keys(curso.attributes) : [],
+      tieneVersionesEnAttributes: !!curso?.attributes?.versiones_materiales,
+      tieneVersionesEnRoot: !!curso?.versiones_materiales,
+      versionesEnAttributes: curso?.attributes?.versiones_materiales ? 
+        (Array.isArray(curso.attributes.versiones_materiales) ? curso.attributes.versiones_materiales.length : 'NO ES ARRAY') : 
+        'NO EXISTE',
+      versionesEnRoot: curso?.versiones_materiales ? 
+        (Array.isArray(curso.versiones_materiales) ? curso.versiones_materiales.length : 'NO ES ARRAY') : 
+        'NO EXISTE',
+    })
+    
+    // Normalizar datos usando utilidad centralizada
+    const cursoNormalizado = normalizarCursoStrapi(curso)
+    
+    if (!cursoNormalizado) {
+      debugLog('❌ Error al normalizar curso')
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Error al procesar los datos del curso',
+        },
+        { status: 500 }
+      )
     }
+    
+    debugLog('📊 Datos del curso normalizado:', {
+      id: cursoNormalizado?.id,
+      documentId: cursoNormalizado?.documentId,
+      tieneVersiones: !!cursoNormalizado?.versiones_materiales,
+      cantidadVersiones: cursoNormalizado?.versiones_materiales?.length || 0,
+      tieneMateriales: cursoNormalizado?.versiones_materiales?.[0]?.materiales ? true : false,
+      cantidadMateriales: cursoNormalizado?.versiones_materiales?.[0]?.materiales?.length || 0,
+      tienePDF: !!cursoNormalizado?.versiones_materiales?.[0]?.pdf_id,
+      pdf_id: cursoNormalizado?.versiones_materiales?.[0]?.pdf_id,
+      versionesKeys: cursoNormalizado?.versiones_materiales?.[0] ? Object.keys(cursoNormalizado.versiones_materiales[0]) : [],
+      versionesRaw: cursoNormalizado?.versiones_materiales?.[0] ? JSON.stringify(cursoNormalizado.versiones_materiales[0]).substring(0, 200) : 'N/A',
+      tieneColegio: !!cursoNormalizado?.colegio,
+      colegioNombre: cursoNormalizado?.colegio?.nombre || cursoNormalizado?.colegio?.data?.attributes?.nombre || cursoNormalizado?.colegio?.data?.nombre || 'NO ENCONTRADO',
+      colegioKeys: cursoNormalizado?.colegio ? Object.keys(cursoNormalizado.colegio) : [],
+    })
+    
+    // Log detallado de la estructura del colegio en el curso RAW
+    debugLog('📊 Estructura del colegio en curso RAW:', {
+      tieneColegio: !!curso?.attributes?.colegio,
+      colegioType: curso?.attributes?.colegio ? typeof curso.attributes.colegio : 'N/A',
+      colegioKeys: curso?.attributes?.colegio ? Object.keys(curso.attributes.colegio) : [],
+      colegioDataKeys: curso?.attributes?.colegio?.data ? Object.keys(curso.attributes.colegio.data) : [],
+      colegioDataAttributesKeys: curso?.attributes?.colegio?.data?.attributes ? Object.keys(curso.attributes.colegio.data.attributes) : [],
+      colegioNombreRaw: curso?.attributes?.colegio?.data?.attributes?.nombre || curso?.attributes?.colegio?.data?.nombre || 'NO ENCONTRADO',
+    })
 
     return NextResponse.json({
       success: true,
-      data: lista,
-    }, { status: 200 })
-  } catch (error: any) {
-    debugLog('[API /crm/listas/[id] GET] ❌ Error:', error)
+      data: cursoNormalizado,
+    })
+  } catch (error) {
+    debugLog('❌ Error inesperado:', error)
     return NextResponse.json(
       {
-        success: false,
-        error: error.message || 'Error al obtener la lista',
+        error: 'Error al obtener el curso',
+        details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }
     )

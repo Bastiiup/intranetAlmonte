@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import Anthropic from '@anthropic-ai/sdk'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
 
@@ -14,13 +14,12 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 600 // 10 minutos para procesar múltiples PDFs
 
-// Modelos disponibles (en orden de preferencia)
-// Solo modelos que realmente existen y están disponibles
+// Modelos de Claude disponibles (en orden de preferencia)
 const MODELOS_DISPONIBLES = [
-  'gemini-2.5-flash',      // Más rápido y eficiente (límite: 20 req/día en plan gratuito)
-  'gemini-2.5-flash-lite', // Versión lite (puede tener más cuota)
-  // NOTA: gemini-1.5-flash y gemini-1.5-pro ya no existen (404)
-  // NOTA: gemini-2.5-pro y gemini-pro-latest requieren plan de pago (límite: 0 en gratuito)
+  'claude-sonnet-4-20250514',      // Modelo más reciente y potente
+  'claude-3-5-sonnet-20241022',   // Sonnet 3.5 (fallback)
+  'claude-3-5-haiku-20241022',    // Haiku (más rápido y económico)
+  'claude-3-opus-20240229',       // Opus (más preciso pero más lento)
 ]
 
 interface ArchivoPDF {
@@ -30,16 +29,17 @@ interface ArchivoPDF {
   nivel?: 'Basica' | 'Media'
   grado?: number
   año?: number
+  url_original?: string // URL de la página de origen del PDF
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY
-    if (!GEMINI_API_KEY) {
+    const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
+    if (!ANTHROPIC_API_KEY) {
       return NextResponse.json(
         {
           success: false,
-          error: 'GEMINI_API_KEY no está configurada',
+          error: 'ANTHROPIC_API_KEY no está configurada',
         },
         { status: 500 }
       )
@@ -68,9 +68,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('[Carga Masiva IA] 🚀 Iniciando procesamiento de', archivos.length, 'archivos')
+    console.log('[Carga Masiva IA] 🚀 Iniciando procesamiento de', archivos.length, 'archivos para colegio:', colegioId)
 
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY)
+    const anthropic = new Anthropic({
+      apiKey: ANTHROPIC_API_KEY,
+    })
+
     const resultados: Array<{
       archivo: string
       success: boolean
@@ -85,118 +88,98 @@ export async function POST(request: NextRequest) {
       console.log(`[Carga Masiva IA] 📄 Procesando: ${nombreArchivo}`)
 
       try {
-        // Decodificar base64
-        const pdfBuffer = Buffer.from(archivo.contenido, 'base64')
-        const pdfBase64 = archivo.contenido // Ya está en base64
+        // PDF ya está en base64
+        const pdfBase64 = archivo.contenido
 
-        // Prompt para Gemini (similar al procesamiento individual)
-        const prompt = `Eres un experto en analizar listas de útiles escolares de Chile.
+        // Prompt para Claude (similar al procesamiento individual)
+        const prompt = `Extrae TODOS los productos de útiles escolares del PDF. Copia el texto EXACTAMENTE como aparece e indica la ubicación EXACTA de cada producto.
 
-Tu tarea es extraer TODOS los productos/útiles mencionados en este PDF.
+REGLAS DE EXTRACCIÓN:
+1. Productos = líneas con cantidad + nombre (ej: "2 Cuadernos")
+2. Cantidad: número exacto del texto (si no hay → 1)
+3. Nombre: EXACTAMENTE como aparece (NO cambies ni agregues palabras)
+4. ISBN: solo si aparece explícito (quita guiones)
+5. Marca: solo si está en el nombre
+6. Precio: solo si aparece explícito
+7. Asignatura: solo si hay encabezado claro
+8. Descripción: solo detalles técnicos adicionales
 
-FORMATO DE LISTAS ESCOLARES TÍPICAS:
-- Pueden tener formato de tabla
-- Pueden tener viñetas o números
-- Pueden incluir cantidad seguida del producto
-- Pueden agrupar por categorías (ej: "Matemáticas", "Lenguaje", "Arte")
+📍 UBICACIÓN EXACTA (CRÍTICO):
+Para CADA producto, analiza el PDF VISUALMENTE y proporciona coordenadas EXACTAS:
+- pagina: número de página donde aparece (1, 2, 3...)
+- posicion_y_porcentaje: distancia EXACTA desde el borde superior (0-100)
+- posicion_x_porcentaje: distancia EXACTA desde el borde izquierdo (0-100)
+- orden_en_pagina: posición relativa en esa página (1=primero, 2=segundo, etc)
 
-EJEMPLOS DE ITEMS QUE DEBES EXTRAER:
-✅ "2 Cuadernos universitarios 100 hojas cuadriculado"
-✅ "1 Caja de lápices de colores 12 unidades"
-✅ "Lápiz grafito N°2" (sin cantidad = asume 1)
-✅ "3 Gomas de borrar blancas"
-✅ "1 Regla de 30 cm"
-✅ "Tijeras punta roma"
+IGNORAR:
+- Títulos (LISTA DE ÚTILES, MATERIALES)
+- Instrucciones (Marcar con nombre)
+- URLs y notas
+- Info administrativa
 
-ITEMS QUE DEBES IGNORAR:
-❌ Títulos de secciones (ej: "ÚTILES ESCOLARES 2024")
-❌ Nombres de asignaturas (ej: "Matemáticas", "Lenguaje")
-❌ Instrucciones generales (ej: "Marcar con nombre")
-❌ Información del colegio
-❌ Fechas y encabezados
-❌ Páginas de portada o índice
+⚠️ CRÍTICO:
+- Extrae TODOS los productos (si hay 30 en el PDF → devuelve 30)
+- NO omitas ninguno
+- Revisa TODAS las páginas y líneas
+- Copia EXACTAMENTE (no cambies plural/singular ni agregues palabras)
+- SIEMPRE incluye ubicación para cada producto
 
-REGLAS:
-1. Si ves un número al inicio, es la cantidad
-2. Si no hay número, la cantidad es 1
-3. Incluye marca/características en "descripcion"
-4. Normaliza nombres similares (ej: "cuaderno" = "Cuaderno")
-5. Si hay ISBN o código, extráelo en "isbn"
-6. Si hay precio mencionado, extráelo como número (sin símbolos) en "precio"
-7. Si hay asignatura o materia mencionada, extráela en "asignatura"
-8. Para cada producto, identifica en qué página del PDF aparece y su posición aproximada
-
-COORDENADAS (OBLIGATORIO):
-- "pagina": Número de página donde aparece el producto (empezando desde 1)
-- "posicion_x": Posición horizontal aproximada como porcentaje (0-100)
-- "posicion_y": Posición vertical aproximada como porcentaje (0-100)
-- "region": Descripción opcional de la región (ej: "superior-izquierda", "medio-derecha")
-
-FORMATO DE RESPUESTA (JSON puro, SIN markdown, SIN backticks):
-{
-  "productos": [
-    {
-      "cantidad": 2,
-      "nombre": "Cuaderno universitario",
-      "isbn": null,
-      "marca": null,
-      "comprar": true,
-      "precio": 0,
-      "asignatura": null,
-      "descripcion": "100 hojas cuadriculado",
-      "coordenadas": {
-        "pagina": 2,
-        "posicion_x": 15,
-        "posicion_y": 30,
-        "region": "superior-izquierda"
-      }
-    }
-  ]
-}
+FORMATO (JSON puro, sin markdown):
+{"productos":[{"cantidad":number,"nombre":string,"isbn":string|null,"marca":string|null,"precio":number,"asignatura":string|null,"descripcion":string|null,"comprar":boolean,"pagina":number,"posicion_y_porcentaje":number,"posicion_x_porcentaje":number,"orden_en_pagina":number}]}
 
 ⚠️ MUY IMPORTANTE:
 - Responde SOLO con el JSON
 - NO uses backticks (\`\`\`)
 - NO agregues texto antes o después del JSON
 - NO uses markdown
-- El JSON debe empezar con { y terminar con }
+- El JSON debe empezar con { y terminar con }`
 
-Ahora analiza este PDF y extrae TODOS los productos:`
-
-        // Procesar con Gemini
+        // Procesar con Claude
         let resultado: any = null
         let modeloUsado: string | null = null
 
         for (const nombreModelo of MODELOS_DISPONIBLES) {
           try {
-            const model = genAI.getGenerativeModel({ 
-              model: nombreModelo,
-              generationConfig: {
-                temperature: 0.1,
-                topP: 0.8,
-                topK: 40,
+            // Construir contenido con PDF para Claude
+            const content: Anthropic.MessageParam['content'] = [
+              {
+                type: 'document',
+                source: {
+                  type: 'base64',
+                  media_type: 'application/pdf',
+                  data: pdfBase64
+                }
+              } as any,
+              {
+                type: 'text',
+                text: prompt
               }
+            ]
+
+            const response = await anthropic.messages.create({
+              model: nombreModelo,
+              max_tokens: 16000,
+              messages: [{
+                role: 'user',
+                content: content
+              }]
             })
 
-            const result = await model.generateContent([
-              prompt,
-              {
-                inlineData: {
-                  data: pdfBase64,
-                  mimeType: 'application/pdf'
-                }
-              }
-            ])
+            // Extraer texto de la respuesta
+            const contenido = response.content[0]
+            if (contenido.type !== 'text') {
+              throw new Error('Claude no devolvió texto')
+            }
 
-            const textoRespuesta = result.response.text()
-            let textoParaParsear = textoRespuesta.trim()
+            let textoParaParsear = contenido.text.trim()
 
+            // Extraer JSON si está envuelto en markdown
             if (!textoParaParsear.startsWith('{')) {
               const jsonMatch = textoParaParsear.match(/\{[\s\S]*\}/)
               if (jsonMatch) {
                 textoParaParsear = jsonMatch[0]
               } else {
-                throw new Error('Gemini no devolvió JSON válido')
+                throw new Error('Claude no devolvió JSON válido')
               }
             }
 
@@ -212,6 +195,7 @@ Ahora analiza este PDF y extrae TODOS los productos:`
             }
 
             modeloUsado = nombreModelo
+            console.log(`[Carga Masiva IA] ✅ ${nombreArchivo}: ${resultado.productos.length} productos extraídos con ${nombreModelo}`)
             break
           } catch (error: any) {
             console.warn(`[Carga Masiva IA] ⚠️ Modelo ${nombreModelo} falló:`, error.message)
@@ -220,7 +204,7 @@ Ahora analiza este PDF y extrae TODOS los productos:`
         }
 
         if (!resultado || !resultado.productos) {
-          throw new Error('No se pudieron extraer productos del PDF')
+          throw new Error('No se pudieron extraer productos del PDF con Claude')
         }
 
         console.log(`[Carga Masiva IA] ✅ ${nombreArchivo}: ${resultado.productos.length} productos extraídos`)
@@ -244,42 +228,238 @@ Ahora analiza este PDF y extrae TODOS los productos:`
           aprobado: false,
         }))
 
+        // Subir PDF a Strapi Media Library
+        let pdfId: number | string | null = null
+        let pdfUrl: string | null = null
+        
+        try {
+          console.log(`[Carga Masiva IA] 📤 Subiendo PDF a Strapi Media Library: ${nombreArchivo}`)
+          
+          // Convertir base64 a Buffer
+          const pdfBuffer = Buffer.from(pdfBase64, 'base64')
+          const pdfBlob = new Blob([pdfBuffer], { type: 'application/pdf' })
+          
+          // Crear FormData para subir el archivo
+          const uploadFormData = new FormData()
+          uploadFormData.append('files', pdfBlob, nombreArchivo)
+          
+          // Subir a Strapi Media Library usando fetch directamente
+          const strapiUrl = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.STRAPI_URL || 'https://strapi.moraleja.cl'
+          const uploadUrl = `${strapiUrl}/api/upload`
+          const uploadHeaders: HeadersInit = {
+            'Authorization': `Bearer ${process.env.STRAPI_API_TOKEN || ''}`,
+          }
+          
+          const uploadResponse = await fetch(uploadUrl, {
+            method: 'POST',
+            headers: uploadHeaders,
+            body: uploadFormData,
+          })
+          
+          if (uploadResponse.ok) {
+            const uploadResult = await uploadResponse.json()
+            if (uploadResult && Array.isArray(uploadResult) && uploadResult.length > 0) {
+              const uploadedFile = uploadResult[0]
+              pdfId = uploadedFile.id || uploadedFile.documentId
+              // Construir URL completa del PDF
+              pdfUrl = uploadedFile.url ? `${strapiUrl}${uploadedFile.url}` : null
+              console.log(`[Carga Masiva IA] ✅ PDF subido exitosamente: ID=${pdfId}, URL=${pdfUrl}`)
+            } else {
+              console.warn(`[Carga Masiva IA] ⚠️ Respuesta de upload inesperada:`, uploadResult)
+            }
+          } else {
+            const errorText = await uploadResponse.text()
+            console.error(`[Carga Masiva IA] ⚠️ Error al subir PDF a Strapi:`, {
+              status: uploadResponse.status,
+              error: errorText,
+            })
+          }
+        } catch (uploadError: any) {
+          console.error(`[Carga Masiva IA] ❌ Error al subir PDF a Strapi:`, uploadError)
+          // Continuar sin PDF, pero registrar el error
+        }
+
         // Crear versión de materiales
         const versionMaterial = {
           id: `version-${Date.now()}-${Math.random()}`,
           fecha_subida: new Date().toISOString(),
           fecha_actualizacion: new Date().toISOString(),
           nombre_archivo: nombreArchivo,
-          pdf_id: null, // Se puede subir el PDF después si es necesario
+          pdf_id: pdfId, // ID del PDF en Strapi Media Library
+          pdf_url: pdfUrl, // URL del PDF
           materiales: productosNormalizados,
           procesado_con_ia: true,
           fecha_procesamiento: new Date().toISOString(),
-        }
-
-        // Crear curso
-        const cursoData: any = {
-          data: {
-            nombre_curso: `${grado}° ${nivel}`,
-            colegio: { connect: [colegioId] },
-            nivel: nivel,
-            grado: String(grado),
-            año: año,
-            activo: true,
-            versiones_materiales: [versionMaterial],
+          activo: true, // Marcar como activa por defecto
+          metadata: {
+            url_original: archivo.url_original || null, // URL de la página de origen
           },
         }
 
-        const cursoResponse = await strapiClient.post<StrapiResponse<StrapiEntity<any>>>(
-          '/api/cursos',
-          cursoData
-        )
-
-        // Manejar respuesta que puede ser objeto único o array
-        const cursoCreado = Array.isArray(cursoResponse.data) 
-          ? cursoResponse.data[0] 
-          : cursoResponse.data
+        // Verificar si el curso ya existe
+        let cursoId: string | number | undefined = archivo.cursoId || undefined
         
-        const cursoId = cursoCreado?.id || cursoCreado?.documentId || undefined
+        if (!cursoId) {
+          // Buscar curso existente
+          try {
+            // Obtener ID numérico del colegio si es documentId
+            let colegioIdNum: number | string = colegioId
+            if (typeof colegioId === 'string' && !/^\d+$/.test(colegioId)) {
+              console.log(`[Carga Masiva IA] 🔍 Obteniendo ID numérico del colegio para búsqueda de curso: ${colegioId}`)
+              const colegioResponse = await strapiClient.get<any>(
+                `/api/colegios/${colegioId}?fields=id,documentId&publicationState=preview`
+              )
+              const colegioData = Array.isArray(colegioResponse.data) ? colegioResponse.data[0] : colegioResponse.data
+              const colegioAttrs = colegioData?.attributes || colegioData
+              colegioIdNum = colegioData?.id || colegioAttrs?.id || colegioId
+              console.log(`[Carga Masiva IA] 🔄 ID numérico para búsqueda: ${colegioIdNum}`)
+            }
+            
+            console.log(`[Carga Masiva IA] 🔍 Buscando curso existente: colegio=${colegioIdNum}, nivel=${nivel}, grado=${grado}, año=${año}`)
+            const buscarCursosResponse = await strapiClient.get<any>(
+              `/api/cursos?filters[colegio][id][$eq]=${colegioIdNum}&filters[nivel][$eq]=${nivel}&filters[grado][$eq]=${grado}&filters[anio][$eq]=${año}&fields[0]=id&fields[1]=documentId&pagination[pageSize]=1&publicationState=preview`
+            )
+            
+            const cursosExistentes = Array.isArray(buscarCursosResponse.data) 
+              ? buscarCursosResponse.data 
+              : [buscarCursosResponse.data]
+            
+            if (cursosExistentes.length > 0) {
+              const cursoExistente = cursosExistentes[0]
+              cursoId = cursoExistente.documentId || cursoExistente.id
+              console.log(`[Carga Masiva IA] ✅ Curso existente encontrado: ${cursoId}`)
+            } else {
+              console.log(`[Carga Masiva IA] ℹ️ No se encontró curso existente, se creará uno nuevo`)
+            }
+          } catch (error: any) {
+            console.error(`[Carga Masiva IA] ❌ Error buscando curso existente:`, error)
+            // Continuar para crear curso nuevo
+          }
+        } else {
+          console.log(`[Carga Masiva IA] ℹ️ Usando cursoId proporcionado: ${cursoId}`)
+        }
+
+        if (cursoId) {
+          // Actualizar curso existente: agregar nueva versión a versiones_materiales
+          console.log(`[Carga Masiva IA] 🔄 Actualizando curso existente: ${cursoId}`)
+          
+          try {
+            // Obtener curso actual para obtener versiones existentes
+            const cursoActualResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+              `/api/cursos/${cursoId}?publicationState=preview`
+            )
+            
+            const cursoActual = Array.isArray(cursoActualResponse.data) 
+              ? cursoActualResponse.data[0] 
+              : cursoActualResponse.data
+            
+            const attrs = cursoActual?.attributes || cursoActual
+            const versionesExistentes = attrs?.versiones_materiales || []
+            
+            // Agregar nueva versión al array existente
+            const nuevasVersiones = Array.isArray(versionesExistentes) 
+              ? [...versionesExistentes, versionMaterial]
+              : [versionMaterial]
+            
+            // Actualizar curso con nuevas versiones
+            const updateData = {
+              data: {
+                versiones_materiales: nuevasVersiones,
+              },
+            }
+            
+            await strapiClient.put<StrapiResponse<StrapiEntity<any>>>(
+              `/api/cursos/${cursoId}`,
+              updateData
+            )
+            
+            console.log(`[Carga Masiva IA] ✅ Curso actualizado: ${cursoId} (${nuevasVersiones.length} versiones)`)
+          } catch (error: any) {
+            console.error(`[Carga Masiva IA] ❌ Error actualizando curso ${cursoId}:`, error)
+            throw new Error(`Error al actualizar curso: ${error.message}`)
+          }
+        } else {
+          // Crear curso nuevo
+          console.log(`[Carga Masiva IA] ➕ Creando nuevo curso`)
+          
+          // Obtener ID numérico del colegio si es documentId
+          let colegioIdNum: number | string | null = null
+          
+          // Si es un número, usarlo directamente
+          if (typeof colegioId === 'number' || (typeof colegioId === 'string' && /^\d+$/.test(colegioId))) {
+            colegioIdNum = typeof colegioId === 'number' ? colegioId : parseInt(colegioId, 10)
+            console.log(`[Carga Masiva IA] 🔄 Usando ID numérico directo: ${colegioIdNum}`)
+          } else {
+            // Es un documentId, necesitamos obtener el ID numérico
+            try {
+              console.log(`[Carga Masiva IA] 🔍 Obteniendo ID numérico del colegio con documentId: ${colegioId}`)
+              const colegioResponse = await strapiClient.get<any>(
+                `/api/colegios/${colegioId}?fields=id,documentId&publicationState=preview`
+              )
+              const colegioData = Array.isArray(colegioResponse.data) ? colegioResponse.data[0] : colegioResponse.data
+              const colegioAttrs = colegioData?.attributes || colegioData
+              
+              if (colegioData && colegioAttrs) {
+                colegioIdNum = colegioData.id || colegioAttrs.id || null
+                console.log(`[Carga Masiva IA] ✅ ID numérico obtenido: ${colegioIdNum}`)
+                
+                if (!colegioIdNum) {
+                  throw new Error('No se pudo obtener el ID numérico del colegio desde la respuesta')
+                }
+              } else {
+                throw new Error('Colegio no encontrado en la respuesta de Strapi')
+              }
+            } catch (error: any) {
+              console.error(`[Carga Masiva IA] ❌ Error obteniendo ID numérico del colegio:`, error)
+              throw new Error(`Error al obtener ID del colegio: ${error.message}`)
+            }
+          }
+          
+          // Validar que tenemos un ID numérico válido
+          if (!colegioIdNum || (typeof colegioIdNum === 'string' && !/^\d+$/.test(colegioIdNum))) {
+            throw new Error(`ID de colegio inválido: ${colegioIdNum}`)
+          }
+          
+          // Asegurar que es un número
+          const colegioIdFinal = typeof colegioIdNum === 'number' ? colegioIdNum : parseInt(colegioIdNum, 10)
+          
+          console.log(`[Carga Masiva IA] 🔄 Creando curso con colegio ID: ${colegioIdFinal} (tipo: ${typeof colegioIdFinal})`)
+          
+          const cursoData: any = {
+            data: {
+              nombre_curso: `${grado}° ${nivel}`,
+              colegio: { connect: [colegioIdFinal] }, // Usar ID numérico para la relación
+              nivel: nivel,
+              grado: String(grado),
+              anio: año, // Strapi usa "anio" sin tilde
+              activo: true,
+              versiones_materiales: [versionMaterial],
+            },
+          }
+
+          try {
+            const cursoResponse = await strapiClient.post<StrapiResponse<StrapiEntity<any>>>(
+              '/api/cursos',
+              cursoData
+            )
+
+            // Manejar respuesta que puede ser objeto único o array
+            const cursoCreado = Array.isArray(cursoResponse.data) 
+              ? cursoResponse.data[0] 
+              : cursoResponse.data
+            
+            cursoId = cursoCreado?.id || cursoCreado?.documentId || undefined
+            
+            if (!cursoId) {
+              throw new Error('No se recibió ID del curso creado')
+            }
+            
+            console.log(`[Carga Masiva IA] ✅ Curso creado exitosamente: ${cursoId}`)
+          } catch (error: any) {
+            console.error(`[Carga Masiva IA] ❌ Error al crear curso:`, error)
+            throw new Error(`Error al crear curso: ${error.message || 'Error desconocido'}`)
+          }
+        }
 
         resultados.push({
           archivo: nombreArchivo,

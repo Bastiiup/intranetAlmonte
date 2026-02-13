@@ -1,0 +1,51 @@
+﻿{
+    "id":  223663,
+    "documentId":  "q8a8gps2zh0xqrutmb2cmj7k",
+    "nombre":  "4?? B??sico",
+    "nivel":  "Basica",
+    "grado":  4,
+    "a??o":  2026,
+    "descripcion":  "Curso: 4?? B??sico",
+    "activo":  true,
+    "pdf_id":  131,
+    "pdf_url":  "https://media.moraleja.cl/cuarto_basico2025_copia_dde83552a1.pdf",
+    "pdf_nombre":  "Matem??ticas",
+    "colegio":  {
+                    "id":  1760,
+                    "nombre":  "American Academy",
+                    "rbd":  10611,
+                    "direccion":  "",
+                    "comuna":  "",
+                    "region":  "Metropolitana de Santiago",
+                    "telefono":  "56228584200"
+                },
+    "createdAt":  "2026-01-29T18:34:01.024Z",
+    "updatedAt":  "2026-01-30T14:15:06.664Z",
+    "curso":  {
+                  "id":  223663,
+                  "nombre":  "4?? B??sico"
+              },
+    "materiales":  [
+                       {
+                           "isbn":  null,
+                           "marca":  null,
+                           "imagen":  null,
+                           "nombre":  "Cuaderno de Matem??ticas cuadriculado",
+                           "precio":  0,
+                           "comprar":  true,
+                           "cantidad":  1,
+                           "asignatura":  "Matem??ticas",
+                           "coordenadas":  null,
+                           "descripcion":  null,
+                           "disponibilidad":  "no_encontrado",
+                           "orden_producto":  1,
+                           "stock_quantity":  null,
+                           "woocommerce_id":  null,
+                           "woocommerce_sku":  null,
+                           "orden_asignatura":  null,
+                           "precio_woocommerce":  null,
+                           "encontrado_en_woocommerce":  false
+                       }
+                   ],
+    "versiones":  2
+}

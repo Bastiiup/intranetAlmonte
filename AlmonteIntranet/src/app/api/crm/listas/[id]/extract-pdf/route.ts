@@ -96,13 +96,9 @@ async function extractTextFromPDF(pdfBuffer: Buffer): Promise<string> {
         }
         
         if (pdfjs && pdfjs.GlobalWorkerOptions) {
-          // Configurar el worker usando la ruta del archivo en node_modules
-          const workerPath = path.resolve(
-            require.resolve('pdfjs-dist/package.json'),
-            '../build/pdf.worker.min.js'
-          )
-          pdfjs.GlobalWorkerOptions.workerSrc = workerPath
-          debugLogExtract('✅ Worker configurado:', workerPath)
+          // Deshabilitar worker en servidor (no es necesario para pdf-parse)
+          pdfjs.GlobalWorkerOptions.workerSrc = ''
+          debugLogExtract('✅ Worker deshabilitado (no necesario en servidor)')
         }
       } catch (pdfjsError: any) {
         debugLogExtract('⚠️ No se pudo configurar pdfjs-dist, continuando...', pdfjsError.message)

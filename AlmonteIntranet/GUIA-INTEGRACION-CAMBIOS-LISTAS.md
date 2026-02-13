@@ -160,7 +160,7 @@ ls src/app/(admin)/(apps)/crm/listas/logs/components/LogsViewer.tsx
 Asegúrate de que tu archivo `.env.local` tenga:
 
 ```env
-GEMINI_API_KEY=AIzaSyB_5goHo1ci1l588RER49_oUbXCrLAn3YA
+GEMINI_API_KEY=tu_api_key_aqui
 NEXT_PUBLIC_STRAPI_URL=https://strapi.moraleja.cl
 STRAPI_API_TOKEN=<tu-token>
 ```

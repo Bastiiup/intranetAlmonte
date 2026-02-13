@@ -42,6 +42,7 @@ interface ColegioType {
   createdAt?: string
   estado?: string
   createdAtTimestamp?: number
+  total_matriculados?: number | null
 }
 
 const columnHelper = createColumnHelper<ColegioType>()
@@ -256,6 +257,7 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
         estado: data.estado || data.ESTADO || '',
         createdAt,
         createdAtTimestamp: createdDate.getTime(),
+        total_matriculados: colegio.total_matriculados ?? data.total_matriculados ?? null,
       }
     })
   }, [colegios])
@@ -308,9 +310,16 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
                   {colegio.nombre}
                 </h5>
               </Link>
-              {colegio.tipo && (
-                <span className="badge badge-soft-info">{colegio.tipo}</span>
-              )}
+              <div className="d-flex align-items-center gap-2 flex-wrap">
+                {colegio.rbd && (
+                  <span className="badge badge-soft-secondary" style={{ fontSize: '11px' }}>
+                    RBD: {colegio.rbd}
+                  </span>
+                )}
+                {colegio.tipo && (
+                  <span className="badge badge-soft-info">{colegio.tipo}</span>
+                )}
+              </div>
             </div>
           </div>
         )
@@ -400,6 +409,34 @@ const ColegiosListing = ({ colegios: initialColegios, error: initialError }: { c
             <LuUsers className="me-1 text-muted" size={16} />
             <span>{colegio.contactosCount || 0}</span>
           </div>
+        )
+      },
+    },
+    {
+      id: 'matriculados',
+      header: 'MATRICULADOS',
+      accessorKey: 'total_matriculados',
+      enableSorting: true,
+      cell: ({ row }) => {
+        const cantidad = row.original.total_matriculados
+        if (cantidad === null || cantidad === undefined) {
+          return (
+            <span className="badge badge-soft-secondary fs-xs">
+              No disponible
+            </span>
+          )
+        }
+        if (cantidad > 0) {
+          return (
+            <span className="badge badge-soft-warning fs-xs">
+              {cantidad.toLocaleString('es-CL')} estudiantes
+            </span>
+          )
+        }
+        return (
+          <span className="badge badge-soft-secondary fs-xs">
+            0 estudiantes
+          </span>
         )
       },
     },

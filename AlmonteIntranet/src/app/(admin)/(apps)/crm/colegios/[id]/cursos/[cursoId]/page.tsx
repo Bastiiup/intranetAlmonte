@@ -394,11 +394,15 @@ export default function CursoDetailPage() {
                             })
                           : fechaSubida
                         const materialesVersion = version.materiales || []
+                        const estaActiva = version.activo !== false
                         
                         return (
-                          <tr key={version.id || index}>
+                          <tr key={version.id || index} style={{ opacity: estaActiva ? 1 : 0.6 }}>
                             <td>
-                              <Badge bg="primary">{index + 1}</Badge>
+                              <Badge bg={estaActiva ? "primary" : "secondary"}>{index + 1}</Badge>
+                              {!estaActiva && (
+                                <Badge bg="warning" className="ms-1" title="Versión inactiva/oculta">Oculta</Badge>
+                              )}
                             </td>
                             <td className="fw-semibold">
                               <LuFileText className="me-1" />
@@ -415,6 +419,79 @@ export default function CursoDetailPage() {
                             </td>
                             <td>
                               <div className="d-flex justify-content-end gap-2">
+                                {estaActiva ? (
+                                  <Button
+                                    variant="outline-warning"
+                                    size="sm"
+                                    onClick={async () => {
+                                      const confirmar = window.confirm(
+                                        `¿Estás seguro de que deseas ocultar esta versión?\n\n` +
+                                        `Versión: ${version.nombre_archivo || 'Sin nombre'}\n` +
+                                        `Fecha: ${fechaSubida}\n\n` +
+                                        `La versión quedará oculta pero no se eliminará.`
+                                      )
+                                      if (!confirmar) return
+                                      
+                                      try {
+                                        const response = await fetch(`/api/crm/cursos/${cursoId}`, {
+                                          method: 'PUT',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({
+                                            versiones_materiales: curso.versiones_materiales.map((v: any) => 
+                                              v.id === version.id || (v.fecha_subida === version.fecha_subida && v.nombre_archivo === version.nombre_archivo)
+                                                ? { ...v, activo: false }
+                                                : v
+                                            )
+                                          })
+                                        })
+                                        
+                                        if (response.ok) {
+                                          alert('Versión ocultada correctamente')
+                                          router.refresh()
+                                        } else {
+                                          throw new Error('Error al ocultar la versión')
+                                        }
+                                      } catch (error: any) {
+                                        alert('Error: ' + error.message)
+                                      }
+                                    }}
+                                    title="Ocultar versión (marcar como inactiva)"
+                                  >
+                                    <LuX size={14} />
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="outline-success"
+                                    size="sm"
+                                    onClick={async () => {
+                                      try {
+                                        const response = await fetch(`/api/crm/cursos/${cursoId}`, {
+                                          method: 'PUT',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({
+                                            versiones_materiales: curso.versiones_materiales.map((v: any) => 
+                                              v.id === version.id || (v.fecha_subida === version.fecha_subida && v.nombre_archivo === version.nombre_archivo)
+                                                ? { ...v, activo: true }
+                                                : v
+                                            )
+                                          })
+                                        })
+                                        
+                                        if (response.ok) {
+                                          alert('Versión activada correctamente')
+                                          router.refresh()
+                                        } else {
+                                          throw new Error('Error al activar la versión')
+                                        }
+                                      } catch (error: any) {
+                                        alert('Error: ' + error.message)
+                                      }
+                                    }}
+                                    title="Activar versión"
+                                  >
+                                    <LuCheck size={14} />
+                                  </Button>
+                                )}
                                 <Button
                                   variant="outline-primary"
                                   size="sm"

@@ -319,7 +319,7 @@ GET http://localhost:3000/api/crm/listas/test-gemini
 Agregar en `.env.local`:
 
 ```env
-GEMINI_API_KEY=AIzaSyAhX5ME_MGEwIaMsvO0Ab7SnkA38BuEJi0
+GEMINI_API_KEY=tu_api_key_aqui
 ```
 
 **Nota:** La API key está hardcodeada como fallback, pero se recomienda usar la variable de entorno.

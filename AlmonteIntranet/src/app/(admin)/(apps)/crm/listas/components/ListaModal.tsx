@@ -52,6 +52,7 @@ interface ListaModalProps {
 interface ColegioOption {
   value: number | string
   label: string
+  rbd?: number | string
 }
 
 interface CursoOption {
@@ -123,7 +124,8 @@ export default function ListaModal({ show, onHide, lista, onSuccess }: ListaModa
       if (result.success && Array.isArray(result.data)) {
         const opciones = result.data.map((colegio: any) => ({
           value: colegio.id || colegio.documentId,
-          label: colegio.colegio_nombre || colegio.nombre || 'Sin nombre',
+          label: `${colegio.colegio_nombre || colegio.nombre || 'Sin nombre'}${colegio.rbd ? ` (RBD: ${colegio.rbd})` : ''}`,
+          rbd: colegio.rbd,
         }))
         // Ordenar alfabéticamente
         opciones.sort((a: ColegioOption, b: ColegioOption) => a.label.localeCompare(b.label))
@@ -146,13 +148,12 @@ export default function ListaModal({ show, onHide, lista, onSuccess }: ListaModa
         const opciones = result.data.map((curso: any) => {
           const attrs = curso.attributes || curso
           const nombreCurso = attrs.nombre_curso || attrs.curso_nombre || 'Sin nombre'
-          const paralelo = attrs.paralelo ? ` ${attrs.paralelo}` : ''
           // Preferir documentId si está disponible (más confiable en Strapi con draftAndPublish)
           // Si no, usar id numérico
           const cursoId = curso.documentId || curso.id || (curso.data && (curso.data.documentId || curso.data.id))
           return {
             value: cursoId,
-            label: `${nombreCurso}${paralelo}`,
+            label: nombreCurso,
             colegioId,
           }
         })
@@ -310,8 +311,19 @@ export default function ListaModal({ show, onHide, lista, onSuccess }: ListaModa
                       setSelectedColegioId(option?.value || null)
                     }}
                     isLoading={loadingColegios}
-                    placeholder="Seleccionar colegio..."
+                    placeholder="Seleccionar colegio (puede buscar por nombre o RBD)..."
                     isSearchable
+                    filterOption={(option, searchText) => {
+                      const label = option.label.toLowerCase()
+                      const search = searchText.toLowerCase()
+                      // Buscar por nombre o RBD
+                      const matchNombre = label.includes(search)
+                      const matchRBD = option.data?.rbd ? String(option.data.rbd).includes(search) : false
+                      return matchNombre || matchRBD
+                    }}
+                    noOptionsMessage={({ inputValue }) => 
+                      inputValue ? `No se encontró colegio con "${inputValue}". Puede crear uno nuevo desde el módulo de Colegios.` : 'No hay colegios disponibles'
+                    }
                   />
                 </FormGroup>
               </Col>

@@ -390,7 +390,7 @@ Agregar en `.env.local`:
 
 ```env
 # Gemini AI (requerida para extracción de PDF)
-GEMINI_API_KEY=AIzaSyAhX5ME_MGEwIaMsvO0Ab7SnkA38BuEJi0
+GEMINI_API_KEY=tu_api_key_aqui
 
 # WooCommerce (ya existentes)
 NEXT_PUBLIC_WOOCOMMERCE_URL=...

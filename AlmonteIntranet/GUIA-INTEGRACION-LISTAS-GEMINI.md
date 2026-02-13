@@ -134,7 +134,7 @@ Agrega estas variables si no las tienes:
 
 ```env
 # Gemini AI
-GEMINI_API_KEY=AIzaSyDeibOMGmbVhKrrggR2ROAjn38WuK02IFI
+GEMINI_API_KEY=tu_api_key_aqui
 
 # Strapi (ya deberías tenerlas)
 NEXT_PUBLIC_STRAPI_URL=https://strapi.moraleja.cl

@@ -11,7 +11,7 @@ Esta funcionalidad utiliza Google Gemini AI para procesar PDFs de listas de úti
 Agregar la siguiente variable en tu archivo `.env.local`:
 
 ```env
-GEMINI_API_KEY=AIzaSyAhX5ME_MGEwIaMsvO0Ab7SnkA38BuEJi0
+GEMINI_API_KEY=tu_api_key_aqui
 ```
 
 ### Opción 2: Fallback en Código

@@ -12,11 +12,14 @@ export const runtime = 'nodejs'
 // Validación de API key se hace dentro de la función GET
 
 // Modelos principales (fallbacks si la API no retorna modelos)
+// Modelos verificados que existen en la API v1beta de Gemini
 const MODELOS_PRINCIPALES = [
-  'gemini-2.5-flash',      // Primero: más rápido y disponible
-  'gemini-2.5-flash-lite', // Segundo: versión lite
-  'gemini-1.5-flash',      // Fallback antiguo
-  'gemini-1.5-pro',        // Fallback antiguo
+  'gemini-1.5-flash',      // Modelo flash más estable y disponible (gratuito)
+  'gemini-1.5-flash-latest', // Versión latest del flash
+  'gemini-1.5-pro',        // Modelo pro (puede requerir plan de pago)
+  'gemini-1.5-pro-latest', // Versión latest del pro
+  // NOTA: gemini-2.5-flash y gemini-2.5-flash-lite dan 404 (no disponibles en v1beta)
+  // NOTA: Usamos modelos 1.5 que son estables y están disponibles
 ]
 
 export async function GET(request: NextRequest) {

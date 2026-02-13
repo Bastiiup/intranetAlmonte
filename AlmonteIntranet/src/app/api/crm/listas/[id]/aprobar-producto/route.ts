@@ -4,8 +4,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { getColaboradorFromCookies } from '@/lib/auth/cookies'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import { buscarProductoFlexible } from '@/lib/utils/productos'
+import { obtenerFechaChileISO } from '@/lib/utils/dates'
+import { normalizarCursoStrapi, obtenerUltimaVersion } from '@/lib/utils/strapi'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -15,6 +19,19 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Validación de permisos
+    const colaborador = await getColaboradorFromCookies()
+    if (!colaborador) {
+      console.error('[Aprobar Producto] ❌ Usuario no autenticado')
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'No autorizado. Debes iniciar sesión para aprobar productos.',
+        },
+        { status: 401 }
+      )
+    }
+
     const { id } = await params
     const body = await request.json()
     const { productoId, productoNombre, productoIndex, aprobado } = body
@@ -94,15 +111,21 @@ export async function POST(
       )
     }
 
-    const attrs = curso.attributes || curso
-    const versiones = attrs.versiones_materiales || []
-    const ultimaVersion = versiones.length > 0 
-      ? versiones.sort((a: any, b: any) => {
-          const fechaA = new Date(a.fecha_actualizacion || a.fecha_subida || 0).getTime()
-          const fechaB = new Date(b.fecha_actualizacion || b.fecha_subida || 0).getTime()
-          return fechaB - fechaA
-        })[0]
-      : null
+    // Normalizar curso de Strapi
+    const cursoNormalizado = normalizarCursoStrapi(curso)
+    if (!cursoNormalizado) {
+      console.error('[Aprobar Producto] ❌ Error al normalizar curso')
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Error al procesar los datos del curso',
+        },
+        { status: 500 }
+      )
+    }
+
+    const versiones = cursoNormalizado.versiones_materiales || []
+    const ultimaVersion = obtenerUltimaVersion(versiones)
 
     if (!ultimaVersion) {
       return NextResponse.json(
@@ -118,58 +141,26 @@ export async function POST(
     const materiales = ultimaVersion.materiales || []
     
     console.log('[Aprobar Producto] 📋 Materiales disponibles:', materiales.length)
-    console.log('[Aprobar Producto] 📋 Primeros materiales:', materiales.slice(0, 3).map((m: any, i: number) => ({
-      index: i,
-      id: m.id,
-      nombre: m.nombre,
-      todas_las_keys: Object.keys(m)
-    })))
     
-    // Buscar por múltiples criterios (ID, nombre, índice)
-    let materialIndex = -1
-    
-    // 1. Intentar por ID exacto
-    if (materialIndex === -1) {
-      materialIndex = materiales.findIndex((m: any) => 
-        m.id === productoId || 
-        String(m.id) === String(productoId)
-      )
-    }
-    
-    // 2. Intentar por nombre (si se proporcionó)
-    if (materialIndex === -1 && productoNombre) {
-      materialIndex = materiales.findIndex((m: any) => 
-        m.nombre === productoNombre ||
-        (m.nombre && m.nombre.trim().toLowerCase() === productoNombre.trim().toLowerCase())
-      )
-    }
-    
-    // 3. Intentar por índice (si se proporcionó)
-    if (materialIndex === -1 && productoIndex !== undefined && productoIndex >= 0 && productoIndex < materiales.length) {
-      materialIndex = productoIndex
-    }
-    
-    // 4. Último intento: buscar por nombre parcial o ID como string
-    if (materialIndex === -1) {
-      materialIndex = materiales.findIndex((m: any) => {
-        const mId = String(m.id || '')
-        const mNombre = String(m.nombre || '').toLowerCase()
-        const searchId = String(productoId).toLowerCase()
-        const searchNombre = productoNombre ? String(productoNombre).toLowerCase() : ''
-        
-        return mId.includes(searchId) || 
-               mNombre.includes(searchNombre) ||
-               searchNombre.includes(mNombre)
-      })
-    }
+    // Buscar producto usando función normalizada
+    const material = buscarProductoFlexible(
+      materiales,
+      productoId,
+      productoNombre,
+      productoIndex
+    )
 
-    if (materialIndex === -1) {
+    if (!material) {
       console.error('[Aprobar Producto] ❌ Producto no encontrado. Buscado:', {
         productoId,
         productoNombre,
         productoIndex,
         materialesCount: materiales.length,
-        materialesIds: materiales.map((m: any, i: number) => ({ index: i, id: m.id, nombre: m.nombre }))
+        materialesIds: materiales.slice(0, 5).map((m: any, i: number) => ({ 
+          index: i, 
+          id: m.id, 
+          nombre: m.nombre 
+        }))
       })
       return NextResponse.json(
         {
@@ -181,16 +172,18 @@ export async function POST(
       )
     }
 
-    console.log('[Aprobar Producto] ✅ Producto encontrado en índice:', materialIndex, {
-      materialId: materiales[materialIndex]?.id,
-      materialNombre: materiales[materialIndex]?.nombre
+    const materialIndex = materiales.indexOf(material)
+    console.log('[Aprobar Producto] ✅ Producto encontrado:', {
+      index: materialIndex,
+      id: material.id,
+      nombre: material.nombre
     })
 
     // Actualizar el estado de aprobación del producto
     materiales[materialIndex] = {
-      ...materiales[materialIndex],
+      ...material,
       aprobado: aprobado === true,
-      fecha_aprobacion: aprobado ? new Date().toISOString() : null,
+      fecha_aprobacion: aprobado ? obtenerFechaChileISO() : null,
     }
 
     // Actualizar la última versión con los materiales modificados
@@ -204,7 +197,7 @@ export async function POST(
         return {
           ...v,
           materiales: materiales,
-          fecha_actualizacion: new Date().toISOString(),
+          fecha_actualizacion: obtenerFechaChileISO(),
         }
       }
       return v
@@ -222,28 +215,61 @@ export async function POST(
       )
     }
 
-    const updateData = {
+    // Verificar si todos los productos están aprobados
+    const todosAprobados = materiales.every((m: any) => m.aprobado === true)
+    const listaAprobada = todosAprobados && materiales.length > 0
+    const estadoActual = cursoNormalizado.estado_revision
+
+    // Preparar datos de actualización (combinar versiones y estado en una sola llamada)
+    const updateData: any = {
       data: {
         versiones_materiales: versionesActualizadas,
       },
     }
 
-    console.log('[Aprobar Producto] 💾 Guardando en Strapi...')
-    const response = await strapiClient.put<any>(`/api/cursos/${cursoDocumentId}`, updateData)
-
-    if ((response as any)?.error) {
-      throw new Error(`Strapi devolvió un error: ${JSON.stringify((response as any).error)}`)
+    // Intentar incluir estado_revision si es necesario (puede fallar si el campo no existe)
+    if (listaAprobada || (aprobado === false && estadoActual === 'revisado')) {
+      if (listaAprobada) {
+        updateData.data.estado_revision = 'revisado'
+        updateData.data.fecha_revision = obtenerFechaChileISO()
+        console.log('[Aprobar Producto] 📝 Incluyendo estado_revision: "revisado"')
+      } else if (aprobado === false && estadoActual === 'revisado') {
+        updateData.data.estado_revision = 'borrador'
+        console.log('[Aprobar Producto] 📝 Incluyendo estado_revision: "borrador"')
+      }
     }
 
-    // Verificar si todos los productos están aprobados
-    const todosAprobados = materiales.every((m: any) => m.aprobado === true)
-    const listaAprobada = todosAprobados && materiales.length > 0
+    console.log('[Aprobar Producto] 💾 Guardando en Strapi...')
+    
+    try {
+      const response = await strapiClient.put<any>(`/api/cursos/${cursoDocumentId}`, updateData)
 
-    // NO intentar actualizar lista_aprobada ni fecha_aprobacion_lista porque no existen en el modelo de Strapi
-    // El estado de aprobación de la lista se determina verificando si todos los productos están aprobados
-    if (listaAprobada) {
-      console.log('[Aprobar Producto] ✅ Todos los productos están aprobados (lista completa aprobada)')
-      console.log('[Aprobar Producto] ℹ️ Nota: Los campos lista_aprobada y fecha_aprobacion_lista no están disponibles en el modelo de Strapi')
+      if ((response as any)?.error) {
+        throw new Error(`Strapi devolvió un error: ${JSON.stringify((response as any).error)}`)
+      }
+
+      console.log('[Aprobar Producto] ✅ Datos guardados exitosamente')
+    } catch (error: any) {
+      // Si falla por estado_revision, intentar solo con versiones_materiales
+      if (error.message?.includes('estado_revision') || error.message?.includes('Invalid key')) {
+        console.warn('[Aprobar Producto] ⚠️ estado_revision no existe, guardando solo versiones_materiales')
+        
+        const updateDataSinEstado = {
+          data: {
+            versiones_materiales: versionesActualizadas,
+          },
+        }
+        
+        const response = await strapiClient.put<any>(`/api/cursos/${cursoDocumentId}`, updateDataSinEstado)
+        
+        if ((response as any)?.error) {
+          throw new Error(`Strapi devolvió un error: ${JSON.stringify((response as any).error)}`)
+        }
+        
+        console.log('[Aprobar Producto] ✅ Versiones guardadas (sin estado_revision)')
+      } else {
+        throw error
+      }
     }
 
     console.log('[Aprobar Producto] ✅ Producto aprobado exitosamente')
@@ -262,12 +288,18 @@ export async function POST(
     }, { status: 200 })
 
   } catch (error: any) {
-    console.error('[Aprobar Producto] ❌ Error:', error)
+    console.error('[Aprobar Producto] ❌ Error:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    })
+    
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Error al aprobar el producto',
-        details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+        error: 'Error al aprobar el producto. Por favor, intenta nuevamente.',
+        detalles: error instanceof Error ? error.message : 'Error desconocido',
+        ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
       },
       { status: 500 }
     )

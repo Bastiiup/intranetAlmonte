@@ -217,6 +217,7 @@ export const menuItems: MenuItemType[] = [
   { key: 'chat', label: 'Chat', icon: LuMessageSquareDot, url: '/chat' },
   { key: 'logs', label: 'Logs de Actividades', icon: LuFileText, url: '/logs', roles: ['super_admin', 'supervisor', 'soporte'] },
   { key: 'tienda-test', label: 'Test Strapi', url: '/tienda/test-strapi' },
+  { key: 'debug-productos', label: 'Debug Productos', url: '/debug/productos', roles: ['super_admin', 'encargado_adquisiciones'] },
   { key: 'equipos-section', label: 'EQUIPOS', isTitle: true },
   {
     key: 'equipos',
