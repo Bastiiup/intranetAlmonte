@@ -138,7 +138,7 @@ export const maxDuration = 300
 // Sonnet: Más preciso, ideal para PDFs complejos o pequeños
 // Haiku: Más rápido y económico, ideal para PDFs grandes
 const CLAUDE_MODEL_SONNET = 'claude-sonnet-4-20250514'
-const CLAUDE_MODEL_HAIKU = 'claude-3-5-haiku-20241022'
+const CLAUDE_MODEL_HAIKU = 'claude-haiku-4-5-20251001'
 
 // Umbral de páginas para cambiar de modelo
 const PAGINAS_UMBRAL_HAIKU = 6 // PDFs > 6 páginas usan Haiku (más rápido)

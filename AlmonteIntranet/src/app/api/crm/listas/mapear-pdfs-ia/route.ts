@@ -13,7 +13,7 @@ export const runtime = 'nodejs'
 export const maxDuration = 30
 
 const MODELOS = [
-  'claude-3-5-haiku-20241022',    // Más rápido y económico
+  'claude-haiku-4-5-20251001',   // Haiku 4.5 (reemplazo de 3.5 Haiku deprecado)
   'claude-sonnet-4-20250514',     // Más preciso
   'claude-3-5-sonnet-20241022',   // Fallback
 ]

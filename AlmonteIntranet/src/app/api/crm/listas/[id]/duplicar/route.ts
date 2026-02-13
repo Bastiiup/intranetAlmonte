@@ -61,7 +61,6 @@ export async function POST(
         'filters[documentId][$eq]': String(id),
         'publicationState': 'preview',
         'populate[colegio]': 'true',
-        'populate[versiones_materiales]': 'true',
       })
       const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>[]>>(
         `/api/cursos?${paramsDocId.toString()}`
@@ -84,7 +83,7 @@ export async function POST(
       if (isNumeric) {
         try {
           const cursoResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
-            `/api/cursos/${id}?publicationState=preview&populate[colegio]=true&populate[versiones_materiales]=true`
+            `/api/cursos/${id}?publicationState=preview&populate[colegio]=true`
           )
 
           if (cursoResponse.data) {
