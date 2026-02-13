@@ -326,16 +326,13 @@ export async function POST(request: NextRequest) {
             return { success: false, reason: 'missing_id' }
           }
           
-          // Calcular fechas: fecha_creacion = hoy, fecha_vencimiento = hoy + 18 meses
+          // Calcular fecha_vencimiento = hoy + 18 meses
           const hoy = new Date()
-          const fechaCreacion = hoy.toISOString().split('T')[0] // YYYY-MM-DD
-          
-          // Sumar 18 meses a la fecha actual
           const fechaVencimiento = new Date(hoy)
           fechaVencimiento.setMonth(fechaVencimiento.getMonth() + 18)
           const fechaVencimientoStr = fechaVencimiento.toISOString().split('T')[0] // YYYY-MM-DD
           
-          console.log(`[IMPORTAR] Fechas calculadas - Creacion: ${fechaCreacion}, Vencimiento: ${fechaVencimientoStr} (18 meses desde hoy)`)
+          console.log(`[IMPORTAR] Fecha vencimiento: ${fechaVencimientoStr} (18 meses desde hoy)`)
           
           const payload = {
             data: {
@@ -343,7 +340,6 @@ export async function POST(request: NextRequest) {
               libro_mira: libroMiraId, // ID directo (puede ser número o documentId string)
               numeral: licencia.numeral ?? 0,
               activa: true,
-              fecha_creacion: fechaCreacion,
               fecha_vencimiento: fechaVencimientoStr,
             },
           }
