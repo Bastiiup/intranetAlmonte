@@ -20,7 +20,8 @@ const strapiUrl = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.STRAPI_URL |
  */
 function buildNombreCursoFromLabel(label: string, año: number): string {
   let s = label.replace(/\s+/g, ' ').trim()
-  // Quitar año al final si ya viene (2026, 2027, etc.) para no duplicar
+  // Quitar año al final si ya viene (" - 2026" o " 2026") para no duplicar
+  s = s.replace(/\s*-\s*\d{4}\s*$/, '').trim()
   s = s.replace(/\s*\d{4}\s*$/, '').trim()
   // Normalizar símbolo de grado: º → °
   s = s.replace(/º/g, '°')

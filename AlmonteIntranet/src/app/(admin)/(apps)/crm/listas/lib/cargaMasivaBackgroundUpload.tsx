@@ -27,8 +27,8 @@ export function startCargaMasivaUpload(
   if (total === 0) return
 
   toast(
-    'La carga continúa en segundo plano. Puedes cerrar esta ventana, minimizar o cambiar de página.',
-    { duration: 6000, position: 'top-right', icon: '📤' }
+    'La carga continúa en segundo plano. Puedes cerrar el modal o cambiar de página. No recargues (F5) o se interrumpirá.',
+    { duration: 8000, position: 'top-right', icon: '📤' }
   )
 
   let successCount = 0

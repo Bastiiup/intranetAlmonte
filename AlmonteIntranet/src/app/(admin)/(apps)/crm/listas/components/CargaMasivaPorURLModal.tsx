@@ -49,6 +49,15 @@ interface ProcessedItem extends ScrapedItem {
   mensaje?: string
 }
 
+/** Formato "1° Básico - 2026" (con guión antes del año) en lugar de "1° Básico 2026" */
+function formatLabelConAño(label: string, año: number): string {
+  let s = label.replace(/\s+/g, ' ').trim()
+  s = s.replace(/º/g, '°')
+  s = s.replace(/\bBásicos\b/gi, 'Básico').replace(/\bMedios\b/gi, 'Medio')
+  s = s.replace(/\s*-\s*\d{4}\s*$/, '').replace(/\s*\d{4}\s*$/, '').trim()
+  return s ? `${s} - ${año}` : `${año}`
+}
+
 export default function CargaMasivaPorURLModal({
   show,
   onHide,
@@ -142,6 +151,8 @@ export default function CargaMasivaPorURLModal({
       }
       const items: ProcessedItem[] = (json.data || []).map((x: ScrapedItem) => ({
         ...x,
+        label: formatLabelConAño(x.label, año),
+        courseName: formatLabelConAño(x.label, año),
         estado: 'pendiente' as const,
       }))
       setScrapedItems(items)
@@ -279,6 +290,7 @@ export default function CargaMasivaPorURLModal({
                   return <option key={y} value={y}>{y}</option>
                 })}
               </FormControl>
+              <small className="text-muted">Todo el proceso depende de este año: los nombres de curso serán tipo &quot;1° Básico - {año}&quot;.</small>
             </FormGroup>
             <FormGroup className="mb-3">
               <FormLabel>URL <span className="text-danger">*</span></FormLabel>
@@ -462,10 +474,13 @@ export default function CargaMasivaPorURLModal({
           <div>
             <Alert variant="info" className="mb-0">
               <strong>Subida en segundo plano</strong>
-              <p className="mb-0 mt-2">
+              <p className="mb-2 mt-2">
                 La descarga y asignación de los {scrapedItems.length} PDF(s) se está realizando en segundo plano.
                 Puedes <strong>cerrar esta ventana</strong>, <strong>minimizar</strong> o <strong>cambiar de página</strong>;
                 la subida no se interrumpirá y recibirás notificaciones al finalizar.
+              </p>
+              <p className="mb-0 small text-warning-emphasis">
+                ⚠ No recargues la página (F5) hasta que termine; si recargas, la subida se interrumpirá.
               </p>
             </Alert>
           </div>
