@@ -4,6 +4,8 @@ import { headers } from 'next/headers'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import EmpresasListing from './components/EmpresasListing'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Empresas - CRM',
 }
