@@ -264,14 +264,8 @@ export async function PUT(
       Object.assign(body, normalizedBody)
     }
 
-    // Obtener producto - detectar si es ID numérico o documentId (string)
-    const esNumerico = !isNaN(parseInt(id)) && /^\d+$/.test(id)
-    const filtro = esNumerico 
-      ? `filters[id][$eq]=${id}` 
-      : `filters[documentId][$eq]=${id}`
-    const endpoint = `/api/libros?${filtro}&populate=*`
-    
-    console.log('[API PUT] 🔍 Buscando producto:', { id, esNumerico, filtro })
+    // Obtener producto
+    const endpoint = `/api/libros?filters[id][$eq]=${id}&populate=*`
     const response = await strapiClient.get<any>(endpoint)
 
     let producto: any
@@ -1099,9 +1093,7 @@ export async function DELETE(
     let productoStrapi: any = null
     
     try {
-      const esNum = !isNaN(parseInt(id)) && /^\d+$/.test(id)
-      const filtroDelete = esNum ? `filters[id][$eq]=${id}` : `filters[documentId][$eq]=${id}`
-      const productoResponse = await strapiClient.get<any>(`${productoEndpoint}?${filtroDelete}&populate=*`)
+      const productoResponse = await strapiClient.get<any>(`${productoEndpoint}?filters[id][$eq]=${id}&populate=*`)
       let productos: any[] = []
       if (Array.isArray(productoResponse)) {
         productos = productoResponse

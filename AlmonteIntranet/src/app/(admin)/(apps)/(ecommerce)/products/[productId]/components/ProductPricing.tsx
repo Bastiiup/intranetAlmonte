@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Card, CardBody, Form, Row, Col, FormGroup, FormLabel, FormControl, FormSelect, FormCheck, Alert, Spinner, Button } from 'react-bootstrap'
-import { TbPencil, TbCheck, TbX, TbInfoCircle } from 'react-icons/tb'
-import Link from 'next/link'
+import { TbPencil, TbCheck, TbX } from 'react-icons/tb'
 
 interface ProductPricingProps {
   producto: any
@@ -142,8 +141,13 @@ export function ProductPricing({ producto, onUpdate, onProductoUpdate }: Product
         dataToSend.type = formData.type
       }
 
-      // Inventario - Stock se gestiona SOLO via órdenes de compra
-      // NO enviamos stock_quantity ni stock_status desde aquí
+      // Inventario
+      if (formData.stock_quantity !== undefined && formData.stock_quantity !== '') {
+        dataToSend.stock_quantity = parseInt(formData.stock_quantity.toString()) || 0
+      }
+      if (formData.stock_status) {
+        dataToSend.stock_status = formData.stock_status
+      }
       if (formData.backorders) {
         dataToSend.backorders = formData.backorders
       }
@@ -440,48 +444,35 @@ export function ProductPricing({ producto, onUpdate, onProductoUpdate }: Product
                 </Col>
               </Row>
               
-              {/* Stock solo lectura - se gestiona via órdenes de compra */}
-              <Alert variant="info" className="mb-3">
-                <div className="d-flex align-items-center">
-                  <TbInfoCircle className="me-2" size={20} />
-                  <div>
-                    <strong>Stock:</strong> El inventario se actualiza automáticamente al confirmar recepción de órdenes de compra.
-                    <br />
-                    <Link href="/inventario/proveedores" className="text-decoration-none">
-                      Ir a Inventario/Proveedores →
-                    </Link>
-                  </div>
-                </div>
-              </Alert>
-              
               <Row>
                 <Col md={4}>
                   <FormGroup className="mb-3">
-                    <FormLabel>Stock <span className="badge bg-secondary ms-1">Solo lectura</span></FormLabel>
+                    <FormLabel>Stock</FormLabel>
                     <FormControl
                       type="number"
                       min="0"
                       placeholder="0"
                       value={formData.stock_quantity}
-                      disabled
-                      readOnly
-                      className="bg-light"
+                      onChange={(e) => {
+                        setFormData(prev => ({...prev, stock_quantity: e.target.value}))
+                      }}
                     />
-                    <small className="text-muted">Se actualiza vía Órdenes de Compra</small>
                   </FormGroup>
                 </Col>
                 
                 <Col md={4}>
                   <FormGroup className="mb-3">
-                    <FormLabel>Estado de Stock <span className="badge bg-secondary ms-1">Auto</span></FormLabel>
-                    <FormControl
-                      type="text"
-                      value={getStockStatusLabel(formData.stock_status)}
-                      disabled
-                      readOnly
-                      className="bg-light"
-                    />
-                    <small className="text-muted">Calculado según stock disponible</small>
+                    <FormLabel>Estado de Stock</FormLabel>
+                    <FormSelect
+                      value={formData.stock_status}
+                      onChange={(e) => {
+                        setFormData(prev => ({...prev, stock_status: e.target.value as any}))
+                      }}
+                    >
+                      <option value="instock">En Stock</option>
+                      <option value="outofstock">Sin Stock</option>
+                      <option value="onbackorder">Pedido Pendiente</option>
+                    </FormSelect>
                   </FormGroup>
                 </Col>
                 
