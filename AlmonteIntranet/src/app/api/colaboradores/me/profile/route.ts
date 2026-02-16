@@ -661,13 +661,6 @@ export async function GET(request: NextRequest) {
     
     if (colaboradorFromCookie) {
       colaboradorId = colaboradorFromCookie.documentId || colaboradorFromCookie.id
-      console.log('[API /colaboradores/me/profile GET] Colaborador desde cookie:', {
-        id: colaboradorId,
-        email: colaboradorFromCookie.email_login,
-        tienePersona: !!colaboradorFromCookie.persona,
-        personaRut: colaboradorFromCookie.persona?.rut || 'NO RUT',
-        personaKeys: colaboradorFromCookie.persona ? Object.keys(colaboradorFromCookie.persona) : 'no persona',
-      })
     }
 
     // Si hay token y no tenemos colaboradorId, intentar obtener desde Strapi
@@ -807,41 +800,8 @@ export async function GET(request: NextRequest) {
             const personaRut = personaData.rut
             const personaId = personaData.documentId || personaData.id
             
-            // Si no tenemos imagen populada, intentar obtenerla directamente
-            if (!personaData.imagen || !personaData.imagen.imagen) {
-              try {
-                let personaQuery = ''
-                if (personaId) {
-                  personaQuery = `/api/personas/${personaId}?populate[imagen][populate][imagen][populate]=*&populate[portada][populate][imagen][populate]=*`
-                } else if (personaRut) {
-                  personaQuery = `/api/personas?filters[rut][$eq]=${encodeURIComponent(String(personaRut))}&populate[imagen][populate][imagen][populate]=*&populate[portada][populate][imagen][populate]=*&pagination[pageSize]=1`
-                }
-                
-                if (personaQuery) {
-                  console.log('[API /colaboradores/me/profile GET] Consultando persona directamente desde fallback:', personaQuery)
-                  const personaResponse = await strapiClient.get<any>(personaQuery)
-                  const personaResponseData = extractStrapiData(personaResponse)
-                  const personaResponseAttrs = normalizePersona(personaResponseData) || {}
-                  
-                  // Actualizar personaData con datos frescos de Strapi
-                  personaData = { ...personaData, ...personaResponseAttrs }
-                  
-                  // Normalizar imagen
-                  const imagenRaw = personaResponseAttrs.imagen
-                  if (imagenRaw?.imagen && Array.isArray(imagenRaw.imagen) && imagenRaw.imagen.length > 0) {
-                    const primeraImagen = imagenRaw.imagen[0]
-                    imagenNormalizada = {
-                      url: primeraImagen.url || null,
-                      alternativeText: primeraImagen.alternativeText || null,
-                      width: primeraImagen.width || null,
-                      height: primeraImagen.height || null,
-                    }
-                  }
-                }
-              } catch (error: any) {
-                console.warn('[API /colaboradores/me/profile GET] Error al obtener imagen en fallback:', error.message)
-              }
-            } else {
+            // Si tenemos imagen populada en cookie, normalizarla
+            if (personaData.imagen && personaData.imagen.imagen) {
               // Si ya tenemos imagen en cookie, normalizarla
               const imagenRaw = personaData.imagen
               if (imagenRaw?.imagen && Array.isArray(imagenRaw.imagen) && imagenRaw.imagen.length > 0) {
@@ -885,52 +845,13 @@ export async function GET(request: NextRequest) {
     // Extraer y normalizar persona
     const persona = colaboradorAttrs?.persona ? normalizePersona(colaboradorAttrs.persona) : null
 
-    console.log('[API /colaboradores/me/profile GET] Estructura completa de persona:', JSON.stringify(persona, null, 2))
-
     // Extraer datos del perfil
-    // Normalizar estructura de persona
     const personaAttrs = persona?.attributes || persona || {}
     
-    console.log('[API /colaboradores/me/profile GET] personaAttrs:', JSON.stringify(personaAttrs, null, 2))
-    
-    // Si no tenemos imagen populada, intentar obtenerla directamente de la persona
-    let imagenRaw = personaAttrs.imagen || persona?.imagen
-    if (!imagenRaw || (imagenRaw && !imagenRaw.imagen && !imagenRaw.url && !imagenRaw.data)) {
-      // Intentar obtener la persona directamente con populate de imagen
-      const personaId = personaAttrs.id || persona?.id || personaAttrs.documentId || persona?.documentId
-      const personaRut = personaAttrs.rut || persona?.rut
-      
-      if (personaId || personaRut) {
-        try {
-          let personaQuery = ''
-          if (personaId) {
-            // Populate el componente imagen y dentro de él, el campo imagen (Multiple Media)
-            personaQuery = `/api/personas/${personaId}?populate[imagen][populate][imagen][populate]=*&populate[portada][populate][imagen][populate]=*`
-          } else if (personaRut) {
-            // Populate el componente imagen y dentro de él, el campo imagen (Multiple Media)
-            personaQuery = `/api/personas?filters[rut][$eq]=${encodeURIComponent(String(personaRut))}&populate[imagen][populate][imagen][populate]=*&populate[portada][populate][imagen][populate]=*&pagination[pageSize]=1`
-          }
-          
-          if (personaQuery) {
-            const personaResponse = await strapiClient.get<any>(personaQuery)
-            const personaData = extractStrapiData(personaResponse)
-            const personaDataAttrs = normalizePersona(personaData) || {}
-            imagenRaw = personaDataAttrs.imagen || null
-            console.log('[API /colaboradores/me/profile GET] Imagen obtenida de consulta directa:', JSON.stringify(imagenRaw, null, 2))
-          }
-        } catch (error: any) {
-          console.warn('[API /colaboradores/me/profile GET] Error al obtener imagen directamente:', error.message)
-        }
-      }
-    }
-    
-    // Normalizar imagen del componente contacto.imagen
-    // El componente tiene estructura: { imagen: { data: [...] }, tipo, formato, ... }
-    // O puede ser: { imagen: [...] } directamente
-    // imagenRaw ya está declarado arriba, no redeclarar
+    // Imagen: si ya viene en la respuesta (null o con datos), usarla directamente
+    // NO hacer fetch adicional si es null — significa que no hay imagen subida
+    let imagenRaw = personaAttrs.imagen || persona?.imagen || null
     let imagenNormalizada: any = null
-    
-    console.log('[API /colaboradores/me/profile GET] Estructura de imagen raw:', JSON.stringify(imagenRaw, null, 2))
     
     if (imagenRaw) {
       // Si imagen es un componente con campo imagen (Multiple Media)
@@ -949,7 +870,6 @@ export async function GET(request: NextRequest) {
             name: primeraImagen.name || null,
             formats: primeraImagen.formats || null,
           }
-          console.log('[API /colaboradores/me/profile GET] ✅ Imagen normalizada desde array:', imagenNormalizada)
         }
         // Si tiene data (estructura Strapi estándar alternativa)
         else if (imagenData.data) {
@@ -998,42 +918,8 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    console.log('[API /colaboradores/me/profile GET] Imagen normalizada:', JSON.stringify(imagenNormalizada, null, 2))
-    
-    if (!imagenNormalizada && imagenRaw) {
-      console.warn('[API /colaboradores/me/profile GET] ⚠️ imagenRaw existe pero no se pudo normalizar:', JSON.stringify(imagenRaw, null, 2))
-    } else if (!imagenRaw) {
-      console.warn('[API /colaboradores/me/profile GET] ⚠️ imagenRaw es null/undefined. personaAttrs:', JSON.stringify(personaAttrs, null, 2))
-    }
-    
-    // Normalizar portada (similar a imagen)
-    let portadaRaw = personaAttrs.portada || persona?.portada
-    if (!portadaRaw || (portadaRaw && !portadaRaw.imagen && !portadaRaw.url && !portadaRaw.data)) {
-      // Intentar obtener la persona directamente con populate de portada
-      const personaId = personaAttrs.id || persona?.id || personaAttrs.documentId || persona?.documentId
-      const personaRut = personaAttrs.rut || persona?.rut
-      
-      if (personaId || personaRut) {
-        try {
-          let personaQuery = ''
-          if (personaId) {
-            personaQuery = `/api/personas/${personaId}?populate[portada][populate][imagen][populate]=*`
-          } else if (personaRut) {
-            personaQuery = `/api/personas?filters[rut][$eq]=${encodeURIComponent(String(personaRut))}&populate[portada][populate][imagen][populate]=*&pagination[pageSize]=1`
-          }
-          
-          if (personaQuery) {
-            console.log('[API /colaboradores/me/profile GET] Consultando persona directamente para obtener portada:', personaQuery)
-            const personaResponse = await strapiClient.get<any>(personaQuery)
-            const personaData = extractStrapiData(personaResponse)
-            const personaDataAttrs = normalizePersona(personaData) || {}
-            portadaRaw = personaDataAttrs.portada || null
-          }
-        } catch (error: any) {
-          console.warn('[API /colaboradores/me/profile GET] Error al obtener portada directamente:', error.message)
-        }
-      }
-    }
+    // Portada: igual que imagen, NO hacer fetch adicional si es null
+    let portadaRaw = personaAttrs.portada || persona?.portada || null
     
     let portadaNormalizada: any = null
     if (portadaRaw) {
@@ -1087,8 +973,6 @@ export async function GET(request: NextRequest) {
         }
       }
     }
-    
-    console.log('[API /colaboradores/me/profile GET] Portada normalizada:', JSON.stringify(portadaNormalizada, null, 2))
     
     // Normalizar dirección (puede venir como JSON string o objeto)
     let direccionNormalizada: any = null
