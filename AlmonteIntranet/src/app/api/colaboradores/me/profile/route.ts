@@ -716,46 +716,52 @@ export async function GET(request: NextRequest) {
     }
 
     // Obtener datos completos del colaborador
-    // OPTIMIZACIÓN: Usar documentId o email_login directamente (más confiable que ID numérico)
-    const populateColaborador = 'populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*&populate[persona][populate][imagen][populate]=*&populate[persona][populate][portada][populate]=*'
-    const tryGetColaboradorWithFallback = async (idOrDocId: string | number): Promise<any> => {
+    // Strapi v5: /api/colaboradores/:id solo acepta documentId (string ~24 chars), NO id numérico
+    const populateColaborador = 'populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,genero,cumpleagno,bio,job_title,telefono_principal,direccion,redes_sociales,skills&populate[persona][populate][telefonos]=*&populate[persona][populate][emails]=*&populate[persona][populate][imagen][populate]=*&populate[persona][populate][portada][populate]=*&publicationState=preview'
+    const isStrapiDocumentId = (v: string | number) => typeof v === 'string' && /^[a-z0-9]{20,30}$/i.test(v) && !/^\d+$/.test(v)
+    const tryGetByFilter = async (filterKey: string, value: string | number): Promise<{ data: any } | null> => {
       try {
-        return await strapiClient.get<any>(`/api/colaboradores/${idOrDocId}?${populateColaborador}`)
-      } catch (directError: any) {
-        const isNumeric = /^\d+$/.test(String(idOrDocId))
-        const filterKey = isNumeric ? 'filters[id][$eq]' : 'filters[documentId][$eq]'
-        const filterResponse = await strapiClient.get<any>(
-          `/api/colaboradores?${filterKey}=${encodeURIComponent(String(idOrDocId))}&${populateColaborador}&pagination[pageSize]=1`
+        const r = await strapiClient.get<any>(
+          `/api/colaboradores?${filterKey}=${encodeURIComponent(String(value))}&${populateColaborador}&pagination[pageSize]=1`
         )
-        if (filterResponse?.data && Array.isArray(filterResponse.data) && filterResponse.data.length > 0) {
-          return { data: filterResponse.data[0] }
-        }
-        throw directError
+        if (r?.data && Array.isArray(r.data) && r.data.length > 0) return { data: r.data[0] }
+      } catch {
+        // Ignorar errores para probar siguiente estrategia
       }
+      return null
     }
 
     let response: any
     try {
-      // Prioridad 1: Si tenemos documentId, usarlo (con fallback a filtros si 404)
-      if (colaboradorFromCookie?.documentId) {
-        console.log('[API /colaboradores/me/profile GET] Obteniendo por documentId:', colaboradorFromCookie.documentId)
-        response = await tryGetColaboradorWithFallback(colaboradorFromCookie.documentId)
-      }
-      // Prioridad 2: Si no hay documentId pero hay email_login, buscar por email (más confiable)
-      else if (colaboradorFromCookie?.email_login) {
+      // Prioridad 1: email_login - más fiable (filtros siempre funcionan en Strapi v5)
+      if (colaboradorFromCookie?.email_login) {
         console.log('[API /colaboradores/me/profile GET] Obteniendo por email_login:', colaboradorFromCookie.email_login)
-        response = await strapiClient.get<any>(
-          `/api/colaboradores?filters[email_login][$eq]=${encodeURIComponent(colaboradorFromCookie.email_login)}&${populateColaborador}`
-        )
-        if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-          response.data = response.data[0]
+        response = await tryGetByFilter('filters[email_login][$eq]', colaboradorFromCookie.email_login)
+      }
+      // Prioridad 2: documentId válido (string alfanumérico) - intentar path directo, luego filtro
+      if (!response && colaboradorFromCookie?.documentId && isStrapiDocumentId(colaboradorFromCookie.documentId)) {
+        console.log('[API /colaboradores/me/profile GET] Obteniendo por documentId:', colaboradorFromCookie.documentId)
+        try {
+          response = await strapiClient.get<any>(`/api/colaboradores/${colaboradorFromCookie.documentId}?${populateColaborador}`)
+        } catch {
+          response = await tryGetByFilter('filters[documentId][$eq]', colaboradorFromCookie.documentId)
         }
       }
-      // Prioridad 3: Último recurso - intentar con ID (con fallback a filtros si 404)
-      else if (colaboradorId) {
-        console.log('[API /colaboradores/me/profile GET] Obteniendo por ID:', colaboradorId)
-        response = await tryGetColaboradorWithFallback(colaboradorId)
-      } else {
+      // Prioridad 3: ID numérico - SOLO filtros (Strapi v5 devuelve 404 con /api/colaboradores/96)
+      if (!response && colaboradorId) {
+        console.log('[API /colaboradores/me/profile GET] Obteniendo por filtro ID:', colaboradorId)
+        response = await tryGetByFilter('filters[id][$eq]', colaboradorId)
+        if (!response && colaboradorFromCookie?.documentId && !isStrapiDocumentId(colaboradorFromCookie.documentId)) {
+          response = await tryGetByFilter('filters[documentId][$eq]', colaboradorFromCookie.documentId)
+        }
+      }
+      // Prioridad 4: documentId que parece numérico (quizás es id guardado como documentId)
+      if (!response && colaboradorFromCookie?.documentId) {
+        console.log('[API /colaboradores/me/profile GET] Obteniendo por documentId (fallback):', colaboradorFromCookie.documentId)
+        response = await tryGetByFilter('filters[documentId][$eq]', colaboradorFromCookie.documentId)
+        if (!response) response = await tryGetByFilter('filters[id][$eq]', colaboradorFromCookie.documentId)
+      }
+      if (!response && (colaboradorFromCookie || colaboradorId)) {
         // Si no hay ninguna opción, intentar obtener desde Strapi usando email_login
         if (colaboradorFromCookie?.email_login) {
           console.log('[API /colaboradores/me/profile GET] Intentando obtener desde Strapi por email_login como último recurso:', colaboradorFromCookie.email_login)
@@ -772,27 +778,32 @@ export async function GET(request: NextRequest) {
           }
         }
         
-        // Si aún no tenemos respuesta, usar datos de cookie directamente
+        // Si aún no tenemos respuesta, usar cookie como fallback o lanzar error
         if (!response) {
-          console.log('[API /colaboradores/me/profile GET] Usando datos de cookie directamente (sin consultar Strapi)')
-          return NextResponse.json({
-            success: true,
-            data: {
-              colaborador: {
-                id: colaboradorFromCookie.id || colaboradorFromCookie.documentId,
-                email_login: colaboradorFromCookie.email_login,
-                rol: colaboradorFromCookie.rol,
-                activo: colaboradorFromCookie.activo !== false,
+          if (colaboradorFromCookie) {
+            console.log('[API /colaboradores/me/profile GET] Usando datos de cookie directamente (sin consultar Strapi)')
+            return NextResponse.json({
+              success: true,
+              data: {
+                colaborador: {
+                  id: colaboradorFromCookie.id || colaboradorFromCookie.documentId,
+                  email_login: colaboradorFromCookie.email_login,
+                  rol: colaboradorFromCookie.rol,
+                  activo: colaboradorFromCookie.activo !== false,
+                },
+                persona: colaboradorFromCookie.persona || null,
               },
-              persona: colaboradorFromCookie.persona || null,
-            },
-          }, { status: 200 })
+            }, { status: 200 })
+          }
+          throw new Error('No se pudo obtener colaborador desde Strapi')
         }
       }
-      } catch (strapiError: any) {
-        console.error('[API /colaboradores/me/profile GET] Error al obtener desde Strapi:', {
+    } catch (strapiError: any) {
+        const logLevel = colaboradorFromCookie ? 'warn' : 'error'
+        console[logLevel]('[API /colaboradores/me/profile GET] Error al obtener desde Strapi:', {
           error: strapiError.message,
           status: strapiError.status,
+          ...(colaboradorFromCookie && { nota: 'Usando datos de cookie como fallback' }),
         })
         
         // Si falla, usar datos de cookie directamente como fallback
