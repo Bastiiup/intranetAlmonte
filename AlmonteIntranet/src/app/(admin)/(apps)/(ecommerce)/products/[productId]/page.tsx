@@ -7,7 +7,7 @@ import { Card, CardBody, Col, Container, Row, Alert, Spinner } from 'react-boots
 import ProductDetails from '@/app/(admin)/(apps)/(ecommerce)/products/[productId]/components/ProductDetails'
 import ProductDisplay from '@/app/(admin)/(apps)/(ecommerce)/products/[productId]/components/ProductDisplay'
 import ProductActivityLogs from '@/app/(admin)/(apps)/(ecommerce)/products/[productId]/components/ProductActivityLogs'
-import { ProductHistory } from '@/app/(admin)/(apps)/(ecommerce)/products/[productId]/components/ProductHistory'
+import { ProductPricing } from '@/app/(admin)/(apps)/(ecommerce)/products/[productId]/components/ProductPricing'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 
 export default function Page() {
@@ -188,10 +188,13 @@ export default function Page() {
                       onProductoUpdate={updateProductoLocal}
                     />
 
-                    <ProductActivityLogs productId={productId} />
+                    <ProductPricing 
+                      producto={producto} 
+                      onUpdate={handleUpdate}
+                      onProductoUpdate={updateProductoLocal}
+                    />
 
-                    {/* Historial de Precios y Movimientos de Stock */}
-                    <ProductHistory productoId={producto.documentId || productId} />
+                    <ProductActivityLogs productId={productId} />
                   </div>
                 </Col>
               </Row>
