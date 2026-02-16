@@ -124,7 +124,7 @@ const mapStrapiProductToProductType = (producto: any): ProductTypeExtended => {
     date: format(createdDate, 'dd MMM, yyyy'),
     time: format(createdDate, 'h:mm a'),
     url: `/products/${producto.id || producto.documentId || producto.id}`,
-    strapiId: producto.id,
+    strapiId: producto.documentId || producto.id,
     estadoPublicacion: (estadoPublicacion === 'publicado' ? 'Publicado' : 
                        estadoPublicacion === 'borrador' ? 'Borrador' : 
                        'Pendiente') as 'Publicado' | 'Pendiente' | 'Borrador',
