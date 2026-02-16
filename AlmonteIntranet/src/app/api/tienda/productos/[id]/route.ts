@@ -26,15 +26,15 @@ export async function GET(
     // 3. Si falla con otro error, retornar error específico
     
     // PASO 1: Usar filtros para obtener el producto (Strapi v5 requiere documentId)
-    if (!isNaN(parseInt(id))) {
+    const esNumericoGet = !isNaN(parseInt(id)) && /^\d+$/.test(id)
+    const filtroGet = esNumericoGet ? `filters[id][$eq]=${id}` : `filters[documentId][$eq]=${id}`
+    
+    {
       try {
-        console.log('[API /tienda/productos/[id] GET] 🔍 Buscando con filtro:', {
-          idBuscado: id,
-          endpoint: `/api/libros?filters[id][$eq]=${id}&populate=*`
-        })
+        console.log('[API /tienda/productos/[id] GET] 🔍 Buscando con filtro:', { id, esNumericoGet, filtroGet })
         
         const filteredResponse = await strapiClient.get<any>(
-          `/api/libros?filters[id][$eq]=${id}&populate=*`
+          `/api/libros?${filtroGet}&populate=*`
         )
         
         // Extraer producto de la respuesta filtrada
@@ -264,8 +264,14 @@ export async function PUT(
       Object.assign(body, normalizedBody)
     }
 
-    // Obtener producto
-    const endpoint = `/api/libros?filters[id][$eq]=${id}&populate=*`
+    // Obtener producto - detectar si es ID numérico o documentId (string)
+    const esNumerico = !isNaN(parseInt(id)) && /^\d+$/.test(id)
+    const filtro = esNumerico 
+      ? `filters[id][$eq]=${id}` 
+      : `filters[documentId][$eq]=${id}`
+    const endpoint = `/api/libros?${filtro}&populate=*`
+    
+    console.log('[API PUT] 🔍 Buscando producto:', { id, esNumerico, endpoint })
     const response = await strapiClient.get<any>(endpoint)
 
     let producto: any
@@ -1093,7 +1099,9 @@ export async function DELETE(
     let productoStrapi: any = null
     
     try {
-      const productoResponse = await strapiClient.get<any>(`${productoEndpoint}?filters[id][$eq]=${id}&populate=*`)
+      const esNumDel = !isNaN(parseInt(id)) && /^\d+$/.test(id)
+      const filtroDel = esNumDel ? `filters[id][$eq]=${id}` : `filters[documentId][$eq]=${id}`
+      const productoResponse = await strapiClient.get<any>(`${productoEndpoint}?${filtroDel}&populate=*`)
       let productos: any[] = []
       if (Array.isArray(productoResponse)) {
         productos = productoResponse
