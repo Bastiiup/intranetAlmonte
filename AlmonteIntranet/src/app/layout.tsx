@@ -53,7 +53,7 @@ export const metadata: Metadata = {
 
 const RootLayout = ({ children }: ChildrenType) => {
     return (
-        <html lang="en" className={`${nunito.variable} ${publicSans.variable} ${poppins.variable} ${roboto.variable} ${inter.variable} ${ibmPlexSans.variable}`}>
+        <html lang="en" className={`${nunito.variable} ${publicSans.variable} ${poppins.variable} ${roboto.variable} ${inter.variable} ${ibmPlexSans.variable}`} data-scroll-behavior="auto">
             <body>
                 <AppWrapper>{children}</AppWrapper>
             </body>

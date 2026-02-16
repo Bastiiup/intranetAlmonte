@@ -1,6 +1,6 @@
 'use client'
 import { Container, Card, CardBody, Alert, Button, Form, Row, Col, Badge } from 'react-bootstrap'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { LuPencil, LuSettings2 } from 'react-icons/lu'
@@ -10,13 +10,10 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import strapiClient from '@/lib/strapi/client'
 import { STRAPI_API_URL } from '@/lib/strapi/config'
 
-interface EditarProductoPageProps {
-  params: { id: string }
-}
-
-export default function EditarProductoPage({ params }: EditarProductoPageProps) {
+export default function EditarProductoPage() {
   const router = useRouter()
-  const productoId = params.id
+  const params = useParams()
+  const productoId = params?.id as string
   const [producto, setProducto] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)

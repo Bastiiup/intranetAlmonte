@@ -94,6 +94,9 @@ export function setAuth(authData: AuthResponse): void {
     localStorage.setItem(AUTH_COLABORADOR_KEY, JSON.stringify(authData.colaborador))
   }
 
+  // 🚫 COOKIES DESACTIVADAS TEMPORALMENTE PARA DEBUGGING
+  // Desactivar cookies para ver el estado real de la conexión a Strapi
+  /*
   // Guardar en cookies del cliente (como fallback si el servidor no las estableció)
   // El servidor ya establece las cookies, pero esto asegura que estén disponibles
   setCookie(AUTH_TOKEN_COOKIE, authData.jwt)
@@ -114,6 +117,8 @@ export function setAuth(authData: AuthResponse): void {
     setCookie('colaboradorData', JSON.stringify(colaboradorParaCookie))
     setCookie('colaborador', JSON.stringify(colaboradorParaCookie))
   }
+  */
+  console.log('[Auth] 🚫 Cookies del cliente DESACTIVADAS temporalmente para debugging')
 }
 
 /**

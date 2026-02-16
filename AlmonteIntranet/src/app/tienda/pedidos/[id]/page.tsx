@@ -1,18 +1,15 @@
 'use client'
 import { Container, Card, CardBody, Alert, Button, Form } from 'react-bootstrap'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import strapiClient from '@/lib/strapi/client'
 
-interface EditarPedidoPageProps {
-  params: { id: string }
-}
-
-export default function EditarPedidoPage({ params }: EditarPedidoPageProps) {
+export default function EditarPedidoPage() {
   const router = useRouter()
-  const pedidoId = params.id
+  const params = useParams()
+  const pedidoId = params?.id as string
   const [pedido, setPedido] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)

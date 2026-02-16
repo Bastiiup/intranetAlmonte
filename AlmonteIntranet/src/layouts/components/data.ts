@@ -52,6 +52,9 @@ import {
   LuTable,
   LuTag,
   LuUsers,
+  LuBuilding2,
+  LuBriefcase,
+  LuGraduationCap,
 } from 'react-icons/lu'
 
 type UserDropdownItemType = {
@@ -92,25 +95,40 @@ export const userDropdownItems: UserDropdownItemType[] = [
 ]
 
 export const menuItems: MenuItemType[] = [
-  { key: 'comercial', label: 'COMERCIAL', isTitle: true },
+  { key: 'crm-section', label: 'CRM', isTitle: true },
   {
     key: 'crm',
     label: 'CRM',
     icon: LuHandshake,
     children: [
       { key: 'crm-contacts', label: 'Contactos', url: '/crm/contacts' },
-      { key: 'crm-colegios', label: 'Colegios', url: '/crm/colegios' },
-      { key: 'crm-personas', label: 'Personas', url: '/crm/personas' },
-      { key: 'crm-opportunities', label: 'Oportunidades', url: '/crm/opportunities' },
-      { key: 'crm-deals', label: 'Negocios', url: '/crm/deals' },
-      { key: 'crm-leads', label: 'Leads', url: '/crm/leads' },
-      { key: 'crm-pipeline', label: 'Embudo', url: '/crm/pipeline' },
-      { key: 'crm-campaign', label: 'Campaña', url: '/crm/campaign' },
-      { key: 'crm-proposals', label: 'Propuestas', url: '/crm/proposals' },
-      { key: 'crm-estimations', label: 'Cotizaciones', url: '/crm/estimations' },
-      { key: 'crm-customers', label: 'Clientes', url: '/crm/customers' },
-      { key: 'crm-activities', label: 'Actividades', url: '/crm/activities' },
-      { key: 'crm-automatizaciones', label: 'Automatizaciones', url: '/crm/automatizaciones' },
+      { key: 'colegios-listing', label: 'Colegios', url: '/crm/colegios' },
+    ],
+  },
+  {
+    key: 'almonte',
+    label: 'Almonte',
+    icon: LuBuilding2,
+    children: [
+      { key: 'almonte-opportunities', label: 'Oportunidades', url: '/crm/opportunities' },
+      { key: 'almonte-leads', label: 'Leads', url: '/crm/leads' },
+      { key: 'almonte-pipeline', label: 'Embudo', url: '/crm/pipeline' },
+      { key: 'almonte-campaign', label: 'Campaña', url: '/crm/campaign' },
+      { key: 'almonte-proposals', label: 'Propuestas', url: '/crm/proposals' },
+      { key: 'almonte-activities', label: 'Actividades', url: '/crm/activities' },
+    ],
+  },
+  {
+    key: 'inventario-proveedores',
+    label: 'Inventario/Proveedores',
+    icon: LuShoppingBag,
+    children: [
+      { key: 'inventario-productos', label: 'Productos', url: '/inventario/proveedores' },
+      { key: 'inventario-movimientos', label: 'Movimientos de Stock', url: '/inventario/movimientos' },
+      { key: 'inventario-empresas', label: 'Empresas', url: '/crm/empresas' },
+      { key: 'inventario-rfqs', label: 'Solicitudes de Cotización', url: '/crm/compras/rfqs' },
+      { key: 'inventario-cotizaciones-recibidas', label: 'Cotizaciones Recibidas', url: '/crm/compras/cotizaciones' },
+      { key: 'inventario-ordenes-compra', label: 'Órdenes de Compra', url: '/crm/compras/ordenes-compra' },
     ],
   },
   {
@@ -183,6 +201,18 @@ export const menuItems: MenuItemType[] = [
     ],
     roles: ['super_admin', 'supervisor', 'soporte'],
   },
+  { key: 'mira-section', label: 'MIRA', isTitle: true },
+  {
+    key: 'mira',
+    label: 'Mira',
+    icon: LuGraduationCap,
+    children: [
+      { key: 'mira-licencias', label: 'Licencias de libros', url: '/mira/licencias' },
+      { key: 'mira-evaluaciones-omr', label: 'Evaluaciones OMR', url: '/mira/evaluaciones-omr' },
+      { key: 'mira-analiticas', label: 'Analíticas', url: '/mira/analiticas' },
+      { key: 'mira-gestor-multimedia', label: 'Gestión Multimedia', url: '/mira/recursos' },
+    ],
+  },
   { key: 'aplicaciones', label: 'APLICACIONES', isTitle: true },
   { key: 'chat', label: 'Chat', icon: LuMessageSquareDot, url: '/chat' },
   { key: 'logs', label: 'Logs de Actividades', icon: LuFileText, url: '/logs', roles: ['super_admin', 'supervisor', 'soporte'] },
@@ -214,16 +244,6 @@ export const menuItems: MenuItemType[] = [
 ]
 
 export const horizontalMenuItems: MenuItemType[] = [
-  {
-    key: 'dashboards',
-    label: 'Dashboards',
-    icon: TbLayoutDashboard,
-    children: [
-      { key: 'dashboard-v1', label: 'Dashboard 1', url: '/dashboard' },
-      { key: 'dashboard-v2', label: 'Dashboard 2', url: '/dashboard2' },
-
-    ],
-  },
   {
     key: 'apps',
     label: 'Apps',
@@ -302,17 +322,32 @@ export const horizontalMenuItems: MenuItemType[] = [
         children: [
           { key: 'crm-contacts', label: 'Contactos', url: '/crm/contacts' },
           { key: 'crm-colegios', label: 'Colegios', url: '/crm/colegios' },
-          { key: 'crm-personas', label: 'Personas', url: '/crm/personas' },
-          { key: 'crm-opportunities', label: 'Oportunidades', url: '/crm/opportunities' },
-          { key: 'crm-deals', label: 'Negocios', url: '/crm/deals' },
-          { key: 'crm-leads', label: 'Leads', url: '/crm/leads' },
-          { key: 'crm-pipeline', label: 'Embudo', url: '/crm/pipeline' },
-          { key: 'crm-campaign', label: 'Campaña', url: '/crm/campaign' },
-          { key: 'crm-proposals', label: 'Propuestas', url: '/crm/proposals' },
-          { key: 'crm-estimations', label: 'Cotizaciones', url: '/crm/estimations' },
-          { key: 'crm-customers', label: 'Clientes', url: '/crm/customers' },
-          { key: 'crm-activities', label: 'Actividades', url: '/crm/activities' },
-          { key: 'crm-automatizaciones', label: 'Automatizaciones', url: '/crm/automatizaciones' },
+        ],
+      },
+      {
+        key: 'almonte',
+        label: 'Almonte',
+        icon: LuBuilding2,
+        children: [
+          { key: 'almonte-opportunities', label: 'Oportunidades', url: '/crm/opportunities' },
+          { key: 'almonte-leads', label: 'Leads', url: '/crm/leads' },
+          { key: 'almonte-pipeline', label: 'Embudo', url: '/crm/pipeline' },
+          { key: 'almonte-campaign', label: 'Campaña', url: '/crm/campaign' },
+          { key: 'almonte-proposals', label: 'Propuestas', url: '/crm/proposals' },
+          { key: 'almonte-activities', label: 'Actividades', url: '/crm/activities' },
+        ],
+      },
+      {
+        key: 'inventario-proveedores',
+        label: 'Inventario/Proveedores',
+        icon: LuShoppingBag,
+        children: [
+          { key: 'inventario-productos', label: 'Productos', url: '/inventario/proveedores' },
+          { key: 'inventario-movimientos', label: 'Movimientos de Stock', url: '/inventario/movimientos' },
+          { key: 'inventario-empresas', label: 'Empresas', url: '/crm/empresas' },
+          { key: 'inventario-rfqs', label: 'Solicitudes de Cotización', url: '/crm/compras/rfqs' },
+          { key: 'inventario-cotizaciones-recibidas', label: 'Cotizaciones Recibidas', url: '/crm/compras/cotizaciones' },
+          { key: 'inventario-ordenes-compra', label: 'Órdenes de Compra', url: '/crm/compras/ordenes-compra' },
         ],
       },
       {

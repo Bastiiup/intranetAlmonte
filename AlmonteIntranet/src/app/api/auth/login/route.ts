@@ -102,10 +102,37 @@ export async function POST(request: Request) {
     
     if (colaboradorId) {
       try {
-        // CRÍTICO: Incluir RUT en los campos solicitados (necesario para chat)
-        const colaboradorConPersona = await strapiClient.get<any>(
-          `/api/colaboradores/${colaboradorId}?populate[persona][fields][0]=rut&populate[persona][fields][1]=nombres&populate[persona][fields][2]=primer_apellido&populate[persona][fields][3]=segundo_apellido&populate[persona][fields][4]=nombre_completo`
-        )
+        const populatePersona = 'populate[persona][fields][0]=rut&populate[persona][fields][1]=nombres&populate[persona][fields][2]=primer_apellido&populate[persona][fields][3]=segundo_apellido&populate[persona][fields][4]=nombre_completo'
+        let colaboradorConPersona: any
+
+        // Intentar primero endpoint directo (Strapi v5 usa documentId en path)
+        try {
+          colaboradorConPersona = await strapiClient.get<any>(
+            `/api/colaboradores/${colaboradorId}?${populatePersona}`
+          )
+        } catch (directError: any) {
+          // Si falla con 404, Strapi v5 puede esperar documentId; intentar por filtros
+          const isNumericId = /^\d+$/.test(String(colaboradorId))
+          const filterKey = isNumericId ? 'filters[id][$eq]' : 'filters[documentId][$eq]'
+          colaboradorConPersona = await strapiClient.get<any>(
+            `/api/colaboradores?${filterKey}=${encodeURIComponent(String(colaboradorId))}&${populatePersona}&pagination[pageSize]=1`
+          )
+          if (colaboradorConPersona?.data && Array.isArray(colaboradorConPersona.data) && colaboradorConPersona.data.length > 0) {
+            colaboradorConPersona = { data: colaboradorConPersona.data[0] }
+          } else if (colaboradorCompleto?.email_login) {
+            // Último recurso: buscar por email_login
+            colaboradorConPersona = await strapiClient.get<any>(
+              `/api/colaboradores?filters[email_login][$eq]=${encodeURIComponent(colaboradorCompleto.email_login)}&${populatePersona}&pagination[pageSize]=1`
+            )
+            if (colaboradorConPersona?.data && Array.isArray(colaboradorConPersona.data) && colaboradorConPersona.data.length > 0) {
+              colaboradorConPersona = { data: colaboradorConPersona.data[0] }
+            } else {
+              throw directError
+            }
+          } else {
+            throw directError
+          }
+        }
         
         // Extraer datos del colaborador con persona usando helpers
         const colaboradorData = extractStrapiData(colaboradorConPersona)
@@ -267,7 +294,7 @@ export async function POST(request: Request) {
         maxAge: 60 * 60 * 24 * 7,
       })
       
-      console.log('[API /auth/login] ✅ Cookies guardadas exitosamente:', {
+      console.log('[API /auth/login] 💾 Cookies establecidas:', {
         nombres: ['colaboradorData', 'colaborador', 'auth_colaborador'],
         id: colaboradorParaCookie.id,
         documentId: colaboradorParaCookie.documentId,
@@ -275,9 +302,6 @@ export async function POST(request: Request) {
         tienePersona: !!colaboradorParaCookie.persona,
         personaRut: colaboradorParaCookie.persona?.rut || 'NO RUT',
         cookieSize: cookieValue.length,
-        maxAge: '7 días',
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
       })
     }
 

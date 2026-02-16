@@ -2,10 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Container, Card, CardHeader, CardBody, Alert, Spinner, Row, Col, Badge, Table, Nav, NavItem, NavLink } from 'react-bootstrap'
+import { Container, Card, CardHeader, CardBody, Alert, Spinner, Row, Col, Badge, Table, Nav, NavItem, NavLink, Button } from 'react-bootstrap'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { LuArrowLeft, LuUsers, LuBuilding2, LuHistory, LuFileText, LuMail, LuPhone, LuMapPin, LuGraduationCap, LuBookOpen, LuCalendar, LuUser } from 'react-icons/lu'
+import { LuArrowLeft, LuUsers, LuBuilding2, LuHistory, LuFileText, LuMail, LuPhone, LuMapPin, LuGraduationCap, LuBookOpen, LuCalendar, LuUser, LuPencil } from 'react-icons/lu'
 import Link from 'next/link'
+import EditContactModal from '../components/EditContactModal'
+import EditContactColegioModal from '../components/EditContactColegioModal'
+import EditContactEmpresaModal from '../components/EditContactEmpresaModal'
+import type { ContactType } from '@/app/(admin)/(apps)/crm/types'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import Image from 'next/image'
@@ -90,6 +94,17 @@ interface ContactDetailData {
     region?: string
     comuna?: string
   }>
+  empresa_contactos: Array<{
+    id: string | number
+    documentId: string
+    cargo?: string
+    empresa: {
+      id: string | number
+      documentId: string
+      empresa_nombre?: string
+      nombre?: string
+    }
+  }>
   actividades: Array<{
     id: string | number
     documentId: string
@@ -118,6 +133,8 @@ const ContactDetailPage = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabType>('equipo')
+  const [editModal, setEditModal] = useState(false)
+  const [contactType, setContactType] = useState<'colegio' | 'empresa' | null>(null)
 
   useEffect(() => {
     const fetchContact = async () => {
@@ -125,13 +142,86 @@ const ContactDetailPage = () => {
       setError(null)
       try {
         const response = await fetch(`/api/crm/contacts/${contactId}`)
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || `Error ${response.status}: ${response.statusText}`)
+        }
+        
         const result = await response.json()
 
         if (!result.success) {
-          throw new Error(result.error || 'Error al cargar contacto')
+          throw new Error(result.error || result.details || 'Error al cargar contacto')
         }
 
-        setContact(result.data)
+        const contactData = result.data
+        if (!contactData) {
+          throw new Error('No se recibieron datos del contacto')
+        }
+        
+        setContact(contactData)
+        
+        // Debug: Log para verificar estructura de datos
+        console.log('[ContactDetailPage] 📥 Datos del contacto recibidos:', {
+          id: contactData.id,
+          documentId: contactData.documentId,
+          nombre: contactData.nombre_completo,
+          tieneEmpresaContactos: !!contactData.empresa_contactos,
+          empresaContactosLength: contactData.empresa_contactos?.length || 0,
+          empresaContactos: contactData.empresa_contactos,
+        })
+        
+        // Detectar tipo de contacto de manera más precisa
+        const attrs = contactData.attributes || contactData
+        
+        // Verificar trayectorias con colegio válido
+        const trayectorias = attrs.trayectorias?.data || attrs.trayectorias || contactData.trayectorias || []
+        const trayectoriasArray = Array.isArray(trayectorias) ? trayectorias : [trayectorias]
+        const hasTrayectorias = trayectoriasArray.some((t: any) => {
+          const tAttrs = t.attributes || t
+          const colegio = tAttrs.colegio?.data || tAttrs.colegio || t.colegio
+          return colegio?.id || colegio?.documentId
+        })
+        
+        // Verificar empresa_contactos - usar datos normalizados de la API (ya vienen normalizados)
+        // La API normaliza empresa_contactos, así que contactData.empresa_contactos ya debería ser un array normalizado
+        const empresaContactos = contactData.empresa_contactos || []
+        const empresaContactosArray = Array.isArray(empresaContactos) ? empresaContactos : []
+        
+        console.log('[ContactDetailPage] 🔍 Verificando empresa_contactos:', {
+          empresaContactosArrayLength: empresaContactosArray.length,
+          empresaContactosArray: empresaContactosArray,
+        })
+        
+        const hasEmpresaContactos = empresaContactosArray.some((ec: any) => {
+          // La API ya normaliza los datos, así que ec.empresa debería estar disponible directamente
+          const empresa = ec.empresa || (ec.attributes?.empresa?.data || ec.attributes?.empresa)
+          const tieneEmpresa = empresa && (empresa.id || empresa.documentId)
+          
+          console.log('[ContactDetailPage] 🔍 Verificando empresa_contacto individual:', {
+            ecId: ec.id || ec.documentId,
+            tieneEmpresa,
+            empresaId: empresa?.id || empresa?.documentId,
+            empresaNombre: empresa?.empresa_nombre || empresa?.nombre,
+          })
+          
+          return tieneEmpresa
+        })
+        
+        console.log('[ContactDetailPage] ✅ Resultado de verificación:', {
+          hasTrayectorias,
+          hasEmpresaContactos,
+          tipoDeterminado: hasEmpresaContactos ? 'empresa' : (hasTrayectorias ? 'colegio' : null),
+        })
+        
+        // Determinar tipo: priorizar empresa si tiene empresa-contactos, sino colegio si tiene trayectorias
+        if (hasEmpresaContactos) {
+          setContactType('empresa')
+        } else if (hasTrayectorias) {
+          setContactType('colegio')
+        } else {
+          setContactType(null)
+        }
       } catch (err: any) {
         console.error('Error fetching contact:', err)
         setError(err.message || 'Error al cargar contacto')
@@ -196,16 +286,85 @@ const ContactDetailPage = () => {
   const renderEquipoTab = () => {
     if (!contact) return null
 
-    const trayectoriasActivas = contact.trayectorias.filter(t => t.activo && t.is_current)
-    const trayectoriasHistoricas = contact.trayectorias.filter(t => !t.is_current || !t.activo)
+    const trayectoriasActivas = contact.trayectorias?.filter(t => t.activo && t.is_current) || []
+    const trayectoriasHistoricas = contact.trayectorias?.filter(t => !t.is_current || !t.activo) || []
+    const empresaContactos = contact.empresa_contactos || []
 
     return (
       <div>
-        <h5 className="mb-3">Equipo de Trabajo</h5>
+        <h5 className="mb-3">Relaciones Laborales</h5>
         
+        {/* Sección de Empresas */}
+        {empresaContactos.length > 0 && (
+          <div className="mb-4">
+            <h6 className="text-muted mb-3">
+              <LuBuilding2 className="me-2" />
+              Empresas
+            </h6>
+            <Table responsive striped hover>
+              <thead>
+                <tr>
+                  <th>Empresa</th>
+                  <th>Cargo</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {empresaContactos.map((ec: any) => {
+                  // Los datos ya vienen normalizados de la API, así que ec.empresa debería estar disponible directamente
+                  const empresa = ec.empresa
+                  const empresaNombre = empresa?.empresa_nombre || empresa?.nombre || 'Sin nombre'
+                  const empresaId = empresa?.documentId || empresa?.id
+                  const cargo = ec.cargo || '-'
+                  
+                  console.log('[ContactDetailPage] 🏢 Renderizando empresa_contacto:', {
+                    ecId: ec.id || ec.documentId,
+                    empresaId,
+                    empresaNombre,
+                    cargo,
+                    tieneEmpresa: !!empresa,
+                  })
+                  
+                  return (
+                    <tr key={ec.id || ec.documentId}>
+                      <td>
+                        {empresaId ? (
+                          <Link 
+                            href={`/crm/empresas/${empresaId}`}
+                            className="text-decoration-none"
+                          >
+                            <strong>{empresaNombre}</strong>
+                          </Link>
+                        ) : (
+                          <strong>{empresaNombre}</strong>
+                        )}
+                      </td>
+                      <td>{cargo}</td>
+                      <td>
+                        {empresaId && (
+                          <Link 
+                            href={`/crm/empresas/${empresaId}`}
+                            className="btn btn-sm btn-outline-primary"
+                          >
+                            Ver Empresa
+                          </Link>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </Table>
+          </div>
+        )}
+        
+        {/* Sección de Colegios */}
         {trayectoriasActivas.length > 0 && (
           <div className="mb-4">
-            <h6 className="text-muted mb-3">Trayectorias Activas</h6>
+            <h6 className="text-muted mb-3">
+              <LuGraduationCap className="me-2" />
+              Trayectorias Activas en Colegios
+            </h6>
             <Table responsive striped hover>
               <thead>
                 <tr>
@@ -251,7 +410,10 @@ const ContactDetailPage = () => {
 
         {trayectoriasHistoricas.length > 0 && (
           <div>
-            <h6 className="text-muted mb-3">Historial de Trayectorias</h6>
+            <h6 className="text-muted mb-3">
+              <LuGraduationCap className="me-2" />
+              Historial de Trayectorias en Colegios
+            </h6>
             <Table responsive striped hover>
               <thead>
                 <tr>
@@ -297,8 +459,12 @@ const ContactDetailPage = () => {
           </div>
         )}
 
-        {contact.trayectorias.length === 0 && (
-          <Alert variant="info">No hay trayectorias registradas para este contacto.</Alert>
+        {/* Mensaje cuando no hay relaciones */}
+        {empresaContactos.length === 0 && trayectoriasActivas.length === 0 && trayectoriasHistoricas.length === 0 && (
+          <Alert variant="info">
+            <LuUsers className="me-2" />
+            Este contacto no tiene relaciones laborales registradas (empresas o colegios).
+          </Alert>
         )}
       </div>
     )
@@ -596,11 +762,21 @@ const ContactDetailPage = () => {
     <Container fluid>
       <PageBreadcrumb title="Detalle de Contacto" subtitle="CRM" />
       
-      <div className="mb-3">
+      <div className="mb-3 d-flex justify-content-between align-items-center">
         <Link href="/crm/contacts" className="btn btn-outline-secondary btn-sm">
           <LuArrowLeft className="me-1" />
           Volver a Contactos
         </Link>
+        {contact && (
+          <Button 
+            variant="primary" 
+            size="sm"
+            onClick={() => setEditModal(true)}
+          >
+            <LuPencil className="me-1" />
+            Editar Contacto
+          </Button>
+        )}
       </div>
 
       {/* Información Principal del Contacto */}
@@ -892,6 +1068,72 @@ const ContactDetailPage = () => {
           {activeTab === 'logs' && renderLogsTab()}
         </CardBody>
       </Card>
+
+      {contact && (
+        <>
+          {contactType === 'colegio' ? (
+            <EditContactColegioModal
+              show={editModal}
+              onHide={() => setEditModal(false)}
+              contact={contact as unknown as ContactType}
+              onSuccess={() => {
+                const fetchContact = async () => {
+                  try {
+                    const response = await fetch(`/api/crm/contacts/${contactId}`)
+                    const result = await response.json()
+                    if (result.success) {
+                      setContact(result.data)
+                    }
+                  } catch (err) {
+                    console.error('Error al recargar contacto:', err)
+                  }
+                }
+                fetchContact()
+              }}
+            />
+          ) : contactType === 'empresa' ? (
+            <EditContactEmpresaModal
+              show={editModal}
+              onHide={() => setEditModal(false)}
+              contact={contact as unknown as ContactType}
+              onSuccess={() => {
+                const fetchContact = async () => {
+                  try {
+                    const response = await fetch(`/api/crm/contacts/${contactId}`)
+                    const result = await response.json()
+                    if (result.success) {
+                      setContact(result.data)
+                    }
+                  } catch (err) {
+                    console.error('Error al recargar contacto:', err)
+                  }
+                }
+                fetchContact()
+              }}
+            />
+          ) : (
+            <EditContactModal
+              show={editModal}
+              onHide={() => setEditModal(false)}
+              contact={contact as unknown as ContactType}
+              onSuccess={() => {
+                const fetchContact = async () => {
+                  try {
+                    const response = await fetch(`/api/crm/contacts/${contactId}`)
+                    const result = await response.json()
+                    if (result.success) {
+                      setContact(result.data)
+                    }
+                  } catch (err) {
+                    console.error('Error al recargar contacto:', err)
+                  }
+                }
+                fetchContact()
+              }}
+            />
+          )}
+        </>
+      )}
     </Container>
   )
 }

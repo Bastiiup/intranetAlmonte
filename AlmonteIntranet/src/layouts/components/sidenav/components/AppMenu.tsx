@@ -106,7 +106,7 @@ const MenuItemWithChildren = ({
             <item.icon />
           </span>
         )}
-        <span className="menu-text">{item.label}</span>
+        {item.label && <span className="menu-text">{item.label}</span>}
         {item.badge ? (
           <span className={`badge bg-${item.badge.variant}`}>{item.badge.text}</span>
         ) : (
@@ -160,7 +160,7 @@ const MenuItem = ({ item, userRole }: { item: MenuItemType; userRole?: string })
             <item.icon />
           </span>
         )}
-        <span className="menu-text">{item.label}</span>
+        {item.label && <span className="menu-text">{item.label}</span>}
         {item.badge && <span className={`badge text-bg-${item.badge.variant} opacity-50`}>{item.badge.text}</span>}
       </Link>
     </li>

@@ -20,8 +20,8 @@ process.on('unhandledRejection', (reason, promise) => {
 const serverPath = path.join(__dirname, '.next/standalone/server.js')
 
 if (!fs.existsSync(serverPath)) {
-  console.error('Servidor standalone no encontrado. Asegúrate de ejecutar npm run build primero.')
-  process.exit(1)
+  console.log('ℹ Servidor standalone no encontrado (normal en Vercel/plataformas serverless). Saltando fix-server.')
+  process.exit(0)
 }
 
 // 1. Modificar el servidor para escuchar en 0.0.0.0

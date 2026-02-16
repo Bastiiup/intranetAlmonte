@@ -14,7 +14,7 @@ const Logo = ({ className = '', size = 'lg' }: LogoProps) => {
   
   return (
     <Link 
-      href="/" 
+      href="/dashboard" 
       className={className} 
       style={{ 
         textDecoration: 'none',

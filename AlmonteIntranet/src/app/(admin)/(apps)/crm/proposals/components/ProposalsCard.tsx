@@ -15,35 +15,35 @@ const ProposalsCard = () => {
             value: '38',
             change: '+12.4%',
             icon: <TbArrowUp className="text-success" />,
-            desc: 'Total proposals submitted',
+            desc: 'Total de propuestas enviadas',
         },
         {
             value: '19',
             change: '+9.8%',
             icon: <TbArrowUp className="text-success" />,
-            desc: 'Approved proposals',
+            desc: 'Propuestas aprobadas',
         },
         {
             value: '7',
             change: '-4.2%',
             icon: <TbArrowDown className="text-danger" />,
-            desc: 'Declined proposals',
+            desc: 'Propuestas rechazadas',
         },
         {
             value: '$112,000',
-            change: 'Top value',
+            change: 'Valor máximo',
             icon: <TbCurrencyDollar className="text-success" />,
-            desc: 'Highest proposal value',
+            desc: 'Valor más alto de propuesta',
         },
         {
             value: (
                 <>
-                    3.2 <small className="fs-6">days</small>
+                    3.2 <small className="fs-6">días</small>
                 </>
             ),
             change: '+0.8%',
             icon: <TbClock className="text-warning" />,
-            desc: 'Avg. review time',
+            desc: 'Tiempo promedio de revisión',
         },
     ]
 

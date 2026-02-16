@@ -56,26 +56,22 @@ export default function CursosColegioListing({ colegio, cursos: cursosProp, erro
     if (!cursosProp || !Array.isArray(cursosProp)) return []
     
     return cursosProp.map((curso: any) => {
-      // Normalizar nombre del curso: reemplazar "Básica" por "Básico" y "Media" por "Medio"
+      // Normalizar nombre del curso: mantener formato "1° Básico - 2026" (no quitar el año si va con guión)
       let nombreNormalizado = (curso.nombre || '').trim()
-      // Eliminar años (4 dígitos) del nombre en cualquier posición:
-      // - Años entre paréntesis: (2022), (2023), etc.
-      // - Años al final: "I Medio 2022" → "I Medio"
-      // - Años al inicio: "2022 I Medio" → "I Medio"
-      // - Años en medio: "I Medio 2022 A" → "I Medio A"
-      // Primero eliminar años entre paréntesis
+      // Eliminar años solo cuando no forman parte del formato "X - YYYY" (ej. entre paréntesis o sueltos)
       nombreNormalizado = nombreNormalizado.replace(/\s*\(\s*\d{4}\s*\)\s*/g, ' ')
-      // Luego eliminar cualquier año de 4 dígitos como palabra completa (con espacios alrededor)
       nombreNormalizado = nombreNormalizado.replace(/\s+\d{4}\s+/g, ' ') // Años en medio
-      nombreNormalizado = nombreNormalizado.replace(/\s+\d{4}$/g, '') // Años al final
-      nombreNormalizado = nombreNormalizado.replace(/^\d{4}\s+/g, '') // Años al inicio
-      // También eliminar años pegados sin espacios (por si acaso)
-      nombreNormalizado = nombreNormalizado.replace(/\d{4}/g, '')
+      // No quitar año al final si está en formato " - 2026" (el usuario quiere "1° Básico - 2026")
+      if (!/\s*-\s*\d{4}\s*$/.test(nombreNormalizado)) {
+        nombreNormalizado = nombreNormalizado.replace(/\s+\d{4}$/g, '')
+        nombreNormalizado = nombreNormalizado.replace(/^\d{4}\s+/g, '')
+      }
       // Normalizar términos
       nombreNormalizado = nombreNormalizado.replace(/Básica/gi, 'Básico')
       nombreNormalizado = nombreNormalizado.replace(/Basica/gi, 'Básico')
       nombreNormalizado = nombreNormalizado.replace(/\bMedia\b/g, 'Medio')
-      // Limpiar espacios múltiples y espacios al inicio/final
+      // Quitar guión huérfano al final (ej. "1° Básico -" sin año)
+      nombreNormalizado = nombreNormalizado.replace(/\s*-\s*$/, '').trim()
       nombreNormalizado = nombreNormalizado.replace(/\s+/g, ' ').trim()
       
       // Normalizar nivel: "Basica" -> "Básico", "Media" -> "Medio"

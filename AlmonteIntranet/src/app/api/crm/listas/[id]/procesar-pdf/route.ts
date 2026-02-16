@@ -36,6 +36,26 @@ if (typeof globalThis !== 'undefined') {
     ;(globalThis as any).DOMMatrix = DOMMatrixPolyfill
   }
   
+  // Polyfill para ImageData (requerido por pdfjs-dist en Node cuando @napi-rs/canvas no está)
+  if (typeof (globalThis as any).ImageData === 'undefined') {
+    ;(globalThis as any).ImageData = class ImageData {
+      data: Uint8ClampedArray
+      width: number
+      height: number
+      constructor(dataOrWidth: Uint8ClampedArray | number, widthOrHeight?: number, height?: number) {
+        if (typeof dataOrWidth === 'number') {
+          this.width = dataOrWidth
+          this.height = widthOrHeight ?? 0
+          this.data = new Uint8ClampedArray(this.width * this.height * 4)
+        } else {
+          this.data = dataOrWidth
+          this.width = widthOrHeight ?? 0
+          this.height = height ?? (this.data.length / 4 / (this.width || 1))
+        }
+      }
+    }
+  }
+
   // Polyfill para Path2D (requerido por pdfjs-dist)
   if (typeof (globalThis as any).Path2D === 'undefined') {
     class Path2DPolyfill {
@@ -94,7 +114,8 @@ if (typeof globalThis !== 'undefined') {
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
-import * as pdfParse from 'pdf-parse'
+// pdf-parse se carga dinámicamente en extraerTextoDelPDF() para evitar cargar
+// pdfjs-dist/@napi-rs/canvas al arranque del servidor (evita warnings en despliegue)
 import crypto from 'crypto'
 import { getColaboradorFromCookies } from '@/lib/auth/cookies'
 import { createWooCommerceClient } from '@/lib/woocommerce/client'
@@ -117,7 +138,7 @@ export const maxDuration = 300
 // Sonnet: Más preciso, ideal para PDFs complejos o pequeños
 // Haiku: Más rápido y económico, ideal para PDFs grandes
 const CLAUDE_MODEL_SONNET = 'claude-sonnet-4-20250514'
-const CLAUDE_MODEL_HAIKU = 'claude-3-5-haiku-20241022'
+const CLAUDE_MODEL_HAIKU = 'claude-haiku-4-5-20251001'
 
 // Umbral de páginas para cambiar de modelo
 const PAGINAS_UMBRAL_HAIKU = 6 // PDFs > 6 páginas usan Haiku (más rápido)
@@ -1665,7 +1686,9 @@ export async function POST(
     // Obtener número de páginas del PDF (necesario para coordenadas y metadata)
     let paginas = 1 // Valor por defecto
     try {
-      const pdfData = await (pdfParse as any).default(pdfBuffer)
+      const pdfParseModule = require('pdf-parse')
+      const pdfParseFn = typeof pdfParseModule?.default === 'function' ? pdfParseModule.default : pdfParseModule
+      const pdfData = await pdfParseFn(pdfBuffer)
       paginas = pdfData.numpages
       logger.info('📄 Páginas del PDF:', { paginas })
     } catch (error) {

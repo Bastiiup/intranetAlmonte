@@ -82,23 +82,70 @@ const nextConfig: NextConfig = {
   // Optimizaciones experimentales
   experimental: {
     optimizePackageImports: [
-      '@tanstack/react-table', 
-      'react-bootstrap', 
+      '@tanstack/react-table',
+      'react-bootstrap',
       'date-fns',
       'react-icons',
+      'react-icons/lu',
+      'react-icons/fa',
+      'react-icons/bs',
+      'react-icons/fi',
+      'react-icons/md',
       'lodash',
       'bootstrap',
+      'sweetalert2',
+      'stream-chat',
+      'stream-chat-react',
+      'apexcharts',
+      'react-apexcharts',
+      'chart.js',
+      'react-chartjs-2',
+      '@fullcalendar/core',
+      '@fullcalendar/react',
+      '@fullcalendar/daygrid',
+      'react-datepicker',
+      'react-select',
+      'react-hook-form',
+      '@hookform/resolvers',
+      'xlsx',
+      'zod',
+      'yup',
+      'clsx',
+      'dayjs',
+      'moment',
     ],
   },
   // Typed routes (movido fuera de experimental en Next.js 16)
   typedRoutes: false,
+  // Configuración de webpack para resolver problemas con pdfjs-dist y canvas
+  webpack: (config, { isServer }) => {
+    // Ignorar el módulo 'canvas' en el cliente (solo se necesita en el servidor)
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        canvas: false,
+      };
+    }
+    // Ignorar canvas también en el servidor para evitar problemas de build
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      canvas: false,
+    };
+    return config;
+  },
+  // Configuración de Turbopack para silenciar warning en desarrollo local
+  // En producción (Railway) se usa webpack, así que esto no afecta el build
+  turbopack: {},
   // Headers CSP únicos para Stream Chat (necesita unsafe-eval)
   // IMPORTANTE: Solo debe haber un CSP, configurado aquí en next.config.ts
   async headers() {
     const cspValue = [
-      "default-src 'self'",
+      "default-src 'self' blob: data:",
       "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.getstream.io https://*.stream-io-api.com",
-      "connect-src 'self' https://*.getstream.io https://*.stream-io-api.com wss://*.getstream.io wss://*.stream-io-api.com wss://chat.stream-io-api.com",
+      // Permitir conexiones a Bunny.net para subidas de video (TUS) y reproducción
+      "connect-src 'self' blob: https://video.bunnycdn.com https://*.getstream.io https://*.stream-io-api.com wss://*.getstream.io wss://*.stream-io-api.com wss://chat.stream-io-api.com",
+      // Permitir blob: para detección de duración de video local (URL.createObjectURL)
+      "media-src 'self' blob: data:",
       "img-src 'self' data: blob: https: http: https://*.getstream.io https://ui-avatars.com https://strapi.moraleja.cl",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' data: https://fonts.gstatic.com",

@@ -240,12 +240,12 @@ const KanbanProvider = ({ children, tasksData, sectionsData }: KanbanProviderPro
     const taskIndex = tasks.findIndex((task) => {
       const taskIdStr = String(task.id)
       const draggableIdStr = String(draggableId)
-      const match = taskIdStr === draggableIdStr
-      if (match) {
-        console.log('[KanbanContext] ✅ Tarea encontrada en índice:', taskIndex)
-      }
-      return match
+      return taskIdStr === draggableIdStr
     })
+    
+    if (taskIndex !== -1) {
+      console.log('[KanbanContext] ✅ Tarea encontrada en índice:', taskIndex)
+    }
     
     if (taskIndex === -1) {
       console.error('[KanbanContext] ❌ ERROR: Tarea no encontrada')
@@ -343,7 +343,9 @@ const KanbanProvider = ({ children, tasksData, sectionsData }: KanbanProviderPro
       value={useMemo(
         () => ({
           sections,
+          tasks,
           activeSectionId,
+          activeTaskId,
           taskFormData,
           sectionFormData,
           newTaskModal: {
@@ -369,7 +371,7 @@ const KanbanProvider = ({ children, tasksData, sectionsData }: KanbanProviderPro
           getAllTasksPerSection,
           onDragEnd,
         }),
-        [sections, tasks, activeSectionId, taskFormData, sectionFormData, dialogStates],
+        [sections, tasks, activeSectionId, activeTaskId, taskFormData, sectionFormData, dialogStates, getAllTasksPerSection, onDragEnd, newTaskControl, sectionControl],
       )}>
       {children}
     </KanbanContext.Provider>

@@ -157,6 +157,7 @@ const strapiClient = {
         method: 'GET',
         headers,
         signal: controller.signal,
+        credentials: 'omit', // Desactivar cookies para ver el estado real de la conexión
         ...options,
       })
       
@@ -255,6 +256,7 @@ const strapiClient = {
         headers: getHeaders(options?.headers),
         body: bodyString,
         signal: controller.signal,
+        credentials: 'omit', // Desactivar cookies para ver el estado real de la conexión
         ...options,
       })
       
@@ -333,6 +335,7 @@ const strapiClient = {
         headers: getHeaders(options?.headers),
         body: data ? JSON.stringify(data) : undefined,
         signal: controller.signal,
+        credentials: 'omit', // Desactivar cookies para ver el estado real de la conexión
         ...options,
       })
       
@@ -376,6 +379,7 @@ const strapiClient = {
         method: 'DELETE',
         headers: getHeaders(options?.headers),
         signal: controller.signal,
+        credentials: 'omit', // Desactivar cookies para ver el estado real de la conexión
         ...options,
       })
       

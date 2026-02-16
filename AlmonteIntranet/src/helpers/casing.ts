@@ -15,11 +15,12 @@ export const generateInitials = (name = ''): string => {
 
 export const abbreviatedNumber = (val: number) => {
   const s = ['', 'k', 'm', 'b', 't']
-  if (val === 0) return 0
+  if (val === 0) return '0'
+  if (val < 1000) return String(val)
   const sNum = Math.floor(Math.log10(val) / 3)
-  let sVal = parseFloat((sNum != 0 ? val / Math.pow(1000, sNum) : val).toPrecision(2))
-  if (sVal % 1 != 0) {
-    sVal = Number.parseInt(sVal.toFixed(1))
+  let sVal = parseFloat((val / Math.pow(1000, sNum)).toPrecision(2))
+  if (sVal % 1 !== 0) {
+    sVal = Math.round(sVal)
   }
-  return sVal + s[sNum]
+  return String(sVal) + s[sNum]
 }

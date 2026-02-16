@@ -18,7 +18,7 @@ export const maxDuration = 600 // 10 minutos para procesar múltiples PDFs
 const MODELOS_DISPONIBLES = [
   'claude-sonnet-4-20250514',      // Modelo más reciente y potente
   'claude-3-5-sonnet-20241022',   // Sonnet 3.5 (fallback)
-  'claude-3-5-haiku-20241022',    // Haiku (más rápido y económico)
+  'claude-haiku-4-5-20251001',   // Haiku 4.5 (reemplazo de 3.5 Haiku, deprecado feb 2026)
   'claude-3-opus-20240229',       // Opus (más preciso pero más lento)
 ]
 

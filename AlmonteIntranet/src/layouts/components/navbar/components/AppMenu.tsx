@@ -37,7 +37,7 @@ const MenuItemWithChildren = ({
             <item.icon />
           </span>
         )}
-        <span className="menu-text"> {item.label} </span>
+        {item.label && <span className="menu-text"> {item.label} </span>}
         {item.badge && <span className={`badge bg-${item.badge.variant} ms-auto `}>{item.badge.text}</span>}
         <TbChevronDown className="menu-arrow" />
       </DropdownToggle>
@@ -68,7 +68,7 @@ const MenuItem = ({ item, linkClass, wrapperClass, level }: { item: MenuItemType
           <item.icon />
         </span>
       )}
-      <span className="menu-text">{item.label}</span>
+      {item.label && <span className="menu-text">{item.label}</span>}
       {item.badge && <span className={`badge text-bg-${item.badge.variant} opacity-50`}>{item.badge.text}</span>}
     </Link>
   )

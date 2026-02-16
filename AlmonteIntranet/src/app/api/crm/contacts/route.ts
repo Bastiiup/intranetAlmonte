@@ -69,13 +69,32 @@ interface PersonaAttributes {
  * - confidence: Filtro por nivel_confianza (baja, media, alta)
  */
 export async function GET(request: Request) {
+  // Importar configuración de Strapi
+  const { STRAPI_API_TOKEN } = await import('@/lib/strapi/config')
+  
   try {
+    // Validar que el token esté configurado
+    if (!STRAPI_API_TOKEN) {
+      console.error('[API /crm/contacts] ❌ STRAPI_API_TOKEN no está configurado')
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Token de Strapi no configurado. Verifica tu archivo .env.local',
+          details: {
+            hint: 'Asegúrate de tener STRAPI_API_TOKEN_LOCAL o STRAPI_API_TOKEN configurado en .env.local',
+          },
+        },
+        { status: 500 }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const page = searchParams.get('page') || '1'
     const pageSize = searchParams.get('pageSize') || '50'
     const search = searchParams.get('search') || ''
     const origin = searchParams.get('origin') || ''
     const confidence = searchParams.get('confidence') || ''
+    const tipo = searchParams.get('tipo') || '' // 'colegio' o 'empresa'
 
     // Construir parámetros de query
     const params = new URLSearchParams({
@@ -93,16 +112,17 @@ export async function GET(request: Request) {
     
     // Nivel 2: Trayectorias con populate completo del colegio
     // ⚠️ IMPORTANTE: Necesitamos traer todos los datos del colegio para mostrar en la tabla
+    // En Strapi v5, los populates anidados profundos deben usar '*' o un objeto
     params.append('populate[trayectorias]', 'true')
-    params.append('populate[trayectorias][populate][colegio]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][comuna]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][telefonos]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][emails]', 'true')
-    params.append('populate[trayectorias][populate][colegio][populate][direcciones]', 'true')
+    params.append('populate[trayectorias][populate][colegio]', '*')
     // Nota: website es un campo directo, se trae automáticamente con populate[colegio]
+    
+    // Nivel 3: Empresa contactos con populate de empresa (necesario para filtrar por tipo)
+    params.append('populate[empresa_contactos]', 'true')
+    params.append('populate[empresa_contactos][populate][empresa]', '*')
 
-    // Filtros
-    params.append('filters[activo][$eq]', 'true')
+    // Filtros - Remover filtro de activo si causa problemas
+    // params.append('filters[activo][$eq]', 'true')
 
     // Búsqueda
     if (search) {
@@ -127,14 +147,291 @@ export async function GET(request: Request) {
       params.append('filters[nivel_confianza][$eq]', confidence)
     }
 
-    const url = `/api/personas?${params.toString()}`
-    const response = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(url)
+    // CRÍTICO: Excluir colaboradores (personas que tienen un registro en colaboradores)
+    // Los colaboradores son usuarios internos de la intranet, no contactos externos
+    // Necesitamos filtrar personas que NO tienen un colaborador asociado
+    // Nota: La relación es oneToOne desde colaboradores hacia personas
+    // Intentamos usar el filtro de relación inversa, pero si no funciona, lo haremos en el servidor
+    // params.append('filters[colaborador][$null]', 'true') // Comentado porque puede no funcionar si la relación inversa no está configurada
 
-    return NextResponse.json({
-      success: true,
-      data: response.data,
-      meta: response.meta,
-    }, { status: 200 })
+    // Filtro por tipo: colegio o empresa
+    // IMPORTANTE: El populate ya está configurado arriba para trayectorias y empresa_contactos
+    // No es necesario agregarlo nuevamente aquí
+
+    const url = `/api/personas?${params.toString()}`
+    
+    try {
+      const response = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(url)
+
+      // CRÍTICO: Excluir colaboradores (personas que tienen un registro en colaboradores)
+      // Primero filtramos colaboradores, luego aplicamos filtros de tipo
+      let dataArray = Array.isArray(response.data) ? response.data : [response.data]
+      
+      // Obtener IDs de personas que son colaboradores
+      // Necesitamos hacer una consulta separada para obtener los IDs de colaboradores
+      let colaboradorPersonaIds: Set<number | string> = new Set()
+      try {
+        const colaboradoresResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+          '/api/colaboradores?pagination[pageSize]=1000&populate[persona][fields]=id'
+        )
+        const colaboradoresData = Array.isArray(colaboradoresResponse.data) 
+          ? colaboradoresResponse.data 
+          : [colaboradoresResponse.data]
+        
+        colaboradoresData.forEach((col: any) => {
+          const attrs = col.attributes || col
+          const persona = attrs.persona?.data || attrs.persona
+          if (persona) {
+            // Capturar tanto id como documentId para asegurar que se excluyan correctamente
+            const personaId = persona.id
+            const personaDocumentId = persona.documentId
+            if (personaId) {
+              colaboradorPersonaIds.add(personaId)
+              colaboradorPersonaIds.add(String(personaId)) // También como string
+            }
+            if (personaDocumentId) {
+              colaboradorPersonaIds.add(personaDocumentId)
+            }
+          }
+        })
+        
+        console.log(`[API /crm/contacts] Excluyendo ${colaboradorPersonaIds.size} colaboradores de los contactos`)
+      } catch (error: any) {
+        console.warn('[API /crm/contacts] ⚠️ No se pudo obtener lista de colaboradores para filtrar:', error.message)
+        // Continuar sin filtrar si hay error
+      }
+      
+      // Filtrar personas que NO son colaboradores
+      // Verificar tanto id como documentId en diferentes formatos
+      let filteredData = dataArray.filter((persona: any) => {
+        const attrs = persona.attributes || persona
+        const personaId = persona.id || attrs.id
+        const personaDocumentId = persona.documentId || attrs.documentId
+        
+        // Verificar si es colaborador en todos los formatos posibles
+        if (personaId && colaboradorPersonaIds.has(personaId)) return false
+        if (personaId && colaboradorPersonaIds.has(String(personaId))) return false
+        if (personaDocumentId && colaboradorPersonaIds.has(personaDocumentId)) return false
+        if (personaDocumentId && colaboradorPersonaIds.has(String(personaDocumentId))) return false
+        
+        return true
+      })
+      
+      console.log(`[API /crm/contacts] Después de filtrar colaboradores: ${dataArray.length} -> ${filteredData.length} contactos`)
+      
+      // Si no hay tipo especificado, mostrar todos los contactos (solo excluyendo colaboradores)
+      // Si hay tipo, filtrar por tipo de contacto de manera ESTRICTA
+      if (tipo && tipo !== '') {
+        // REGLA: Un contacto solo aparece en su tipo específico (exclusivo)
+        // - Contactos de empresas: tienen empresa_contactos Y NO tienen trayectorias
+        // - Contactos de colegios: tienen trayectorias Y NO tienen empresa_contactos
+        if (tipo === 'empresa') {
+          // Para contactos de empresas: deben tener empresa_contactos Y NO tener trayectorias
+          const beforeFilter = filteredData.length
+        filteredData = filteredData.filter((persona: any) => {
+          const attrs = persona.attributes || persona
+          
+          // Verificar empresa_contactos - manejar diferentes formatos de respuesta
+          const empresaContactos = attrs.empresa_contactos
+          
+          // Caso 1: Viene como array directo
+          let empresaContactosArray: any[] = []
+          if (Array.isArray(empresaContactos)) {
+            empresaContactosArray = empresaContactos
+          }
+          // Caso 2: Viene como { data: [...] }
+          else if (empresaContactos?.data && Array.isArray(empresaContactos.data)) {
+            empresaContactosArray = empresaContactos.data
+          }
+          // Caso 3: Viene como objeto único
+          else if (empresaContactos && (empresaContactos.id || empresaContactos.documentId)) {
+            empresaContactosArray = [empresaContactos]
+          }
+          
+          // Verificar que tenga al menos un empresa_contacto con empresa válida
+          const hasEmpresaContactos = empresaContactosArray.length > 0 && 
+            empresaContactosArray.some((ec: any) => {
+              const ecAttrs = ec.attributes || ec
+              // Verificar empresa en diferentes formatos
+              const empresa = ecAttrs.empresa?.data || ecAttrs.empresa || ec.empresa
+              // La empresa es válida si tiene id o documentId
+              return empresa && (empresa.id || empresa.documentId)
+            })
+          
+          // Si no tiene empresa_contactos válidos, excluir
+          if (!hasEmpresaContactos) {
+            return false
+          }
+          
+          // Verificar trayectorias - si tiene trayectorias, excluir (solo contactos exclusivos de empresa)
+          const trayectorias = attrs.trayectorias
+          let trayectoriasArray: any[] = []
+          if (Array.isArray(trayectorias)) {
+            trayectoriasArray = trayectorias
+          } else if (trayectorias?.data && Array.isArray(trayectorias.data)) {
+            trayectoriasArray = trayectorias.data
+          } else if (trayectorias && (trayectorias.id || trayectorias.documentId)) {
+            trayectoriasArray = [trayectorias]
+          }
+          
+          const hasTrayectorias = trayectoriasArray.some((t: any) => {
+            const tAttrs = t.attributes || t
+            const colegio = tAttrs.colegio?.data || tAttrs.colegio || t.colegio
+            return colegio && (colegio.id || colegio.documentId)
+          })
+          
+          // Excluir si tiene trayectorias (solo contactos exclusivos de empresa)
+          return !hasTrayectorias
+        })
+          console.log(`[API /crm/contacts] Filtro tipo=empresa: ${beforeFilter} -> ${filteredData.length} contactos`)
+        } else if (tipo === 'colegio') {
+        // Para contactos de colegios: deben tener trayectorias Y NO tener empresa_contactos
+        const beforeFilter = filteredData.length
+        filteredData = filteredData.filter((persona: any) => {
+          const attrs = persona.attributes || persona
+          
+          // Verificar trayectorias - manejar diferentes formatos de respuesta
+          const trayectorias = attrs.trayectorias
+          
+          // Caso 1: Viene como array directo
+          let trayectoriasArray: any[] = []
+          if (Array.isArray(trayectorias)) {
+            trayectoriasArray = trayectorias
+          }
+          // Caso 2: Viene como { data: [...] }
+          else if (trayectorias?.data && Array.isArray(trayectorias.data)) {
+            trayectoriasArray = trayectorias.data
+          }
+          // Caso 3: Viene como objeto único
+          else if (trayectorias && (trayectorias.id || trayectorias.documentId)) {
+            trayectoriasArray = [trayectorias]
+          }
+          
+          // Verificar que tenga al menos una trayectoria con colegio válido
+          const hasTrayectorias = trayectoriasArray.some((t: any) => {
+            const tAttrs = t.attributes || t
+            // Verificar colegio en diferentes formatos
+            const colegio = tAttrs.colegio?.data || tAttrs.colegio || t.colegio
+            // El colegio es válido si tiene id o documentId
+            return colegio && (colegio.id || colegio.documentId)
+          })
+          
+          // Si no tiene trayectorias con colegio válido, excluir
+          if (!hasTrayectorias) {
+            return false
+          }
+          
+          // Verificar empresa_contactos - si tiene empresa_contactos, excluir (solo contactos exclusivos de colegio)
+          const empresaContactos = attrs.empresa_contactos
+          let empresaContactosArray: any[] = []
+          if (Array.isArray(empresaContactos)) {
+            empresaContactosArray = empresaContactos
+          } else if (empresaContactos?.data && Array.isArray(empresaContactos.data)) {
+            empresaContactosArray = empresaContactos.data
+          } else if (empresaContactos && (empresaContactos.id || empresaContactos.documentId)) {
+            empresaContactosArray = [empresaContactos]
+          }
+          
+          const hasEmpresaContactos = empresaContactosArray.length > 0 && 
+            empresaContactosArray.some((ec: any) => {
+              const ecAttrs = ec.attributes || ec
+              const empresa = ecAttrs.empresa?.data || ecAttrs.empresa || ec.empresa
+              return empresa && (empresa.id || empresa.documentId)
+            })
+          
+          // Excluir si tiene empresa_contactos (solo contactos exclusivos de colegio)
+          return !hasEmpresaContactos
+        })
+          console.log(`[API /crm/contacts] Filtro tipo=colegio: ${beforeFilter} -> ${filteredData.length} contactos`)
+        } else {
+          // Sin tipo especificado: mostrar todos los contactos (solo excluyendo colaboradores)
+          console.log(`[API /crm/contacts] Sin filtro de tipo: mostrando todos los ${filteredData.length} contactos`)
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: filteredData,
+        meta: {
+          ...response.meta,
+          pagination: {
+            ...response.meta?.pagination,
+            total: Array.isArray(filteredData) ? filteredData.length : (filteredData ? 1 : 0),
+          },
+        },
+      }, { status: 200 })
+    } catch (strapiError: any) {
+      // Manejar errores de autenticación
+      if (strapiError.status === 401 || strapiError.status === 403) {
+        console.error('[API /crm/contacts] ❌ Error de autenticación:', {
+          status: strapiError.status,
+          message: strapiError.message,
+          tieneToken: !!STRAPI_API_TOKEN,
+        })
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Error de autenticación con Strapi. Verifica tu token en .env.local',
+            details: {
+              status: strapiError.status,
+              hint: 'Asegúrate de tener STRAPI_API_TOKEN_LOCAL configurado en .env.local si usas Strapi local',
+            },
+          },
+          { status: 401 }
+        )
+      }
+      
+      // Si falla con populate anidado, intentar con populate más simple
+      if (strapiError.status === 500 || strapiError.status === 400) {
+        console.warn('[API /crm/contacts] Error con populate completo, intentando populate simplificado')
+        
+        // Simplificar populate
+        const simpleParams = new URLSearchParams({
+          'pagination[page]': page,
+          'pagination[pageSize]': pageSize,
+          'sort[0]': 'updatedAt:desc',
+        })
+        
+        simpleParams.append('populate[emails]', 'true')
+        simpleParams.append('populate[telefonos]', 'true')
+        simpleParams.append('populate[imagen]', 'true')
+        simpleParams.append('populate[trayectorias][populate][colegio]', 'true')
+        
+        // Agregar filtros
+        if (search) {
+          if (search.match(/^\d{1,2}\.\d{3}\.\d{3}-[\dkK]$/)) {
+            simpleParams.append('filters[rut][$eq]', search)
+          } else {
+            simpleParams.append('filters[$or][0][nombre_completo][$containsi]', search)
+            simpleParams.append('filters[$or][1][emails][email][$containsi]', search)
+            simpleParams.append('filters[$or][2][rut][$containsi]', search)
+          }
+        }
+        
+        if (origin) {
+          simpleParams.append('filters[origen][$eq]', origin)
+        }
+        
+        if (confidence) {
+          simpleParams.append('filters[nivel_confianza][$eq]', confidence)
+        }
+        
+        try {
+          const simpleResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
+            `/api/personas?${simpleParams.toString()}`
+          )
+          
+          return NextResponse.json({
+            success: true,
+            data: simpleResponse.data,
+            meta: simpleResponse.meta,
+          }, { status: 200 })
+        } catch (retryError: any) {
+          throw strapiError // Lanzar el error original si el retry también falla
+        }
+      }
+      throw strapiError
+    }
   } catch (error: any) {
     console.error('[API /crm/contacts] Error al obtener contactos:', {
       message: error.message,

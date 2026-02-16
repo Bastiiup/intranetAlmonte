@@ -73,38 +73,36 @@ export async function GET(
       }
     }
 
-    // Buscar cursos del colegio. Intentar primero con versiones_materiales para que la página del colegio muestre PDFs.
+    // Buscar cursos del colegio.
+    // IMPORTANTE: versiones_materiales es un campo JSON en Strapi, NO una relación → no usar populate (evita "Invalid key versiones_materiales").
+    // Strapi devuelve versiones_materiales en los attributes por defecto.
     let response: any
     try {
-      // Paso 1: Intentar con versiones_materiales (necesario para mostrar pdf_id/pdf_url en /crm/listas/colegio/[id])
-      const paramsConVersiones = new URLSearchParams({
+      const paramsObj = new URLSearchParams({
         'filters[colegio][id][$eq]': String(colegioIdNum),
         'populate[materiales]': 'true',
         'populate[lista_utiles]': 'true',
         'populate[colegio]': 'true',
-        'populate[versiones_materiales]': 'true',
         'publicationState': 'preview',
       })
       response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
-        `/api/cursos?${paramsConVersiones.toString()}`
+        `/api/cursos?${paramsObj.toString()}`
       )
-      debugLog('[API /crm/colegios/[id]/cursos GET] ✅ Cursos obtenidos con versiones_materiales (PDFs visibles en página colegio)')
+      debugLog('[API /crm/colegios/[id]/cursos GET] ✅ Cursos obtenidos')
     } catch (errorFirst: any) {
-      // Si Strapi devuelve 500 con versiones_materiales, reintentar sin ese populate
       if (errorFirst.status === 500 || errorFirst.status === 400 || errorFirst.status === 404) {
-        debugLog('[API /crm/colegios/[id]/cursos GET] ⚠️ Sin versiones_materiales, reintentando sin ese populate')
+        debugLog('[API /crm/colegios/[id]/cursos GET] ⚠️ Reintentando sin lista_utiles')
         try {
           const paramsObj = new URLSearchParams({
             'filters[colegio][id][$eq]': String(colegioIdNum),
             'populate[materiales]': 'true',
-            'populate[lista_utiles]': 'true',
             'populate[colegio]': 'true',
             'publicationState': 'preview',
           })
           response = await strapiClient.get<StrapiResponse<StrapiEntity<CursoAttributes>[]>>(
             `/api/cursos?${paramsObj.toString()}`
           )
-          debugLog('[API /crm/colegios/[id]/cursos GET] ✅ Cursos obtenidos sin versiones_materiales')
+          debugLog('[API /crm/colegios/[id]/cursos GET] ✅ Cursos obtenidos sin lista_utiles')
         } catch (error: any) {
           if (error.status === 500 || error.status === 400 || error.status === 404) {
             try {
@@ -308,7 +306,7 @@ export async function POST(
         colegio: { connect: [colegioIdFinal] }, // ✅ Usar ID numérico para relación manyToOne
         nivel: body.nivel,
         grado: String(body.grado), // ✅ grado debe ser string según schema de Strapi
-        anio: año, // Campo ya configurado en Strapi (sin tilde para que Strapi lo acepte)
+        anio: año, // Campo correcto en Strapi (anio sin tilde)
         ...(body.paralelo && { paralelo: body.paralelo }),
         ...(body.activo !== undefined && { activo: body.activo !== false }),
       },

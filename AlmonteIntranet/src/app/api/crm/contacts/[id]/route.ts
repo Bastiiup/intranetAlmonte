@@ -58,6 +58,7 @@ interface PersonaAttributes {
     }
   }>
   equipos?: any // Relation many-to-many con Equipos
+  empresa_contactos?: any // Relation one-to-many con empresa-contacto (puede venir como array, data, o objeto)
 }
 
 interface ActividadAttributes {
@@ -83,37 +84,54 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let contactId: string | undefined
   try {
-    const { id: contactId } = await params
+    const paramsResolved = await params
+    contactId = paramsResolved.id
 
     // PASO 1: Obtener el contacto (persona) con todas sus relaciones
     // Parámetros base (sin equipos, por si el campo no existe aún en Strapi)
+    // En Strapi v5, usar populate=* o formato de objeto para populate anidado
+    // Simplificamos usando populate=* para trayectorias y luego filtramos en el código
     const personaParamsBase = new URLSearchParams({
       'populate[emails]': 'true',
       'populate[telefonos]': 'true',
       'populate[imagen]': 'true',
       'populate[tags]': 'true',
+      'populate[trayectorias]': 'true',
+      'populate[trayectorias][populate][colegio]': 'true',
       'populate[trayectorias][populate][colegio][populate][comuna]': 'true',
       'populate[trayectorias][populate][curso]': 'true',
       'populate[trayectorias][populate][asignatura]': 'true',
     })
+    
+    // Intentar agregar populate de empresa_contactos (puede no existir en algunos schemas)
+    // En Strapi v5, usar populate=* para populate completo
+    try {
+      personaParamsBase.append('populate[empresa_contactos]', '*') // Usar * para populate completo
+    } catch (e) {
+      // Ignorar si no se puede agregar
+      console.warn('[API /crm/contacts/[id] GET] No se pudo agregar populate de empresa_contactos')
+    }
 
     // Parámetros con equipos (intentar primero)
+    // En Strapi v5, usar populate=* para populate completo
     const personaParamsConEquipos = new URLSearchParams(personaParamsBase)
-    personaParamsConEquipos.append('populate[equipos][populate][colegio]', 'true')
-    personaParamsConEquipos.append('populate[equipos][populate][lider][populate][imagen]', 'true')
+    personaParamsConEquipos.append('populate[equipos]', '*') // Usar * para populate completo
 
     let personaResponse: StrapiResponse<StrapiEntity<PersonaAttributes>>
     let usarEquipos = true // Flag para saber si intentar con equipos
+    let usarEmpresaContactos = true // Flag para saber si intentar con empresa_contactos
     
     try {
-      // Intentar primero con equipos
+      // Intentar primero con todos los campos
       personaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
         `/api/personas/${contactId}?${personaParamsConEquipos.toString()}`
       )
     } catch (error: any) {
       // Si el error es por campo "equipos" inválido, intentar sin equipos
-      if (error.status === 400 && (error.details?.key === 'equipos' || error.message?.includes('equipos'))) {
+      // También manejar errores 500 que pueden ocurrir con populate
+      if ((error.status === 400 || error.status === 500) && (error.details?.key === 'equipos' || error.message?.includes('equipos'))) {
         console.warn('[API /crm/contacts/[id] GET] Campo equipos no existe en Persona, intentando sin equipos')
         usarEquipos = false
         try {
@@ -121,11 +139,90 @@ export async function GET(
             `/api/personas/${contactId}?${personaParamsBase.toString()}`
           )
         } catch (retryError: any) {
+          // Si el error es por campo "empresa_contactos" inválido, intentar sin empresa_contactos
+          // También manejar errores 500 que pueden ocurrir con populate
+          if ((retryError.status === 400 || retryError.status === 500) && (retryError.details?.key === 'empresa_contactos' || retryError.message?.includes('empresa_contactos'))) {
+            console.warn('[API /crm/contacts/[id] GET] Campo empresa_contactos no existe en Persona, intentando sin empresa_contactos')
+            usarEmpresaContactos = false
+            const personaParamsSinEmpresa = new URLSearchParams({
+              'populate[emails]': 'true',
+              'populate[telefonos]': 'true',
+              'populate[imagen]': 'true',
+              'populate[tags]': 'true',
+              'populate[trayectorias]': 'true',
+              'populate[trayectorias][populate][colegio]': 'true',
+              'populate[trayectorias][populate][colegio][populate][comuna]': 'true',
+              'populate[trayectorias][populate][curso]': 'true',
+              'populate[trayectorias][populate][asignatura]': 'true',
+            })
+            try {
+              personaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
+                `/api/personas/${contactId}?${personaParamsSinEmpresa.toString()}`
+              )
+            } catch (retryError2: any) {
+              // Si falla con documentId, intentar buscar por id numérico
+              if (retryError2.status === 404) {
+                const searchParams = new URLSearchParams({
+                  'filters[id][$eq]': contactId,
+                  ...Object.fromEntries(personaParamsSinEmpresa.entries()),
+                })
+                const searchResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
+                  `/api/personas?${searchParams.toString()}`
+                )
+                if (Array.isArray(searchResponse.data) && searchResponse.data.length > 0) {
+                  personaResponse = { ...searchResponse, data: searchResponse.data[0] }
+                } else {
+                  throw new Error('Contacto no encontrado')
+                }
+              } else {
+                throw retryError2
+              }
+            }
+          } else {
+            // Si falla con documentId, intentar buscar por id numérico
+            if (retryError.status === 404) {
+              const searchParams = new URLSearchParams({
+                'filters[id][$eq]': contactId,
+                ...Object.fromEntries(personaParamsBase.entries()),
+              })
+              const searchResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
+                `/api/personas?${searchParams.toString()}`
+              )
+              if (Array.isArray(searchResponse.data) && searchResponse.data.length > 0) {
+                personaResponse = { ...searchResponse, data: searchResponse.data[0] }
+              } else {
+                throw new Error('Contacto no encontrado')
+              }
+            } else {
+              throw retryError
+            }
+          }
+        }
+      } else if ((error.status === 400 || error.status === 500) && (error.details?.key === 'empresa_contactos' || error.message?.includes('empresa_contactos'))) {
+        // Si el error es por campo "empresa_contactos" inválido o error 500, intentar sin empresa_contactos
+        console.warn('[API /crm/contacts/[id] GET] Error con empresa_contactos (status:', error.status, '), intentando sin empresa_contactos')
+        usarEmpresaContactos = false
+        const personaParamsSinEmpresa = new URLSearchParams({
+          'populate[emails]': 'true',
+          'populate[telefonos]': 'true',
+          'populate[imagen]': 'true',
+          'populate[tags]': 'true',
+          'populate[trayectorias]': 'true',
+          'populate[trayectorias][populate][colegio]': 'true',
+          'populate[trayectorias][populate][colegio][populate][comuna]': 'true',
+          'populate[trayectorias][populate][curso]': 'true',
+          'populate[trayectorias][populate][asignatura]': 'true',
+        })
+        try {
+          personaResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
+            `/api/personas/${contactId}?${personaParamsSinEmpresa.toString()}`
+          )
+        } catch (retryError: any) {
           // Si falla con documentId, intentar buscar por id numérico
           if (retryError.status === 404) {
             const searchParams = new URLSearchParams({
               'filters[id][$eq]': contactId,
-              ...Object.fromEntries(personaParamsBase.entries()),
+              ...Object.fromEntries(personaParamsSinEmpresa.entries()),
             })
             const searchResponse = await strapiClient.get<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
               `/api/personas?${searchParams.toString()}`
@@ -170,7 +267,19 @@ export async function GET(
     }
 
     const personaAttrs = personaData.attributes || personaData
-    const personaIdNum = personaData.id
+    const personaIdNum = personaData.id || personaData.documentId
+
+    // Validar que tenemos un ID válido
+    if (!personaIdNum) {
+      console.error('[API /crm/contacts/[id] GET] ❌ No se pudo obtener ID de persona:', {
+        personaDataId: personaData.id,
+        personaDataDocumentId: personaData.documentId,
+      })
+      return NextResponse.json(
+        { success: false, error: 'No se pudo obtener ID válido del contacto' },
+        { status: 400 }
+      )
+    }
 
     // PASO 2: Obtener actividades relacionadas con este contacto
     let actividades: any[] = []
@@ -211,26 +320,27 @@ export async function GET(
     
     const trayectorias = trayectoriasArray
       .map((t: any) => {
-        const tAttrs = t.attributes || t
-        const colegioData = tAttrs.colegio?.data || tAttrs.colegio
-        const colegioAttrs = colegioData?.attributes || colegioData
-        const cursoData = tAttrs.curso?.data || tAttrs.curso
-        const cursoAttrs = cursoData?.attributes || cursoData
-        const asignaturaData = tAttrs.asignatura?.data || tAttrs.asignatura
-        const asignaturaAttrs = asignaturaData?.attributes || asignaturaData
-        const comunaData = colegioAttrs?.comuna?.data || colegioAttrs?.comuna
-        const comunaAttrs = comunaData?.attributes || comunaData
+        try {
+          const tAttrs = t.attributes || t
+          const colegioData = tAttrs.colegio?.data || tAttrs.colegio
+          const colegioAttrs = colegioData?.attributes || colegioData
+          const cursoData = tAttrs.curso?.data || tAttrs.curso
+          const cursoAttrs = cursoData?.attributes || cursoData
+          const asignaturaData = tAttrs.asignatura?.data || tAttrs.asignatura
+          const asignaturaAttrs = asignaturaData?.attributes || asignaturaData
+          const comunaData = colegioAttrs?.comuna?.data || colegioAttrs?.comuna
+          const comunaAttrs = comunaData?.attributes || comunaData
 
-        return {
-          id: t.id || t.documentId,
-          documentId: t.documentId || String(t.id || ''),
-          cargo: tAttrs.cargo || '',
-          anio: tAttrs.anio || null,
-          is_current: tAttrs.is_current || false,
-          activo: tAttrs.activo !== undefined ? tAttrs.activo : true,
-          fecha_inicio: tAttrs.fecha_inicio || null,
-          fecha_fin: tAttrs.fecha_fin || null,
-          colegio: {
+          return {
+            id: t.id || t.documentId,
+            documentId: t.documentId || String(t.id || ''),
+            cargo: tAttrs.cargo || '',
+            anio: tAttrs.anio || null,
+            is_current: tAttrs.is_current || false,
+            activo: tAttrs.activo !== undefined ? tAttrs.activo : true,
+            fecha_inicio: tAttrs.fecha_inicio || null,
+            fecha_fin: tAttrs.fecha_fin || null,
+          colegio: colegioData ? {
             id: colegioData?.id || colegioData?.documentId,
             documentId: colegioData?.documentId || String(colegioData?.id || ''),
             nombre: colegioAttrs?.colegio_nombre || '',
@@ -238,17 +348,22 @@ export async function GET(
             dependencia: colegioAttrs?.dependencia || '',
             region: colegioAttrs?.region || comunaAttrs?.region_nombre || '',
             comuna: comunaAttrs?.comuna_nombre || comunaAttrs?.nombre || '',
-          },
-          curso: {
+          } : null,
+          curso: cursoData ? {
             id: cursoData?.id || cursoData?.documentId,
             nombre: cursoAttrs?.nombre || '',
-          },
-          asignatura: {
+          } : null,
+          asignatura: asignaturaData ? {
             id: asignaturaData?.id || asignaturaData?.documentId,
             nombre: asignaturaAttrs?.nombre || '',
-          },
+          } : null,
+        }
+        } catch (error: any) {
+          console.warn('[API /crm/contacts/[id] GET] Error procesando trayectoria individual:', error.message, t)
+          return null
         }
       })
+      .filter((t: any) => t !== null) // Filtrar trayectorias que fallaron al procesar
 
     const actividadesNormalizadas = actividades.map((act: any) => {
       const actAttrs = act.attributes || act
@@ -272,12 +387,120 @@ export async function GET(
       }
     })
 
-    // PASO 4: Obtener colegios únicos de las trayectorias
+    // PASO 4: Normalizar empresa_contactos (manejar casos donde puede no existir o estar vacío)
+    let empresaContactosArray: any[] = []
+    let empresaContactosRaw: any = null
+    if (usarEmpresaContactos) {
+      try {
+        empresaContactosRaw = (personaAttrs as any).empresa_contactos
+        console.log('[API /crm/contacts/[id] GET] 🔍 Verificando empresa_contactos en personaAttrs:', {
+          tieneEmpresaContactos: !!empresaContactosRaw,
+          tipo: typeof empresaContactosRaw,
+          esArray: Array.isArray(empresaContactosRaw),
+          tieneData: !!empresaContactosRaw?.data,
+        })
+        if (empresaContactosRaw) {
+          if (Array.isArray(empresaContactosRaw)) {
+            empresaContactosArray = empresaContactosRaw
+            console.log('[API /crm/contacts/[id] GET] ✅ empresa_contactos es array directo:', empresaContactosArray.length)
+          } else if (empresaContactosRaw.data && Array.isArray(empresaContactosRaw.data)) {
+            empresaContactosArray = empresaContactosRaw.data
+            console.log('[API /crm/contacts/[id] GET] ✅ empresa_contactos viene en .data:', empresaContactosArray.length)
+          } else if (empresaContactosRaw.id || empresaContactosRaw.documentId) {
+            empresaContactosArray = [empresaContactosRaw]
+            console.log('[API /crm/contacts/[id] GET] ✅ empresa_contactos es objeto único')
+          }
+        } else {
+          console.log('[API /crm/contacts/[id] GET] ⚠️ empresa_contactos es null/undefined')
+        }
+      } catch (error: any) {
+        console.warn('[API /crm/contacts/[id] GET] Error normalizando empresa_contactos:', error.message)
+        empresaContactosArray = []
+      }
+    }
+    
+    // FALLBACK: Si no se obtuvieron empresa_contactos del populate, intentar obtenerlos directamente
+    if (empresaContactosArray.length === 0 && personaIdNum) {
+      console.log('[API /crm/contacts/[id] GET] 🔄 Fallback: Obteniendo empresa_contactos directamente desde API')
+      try {
+        // Asegurar que personaIdNum sea un número para el filtro
+        const personaIdNumForFilter = typeof personaIdNum === 'number' 
+          ? personaIdNum 
+          : (typeof personaIdNum === 'string' && /^\d+$/.test(personaIdNum) 
+            ? parseInt(personaIdNum) 
+            : null)
+        
+        if (personaIdNumForFilter) {
+          const empresaContactosResponse = await strapiClient.get<StrapiResponse<StrapiEntity<any>>>(
+            `/api/empresa-contactos?filters[persona][id][$eq]=${personaIdNumForFilter}&populate[empresa]=true`
+          )
+          
+          if (empresaContactosResponse.data) {
+            const empresaContactosFromApi = Array.isArray(empresaContactosResponse.data) 
+              ? empresaContactosResponse.data 
+              : [empresaContactosResponse.data]
+            
+            empresaContactosArray = empresaContactosFromApi
+            console.log('[API /crm/contacts/[id] GET] ✅ Obtenidos', empresaContactosArray.length, 'empresa_contactos desde API directa')
+          }
+        } else {
+          console.warn('[API /crm/contacts/[id] GET] ⚠️ personaIdNum no es un número válido para el fallback:', personaIdNum)
+        }
+      } catch (fallbackError: any) {
+        console.warn('[API /crm/contacts/[id] GET] ⚠️ Error en fallback de empresa_contactos:', {
+          message: fallbackError.message,
+          status: fallbackError.status,
+          details: fallbackError.details,
+        })
+        // Continuar sin empresa_contactos si el fallback falla
+      }
+    }
+    
+    const empresaContactos = empresaContactosArray
+      .map((ec: any) => {
+        try {
+          const ecAttrs = ec.attributes || ec
+          const empresaData = ecAttrs.empresa?.data || ecAttrs.empresa || ec.empresa?.data || ec.empresa
+          const empresaAttrs = empresaData?.attributes || empresaData
+
+          console.log('[API /crm/contacts/[id] GET] 🔍 Procesando empresa_contacto:', {
+            ecId: ec.id || ec.documentId,
+            tieneEmpresa: !!empresaData,
+            empresaId: empresaData?.id || empresaData?.documentId,
+            empresaNombre: empresaAttrs?.empresa_nombre || empresaAttrs?.nombre,
+          })
+
+          return {
+            id: ec.id || ec.documentId,
+            documentId: ec.documentId || String(ec.id || ''),
+            cargo: ecAttrs.cargo || ec.cargo || '',
+            empresa: {
+              id: empresaData?.id || empresaData?.documentId,
+              documentId: empresaData?.documentId || String(empresaData?.id || ''),
+              empresa_nombre: empresaAttrs?.empresa_nombre || empresaAttrs?.nombre || '',
+              nombre: empresaAttrs?.empresa_nombre || empresaAttrs?.nombre || '',
+            },
+          }
+        } catch (error: any) {
+          console.warn('[API /crm/contacts/[id] GET] Error procesando empresa_contacto individual:', error.message, ec)
+          return null
+        }
+      })
+      .filter((ec: any) => ec !== null && ec.empresa && (ec.empresa.id || ec.empresa.documentId)) // Filtrar elementos que fallaron o no tienen empresa válida
+
+    // PASO 5: Obtener colegios únicos de las trayectorias
     const colegiosUnicos = Array.from(
       new Map(
         trayectorias
-          .filter(t => t.colegio.id)
-          .map(t => [t.colegio.id, t.colegio])
+          .filter((t): t is NonNullable<typeof t> => t !== null && t !== undefined)
+          .filter((t) => {
+            const colegio = t.colegio
+            return colegio !== null && colegio !== undefined && (colegio.id || colegio.documentId)
+          })
+          .map((t) => {
+            const colegio = t.colegio!
+            return [colegio.id || colegio.documentId, colegio]
+          })
       ).values()
     )
 
@@ -337,21 +560,186 @@ export async function GET(
         tags: personaAttrs.tags || [],
         trayectorias,
         colegios: colegiosUnicos,
+        empresa_contactos: empresaContactos,
         equipos,
         actividades: actividadesNormalizadas,
       },
     }, { status: 200 })
   } catch (error: any) {
-    console.error('[API /crm/contacts/[id] GET] Error:', {
+    console.error('[API /crm/contacts/[id] GET] Error completo:', {
       message: error.message,
       status: error.status,
       details: error.details,
+      contactId,
+      stack: error.stack,
+      response: error.response?.data || error.response,
     })
+    
+    // Si es un error 404, devolver mensaje más claro
+    if (error.status === 404 || error.message?.includes('not found') || error.message?.includes('no encontrado')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Contacto no encontrado',
+          details: `No se encontró un contacto con el ID: ${contactId ?? 'desconocido'}`,
+        },
+        { status: 404 }
+      )
+    }
+    
+    // Si es un error 500, intentar dar más información
+    if (error.status === 500 || !error.status) {
+      const errorMessage = error.message || 'Error interno del servidor'
+      const errorDetails = error.details || error.response?.data || {}
+      
+      console.error('[API /crm/contacts/[id] GET] Error 500 - Detalles:', {
+        errorMessage,
+        errorDetails,
+        contactId,
+      })
+      
+      return NextResponse.json(
+        {
+          success: false,
+          error: errorMessage,
+          details: typeof errorDetails === 'object' ? errorDetails : { message: String(errorDetails) },
+          status: 500,
+        },
+        { status: 500 }
+      )
+    }
+    
     return NextResponse.json(
       {
         success: false,
-        error: 'Error obteniendo contacto',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        error: error.message || 'Error obteniendo contacto',
+        details: error.details || (error instanceof Error ? error.message : 'Unknown error'),
+        status: error.status || 500,
+      },
+      { status: error.status || 500 }
+    )
+  }
+}
+
+/**
+ * PUT /api/crm/contacts/[id]
+ * Actualiza un contacto (persona) existente
+ */
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  let id: string | undefined
+  try {
+    const resolvedParams = await params
+    id = resolvedParams.id
+    const body = await request.json()
+
+    // Validaciones básicas
+    if (!body.nombres || !body.nombres.trim()) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'El nombre es obligatorio',
+        },
+        { status: 400 }
+      )
+    }
+
+    // Preparar datos para Strapi
+    const personaUpdateData: any = {
+      data: {
+        nombres: body.nombres.trim(),
+        ...(body.primer_apellido && { primer_apellido: body.primer_apellido.trim() }),
+        ...(body.segundo_apellido && { segundo_apellido: body.segundo_apellido.trim() }),
+        ...(body.nombre_completo && { nombre_completo: body.nombre_completo.trim() }),
+        ...(body.rut && { rut: body.rut.trim() }),
+        ...(body.genero && { genero: body.genero }),
+        ...(body.cumpleagno && { cumpleagno: body.cumpleagno }),
+        ...(body.activo !== undefined && { activo: body.activo }),
+        ...(body.nivel_confianza && { nivel_confianza: body.nivel_confianza }),
+        ...(body.origen && { origen: body.origen }),
+      },
+    }
+
+    // Agregar emails si existen
+    if (body.emails && Array.isArray(body.emails) && body.emails.length > 0) {
+      personaUpdateData.data.emails = body.emails.map((emailItem: any, index: number) => {
+        const emailValue = typeof emailItem === 'string' ? emailItem : emailItem.email || ''
+        return {
+          email: typeof emailValue === 'string' ? emailValue.trim() : String(emailValue).trim(),
+          principal: typeof emailItem === 'object' && emailItem.principal !== undefined ? emailItem.principal : index === 0,
+        }
+      })
+    }
+
+    // Agregar telefonos si existen
+    if (body.telefonos && Array.isArray(body.telefonos) && body.telefonos.length > 0) {
+      personaUpdateData.data.telefonos = body.telefonos.map((telefonoItem: any, index: number) => {
+        const telefonoValue = telefonoItem.telefono_raw || telefonoItem.telefono_norm || telefonoItem.telefono || ''
+        return {
+          telefono_raw: typeof telefonoValue === 'string' ? telefonoValue.trim() : String(telefonoValue).trim(),
+          telefono_norm: typeof telefonoValue === 'string' ? telefonoValue.trim() : String(telefonoValue).trim(),
+          principal: typeof telefonoItem === 'object' && telefonoItem.principal !== undefined ? telefonoItem.principal : index === 0,
+        }
+      })
+    }
+
+    // Actualizar en Strapi
+    const response = await strapiClient.put<StrapiResponse<StrapiEntity<PersonaAttributes>>>(
+      `/api/personas/${id}`,
+      personaUpdateData
+    )
+
+    // Extraer datos de la respuesta
+    const updatedData = Array.isArray(response.data) 
+      ? (response.data.length > 0 ? response.data[0] : response.data)
+      : response.data
+
+    return NextResponse.json({
+      success: true,
+      data: updatedData,
+      message: 'Contacto actualizado exitosamente',
+    }, { status: 200 })
+  } catch (error: any) {
+    console.error('[API /crm/contacts/[id] PUT] Error:', {
+      message: error.message,
+      status: error.status,
+      details: error.details,
+      id,
+    })
+
+    // Manejar errores específicos
+    if (error.status === 404) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Contacto no encontrado',
+          details: `No se encontró un contacto con el ID: ${id}`,
+        },
+        { status: 404 }
+      )
+    }
+
+    // Extraer mensaje de error más descriptivo
+    let errorMessage = error.message || 'Error al actualizar contacto'
+    
+    if (error.details?.errors && Array.isArray(error.details.errors)) {
+      const firstError = error.details.errors[0]
+      if (firstError?.message) {
+        const fieldName = firstError.path?.[0] || 'Campo'
+        const fieldLabel = fieldName === 'nombres' ? 'Nombre' : 
+                          fieldName === 'rut' ? 'RUT' : 
+                          fieldName
+        errorMessage = `${fieldLabel}: ${firstError.message}`
+      }
+    }
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: errorMessage,
+        details: error.details || {},
         status: error.status || 500,
       },
       { status: error.status || 500 }

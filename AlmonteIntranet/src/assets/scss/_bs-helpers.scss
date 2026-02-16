@@ -1,0 +1,33 @@
+// Wrapper de helpers Bootstrap 5.3 con rutas absolutas para evitar
+// problemas de resolución de imports relativos ("helpers/*") al compilar
+// con Turbopack.
+
+@import "bootstrap/scss/helpers/clearfix";
+@import "bootstrap/scss/helpers/color-bg";
+@import "bootstrap/scss/helpers/colored-links";
+@import "bootstrap/scss/helpers/focus-ring";
+@import "bootstrap/scss/helpers/icon-link";
+@import "bootstrap/scss/helpers/ratio";
+@import "bootstrap/scss/helpers/position";
+@import "bootstrap/scss/helpers/stacks";
+@import "bootstrap/scss/helpers/visually-hidden";
+@import "bootstrap/scss/helpers/stretched-link";
+@import "bootstrap/scss/helpers/text-truncation";
+@import "bootstrap/scss/helpers/vr";
+
+// Copia de los helpers de Bootstrap 5.3 con imports absolutas para evitar
+// problemas de resolución de rutas en Turbopack.
+
+@import "bootstrap/scss/helpers/clearfix";
+@import "bootstrap/scss/helpers/color-bg";
+@import "bootstrap/scss/helpers/colored-links";
+@import "bootstrap/scss/helpers/focus-ring";
+@import "bootstrap/scss/helpers/icon-link";
+@import "bootstrap/scss/helpers/ratio";
+@import "bootstrap/scss/helpers/position";
+@import "bootstrap/scss/helpers/stacks";
+@import "bootstrap/scss/helpers/visually-hidden";
+@import "bootstrap/scss/helpers/stretched-link";
+@import "bootstrap/scss/helpers/text-truncation";
+@import "bootstrap/scss/helpers/vr";
+
