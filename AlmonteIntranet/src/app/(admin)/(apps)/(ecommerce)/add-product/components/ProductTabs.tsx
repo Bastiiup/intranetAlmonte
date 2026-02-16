@@ -4,7 +4,7 @@ import { memo, useCallback } from 'react'
 import { TbBox, TbTruck, TbLink, TbTag, TbSettings, TbFileText } from 'react-icons/tb'
 import { Card, CardBody, Nav, NavItem, NavLink } from 'react-bootstrap'
 
-export type TabType = 'general' | 'envio' | 'vinculados' | 'atributos' | 'avanzado'
+export type TabType = 'general' | 'inventario' | 'envio' | 'vinculados' | 'atributos' | 'avanzado'
 
 interface ProductTabsProps {
   activeTab: TabType
@@ -14,6 +14,7 @@ interface ProductTabsProps {
 
 const tabs = [
   { id: 'general' as TabType, label: 'General', icon: TbFileText },
+  { id: 'inventario' as TabType, label: 'Inventario', icon: TbBox },
   { id: 'envio' as TabType, label: 'Envío', icon: TbTruck },
   { id: 'vinculados' as TabType, label: 'Productos vinculados', icon: TbLink },
   { id: 'atributos' as TabType, label: 'Atributos', icon: TbTag },

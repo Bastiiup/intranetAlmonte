@@ -264,15 +264,8 @@ export async function PUT(
       Object.assign(body, normalizedBody)
     }
 
-    // Obtener producto - detectar si es ID numérico o documentId (string)
-    const esNumerico = !isNaN(parseInt(id)) && /^\d+$/.test(id)
-    const filtro = esNumerico 
-      ? `filters[id][$eq]=${id}` 
-      : `filters[documentId][$eq]=${id}`
-    const endpoint = `/api/libros?${filtro}&populate=*`
-    
-    console.log('[API PUT] 🔍 Buscando producto:', { id, esNumerico, filtro, endpoint })
-    
+    // Obtener producto
+    const endpoint = `/api/libros?filters[id][$eq]=${id}&populate=*`
     const response = await strapiClient.get<any>(endpoint)
 
     let producto: any
@@ -670,78 +663,6 @@ export async function PUT(
     )
 
     console.log('[API PUT] ✅ Actualización exitosa')
-
-    // ═══════════════════════════════════════════════════════════════════
-    // REGISTRAR HISTORIAL DE PRECIOS (si hubo cambios de precio)
-    // ═══════════════════════════════════════════════════════════════════
-    try {
-      const precioAnterior = attrs.precio || 0
-      const precioNuevo = body.precio !== undefined ? parseFloat(body.precio.toString()) : precioAnterior
-      const precioOfertaAnterior = attrs.precio_oferta || 0
-      const precioOfertaNuevo = body.precio_oferta !== undefined ? parseFloat(body.precio_oferta.toString()) : precioOfertaAnterior
-
-      const huboCambioPrecio = precioAnterior !== precioNuevo || precioOfertaAnterior !== precioOfertaNuevo
-
-      if (huboCambioPrecio) {
-        console.log('[API PUT] 💰 Detectado cambio de precio, registrando en historial...')
-        
-        // Obtener usuario para el historial
-        let usuarioDocumentId: string | null = null
-        try {
-          const cookieHeader = request.headers.get('cookie')
-          if (cookieHeader) {
-            const cookies = cookieHeader.split(';').reduce((acc: Record<string, string>, cookie: string) => {
-              const [name, ...valueParts] = cookie.trim().split('=')
-              if (name && valueParts.length > 0) {
-                acc[name] = decodeURIComponent(valueParts.join('='))
-              }
-              return acc
-            }, {})
-            if (cookies['colaboradorData']) {
-              const colaborador = JSON.parse(cookies['colaboradorData'])
-              usuarioDocumentId = colaborador.documentId || null
-            }
-          }
-        } catch (e) {
-          console.warn('[API PUT] ⚠️ No se pudo obtener usuario para historial de precios')
-        }
-
-        // Crear registro en historial-precios
-        const historialData = {
-          data: {
-            libro: producto.id, // Usar ID numérico de Strapi, no documentId
-            precio_anterior: precioAnterior,
-            precio_nuevo: precioNuevo,
-            precio_oferta_anterior: precioOfertaAnterior || null,
-            precio_oferta_nuevo: precioOfertaNuevo || null,
-            motivo: body.motivo_cambio_precio || 'Actualización manual desde intranet',
-            origen: 'manual_intranet',
-            fecha_cambio: new Date().toISOString(),
-            // Usuario es opcional - solo agregar si existe y es válido
-          }
-        }
-
-        console.log('[API PUT] 📝 Datos para historial de precios:', JSON.stringify(historialData, null, 2))
-        
-        try {
-          await strapiClient.post('/api/historial-precios', historialData)
-        } catch (histErr: any) {
-          console.error('[API PUT] ⚠️ Error en POST historial-precios:', histErr.message)
-          console.error('[API PUT] ⚠️ Respuesta:', histErr.response?.data || histErr.details)
-          // No re-lanzar el error - el historial es opcional
-        }
-        console.log('[API PUT] ✅ Historial de precios registrado:', {
-          libro: producto.documentId,
-          precioAnterior,
-          precioNuevo,
-          precioOfertaAnterior,
-          precioOfertaNuevo,
-        })
-      }
-    } catch (historialError: any) {
-      // No fallar la actualización si el historial falla
-      console.error('[API PUT] ⚠️ Error al registrar historial de precios (no crítico):', historialError.message)
-    }
     
     // Verificar que el producto actualizado tenga canales y estado correcto
     const productoActualizado = updateResponse.data?.attributes || updateResponse.data || updateResponse
@@ -1134,27 +1055,11 @@ export async function PUT(
 
   } catch (error: any) {
     console.error('[API PUT] ❌ ERROR:', error)
-    console.error('[API PUT] ❌ Error message:', error.message)
-    console.error('[API PUT] ❌ Error response:', error.response?.data || error.response || 'Sin response')
-    console.error('[API PUT] ❌ Error details:', error.details || 'Sin details')
-    
-    // Extraer mensaje de error más específico
-    let errorMessage = 'Error al actualizar producto'
-    if (error.message) {
-      errorMessage = error.message
-    }
-    if (error.response?.data?.error?.message) {
-      errorMessage = error.response.data.error.message
-    }
-    if (error.details?.errors) {
-      errorMessage = error.details.errors.map((e: any) => e.message || e).join(', ')
-    }
-    
     return NextResponse.json({
       success: false,
-      error: errorMessage,
-      details: error.details || error.response?.data
-    }, { status: error.status || 500 })
+      error: error.message,
+      details: error.details
+    }, { status: 500 })
   }
 }
 

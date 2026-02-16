@@ -5,6 +5,7 @@ import ProductImage from './components/ProductImage'
 import ProductTabs, { TabType } from './components/ProductTabs'
 import PlatformSelector from './components/PlatformSelector'
 import GeneralTab from './components/tabs/GeneralTab'
+import InventarioTab from './components/tabs/InventarioTab'
 import EnvioTab from './components/tabs/EnvioTab'
 import VinculadosTab from './components/tabs/VinculadosTab'
 import AtributosTab from './components/tabs/AtributosTab'
@@ -27,13 +28,19 @@ export default function AddProductPage() {
     descripcion_corta: '',
     isbn_libro: '',
     
-    // === WOOCOMMERCE: PRECIO E INVENTARIO ===
-    // NOTA: Los precios e inventario se gestionan desde Inventario/Proveedores
+    // === WOOCOMMERCE: PRECIO ===
+    precio: '',
+    precio_oferta: '',
     sale_quantity: '',
     sold_items: '0',
     tax_status: 'taxable',
     tax_class: 'standard',
+    
+    // === WOOCOMMERCE: INVENTARIO ===
     sku: '',
+    stock_quantity: '',
+    manage_stock: true,
+    stock_status: 'instock' as 'instock' | 'outofstock' | 'onbackorder',
     sold_individually: false,
     
     // === WOOCOMMERCE: TIPO DE PRODUCTO ===
@@ -100,6 +107,8 @@ export default function AddProductPage() {
     switch (activeTab) {
       case 'general':
         return <GeneralTab formData={formData} updateField={updateField} />
+      case 'inventario':
+        return <InventarioTab formData={formData} updateField={updateField} />
       case 'envio':
         return <EnvioTab formData={formData} updateField={updateField} />
       case 'vinculados':
@@ -123,6 +132,13 @@ export default function AddProductPage() {
       // Validar nombre requerido
       if (!formData.nombre_libro.trim()) {
         setError('El nombre del producto es obligatorio')
+        setLoading(false)
+        return
+      }
+
+      // Validar precio
+      if (!formData.precio || parseFloat(formData.precio) <= 0) {
+        setError('El precio es obligatorio y debe ser mayor a 0')
         setLoading(false)
         return
       }
@@ -159,7 +175,9 @@ export default function AddProductPage() {
         // Si descripcion_corta está vacío, enviar vacío (NO generar desde descripcion)
         subtitulo_libro: formData.descripcion_corta?.trim() || '', // ✅ Para Strapi (descripción corta)
         isbn_libro: formData.isbn_libro?.trim() || '',
-        // NOTA: precio, precio_oferta y stock_quantity se gestionan desde Inventario/Proveedores
+        precio: formData.precio,
+        precio_oferta: formData.precio_oferta || '',
+        stock_quantity: formData.stock_quantity || '0',
         // Campos WooCommerce que NO están en schema de Strapi:
         // manage_stock, stock_status, sold_individually
         // type, virtual, downloadable, reviews_allowed, menu_order, purchase_note, sku
@@ -356,8 +374,15 @@ export default function AddProductPage() {
         // NUNCA duplica el valor de description
         short_description: finalShortDescription || '<p>Sin descripción corta</p>',
         
-        // NOTA: Precio e inventario se gestionan desde Inventario/Proveedores
-        // No se incluyen aquí para evitar duplicación de gestión
+        // Precio
+        regular_price: formData.precio ? parseFloat(formData.precio).toFixed(2) : '0.00',
+        sale_price: formData.precio_oferta ? parseFloat(formData.precio_oferta).toFixed(2) : '',
+        
+        // Stock
+        manage_stock: true,
+        stock_quantity: parseInt(formData.stock_quantity || '0'),
+        stock_status: parseInt(formData.stock_quantity || '0') > 0 ? 'instock' : 'outofstock',
+        backorders: 'no',
         
         // ✅ IMÁGENES (array de objetos con formato WooCommerce)
         images: imagenUrlFinal ? [
