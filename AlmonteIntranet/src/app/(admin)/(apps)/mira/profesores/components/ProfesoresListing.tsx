@@ -246,7 +246,23 @@ export default function ProfesoresListing() {
 
             {profesores.length > 0 && (
               <CardFooter className="border-top border-light">
-                <TablePagination table={table} />
+                <TablePagination
+                  totalItems={profesores.length}
+                  start={table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}
+                  end={Math.min(
+                    (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+                    profesores.length
+                  )}
+                  itemsName="profesores"
+                  showInfo
+                  previousPage={() => table.previousPage()}
+                  canPreviousPage={table.getCanPreviousPage()}
+                  pageCount={table.getPageCount()}
+                  pageIndex={table.getState().pagination.pageIndex}
+                  setPageIndex={(idx) => table.setPageIndex(idx)}
+                  nextPage={() => table.nextPage()}
+                  canNextPage={table.getCanNextPage()}
+                />
               </CardFooter>
             )}
           </Card>
