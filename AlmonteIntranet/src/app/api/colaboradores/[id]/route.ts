@@ -41,7 +41,7 @@ export async function GET(
     // Intentar primero con el endpoint directo (funciona con documentId o id)
     try {
       const response = await strapiClient.get<StrapiResponse<StrapiEntity<ColaboradorAttributes>>>(
-        `/api/colaboradores/${id}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,bio,job_title,telefono_principal&populate[persona][populate][imagen][populate]=*&populate[persona][populate][portada][populate]=*&populate[persona][populate][telefonos]=*&populate[usuario]=*`
+        `/api/colaboradores/${id}?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo,bio,job_title,telefono_principal&populate[persona][populate][imagen][populate]=*&populate[persona][populate][portada][populate]=*&populate[persona][populate][telefonos]=*&populate[usuario][fields]=id,documentId,username,email,confirmed,blocked`
       )
       
       colaborador = extractStrapiData(response)

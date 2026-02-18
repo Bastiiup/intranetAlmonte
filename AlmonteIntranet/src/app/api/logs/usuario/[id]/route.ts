@@ -33,7 +33,7 @@ export async function GET(
     if (usuarioIdNum < 0) {
       // Primero obtener la lista de usuarios para encontrar la IP asociada a este ID negativo
       const usuariosResponse = await strapiClient.get<any>(
-        `/api/activity-logs?populate[usuario][populate]=*&pagination[pageSize]=10000&sort=fecha:desc`
+        `/api/activity-logs?populate[usuario][fields]=id,documentId,email_login&pagination[pageSize]=10000&sort=fecha:desc`
       )
       
       let usuariosLogs: any[] = []
@@ -121,10 +121,13 @@ export async function GET(
         },
       })
     } else {
-      // Usuario normal - buscar por ID de usuario
-      // Populate específico para traer email_login del colaborador
+      // Usuario normal - buscar por ID. En activity-log "usuario" es la relación al colaborador.
+      // Si el id parece documentId (string largo), filtrar por documentId para evitar 500.
+      const isDocumentId = /^[a-z0-9]{20,30}$/i.test(usuarioId) && !/^\d+$/.test(usuarioId)
+      const filterKey = isDocumentId ? 'filters[usuario][documentId][$eq]' : 'filters[usuario][id][$eq]'
+      const filterVal = encodeURIComponent(usuarioId)
       response = await strapiClient.get<any>(
-        `/api/activity-logs?filters[usuario][id][$eq]=${usuarioId}&populate[usuario][fields]=email_login&populate[usuario][populate][persona][fields]=nombres,primer_apellido,segundo_apellido,nombre_completo&pagination[page]=${page}&pagination[pageSize]=${pageSize}&sort=${sortField}:${sortOrder}`
+        `/api/activity-logs?${filterKey}=${filterVal}&populate[usuario][fields]=email_login&populate[usuario][populate][persona][fields]=nombres,primer_apellido,segundo_apellido,nombre_completo&pagination[page]=${page}&pagination[pageSize]=${pageSize}&sort=${sortField}:${sortOrder}`
       )
     }
 

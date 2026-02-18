@@ -25,10 +25,10 @@ export async function GET(request: NextRequest) {
     const sortField = sort.split(':')[0] || 'fecha'
     const sortOrder = sort.split(':')[1] || 'desc'
     
-    // Construir parámetros de filtro
-    // Populate completo del usuario con su persona para obtener el nombre
+    // Construir parámetros de filtro. Usuario = colaborador; populate explícito para evitar persona_perfil
     const params = new URLSearchParams({
-      'populate[usuario][populate][persona][populate]': '*',
+      'populate[usuario][fields]': 'email_login,id,documentId',
+      'populate[usuario][populate][persona][fields]': 'nombres,primer_apellido,segundo_apellido,nombre_completo',
       'pagination[page]': page.toString(),
       'pagination[pageSize]': pageSize.toString(),
       'sort': `${sortField}:${sortOrder}`
