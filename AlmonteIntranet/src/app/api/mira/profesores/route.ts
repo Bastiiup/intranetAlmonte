@@ -5,7 +5,9 @@ export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/mira/profesores
- * Lista personas que tienen un usuario_login asociado (profesores)
+ * Lista personas que tienen un usuario_login asociado (profesores).
+ * Strapi v5 no permite field-level selection en populate de users-permissions,
+ * por eso usamos populate[usuario_login]=* sin campos específicos.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -15,13 +17,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || ''
 
     const params = new URLSearchParams({
-      'populate[usuario_login][fields][0]': 'id',
-      'populate[usuario_login][fields][1]': 'email',
-      'populate[usuario_login][fields][2]': 'username',
-      'populate[usuario_login][fields][3]': 'confirmed',
-      'populate[usuario_login][fields][4]': 'blocked',
-      'populate[emails]': '*',
-      'populate[telefonos]': '*',
+      'populate[usuario_login]': '*',
       'filters[usuario_login][id][$notNull]': 'true',
       'pagination[page]': page,
       'pagination[pageSize]': pageSize,

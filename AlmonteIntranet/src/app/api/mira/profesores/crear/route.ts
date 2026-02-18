@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
-import { getStrapiUrl, STRAPI_API_TOKEN } from '@/lib/strapi/config'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,13 +14,15 @@ interface CrearProfesorBody {
 
 /**
  * POST /api/mira/profesores/crear
- * Crea un User + Persona vinculados (secuencia atómica)
+ * Crea un User (users-permissions) + Persona vinculados (secuencia atómica).
+ *
+ * users-permissions espera payload plano (sin wrapper { data: {} }).
+ * persona espera payload con wrapper { data: { ... } }.
  */
 export async function POST(request: NextRequest) {
   try {
     const body: CrearProfesorBody = await request.json()
 
-    // Validaciones
     if (!body.nombres?.trim()) {
       return NextResponse.json({ success: false, error: 'El nombre es obligatorio' }, { status: 400 })
     }
@@ -40,95 +41,100 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'El email no tiene un formato válido' }, { status: 400 })
     }
 
-    // Verificar si ya existe una persona con ese RUT
     const rutLimpio = body.rut.trim()
-    const personaExistente = await strapiClient.get<any>(
-      `/api/personas?filters[rut][$eq]=${encodeURIComponent(rutLimpio)}&pagination[pageSize]=1`
-    )
-    if (personaExistente.data && Array.isArray(personaExistente.data) && personaExistente.data.length > 0) {
-      return NextResponse.json(
-        { success: false, error: `Ya existe una persona con RUT ${rutLimpio}` },
-        { status: 409 }
+    const emailLimpio = body.email.trim().toLowerCase()
+
+    // Verificar si ya existe una persona con ese RUT
+    try {
+      const personaCheck = await strapiClient.get<any>(
+        `/api/personas?filters[rut][$eq]=${encodeURIComponent(rutLimpio)}&pagination[pageSize]=1`
       )
+      const personasExistentes = Array.isArray(personaCheck.data) ? personaCheck.data : []
+      if (personasExistentes.length > 0) {
+        return NextResponse.json(
+          { success: false, error: `Ya existe una persona con RUT ${rutLimpio}` },
+          { status: 409 }
+        )
+      }
+    } catch (e: any) {
+      console.warn('[API /mira/profesores/crear] Error al verificar RUT:', e.message)
     }
 
     // Verificar si ya existe un usuario con ese email
-    const userExistente = await strapiClient.get<any>(
-      `/api/users?filters[email][$eq]=${encodeURIComponent(body.email.trim())}&pagination[pageSize]=1`
-    )
-    if (userExistente && Array.isArray(userExistente) && userExistente.length > 0) {
+    // users-permissions devuelve array plano, no { data: [...] }
+    try {
+      const usersCheck = await strapiClient.get<any>(
+        `/api/users?filters[email][$eq]=${encodeURIComponent(emailLimpio)}&pagination[pageSize]=1`
+      )
+      const usersExistentes = Array.isArray(usersCheck) ? usersCheck : Array.isArray(usersCheck?.data) ? usersCheck.data : []
+      if (usersExistentes.length > 0) {
+        return NextResponse.json(
+          { success: false, error: `Ya existe un usuario con el email ${emailLimpio}` },
+          { status: 409 }
+        )
+      }
+    } catch (e: any) {
+      console.warn('[API /mira/profesores/crear] Error al verificar email (puede ser normal):', e.message)
+    }
+
+    const passwordTemporal = body.password?.trim() || generarPassword(rutLimpio)
+
+    console.log('[API /mira/profesores/crear] Creando usuario...', { email: emailLimpio })
+
+    // PASO 1: Crear User en Strapi (users-permissions)
+    // El endpoint /api/users de users-permissions espera payload PLANO (sin { data: {} })
+    let userData: any
+    try {
+      userData = await strapiClient.post<any>('/api/users', {
+        username: emailLimpio,
+        email: emailLimpio,
+        password: passwordTemporal,
+        confirmed: true,
+        blocked: false,
+        role: 1,
+      })
+    } catch (userError: any) {
+      console.error('[API /mira/profesores/crear] Error al crear usuario:', userError.message)
       return NextResponse.json(
-        { success: false, error: `Ya existe un usuario con el email ${body.email.trim()}` },
-        { status: 409 }
+        { success: false, error: userError.message || 'Error al crear usuario en Strapi' },
+        { status: userError.status || 500 }
       )
     }
 
-    // Generar contraseña temporal: RUT sin dígito verificador o "MIRA2026"
-    const passwordTemporal = body.password?.trim() || generarPassword(rutLimpio)
-
-    console.log('[API /mira/profesores/crear] Creando usuario...', { email: body.email.trim() })
-
-    // PASO 1: Crear User en Strapi (users-permissions)
-    const userPayload = {
-      username: body.email.trim(),
-      email: body.email.trim(),
-      password: passwordTemporal,
-      confirmed: true,
-      blocked: false,
-      role: 1, // Rol "Authenticated" por defecto
-    }
-
-    const userResponse = await fetch(getStrapiUrl('/api/users'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${STRAPI_API_TOKEN}`,
-      },
-      body: JSON.stringify(userPayload),
-    })
-
-    if (!userResponse.ok) {
-      const userError = await userResponse.json().catch(() => ({}))
-      console.error('[API /mira/profesores/crear] Error al crear usuario:', userError)
-      const errorMsg = userError.error?.message || userError.message || 'Error al crear usuario en Strapi'
-      return NextResponse.json({ success: false, error: errorMsg }, { status: userResponse.status })
-    }
-
-    const userData = await userResponse.json()
-    const userId = userData.id
-    const userDocumentId = userData.documentId
-
+    const userId = userData?.id
+    const userDocumentId = userData?.documentId
     console.log('[API /mira/profesores/crear] Usuario creado:', { userId, userDocumentId })
+
+    if (!userId && !userDocumentId) {
+      console.error('[API /mira/profesores/crear] Usuario creado pero sin ID:', userData)
+      return NextResponse.json(
+        { success: false, error: 'Usuario creado pero no se obtuvo ID. Contacta al administrador.' },
+        { status: 500 }
+      )
+    }
 
     // PASO 2: Crear Persona vinculada al User
     const nombreCompleto = `${body.nombres.trim()} ${body.primer_apellido.trim()} ${body.segundo_apellido?.trim() || ''}`.trim()
 
-    const personaPayload = {
-      data: {
-        nombres: body.nombres.trim(),
-        primer_apellido: body.primer_apellido.trim(),
-        segundo_apellido: body.segundo_apellido?.trim() || null,
-        nombre_completo: nombreCompleto,
-        rut: rutLimpio,
-        activo: true,
-        origen: 'manual',
-        usuario_login: userDocumentId || userId,
-      },
-    }
-
-    console.log('[API /mira/profesores/crear] Creando persona...', { rut: rutLimpio, usuario_login: userDocumentId || userId })
-
-    let personaResponse: any
+    let personaData: any
     try {
-      personaResponse = await strapiClient.post('/api/personas', personaPayload)
+      personaData = await strapiClient.post<any>('/api/personas', {
+        data: {
+          nombres: body.nombres.trim(),
+          primer_apellido: body.primer_apellido.trim(),
+          segundo_apellido: body.segundo_apellido?.trim() || null,
+          nombre_completo: nombreCompleto,
+          rut: rutLimpio,
+          activo: true,
+          origen: 'manual',
+          usuario_login: userDocumentId || userId,
+        },
+      })
     } catch (personaError: any) {
       console.error('[API /mira/profesores/crear] Error al crear persona:', personaError.message)
       // Rollback: eliminar el usuario creado
       try {
-        await fetch(getStrapiUrl(`/api/users/${userId}`), {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${STRAPI_API_TOKEN}` },
-        })
+        await strapiClient.delete(`/api/users/${userId}`)
         console.log('[API /mira/profesores/crear] Rollback: usuario eliminado')
       } catch (rollbackError: any) {
         console.error('[API /mira/profesores/crear] Error en rollback:', rollbackError.message)
@@ -139,14 +145,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const personaData = personaResponse.data?.attributes || personaResponse.data || personaResponse
-    const personaId = personaResponse.data?.id || personaResponse.id
+    const persona = personaData?.data || personaData
+    const personaId = persona?.id
+    const personaDocId = persona?.documentId
 
     console.log('[API /mira/profesores/crear] Profesor creado exitosamente:', {
-      personaId,
-      userId,
-      rut: rutLimpio,
-      email: body.email.trim(),
+      personaId, personaDocId, userId, userDocumentId, rut: rutLimpio, email: emailLimpio,
     })
 
     return NextResponse.json({
@@ -154,7 +158,7 @@ export async function POST(request: NextRequest) {
       data: {
         persona: {
           id: personaId,
-          documentId: personaResponse.data?.documentId || personaResponse.documentId,
+          documentId: personaDocId,
           nombres: body.nombres.trim(),
           primer_apellido: body.primer_apellido.trim(),
           segundo_apellido: body.segundo_apellido?.trim() || null,
@@ -164,15 +168,15 @@ export async function POST(request: NextRequest) {
         usuario: {
           id: userId,
           documentId: userDocumentId,
-          email: body.email.trim(),
-          username: body.email.trim(),
+          email: emailLimpio,
+          username: emailLimpio,
         },
         password_temporal: passwordTemporal,
       },
       message: `Profesor creado exitosamente. Contraseña temporal: ${passwordTemporal}`,
     })
   } catch (error: any) {
-    console.error('[API /mira/profesores/crear] Error:', error.message)
+    console.error('[API /mira/profesores/crear] Error general:', error.message)
     return NextResponse.json(
       { success: false, error: error.message || 'Error al crear profesor' },
       { status: error.status || 500 }
@@ -180,10 +184,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * Genera contraseña temporal a partir del RUT
- * Extrae solo los dígitos numéricos (sin dígito verificador)
- */
 function generarPassword(rut: string): string {
   const soloNumeros = rut.replace(/[^0-9]/g, '')
   if (soloNumeros.length > 1) {
