@@ -60,94 +60,59 @@ export async function POST(request: NextRequest) {
       console.warn('[API /mira/profesores/crear] Error al verificar RUT:', e.message)
     }
 
-    // Verificar si ya existe un usuario con ese email
-    // users-permissions devuelve array plano, no { data: [...] }
-    try {
-      const usersCheck = await strapiClient.get<any>(
-        `/api/users?filters[email][$eq]=${encodeURIComponent(emailLimpio)}&pagination[pageSize]=1`
-      )
-      const usersExistentes = Array.isArray(usersCheck) ? usersCheck : Array.isArray(usersCheck?.data) ? usersCheck.data : []
-      if (usersExistentes.length > 0) {
-        return NextResponse.json(
-          { success: false, error: `Ya existe un usuario con el email ${emailLimpio}` },
-          { status: 409 }
-        )
-      }
-    } catch (e: any) {
-      console.warn('[API /mira/profesores/crear] Error al verificar email (puede ser normal):', e.message)
-    }
-
     const passwordTemporal = body.password?.trim() || generarPassword(rutLimpio)
+    const nombreCompleto = `${body.nombres.trim()} ${body.primer_apellido.trim()} ${body.segundo_apellido?.trim() || ''}`.trim()
 
-    console.log('[API /mira/profesores/crear] Creando usuario...', { email: emailLimpio })
-
-    // PASO 1: Crear User en Strapi (users-permissions)
-    // El endpoint /api/users de users-permissions espera payload PLANO (sin { data: {} })
-    let userData: any
+    // Usar el endpoint atómico de Strapi (mismo que registro público) para evitar
+    // GET/POST /api/users (filters[email] inválido y column username puede no existir).
+    console.log('[API /mira/profesores/crear] Creando vía Strapi /auth/register-profesor', { email: emailLimpio })
+    let strapiResponse: any
     try {
-      userData = await strapiClient.post<any>('/api/users', {
-        username: emailLimpio,
+      strapiResponse = await strapiClient.post<any>('/api/auth/register-profesor', {
+        nombres: body.nombres.trim(),
+        primer_apellido: body.primer_apellido.trim(),
+        segundo_apellido: (body.segundo_apellido || '').trim(),
+        rut: rutLimpio,
         email: emailLimpio,
         password: passwordTemporal,
-        confirmed: true,
-        blocked: false,
-        role: 1,
       })
-    } catch (userError: any) {
-      console.error('[API /mira/profesores/crear] Error al crear usuario:', userError.message)
+    } catch (e: any) {
+      console.error('[API /mira/profesores/crear] Error al crear vía register-profesor:', e.message, e.status)
+      const msg = e.message || e.error?.message || 'Error al crear profesor en Strapi'
+      const status = e.status || 500
       return NextResponse.json(
-        { success: false, error: userError.message || 'Error al crear usuario en Strapi' },
-        { status: userError.status || 500 }
+        { success: false, error: msg },
+        { status: status >= 400 && status < 600 ? status : 500 }
       )
     }
 
-    const userId = userData?.id
-    const userDocumentId = userData?.documentId
-    console.log('[API /mira/profesores/crear] Usuario creado:', { userId, userDocumentId })
-
-    if (!userId && !userDocumentId) {
-      console.error('[API /mira/profesores/crear] Usuario creado pero sin ID:', userData)
+    const user = strapiResponse?.user
+    const userId = user?.id
+    const userDocumentId = user?.documentId
+    if (!userId) {
+      console.error('[API /mira/profesores/crear] Strapi no devolvió user.id:', strapiResponse)
       return NextResponse.json(
-        { success: false, error: 'Usuario creado pero no se obtuvo ID. Contacta al administrador.' },
+        { success: false, error: 'Strapi no devolvió datos del usuario creado.' },
         { status: 500 }
       )
     }
 
-    // PASO 2: Crear Persona vinculada al User
-    const nombreCompleto = `${body.nombres.trim()} ${body.primer_apellido.trim()} ${body.segundo_apellido?.trim() || ''}`.trim()
-
-    let personaData: any
+    // Obtener la persona creada por Strapi (por RUT)
+    let personaId: number | string | undefined
+    let personaDocId: string | undefined
     try {
-      personaData = await strapiClient.post<any>('/api/personas', {
-        data: {
-          nombres: body.nombres.trim(),
-          primer_apellido: body.primer_apellido.trim(),
-          segundo_apellido: body.segundo_apellido?.trim() || null,
-          nombre_completo: nombreCompleto,
-          rut: rutLimpio,
-          activo: true,
-          origen: 'manual',
-          usuario_login: userDocumentId || userId,
-        },
-      })
-    } catch (personaError: any) {
-      console.error('[API /mira/profesores/crear] Error al crear persona:', personaError.message)
-      // Rollback: eliminar el usuario creado
-      try {
-        await strapiClient.delete(`/api/users/${userId}`)
-        console.log('[API /mira/profesores/crear] Rollback: usuario eliminado')
-      } catch (rollbackError: any) {
-        console.error('[API /mira/profesores/crear] Error en rollback:', rollbackError.message)
-      }
-      return NextResponse.json(
-        { success: false, error: personaError.message || 'Error al crear persona' },
-        { status: personaError.status || 500 }
+      const personaRes = await strapiClient.get<any>(
+        `/api/personas?filters[rut][$eq]=${encodeURIComponent(rutLimpio)}&pagination[pageSize]=1`
       )
+      const list = Array.isArray(personaRes?.data) ? personaRes.data : []
+      const primera = list[0]
+      if (primera) {
+        personaId = primera.id ?? primera.documentId
+        personaDocId = primera.documentId ?? primera.id
+      }
+    } catch (e: any) {
+      console.warn('[API /mira/profesores/crear] No se pudo obtener persona por RUT:', e.message)
     }
-
-    const persona = personaData?.data || personaData
-    const personaId = persona?.id
-    const personaDocId = persona?.documentId
 
     console.log('[API /mira/profesores/crear] Profesor creado exitosamente:', {
       personaId, personaDocId, userId, userDocumentId, rut: rutLimpio, email: emailLimpio,

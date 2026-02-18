@@ -121,14 +121,37 @@ export async function GET(
         },
       })
     } else {
-      // Usuario normal - buscar por ID. En activity-log "usuario" es la relación al colaborador.
-      // Si el id parece documentId (string largo), filtrar por documentId para evitar 500.
+      // En activity-log "usuario" es la relación al COLABORADOR; el front suele enviar el id del user (auth).
+      // Resolver user id -> colaborador id para evitar 500 (colaborador.id es integer en DB).
       const isDocumentId = /^[a-z0-9]{20,30}$/i.test(usuarioId) && !/^\d+$/.test(usuarioId)
-      const filterKey = isDocumentId ? 'filters[usuario][documentId][$eq]' : 'filters[usuario][id][$eq]'
-      const filterVal = encodeURIComponent(usuarioId)
-      response = await strapiClient.get<any>(
-        `/api/activity-logs?${filterKey}=${filterVal}&populate[usuario][fields]=email_login&populate[usuario][populate][persona][fields]=nombres,primer_apellido,segundo_apellido,nombre_completo&pagination[page]=${page}&pagination[pageSize]=${pageSize}&sort=${sortField}:${sortOrder}`
-      )
+      const isSmallNum = /^\d{1,6}$/.test(usuarioId)
+      let colaboradorId: number | string | null = null
+
+      if (isDocumentId || !isSmallNum) {
+        try {
+          const colUrl = isDocumentId
+            ? `/api/colaboradores?filters[usuario][documentId][$eq]=${encodeURIComponent(usuarioId)}&pagination[pageSize]=1`
+            : `/api/colaboradores?filters[usuario][id][$eq]=${encodeURIComponent(usuarioId)}&pagination[pageSize]=1`
+          const colRes = await strapiClient.get<any>(colUrl)
+          const colList = Array.isArray(colRes?.data) ? colRes.data : []
+          const col = colList[0]
+          if (col?.id != null) colaboradorId = col.id
+        } catch (e) {
+          console.warn('[API /logs/usuario/[id]] No se pudo resolver colaborador para usuario:', usuarioId)
+        }
+      } else {
+        colaboradorId = usuarioIdNum
+      }
+
+      if (colaboradorId == null && (isDocumentId || !isSmallNum)) {
+        console.log('[API /logs/usuario/[id]] No hay colaborador para este user id, devolviendo vacío')
+        response = { data: [], pagination: { page, pageSize, pageCount: 0, total: 0 } }
+      } else {
+        const filterId = colaboradorId != null ? String(colaboradorId) : usuarioId
+        response = await strapiClient.get<any>(
+          `/api/activity-logs?filters[usuario][id][$eq]=${encodeURIComponent(filterId)}&populate[usuario][fields]=email_login&populate[usuario][populate][persona][fields]=nombres,primer_apellido,segundo_apellido,nombre_completo&pagination[page]=${page}&pagination[pageSize]=${pageSize}&sort=${sortField}:${sortOrder}`
+        )
+      }
     }
 
     let items: any[] = []
