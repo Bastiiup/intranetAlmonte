@@ -23,7 +23,7 @@ import {
   Tabs,
   Tab,
 } from 'react-bootstrap'
-import { LuSearch, LuRefreshCw, LuUserPlus, LuBriefcase, LuCheckCircle } from 'react-icons/lu'
+import { LuSearch, LuRefreshCw, LuUserPlus, LuBriefcase, LuCircleCheck } from 'react-icons/lu'
 
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
@@ -210,7 +210,7 @@ export default function ProfesoresListing() {
             {loading ? (
               <Spinner animation="border" size="sm" className="me-1" />
             ) : (
-              <LuCheckCircle size={16} />
+              <LuCircleCheck size={16} />
             )}
             Aprobar cuenta
           </Button>

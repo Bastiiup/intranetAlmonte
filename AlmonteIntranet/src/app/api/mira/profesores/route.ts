@@ -20,7 +20,7 @@ function formatTrayectoria(t: any): string {
   const colegio = attrs?.colegio?.data?.attributes ?? attrs?.colegio?.data ?? attrs?.colegio ?? null
   const curso = attrs?.curso?.data?.attributes ?? attrs?.curso?.data ?? attrs?.curso ?? null
   const nombreColegio = colegio?.colegio_nombre ?? 'Sin colegio'
-  const nombreCurso = curso?.nombre_curso ?? [curso?.nivel, curso?.grado, curso?.letra].filter(Boolean).join(' ') || '—'
+  const nombreCurso = curso?.nombre_curso ?? ([curso?.nivel, curso?.grado, curso?.letra].filter(Boolean).join(' ') || '—')
   return `${nombreColegio} (${nombreCurso})`
 }
 
