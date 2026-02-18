@@ -21,11 +21,12 @@ import {
   Badge,
   Spinner,
 } from 'react-bootstrap'
-import { LuSearch, LuRefreshCw, LuUserPlus, LuShieldCheck, LuShieldBan } from 'react-icons/lu'
+import { LuSearch, LuRefreshCw, LuUserPlus, LuShieldCheck, LuShieldBan, LuBriefcase } from 'react-icons/lu'
 
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import CrearProfesorModal from './CrearProfesorModal'
+import AsignarCargaModal from './AsignarCargaModal'
 
 export interface ProfesorType {
   id: number | string
@@ -52,6 +53,8 @@ export default function ProfesoresListing() {
   const [searchTerm, setSearchTerm] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
   const [showCrearModal, setShowCrearModal] = useState(false)
+  const [showAsignarModal, setShowAsignarModal] = useState(false)
+  const [profesorSeleccionado, setProfesorSeleccionado] = useState<ProfesorType | null>(null)
   const [totalProfesores, setTotalProfesores] = useState(0)
 
   const fetchProfesores = useCallback(async (search?: string) => {
@@ -138,6 +141,25 @@ export default function ProfesoresListing() {
           ? <Badge bg="soft-success" text="dark" pill>Activo</Badge>
           : <Badge bg="soft-danger" text="dark" pill>Inactivo</Badge>
       },
+    }),
+    columnHelper.display({
+      id: 'acciones',
+      header: 'Acciones',
+      cell: ({ row }) => (
+        <Button
+          variant="outline-primary"
+          size="sm"
+          onClick={() => {
+            setProfesorSeleccionado(row.original)
+            setShowAsignarModal(true)
+          }}
+          className="d-flex align-items-center gap-1"
+          title="Asignar Carga Académica"
+        >
+          <LuBriefcase size={14} />
+          Asignar
+        </Button>
+      ),
     }),
   ]
 
@@ -273,6 +295,12 @@ export default function ProfesoresListing() {
         show={showCrearModal}
         onHide={() => setShowCrearModal(false)}
         onCreado={handleProfesorCreado}
+      />
+
+      <AsignarCargaModal
+        show={showAsignarModal}
+        onHide={() => { setShowAsignarModal(false); setProfesorSeleccionado(null) }}
+        profesor={profesorSeleccionado}
       />
     </>
   )
