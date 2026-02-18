@@ -17,7 +17,10 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || ''
 
     const params = new URLSearchParams({
-      'populate[usuario_login]': '*',
+      'populate[usuario_login][fields][0]': 'email',
+      'populate[usuario_login][fields][1]': 'username',
+      'populate[usuario_login][fields][2]': 'confirmed',
+      'populate[usuario_login][fields][3]': 'blocked',
       'filters[usuario_login][id][$notNull]': 'true',
       'pagination[page]': page,
       'pagination[pageSize]': pageSize,
