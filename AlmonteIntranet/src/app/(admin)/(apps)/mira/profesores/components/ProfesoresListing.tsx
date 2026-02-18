@@ -46,6 +46,8 @@ export interface ProfesorType {
   usuarioId: number | string | null
   status_nombres?: string | null
   createdAt?: string | null
+  carga_academica?: string
+  carga_items?: string[]
 }
 
 const columnHelper = createColumnHelper<ProfesorType>()
@@ -233,7 +235,43 @@ export default function ProfesoresListing() {
     columnHelper.display({
       id: 'carga',
       header: 'Carga académica',
-      cell: () => <span className="text-muted">—</span>,
+      cell: ({ row }) => {
+        const summary = row.original.carga_academica
+        const items = row.original.carga_items ?? []
+        const sinAsignar = !summary || summary === 'Sin asignar'
+        if (sinAsignar) {
+          return <span className="text-muted">Sin asignar</span>
+        }
+        if (items.length === 1) {
+          return <span className="text-dark small">{items[0]}</span>
+        }
+        if (items.length <= 3) {
+          return (
+            <div className="d-flex flex-wrap gap-1 align-items-center">
+              {items.map((item, i) => (
+                <Badge key={i} bg="light" text="dark" className="fw-normal border border-secondary">
+                  {item.length > 40 ? `${item.slice(0, 37)}…` : item}
+                </Badge>
+              ))}
+            </div>
+          )
+        }
+        return (
+          <div>
+            <span className="small text-dark d-block">{summary}</span>
+            <div className="d-flex flex-wrap gap-1 mt-1">
+              {items.slice(0, 4).map((item, i) => (
+                <Badge key={i} bg="light" text="dark" className="fw-normal border border-secondary">
+                  {item.length > 30 ? `${item.slice(0, 27)}…` : item}
+                </Badge>
+              ))}
+              {items.length > 4 && (
+                <Badge bg="secondary" className="fw-normal">+{items.length - 4}</Badge>
+              )}
+            </div>
+          </div>
+        )
+      },
     }),
     columnHelper.display({
       id: 'acciones',
