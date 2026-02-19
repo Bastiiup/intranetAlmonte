@@ -65,10 +65,10 @@ export async function POST(request: NextRequest) {
 
     // Usar el endpoint atómico de Strapi (mismo que registro público) para evitar
     // GET/POST /api/users (filters[email] inválido y column username puede no existir).
-    console.log('[API /mira/profesores/crear] Creando vía Strapi /auth/register-profesor', { email: emailLimpio })
+    console.log('[API /mira/profesores/crear] Creando vía Strapi /registro-profesor', { email: emailLimpio })
     let strapiResponse: any
     try {
-      strapiResponse = await strapiClient.post<any>('/api/auth/register-profesor', {
+      strapiResponse = await strapiClient.post<any>('/api/registro-profesor', {
         nombres: body.nombres.trim(),
         primer_apellido: body.primer_apellido.trim(),
         segundo_apellido: (body.segundo_apellido || '').trim(),
