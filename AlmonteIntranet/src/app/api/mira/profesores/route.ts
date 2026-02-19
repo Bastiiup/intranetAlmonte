@@ -80,15 +80,9 @@ export async function GET(request: NextRequest) {
       params.set('populate[0]', 'emails')
       if (status === 'Aprobado') {
         params.set('populate[1]', 'trayectorias')
-        params.set('populate[trayectorias][populate][0]', 'colegio')
-        params.set('populate[trayectorias][populate][1]', 'curso')
-        params.set('populate[trayectorias][populate][2]', 'asignatura')
-        params.set('populate[trayectorias][populate][colegio][fields][0]', 'colegio_nombre')
-        params.set('populate[trayectorias][populate][curso][fields][0]', 'nombre_curso')
-        params.set('populate[trayectorias][populate][curso][fields][1]', 'nivel')
-        params.set('populate[trayectorias][populate][curso][fields][2]', 'grado')
-        params.set('populate[trayectorias][populate][curso][fields][3]', 'letra')
-        params.set('populate[trayectorias][populate][asignatura][fields][0]', 'nombre')
+        params.set('populate[trayectorias][populate][colegio]', 'true')
+        params.set('populate[trayectorias][populate][curso]', 'true')
+        params.set('populate[trayectorias][populate][asignatura]', 'true')
       }
     } else {
       params.set('populate[usuario_login][fields][0]', 'email')
