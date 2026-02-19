@@ -62,19 +62,18 @@ export default function AsignarCargaModal({ show, onHide, profesor }: AsignarCar
   const [cursos, setCursos] = useState<CursoOption[]>([])
   const [asignaturas, setAsignaturas] = useState<{ id: number; documentId: string; nombre: string }[]>([])
 
-  // Form
-  const [colegioId, setColegioId] = useState('')
-  const [cursoId, setCursoId] = useState('')
-  const [asignaturaId, setAsignaturaId] = useState('')
-  const [cargo, setCargo] = useState('')
-  const [anio, setAnio] = useState(new Date().getFullYear())
-  const [notas, setNotas] = useState('')
+  // Form: múltiples filas de asignación
+  type FilaAsignacion = { id: string; colegioId: string; cursoId: string; asignaturaId: string; cargo: string; anio: number }
+  const [filas, setFilas] = useState<FilaAsignacion[]>([
+    { id: '1', colegioId: '', cursoId: '', asignaturaId: '', cargo: '', anio: new Date().getFullYear() },
+  ])
   const [searchColegio, setSearchColegio] = useState('')
+  const [cursosByColegio, setCursosByColegio] = useState<Record<string, CursoOption[]>>({})
+  const [loadingCursosIds, setLoadingCursosIds] = useState<Set<string>>(new Set())
 
   // State
   const [loadingTrayectorias, setLoadingTrayectorias] = useState(false)
   const [loadingColegios, setLoadingColegios] = useState(false)
-  const [loadingCursos, setLoadingCursos] = useState(false)
   const [loadingAsignaturas, setLoadingAsignaturas] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -116,12 +115,9 @@ export default function AsignarCargaModal({ show, onHide, profesor }: AsignarCar
     }
   }, [])
 
-  const fetchCursos = useCallback(async (colId: string) => {
-    if (!colId) {
-      setCursos([])
-      return
-    }
-    setLoadingCursos(true)
+  const fetchCursosForColegio = useCallback(async (colId: string) => {
+    if (!colId) return
+    setLoadingCursosIds((prev) => new Set(prev).add(colId))
     try {
       const res = await fetch(`/api/crm/colegios/${colId}/cursos`)
       const data = await res.json()
@@ -137,12 +133,16 @@ export default function AsignarCargaModal({ show, onHide, profesor }: AsignarCar
           letra: c.letra || '',
           curso_letra_anio: c.curso_letra_anio || '',
         }))
-        setCursos(mapped)
+        setCursosByColegio((prev) => ({ ...prev, [colId]: mapped }))
       }
     } catch (err: any) {
       console.error('Error fetching cursos:', err)
     } finally {
-      setLoadingCursos(false)
+        setLoadingCursosIds((prev) => {
+        const next = new Set(prev)
+        next.delete(colId)
+        return next
+      })
     }
   }, [])
 
@@ -171,15 +171,30 @@ export default function AsignarCargaModal({ show, onHide, profesor }: AsignarCar
     }
   }, [show, profesor, fetchTrayectorias, fetchColegios, fetchAsignaturas])
 
-  useEffect(() => {
-    if (colegioId) {
-      setCursoId('')
-      fetchCursos(colegioId)
-    } else {
-      setCursos([])
-      setCursoId('')
-    }
-  }, [colegioId, fetchCursos])
+  const setFila = (index: number, field: keyof FilaAsignacion, value: string | number) => {
+    setFilas((prev) => {
+      const next = [...prev]
+      const row = { ...next[index], [field]: value }
+      if (field === 'colegioId') {
+        row.cursoId = ''
+        fetchCursosForColegio(String(value))
+      }
+      next[index] = row
+      return next
+    })
+  }
+
+  const addFila = () => {
+    setFilas((prev) => [
+      ...prev,
+      { id: String(Date.now()), colegioId: '', cursoId: '', asignaturaId: '', cargo: '', anio: new Date().getFullYear() },
+    ])
+  }
+
+  const removeFila = (index: number) => {
+    if (filas.length <= 1) return
+    setFilas((prev) => prev.filter((_, i) => i !== index))
+  }
 
   // Debounce para búsqueda de colegios
   useEffect(() => {
@@ -192,12 +207,9 @@ export default function AsignarCargaModal({ show, onHide, profesor }: AsignarCar
   }, [searchColegio, fetchColegios])
 
   const resetForm = () => {
-    setColegioId('')
-    setCursoId('')
-    setAsignaturaId('')
-    setCargo('')
-    setAnio(new Date().getFullYear())
-    setNotas('')
+    setFilas([
+      { id: String(Date.now()), colegioId: '', cursoId: '', asignaturaId: '', cargo: '', anio: new Date().getFullYear() },
+    ])
     setSearchColegio('')
     setError(null)
     setSuccessMsg(null)
@@ -207,27 +219,34 @@ export default function AsignarCargaModal({ show, onHide, profesor }: AsignarCar
     setError(null)
     setSuccessMsg(null)
 
-    if (!colegioId) { setError('Selecciona un colegio'); return }
-    if (!cargo) { setError('Selecciona un cargo'); return }
+    const asignaciones = filas
+      .filter((f) => f.colegioId && f.cargo?.trim())
+      .map((f) => ({
+        colegio_id: f.colegioId,
+        curso_id: f.cursoId || undefined,
+        asignatura_id: f.asignaturaId || undefined,
+        cargo: f.cargo.trim(),
+        anio: f.anio,
+      }))
+
+    if (asignaciones.length === 0) {
+      setError('Añade al menos una fila con colegio y cargo.')
+      return
+    }
 
     setSaving(true)
     try {
       const res = await fetch(`/api/mira/profesores/${encodeURIComponent(personaDocId)}/asignar-carga`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          colegio_id: colegioId,
-          curso_id: cursoId || undefined,
-          asignatura_id: asignaturaId || undefined,
-          cargo,
-          anio,
-        }),
+        body: JSON.stringify({ asignaciones }),
       })
 
       const data = await res.json()
       if (data.success) {
-        setSuccessMsg('Carga académica asignada correctamente')
-        toast.success('Carga académica asignada correctamente')
+        const msg = data.created > 1 ? `${data.created} asignaciones creadas` : 'Carga académica asignada correctamente'
+        setSuccessMsg(msg)
+        toast.success(msg)
         resetForm()
         fetchTrayectorias()
         onHide()
@@ -261,9 +280,7 @@ export default function AsignarCargaModal({ show, onHide, profesor }: AsignarCar
     }
   }
 
-  const colegioSeleccionado = colegios.find(
-    (c) => c.documentId === colegioId || String(c.id) === colegioId
-  )
+  const algunaFilaCompleta = filas.some((f) => f.colegioId && f.cargo?.trim())
 
   return (
     <Modal show={show} onHide={onHide} centered size="xl" backdrop="static">
@@ -349,139 +366,120 @@ export default function AsignarCargaModal({ show, onHide, profesor }: AsignarCar
 
         <hr />
 
-        {/* Formulario de nueva asignación */}
+        {/* Formulario: varias filas de asignación */}
         <h6 className="fw-bold d-flex align-items-center gap-2 mb-3">
           <LuPlus size={18} />
-          Nueva Asignación
+          Nueva(s) Asignación(es)
         </h6>
+        <p className="text-muted small mb-3">Puedes añadir varias filas para asignar múltiples colegios, cursos, asignaturas y cargos a la vez.</p>
 
-        <Row className="g-3">
-          {/* Colegio */}
-          <Col md={6}>
-            <Form.Group>
-              <Form.Label className="fw-semibold">
-                Colegio <span className="text-danger">*</span>
-              </Form.Label>
-              <Form.Control
-                type="text"
-                placeholder="Buscar colegio..."
-                value={searchColegio}
-                onChange={(e) => setSearchColegio(e.target.value)}
-                className="mb-1"
-                size="sm"
-              />
-              <Form.Select
-                value={colegioId}
-                onChange={(e) => setColegioId(e.target.value)}
-                disabled={loadingColegios}
-              >
-                <option value="">
-                  {loadingColegios ? 'Cargando...' : `Seleccionar colegio (${colegios.length})`}
-                </option>
-                {colegios.map((c) => (
-                  <option key={c.documentId || c.id} value={c.documentId || String(c.id)}>
-                    {c.nombre} {c.rbd ? `(RBD ${c.rbd})` : ''}
-                  </option>
-                ))}
-              </Form.Select>
-              {colegioSeleccionado && (
-                <Form.Text className="text-success">
-                  Seleccionado: {colegioSeleccionado.nombre}
-                </Form.Text>
+        <Form.Control
+          type="text"
+          placeholder="Buscar colegio..."
+          value={searchColegio}
+          onChange={(e) => setSearchColegio(e.target.value)}
+          className="mb-3"
+          size="sm"
+          style={{ maxWidth: '280px' }}
+        />
+
+        {filas.map((fila, index) => (
+          <div key={fila.id} className="border rounded p-3 mb-3 bg-light bg-opacity-50">
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <span className="fw-semibold text-secondary small">Asignación {index + 1}</span>
+              {filas.length > 1 && (
+                <Button variant="outline-danger" size="sm" onClick={() => removeFila(index)} title="Quitar fila">
+                  <LuTrash2 size={14} />
+                </Button>
               )}
-            </Form.Group>
-          </Col>
+            </div>
+            <Row className="g-2">
+              <Col md={3}>
+                <Form.Group>
+                  <Form.Label className="small mb-0">Colegio <span className="text-danger">*</span></Form.Label>
+                  <Form.Select
+                    size="sm"
+                    value={fila.colegioId}
+                    onChange={(e) => setFila(index, 'colegioId', e.target.value)}
+                    disabled={loadingColegios}
+                  >
+                    <option value="">{loadingColegios ? 'Cargando...' : 'Seleccionar'}</option>
+                    {colegios.map((c) => (
+                      <option key={c.documentId || c.id} value={c.documentId || String(c.id)}>
+                        {c.nombre} {c.rbd ? `(RBD ${c.rbd})` : ''}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={2}>
+                <Form.Group>
+                  <Form.Label className="small mb-0">Curso</Form.Label>
+                  <Form.Select
+                    size="sm"
+                    value={fila.cursoId}
+                    onChange={(e) => setFila(index, 'cursoId', e.target.value)}
+                    disabled={!fila.colegioId || loadingCursosIds.has(fila.colegioId)}
+                  >
+                    <option value="">
+                      {!fila.colegioId ? 'Primero colegio' : loadingCursosIds.has(fila.colegioId) ? 'Cargando...' : 'Seleccionar'}
+                    </option>
+                    {(cursosByColegio[fila.colegioId] || []).map((c) => (
+                      <option key={c.documentId || c.id} value={c.documentId || String(c.id)}>
+                        {c.curso_letra_anio || c.nombre}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={2}>
+                <Form.Group>
+                  <Form.Label className="small mb-0">Asignatura</Form.Label>
+                  <Form.Select
+                    size="sm"
+                    value={fila.asignaturaId}
+                    onChange={(e) => setFila(index, 'asignaturaId', e.target.value)}
+                    disabled={loadingAsignaturas}
+                  >
+                    <option value="">{loadingAsignaturas ? '...' : 'Seleccionar'}</option>
+                    {asignaturas.map((a) => (
+                      <option key={a.documentId || a.id} value={a.documentId || String(a.id)}>{a.nombre}</option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={2}>
+                <Form.Group>
+                  <Form.Label className="small mb-0">Cargo <span className="text-danger">*</span></Form.Label>
+                  <Form.Select size="sm" value={fila.cargo} onChange={(e) => setFila(index, 'cargo', e.target.value)}>
+                    <option value="">Cargo</option>
+                    {CARGOS.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={1}>
+                <Form.Group>
+                  <Form.Label className="small mb-0">Año</Form.Label>
+                  <Form.Control
+                    type="number"
+                    size="sm"
+                    value={fila.anio}
+                    onChange={(e) => setFila(index, 'anio', Number(e.target.value))}
+                    min={2000}
+                    max={2100}
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+          </div>
+        ))}
 
-          {/* Curso */}
-          <Col md={6}>
-            <Form.Group>
-              <Form.Label className="fw-semibold">Curso</Form.Label>
-              <Form.Select
-                value={cursoId}
-                onChange={(e) => setCursoId(e.target.value)}
-                disabled={!colegioId || loadingCursos}
-              >
-                <option value="">
-                  {!colegioId
-                    ? 'Primero selecciona un colegio'
-                    : loadingCursos
-                      ? 'Cargando cursos...'
-                      : cursos.length === 0
-                        ? 'Sin cursos disponibles'
-                        : `Seleccionar curso (${cursos.length})`}
-                </option>
-                {cursos.map((c) => (
-                  <option key={c.documentId || c.id} value={c.documentId || String(c.id)}>
-                    {c.curso_letra_anio || c.nombre} {c.nivel ? `— ${c.nivel}` : ''}
-                  </option>
-                ))}
-              </Form.Select>
-            </Form.Group>
-          </Col>
-
-          {/* Asignatura */}
-          <Col md={6}>
-            <Form.Group>
-              <Form.Label className="fw-semibold">Asignatura</Form.Label>
-              <Form.Select
-                value={asignaturaId}
-                onChange={(e) => setAsignaturaId(e.target.value)}
-                disabled={loadingAsignaturas}
-              >
-                <option value="">
-                  {loadingAsignaturas ? 'Cargando asignaturas...' : 'Seleccionar asignatura (opcional)'}
-                </option>
-                {asignaturas.map((a) => (
-                  <option key={a.documentId || a.id} value={a.documentId || String(a.id)}>
-                    {a.nombre}
-                  </option>
-                ))}
-              </Form.Select>
-            </Form.Group>
-          </Col>
-
-          {/* Cargo */}
-          <Col md={4}>
-            <Form.Group>
-              <Form.Label className="fw-semibold">
-                Cargo <span className="text-danger">*</span>
-              </Form.Label>
-              <Form.Select value={cargo} onChange={(e) => setCargo(e.target.value)}>
-                <option value="">Seleccionar cargo</option>
-                {CARGOS.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </Form.Select>
-            </Form.Group>
-          </Col>
-
-          {/* Año */}
-          <Col md={4}>
-            <Form.Group>
-              <Form.Label className="fw-semibold">Año</Form.Label>
-              <Form.Control
-                type="number"
-                value={anio}
-                onChange={(e) => setAnio(Number(e.target.value))}
-                min={2000}
-                max={2100}
-              />
-            </Form.Group>
-          </Col>
-
-          {/* Notas */}
-          <Col md={4}>
-            <Form.Group>
-              <Form.Label className="fw-semibold">Notas</Form.Label>
-              <Form.Control
-                type="text"
-                value={notas}
-                onChange={(e) => setNotas(e.target.value)}
-                placeholder="Opcional..."
-              />
-            </Form.Group>
-          </Col>
-        </Row>
+        <Button variant="outline-primary" size="sm" onClick={addFila} className="mb-3 d-flex align-items-center gap-1">
+          <LuPlus size={16} />
+          Añadir otra asignación
+        </Button>
       </Modal.Body>
 
       <Modal.Footer className="d-flex justify-content-between">
@@ -491,7 +489,7 @@ export default function AsignarCargaModal({ show, onHide, profesor }: AsignarCar
         <Button
           variant="primary"
           onClick={handleGuardar}
-          disabled={saving || !colegioId || !cargo}
+          disabled={saving || !algunaFilaCompleta}
           className="d-flex align-items-center gap-2"
         >
           {saving ? (
