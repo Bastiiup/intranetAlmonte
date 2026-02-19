@@ -12,7 +12,8 @@ import {
   Badge,
   Table,
 } from 'react-bootstrap'
-import { LuBriefcase, LuTrash2, LuPlus, LuSchool, LuBookOpen } from 'react-icons/lu'
+import { LuBriefcase, LuTrash2, LuPlus, LuSchool } from 'react-icons/lu'
+import toast from 'react-hot-toast'
 import type { ProfesorType } from './ProfesoresListing'
 
 interface AsignarCargaModalProps {
@@ -52,27 +53,19 @@ interface TrayectoriaItem {
   asignatura: { id: number; documentId: string; nombre: string } | null
 }
 
-const CARGOS = [
-  'Profesor Jefe',
-  'Docente de Aula',
-  'Jefe de Departamento',
-  'Coordinador Académico',
-  'Director',
-  'Subdirector',
-  'Inspector General',
-  'Orientador',
-  'Otro',
-]
+const CARGOS = ['Docente', 'Profesor Jefe', 'Jefe de Departamento', 'Coordinador']
 
 export default function AsignarCargaModal({ show, onHide, profesor }: AsignarCargaModalProps) {
   // Data
   const [trayectorias, setTrayectorias] = useState<TrayectoriaItem[]>([])
   const [colegios, setColegios] = useState<ColegioOption[]>([])
   const [cursos, setCursos] = useState<CursoOption[]>([])
+  const [asignaturas, setAsignaturas] = useState<{ id: number; documentId: string; nombre: string }[]>([])
 
   // Form
   const [colegioId, setColegioId] = useState('')
   const [cursoId, setCursoId] = useState('')
+  const [asignaturaId, setAsignaturaId] = useState('')
   const [cargo, setCargo] = useState('')
   const [anio, setAnio] = useState(new Date().getFullYear())
   const [notas, setNotas] = useState('')
@@ -82,6 +75,7 @@ export default function AsignarCargaModal({ show, onHide, profesor }: AsignarCar
   const [loadingTrayectorias, setLoadingTrayectorias] = useState(false)
   const [loadingColegios, setLoadingColegios] = useState(false)
   const [loadingCursos, setLoadingCursos] = useState(false)
+  const [loadingAsignaturas, setLoadingAsignaturas] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -152,16 +146,30 @@ export default function AsignarCargaModal({ show, onHide, profesor }: AsignarCar
     }
   }, [])
 
+  const fetchAsignaturas = useCallback(async () => {
+    setLoadingAsignaturas(true)
+    try {
+      const res = await fetch('/api/mira/asignaturas')
+      const data = await res.json()
+      if (data.success) setAsignaturas(data.data || [])
+    } catch (err) {
+      console.error('Error fetching asignaturas:', err)
+    } finally {
+      setLoadingAsignaturas(false)
+    }
+  }, [])
+
   useEffect(() => {
     if (show && profesor) {
       fetchTrayectorias()
       fetchColegios()
+      fetchAsignaturas()
     }
     if (!show) {
       resetForm()
       setTrayectorias([])
     }
-  }, [show, profesor, fetchTrayectorias, fetchColegios])
+  }, [show, profesor, fetchTrayectorias, fetchColegios, fetchAsignaturas])
 
   useEffect(() => {
     if (colegioId) {
@@ -186,6 +194,7 @@ export default function AsignarCargaModal({ show, onHide, profesor }: AsignarCar
   const resetForm = () => {
     setColegioId('')
     setCursoId('')
+    setAsignaturaId('')
     setCargo('')
     setAnio(new Date().getFullYear())
     setNotas('')
@@ -203,29 +212,30 @@ export default function AsignarCargaModal({ show, onHide, profesor }: AsignarCar
 
     setSaving(true)
     try {
-      const res = await fetch('/api/mira/profesores/asignar', {
+      const res = await fetch(`/api/mira/profesores/${encodeURIComponent(personaDocId)}/asignar-carga`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          persona_id: personaDocId,
           colegio_id: colegioId,
           curso_id: cursoId || undefined,
+          asignatura_id: asignaturaId || undefined,
           cargo,
           anio,
-          notas: notas || undefined,
         }),
       })
 
       const data = await res.json()
       if (data.success) {
         setSuccessMsg('Carga académica asignada correctamente')
+        toast.success('Carga académica asignada correctamente')
         resetForm()
         fetchTrayectorias()
+        onHide()
       } else {
         setError(data.error || 'Error al asignar')
       }
     } catch (err: any) {
-      setError(err.message || 'Error de conexión')
+      setError(err?.message || 'Error de conexión')
     } finally {
       setSaving(false)
     }
@@ -403,6 +413,27 @@ export default function AsignarCargaModal({ show, onHide, profesor }: AsignarCar
                 {cursos.map((c) => (
                   <option key={c.documentId || c.id} value={c.documentId || String(c.id)}>
                     {c.curso_letra_anio || c.nombre} {c.nivel ? `— ${c.nivel}` : ''}
+                  </option>
+                ))}
+              </Form.Select>
+            </Form.Group>
+          </Col>
+
+          {/* Asignatura */}
+          <Col md={6}>
+            <Form.Group>
+              <Form.Label className="fw-semibold">Asignatura</Form.Label>
+              <Form.Select
+                value={asignaturaId}
+                onChange={(e) => setAsignaturaId(e.target.value)}
+                disabled={loadingAsignaturas}
+              >
+                <option value="">
+                  {loadingAsignaturas ? 'Cargando asignaturas...' : 'Seleccionar asignatura (opcional)'}
+                </option>
+                {asignaturas.map((a) => (
+                  <option key={a.documentId || a.id} value={a.documentId || String(a.id)}>
+                    {a.nombre}
                   </option>
                 ))}
               </Form.Select>

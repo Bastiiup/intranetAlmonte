@@ -14,17 +14,20 @@ function getEmailFromPersona(attrs: any): string {
   return ''
 }
 
-/** Formatea una trayectoria a texto corto: "Colegio X (Curso Y)" */
+/** Formatea una trayectoria a texto corto para badge: "Asignatura - Curso" o "Colegio (Curso)" */
 function formatTrayectoria(t: any): string {
   const attrs = t?.attributes ?? t
   const colegio = attrs?.colegio?.data?.attributes ?? attrs?.colegio?.data ?? attrs?.colegio ?? null
   const curso = attrs?.curso?.data?.attributes ?? attrs?.curso?.data ?? attrs?.curso ?? null
+  const asignatura = attrs?.asignatura?.data?.attributes ?? attrs?.asignatura?.data ?? attrs?.asignatura ?? null
+  const nombreAsig = asignatura?.nombre?.trim() || ''
+  const nombreCurso = curso?.nombre_curso?.trim() || [curso?.nivel, curso?.grado, curso?.letra].filter(Boolean).join(' ').trim() || '—'
+  if (nombreAsig) return `${nombreAsig} — ${nombreCurso}`
   const nombreColegio = colegio?.colegio_nombre ?? 'Sin colegio'
-  const nombreCurso = curso?.nombre_curso ?? ([curso?.nivel, curso?.grado, curso?.letra].filter(Boolean).join(' ') || '—')
   return `${nombreColegio} (${nombreCurso})`
 }
 
-/** Construye resumen de carga académica desde trayectorias: por colegio agrupa cursos o lista "Colegio (N cursos)" */
+/** Construye resumen de carga académica desde trayectorias; items son badges tipo "Asignatura — Curso" o "Colegio (Curso)" */
 function buildCargaAcademica(trayectoriasRaw: any[]): { summary: string; items: string[] } {
   const list = Array.isArray(trayectoriasRaw) ? trayectoriasRaw : []
   if (list.length === 0) return { summary: 'Sin asignar', items: [] }
@@ -32,11 +35,11 @@ function buildCargaAcademica(trayectoriasRaw: any[]): { summary: string; items: 
   const items = list.map(formatTrayectoria).filter(Boolean)
   const byColegio = new Map<string, string[]>()
   for (const item of items) {
-    const match = item.match(/^(.+?)\s*\((.+)\)$/)
+    const match = item.match(/^(.+?)\s*[(\u2014—–-]\s*(.+)$/) || item.match(/^(.+?)\s*\((.+)\)$/)
     const colegio = match ? match[1].trim() : item
-    const curso = match ? match[2].trim() : ''
+    const resto = match ? match[2].trim() : ''
     if (!byColegio.has(colegio)) byColegio.set(colegio, [])
-    if (curso) byColegio.get(colegio)!.push(curso)
+    if (resto) byColegio.get(colegio)!.push(resto)
   }
   const parts: string[] = []
   byColegio.forEach((cursos, colegio) => {
@@ -79,11 +82,13 @@ export async function GET(request: NextRequest) {
         params.set('populate[1]', 'trayectorias')
         params.set('populate[trayectorias][populate][0]', 'colegio')
         params.set('populate[trayectorias][populate][1]', 'curso')
+        params.set('populate[trayectorias][populate][2]', 'asignatura')
         params.set('populate[trayectorias][populate][colegio][fields][0]', 'colegio_nombre')
         params.set('populate[trayectorias][populate][curso][fields][0]', 'nombre_curso')
         params.set('populate[trayectorias][populate][curso][fields][1]', 'nivel')
         params.set('populate[trayectorias][populate][curso][fields][2]', 'grado')
         params.set('populate[trayectorias][populate][curso][fields][3]', 'letra')
+        params.set('populate[trayectorias][populate][asignatura][fields][0]', 'nombre')
       }
     } else {
       params.set('populate[usuario_login][fields][0]', 'email')
