@@ -25,6 +25,7 @@ import {
 } from 'react-bootstrap'
 import { LuSearch, LuRefreshCw, LuUserPlus, LuBriefcase, LuCircleCheck } from 'react-icons/lu'
 
+import toast from 'react-hot-toast'
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import CrearProfesorModal from './CrearProfesorModal'
@@ -144,9 +145,10 @@ export default function ProfesoresListing() {
     try {
       const res = await fetch(`/api/mira/profesores/${encodeURIComponent(id)}/aprobar`, { method: 'PUT' })
       const data = await res.json()
-      if (data.success) {
+      if (res.ok && data.success) {
         setPendientes((prev) => prev.filter((p) => (p.documentId || String(p.id)) !== id))
         fetchActivos(searchTerm)
+        toast.success('Profesor aprobado y correo de bienvenida enviado.')
       } else {
         setError(data.error || 'Error al aprobar')
       }

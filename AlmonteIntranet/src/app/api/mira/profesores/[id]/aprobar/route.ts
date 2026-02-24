@@ -5,8 +5,8 @@ export const dynamic = 'force-dynamic'
 
 /**
  * PUT /api/mira/profesores/[id]/aprobar
- * Actualiza la persona indicada poniendo status_nombres = 'Aprobado'.
- * [id] puede ser documentId (string) o id numérico.
+ * Llama al endpoint custom de Strapi que aprueba la persona y envía correo de bienvenida.
+ * [id] puede ser documentId (string) o id numérico de la Persona.
  */
 export async function PUT(
   request: NextRequest,
@@ -21,16 +21,9 @@ export async function PUT(
       )
     }
 
-    const isNumeric = /^\d+$/.test(id.trim())
-    const path = isNumeric
-      ? `/api/personas/${id}`
-      : `/api/personas/${encodeURIComponent(id)}`
+    const path = `/api/registro-profesor/aprobar/${encodeURIComponent(id.trim())}`
 
-    const response = await strapiClient.put<any>(path, {
-      data: {
-        status_nombres: 'Aprobado',
-      },
-    })
+    const response = await strapiClient.post<any>(path, undefined)
 
     const data = response?.data ?? response
     const attrs = data?.attributes ?? data
@@ -39,9 +32,10 @@ export async function PUT(
       success: true,
       data: {
         id: data?.id ?? id,
-        documentId: data?.documentId ?? (isNumeric ? undefined : id),
+        documentId: data?.documentId ?? (typeof id === 'string' && !/^\d+$/.test(id) ? id : undefined),
         status_nombres: attrs?.status_nombres ?? 'Aprobado',
       },
+      message: (response as any)?.message ?? 'Profesor aprobado y correo de bienvenida enviado.',
     })
   } catch (error: any) {
     console.error('[API /mira/profesores/[id]/aprobar] Error:', error?.message)
