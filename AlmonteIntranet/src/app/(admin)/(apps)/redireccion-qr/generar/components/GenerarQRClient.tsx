@@ -15,8 +15,6 @@ export default function GenerarQRClient() {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
 
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-
   const loadList = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -91,8 +89,7 @@ export default function GenerarQRClient() {
     }
   }
 
-  const generarQR = useCallback(async (id: string) => {
-    const url = `${baseUrl}/mira/ir/${id}`
+  const generarQR = useCallback(async (id: string, url: string) => {
     setError(null)
     try {
       const dataUrl = await QRCode.toDataURL(url, { width: 320, margin: 2 })
@@ -102,18 +99,16 @@ export default function GenerarQRClient() {
       setError('No se pudo generar el QR')
       setQrDataUrl(null)
     }
-  }, [baseUrl])
+  }, [])
 
-  const descargarQR = useCallback((id: string) => {
-    if (!baseUrl) return
-    const url = `${baseUrl}/mira/ir/${id}`
+  const descargarQR = useCallback((url: string, slug: string) => {
     QRCode.toDataURL(url, { width: 320, margin: 2 }).then((dataUrl) => {
       const a = document.createElement('a')
       a.href = dataUrl
-      a.download = `qr-${id}.png`
+      a.download = `qr-mor-${slug || 'redirect'}.png`
       a.click()
     })
-  }, [baseUrl])
+  }, [])
 
   const [publishingId, setPublishingId] = useState<string | null>(null)
   const publicarEnMor = async (id: string, campaña: string, slug: string) => {
@@ -155,7 +150,7 @@ export default function GenerarQRClient() {
         <div>
           <Card.Title as="h5" className="mb-1">Crear redirección QR</Card.Title>
           <Card.Text as="small" className="text-muted">
-            Configura una nueva redirección de URL y genera su código QR. Nombre y descripción ayudan a identificar cada QR y ver métricas.
+            Configura la redirección y publica en mor.cl (Bana). El QR apunta directo al HTML en mor.cl, no a la intranet.
           </Card.Text>
         </div>
         <Button variant="primary" size="sm" onClick={crearNuevo} disabled={creating}>
@@ -173,13 +168,12 @@ export default function GenerarQRClient() {
               <TrampolinRow
                 key={t.id}
                 trampolin={t}
-                baseUrl={baseUrl}
                 saving={savingId === t.id}
                 publishing={publishingId === t.id}
                 onSave={(data) => guardar(t.id, data)}
                 onDelete={() => eliminar(t.id)}
-                onGenerarQR={() => generarQR(t.id)}
-                onDescargarQR={() => descargarQR(t.id)}
+                onGenerarQR={(url) => generarQR(t.id, url)}
+                onDescargarQR={(url, slug) => descargarQR(url, slug)}
                 onPublishMor={(campaña, slug) => publicarEnMor(t.id, campaña, slug)}
                 showQrPreview={qrPreviewId === t.id}
                 qrDataUrl={qrPreviewId === t.id ? qrDataUrl : null}
@@ -192,9 +186,10 @@ export default function GenerarQRClient() {
   )
 }
 
+const MOR_CL_BASE = 'https://mor.cl'
+
 function TrampolinRow({
   trampolin,
-  baseUrl,
   saving,
   publishing = false,
   onSave,
@@ -206,13 +201,12 @@ function TrampolinRow({
   qrDataUrl,
 }: {
   trampolin: Trampolin
-  baseUrl: string
   saving: boolean
   publishing?: boolean
   onSave: (data: { urlDestino: string; nombre: string; descripcion: string }) => void
   onDelete: () => void
-  onGenerarQR: () => void
-  onDescargarQR: () => void
+  onGenerarQR: (url: string) => void
+  onDescargarQR: (url: string, slug: string) => void
   onPublishMor: (campaña: string, slug: string) => void
   showQrPreview: boolean
   qrDataUrl: string | null
@@ -223,7 +217,7 @@ function TrampolinRow({
   const [descripcion, setDescripcion] = useState(trampolin.descripcion)
   const [campaña, setCampaña] = useState(year2)
   const [slug, setSlug] = useState(trampolin.nombre ? trampolin.nombre.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').slice(0, 30) : trampolin.id)
-  const link = `${baseUrl}/mira/ir/${trampolin.id}`
+  const morClUrl = slug ? `${MOR_CL_BASE}/${campaña || year2}/${slug}.html` : ''
 
   useEffect(() => {
     setUrlDestino(trampolin.urlDestino)
@@ -236,7 +230,10 @@ function TrampolinRow({
       <Card.Body className="py-3">
         <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
           <span className="badge bg-secondary">/{trampolin.id}</span>
-          <small className="text-muted text-break">{link}</small>
+          <small className="text-muted text-break">
+            {morClUrl || 'Indica campaña y slug → Publicar en mor.cl para obtener la URL del QR'}
+          </small>
+          {morClUrl && <small className="text-primary">mor.cl (Bana)</small>}
           {trampolin.visitas != null && (
             <span className="badge bg-primary ms-auto">{trampolin.visitas} visitas</span>
           )}
@@ -291,8 +288,8 @@ function TrampolinRow({
             <Button type="submit" size="sm" variant="primary" disabled={saving}>
               {saving ? 'Guardando…' : 'Guardar'}
             </Button>
-            <Button type="button" size="sm" variant="outline-primary" onClick={onGenerarQR}>Ver QR</Button>
-            <Button type="button" size="sm" variant="outline-secondary" onClick={onDescargarQR}>Descargar PNG</Button>
+            <Button type="button" size="sm" variant="outline-primary" disabled={!morClUrl} onClick={() => onGenerarQR(morClUrl)} title={morClUrl ? 'QR apunta a mor.cl (Bana)' : 'Indica slug y publica en mor.cl'}>Ver QR</Button>
+            <Button type="button" size="sm" variant="outline-secondary" disabled={!morClUrl} onClick={() => onDescargarQR(morClUrl, slug)} title={morClUrl ? 'Descarga QR con enlace mor.cl' : 'Indica slug primero'}>Descargar PNG</Button>
             <Button type="button" size="sm" variant="outline-danger" onClick={onDelete}>Eliminar</Button>
           </div>
           <div className="d-flex flex-wrap gap-2 align-items-center border-top pt-2">
