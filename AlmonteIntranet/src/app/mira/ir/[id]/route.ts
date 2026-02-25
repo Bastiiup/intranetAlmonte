@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getTrampolin } from '@/lib/mira-trampolin-store'
+import { getTrampolin, incrementVisitas } from '@/lib/mira-trampolin-store'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +36,7 @@ export async function GET(
   const { id } = await params
   try {
     const entry = await getTrampolin(id)
+    if (entry) await incrementVisitas(id)
     const url = entry?.urlDestino?.trim() || 'about:blank'
     const html = buildRedirectHtml(url)
     return new NextResponse(html, {

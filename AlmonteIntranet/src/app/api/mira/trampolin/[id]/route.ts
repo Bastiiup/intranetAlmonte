@@ -38,10 +38,14 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const urlDestino = typeof body.urlDestino === 'string' ? body.urlDestino.trim() : ''
-    const ok = await updateTrampolin(id, urlDestino)
+    const update: { urlDestino?: string; nombre?: string; descripcion?: string } = {}
+    if (typeof body.urlDestino === 'string') update.urlDestino = body.urlDestino.trim()
+    if (typeof body.nombre === 'string') update.nombre = body.nombre.trim()
+    if (typeof body.descripcion === 'string') update.descripcion = body.descripcion.trim()
+    const ok = await updateTrampolin(id, update)
     if (!ok) return NextResponse.json({ success: false, error: 'No encontrado' }, { status: 404 })
-    return NextResponse.json({ success: true, data: { id, urlDestino } })
+    const entry = await getTrampolin(id)
+    return NextResponse.json({ success: true, data: entry })
   } catch (e) {
     return NextResponse.json({ success: false, error: 'Error al guardar' }, { status: 500 })
   }

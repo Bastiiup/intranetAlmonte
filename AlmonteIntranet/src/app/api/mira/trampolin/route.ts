@@ -30,7 +30,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}))
     const urlDestino = typeof body.urlDestino === 'string' ? body.urlDestino.trim() : ''
-    const entry = await createTrampolin(urlDestino)
+    const nombre = typeof body.nombre === 'string' ? body.nombre.trim() : ''
+    const descripcion = typeof body.descripcion === 'string' ? body.descripcion.trim() : ''
+    const entry = await createTrampolin({ urlDestino, nombre, descripcion })
     return NextResponse.json({ success: true, data: entry })
   } catch (e) {
     return NextResponse.json({ success: false, error: 'Error al crear' }, { status: 500 })

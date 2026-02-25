@@ -1,5 +1,5 @@
 /**
- * Almacén de trampolines MIRA (múltiples QR con URL de destino editable cada uno).
+ * Almacén de trampolines (QR con redirección): múltiples entradas con nombre, descripción y métricas.
  * Persiste en un JSON en disco. En Railway conviene montar un volumen en .data si se redeploya.
  */
 
@@ -21,10 +21,23 @@ function getFilePath(): string {
 export type TrampolinEntry = {
   id: string
   urlDestino: string
+  nombre: string
+  descripcion: string
+  visitas: number
 }
 
 type Store = {
   trampolines: TrampolinEntry[]
+}
+
+function normalizeEntry(raw: Record<string, unknown>): TrampolinEntry {
+  return {
+    id: typeof raw.id === 'string' ? raw.id : '',
+    urlDestino: typeof raw.urlDestino === 'string' ? raw.urlDestino : '',
+    nombre: typeof raw.nombre === 'string' ? raw.nombre : '',
+    descripcion: typeof raw.descripcion === 'string' ? raw.descripcion : '',
+    visitas: typeof raw.visitas === 'number' && raw.visitas >= 0 ? raw.visitas : 0,
+  }
 }
 
 function generateId(): string {
@@ -37,10 +50,22 @@ async function readStore(): Promise<Store> {
     const raw = await readFile(filePath, 'utf-8')
     const parsed = JSON.parse(raw)
     if (Array.isArray(parsed.trampolines)) {
-      return { trampolines: parsed.trampolines }
+      return {
+        trampolines: parsed.trampolines.map((t: Record<string, unknown>) => normalizeEntry(t)),
+      }
     }
     if (typeof parsed.urlDestino === 'string') {
-      return { trampolines: [{ id: 'default', urlDestino: parsed.urlDestino }] }
+      return {
+        trampolines: [
+          normalizeEntry({
+            id: 'default',
+            urlDestino: parsed.urlDestino,
+            nombre: '',
+            descripcion: '',
+            visitas: 0,
+          }),
+        ],
+      }
     }
   } catch {
     // file not found or invalid
@@ -62,26 +87,49 @@ export async function listTrampolines(): Promise<TrampolinEntry[]> {
 
 export async function getTrampolin(id: string): Promise<TrampolinEntry | null> {
   const store = await readStore()
-  return store.trampolines.find((t) => t.id === id) ?? null
+  const found = store.trampolines.find((t) => t.id === id)
+  return found ? normalizeEntry(found) : null
 }
 
-export async function createTrampolin(urlDestino: string = ''): Promise<TrampolinEntry> {
+export async function createTrampolin(init: Partial<Pick<TrampolinEntry, 'urlDestino' | 'nombre' | 'descripcion'>> = {}): Promise<TrampolinEntry> {
   const store = await readStore()
   let id = generateId()
   while (store.trampolines.some((t) => t.id === id)) id = generateId()
-  const entry: TrampolinEntry = { id, urlDestino }
+  const entry: TrampolinEntry = {
+    id,
+    urlDestino: init.urlDestino ?? '',
+    nombre: init.nombre ?? '',
+    descripcion: init.descripcion ?? '',
+    visitas: 0,
+  }
   store.trampolines.push(entry)
   await writeStore(store)
   return entry
 }
 
-export async function updateTrampolin(id: string, urlDestino: string): Promise<boolean> {
+export type TrampolinUpdate = Partial<Pick<TrampolinEntry, 'urlDestino' | 'nombre' | 'descripcion'>>
+
+export async function updateTrampolin(id: string, update: TrampolinUpdate): Promise<boolean> {
   const store = await readStore()
   const idx = store.trampolines.findIndex((t) => t.id === id)
   if (idx === -1) return false
-  store.trampolines[idx] = { ...store.trampolines[idx], urlDestino }
+  const cur = store.trampolines[idx]
+  store.trampolines[idx] = {
+    ...cur,
+    ...(typeof update.urlDestino === 'string' && { urlDestino: update.urlDestino }),
+    ...(typeof update.nombre === 'string' && { nombre: update.nombre }),
+    ...(typeof update.descripcion === 'string' && { descripcion: update.descripcion }),
+  }
   await writeStore(store)
   return true
+}
+
+export async function incrementVisitas(id: string): Promise<void> {
+  const store = await readStore()
+  const idx = store.trampolines.findIndex((t) => t.id === id)
+  if (idx === -1) return
+  store.trampolines[idx].visitas = (store.trampolines[idx].visitas || 0) + 1
+  await writeStore(store)
 }
 
 export async function deleteTrampolin(id: string): Promise<boolean> {
