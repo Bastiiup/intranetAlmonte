@@ -20,6 +20,9 @@
 # production
 /build
 
+# data (trampolín MIRA, etc.)
+.data/
+
 # misc
 .DS_Store
 *.pem

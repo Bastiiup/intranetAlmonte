@@ -211,6 +211,7 @@ export const menuItems: MenuItemType[] = [
       { key: 'mira-evaluaciones-omr', label: 'Evaluaciones OMR', url: '/mira/evaluaciones-omr' },
       { key: 'mira-analiticas', label: 'Analíticas', url: '/mira/analiticas' },
       { key: 'mira-gestor-multimedia', label: 'Gestión Multimedia', url: '/mira/recursos' },
+      { key: 'mira-generador-qr', label: 'Generador QR', url: '/mira/generador-qr' },
     ],
   },
   { key: 'aplicaciones', label: 'APLICACIONES', isTitle: true },

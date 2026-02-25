@@ -30,6 +30,7 @@ export function middleware(request: NextRequest) {
     '/icon.svg',
     '/cotizacion', // Página pública de cotizaciones (acceso por token)
     '/quote-reply', // Página pública para responder RFQ (acceso por token)
+    '/mira/ir', // Trampolín QR: redirección pública sin auth
   ]
 
   // Los endpoints de API manejan su propia autenticación mediante headers
