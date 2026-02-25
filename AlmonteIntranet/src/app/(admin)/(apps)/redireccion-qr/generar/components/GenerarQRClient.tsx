@@ -115,6 +115,29 @@ export default function GenerarQRClient() {
     })
   }, [baseUrl])
 
+  const [publishingId, setPublishingId] = useState<string | null>(null)
+  const publicarEnMor = async (id: string, campaña: string, slug: string) => {
+    setPublishingId(id)
+    setError(null)
+    try {
+      const res = await fetch('/api/mira/publish-mor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trampolinId: id, campaña, slug }),
+      })
+      const json = await res.json()
+      if (json.success && json.data?.publicUrl) {
+        window.alert(`Publicado en mor.cl:\n${json.data.publicUrl}`)
+      } else {
+        setError(json.error || 'Error al publicar')
+      }
+    } catch {
+      setError('Error de conexión con Trampolín QR')
+    } finally {
+      setPublishingId(null)
+    }
+  }
+
   if (loading) {
     return (
       <Card>
@@ -152,10 +175,12 @@ export default function GenerarQRClient() {
                 trampolin={t}
                 baseUrl={baseUrl}
                 saving={savingId === t.id}
+                publishing={publishingId === t.id}
                 onSave={(data) => guardar(t.id, data)}
                 onDelete={() => eliminar(t.id)}
                 onGenerarQR={() => generarQR(t.id)}
                 onDescargarQR={() => descargarQR(t.id)}
+                onPublishMor={(campaña, slug) => publicarEnMor(t.id, campaña, slug)}
                 showQrPreview={qrPreviewId === t.id}
                 qrDataUrl={qrPreviewId === t.id ? qrDataUrl : null}
               />
@@ -171,26 +196,33 @@ function TrampolinRow({
   trampolin,
   baseUrl,
   saving,
+  publishing = false,
   onSave,
   onDelete,
   onGenerarQR,
   onDescargarQR,
+  onPublishMor,
   showQrPreview,
   qrDataUrl,
 }: {
   trampolin: Trampolin
   baseUrl: string
   saving: boolean
+  publishing?: boolean
   onSave: (data: { urlDestino: string; nombre: string; descripcion: string }) => void
   onDelete: () => void
   onGenerarQR: () => void
   onDescargarQR: () => void
+  onPublishMor: (campaña: string, slug: string) => void
   showQrPreview: boolean
   qrDataUrl: string | null
 }) {
+  const year2 = String(new Date().getFullYear()).slice(-2)
   const [urlDestino, setUrlDestino] = useState(trampolin.urlDestino)
   const [nombre, setNombre] = useState(trampolin.nombre)
   const [descripcion, setDescripcion] = useState(trampolin.descripcion)
+  const [campaña, setCampaña] = useState(year2)
+  const [slug, setSlug] = useState(trampolin.nombre ? trampolin.nombre.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').slice(0, 30) : trampolin.id)
   const link = `${baseUrl}/mira/ir/${trampolin.id}`
 
   useEffect(() => {
@@ -255,13 +287,41 @@ function TrampolinRow({
               </Form.Group>
             </div>
           </div>
-          <div className="d-flex flex-wrap gap-2">
+          <div className="d-flex flex-wrap gap-2 align-items-center mb-2">
             <Button type="submit" size="sm" variant="primary" disabled={saving}>
               {saving ? 'Guardando…' : 'Guardar'}
             </Button>
             <Button type="button" size="sm" variant="outline-primary" onClick={onGenerarQR}>Ver QR</Button>
             <Button type="button" size="sm" variant="outline-secondary" onClick={onDescargarQR}>Descargar PNG</Button>
             <Button type="button" size="sm" variant="outline-danger" onClick={onDelete}>Eliminar</Button>
+          </div>
+          <div className="d-flex flex-wrap gap-2 align-items-center border-top pt-2">
+            <span className="small text-muted me-1">Publicar en mor.cl:</span>
+            <Form.Control
+              type="text"
+              size="sm"
+              placeholder="Año (ej. 26)"
+              value={campaña}
+              onChange={(e) => setCampaña(e.target.value.replace(/\D/g, '').slice(0, 2))}
+              style={{ width: 56 }}
+            />
+            <Form.Control
+              type="text"
+              size="sm"
+              placeholder="slug (ej. mira)"
+              value={slug}
+              onChange={(e) => setSlug(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ''))}
+              style={{ width: 120 }}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline-success"
+              disabled={!slug || saving || publishing}
+              onClick={() => onPublishMor(campaña || year2, slug)}
+            >
+              {publishing ? 'Publicando…' : 'Publicar en mor.cl'}
+            </Button>
           </div>
         </Form>
         {showQrPreview && qrDataUrl && (
