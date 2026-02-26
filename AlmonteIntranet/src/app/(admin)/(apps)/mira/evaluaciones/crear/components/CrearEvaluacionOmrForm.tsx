@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation'
 import { Form, Button, Row, Col, Card } from 'react-bootstrap'
 import toast from 'react-hot-toast'
 
-import strapiClient from '@/lib/strapi/client'
-
 type CategoriaEvaluacion = 'Basica' | 'Media' | 'Simce' | 'Paes' | 'Universitaria'
 
 type LibroMiraOption = {
@@ -48,18 +46,20 @@ export function CrearEvaluacionOmrForm() {
   const fetchLibrosMira = async () => {
     try {
       setIsLoadingLibros(true)
-      const response = await strapiClient.get<any>(
-        '/api/libros-mira?populate[libro]=true&pagination[pageSize]=100',
-      )
+      const res = await fetch('/api/mira/libros-mira')
+      const response = await res.json()
+      if (!res.ok) {
+        throw new Error(response?.error || res.statusText)
+      }
 
       const dataArray = Array.isArray(response?.data) ? response.data : []
 
       const options: LibroMiraOption[] = dataArray
         .map((item: any) => {
           const id = item.id
-          const attributes = item.attributes || {}
-          const libro = attributes.libro?.data
-          const nombre = libro?.attributes?.nombre || attributes.nombre || `Libro ${id}`
+          const att = item.attributes || item
+          const libro = att.libro?.data?.attributes ?? att.libro?.attributes ?? att.libro
+          const nombre = libro?.nombre_libro ?? att.nombre ?? `Libro ${id}`
 
           if (!id || !nombre) return null
 
@@ -73,7 +73,7 @@ export function CrearEvaluacionOmrForm() {
       setLibrosOptions(options)
     } catch (error: any) {
       console.error('Error al cargar libros MIRA', error)
-      toast.error('Error al cargar libros MIRA')
+      toast.error(error?.message || 'Error al cargar libros MIRA')
     } finally {
       setIsLoadingLibros(false)
     }
@@ -170,10 +170,18 @@ export function CrearEvaluacionOmrForm() {
 
     try {
       setIsSubmitting(true)
-      await strapiClient.post('/api/evaluacions', payload)
+      const res = await fetch('/api/mira/evaluaciones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json?.error?.message ?? json?.error ?? res.statusText)
+      }
 
       toast.success('Evaluación creada correctamente')
-      router.push('/(admin)/(apps)/mira/evaluaciones-omr')
+      router.push('/mira/evaluaciones-omr')
     } catch (error: any) {
       console.error('Error al crear evaluación', error)
       const message =
@@ -348,7 +356,7 @@ export function CrearEvaluacionOmrForm() {
             <Button
               variant="secondary"
               type="button"
-              onClick={() => router.push('/(admin)/(apps)/mira/evaluaciones-omr')}
+              onClick={() => router.push('/mira/evaluaciones-omr')}
               disabled={isSubmitting}
             >
               Cancelar
