@@ -259,96 +259,109 @@ export function CrearEvaluacionOmrForm() {
           toast.error('El archivo no tiene hojas')
           return
         }
-        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet)
-        if (!rows.length) {
-          toast.error('El archivo no tiene filas de datos')
-          return
-        }
+        const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet)
 
         const col =
           (varNames: string[]) =>
           (row: Record<string, unknown>) =>
             getCell(row, varNames)
 
-        // 1) Agrupar primero por Nombre Evaluacion (cada prueba)
-        const evaluacionesMap = new Map<string, Record<string, unknown>[]>()
+        const codigoKeys = ['Código Evaluacion', 'Código Evaluación', 'Codigo Evaluacion']
+        const numeroPreguntaKeys = ['Número Pregunta', 'Numero Pregunta', 'Número pregunta']
+
+        // 1) Filtrar filas vacías (sin código ni número de pregunta)
+        const rows = rawRows.filter((row) => {
+          const cod = getCell(row, codigoKeys)
+          const num = getCell(row, numeroPreguntaKeys)
+          return (cod !== undefined && String(cod).trim() !== '') || (num !== undefined && num !== '')
+        })
+
+        if (!rows.length) {
+          toast.error('El archivo no tiene filas de datos válidas')
+          return
+        }
+
+        // 2) Nivel 1: agrupar por Código Evaluacion. Si una fila no trae código, se usa el de la fila anterior (forward-fill)
+        const byCodigoEvaluacion = new Map<string, Record<string, unknown>[]>()
+        let lastCodigo: string | null = null
 
         for (const row of rows) {
-          const nombreEval =
-            col(['Nombre Evaluacion', 'Nombre Evaluación', 'Nombre evaluacion'])(row) ??
-            'Sin nombre'
-          const key = String(nombreEval).trim() || 'Sin nombre'
-          if (!evaluacionesMap.has(key)) evaluacionesMap.set(key, [])
-          evaluacionesMap.get(key)!.push(row)
+          let codigoRaw = getCell(row, codigoKeys)
+          if (codigoRaw !== undefined && codigoRaw !== null && String(codigoRaw).trim() !== '') {
+            lastCodigo = String(codigoRaw).trim()
+          }
+          const key = lastCodigo ?? 'sin-codigo'
+          if (!byCodigoEvaluacion.has(key)) byCodigoEvaluacion.set(key, [])
+          byCodigoEvaluacion.get(key)!.push(row)
         }
 
         const nuevasEvaluaciones: EvaluacionState[] = []
         let idx = 0
 
-        evaluacionesMap.forEach((rowsEvaluacion, nombreEval) => {
-          // 2) Dentro de cada prueba, agrupar por Forma
+        byCodigoEvaluacion.forEach((rowsEvaluacion, codigoKey) => {
+          if (!rowsEvaluacion.length) return
+
+          // 3) Nombre: primera fila del grupo (evita typos en filas siguientes)
+          const nombreEval = col(['Nombre Evaluacion', 'Nombre Evaluación', 'Nombre evaluacion'])(
+            rowsEvaluacion[0],
+          )
+          const nombre = nombreEval !== undefined && nombreEval !== ''
+            ? String(nombreEval).trim()
+            : codigoKey !== 'sin-codigo' ? `Evaluación ${codigoKey}` : 'Sin nombre'
+
+          // 4) Cantidad de preguntas: máximo de Número Pregunta en TODO el grupo
+          let maxPreguntas = 0
+          for (const row of rowsEvaluacion) {
+            const num = Number(getCell(row, numeroPreguntaKeys))
+            if (!Number.isNaN(num) && num > maxPreguntas) maxPreguntas = num
+          }
+
+          // 5) Nivel 2: dentro del grupo, agrupar por Forma (vacío/nulo => "Única")
           const byForma = new Map<string, typeof rowsEvaluacion>()
           for (const row of rowsEvaluacion) {
-            const formaKey = String(getCell(row, ['Forma', 'forma']) ?? '').trim() || 'Única'
+            const formaVal = getCell(row, ['Forma', 'forma'])
+            const formaKey =
+              formaVal !== undefined && formaVal !== null && String(formaVal).trim() !== ''
+                ? String(formaVal).trim()
+                : 'Única'
             if (!byForma.has(formaKey)) byForma.set(formaKey, [])
             byForma.get(formaKey)!.push(row)
           }
 
-          let maxPreguntas = 0
+          const codigoEvalStr = codigoKey !== 'sin-codigo' ? codigoKey : ''
+
           const formasImported: FormaState[] = []
 
           byForma.forEach((formRows, formaLabel) => {
-            const codigoEval = getCell(formRows[0], [
-              'Código Evaluacion',
-              'Código Evaluación',
-              'Codigo Evaluacion',
-            ])
             const pauta: Record<string, string> = {}
             const mapa: MapaPreguntaItem[] = []
 
-            const seenNum = new Set<number>()
             for (const row of formRows) {
-              const num = Number(
-                getCell(row, ['Número Pregunta', 'Numero Pregunta', 'Número pregunta']),
-              )
-              if (!Number.isNaN(num)) seenNum.add(num)
+              const num = Number(getCell(row, numeroPreguntaKeys))
               const resp = getCell(row, ['Respuesta', 'respuesta'])
-              if (num !== undefined && !Number.isNaN(Number(num)) && resp !== undefined) {
+              if (!Number.isNaN(num) && resp !== undefined && resp !== '') {
                 pauta[String(num)] = String(resp).trim().toUpperCase()
               }
+
+              const numVal = !Number.isNaN(num) ? num : undefined
+              const safeStr = (v: string | number | undefined) =>
+                v !== undefined && v !== null && v !== '' ? String(v) : undefined
               mapa.push({
-                numero:
-                  num !== undefined && !Number.isNaN(Number(num)) ? Number(num) : undefined,
-                codigo_pregunta: getCell(row, [
-                  'Código Pregunta',
-                  'Codigo Pregunta',
-                  'Código pregunta',
-                ]) as string | undefined,
-                habilidad: getCell(row, ['HABILIDAD', 'Habilidad', 'habilidad']) as
-                  | string
-                  | undefined,
-                nivel: getCell(row, ['NIVEL', 'Nivel', 'nivel']) as string | undefined,
-                tema: getCell(row, ['CLASE (Tema)', 'CLASE (Tema)', 'Tema', 'tema']) as
-                  | string
-                  | undefined,
-                subtema: getCell(row, [
-                  'KONTENIDO (Titulo)',
-                  'KONTENIDO (Título)',
-                  'Kontenido (Titulo)',
-                  'subtema',
-                ]) as string | undefined,
-                imagen: getCell(row, ['Imágen', 'Imagen', 'imagen']) as string | undefined,
+                numero: numVal,
+                codigo_pregunta: safeStr(getCell(row, ['Código Pregunta', 'Codigo Pregunta', 'Código pregunta'])),
+                habilidad: safeStr(getCell(row, ['HABILIDAD', 'Habilidad', 'habilidad'])),
+                nivel: safeStr(getCell(row, ['NIVEL', 'Nivel', 'nivel'])),
+                tema: safeStr(getCell(row, ['CLASE (Tema)', 'Tema', 'tema'])),
+                subtema: safeStr(getCell(row, ['KONTENIDO (Titulo)', 'KONTENIDO (Título)', 'Kontenido (Titulo)', 'subtema'])),
+                imagen: safeStr(getCell(row, ['Imágen', 'Imagen', 'imagen'])),
               })
             }
 
-            const count = seenNum.size || Object.keys(pauta).length
-            if (count > maxPreguntas) maxPreguntas = count
-
             formasImported.push({
               nombre_forma: String(formaLabel).trim(),
-              codigo_evaluacion: codigoEval !== undefined ? String(codigoEval) : '',
+              codigo_evaluacion: codigoEvalStr,
               pauta_respuestas: pauta,
-              mapa_preguntas: mapa.length ? mapa : undefined,
+              mapa_preguntas: mapa.length > 0 ? mapa : undefined,
             })
           })
 
@@ -357,7 +370,7 @@ export function CrearEvaluacionOmrForm() {
               typeof crypto !== 'undefined' && 'randomUUID' in crypto
                 ? crypto.randomUUID()
                 : `tmp-${Date.now()}-${idx++}`,
-            nombre: String(nombreEval).trim(),
+            nombre,
             categoria: 'Paes',
             cantidad_preguntas: maxPreguntas || '',
             formas:
@@ -366,7 +379,7 @@ export function CrearEvaluacionOmrForm() {
                 : [
                     {
                       nombre_forma: 'Forma A',
-                      codigo_evaluacion: '',
+                      codigo_evaluacion: codigoEvalStr,
                       pauta_respuestas: {},
                       mapa_preguntas: [],
                     },
