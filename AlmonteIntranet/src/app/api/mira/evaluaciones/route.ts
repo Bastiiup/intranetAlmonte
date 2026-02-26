@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await strapiClient.post<{ data?: unknown }>(
-      '/api/evaluacions',
+      '/api/evaluaciones',
       body
     )
     return NextResponse.json(result)
