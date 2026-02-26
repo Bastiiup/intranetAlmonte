@@ -221,7 +221,7 @@ export const menuItems: MenuItemType[] = [
     children: [
       { key: 'qr-dashboard', label: 'Dashboard', icon: TbLayoutDashboard, url: '/redireccion-qr/dashboard' },
       { key: 'qr-generar', label: 'Generar QR', icon: LuQrCode, url: '/redireccion-qr/generar' },
-      { key: 'qr-reportes', label: 'Reportes', icon: LuChartNoAxesCombined, url: '/redireccion-qr/reportes' },
+      { key: 'qr-reportes', label: 'Reportes / Editar', icon: LuChartNoAxesCombined, url: '/redireccion-qr/reportes' },
     ],
   },
   { key: 'chat', label: 'Chat', icon: LuMessageSquareDot, url: '/chat' },

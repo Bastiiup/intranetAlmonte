@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default function Page() {
   return (
     <Container fluid>
-      <PageBreadcrumb title="Reportes" subtitle="Redirección QR" />
+      <PageBreadcrumb title="Reportes / Editar" subtitle="Redirección QR" />
       <ReportesQRClient />
     </Container>
   )
