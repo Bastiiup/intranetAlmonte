@@ -32,6 +32,14 @@ type FormaState = {
   mapa_preguntas?: MapaPreguntaItem[]
 }
 
+type EvaluacionState = {
+  id_temp: string
+  nombre: string
+  categoria: CategoriaEvaluacion | ''
+  cantidad_preguntas: number | ''
+  formas: FormaState[]
+}
+
 const OPCIONES_RESPUESTA = ['A', 'B', 'C', 'D', 'E'] as const
 
 const CATEGORIAS: { value: CategoriaEvaluacion; label: string }[] = [
@@ -42,19 +50,34 @@ const CATEGORIAS: { value: CategoriaEvaluacion; label: string }[] = [
   { value: 'Universitaria', label: 'Universitaria' },
 ]
 
+const createEmptyEvaluacion = (index = 0): EvaluacionState => ({
+  id_temp:
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `tmp-${Date.now()}-${index}`,
+  nombre: '',
+  categoria: 'Paes',
+  cantidad_preguntas: '',
+  formas: [
+    {
+      nombre_forma: 'Forma A',
+      codigo_evaluacion: '',
+      pauta_respuestas: {},
+      mapa_preguntas: [],
+    },
+  ],
+})
+
 export function CrearEvaluacionOmrForm() {
   const router = useRouter()
 
-  const [nombre, setNombre] = useState('')
-  const [categoria, setCategoria] = useState<CategoriaEvaluacion | ''>('Paes')
-  const [cantidadPreguntas, setCantidadPreguntas] = useState<number | ''>('')
   const [libroMiraId, setLibroMiraId] = useState<number | ''>('')
 
   const [librosOptions, setLibrosOptions] = useState<LibroMiraOption[]>([])
   const [isLoadingLibros, setIsLoadingLibros] = useState(false)
 
-  const [formas, setFormas] = useState<FormaState[]>([
-    { nombre_forma: 'Forma A', codigo_evaluacion: '', pauta_respuestas: {} },
+  const [evaluaciones, setEvaluaciones] = useState<EvaluacionState[]>([
+    createEmptyEvaluacion(),
   ])
 
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -97,35 +120,113 @@ export function CrearEvaluacionOmrForm() {
     }
   }
 
-  const handleAddForma = () => {
-    setFormas((prev) => [
-      ...prev,
-      { nombre_forma: `Forma ${String.fromCharCode(65 + prev.length)}`, codigo_evaluacion: '', pauta_respuestas: {}, mapa_preguntas: [] },
-    ])
-  }
-
-  const handleRemoveForma = (index: number) => {
-    setFormas((prev) => prev.filter((_, i) => i !== index))
-  }
-
-  const handleFormaChange = (index: number, field: keyof Omit<FormaState, 'pauta_respuestas'>, value: string) => {
-    setFormas((prev) =>
-      prev.map((forma, i) => (i === index ? { ...forma, [field]: value } : forma)),
+  const handleEvaluacionFieldChange = (
+    evalIndex: number,
+    field: keyof Omit<EvaluacionState, 'id_temp' | 'formas'>,
+    value: string | number | '',
+  ) => {
+    setEvaluaciones((prev) =>
+      prev.map((ev, i) =>
+        i === evalIndex
+          ? {
+              ...ev,
+              [field]: field === 'cantidad_preguntas' ? (value === '' ? '' : Number(value)) : value,
+            }
+          : ev,
+      ),
     )
   }
 
-  const handlePautaChange = (formaIndex: number, preguntaNum: number, letra: string) => {
-    setFormas((prev) =>
-      prev.map((forma, i) => {
-        if (i !== formaIndex) return forma
-        const key = String(preguntaNum)
-        const next = { ...forma.pauta_respuestas, [key]: letra }
-        return { ...forma, pauta_respuestas: next }
-      }),
+  const handleAddForma = (evalIndex: number) => {
+    setEvaluaciones((prev) =>
+      prev.map((ev, i) =>
+        i === evalIndex
+          ? {
+              ...ev,
+              formas: [
+                ...ev.formas,
+                {
+                  nombre_forma: `Forma ${String.fromCharCode(65 + ev.formas.length)}`,
+                  codigo_evaluacion: '',
+                  pauta_respuestas: {},
+                  mapa_preguntas: [],
+                },
+              ],
+            }
+          : ev,
+      ),
     )
   }
 
-  const getCell = (row: Record<string, unknown>, keys: string[]): string | number | undefined => {
+  const handleRemoveForma = (evalIndex: number, formaIndex: number) => {
+    setEvaluaciones((prev) =>
+      prev.map((ev, i) =>
+        i === evalIndex
+          ? {
+              ...ev,
+              formas: ev.formas.filter((_, idx) => idx !== formaIndex),
+            }
+          : ev,
+      ),
+    )
+  }
+
+  const handleFormaChange = (
+    evalIndex: number,
+    formaIndex: number,
+    field: keyof Omit<FormaState, 'pauta_respuestas'>,
+    value: string,
+  ) => {
+    setEvaluaciones((prev) =>
+      prev.map((ev, i) =>
+        i === evalIndex
+          ? {
+              ...ev,
+              formas: ev.formas.map((forma, idx) =>
+                idx === formaIndex ? { ...forma, [field]: value } : forma,
+              ),
+            }
+          : ev,
+      ),
+    )
+  }
+
+  const handlePautaChange = (
+    evalIndex: number,
+    formaIndex: number,
+    preguntaNum: number,
+    letra: string,
+  ) => {
+    setEvaluaciones((prev) =>
+      prev.map((ev, i) =>
+        i === evalIndex
+          ? {
+              ...ev,
+              formas: ev.formas.map((forma, idx) => {
+                if (idx !== formaIndex) return forma
+                const key = String(preguntaNum)
+                const next = { ...forma.pauta_respuestas, [key]: letra }
+                return { ...forma, pauta_respuestas: next }
+              }),
+            }
+          : ev,
+      ),
+    )
+  }
+
+  const handleRemoveEvaluacion = (evalIndex: number) => {
+    setEvaluaciones((prev) => {
+      if (prev.length === 1) {
+        return [createEmptyEvaluacion()]
+      }
+      return prev.filter((_, i) => i !== evalIndex)
+    })
+  }
+
+  const getCell = (
+    row: Record<string, unknown>,
+    keys: string[],
+  ): string | number | undefined => {
     for (const k of keys) {
       const v = row[k]
       if (v !== undefined && v !== null && v !== '') return v as string | number
@@ -164,58 +265,119 @@ export function CrearEvaluacionOmrForm() {
           return
         }
 
-        const col = (varNames: string[]) => (row: Record<string, unknown>) => getCell(row, varNames)
+        const col =
+          (varNames: string[]) =>
+          (row: Record<string, unknown>) =>
+            getCell(row, varNames)
 
-        const nombreEval = col(['Nombre Evaluacion', 'Nombre Evaluación', 'Nombre evaluacion'])(rows[0])
-        if (nombreEval !== undefined && nombreEval !== '') setNombre(String(nombreEval).trim())
+        // 1) Agrupar primero por Nombre Evaluacion (cada prueba)
+        const evaluacionesMap = new Map<string, Record<string, unknown>[]>()
 
-        const byForma = new Map<string, typeof rows>()
         for (const row of rows) {
-          const formaKey = String(getCell(row, ['Forma', 'forma']) ?? '').trim() || 'Única'
-          if (!byForma.has(formaKey)) byForma.set(formaKey, [])
-          byForma.get(formaKey)!.push(row)
+          const nombreEval =
+            col(['Nombre Evaluacion', 'Nombre Evaluación', 'Nombre evaluacion'])(row) ??
+            'Sin nombre'
+          const key = String(nombreEval).trim() || 'Sin nombre'
+          if (!evaluacionesMap.has(key)) evaluacionesMap.set(key, [])
+          evaluacionesMap.get(key)!.push(row)
         }
 
-        let maxPreguntas = 0
-        const formasImported: FormaState[] = []
+        const nuevasEvaluaciones: EvaluacionState[] = []
+        let idx = 0
 
-        byForma.forEach((formRows, formaLabel) => {
-          const codigoEval = getCell(formRows[0], ['Código Evaluacion', 'Código Evaluación', 'Codigo Evaluacion'])
-          const pauta: Record<string, string> = {}
-          const mapa: MapaPreguntaItem[] = []
-
-          const seenNum = new Set<number>()
-          for (const row of formRows) {
-            const num = Number(getCell(row, ['Número Pregunta', 'Numero Pregunta', 'Número pregunta']))
-            if (!Number.isNaN(num)) seenNum.add(num)
-            const resp = getCell(row, ['Respuesta', 'respuesta'])
-            if (num !== undefined && !Number.isNaN(Number(num)) && resp !== undefined) {
-              pauta[String(num)] = String(resp).trim().toUpperCase()
-            }
-            mapa.push({
-              numero: num !== undefined && !Number.isNaN(Number(num)) ? Number(num) : undefined,
-              codigo_pregunta: getCell(row, ['Código Pregunta', 'Codigo Pregunta', 'Código pregunta']) as string | undefined,
-              habilidad: getCell(row, ['HABILIDAD', 'Habilidad', 'habilidad']) as string | undefined,
-              nivel: getCell(row, ['NIVEL', 'Nivel', 'nivel']) as string | undefined,
-              tema: getCell(row, ['CLASE (Tema)', 'CLASE (Tema)', 'Tema', 'tema']) as string | undefined,
-              subtema: getCell(row, ['KONTENIDO (Titulo)', 'KONTENIDO (Título)', 'Kontenido (Titulo)', 'subtema']) as string | undefined,
-              imagen: getCell(row, ['Imágen', 'Imagen', 'imagen']) as string | undefined,
-            })
+        evaluacionesMap.forEach((rowsEvaluacion, nombreEval) => {
+          // 2) Dentro de cada prueba, agrupar por Forma
+          const byForma = new Map<string, typeof rowsEvaluacion>()
+          for (const row of rowsEvaluacion) {
+            const formaKey = String(getCell(row, ['Forma', 'forma']) ?? '').trim() || 'Única'
+            if (!byForma.has(formaKey)) byForma.set(formaKey, [])
+            byForma.get(formaKey)!.push(row)
           }
-          const count = seenNum.size || Object.keys(pauta).length
-          if (count > maxPreguntas) maxPreguntas = count
 
-          formasImported.push({
-            nombre_forma: formaLabel,
-            codigo_evaluacion: codigoEval !== undefined ? String(codigoEval) : '',
-            pauta_respuestas: pauta,
-            mapa_preguntas: mapa.length ? mapa : undefined,
+          let maxPreguntas = 0
+          const formasImported: FormaState[] = []
+
+          byForma.forEach((formRows, formaLabel) => {
+            const codigoEval = getCell(formRows[0], [
+              'Código Evaluacion',
+              'Código Evaluación',
+              'Codigo Evaluacion',
+            ])
+            const pauta: Record<string, string> = {}
+            const mapa: MapaPreguntaItem[] = []
+
+            const seenNum = new Set<number>()
+            for (const row of formRows) {
+              const num = Number(
+                getCell(row, ['Número Pregunta', 'Numero Pregunta', 'Número pregunta']),
+              )
+              if (!Number.isNaN(num)) seenNum.add(num)
+              const resp = getCell(row, ['Respuesta', 'respuesta'])
+              if (num !== undefined && !Number.isNaN(Number(num)) && resp !== undefined) {
+                pauta[String(num)] = String(resp).trim().toUpperCase()
+              }
+              mapa.push({
+                numero:
+                  num !== undefined && !Number.isNaN(Number(num)) ? Number(num) : undefined,
+                codigo_pregunta: getCell(row, [
+                  'Código Pregunta',
+                  'Codigo Pregunta',
+                  'Código pregunta',
+                ]) as string | undefined,
+                habilidad: getCell(row, ['HABILIDAD', 'Habilidad', 'habilidad']) as
+                  | string
+                  | undefined,
+                nivel: getCell(row, ['NIVEL', 'Nivel', 'nivel']) as string | undefined,
+                tema: getCell(row, ['CLASE (Tema)', 'CLASE (Tema)', 'Tema', 'tema']) as
+                  | string
+                  | undefined,
+                subtema: getCell(row, [
+                  'KONTENIDO (Titulo)',
+                  'KONTENIDO (Título)',
+                  'Kontenido (Titulo)',
+                  'subtema',
+                ]) as string | undefined,
+                imagen: getCell(row, ['Imágen', 'Imagen', 'imagen']) as string | undefined,
+              })
+            }
+
+            const count = seenNum.size || Object.keys(pauta).length
+            if (count > maxPreguntas) maxPreguntas = count
+
+            formasImported.push({
+              nombre_forma: String(formaLabel).trim(),
+              codigo_evaluacion: codigoEval !== undefined ? String(codigoEval) : '',
+              pauta_respuestas: pauta,
+              mapa_preguntas: mapa.length ? mapa : undefined,
+            })
+          })
+
+          nuevasEvaluaciones.push({
+            id_temp:
+              typeof crypto !== 'undefined' && 'randomUUID' in crypto
+                ? crypto.randomUUID()
+                : `tmp-${Date.now()}-${idx++}`,
+            nombre: String(nombreEval).trim(),
+            categoria: 'Paes',
+            cantidad_preguntas: maxPreguntas || '',
+            formas:
+              formasImported.length > 0
+                ? formasImported
+                : [
+                    {
+                      nombre_forma: 'Forma A',
+                      codigo_evaluacion: '',
+                      pauta_respuestas: {},
+                      mapa_preguntas: [],
+                    },
+                  ],
           })
         })
 
-        if (maxPreguntas > 0) setCantidadPreguntas(maxPreguntas)
-        setFormas(formasImported.length ? formasImported : [{ nombre_forma: 'Forma A', codigo_evaluacion: '', pauta_respuestas: {}, mapa_preguntas: [] }])
-        toast.success('Excel procesado. Revisa los datos y selecciona el Libro MIRA antes de guardar.')
+        setEvaluaciones(nuevasEvaluaciones.length ? nuevasEvaluaciones : [createEmptyEvaluacion()])
+        toast.success(
+          'Excel procesado. Revisa las evaluaciones y selecciona el Libro MIRA antes de guardar.',
+        )
       } catch (err: unknown) {
         console.error('Error al importar Excel', err)
         toast.error(err instanceof Error ? err.message : 'Error al procesar el Excel')
@@ -229,95 +391,101 @@ export function CrearEvaluacionOmrForm() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
 
-    if (!nombre.trim()) {
-      toast.error('El nombre de la prueba es obligatorio')
-      return
-    }
-
-    if (!categoria) {
-      toast.error('La categoría es obligatoria')
-      return
-    }
-
-    if (!cantidadPreguntas || cantidadPreguntas <= 0) {
-      toast.error('La cantidad de preguntas debe ser mayor a 0')
-      return
-    }
-
     if (!libroMiraId) {
       toast.error('Debes seleccionar un libro MIRA')
       return
     }
 
-    if (formas.length === 0) {
-      toast.error('Debes agregar al menos una forma')
+    if (!evaluaciones.length) {
+      toast.error('Debes tener al menos una evaluación')
       return
     }
 
-    const n = Number(cantidadPreguntas)
-    let formasParsed
     try {
-      formasParsed = formas.map((forma, index) => {
-        if (!forma.nombre_forma.trim()) {
-          throw new Error(`La forma #${index + 1} debe tener un nombre`)
+      const payloads = evaluaciones.map((ev, evalIndex) => {
+        if (!ev.nombre.trim()) {
+          throw new Error(`La evaluación #${evalIndex + 1} debe tener un nombre`)
         }
-        if (!forma.codigo_evaluacion.trim()) {
-          throw new Error(`La forma #${index + 1} debe tener un código de evaluación`)
+        if (!ev.categoria) {
+          throw new Error(`La evaluación #${evalIndex + 1} debe tener una categoría`)
         }
-        const pauta: Record<string, string> = {}
-        for (let i = 1; i <= n; i++) {
-          const key = String(i)
-          const val = forma.pauta_respuestas[key]?.trim()
-          if (!val || !OPCIONES_RESPUESTA.includes(val as any)) {
+        if (!ev.cantidad_preguntas || ev.cantidad_preguntas <= 0) {
+          throw new Error(
+            `La evaluación #${evalIndex + 1} debe tener una cantidad de preguntas mayor a 0`,
+          )
+        }
+        if (!ev.formas.length) {
+          throw new Error(`La evaluación #${evalIndex + 1} debe tener al menos una forma`)
+        }
+
+        const n = Number(ev.cantidad_preguntas)
+        const formasParsed = ev.formas.map((forma, formaIndex) => {
+          if (!forma.nombre_forma.trim()) {
             throw new Error(
-              `En la forma "${forma.nombre_forma}", indica la respuesta correcta para la pregunta ${i}`,
+              `En la evaluación "${ev.nombre}", la forma #${formaIndex + 1} debe tener un nombre`,
             )
           }
-          pauta[key] = val
-        }
+          if (!forma.codigo_evaluacion.trim()) {
+            throw new Error(
+              `En la evaluación "${ev.nombre}", la forma #${formaIndex + 1} debe tener un código de evaluación`,
+            )
+          }
+          const pauta: Record<string, string> = {}
+          for (let i = 1; i <= n; i++) {
+            const key = String(i)
+            const val = forma.pauta_respuestas[key]?.trim()
+            if (!val || !OPCIONES_RESPUESTA.includes(val as any)) {
+              throw new Error(
+                `En la evaluación "${ev.nombre}", forma "${forma.nombre_forma}", indica la respuesta correcta para la pregunta ${i}`,
+              )
+            }
+            pauta[key] = val
+          }
+          return {
+            nombre_forma: forma.nombre_forma.trim(),
+            codigo_evaluacion: forma.codigo_evaluacion.trim(),
+            pauta_respuestas: pauta,
+            ...(Array.isArray(forma.mapa_preguntas) &&
+              forma.mapa_preguntas.length > 0 && { mapa_preguntas: forma.mapa_preguntas }),
+          }
+        })
+
         return {
-          nombre_forma: forma.nombre_forma.trim(),
-          codigo_evaluacion: forma.codigo_evaluacion.trim(),
-          pauta_respuestas: pauta,
-          ...(Array.isArray(forma.mapa_preguntas) && forma.mapa_preguntas.length > 0 && { mapa_preguntas: forma.mapa_preguntas }),
+          data: {
+            nombre: ev.nombre.trim(),
+            categoria: ev.categoria,
+            cantidad_preguntas: n,
+            libro_mira: libroMiraId,
+            activo: true,
+            formas: formasParsed,
+          },
         }
       })
-    } catch (validationError: any) {
-      toast.error(validationError.message || 'Error al validar las formas')
-      return
-    }
 
-    const payload = {
-      data: {
-        nombre: nombre.trim(),
-        categoria,
-        cantidad_preguntas: cantidadPreguntas,
-        libro_mira: libroMiraId,
-        activo: true,
-        formas: formasParsed,
-      },
-    }
-
-    try {
       setIsSubmitting(true)
-      const res = await fetch('/api/mira/evaluaciones', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const json = await res.json()
-      if (!res.ok) {
-        throw new Error(json?.error?.message ?? json?.error ?? res.statusText)
-      }
 
-      toast.success('Evaluación creada correctamente')
+      await Promise.all(
+        payloads.map(async (payload) => {
+          const res = await fetch('/api/mira/evaluaciones', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+          const json = await res.json()
+          if (!res.ok) {
+            throw new Error(json?.error?.message ?? json?.error ?? res.statusText)
+          }
+        }),
+      )
+
+      toast.success(`Se crearon ${payloads.length} evaluaciones correctamente`)
       router.push('/mira/evaluaciones-omr')
     } catch (error: any) {
-      console.error('Error al crear evaluación', error)
+      console.error('Error al crear evaluaciones', error)
       const message =
         error?.message ||
         error?.details?.errors?.[0]?.message ||
-        'Error al crear la evaluación'
+        'Error al crear las evaluaciones'
       toast.error(message)
     } finally {
       setIsSubmitting(false)
@@ -345,49 +513,6 @@ export function CrearEvaluacionOmrForm() {
           </Button>
         </div>
         <Form onSubmit={handleSubmit}>
-          <Row className="mb-3">
-            <Col md={6}>
-              <Form.Group controlId="nombre">
-                <Form.Label>Nombre de la prueba</Form.Label>
-                <Form.Control
-                  type="text"
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  placeholder="Ej: Ensayo PAES 1"
-                />
-              </Form.Group>
-            </Col>
-            <Col md={3}>
-              <Form.Group controlId="categoria">
-                <Form.Label>Categoría</Form.Label>
-                <Form.Select
-                  value={categoria}
-                  onChange={(e) => setCategoria(e.target.value as CategoriaEvaluacion)}
-                >
-                  <option value="">Selecciona categoría</option>
-                  {CATEGORIAS.map((cat) => (
-                    <option key={cat.value} value={cat.value}>
-                      {cat.label}
-                    </option>
-                  ))}
-                </Form.Select>
-              </Form.Group>
-            </Col>
-            <Col md={3}>
-              <Form.Group controlId="cantidadPreguntas">
-                <Form.Label>Cantidad de preguntas</Form.Label>
-                <Form.Control
-                  type="number"
-                  min={1}
-                  value={cantidadPreguntas}
-                  onChange={(e) =>
-                    setCantidadPreguntas(e.target.value ? Number(e.target.value) : '')
-                  }
-                />
-              </Form.Group>
-            </Col>
-          </Row>
-
           <Row className="mb-3">
             <Col md={6}>
               <Form.Group controlId="libroMira">
@@ -428,95 +553,211 @@ export function CrearEvaluacionOmrForm() {
 
           <hr className="my-4" />
 
-          <h5 className="mb-3">Formas de la evaluación</h5>
+          <h5 className="mb-3">Evaluaciones</h5>
 
-          {formas.map((forma, index) => (
-            <Card key={index} className="mb-3">
+          {evaluaciones.map((ev, evalIndex) => (
+            <Card key={ev.id_temp} className="mb-4">
               <Card.Body>
                 <div className="d-flex justify-content-between align-items-center mb-3">
-                  <h6 className="mb-0">Forma #{index + 1}</h6>
-                  {formas.length > 1 && (
+                  <h5 className="mb-0">Evaluación #{evalIndex + 1}</h5>
+                  {evaluaciones.length > 1 && (
                     <Button
                       variant="outline-danger"
                       size="sm"
                       type="button"
-                      onClick={() => handleRemoveForma(index)}
+                      onClick={() => handleRemoveEvaluacion(evalIndex)}
                     >
-                      Eliminar
+                      Eliminar evaluación
                     </Button>
                   )}
                 </div>
 
                 <Row className="mb-3">
                   <Col md={6}>
-                    <Form.Group controlId={`forma-nombre-${index}`}>
-                      <Form.Label>Nombre de la forma</Form.Label>
+                    <Form.Group controlId={`eval-nombre-${evalIndex}`}>
+                      <Form.Label>Nombre de la prueba</Form.Label>
                       <Form.Control
                         type="text"
-                        value={forma.nombre_forma}
+                        value={ev.nombre}
                         onChange={(e) =>
-                          handleFormaChange(index, 'nombre_forma', e.target.value)
+                          handleEvaluacionFieldChange(evalIndex, 'nombre', e.target.value)
                         }
-                        placeholder="Ej: Forma A"
+                        placeholder="Ej: Ensayo PAES 1"
                       />
                     </Form.Group>
                   </Col>
-                  <Col md={6}>
-                    <Form.Group controlId={`forma-codigo-${index}`}>
-                      <Form.Label>Código de evaluación</Form.Label>
-                      <Form.Control
-                        type="text"
-                        value={forma.codigo_evaluacion}
+                  <Col md={3}>
+                    <Form.Group controlId={`eval-categoria-${evalIndex}`}>
+                      <Form.Label>Categoría</Form.Label>
+                      <Form.Select
+                        value={ev.categoria}
                         onChange={(e) =>
-                          handleFormaChange(index, 'codigo_evaluacion', e.target.value)
+                          handleEvaluacionFieldChange(
+                            evalIndex,
+                            'categoria',
+                            e.target.value as CategoriaEvaluacion,
+                          )
                         }
-                        placeholder="Ej: B1234567"
+                      >
+                        <option value="">Selecciona categoría</option>
+                        {CATEGORIAS.map((cat) => (
+                          <option key={cat.value} value={cat.value}>
+                            {cat.label}
+                          </option>
+                        ))}
+                      </Form.Select>
+                    </Form.Group>
+                  </Col>
+                  <Col md={3}>
+                    <Form.Group controlId={`eval-cantidad-${evalIndex}`}>
+                      <Form.Label>Cantidad de preguntas</Form.Label>
+                      <Form.Control
+                        type="number"
+                        min={1}
+                        value={ev.cantidad_preguntas}
+                        onChange={(e) =>
+                          handleEvaluacionFieldChange(
+                            evalIndex,
+                            'cantidad_preguntas',
+                            e.target.value ? Number(e.target.value) : '',
+                          )
+                        }
                       />
                     </Form.Group>
                   </Col>
                 </Row>
 
-                <Form.Group className="mt-3">
-                  <Form.Label className="fw-semibold">Respuesta correcta por pregunta</Form.Label>
-                  {!cantidadPreguntas || cantidadPreguntas < 1 ? (
-                    <p className="text-muted small mb-0">
-                      Indica primero la <strong>cantidad de preguntas</strong> arriba para ver las opciones.
-                    </p>
-                  ) : (
-                    <>
-                      <p className="text-muted small mb-2">
-                        Elige la letra correcta (A, B, C, D o E) para cada número de pregunta.
-                      </p>
-                      <div className="d-flex flex-wrap gap-2">
-                        {Array.from({ length: Number(cantidadPreguntas) }, (_, i) => i + 1).map((num) => (
-                          <div key={num} className="d-flex align-items-center gap-1" style={{ minWidth: '5rem' }}>
-                            <span className="text-muted small" style={{ width: '1.75rem' }}>{num}</span>
-                            <Form.Select
-                              size="sm"
-                              value={forma.pauta_respuestas[String(num)] ?? ''}
-                              onChange={(e) => handlePautaChange(index, num, e.target.value)}
-                              aria-label={`Pregunta ${num}`}
-                            >
-                              <option value="">—</option>
-                              {OPCIONES_RESPUESTA.map((letra) => (
-                                <option key={letra} value={letra}>{letra}</option>
-                              ))}
-                            </Form.Select>
-                          </div>
-                        ))}
+                <h6 className="mb-3">Formas de esta evaluación</h6>
+
+                {ev.formas.map((forma, formaIndex) => (
+                  <Card key={`${ev.id_temp}-forma-${formaIndex}`} className="mb-3">
+                    <Card.Body>
+                      <div className="d-flex justify-content-between align-items-center mb-3">
+                        <span className="fw-semibold">Forma #{formaIndex + 1}</span>
+                        {ev.formas.length > 1 && (
+                          <Button
+                            variant="outline-danger"
+                            size="sm"
+                            type="button"
+                            onClick={() => handleRemoveForma(evalIndex, formaIndex)}
+                          >
+                            Eliminar forma
+                          </Button>
+                        )}
                       </div>
-                    </>
-                  )}
-                </Form.Group>
+
+                      <Row className="mb-3">
+                        <Col md={6}>
+                          <Form.Group controlId={`forma-nombre-${evalIndex}-${formaIndex}`}>
+                            <Form.Label>Nombre de la forma</Form.Label>
+                            <Form.Control
+                              type="text"
+                              value={forma.nombre_forma}
+                              onChange={(e) =>
+                                handleFormaChange(
+                                  evalIndex,
+                                  formaIndex,
+                                  'nombre_forma',
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="Ej: Forma A"
+                            />
+                          </Form.Group>
+                        </Col>
+                        <Col md={6}>
+                          <Form.Group controlId={`forma-codigo-${evalIndex}-${formaIndex}`}>
+                            <Form.Label>Código de evaluación</Form.Label>
+                            <Form.Control
+                              type="text"
+                              value={forma.codigo_evaluacion}
+                              onChange={(e) =>
+                                handleFormaChange(
+                                  evalIndex,
+                                  formaIndex,
+                                  'codigo_evaluacion',
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="Ej: B1234567"
+                            />
+                          </Form.Group>
+                        </Col>
+                      </Row>
+
+                      <Form.Group className="mt-3">
+                        <Form.Label className="fw-semibold">
+                          Respuesta correcta por pregunta
+                        </Form.Label>
+                        {!ev.cantidad_preguntas || ev.cantidad_preguntas < 1 ? (
+                          <p className="text-muted small mb-0">
+                            Indica primero la <strong>cantidad de preguntas</strong> de esta
+                            evaluación para ver las opciones.
+                          </p>
+                        ) : (
+                          <>
+                            <p className="text-muted small mb-2">
+                              Elige la letra correcta (A, B, C, D o E) para cada número de
+                              pregunta.
+                            </p>
+                            <div className="d-flex flex-wrap gap-2">
+                              {Array.from(
+                                { length: Number(ev.cantidad_preguntas) },
+                                (_, i) => i + 1,
+                              ).map((num) => (
+                                <div
+                                  key={num}
+                                  className="d-flex align-items-center gap-1"
+                                  style={{ minWidth: '5rem' }}
+                                >
+                                  <span
+                                    className="text-muted small"
+                                    style={{ width: '1.75rem' }}
+                                  >
+                                    {num}
+                                  </span>
+                                  <Form.Select
+                                    size="sm"
+                                    value={forma.pauta_respuestas[String(num)] ?? ''}
+                                    onChange={(e) =>
+                                      handlePautaChange(
+                                        evalIndex,
+                                        formaIndex,
+                                        num,
+                                        e.target.value,
+                                      )
+                                    }
+                                    aria-label={`Pregunta ${num}`}
+                                  >
+                                    <option value="">—</option>
+                                    {OPCIONES_RESPUESTA.map((letra) => (
+                                      <option key={letra} value={letra}>
+                                        {letra}
+                                      </option>
+                                    ))}
+                                  </Form.Select>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </Form.Group>
+                    </Card.Body>
+                  </Card>
+                ))}
+
+                <div className="mb-2">
+                  <Button
+                    variant="outline-primary"
+                    type="button"
+                    onClick={() => handleAddForma(evalIndex)}
+                  >
+                    Agregar otra forma
+                  </Button>
+                </div>
               </Card.Body>
             </Card>
           ))}
-
-          <div className="mb-4">
-            <Button variant="outline-primary" type="button" onClick={handleAddForma}>
-              Agregar otra forma
-            </Button>
-          </div>
 
           <div className="d-flex justify-content-end gap-2">
             <Button
@@ -528,7 +769,7 @@ export function CrearEvaluacionOmrForm() {
               Cancelar
             </Button>
             <Button variant="primary" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Guardando...' : 'Guardar evaluación'}
+              {isSubmitting ? 'Guardando...' : 'Guardar evaluaciones'}
             </Button>
           </div>
         </Form>
