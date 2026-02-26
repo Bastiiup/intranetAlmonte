@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getTrampolin, updateTrampolin, deleteTrampolin } from '@/lib/mira-trampolin-store'
+import { getRedirectBana, updateRedirectBana, deleteRedirectBana } from '@/lib/trampolin-bana-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,11 +20,23 @@ export async function GET(
   }
   try {
     const { id } = await params
-    const entry = await getTrampolin(id)
+    const entry = await getRedirectBana(id)
     if (!entry) return NextResponse.json({ success: false, error: 'No encontrado' }, { status: 404 })
-    return NextResponse.json({ success: true, data: entry })
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: entry.id,
+        campaña: entry.campaña,
+        slug: entry.slug,
+        urlDestino: entry.destino,
+        nombre: entry.slug,
+        descripcion: entry.descripcion ?? '',
+        visitas: 0,
+      },
+    })
   } catch (e) {
-    return NextResponse.json({ success: false, error: 'Error' }, { status: 500 })
+    const msg = e instanceof Error ? e.message : 'Error'
+    return NextResponse.json({ success: false, error: msg }, { status: 502 })
   }
 }
 
@@ -37,17 +49,17 @@ export async function PUT(
   }
   try {
     const { id } = await params
-    const body = await request.json()
-    const update: { urlDestino?: string; nombre?: string; descripcion?: string } = {}
-    if (typeof body.urlDestino === 'string') update.urlDestino = body.urlDestino.trim()
-    if (typeof body.nombre === 'string') update.nombre = body.nombre.trim()
-    if (typeof body.descripcion === 'string') update.descripcion = body.descripcion.trim()
-    const ok = await updateTrampolin(id, update)
-    if (!ok) return NextResponse.json({ success: false, error: 'No encontrado' }, { status: 404 })
-    const entry = await getTrampolin(id)
+    const body = await request.json().catch(() => ({}))
+    const destino = typeof body.urlDestino === 'string' ? body.urlDestino.trim() : typeof body.destino === 'string' ? body.destino.trim() : ''
+    const descripcion = typeof body.descripcion === 'string' ? body.descripcion.trim() : undefined
+    const entry = await updateRedirectBana(id, { destino, descripcion })
     return NextResponse.json({ success: true, data: entry })
   } catch (e) {
-    return NextResponse.json({ success: false, error: 'Error al guardar' }, { status: 500 })
+    const msg = e instanceof Error ? e.message : 'Error al guardar'
+    if (msg === 'No encontrado') {
+      return NextResponse.json({ success: false, error: msg }, { status: 404 })
+    }
+    return NextResponse.json({ success: false, error: msg }, { status: 400 })
   }
 }
 
@@ -60,10 +72,10 @@ export async function DELETE(
   }
   try {
     const { id } = await params
-    const ok = await deleteTrampolin(id)
-    if (!ok) return NextResponse.json({ success: false, error: 'No encontrado' }, { status: 404 })
+    await deleteRedirectBana(id)
     return NextResponse.json({ success: true })
   } catch (e) {
-    return NextResponse.json({ success: false, error: 'Error al eliminar' }, { status: 500 })
+    const msg = e instanceof Error ? e.message : 'Error al eliminar'
+    return NextResponse.json({ success: false, error: msg }, { status: 502 })
   }
 }

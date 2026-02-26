@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { listTrampolines, createTrampolin } from '@/lib/mira-trampolin-store'
+import { listRedirectsBana, createRedirectBana } from '@/lib/trampolin-bana-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,10 +16,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 })
   }
   try {
-    const trampolines = await listTrampolines()
-    return NextResponse.json({ success: true, data: trampolines })
+    const data = await listRedirectsBana()
+    return NextResponse.json({ success: true, data })
   } catch (e) {
-    return NextResponse.json({ success: false, error: 'Error al listar' }, { status: 500 })
+    const msg = e instanceof Error ? e.message : 'Error al listar'
+    if (msg.includes('TRAMPOLIN_QR_API_URL')) {
+      return NextResponse.json({ success: false, error: 'Configura TRAMPOLIN_QR_API_URL en Railway (URL de Trampolín QR)' }, { status: 503 })
+    }
+    return NextResponse.json({ success: false, error: msg }, { status: 502 })
   }
 }
 
@@ -29,12 +33,25 @@ export async function POST(request: NextRequest) {
   }
   try {
     const body = await request.json().catch(() => ({}))
-    const urlDestino = typeof body.urlDestino === 'string' ? body.urlDestino.trim() : ''
-    const nombre = typeof body.nombre === 'string' ? body.nombre.trim() : ''
+    const campaña = typeof body.campaña === 'string' ? body.campaña.trim().replace(/\D/g, '').slice(0, 2) : ''
+    const slug = typeof body.slug === 'string' ? body.slug.trim().replace(/[^a-zA-Z0-9_-]/g, '') : ''
+    const destino = typeof body.destino === 'string' ? body.destino.trim() : typeof body.urlDestino === 'string' ? body.urlDestino.trim() : ''
     const descripcion = typeof body.descripcion === 'string' ? body.descripcion.trim() : ''
-    const entry = await createTrampolin({ urlDestino, nombre, descripcion })
+
+    if (!campaña || !slug) {
+      return NextResponse.json({ success: false, error: 'Faltan campaña (año) y slug' }, { status: 400 })
+    }
+    if (!destino) {
+      return NextResponse.json({ success: false, error: 'Falta URL de destino' }, { status: 400 })
+    }
+
+    const entry = await createRedirectBana({ campaña, slug, destino, descripcion })
     return NextResponse.json({ success: true, data: entry })
   } catch (e) {
-    return NextResponse.json({ success: false, error: 'Error al crear' }, { status: 500 })
+    const msg = e instanceof Error ? e.message : 'Error al crear'
+    if (msg.includes('TRAMPOLIN_QR_API_URL')) {
+      return NextResponse.json({ success: false, error: 'Configura TRAMPOLIN_QR_API_URL en Railway' }, { status: 503 })
+    }
+    return NextResponse.json({ success: false, error: msg }, { status: 400 })
   }
 }
