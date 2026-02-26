@@ -15,8 +15,11 @@ type LibroMiraOption = {
 type FormaState = {
   nombre_forma: string
   codigo_evaluacion: string
-  pauta_respuestas_text: string
+  /** Mapa número de pregunta (1-based) → letra correcta ("A" | "B" | "C" | "D" | "E") */
+  pauta_respuestas: Record<string, string>
 }
+
+const OPCIONES_RESPUESTA = ['A', 'B', 'C', 'D', 'E'] as const
 
 const CATEGORIAS: { value: CategoriaEvaluacion; label: string }[] = [
   { value: 'Basica', label: 'Básica' },
@@ -38,7 +41,7 @@ export function CrearEvaluacionOmrForm() {
   const [isLoadingLibros, setIsLoadingLibros] = useState(false)
 
   const [formas, setFormas] = useState<FormaState[]>([
-    { nombre_forma: 'Forma A', codigo_evaluacion: '', pauta_respuestas_text: '' },
+    { nombre_forma: 'Forma A', codigo_evaluacion: '', pauta_respuestas: {} },
   ])
 
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -82,7 +85,7 @@ export function CrearEvaluacionOmrForm() {
   const handleAddForma = () => {
     setFormas((prev) => [
       ...prev,
-      { nombre_forma: `Forma ${String.fromCharCode(65 + prev.length)}`, codigo_evaluacion: '', pauta_respuestas_text: '' },
+      { nombre_forma: `Forma ${String.fromCharCode(65 + prev.length)}`, codigo_evaluacion: '', pauta_respuestas: {} },
     ])
   }
 
@@ -90,9 +93,20 @@ export function CrearEvaluacionOmrForm() {
     setFormas((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const handleFormaChange = (index: number, field: keyof FormaState, value: string) => {
+  const handleFormaChange = (index: number, field: keyof Omit<FormaState, 'pauta_respuestas'>, value: string) => {
     setFormas((prev) =>
       prev.map((forma, i) => (i === index ? { ...forma, [field]: value } : forma)),
+    )
+  }
+
+  const handlePautaChange = (formaIndex: number, preguntaNum: number, letra: string) => {
+    setFormas((prev) =>
+      prev.map((forma, i) => {
+        if (i !== formaIndex) return forma
+        const key = String(preguntaNum)
+        const next = { ...forma.pauta_respuestas, [key]: letra }
+        return { ...forma, pauta_respuestas: next }
+      }),
     )
   }
 
@@ -124,6 +138,7 @@ export function CrearEvaluacionOmrForm() {
       return
     }
 
+    const n = Number(cantidadPreguntas)
     let formasParsed
     try {
       formasParsed = formas.map((forma, index) => {
@@ -133,23 +148,21 @@ export function CrearEvaluacionOmrForm() {
         if (!forma.codigo_evaluacion.trim()) {
           throw new Error(`La forma #${index + 1} debe tener un código de evaluación`)
         }
-        if (!forma.pauta_respuestas_text.trim()) {
-          throw new Error(`La forma #${index + 1} debe tener una pauta de respuestas`)
+        const pauta: Record<string, string> = {}
+        for (let i = 1; i <= n; i++) {
+          const key = String(i)
+          const val = forma.pauta_respuestas[key]?.trim()
+          if (!val || !OPCIONES_RESPUESTA.includes(val as any)) {
+            throw new Error(
+              `En la forma "${forma.nombre_forma}", indica la respuesta correcta para la pregunta ${i}`,
+            )
+          }
+          pauta[key] = val
         }
-
-        let pautaJson: Record<string, string>
-        try {
-          pautaJson = JSON.parse(forma.pauta_respuestas_text)
-        } catch (error) {
-          throw new Error(
-            `La pauta de respuestas de la forma "${forma.nombre_forma}" no es un JSON válido`,
-          )
-        }
-
         return {
           nombre_forma: forma.nombre_forma.trim(),
           codigo_evaluacion: forma.codigo_evaluacion.trim(),
-          pauta_respuestas: pautaJson,
+          pauta_respuestas: pauta,
         }
       })
     } catch (validationError: any) {
@@ -301,7 +314,7 @@ export function CrearEvaluacionOmrForm() {
                 </div>
 
                 <Row className="mb-3">
-                  <Col md={4}>
+                  <Col md={6}>
                     <Form.Group controlId={`forma-nombre-${index}`}>
                       <Form.Label>Nombre de la forma</Form.Label>
                       <Form.Control
@@ -314,7 +327,7 @@ export function CrearEvaluacionOmrForm() {
                       />
                     </Form.Group>
                   </Col>
-                  <Col md={4}>
+                  <Col md={6}>
                     <Form.Group controlId={`forma-codigo-${index}`}>
                       <Form.Label>Código de evaluación</Form.Label>
                       <Form.Control
@@ -327,21 +340,40 @@ export function CrearEvaluacionOmrForm() {
                       />
                     </Form.Group>
                   </Col>
-                  <Col md={4}>
-                    <Form.Group controlId={`forma-pauta-${index}`}>
-                      <Form.Label>Pauta de respuestas (JSON)</Form.Label>
-                      <Form.Control
-                        as="textarea"
-                        rows={4}
-                        value={forma.pauta_respuestas_text}
-                        onChange={(e) =>
-                          handleFormaChange(index, 'pauta_respuestas_text', e.target.value)
-                        }
-                        placeholder='Ej: {"1":"A","2":"C","3":"B"}'
-                      />
-                    </Form.Group>
-                  </Col>
                 </Row>
+
+                <Form.Group className="mt-3">
+                  <Form.Label className="fw-semibold">Respuesta correcta por pregunta</Form.Label>
+                  {!cantidadPreguntas || cantidadPreguntas < 1 ? (
+                    <p className="text-muted small mb-0">
+                      Indica primero la <strong>cantidad de preguntas</strong> arriba para ver las opciones.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-muted small mb-2">
+                        Elige la letra correcta (A, B, C, D o E) para cada número de pregunta.
+                      </p>
+                      <div className="d-flex flex-wrap gap-2">
+                        {Array.from({ length: Number(cantidadPreguntas) }, (_, i) => i + 1).map((num) => (
+                          <div key={num} className="d-flex align-items-center gap-1" style={{ minWidth: '5rem' }}>
+                            <span className="text-muted small" style={{ width: '1.75rem' }}>{num}</span>
+                            <Form.Select
+                              size="sm"
+                              value={forma.pauta_respuestas[String(num)] ?? ''}
+                              onChange={(e) => handlePautaChange(index, num, e.target.value)}
+                              aria-label={`Pregunta ${num}`}
+                            >
+                              <option value="">—</option>
+                              {OPCIONES_RESPUESTA.map((letra) => (
+                                <option key={letra} value={letra}>{letra}</option>
+                              ))}
+                            </Form.Select>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </Form.Group>
               </Card.Body>
             </Card>
           ))}
