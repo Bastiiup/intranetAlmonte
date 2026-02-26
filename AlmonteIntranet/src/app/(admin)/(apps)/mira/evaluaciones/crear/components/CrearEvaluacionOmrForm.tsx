@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Form, Button, Row, Col, Card } from 'react-bootstrap'
 import toast from 'react-hot-toast'
+import * as XLSX from 'xlsx'
 
 type CategoriaEvaluacion = 'Basica' | 'Media' | 'Simce' | 'Paes' | 'Universitaria'
 
@@ -12,11 +13,23 @@ type LibroMiraOption = {
   nombre: string
 }
 
+export type MapaPreguntaItem = {
+  numero?: number
+  codigo_pregunta?: string
+  habilidad?: string
+  nivel?: string
+  tema?: string
+  subtema?: string
+  imagen?: string
+}
+
 type FormaState = {
   nombre_forma: string
   codigo_evaluacion: string
   /** Mapa número de pregunta (1-based) → letra correcta ("A" | "B" | "C" | "D" | "E") */
   pauta_respuestas: Record<string, string>
+  /** Metadata por pregunta (importado desde Excel) */
+  mapa_preguntas?: MapaPreguntaItem[]
 }
 
 const OPCIONES_RESPUESTA = ['A', 'B', 'C', 'D', 'E'] as const
@@ -45,6 +58,8 @@ export function CrearEvaluacionOmrForm() {
   ])
 
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isImportingExcel, setIsImportingExcel] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const fetchLibrosMira = async () => {
     try {
@@ -85,7 +100,7 @@ export function CrearEvaluacionOmrForm() {
   const handleAddForma = () => {
     setFormas((prev) => [
       ...prev,
-      { nombre_forma: `Forma ${String.fromCharCode(65 + prev.length)}`, codigo_evaluacion: '', pauta_respuestas: {} },
+      { nombre_forma: `Forma ${String.fromCharCode(65 + prev.length)}`, codigo_evaluacion: '', pauta_respuestas: {}, mapa_preguntas: [] },
     ])
   }
 
@@ -108,6 +123,107 @@ export function CrearEvaluacionOmrForm() {
         return { ...forma, pauta_respuestas: next }
       }),
     )
+  }
+
+  const getCell = (row: Record<string, unknown>, keys: string[]): string | number | undefined => {
+    for (const k of keys) {
+      const v = row[k]
+      if (v !== undefined && v !== null && v !== '') return v as string | number
+    }
+    return undefined
+  }
+
+  const handleImportExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    const accept = '.xlsx,.xls,.csv'
+    if (!accept.split(',').some((ext) => file.name.toLowerCase().endsWith(ext.trim().replace('.', '')))) {
+      toast.error('Selecciona un archivo .xlsx, .xls o .csv')
+      return
+    }
+    if (fileInputRef.current) fileInputRef.current.value = ''
+
+    setIsImportingExcel(true)
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result
+        if (!data) {
+          toast.error('No se pudo leer el archivo')
+          return
+        }
+        const workbook = XLSX.read(data, { type: 'binary', cellDates: true })
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
+        if (!firstSheet) {
+          toast.error('El archivo no tiene hojas')
+          return
+        }
+        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet)
+        if (!rows.length) {
+          toast.error('El archivo no tiene filas de datos')
+          return
+        }
+
+        const col = (varNames: string[]) => (row: Record<string, unknown>) => getCell(row, varNames)
+
+        const nombreEval = col(['Nombre Evaluacion', 'Nombre Evaluación', 'Nombre evaluacion'])(rows[0])
+        if (nombreEval !== undefined && nombreEval !== '') setNombre(String(nombreEval).trim())
+
+        const byForma = new Map<string, typeof rows>()
+        for (const row of rows) {
+          const formaKey = String(getCell(row, ['Forma', 'forma']) ?? '').trim() || 'Única'
+          if (!byForma.has(formaKey)) byForma.set(formaKey, [])
+          byForma.get(formaKey)!.push(row)
+        }
+
+        let maxPreguntas = 0
+        const formasImported: FormaState[] = []
+
+        byForma.forEach((formRows, formaLabel) => {
+          const codigoEval = getCell(formRows[0], ['Código Evaluacion', 'Código Evaluación', 'Codigo Evaluacion'])
+          const pauta: Record<string, string> = {}
+          const mapa: MapaPreguntaItem[] = []
+
+          const seenNum = new Set<number>()
+          for (const row of formRows) {
+            const num = Number(getCell(row, ['Número Pregunta', 'Numero Pregunta', 'Número pregunta']))
+            if (!Number.isNaN(num)) seenNum.add(num)
+            const resp = getCell(row, ['Respuesta', 'respuesta'])
+            if (num !== undefined && !Number.isNaN(Number(num)) && resp !== undefined) {
+              pauta[String(num)] = String(resp).trim().toUpperCase()
+            }
+            mapa.push({
+              numero: num !== undefined && !Number.isNaN(Number(num)) ? Number(num) : undefined,
+              codigo_pregunta: getCell(row, ['Código Pregunta', 'Codigo Pregunta', 'Código pregunta']) as string | undefined,
+              habilidad: getCell(row, ['HABILIDAD', 'Habilidad', 'habilidad']) as string | undefined,
+              nivel: getCell(row, ['NIVEL', 'Nivel', 'nivel']) as string | undefined,
+              tema: getCell(row, ['CLASE (Tema)', 'CLASE (Tema)', 'Tema', 'tema']) as string | undefined,
+              subtema: getCell(row, ['KONTENIDO (Titulo)', 'KONTENIDO (Título)', 'Kontenido (Titulo)', 'subtema']) as string | undefined,
+              imagen: getCell(row, ['Imágen', 'Imagen', 'imagen']) as string | undefined,
+            })
+          }
+          const count = seenNum.size || Object.keys(pauta).length
+          if (count > maxPreguntas) maxPreguntas = count
+
+          formasImported.push({
+            nombre_forma: formaLabel,
+            codigo_evaluacion: codigoEval !== undefined ? String(codigoEval) : '',
+            pauta_respuestas: pauta,
+            mapa_preguntas: mapa.length ? mapa : undefined,
+          })
+        })
+
+        if (maxPreguntas > 0) setCantidadPreguntas(maxPreguntas)
+        setFormas(formasImported.length ? formasImported : [{ nombre_forma: 'Forma A', codigo_evaluacion: '', pauta_respuestas: {}, mapa_preguntas: [] }])
+        toast.success('Excel procesado. Revisa los datos y selecciona el Libro MIRA antes de guardar.')
+      } catch (err: unknown) {
+        console.error('Error al importar Excel', err)
+        toast.error(err instanceof Error ? err.message : 'Error al procesar el Excel')
+      } finally {
+        setIsImportingExcel(false)
+      }
+    }
+    reader.readAsBinaryString(file)
   }
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -163,6 +279,7 @@ export function CrearEvaluacionOmrForm() {
           nombre_forma: forma.nombre_forma.trim(),
           codigo_evaluacion: forma.codigo_evaluacion.trim(),
           pauta_respuestas: pauta,
+          ...(Array.isArray(forma.mapa_preguntas) && forma.mapa_preguntas.length > 0 && { mapa_preguntas: forma.mapa_preguntas }),
         }
       })
     } catch (validationError: any) {
@@ -210,6 +327,23 @@ export function CrearEvaluacionOmrForm() {
   return (
     <Card className="mt-3">
       <Card.Body>
+        <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="d-none"
+            onChange={handleImportExcel}
+          />
+          <Button
+            variant="outline-success"
+            type="button"
+            disabled={isImportingExcel}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {isImportingExcel ? 'Procesando...' : 'Importar desde Excel (.xlsx)'}
+          </Button>
+        </div>
         <Form onSubmit={handleSubmit}>
           <Row className="mb-3">
             <Col md={6}>
