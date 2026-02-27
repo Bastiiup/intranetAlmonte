@@ -260,21 +260,49 @@ export function CrearEvaluacionOmrForm() {
           return
         }
         const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet)
+        console.log('📄 [EXCEL] Total de filas crudas leídas:', rawRows.length)
+
+        const codigoKeys = ['Código Evaluacion', 'Código Evaluación', 'Codigo Evaluacion']
+        const numeroPreguntaKeys = ['Número Pregunta', 'Numero Pregunta', 'Número pregunta']
 
         const col =
           (varNames: string[]) =>
           (row: Record<string, unknown>) =>
             getCell(row, varNames)
 
-        const codigoKeys = ['Código Evaluacion', 'Código Evaluación', 'Codigo Evaluacion']
-        const numeroPreguntaKeys = ['Número Pregunta', 'Numero Pregunta', 'Número pregunta']
+        // 1) Sanitizar strings críticas (trim) y filtrar filas sin número de pregunta válido (> 0)
+        const sanitizedRows = rawRows.map((row) => {
+          const clone: Record<string, unknown> = { ...row }
 
-        // 1) Filtrar filas vacías (sin código ni número de pregunta)
-        const rows = rawRows.filter((row) => {
-          const cod = getCell(row, codigoKeys)
-          const num = getCell(row, numeroPreguntaKeys)
-          return (cod !== undefined && String(cod).trim() !== '') || (num !== undefined && num !== '')
+          const codigo = getCell(clone, codigoKeys)
+          if (codigo !== undefined && codigo !== null) {
+            clone['Código Evaluacion'] = String(codigo).trim()
+          }
+
+          const nombreEval = getCell(clone, [
+            'Nombre Evaluacion',
+            'Nombre Evaluación',
+            'Nombre evaluacion',
+          ])
+          if (nombreEval !== undefined && nombreEval !== null) {
+            clone['Nombre Evaluacion'] = String(nombreEval).trim()
+          }
+
+          const forma = getCell(clone, ['Forma', 'forma'])
+          if (forma !== undefined && forma !== null) {
+            clone['Forma'] = String(forma).trim()
+          }
+
+          return clone
         })
+
+        const rows = sanitizedRows.filter((row) => {
+          const num = getCell(row, numeroPreguntaKeys)
+          const numVal = Number(num)
+          return num !== undefined && !Number.isNaN(numVal) && numVal > 0
+        })
+
+        console.log('🧹 [EXCEL] Filas válidas a procesar:', rows.length)
 
         if (!rows.length) {
           toast.error('El archivo no tiene filas de datos válidas')
@@ -285,15 +313,35 @@ export function CrearEvaluacionOmrForm() {
         const byCodigoEvaluacion = new Map<string, Record<string, unknown>[]>()
         let lastCodigo: string | null = null
 
-        for (const row of rows) {
+        rows.forEach((row, index) => {
           let codigoRaw = getCell(row, codigoKeys)
           if (codigoRaw !== undefined && codigoRaw !== null && String(codigoRaw).trim() !== '') {
             lastCodigo = String(codigoRaw).trim()
           }
           const key = lastCodigo ?? 'sin-codigo'
+          const formaLimpia = (getCell(row, ['Forma', 'forma']) ?? '') as string | number
+          const numPregunta = getCell(row, numeroPreguntaKeys)
+          console.log(
+            '🔍 [EXCEL FILA]',
+            index,
+            '| Codigo:',
+            key,
+            '| Forma:',
+            String(formaLimpia).trim(),
+            '| N° Preg:',
+            numPregunta,
+          )
           if (!byCodigoEvaluacion.has(key)) byCodigoEvaluacion.set(key, [])
           byCodigoEvaluacion.get(key)!.push(row)
-        }
+        })
+
+        const evaluacionesAgrupadas: Record<string, Record<string, unknown>[]> =
+          Object.fromEntries(byCodigoEvaluacion)
+        console.log(
+          '📦 [EXCEL] Evaluaciones agrupadas finales (Keys/IDs):',
+          Object.keys(evaluacionesAgrupadas),
+        )
+        console.dir(evaluacionesAgrupadas)
 
         const nuevasEvaluaciones: EvaluacionState[] = []
         let idx = 0
