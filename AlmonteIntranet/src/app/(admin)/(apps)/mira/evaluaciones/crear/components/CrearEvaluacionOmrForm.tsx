@@ -226,6 +226,33 @@ export function CrearEvaluacionOmrForm() {
     )
   }
 
+  const handleMapaPreguntaChange = (
+    evalIndex: number,
+    formaIndex: number,
+    preguntaIndex: number,
+    field: keyof MapaPreguntaItem,
+    value: string | number | undefined,
+  ) => {
+    setEvaluaciones((prev) =>
+      prev.map((ev, i) =>
+        i !== evalIndex
+          ? ev
+          : {
+              ...ev,
+              formas: ev.formas.map((f, fi) => {
+                if (fi !== formaIndex) return f
+                const n = Number(ev.cantidad_preguntas) || 0
+                const base = Array.isArray(f.mapa_preguntas) ? [...f.mapa_preguntas] : []
+                while (base.length < n) base.push({ numero: base.length + 1 })
+                const current = base[preguntaIndex] ?? { numero: preguntaIndex + 1 }
+                base[preguntaIndex] = { ...current, [field]: value }
+                return { ...f, mapa_preguntas: base }
+              }),
+            },
+      ),
+    )
+  }
+
   const handleRemoveEvaluacion = (evalIndex: number) => {
     setEvaluaciones((prev) => {
       if (prev.length === 1) {
@@ -555,18 +582,60 @@ export function CrearEvaluacionOmrForm() {
       const data = json?.data || json
       const codigoLeido =
         (data && (data.codigo || data.codigo_evaluacion || data.codigoEvaluacion)) || null
+      const respuestasRaw = data?.respuestas || data?.pauta_respuestas || data?.pauta || {}
+
+      const respuestas: Record<string, string> = {}
+      if (respuestasRaw && typeof respuestasRaw === 'object' && !Array.isArray(respuestasRaw)) {
+        Object.entries(respuestasRaw).forEach(([k, v]) => {
+          const key = String(k).trim()
+          const val = v !== undefined && v !== null ? String(v).trim().toUpperCase() : ''
+          if (key && val && OPCIONES_RESPUESTA.includes(val as any)) respuestas[key] = val
+        })
+      }
+
+      const cantidadPreguntas = Object.keys(respuestas).length
+        ? Math.max(...Object.keys(respuestas).map((k) => parseInt(k, 10)).filter((n) => !Number.isNaN(n)), 0)
+        : 0
 
       appendExcelLog(
         `📷 [OMR] Resultado parse-omr: codigo=${codigoLeido || 'N/D'}, keys=${Object.keys(
           data || {},
-        ).join(', ')}`,
+        ).join(', ')}, respuestas=${cantidadPreguntas} ítems`,
       )
 
-      toast.success(
-        codigoLeido
-          ? `Pauta OMR escaneada. Código leído: ${codigoLeido}`
-          : 'Pauta OMR escaneada. Revisa los logs para más detalle.',
-      )
+      if (codigoLeido && cantidadPreguntas > 0) {
+        const mapaInicial: MapaPreguntaItem[] = Array.from(
+          { length: cantidadPreguntas },
+          (_, i) => ({ numero: i + 1 }),
+        )
+        const nuevaEvaluacion: EvaluacionState = {
+          id_temp:
+            typeof crypto !== 'undefined' && 'randomUUID' in crypto
+              ? crypto.randomUUID()
+              : `tmp-omr-${Date.now()}`,
+          nombre: `Pauta escaneada (OMR) - ${codigoLeido}`,
+          categoria: 'Paes',
+          cantidad_preguntas: cantidadPreguntas,
+          formas: [
+            {
+              nombre_forma: 'Forma escaneada',
+              codigo_evaluacion: String(codigoLeido),
+              pauta_respuestas: respuestas,
+              mapa_preguntas: mapaInicial,
+            },
+          ],
+        }
+        setEvaluaciones([nuevaEvaluacion])
+        toast.success(
+          `Pauta OMR cargada: código ${codigoLeido}, ${cantidadPreguntas} preguntas. Completa nombre, categoría y mapa mental si quieres.`,
+        )
+      } else {
+        toast.success(
+          codigoLeido
+            ? `Pauta OMR escaneada. Código leído: ${codigoLeido}`
+            : 'Pauta OMR escaneada. Revisa los logs para más detalle.',
+        )
+      }
     } catch (error: any) {
       console.error('Error al escanear pauta OMR', error)
       toast.error(
@@ -966,6 +1035,134 @@ export function CrearEvaluacionOmrForm() {
                           </>
                         )}
                       </Form.Group>
+
+                      {ev.cantidad_preguntas && Number(ev.cantidad_preguntas) > 0 && (
+                        <Form.Group className="mt-4">
+                          <Form.Label className="fw-semibold">
+                            Mapa mental (tema, habilidad, KONTENIDO, etc.)
+                          </Form.Label>
+                          <p className="text-muted small mb-2">
+                            Completa o edita por cada pregunta: Habilidad, Nivel, Tema (CLASE),
+                            KONTENIDO (Título) e Imagen.
+                          </p>
+                          <div
+                            className="table-responsive"
+                            style={{ maxHeight: '320px', overflowY: 'auto' }}
+                          >
+                            <table className="table table-sm table-bordered mb-0">
+                              <thead className="table-light sticky-top">
+                                <tr>
+                                  <th style={{ width: '2.5rem' }}>Nº</th>
+                                  <th style={{ width: '3rem' }}>Resp.</th>
+                                  <th>Habilidad</th>
+                                  <th>Nivel</th>
+                                  <th>Tema (CLASE)</th>
+                                  <th>KONTENIDO (Título)</th>
+                                  <th>Imagen</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {Array.from(
+                                  { length: Number(ev.cantidad_preguntas) },
+                                  (_, i) => i,
+                                ).map((preguntaIndex) => {
+                                  const num = preguntaIndex + 1
+                                  const item =
+                                    forma.mapa_preguntas?.[preguntaIndex] ?? { numero: num }
+                                  const resp =
+                                    forma.pauta_respuestas[String(num)] ?? '—'
+                                  return (
+                                    <tr key={num}>
+                                      <td className="text-center text-muted">{num}</td>
+                                      <td className="text-center fw-semibold">{resp}</td>
+                                      <td>
+                                        <Form.Control
+                                          size="sm"
+                                          value={item.habilidad ?? ''}
+                                          onChange={(e) =>
+                                            handleMapaPreguntaChange(
+                                              evalIndex,
+                                              formaIndex,
+                                              preguntaIndex,
+                                              'habilidad',
+                                              e.target.value || undefined,
+                                            )
+                                          }
+                                          placeholder="—"
+                                        />
+                                      </td>
+                                      <td>
+                                        <Form.Control
+                                          size="sm"
+                                          value={item.nivel ?? ''}
+                                          onChange={(e) =>
+                                            handleMapaPreguntaChange(
+                                              evalIndex,
+                                              formaIndex,
+                                              preguntaIndex,
+                                              'nivel',
+                                              e.target.value || undefined,
+                                            )
+                                          }
+                                          placeholder="—"
+                                        />
+                                      </td>
+                                      <td>
+                                        <Form.Control
+                                          size="sm"
+                                          value={item.tema ?? ''}
+                                          onChange={(e) =>
+                                            handleMapaPreguntaChange(
+                                              evalIndex,
+                                              formaIndex,
+                                              preguntaIndex,
+                                              'tema',
+                                              e.target.value || undefined,
+                                            )
+                                          }
+                                          placeholder="—"
+                                        />
+                                      </td>
+                                      <td>
+                                        <Form.Control
+                                          size="sm"
+                                          value={item.subtema ?? ''}
+                                          onChange={(e) =>
+                                            handleMapaPreguntaChange(
+                                              evalIndex,
+                                              formaIndex,
+                                              preguntaIndex,
+                                              'subtema',
+                                              e.target.value || undefined,
+                                            )
+                                          }
+                                          placeholder="—"
+                                        />
+                                      </td>
+                                      <td>
+                                        <Form.Control
+                                          size="sm"
+                                          value={item.imagen ?? ''}
+                                          onChange={(e) =>
+                                            handleMapaPreguntaChange(
+                                              evalIndex,
+                                              formaIndex,
+                                              preguntaIndex,
+                                              'imagen',
+                                              e.target.value || undefined,
+                                            )
+                                          }
+                                          placeholder="—"
+                                        />
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </Form.Group>
+                      )}
                     </Card.Body>
                   </Card>
                 ))}
