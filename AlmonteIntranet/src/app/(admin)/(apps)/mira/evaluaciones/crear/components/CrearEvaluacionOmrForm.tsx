@@ -82,9 +82,11 @@ export function CrearEvaluacionOmrForm() {
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isImportingExcel, setIsImportingExcel] = useState(false)
+  const [isScanningOmr, setIsScanningOmr] = useState(false)
   const [excelLogs, setExcelLogs] = useState<string[]>([])
   const [showLogsModal, setShowLogsModal] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const omrFileInputRef = useRef<HTMLInputElement>(null)
 
   const appendExcelLog = (message: string) => {
     setExcelLogs((prev) => [...prev, message])
@@ -523,6 +525,59 @@ export function CrearEvaluacionOmrForm() {
     reader.readAsBinaryString(file)
   }
 
+  const handleScanOmr = () => {
+    if (!libroMiraId) {
+      toast.error('Selecciona primero un Libro MIRA antes de escanear la pauta.')
+      return
+    }
+    omrFileInputRef.current?.click()
+  }
+
+  const handleOmrFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (omrFileInputRef.current) omrFileInputRef.current.value = ''
+
+    try {
+      setIsScanningOmr(true)
+      const formData = new FormData()
+      formData.append('imagen_hoja', file)
+
+      const res = await fetch('/api/mira/evaluaciones/parse-omr', {
+        method: 'POST',
+        body: formData,
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(json?.error || res.statusText)
+      }
+
+      const data = json?.data || json
+      const codigoLeido =
+        (data && (data.codigo || data.codigo_evaluacion || data.codigoEvaluacion)) || null
+
+      appendExcelLog(
+        `📷 [OMR] Resultado parse-omr: codigo=${codigoLeido || 'N/D'}, keys=${Object.keys(
+          data || {},
+        ).join(', ')}`,
+      )
+
+      toast.success(
+        codigoLeido
+          ? `Pauta OMR escaneada. Código leído: ${codigoLeido}`
+          : 'Pauta OMR escaneada. Revisa los logs para más detalle.',
+      )
+    } catch (error: any) {
+      console.error('Error al escanear pauta OMR', error)
+      toast.error(
+        error?.message ||
+          'Error al escanear la pauta OMR. Revisa que la imagen sea legible y vuelve a intentar.',
+      )
+    } finally {
+      setIsScanningOmr(false)
+    }
+  }
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
 
@@ -638,6 +693,13 @@ export function CrearEvaluacionOmrForm() {
             className="d-none"
             onChange={handleImportExcel}
           />
+          <input
+            ref={omrFileInputRef}
+            type="file"
+            accept="image/*"
+            className="d-none"
+            onChange={handleOmrFileChange}
+          />
           <Button
             variant="outline-success"
             type="button"
@@ -645,6 +707,14 @@ export function CrearEvaluacionOmrForm() {
             onClick={() => fileInputRef.current?.click()}
           >
             {isImportingExcel ? 'Procesando...' : 'Importar desde Excel (.xlsx)'}
+          </Button>
+          <Button
+            variant="outline-primary"
+            type="button"
+            disabled={isScanningOmr}
+            onClick={handleScanOmr}
+          >
+            {isScanningOmr ? 'Escaneando OMR...' : 'Escanear OMR (Pauta Maestra)'}
           </Button>
           <Button
             variant="outline-dark"
