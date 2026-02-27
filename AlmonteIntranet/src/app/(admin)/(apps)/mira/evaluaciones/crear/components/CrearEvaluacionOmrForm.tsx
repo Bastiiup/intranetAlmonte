@@ -394,8 +394,12 @@ export function CrearEvaluacionOmrForm() {
             for (const row of formRows) {
               const num = Number(getCell(row, numeroPreguntaKeys))
               const resp = getCell(row, ['Respuesta', 'respuesta'])
-              if (!Number.isNaN(num) && resp !== undefined && resp !== '') {
-                pauta[String(num)] = String(resp).trim().toUpperCase()
+              const rawResp =
+                resp !== undefined && resp !== null
+                  ? String(resp).trim().toUpperCase()
+                  : ''
+              if (!Number.isNaN(num) && rawResp && OPCIONES_RESPUESTA.includes(rawResp as any)) {
+                pauta[String(num)] = rawResp
               }
 
               const numVal = !Number.isNaN(num) ? num : undefined
