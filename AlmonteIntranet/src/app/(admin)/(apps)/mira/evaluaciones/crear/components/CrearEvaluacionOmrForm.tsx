@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Form, Button, Row, Col, Card } from 'react-bootstrap'
+import { Form, Button, Row, Col, Card, Modal } from 'react-bootstrap'
 import toast from 'react-hot-toast'
 import * as XLSX from 'xlsx'
 
@@ -82,7 +82,17 @@ export function CrearEvaluacionOmrForm() {
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isImportingExcel, setIsImportingExcel] = useState(false)
+  const [excelLogs, setExcelLogs] = useState<string[]>([])
+  const [showLogsModal, setShowLogsModal] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const appendExcelLog = (message: string) => {
+    setExcelLogs((prev) => [...prev, message])
+    // Seguir mandando a consola en desarrollo para depuración adicional
+    if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+      console.log(message)
+    }
+  }
 
   const fetchLibrosMira = async () => {
     try {
@@ -253,6 +263,7 @@ export function CrearEvaluacionOmrForm() {
           toast.error('No se pudo leer el archivo')
           return
         }
+        setExcelLogs([])
         const workbook = XLSX.read(data, { type: 'binary', cellDates: true })
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
         if (!firstSheet) {
@@ -260,7 +271,7 @@ export function CrearEvaluacionOmrForm() {
           return
         }
         const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet)
-        console.log('📄 [EXCEL] Total de filas crudas leídas:', rawRows.length)
+        appendExcelLog(`📄 [EXCEL] Total de filas crudas leídas: ${rawRows.length}`)
 
         const codigoKeys = ['Código Evaluacion', 'Código Evaluación', 'Codigo Evaluacion']
         const numeroPreguntaKeys = ['Número Pregunta', 'Numero Pregunta', 'Número pregunta']
@@ -302,7 +313,7 @@ export function CrearEvaluacionOmrForm() {
           return num !== undefined && !Number.isNaN(numVal) && numVal > 0
         })
 
-        console.log('🧹 [EXCEL] Filas válidas a procesar:', rows.length)
+        appendExcelLog(`🧹 [EXCEL] Filas válidas a procesar: ${rows.length}`)
 
         if (!rows.length) {
           toast.error('El archivo no tiene filas de datos válidas')
@@ -321,15 +332,10 @@ export function CrearEvaluacionOmrForm() {
           const key = lastCodigo ?? 'sin-codigo'
           const formaLimpia = (getCell(row, ['Forma', 'forma']) ?? '') as string | number
           const numPregunta = getCell(row, numeroPreguntaKeys)
-          console.log(
-            '🔍 [EXCEL FILA]',
-            index,
-            '| Codigo:',
-            key,
-            '| Forma:',
-            String(formaLimpia).trim(),
-            '| N° Preg:',
-            numPregunta,
+          appendExcelLog(
+            `🔍 [EXCEL FILA] ${index} | Codigo: ${key} | Forma: ${String(
+              formaLimpia,
+            ).trim()} | N° Preg: ${numPregunta}`,
           )
           if (!byCodigoEvaluacion.has(key)) byCodigoEvaluacion.set(key, [])
           byCodigoEvaluacion.get(key)!.push(row)
@@ -337,11 +343,12 @@ export function CrearEvaluacionOmrForm() {
 
         const evaluacionesAgrupadas: Record<string, Record<string, unknown>[]> =
           Object.fromEntries(byCodigoEvaluacion)
-        console.log(
-          '📦 [EXCEL] Evaluaciones agrupadas finales (Keys/IDs):',
-          Object.keys(evaluacionesAgrupadas),
+        appendExcelLog(
+          `📦 [EXCEL] Evaluaciones agrupadas finales (Keys/IDs): ${Object.keys(
+            evaluacionesAgrupadas,
+          ).join(', ')}`,
         )
-        console.dir(evaluacionesAgrupadas)
+        appendExcelLog(JSON.stringify(evaluacionesAgrupadas, null, 2))
 
         const nuevasEvaluaciones: EvaluacionState[] = []
         let idx = 0
@@ -571,6 +578,15 @@ export function CrearEvaluacionOmrForm() {
             onClick={() => fileInputRef.current?.click()}
           >
             {isImportingExcel ? 'Procesando...' : 'Importar desde Excel (.xlsx)'}
+          </Button>
+          <Button
+            variant="outline-dark"
+            type="button"
+            size="sm"
+            disabled={excelLogs.length === 0}
+            onClick={() => setShowLogsModal(true)}
+          >
+            Ver logs Excel
           </Button>
         </div>
         <Form onSubmit={handleSubmit}>
@@ -835,6 +851,43 @@ export function CrearEvaluacionOmrForm() {
           </div>
         </Form>
       </Card.Body>
+      <Modal
+        show={showLogsModal}
+        onHide={() => setShowLogsModal(false)}
+        size="lg"
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Logs de importación Excel</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {excelLogs.length === 0 ? (
+            <p className="text-muted small mb-0">
+              No hay logs aún. Importa un archivo Excel para ver el detalle del parser.
+            </p>
+          ) : (
+            <pre
+              className="small"
+              style={{ whiteSpace: 'pre-wrap', maxHeight: '60vh', overflowY: 'auto' }}
+            >
+              {excelLogs.join('\n')}
+            </pre>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" size="sm" onClick={() => setShowLogsModal(false)}>
+            Cerrar
+          </Button>
+          <Button
+            variant="outline-danger"
+            size="sm"
+            onClick={() => setExcelLogs([])}
+            disabled={excelLogs.length === 0}
+          >
+            Limpiar logs
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </Card>
   )
 }
