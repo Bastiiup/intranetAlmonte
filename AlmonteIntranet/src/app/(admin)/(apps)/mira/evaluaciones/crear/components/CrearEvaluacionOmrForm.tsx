@@ -307,6 +307,47 @@ export function CrearEvaluacionOmrForm() {
           return clone
         })
 
+        // 1.1 Determinar código dominante por combinación (Nombre Evaluacion + Forma)
+        const pairCounts = new Map<string, Map<string, number>>()
+
+        sanitizedRows.forEach((row) => {
+          const nombreEval = getCell(row, [
+            'Nombre Evaluacion',
+            'Nombre Evaluación',
+            'Nombre evaluacion',
+          ])
+          const formaVal = getCell(row, ['Forma', 'forma'])
+          const nombreNorm = nombreEval !== undefined && nombreEval !== null ? String(nombreEval).trim() : ''
+          const formaNorm = formaVal !== undefined && formaVal !== null ? String(formaVal).trim() : ''
+          const pairKey = `${nombreNorm}|||${formaNorm}`
+
+          const codigo = getCell(row, codigoKeys)
+          const codigoTrim =
+            codigo !== undefined && codigo !== null ? String(codigo).trim() : ''
+          if (!codigoTrim) return
+
+          if (!pairCounts.has(pairKey)) {
+            pairCounts.set(pairKey, new Map<string, number>())
+          }
+          const inner = pairCounts.get(pairKey)!
+          inner.set(codigoTrim, (inner.get(codigoTrim) ?? 0) + 1)
+        })
+
+        const pairDominantCode = new Map<string, string>()
+        pairCounts.forEach((codes, pairKey) => {
+          let bestCode = ''
+          let bestCount = 0
+          codes.forEach((count, code) => {
+            if (count > bestCount) {
+              bestCount = count
+              bestCode = code
+            }
+          })
+          if (bestCode) {
+            pairDominantCode.set(pairKey, bestCode)
+          }
+        })
+
         const rows = sanitizedRows.filter((row) => {
           const num = getCell(row, numeroPreguntaKeys)
           const numVal = Number(num)
@@ -325,7 +366,29 @@ export function CrearEvaluacionOmrForm() {
         let lastCodigo: string | null = null
 
         rows.forEach((row, index) => {
+          const nombreEval = getCell(row, [
+            'Nombre Evaluacion',
+            'Nombre Evaluación',
+            'Nombre evaluacion',
+          ])
+          const formaVal = getCell(row, ['Forma', 'forma'])
+          const nombreNorm =
+            nombreEval !== undefined && nombreEval !== null ? String(nombreEval).trim() : ''
+          const formaNorm =
+            formaVal !== undefined && formaVal !== null ? String(formaVal).trim() : ''
+          const pairKey = `${nombreNorm}|||${formaNorm}`
+
           let codigoRaw = getCell(row, codigoKeys)
+          const codigoTrim =
+            codigoRaw !== undefined && codigoRaw !== null ? String(codigoRaw).trim() : ''
+          const dominant = pairDominantCode.get(pairKey)
+
+          if (dominant && dominant !== codigoTrim) {
+            // Normalizar códigos \"zombies\" al código dominante por (Nombre, Forma)
+            codigoRaw = dominant
+            row['Código Evaluacion'] = dominant
+          }
+
           if (codigoRaw !== undefined && codigoRaw !== null && String(codigoRaw).trim() !== '') {
             lastCodigo = String(codigoRaw).trim()
           }
@@ -637,7 +700,17 @@ export function CrearEvaluacionOmrForm() {
           <h5 className="mb-3">Evaluaciones</h5>
 
           {evaluaciones.map((ev, evalIndex) => (
-            <Card key={ev.id_temp} className="mb-4">
+            <Card
+              key={ev.id_temp}
+              className="mb-4 border-0"
+              style={{
+                backgroundColor:
+                  evalIndex % 2 === 0 ? 'rgba(99, 102, 241, 0.04)' : 'rgba(16, 185, 129, 0.04)',
+                borderLeft: `4px solid ${
+                  evalIndex % 2 === 0 ? 'rgba(99, 102, 241, 0.7)' : 'rgba(16, 185, 129, 0.7)'
+                }`,
+              }}
+            >
               <Card.Body>
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <h5 className="mb-0">Evaluación #{evalIndex + 1}</h5>
