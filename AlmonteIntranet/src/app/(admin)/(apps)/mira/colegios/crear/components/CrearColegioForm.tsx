@@ -27,7 +27,7 @@ export default function CrearColegioForm() {
     ruralidad: '',
   })
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     if (name === 'rbd_digito_verificador' && value.length > 1) return
     setFormData((prev) => ({ ...prev, [name]: value }))
