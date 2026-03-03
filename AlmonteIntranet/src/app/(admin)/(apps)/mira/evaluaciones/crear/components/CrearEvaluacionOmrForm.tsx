@@ -13,6 +13,24 @@ type LibroMiraOption = {
   nombre: string
 }
 
+type AsignaturaOption = {
+  id: number
+  nombre: string
+}
+
+type ColegioOption = {
+  id: number
+  nombre: string
+}
+
+type CursoOption = {
+  id: number
+  nombre: string
+  colegioId?: number | string | null
+}
+
+type TipoEvaluacionUI = 'libro' | 'institucional'
+
 export type MapaPreguntaItem = {
   numero?: number
   codigo_pregunta?: string
@@ -71,10 +89,23 @@ const createEmptyEvaluacion = (index = 0): EvaluacionState => ({
 export function CrearEvaluacionOmrForm() {
   const router = useRouter()
 
-  const [libroMiraId, setLibroMiraId] = useState<number | ''>('')
+  const [tipoEvaluacionUI, setTipoEvaluacionUI] = useState<TipoEvaluacionUI>('libro')
 
+  const [libroMiraId, setLibroMiraId] = useState<number | ''>('')
   const [librosOptions, setLibrosOptions] = useState<LibroMiraOption[]>([])
   const [isLoadingLibros, setIsLoadingLibros] = useState(false)
+
+  const [asignaturaId, setAsignaturaId] = useState<number | ''>('')
+  const [asignaturas, setAsignaturas] = useState<AsignaturaOption[]>([])
+  const [isLoadingAsignaturas, setIsLoadingAsignaturas] = useState(false)
+
+  const [colegioId, setColegioId] = useState<number | ''>('')
+  const [colegios, setColegios] = useState<ColegioOption[]>([])
+  const [isLoadingColegios, setIsLoadingColegios] = useState(false)
+
+  const [cursoId, setCursoId] = useState<number | ''>('')
+  const [cursos, setCursos] = useState<CursoOption[]>([])
+  const [isLoadingCursos, setIsLoadingCursos] = useState(false)
 
   const [evaluaciones, setEvaluaciones] = useState<EvaluacionState[]>([
     createEmptyEvaluacion(),
@@ -129,6 +160,89 @@ export function CrearEvaluacionOmrForm() {
       toast.error(error?.message || 'Error al cargar libros MIRA')
     } finally {
       setIsLoadingLibros(false)
+    }
+  }
+
+  const fetchAsignaturas = async () => {
+    try {
+      setIsLoadingAsignaturas(true)
+      const res = await fetch('/api/mira/asignaturas')
+      const json = await res.json()
+      if (!res.ok || json?.success === false) {
+        throw new Error(json?.error || res.statusText)
+      }
+      const dataArray = Array.isArray(json?.data) ? json.data : []
+      const options: AsignaturaOption[] = dataArray.map((item: any) => ({
+        id: item.id,
+        nombre: item.nombre ?? item.attributes?.nombre ?? `Asignatura ${item.id}`,
+      }))
+      setAsignaturas(options)
+    } catch (error: any) {
+      console.error('Error al cargar asignaturas', error)
+      toast.error(error?.message || 'Error al cargar asignaturas')
+    } finally {
+      setIsLoadingAsignaturas(false)
+    }
+  }
+
+  const fetchColegios = async () => {
+    try {
+      setIsLoadingColegios(true)
+      const res = await fetch('/api/mira/colegios?pageSize=500')
+      const json = await res.json()
+      if (!res.ok || json?.success === false) {
+        throw new Error(json?.error || res.statusText)
+      }
+      const dataArray = Array.isArray(json?.data) ? json.data : []
+      const options: ColegioOption[] = dataArray.map((item: any) => ({
+        id: item.id,
+        nombre: item.colegio_nombre ?? item.nombre ?? `Colegio ${item.id}`,
+      }))
+      setColegios(options)
+    } catch (error: any) {
+      console.error('Error al cargar colegios', error)
+      toast.error(error?.message || 'Error al cargar colegios')
+    } finally {
+      setIsLoadingColegios(false)
+    }
+  }
+
+  const fetchCursos = async () => {
+    try {
+      setIsLoadingCursos(true)
+      const res = await fetch('/api/mira/cursos?pageSize=500')
+      const json = await res.json()
+      if (!res.ok || json?.success === false) {
+        throw new Error(json?.error || res.statusText)
+      }
+      const dataArray = Array.isArray(json?.data) ? json.data : []
+      const options: CursoOption[] = dataArray.map((item: any) => {
+        const nombreBase = item.nombre_curso ?? item.nombre ?? `Curso ${item.id}`
+        const letra = item.letra ?? item.paralelo ?? null
+        const anio = item.anio ?? null
+        const colegioNombre = item.colegio_nombre ?? item.colegio?.colegio_nombre ?? null
+        const labelParts: string[] = []
+        if (nombreBase) labelParts.push(nombreBase)
+        if (letra) labelParts.push(String(letra))
+        if (anio) labelParts.push(String(anio))
+        const nombre = labelParts.join(' ')
+        const colegioIdValue =
+          item.colegio?.id ??
+          item.colegioId ??
+          item.colegio?.documentId ??
+          null
+        return {
+          id: item.id,
+          nombre: nombre || `Curso ${item.id}`,
+          colegioId: colegioIdValue,
+        }
+      })
+      setCursos(options)
+    } catch (error: any) {
+      console.error('Error al cargar cursos', error)
+      toast.error(error?.message || 'Error al cargar cursos')
+    } finally {
+      setIsLoadingCursos(false)
     }
   }
 
@@ -650,9 +764,30 @@ export function CrearEvaluacionOmrForm() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
 
-    if (!libroMiraId) {
-      toast.error('Debes seleccionar un libro MIRA')
+    const asignaturaNumeric = asignaturaId !== '' ? Number(asignaturaId) : null
+    const libroNumeric = libroMiraId !== '' ? Number(libroMiraId) : null
+    const colegioNumeric = colegioId !== '' ? Number(colegioId) : null
+    const cursoNumeric = cursoId !== '' ? Number(cursoId) : null
+
+    if (!asignaturaNumeric) {
+      toast.error('Debes seleccionar una asignatura')
       return
+    }
+
+    if (tipoEvaluacionUI === 'libro') {
+      if (!libroNumeric) {
+        toast.error('Debes seleccionar un libro MIRA')
+        return
+      }
+    } else {
+      if (!colegioNumeric) {
+        toast.error('Debes seleccionar un colegio')
+        return
+      }
+      if (!cursoNumeric) {
+        toast.error('Debes seleccionar un curso')
+        return
+      }
     }
 
     if (!evaluaciones.length) {
@@ -661,6 +796,8 @@ export function CrearEvaluacionOmrForm() {
     }
 
     try {
+      const tipoEvaluacionStr = tipoEvaluacionUI === 'libro' ? 'Global' : 'Institucional'
+
       const payloads = evaluaciones.map((ev, evalIndex) => {
         if (!ev.nombre.trim()) {
           throw new Error(`La evaluación #${evalIndex + 1} debe tener un nombre`)
@@ -709,16 +846,21 @@ export function CrearEvaluacionOmrForm() {
           }
         })
 
-        return {
+        const baseData: any = {
           data: {
             nombre: ev.nombre.trim(),
             categoria: ev.categoria,
             cantidad_preguntas: n,
-            libro_mira: libroMiraId,
+            tipo_evaluacion: tipoEvaluacionStr,
+            asignatura: asignaturaNumeric,
+            ...(tipoEvaluacionUI === 'libro'
+              ? { libro_mira: libroNumeric }
+              : { colegio: colegioNumeric, curso: cursoNumeric }),
             activo: true,
             formas: formasParsed,
           },
         }
+        return baseData
       })
 
       setIsSubmitting(true)
@@ -750,6 +892,15 @@ export function CrearEvaluacionOmrForm() {
       setIsSubmitting(false)
     }
   }
+
+  const cursosFiltrados: CursoOption[] =
+    tipoEvaluacionUI === 'institucional' && colegioId !== ''
+      ? cursos.filter((c) => {
+          if (c.colegioId === null || c.colegioId === undefined) return false
+          const colegioIdNum = Number(colegioId)
+          return Number(c.colegioId) === colegioIdNum
+        })
+      : []
 
   return (
     <Card className="mt-3">
@@ -797,42 +948,238 @@ export function CrearEvaluacionOmrForm() {
         </div>
         <Form onSubmit={handleSubmit}>
           <Row className="mb-3">
-            <Col md={6}>
-              <Form.Group controlId="libroMira">
-                <Form.Label>Libro MIRA</Form.Label>
-                <div className="d-flex gap-2">
-                  <Form.Select
-                    value={libroMiraId}
-                    onChange={(e) =>
-                      setLibroMiraId(e.target.value ? Number(e.target.value) : '')
-                    }
-                    onFocus={() => {
-                      if (librosOptions.length === 0 && !isLoadingLibros) {
-                        fetchLibrosMira()
-                      }
-                    }}
-                  >
-                    <option value="">
-                      {isLoadingLibros ? 'Cargando libros...' : 'Selecciona un libro MIRA'}
-                    </option>
-                    {librosOptions.map((libro) => (
-                      <option key={libro.id} value={libro.id}>
-                        {libro.nombre}
-                      </option>
-                    ))}
-                  </Form.Select>
-                  <Button
-                    variant="outline-secondary"
-                    type="button"
-                    disabled={isLoadingLibros}
-                    onClick={fetchLibrosMira}
-                  >
-                    {isLoadingLibros ? 'Actualizando...' : 'Actualizar'}
-                  </Button>
+            <Col md={12}>
+              <Form.Group controlId="tipoEvaluacion">
+                <Form.Label className="fw-semibold">
+                  ¿Esta evaluación pertenece a un Libro MIRA?
+                </Form.Label>
+                <div className="d-flex flex-wrap gap-3">
+                  <Form.Check
+                    type="radio"
+                    id="tipo-evaluacion-libro"
+                    name="tipo-evaluacion"
+                    label="Sí, es una evaluación global ligada a un Libro MIRA"
+                    checked={tipoEvaluacionUI === 'libro'}
+                    onChange={() => setTipoEvaluacionUI('libro')}
+                  />
+                  <Form.Check
+                    type="radio"
+                    id="tipo-evaluacion-institucional"
+                    name="tipo-evaluacion"
+                    label="No, es una evaluación institucional (Colegio / Curso)"
+                    checked={tipoEvaluacionUI === 'institucional'}
+                    onChange={() => setTipoEvaluacionUI('institucional')}
+                  />
                 </div>
               </Form.Group>
             </Col>
           </Row>
+
+          {tipoEvaluacionUI === 'libro' ? (
+            <Row className="mb-3">
+              <Col md={6}>
+                <Form.Group controlId="libroMira">
+                  <Form.Label>
+                    Libro MIRA <span className="text-danger">*</span>
+                  </Form.Label>
+                  <div className="d-flex gap-2">
+                    <Form.Select
+                      value={libroMiraId}
+                      onChange={(e) =>
+                        setLibroMiraId(e.target.value ? Number(e.target.value) : '')
+                      }
+                      onFocus={() => {
+                        if (librosOptions.length === 0 && !isLoadingLibros) {
+                          fetchLibrosMira()
+                        }
+                      }}
+                    >
+                      <option value="">
+                        {isLoadingLibros ? 'Cargando libros...' : 'Selecciona un libro MIRA'}
+                      </option>
+                      {librosOptions.map((libro) => (
+                        <option key={libro.id} value={libro.id}>
+                          {libro.nombre}
+                        </option>
+                      ))}
+                    </Form.Select>
+                    <Button
+                      variant="outline-secondary"
+                      type="button"
+                      disabled={isLoadingLibros}
+                      onClick={fetchLibrosMira}
+                    >
+                      {isLoadingLibros ? 'Actualizando...' : 'Actualizar'}
+                    </Button>
+                  </div>
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group controlId="asignaturaGlobal">
+                  <Form.Label>
+                    Asignatura <span className="text-danger">*</span>
+                  </Form.Label>
+                  <div className="d-flex gap-2">
+                    <Form.Select
+                      value={asignaturaId}
+                      onChange={(e) =>
+                        setAsignaturaId(e.target.value ? Number(e.target.value) : '')
+                      }
+                      onFocus={() => {
+                        if (asignaturas.length === 0 && !isLoadingAsignaturas) {
+                          fetchAsignaturas()
+                        }
+                      }}
+                    >
+                      <option value="">
+                        {isLoadingAsignaturas
+                          ? 'Cargando asignaturas...'
+                          : 'Selecciona una asignatura'}
+                      </option>
+                      {asignaturas.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.nombre}
+                        </option>
+                      ))}
+                    </Form.Select>
+                    <Button
+                      variant="outline-secondary"
+                      type="button"
+                      disabled={isLoadingAsignaturas}
+                      onClick={fetchAsignaturas}
+                    >
+                      {isLoadingAsignaturas ? 'Actualizando...' : 'Actualizar'}
+                    </Button>
+                  </div>
+                </Form.Group>
+              </Col>
+            </Row>
+          ) : (
+            <Row className="mb-3">
+              <Col md={4}>
+                <Form.Group controlId="colegioInstitucional">
+                  <Form.Label>
+                    Colegio <span className="text-danger">*</span>
+                  </Form.Label>
+                  <div className="d-flex gap-2">
+                    <Form.Select
+                      value={colegioId}
+                      onChange={(e) => {
+                        const value = e.target.value ? Number(e.target.value) : ''
+                        setColegioId(value)
+                        setCursoId('')
+                      }}
+                      onFocus={() => {
+                        if (colegios.length === 0 && !isLoadingColegios) {
+                          fetchColegios()
+                        }
+                      }}
+                    >
+                      <option value="">
+                        {isLoadingColegios
+                          ? 'Cargando colegios...'
+                          : 'Selecciona un colegio'}
+                      </option>
+                      {colegios.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.nombre}
+                        </option>
+                      ))}
+                    </Form.Select>
+                    <Button
+                      variant="outline-secondary"
+                      type="button"
+                      disabled={isLoadingColegios}
+                      onClick={fetchColegios}
+                    >
+                      {isLoadingColegios ? 'Actualizando...' : 'Actualizar'}
+                    </Button>
+                  </div>
+                </Form.Group>
+              </Col>
+              <Col md={4}>
+                <Form.Group controlId="cursoInstitucional">
+                  <Form.Label>
+                    Curso <span className="text-danger">*</span>
+                  </Form.Label>
+                  <div className="d-flex gap-2">
+                    <Form.Select
+                      value={cursoId}
+                      onChange={(e) =>
+                        setCursoId(e.target.value ? Number(e.target.value) : '')
+                      }
+                      onFocus={() => {
+                        if (cursos.length === 0 && !isLoadingCursos) {
+                          fetchCursos()
+                        }
+                      }}
+                      disabled={!colegioId}
+                    >
+                      <option value="">
+                        {!colegioId
+                          ? 'Selecciona primero un colegio'
+                          : isLoadingCursos
+                          ? 'Cargando cursos...'
+                          : 'Selecciona un curso'}
+                      </option>
+                      {cursosFiltrados.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.nombre}
+                        </option>
+                      ))}
+                    </Form.Select>
+                    <Button
+                      variant="outline-secondary"
+                      type="button"
+                      disabled={!colegioId || isLoadingCursos}
+                      onClick={fetchCursos}
+                    >
+                      {isLoadingCursos ? 'Actualizando...' : 'Actualizar'}
+                    </Button>
+                  </div>
+                </Form.Group>
+              </Col>
+              <Col md={4}>
+                <Form.Group controlId="asignaturaInstitucional">
+                  <Form.Label>
+                    Asignatura <span className="text-danger">*</span>
+                  </Form.Label>
+                  <div className="d-flex gap-2">
+                    <Form.Select
+                      value={asignaturaId}
+                      onChange={(e) =>
+                        setAsignaturaId(e.target.value ? Number(e.target.value) : '')
+                      }
+                      onFocus={() => {
+                        if (asignaturas.length === 0 && !isLoadingAsignaturas) {
+                          fetchAsignaturas()
+                        }
+                      }}
+                    >
+                      <option value="">
+                        {isLoadingAsignaturas
+                          ? 'Cargando asignaturas...'
+                          : 'Selecciona una asignatura'}
+                      </option>
+                      {asignaturas.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.nombre}
+                        </option>
+                      ))}
+                    </Form.Select>
+                    <Button
+                      variant="outline-secondary"
+                      type="button"
+                      disabled={isLoadingAsignaturas}
+                      onClick={fetchAsignaturas}
+                    >
+                      {isLoadingAsignaturas ? 'Actualizando...' : 'Actualizar'}
+                    </Button>
+                  </div>
+                </Form.Group>
+              </Col>
+            </Row>
+          )}
 
           <hr className="my-4" />
 
