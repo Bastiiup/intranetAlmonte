@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  ColumnFiltersState,
   createColumnHelper,
   getCoreRowModel,
   getFilteredRowModel,
@@ -10,9 +11,9 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { useState, useEffect, useCallback } from 'react'
-import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge, Spinner } from 'react-bootstrap'
-import { LuSearch, LuRefreshCw } from 'react-icons/lu'
-import { TbEye, TbEdit, TbTrash, TbPlus } from 'react-icons/tb'
+import { Button, Card, CardBody, CardFooter, CardHeader, Col, Row, Alert, Badge, Spinner } from 'react-bootstrap'
+import { LuSearch, LuBox, LuTag } from 'react-icons/lu'
+import { TbEye, TbEdit, TbTrash, TbPlus, TbLayoutGrid, TbList } from 'react-icons/tb'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 
@@ -60,9 +61,24 @@ export default function ColegiosListing() {
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [columnOrder, setColumnOrder] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = window.localStorage.getItem('colegios-column-order')
+      if (saved) {
+        try {
+          return JSON.parse(saved)
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return []
+  })
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [selectedColegioId, setSelectedColegioId] = useState<number | string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
 
   const fetchColegios = useCallback(async () => {
     setLoading(true)
@@ -129,6 +145,13 @@ export default function ColegiosListing() {
     }
   }
 
+  const handleColumnOrderChange = (newOrder: string[]) => {
+    setColumnOrder(newOrder)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('colegios-column-order', JSON.stringify(newOrder))
+    }
+  }
+
   const columns = [
     columnHelper.accessor('rbd', {
       header: 'RBD',
@@ -144,11 +167,28 @@ export default function ColegiosListing() {
       header: 'Dependencia',
       cell: (info) => DEPENDENCIAS[info.getValue() ?? ''] ?? info.getValue() ?? '-',
       enableSorting: true,
+      filterFn: 'equalsString',
+      enableColumnFilter: true,
     }),
     columnHelper.accessor('estado', {
       header: 'Estado',
       cell: (info) => <EstadoBadge estado={info.getValue()} />,
       enableSorting: true,
+      enableColumnFilter: true,
+      filterFn: (row, columnId, filterValue) => {
+        if (!filterValue || filterValue === 'All') return true
+        const value = String(row.getValue(columnId) ?? '').toLowerCase()
+        if (filterValue === 'Verificado') {
+          return value.includes('verificado') || value.includes('aprobado')
+        }
+        if (filterValue === 'PorVerificar') {
+          return value.includes('por verificar')
+        }
+        if (filterValue === 'Rechazado') {
+          return value.includes('rechazado')
+        }
+        return true
+      },
     }),
     columnHelper.display({
       id: 'acciones',
@@ -183,9 +223,12 @@ export default function ColegiosListing() {
     columns,
     state: {
       sorting,
-      globalFilter: searchTerm,
+      columnFilters,
+      columnOrder,
     },
     onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    onColumnOrderChange: setColumnOrder,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -194,6 +237,12 @@ export default function ColegiosListing() {
       pagination: { pageSize: 25 },
     },
   })
+
+  const totalItems = table.getFilteredRowModel().rows.length
+  const pageIndex = table.getState().pagination.pageIndex
+  const pageSize = table.getState().pagination.pageSize
+  const start = totalItems === 0 ? 0 : pageIndex * pageSize + 1
+  const end = Math.min((pageIndex + 1) * pageSize, totalItems)
 
   return (
     <Card>
@@ -212,22 +261,77 @@ export default function ColegiosListing() {
         </div>
 
         <div className="d-flex align-items-center gap-2">
-          <Button
-            variant="outline-secondary"
-            size="sm"
-            className="d-flex align-items-center gap-1"
-            onClick={fetchColegios}
-            disabled={loading}
-          >
-            <LuRefreshCw size={16} className={loading ? 'spin' : ''} />
-          </Button>
+          <span className="me-2 fw-semibold">Filtrar por:</span>
+
+          <div className="app-search">
+            <select
+              className="form-select form-control my-1 my-md-0"
+              value={(table.getColumn('dependencia')?.getFilterValue() as string) ?? 'All'}
+              onChange={(e) => {
+                const value = e.target.value === 'All' ? undefined : e.target.value
+                table.getColumn('dependencia')?.setFilterValue(value)
+              }}
+            >
+              <option value="All">Dependencia</option>
+              {Object.keys(DEPENDENCIAS).map((dep) => (
+                <option key={dep} value={dep}>
+                  {dep}
+                </option>
+              ))}
+            </select>
+            <LuBox className="app-search-icon text-muted" />
+          </div>
+
+          <div className="app-search">
+            <select
+              className="form-select form-control my-1 my-md-0"
+              value={(table.getColumn('estado')?.getFilterValue() as string) ?? 'All'}
+              onChange={(e) => {
+                const value = e.target.value === 'All' ? undefined : e.target.value
+                table.getColumn('estado')?.setFilterValue(value)
+              }}
+            >
+              <option value="All">Estado</option>
+              <option value="Verificado">Verificado / Aprobado</option>
+              <option value="PorVerificar">Por verificar</option>
+              <option value="Rechazado">Rechazado</option>
+            </select>
+            <LuTag className="app-search-icon text-muted" />
+          </div>
+
+          <div>
+            <select
+              className="form-select form-control my-1 my-md-0"
+              value={pageSize}
+              onChange={(e) => table.setPageSize(Number(e.target.value))}
+            >
+              {[5, 8, 10, 15, 20, 25, 50].map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="d-flex gap-1">
+          <Button
+            variant={viewMode === 'grid' ? 'primary' : 'outline-primary'}
+            className={viewMode === 'grid' ? 'btn-icon' : 'btn-icon btn-soft-primary'}
+            onClick={() => setViewMode('grid')}
+          >
+            <TbLayoutGrid className="fs-lg" />
+          </Button>
+          <Button
+            variant={viewMode === 'list' ? 'primary' : 'outline-primary'}
+            className={viewMode === 'list' ? 'btn-icon' : 'btn-icon btn-soft-primary'}
+            onClick={() => setViewMode('list')}
+          >
+            <TbList className="fs-lg" />
+          </Button>
           <Link href="/mira/colegios/crear">
-            <Button variant="danger" className="ms-1 d-flex align-items-center gap-1">
-              <TbPlus className="fs-sm" />
-              Añadir Colegio
+            <Button variant="danger" className="ms-1">
+              <TbPlus className="fs-sm me-2" /> Añadir Colegio
             </Button>
           </Link>
         </div>
@@ -247,19 +351,86 @@ export default function ColegiosListing() {
         </div>
       ) : (
         <>
-          <DataTable table={table} />
+          {viewMode === 'list' ? (
+            <DataTable
+              table={table}
+              enableColumnReordering={true}
+              onColumnOrderChange={handleColumnOrderChange}
+            />
+          ) : (
+            <CardBody>
+              {totalItems === 0 ? (
+                <Row>
+                  <Col>
+                    <p className="text-muted text-center my-4">
+                      No se encontraron establecimientos.
+                    </p>
+                  </Col>
+                </Row>
+              ) : (
+                <Row className="g-3">
+                  {table.getRowModel().rows.map((row) => {
+                    const colegio = row.original
+                    return (
+                      <Col key={colegio.id} xs={12} sm={6} lg={4} xl={3}>
+                        <Card className="h-100">
+                          <CardBody>
+                            <h5 className="mb-1">{colegio.colegio_nombre || 'Sin nombre'}</h5>
+                            <p className="text-muted mb-1">
+                              RBD:{' '}
+                              <strong>{colegio.rbd != null ? colegio.rbd : 'N/A'}</strong>
+                            </p>
+                            <p className="text-muted mb-2">
+                              Dependencia:{' '}
+                              {DEPENDENCIAS[colegio.dependencia ?? ''] ??
+                                colegio.dependencia ??
+                                'N/A'}
+                            </p>
+                            <div className="mb-3">
+                              <EstadoBadge estado={colegio.estado} />
+                            </div>
+                            <div className="d-flex gap-1">
+                              <Link href={`/mira/colegios/${colegio.id}`}>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  className="btn-icon rounded-circle"
+                                >
+                                  <TbEye className="fs-lg" />
+                                </Button>
+                              </Link>
+                              <Link href={`/mira/colegios/${colegio.id}`}>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  className="btn-icon rounded-circle"
+                                >
+                                  <TbEdit className="fs-lg" />
+                                </Button>
+                              </Link>
+                              <Button
+                                variant="default"
+                                size="sm"
+                                className="btn-icon rounded-circle"
+                                onClick={() => openDeleteModal(colegio.id)}
+                              >
+                                <TbTrash className="fs-lg" />
+                              </Button>
+                            </div>
+                          </CardBody>
+                        </Card>
+                      </Col>
+                    )
+                  })}
+                </Row>
+              )}
+            </CardBody>
+          )}
           <CardFooter>
             <TablePagination
-              totalItems={table.getFilteredRowModel().rows.length}
-              start={
-                table.getFilteredRowModel().rows.length === 0
-                  ? 0
-                  : table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1
-              }
-              end={Math.min(
-                (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
-                table.getFilteredRowModel().rows.length
-              )}
+              totalItems={totalItems}
+              start={start}
+              end={end}
               itemsName="colegios"
               showInfo
               previousPage={table.previousPage}
