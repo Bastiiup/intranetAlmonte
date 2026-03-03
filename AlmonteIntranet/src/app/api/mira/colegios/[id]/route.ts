@@ -48,56 +48,30 @@ export async function GET(
       'fields[3]': 'ruralidad',
       'fields[4]': 'estado',
       'fields[5]': 'estado_nombre',
+      // Buscar tanto por id numérico como por documentId
+      'filters[$or][0][id][$eq]': trimmedId,
+      'filters[$or][1][documentId][$eq]': trimmedId,
     })
 
-    let mapped: any = null
+    const listUrl = `${getStrapiUrl('/api/colegios')}?${queryParams.toString()}`
 
-    // 1) Intentar por ID directo
-    const byIdUrl = `${getStrapiUrl(
-      `/api/colegios/${encodeURIComponent(trimmedId)}`
-    )}?${queryParams.toString()}`
-
-    let response = await fetch(byIdUrl, {
+    const response = await fetch(listUrl, {
       method: 'GET',
       headers: await buildStrapiHeaders(),
     })
 
-    if (response.ok) {
-      const json = await response.json()
-      mapped = mapStrapiColegio(json.data ?? json)
-    } else if (response.status === 404 || response.status === 400) {
-      // 2) Fallback: buscar por documentId en caso de que [id] sea un documentId
-      const filterParams = new URLSearchParams(queryParams)
-      filterParams.append('filters[documentId][$eq]', trimmedId)
-      filterParams.append('pagination[pageSize]', '1')
+    const json = await response.json()
 
-      const byDocumentUrl = `${getStrapiUrl('/api/colegios')}?${filterParams.toString()}`
-
-      response = await fetch(byDocumentUrl, {
-        method: 'GET',
-        headers: await buildStrapiHeaders(),
-      })
-
-      const json = await response.json()
-
-      if (!response.ok) {
-        const errorMsg =
-          json?.error?.message ??
-          json?.error?.details?.errors?.[0]?.message ??
-          `Error al obtener colegio: ${response.status}`
-        throw new Error(errorMsg)
-      }
-
-      const arr = Array.isArray(json.data) ? json.data : json.data?.data ?? []
-      mapped = arr.length > 0 ? mapStrapiColegio(arr[0]) : null
-    } else {
-      const json = await response.json().catch(() => ({}))
+    if (!response.ok) {
       const errorMsg =
         json?.error?.message ??
         json?.error?.details?.errors?.[0]?.message ??
         `Error al obtener colegio: ${response.status}`
       throw new Error(errorMsg)
     }
+
+    const dataArray = Array.isArray(json.data) ? json.data : json.data?.data ?? []
+    const mapped = dataArray.length > 0 ? mapStrapiColegio(dataArray[0]) : null
 
     if (!mapped) {
       return NextResponse.json(

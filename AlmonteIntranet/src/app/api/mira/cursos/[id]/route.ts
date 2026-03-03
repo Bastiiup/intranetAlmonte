@@ -64,56 +64,29 @@ export async function GET(
       'fields[4]': 'anio',
       'populate[colegio][fields][0]': 'colegio_nombre',
       'populate[colegio][fields][1]': 'rbd',
+      'filters[$or][0][id][$eq]': trimmedId,
+      'filters[$or][1][documentId][$eq]': trimmedId,
     })
 
-    let mapped: any = null
+    const listUrl = `${getStrapiUrl('/api/cursos')}?${queryParams.toString()}`
 
-    // 1) Intentar por ID directo
-    const byIdUrl = `${getStrapiUrl(
-      `/api/cursos/${encodeURIComponent(trimmedId)}`
-    )}?${queryParams.toString()}`
-
-    let response = await fetch(byIdUrl, {
+    const response = await fetch(listUrl, {
       method: 'GET',
       headers: await buildStrapiHeaders(),
     })
 
-    if (response.ok) {
-      const json = await response.json()
-      mapped = mapStrapiCurso(json.data ?? json)
-    } else if (response.status === 404 || response.status === 400) {
-      // 2) Fallback: buscar por documentId
-      const filterParams = new URLSearchParams(queryParams)
-      filterParams.append('filters[documentId][$eq]', trimmedId)
-      filterParams.append('pagination[pageSize]', '1')
+    const json = await response.json()
 
-      const byDocumentUrl = `${getStrapiUrl('/api/cursos')}?${filterParams.toString()}`
-
-      response = await fetch(byDocumentUrl, {
-        method: 'GET',
-        headers: await buildStrapiHeaders(),
-      })
-
-      const json = await response.json()
-
-      if (!response.ok) {
-        const errorMsg =
-          json?.error?.message ??
-          json?.error?.details?.errors?.[0]?.message ??
-          `Error al obtener curso: ${response.status}`
-        throw new Error(errorMsg)
-      }
-
-      const arr = Array.isArray(json.data) ? json.data : json.data?.data ?? []
-      mapped = arr.length > 0 ? mapStrapiCurso(arr[0]) : null
-    } else {
-      const json = await response.json().catch(() => ({}))
+    if (!response.ok) {
       const errorMsg =
         json?.error?.message ??
         json?.error?.details?.errors?.[0]?.message ??
         `Error al obtener curso: ${response.status}`
       throw new Error(errorMsg)
     }
+
+    const dataArray = Array.isArray(json.data) ? json.data : json.data?.data ?? []
+    const mapped = dataArray.length > 0 ? mapStrapiCurso(dataArray[0]) : null
 
     if (!mapped) {
       return NextResponse.json(
