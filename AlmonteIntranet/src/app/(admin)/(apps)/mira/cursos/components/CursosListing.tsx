@@ -13,10 +13,13 @@ import { useState, useEffect, useCallback } from 'react'
 import { Button, Card, CardFooter, CardHeader, Alert, Spinner } from 'react-bootstrap'
 import { Col, Row } from 'react-bootstrap'
 import { LuSearch, LuRefreshCw, LuPlus } from 'react-icons/lu'
+import { TbEye, TbEdit, TbTrash } from 'react-icons/tb'
 import Link from 'next/link'
+import toast from 'react-hot-toast'
 
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
+import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 
 export interface CursoType {
   id: number | string
@@ -44,6 +47,9 @@ export default function CursosListing() {
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [selectedCursoId, setSelectedCursoId] = useState<number | string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const fetchCursos = useCallback(async () => {
     setLoading(true)
@@ -80,6 +86,39 @@ export default function CursosListing() {
       })
     : data
 
+  const openDeleteModal = (id: number | string) => {
+    setSelectedCursoId(id)
+    setShowDeleteModal(true)
+  }
+
+  const handleDelete = async () => {
+    if (!selectedCursoId) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/mira/cursos/${encodeURIComponent(String(selectedCursoId))}`, {
+        method: 'DELETE',
+      })
+      const result = await res.json().catch(() => ({}))
+
+      if (!res.ok || !result.success) {
+        const message =
+          result?.error || `Error al eliminar curso (${res.status} ${res.statusText})`
+        throw new Error(message)
+      }
+
+      setData((prev) => prev.filter((c) => c.id !== selectedCursoId))
+      toast.success('Curso eliminado correctamente')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al eliminar curso'
+      setError(msg)
+      toast.error(msg)
+    } finally {
+      setDeleting(false)
+      setShowDeleteModal(false)
+      setSelectedCursoId(null)
+    }
+  }
+
   const columns = [
     columnHelper.accessor('colegio_nombre', {
       header: 'Colegio',
@@ -105,6 +144,32 @@ export default function CursosListing() {
       header: 'Año',
       cell: (info) => info.getValue() ?? '-',
       enableSorting: true,
+    }),
+    columnHelper.display({
+      id: 'acciones',
+      header: 'Acciones',
+      cell: ({ row }) => (
+        <div className="d-flex gap-1">
+          <Link href={`/mira/cursos/${row.original.id}`}>
+            <Button variant="default" size="sm" className="btn-icon rounded-circle">
+              <TbEye className="fs-lg" />
+            </Button>
+          </Link>
+          <Link href={`/mira/cursos/${row.original.id}`}>
+            <Button variant="default" size="sm" className="btn-icon rounded-circle">
+              <TbEdit className="fs-lg" />
+            </Button>
+          </Link>
+          <Button
+            variant="default"
+            size="sm"
+            className="btn-icon rounded-circle"
+            onClick={() => openDeleteModal(row.original.id)}
+          >
+            <TbTrash className="fs-lg" />
+          </Button>
+        </div>
+      ),
     }),
   ]
 
@@ -208,7 +273,18 @@ export default function CursosListing() {
           )}
         </>
       )}
+      <DeleteConfirmationModal
+        show={showDeleteModal}
+        onHide={() => setShowDeleteModal(false)}
+        onConfirm={handleDelete}
+        selectedCount={1}
+        itemName="curso"
+        loading={deleting}
+        disabled={deleting}
+        modalTitle="Eliminar curso"
+        confirmButtonText="Eliminar"
+        cancelButtonText="Cancelar"
+      />
     </Card>
   )
 }
-

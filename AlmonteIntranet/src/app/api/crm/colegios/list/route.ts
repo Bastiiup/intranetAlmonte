@@ -30,6 +30,9 @@ export async function GET(request: Request) {
       params.append('filters[colegio_nombre][$containsi]', search.trim())
     }
 
+    // Incluir logo y su media asociada (Strapi v5: componente logo.imagen[])
+    params.append('populate[logo][populate][imagen]', 'true')
+
     const url = `/api/colegios?${params.toString()}`
     const response = await strapiClient.get<StrapiResponse<StrapiEntity<ColegioAttributes>>>(url)
 
@@ -41,7 +44,7 @@ export async function GET(request: Request) {
         // ⚠️ IMPORTANTE: Priorizar id numérico sobre documentId para connect en Strapi
         const idNum = colegio.id && typeof colegio.id === 'number' ? colegio.id : null
         const documentId = colegio.documentId || String(colegio.id || '')
-        
+
         // Si no tenemos id numérico, intentar obtenerlo
         let idFinal: number | null = idNum
         if (!idFinal && documentId) {
@@ -51,12 +54,40 @@ export async function GET(request: Request) {
             idFinal = parsed
           }
         }
-        
+
+        // Extraer URL del logo (si existe)
+        let logoUrl: string | null = null
+        const logo = attrs.logo || colegio.logo
+        if (logo) {
+          // Estructuras posibles:
+          // - logo.imagen.data: [{ attributes: { url } }]
+          // - logo.imagen: [{ url }]
+          // - logo.imagen: { data: { attributes: { url } } }
+          const imagen = (logo as any).imagen
+
+          const mediaItems: any[] = Array.isArray(imagen?.data)
+            ? imagen.data
+            : Array.isArray(imagen)
+            ? imagen
+            : imagen?.data
+            ? [imagen.data]
+            : []
+
+          if (mediaItems.length > 0) {
+            const first = mediaItems[0]
+            const mediaAttrs = first?.attributes || first
+            if (mediaAttrs?.url && typeof mediaAttrs.url === 'string') {
+              logoUrl = mediaAttrs.url
+            }
+          }
+        }
+
         return {
           id: idFinal || 0, // ⚠️ Si es 0, será filtrado después
           documentId: documentId,
           nombre: attrs.colegio_nombre || 'Sin nombre',
           rbd: attrs.rbd || null,
+          logoUrl, // Puede ser relativo (/uploads/...) o absoluto
         }
       })
       .filter((c: any) => c.id > 0) // ⚠️ Filtrar colegios sin ID numérico válido

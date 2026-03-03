@@ -22,10 +22,13 @@ import {
   Spinner,
 } from 'react-bootstrap'
 import { LuSearch, LuRefreshCw, LuPlus } from 'react-icons/lu'
+import { TbEye, TbEdit, TbTrash } from 'react-icons/tb'
 import Link from 'next/link'
+import toast from 'react-hot-toast'
 
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
+import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
 
 export interface ColegioType {
   id: number | string
@@ -67,6 +70,9 @@ export default function ColegiosListing() {
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [selectedColegioId, setSelectedColegioId] = useState<number | string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const fetchColegios = useCallback(async () => {
     setLoading(true)
@@ -99,6 +105,40 @@ export default function ColegiosListing() {
       )
     : data
 
+  const openDeleteModal = (id: number | string) => {
+    setSelectedColegioId(id)
+    setShowDeleteModal(true)
+  }
+
+  const handleDelete = async () => {
+    if (!selectedColegioId) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/mira/colegios/${encodeURIComponent(String(selectedColegioId))}`, {
+        method: 'DELETE',
+      })
+      const result = await res.json().catch(() => ({}))
+
+      if (!res.ok || !result.success) {
+        const message =
+          result?.error ||
+          `Error al eliminar establecimiento (${res.status} ${res.statusText})`
+        throw new Error(message)
+      }
+
+      setData((prev) => prev.filter((c) => c.id !== selectedColegioId))
+      toast.success('Establecimiento eliminado correctamente')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al eliminar establecimiento'
+      setError(msg)
+      toast.error(msg)
+    } finally {
+      setDeleting(false)
+      setShowDeleteModal(false)
+      setSelectedColegioId(null)
+    }
+  }
+
   const columns = [
     columnHelper.accessor('rbd', {
       header: 'RBD',
@@ -119,6 +159,32 @@ export default function ColegiosListing() {
       header: 'Estado',
       cell: (info) => <EstadoBadge estado={info.getValue()} />,
       enableSorting: true,
+    }),
+    columnHelper.display({
+      id: 'acciones',
+      header: 'Acciones',
+      cell: ({ row }) => (
+        <div className="d-flex gap-1">
+          <Link href={`/mira/colegios/${row.original.id}`}>
+            <Button variant="default" size="sm" className="btn-icon rounded-circle">
+              <TbEye className="fs-lg" />
+            </Button>
+          </Link>
+          <Link href={`/mira/colegios/${row.original.id}`}>
+            <Button variant="default" size="sm" className="btn-icon rounded-circle">
+              <TbEdit className="fs-lg" />
+            </Button>
+          </Link>
+          <Button
+            variant="default"
+            size="sm"
+            className="btn-icon rounded-circle"
+            onClick={() => openDeleteModal(row.original.id)}
+          >
+            <TbTrash className="fs-lg" />
+          </Button>
+        </div>
+      ),
     }),
   ]
 
@@ -210,6 +276,18 @@ export default function ColegiosListing() {
           </CardFooter>
         </>
       )}
+      <DeleteConfirmationModal
+        show={showDeleteModal}
+        onHide={() => setShowDeleteModal(false)}
+        onConfirm={handleDelete}
+        selectedCount={1}
+        itemName="establecimiento"
+        loading={deleting}
+        disabled={deleting}
+        modalTitle="Eliminar establecimiento"
+        confirmButtonText="Eliminar"
+        cancelButtonText="Cancelar"
+      />
     </Card>
   )
 }
