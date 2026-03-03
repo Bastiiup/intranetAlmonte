@@ -10,19 +10,9 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { useState, useEffect, useCallback } from 'react'
-import {
-  Button,
-  Card,
-  CardFooter,
-  CardHeader,
-  Col,
-  Row,
-  Alert,
-  Badge,
-  Spinner,
-} from 'react-bootstrap'
-import { LuSearch, LuRefreshCw, LuPlus } from 'react-icons/lu'
-import { TbEye, TbEdit, TbTrash } from 'react-icons/tb'
+import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge, Spinner } from 'react-bootstrap'
+import { LuSearch, LuRefreshCw } from 'react-icons/lu'
+import { TbEye, TbEdit, TbTrash, TbPlus } from 'react-icons/tb'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 
@@ -207,32 +197,39 @@ export default function ColegiosListing() {
 
   return (
     <Card>
-      <CardHeader className="d-flex flex-wrap align-items-center justify-content-between gap-2">
-        <div className="d-flex align-items-center gap-2">
-          <h5 className="card-title mb-0">Establecimientos</h5>
-          <Link href="/mira/colegios/crear">
-            <Button variant="primary" size="sm" className="d-flex align-items-center gap-1">
-              <LuPlus size={18} />
-              Añadir Colegio
-            </Button>
-          </Link>
-        </div>
-        <div className="d-flex align-items-center gap-2">
-          <div className="input-group input-group-sm" style={{ width: 220 }}>
-            <span className="input-group-text">
-              <LuSearch size={16} />
-            </span>
+      <CardHeader className="d-flex justify-content-between align-items-center">
+        <div className="d-flex gap-2">
+          <div className="app-search">
             <input
-              type="text"
+              type="search"
               className="form-control"
-              placeholder="Buscar por RBD, nombre..."
+              placeholder="Buscar nombre de establecimiento..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+            <LuSearch className="app-search-icon text-muted" />
           </div>
-          <Button variant="outline-secondary" size="sm" onClick={fetchColegios} disabled={loading}>
+        </div>
+
+        <div className="d-flex align-items-center gap-2">
+          <Button
+            variant="outline-secondary"
+            size="sm"
+            className="d-flex align-items-center gap-1"
+            onClick={fetchColegios}
+            disabled={loading}
+          >
             <LuRefreshCw size={16} className={loading ? 'spin' : ''} />
           </Button>
+        </div>
+
+        <div className="d-flex gap-1">
+          <Link href="/mira/colegios/crear">
+            <Button variant="danger" className="ms-1 d-flex align-items-center gap-1">
+              <TbPlus className="fs-sm" />
+              Añadir Colegio
+            </Button>
+          </Link>
         </div>
       </CardHeader>
 
