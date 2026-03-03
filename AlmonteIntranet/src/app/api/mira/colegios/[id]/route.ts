@@ -40,18 +40,41 @@ async function resolveColegioInternalId(rawId: string): Promise<number | null> {
 
   const listUrl = `${getStrapiUrl('/api/colegios')}?${queryParams.toString()}`
 
+  console.log('[API /api/mira/colegios/[id] resolveColegioInternalId] Resolviendo ID interno', {
+    rawId,
+    trimmedId,
+    listUrl,
+  })
+
   const response = await fetch(listUrl, {
     method: 'GET',
     headers: await buildStrapiHeaders(),
   })
 
   if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    console.error(
+      '[API /api/mira/colegios/[id] resolveColegioInternalId] Error al buscar colegio en lista',
+      {
+        status: response.status,
+        statusText: response.statusText,
+        body: text.slice(0, 500),
+      }
+    )
     return null
   }
 
   const json = await response.json().catch(() => ({}))
   const dataArray = Array.isArray(json.data) ? json.data : json.data?.data ?? []
   const first = dataArray[0]
+  console.log(
+    '[API /api/mira/colegios/[id] resolveColegioInternalId] Resultado de búsqueda',
+    {
+      cantidad: dataArray.length,
+      primerId: first?.id,
+      primerDocumentId: first?.documentId,
+    }
+  )
   if (!first || first.id == null) return null
   return Number(first.id)
 }
@@ -150,11 +173,24 @@ export async function PUT(
       },
     }
 
+    console.log('[API /api/mira/colegios/[id] PUT] Iniciando actualización de colegio', {
+      rawId: id,
+      payload,
+    })
+
     // Resolver ID interno numérico en Strapi a partir de id o documentId
     const internalId = await resolveColegioInternalId(id)
     if (internalId == null) {
+      console.error(
+        '[API /api/mira/colegios/[id] PUT] No se encontró ID interno en Strapi para el colegio',
+        { rawId: id }
+      )
       return NextResponse.json(
-        { success: false, error: 'Colegio no encontrado en Strapi para actualizar' },
+        {
+          success: false,
+          error:
+            'Colegio no encontrado en Strapi para actualizar (no se pudo resolver id interno a partir de id/documentId).',
+        },
         { status: 404 }
       )
     }
@@ -174,6 +210,13 @@ export async function PUT(
         json?.error?.message ??
         json?.error?.details?.errors?.[0]?.message ??
         JSON.stringify(json?.error ?? 'Error al actualizar colegio')
+      console.error('[API /api/mira/colegios/[id] PUT] Error desde Strapi', {
+        rawId: id,
+        internalId,
+        status: response.status,
+        statusText: response.statusText,
+        error: errorMsg,
+      })
       throw new Error(errorMsg)
     }
 
@@ -209,8 +252,16 @@ export async function DELETE(
     }
     const internalId = await resolveColegioInternalId(id)
     if (internalId == null) {
+      console.error(
+        '[API /api/mira/colegios/[id] DELETE] No se encontró ID interno en Strapi para el colegio',
+        { rawId: id }
+      )
       return NextResponse.json(
-        { success: false, error: 'Colegio no encontrado en Strapi para eliminar' },
+        {
+          success: false,
+          error:
+            'Colegio no encontrado en Strapi para eliminar (no se pudo resolver id interno a partir de id/documentId).',
+        },
         { status: 404 }
       )
     }
