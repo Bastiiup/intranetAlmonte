@@ -96,7 +96,10 @@ export async function GET(request: NextRequest) {
         { status: 502 }
       )
     }
-    
+
+    // Para errores 4xx/5xx de Strapi (por ejemplo, /api/libros rompiendo por relaciones),
+    // devolvemos 200 con success=false y data vacía para no reventar la UI de Intranet.
+    // Los módulos de tienda pueden leer success/error y mostrar un estado vacío controlado.
     return NextResponse.json(
       { 
         success: false,
@@ -104,7 +107,7 @@ export async function GET(request: NextRequest) {
         data: [],
         meta: {},
       },
-      { status: error.status || 500 }
+      { status: 200 }
     )
   }
 }
