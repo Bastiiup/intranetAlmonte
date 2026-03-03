@@ -10,7 +10,7 @@ import {
   SortingState,
   useReactTable,
 } from '@tanstack/react-table'
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react'
 import { Button, Card, CardBody, CardFooter, CardHeader, Alert, Spinner } from 'react-bootstrap'
 import { Col, Row } from 'react-bootstrap'
 import { LuSearch, LuBox, LuTag } from 'react-icons/lu'
@@ -89,18 +89,21 @@ export default function CursosListing() {
     fetchCursos()
   }, [fetchCursos])
 
-  const filteredData = searchTerm
-    ? data.filter((c) => {
-        const term = searchTerm.toLowerCase()
-        return (
-          c.colegio_nombre.toLowerCase().includes(term) ||
-          c.nombre_curso.toLowerCase().includes(term) ||
-          (c.nivel ?? '').toLowerCase().includes(term) ||
-          String(c.anio ?? '').includes(term) ||
-          String(c.letra ?? '').toLowerCase().includes(term)
-        )
-      })
-    : data
+  const deferredSearch = useDeferredValue(searchTerm)
+
+  const filteredData = useMemo(() => {
+    if (!deferredSearch) return data
+    const term = deferredSearch.toLowerCase()
+    return data.filter((c) => {
+      return (
+        c.colegio_nombre.toLowerCase().includes(term) ||
+        c.nombre_curso.toLowerCase().includes(term) ||
+        (c.nivel ?? '').toLowerCase().includes(term) ||
+        String(c.anio ?? '').includes(term) ||
+        String(c.letra ?? '').toLowerCase().includes(term)
+      )
+    })
+  }, [data, deferredSearch])
 
   const uniqueYears = useMemo(
     () =>

@@ -10,7 +10,7 @@ import {
   SortingState,
   useReactTable,
 } from '@tanstack/react-table'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useDeferredValue, useMemo } from 'react'
 import { Button, Card, CardBody, CardFooter, CardHeader, Col, Row, Alert, Badge, Spinner } from 'react-bootstrap'
 import { LuSearch, LuBox, LuTag } from 'react-icons/lu'
 import { TbEye, TbEdit, TbTrash, TbPlus, TbLayoutGrid, TbList } from 'react-icons/tb'
@@ -102,14 +102,23 @@ export default function ColegiosListing() {
     fetchColegios()
   }, [fetchColegios])
 
-  const filteredData = searchTerm
-    ? data.filter(
-        (c) =>
-          String(c.rbd ?? '').includes(searchTerm) ||
-          c.colegio_nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (c.dependencia ?? '').toLowerCase().includes(searchTerm.toLowerCase())
+  // Buscar como en Autores: usar un valor diferido y memoizar el filtrado
+  const deferredSearch = useDeferredValue(searchTerm)
+
+  const filteredData = useMemo(() => {
+    if (!deferredSearch) return data
+    const term = deferredSearch.toLowerCase()
+    return data.filter((c) => {
+      const rbdStr = String(c.rbd ?? '')
+      const nombre = c.colegio_nombre.toLowerCase()
+      const dep = (c.dependencia ?? '').toLowerCase()
+      return (
+        rbdStr.includes(term) ||
+        nombre.includes(term) ||
+        dep.includes(term)
       )
-    : data
+    })
+  }, [data, deferredSearch])
 
   const openDeleteModal = (id: number | string) => {
     setSelectedColegioId(id)
