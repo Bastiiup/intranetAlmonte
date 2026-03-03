@@ -27,6 +27,35 @@ function mapStrapiColegio(item: any) {
   }
 }
 
+async function resolveColegioInternalId(rawId: string): Promise<number | null> {
+  const trimmedId = rawId?.trim()
+  if (!trimmedId) return null
+
+  const queryParams = new URLSearchParams({
+    'fields[0]': 'id',
+    'filters[$or][0][id][$eq]': trimmedId,
+    'filters[$or][1][documentId][$eq]': trimmedId,
+    'pagination[pageSize]': '1',
+  })
+
+  const listUrl = `${getStrapiUrl('/api/colegios')}?${queryParams.toString()}`
+
+  const response = await fetch(listUrl, {
+    method: 'GET',
+    headers: await buildStrapiHeaders(),
+  })
+
+  if (!response.ok) {
+    return null
+  }
+
+  const json = await response.json().catch(() => ({}))
+  const dataArray = Array.isArray(json.data) ? json.data : json.data?.data ?? []
+  const first = dataArray[0]
+  if (!first || first.id == null) return null
+  return Number(first.id)
+}
+
 export async function GET(
   _request: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -121,7 +150,16 @@ export async function PUT(
       },
     }
 
-    const url = getStrapiUrl(`/api/colegios/${encodeURIComponent(id)}`)
+    // Resolver ID interno numérico en Strapi a partir de id o documentId
+    const internalId = await resolveColegioInternalId(id)
+    if (internalId == null) {
+      return NextResponse.json(
+        { success: false, error: 'Colegio no encontrado en Strapi para actualizar' },
+        { status: 404 }
+      )
+    }
+
+    const url = getStrapiUrl(`/api/colegios/${encodeURIComponent(String(internalId))}`)
 
     const response = await fetch(url, {
       method: 'PUT',
@@ -169,8 +207,15 @@ export async function DELETE(
         { status: 400 }
       )
     }
+    const internalId = await resolveColegioInternalId(id)
+    if (internalId == null) {
+      return NextResponse.json(
+        { success: false, error: 'Colegio no encontrado en Strapi para eliminar' },
+        { status: 404 }
+      )
+    }
 
-    const url = getStrapiUrl(`/api/colegios/${encodeURIComponent(id)}`)
+    const url = getStrapiUrl(`/api/colegios/${encodeURIComponent(String(internalId))}`)
 
     const response = await fetch(url, {
       method: 'DELETE',
