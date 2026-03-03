@@ -33,7 +33,8 @@ export async function GET(
 ) {
   try {
     const { id } = await context.params
-    if (!id) {
+    const trimmedId = id?.trim()
+    if (!trimmedId) {
       return NextResponse.json(
         { success: false, error: 'ID de colegio requerido' },
         { status: 400 }
@@ -49,16 +50,48 @@ export async function GET(
       'fields[5]': 'estado_nombre',
     })
 
-    const url = `${getStrapiUrl(`/api/colegios/${encodeURIComponent(id)}`)}?${queryParams.toString()}`
+    let mapped: any = null
 
-    const response = await fetch(url, {
+    // 1) Intentar por ID directo
+    const byIdUrl = `${getStrapiUrl(
+      `/api/colegios/${encodeURIComponent(trimmedId)}`
+    )}?${queryParams.toString()}`
+
+    let response = await fetch(byIdUrl, {
       method: 'GET',
       headers: await buildStrapiHeaders(),
     })
 
-    const json = await response.json()
+    if (response.ok) {
+      const json = await response.json()
+      mapped = mapStrapiColegio(json.data ?? json)
+    } else if (response.status === 404 || response.status === 400) {
+      // 2) Fallback: buscar por documentId en caso de que [id] sea un documentId
+      const filterParams = new URLSearchParams(queryParams)
+      filterParams.append('filters[documentId][$eq]', trimmedId)
+      filterParams.append('pagination[pageSize]', '1')
 
-    if (!response.ok) {
+      const byDocumentUrl = `${getStrapiUrl('/api/colegios')}?${filterParams.toString()}`
+
+      response = await fetch(byDocumentUrl, {
+        method: 'GET',
+        headers: await buildStrapiHeaders(),
+      })
+
+      const json = await response.json()
+
+      if (!response.ok) {
+        const errorMsg =
+          json?.error?.message ??
+          json?.error?.details?.errors?.[0]?.message ??
+          `Error al obtener colegio: ${response.status}`
+        throw new Error(errorMsg)
+      }
+
+      const arr = Array.isArray(json.data) ? json.data : json.data?.data ?? []
+      mapped = arr.length > 0 ? mapStrapiColegio(arr[0]) : null
+    } else {
+      const json = await response.json().catch(() => ({}))
       const errorMsg =
         json?.error?.message ??
         json?.error?.details?.errors?.[0]?.message ??
@@ -66,7 +99,12 @@ export async function GET(
       throw new Error(errorMsg)
     }
 
-    const mapped = mapStrapiColegio(json.data ?? json)
+    if (!mapped) {
+      return NextResponse.json(
+        { success: false, error: 'Colegio no encontrado' },
+        { status: 404 }
+      )
+    }
 
     return NextResponse.json({
       success: true,

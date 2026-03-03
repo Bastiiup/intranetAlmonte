@@ -48,7 +48,8 @@ export async function GET(
 ) {
   try {
     const { id } = await context.params
-    if (!id) {
+    const trimmedId = id?.trim()
+    if (!trimmedId) {
       return NextResponse.json(
         { success: false, error: 'ID de curso requerido' },
         { status: 400 }
@@ -65,16 +66,48 @@ export async function GET(
       'populate[colegio][fields][1]': 'rbd',
     })
 
-    const url = `${getStrapiUrl(`/api/cursos/${encodeURIComponent(id)}`)}?${queryParams.toString()}`
+    let mapped: any = null
 
-    const response = await fetch(url, {
+    // 1) Intentar por ID directo
+    const byIdUrl = `${getStrapiUrl(
+      `/api/cursos/${encodeURIComponent(trimmedId)}`
+    )}?${queryParams.toString()}`
+
+    let response = await fetch(byIdUrl, {
       method: 'GET',
       headers: await buildStrapiHeaders(),
     })
 
-    const json = await response.json()
+    if (response.ok) {
+      const json = await response.json()
+      mapped = mapStrapiCurso(json.data ?? json)
+    } else if (response.status === 404 || response.status === 400) {
+      // 2) Fallback: buscar por documentId
+      const filterParams = new URLSearchParams(queryParams)
+      filterParams.append('filters[documentId][$eq]', trimmedId)
+      filterParams.append('pagination[pageSize]', '1')
 
-    if (!response.ok) {
+      const byDocumentUrl = `${getStrapiUrl('/api/cursos')}?${filterParams.toString()}`
+
+      response = await fetch(byDocumentUrl, {
+        method: 'GET',
+        headers: await buildStrapiHeaders(),
+      })
+
+      const json = await response.json()
+
+      if (!response.ok) {
+        const errorMsg =
+          json?.error?.message ??
+          json?.error?.details?.errors?.[0]?.message ??
+          `Error al obtener curso: ${response.status}`
+        throw new Error(errorMsg)
+      }
+
+      const arr = Array.isArray(json.data) ? json.data : json.data?.data ?? []
+      mapped = arr.length > 0 ? mapStrapiCurso(arr[0]) : null
+    } else {
+      const json = await response.json().catch(() => ({}))
       const errorMsg =
         json?.error?.message ??
         json?.error?.details?.errors?.[0]?.message ??
@@ -82,7 +115,12 @@ export async function GET(
       throw new Error(errorMsg)
     }
 
-    const mapped = mapStrapiCurso(json.data ?? json)
+    if (!mapped) {
+      return NextResponse.json(
+        { success: false, error: 'Curso no encontrado' },
+        { status: 404 }
+      )
+    }
 
     return NextResponse.json({
       success: true,
