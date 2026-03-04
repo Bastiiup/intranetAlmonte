@@ -358,7 +358,7 @@ export default function CursosListing() {
         <>
           {viewMode === 'list' ? (
             <CardBody>
-              {filteredData.length === 0 ? (
+              {currentRows.length === 0 ? (
                 <Row>
                   <Col>
                     <p className="text-muted text-center my-4">No se encontraron cursos.</p>
