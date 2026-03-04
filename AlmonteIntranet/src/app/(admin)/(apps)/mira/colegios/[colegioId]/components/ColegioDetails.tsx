@@ -94,7 +94,10 @@ const ColegioDetails = ({ colegio, colegioId }: ColegioDetailsProps) => {
       }
 
       toast.success('Establecimiento actualizado correctamente')
-      router.refresh()
+      // Evitamos volver a llamar al GET del detalle (que en algunos entornos
+      // puede fallar por problemas de /api/colegios/:id en Strapi) y
+      // redirigimos directamente al listado, donde los cambios ya se reflejan.
+      router.push('/mira/colegios')
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al guardar cambios'
       setError(msg)
