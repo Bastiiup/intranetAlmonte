@@ -106,7 +106,10 @@ const CursoDetails = ({ curso, cursoId }: CursoDetailsProps) => {
       }
 
       toast.success('Curso actualizado correctamente')
-      router.refresh()
+      // Igual que en colegios: evitamos volver a llamar al GET del detalle,
+      // que en algunos entornos puede fallar por temas de IDs en Strapi,
+      // y redirigimos directamente al listado de cursos.
+      router.push('/mira/cursos')
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al guardar cambios'
       setError(msg)
