@@ -106,10 +106,22 @@ const CursoDetails = ({ curso, cursoId }: CursoDetailsProps) => {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const colegioOptions: SearchableOption[] = colegios.map((c) => ({
-    value: c.id,
-    label: `${c.nombre}${c.rbd ? ` (RBD ${c.rbd})` : ''}`,
-  }))
+  const colegioOptions: SearchableOption[] =
+    colegios.length > 0
+      ? colegios.map((c) => ({
+          value: c.id,
+          label: `${c.nombre}${c.rbd ? ` (RBD ${c.rbd})` : ''}`,
+        }))
+      : initialColegio
+      ? [
+          {
+            value: initialColegio.id,
+            label: `${initialColegio.colegio_nombre ?? 'Sin colegio'}${
+              initialColegio.rbd ? ` (RBD ${initialColegio.rbd})` : ''
+            }`,
+          },
+        ]
+      : []
 
   const nivelOptions: SearchableOption[] = NIVELES.map((n) => ({
     value: n,
