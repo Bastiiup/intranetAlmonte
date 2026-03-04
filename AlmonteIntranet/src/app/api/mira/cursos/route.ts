@@ -176,7 +176,11 @@ export async function POST(request: NextRequest) {
       data: {
         nombre_curso: body.nombre_curso ?? undefined,
         nivel: body.nivel ?? undefined,
-        grado: body.grado != null ? Number(body.grado) : undefined,
+        // En el schema de Strapi, grado es string
+        grado:
+          body.grado != null && body.grado !== ''
+            ? String(body.grado)
+            : undefined,
         letra: body.letra ?? undefined,
         anio: body.anio != null ? Number(body.anio) : undefined,
         colegio: body.colegio ?? body.colegioId ?? undefined,

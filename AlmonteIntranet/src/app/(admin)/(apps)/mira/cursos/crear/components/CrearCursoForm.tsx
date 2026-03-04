@@ -140,7 +140,8 @@ export default function CrearCursoForm() {
           colegio: formData.colegioId ? Number(formData.colegioId) : undefined,
           nombre_curso: formData.nombre_curso.trim(),
           nivel: formData.nivel || undefined,
-          grado: gradoNum,
+          // Strapi espera string, validamos como número pero enviamos string
+          grado: formData.grado || undefined,
           letra: formData.letra || undefined,
           anio: anioNum,
         }),
