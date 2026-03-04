@@ -77,6 +77,64 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
+    const telefonoPrincipal =
+      typeof body.telefono_principal === 'string'
+        ? body.telefono_principal.trim()
+        : ''
+    const emailPrincipal =
+      typeof body.email_principal === 'string'
+        ? body.email_principal.trim()
+        : ''
+    const direccionPrincipal =
+      typeof body.direccion_principal === 'string'
+        ? body.direccion_principal.trim()
+        : ''
+    const websitePrincipal =
+      typeof body.website_principal === 'string'
+        ? body.website_principal.trim()
+        : ''
+
+    const telefonosPayload =
+      telefonoPrincipal !== ''
+        ? [
+            {
+              telefono_raw: telefonoPrincipal,
+              principal: true,
+              status: true,
+            },
+          ]
+        : undefined
+
+    const emailsPayload =
+      emailPrincipal !== ''
+        ? [
+            {
+              email: emailPrincipal,
+              principal: true,
+              status: true,
+            },
+          ]
+        : undefined
+
+    const direccionesPayload =
+      direccionPrincipal !== ''
+        ? [
+            {
+              nombre_calle: direccionPrincipal,
+            },
+          ]
+        : undefined
+
+    const websitesPayload =
+      websitePrincipal !== ''
+        ? [
+            {
+              website: websitePrincipal,
+              status: true,
+            },
+          ]
+        : undefined
+
     const payload = {
       data: {
         rbd: body.rbd ? Number(body.rbd) : undefined,
@@ -84,6 +142,16 @@ export async function POST(request: NextRequest) {
         colegio_nombre: body.colegio_nombre ?? undefined,
         dependencia: body.dependencia ?? undefined,
         ruralidad: body.ruralidad ?? undefined,
+        estado_nombre: body.estado_nombre ?? undefined,
+        estado: body.estado ?? undefined,
+        estado_estab: body.estado_estab ?? undefined,
+        region: body.region ?? undefined,
+        provincia: body.provincia ?? undefined,
+        zona: body.zona ?? undefined,
+        telefonos: telefonosPayload,
+        emails: emailsPayload,
+        direcciones: direccionesPayload,
+        Website: websitesPayload,
       },
     }
 
