@@ -36,7 +36,8 @@ export default function CrearCursoForm() {
       setLoadingColegios(true)
       setErrorColegios(null)
       try {
-        const res = await fetch('/api/mira/colegios?pageSize=500')
+        // Usamos pageSize=-1 para traer todos los colegios y permitir buscarlos por nombre
+        const res = await fetch('/api/mira/colegios?pageSize=-1')
         const result = await res.json()
 
         if (result.success && Array.isArray(result.data)) {
