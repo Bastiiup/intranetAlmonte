@@ -19,8 +19,11 @@ export default function CrearCursoForm() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [colegios, setColegios] = useState<ColegioOption[]>([])
-  const [loadingColegios, setLoadingColegios] = useState(true)
+  const [loadingColegios, setLoadingColegios] = useState(false)
   const [errorColegios, setErrorColegios] = useState<string | null>(null)
+  const [colegiosPage, setColegiosPage] = useState(1)
+  const [colegiosHasMore, setColegiosHasMore] = useState(true)
+  const [colegiosSearch, setColegiosSearch] = useState('')
 
   const [formData, setFormData] = useState({
     colegioId: '',
@@ -31,33 +34,61 @@ export default function CrearCursoForm() {
     anio: new Date().getFullYear().toString(),
   })
 
-  useEffect(() => {
-    const fetchColegios = async () => {
-      setLoadingColegios(true)
-      setErrorColegios(null)
-      try {
-        // Usamos pageSize=-1 para traer todos los colegios y permitir buscarlos por nombre
-        const res = await fetch('/api/mira/colegios?pageSize=-1')
-        const result = await res.json()
-
-        if (result.success && Array.isArray(result.data)) {
-          const mapped = result.data.map((c: any) => ({
-            id: c.id ?? c.documentId,
-            nombre: c.colegio_nombre ?? '',
-            rbd: c.rbd ?? null,
-          })) as ColegioOption[]
-          setColegios(mapped)
-        } else {
-          setErrorColegios(result.error ?? 'Error al obtener colegios')
-        }
-      } catch (err: unknown) {
-        setErrorColegios(err instanceof Error ? err.message : 'Error de conexión al cargar colegios')
-      } finally {
-        setLoadingColegios(false)
+  const loadColegios = async (page: number, search: string, append: boolean) => {
+    setLoadingColegios(true)
+    setErrorColegios(null)
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: '50',
+      })
+      if (search.trim()) {
+        params.set('search', search.trim())
       }
-    }
+      const res = await fetch(`/api/mira/colegios?${params.toString()}`)
+      const result = await res.json()
 
-    fetchColegios()
+      if (result.success && Array.isArray(result.data)) {
+        const mapped = result.data.map((c: any) => ({
+          id: c.id ?? c.documentId,
+          nombre: c.colegio_nombre ?? '',
+          rbd: c.rbd ?? null,
+        })) as ColegioOption[]
+
+        setColegios((prev) => {
+          const base = append ? prev : []
+          const existingIds = new Set(base.map((x) => String(x.id)))
+          const merged = [
+            ...base,
+            ...mapped.filter((x) => !existingIds.has(String(x.id))),
+          ]
+          return merged
+        })
+
+        const pagination = result.meta?.pagination
+        const hasMore =
+          pagination?.page != null &&
+          pagination?.pageCount != null &&
+          pagination.page < pagination.pageCount
+        setColegiosHasMore(Boolean(hasMore))
+        setColegiosPage(page)
+      } else {
+        setErrorColegios(result.error ?? 'Error al obtener colegios')
+        setColegiosHasMore(false)
+      }
+    } catch (err: unknown) {
+      setErrorColegios(
+        err instanceof Error ? err.message : 'Error de conexión al cargar colegios'
+      )
+      setColegiosHasMore(false)
+    } finally {
+      setLoadingColegios(false)
+    }
+  }
+
+  useEffect(() => {
+    // Cargar la primera página al montar
+    loadColegios(1, '', false)
   }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -159,7 +190,17 @@ export default function CrearCursoForm() {
                   placeholder={
                     loadingColegios ? 'Cargando colegios...' : 'Seleccionar colegio...'
                   }
-                  isDisabled={loadingColegios || !!errorColegios}
+                  isDisabled={loadingColegios && colegios.length === 0}
+                  isLoading={loadingColegios}
+                  onInputChange={(input) => {
+                    setColegiosSearch(input)
+                    loadColegios(1, input, false)
+                  }}
+                  onMenuScrollToBottom={() => {
+                    if (!loadingColegios && colegiosHasMore) {
+                      loadColegios(colegiosPage + 1, colegiosSearch, true)
+                    }
+                  }}
                 />
               </Form.Group>
             </Col>
