@@ -5,12 +5,11 @@ import {
   createColumnHelper,
   getCoreRowModel,
   getFilteredRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   SortingState,
   useReactTable,
 } from '@tanstack/react-table'
-import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react'
+import { useState, useEffect, useCallback, useDeferredValue } from 'react'
 import { Button, Card, CardBody, CardFooter, CardHeader, Alert, Spinner } from 'react-bootstrap'
 import { Col, Row } from 'react-bootstrap'
 import { LuSearch, LuBox, LuTag } from 'react-icons/lu'
@@ -27,6 +26,7 @@ export interface CursoType {
   documentId?: string
   colegio_nombre: string
   nombre_curso: string
+  grado: string | null
   letra: string | null
   nivel: string | null
   anio: number | null
@@ -66,15 +66,29 @@ export default function CursosListing() {
   const [selectedCursoId, setSelectedCursoId] = useState<number | string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
+  const [page, setPage] = useState(0) // 0-based
+  const [pageSize, setPageSize] = useState(25)
+  const [totalItems, setTotalItems] = useState(0)
 
-  const fetchCursos = useCallback(async () => {
+  const deferredSearch = useDeferredValue(searchTerm)
+
+  const fetchCursos = useCallback(async (pageParam: number, pageSizeParam: number, search: string) => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/mira/cursos?pageSize=200')
+      const apiPage = pageParam + 1
+      const searchParam = search ? `&search=${encodeURIComponent(search)}` : ''
+      const res = await fetch(
+        `/api/mira/cursos?page=${apiPage}&pageSize=${pageSizeParam}${searchParam}`
+      )
       const result = await res.json()
       if (result.success && Array.isArray(result.data)) {
         setData(result.data)
+        const total =
+          result.meta?.pagination?.total != null
+            ? Number(result.meta.pagination.total)
+            : result.data.length
+        setTotalItems(total)
       } else {
         setError(result.error ?? 'Error al obtener cursos')
       }
@@ -86,36 +100,20 @@ export default function CursosListing() {
   }, [])
 
   useEffect(() => {
-    fetchCursos()
-  }, [fetchCursos])
+    setPage(0)
+  }, [deferredSearch])
 
-  const deferredSearch = useDeferredValue(searchTerm)
+  useEffect(() => {
+    fetchCursos(page, pageSize, deferredSearch)
+  }, [fetchCursos, page, pageSize, deferredSearch])
 
-  const filteredData = useMemo(() => {
-    if (!deferredSearch) return data
-    const term = deferredSearch.toLowerCase()
-    return data.filter((c) => {
-      return (
-        c.colegio_nombre.toLowerCase().includes(term) ||
-        c.nombre_curso.toLowerCase().includes(term) ||
-        (c.nivel ?? '').toLowerCase().includes(term) ||
-        String(c.anio ?? '').includes(term) ||
-        String(c.letra ?? '').toLowerCase().includes(term)
-      )
-    })
-  }, [data, deferredSearch])
-
-  const uniqueYears = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          data
-            .map((c) => c.anio)
-            .filter((v): v is number => v !== null && v !== undefined)
-        )
-      ).sort((a, b) => b - a),
-    [data]
-  )
+  const uniqueYears = Array.from(
+    new Set(
+      data
+        .map((c) => c.anio)
+        .filter((v): v is number => v !== null && v !== undefined)
+    )
+  ).sort((a, b) => b - a)
 
   const openDeleteModal = (id: number | string) => {
     setSelectedCursoId(id)
@@ -165,6 +163,11 @@ export default function CursosListing() {
     }),
     columnHelper.accessor('nombre_curso', {
       header: 'Nombre Curso',
+      cell: (info) => info.getValue() || '-',
+      enableSorting: true,
+    }),
+    columnHelper.accessor('grado', {
+      header: 'Grado',
       cell: (info) => info.getValue() || '-',
       enableSorting: true,
     }),
@@ -220,7 +223,7 @@ export default function CursosListing() {
   ]
 
   const table = useReactTable({
-    data: filteredData,
+    data,
     columns,
     state: {
       sorting,
@@ -233,17 +236,15 @@ export default function CursosListing() {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    initialState: {
-      pagination: { pageSize: 25 },
-    },
   })
 
-  const totalItems = table.getFilteredRowModel().rows.length
-  const pageIndex = table.getState().pagination.pageIndex
-  const pageSize = table.getState().pagination.pageSize
-  const start = totalItems === 0 ? 0 : pageIndex * pageSize + 1
-  const end = Math.min((pageIndex + 1) * pageSize, totalItems)
+  const currentRows = table.getRowModel().rows
+  const currentCount = currentRows.length
+
+  const totalForPagination = totalItems || currentCount
+  const start = totalForPagination === 0 ? 0 : page * pageSize + 1
+  const end = Math.min((page + 1) * pageSize, totalForPagination)
+  const pageCount = Math.max(1, Math.ceil(totalForPagination / pageSize))
 
   return (
     <Card>
@@ -303,7 +304,11 @@ export default function CursosListing() {
             <select
               className="form-select form-control my-1 my-md-0"
               value={pageSize}
-              onChange={(e) => table.setPageSize(Number(e.target.value))}
+              onChange={(e) => {
+                const newSize = Number(e.target.value)
+                setPageSize(newSize)
+                setPage(0)
+              }}
             >
               {[5, 8, 10, 15, 20, 25, 50].map((size) => (
                 <option key={size} value={size}>
@@ -440,18 +445,22 @@ export default function CursosListing() {
           )}
           <CardFooter>
             <TablePagination
-              totalItems={totalItems}
+              totalItems={totalForPagination}
               start={start}
               end={end}
               itemsName="cursos"
               showInfo
-              previousPage={table.previousPage}
-              canPreviousPage={table.getCanPreviousPage()}
-              pageCount={table.getPageCount()}
-              pageIndex={table.getState().pagination.pageIndex}
-              setPageIndex={table.setPageIndex}
-              nextPage={table.nextPage}
-              canNextPage={table.getCanNextPage()}
+              previousPage={() => setPage((prev) => Math.max(0, prev - 1))}
+              canPreviousPage={page > 0}
+              pageCount={pageCount}
+              pageIndex={page}
+              setPageIndex={(index) =>
+                setPage(Math.max(0, Math.min(index, pageCount - 1)))
+              }
+              nextPage={() =>
+                setPage((prev) => (prev + 1 < pageCount ? prev + 1 : prev))
+              }
+              canNextPage={page + 1 < pageCount}
             />
           </CardFooter>
         </>

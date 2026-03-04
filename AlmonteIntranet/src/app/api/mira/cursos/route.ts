@@ -6,23 +6,8 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
-    const page = parseInt(searchParams.get('page') || '1')
-    const pageSize = parseInt(searchParams.get('pageSize') || '100')
-
-    const queryParams = new URLSearchParams({
-      'fields[0]': 'nombre_curso',
-      'fields[1]': 'nivel',
-      'fields[2]': 'grado',
-      'fields[3]': 'letra',
-      'fields[4]': 'anio',
-      'populate[colegio][fields][0]': 'colegio_nombre',
-      'populate[colegio][fields][1]': 'rbd',
-      'pagination[page]': page.toString(),
-      'pagination[pageSize]': pageSize.toString(),
-      sort: 'anio:desc',
-    })
-
-    const url = `${getStrapiUrl('/api/cursos')}?${queryParams.toString()}`
+    const rawPageSize = searchParams.get('pageSize')
+    const search = (searchParams.get('search') || '').trim()
 
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -31,22 +16,114 @@ export async function GET(request: NextRequest) {
       headers['Authorization'] = `Bearer ${STRAPI_API_TOKEN}`
     }
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers,
+    const baseParams = new URLSearchParams({
+      'fields[0]': 'nombre_curso',
+      'fields[1]': 'nivel',
+      'fields[2]': 'grado',
+      'fields[3]': 'letra',
+      'fields[4]': 'anio',
+      'populate[colegio][fields][0]': 'colegio_nombre',
+      'populate[colegio][fields][1]': 'rbd',
+      sort: 'anio:desc',
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Error ${response.status}: ${errorText}`)
+    if (search) {
+      let orIndex = 0
+      baseParams.set(
+        `filters[$or][${orIndex}][nombre_curso][$containsi]`,
+        search
+      )
+      orIndex += 1
+      baseParams.set(
+        `filters[$or][${orIndex}][nivel][$containsi]`,
+        search
+      )
+      orIndex += 1
+      baseParams.set(
+        `filters[$or][${orIndex}][grado][$containsi]`,
+        search
+      )
+      orIndex += 1
+      baseParams.set(
+        `filters[$or][${orIndex}][letra][$containsi]`,
+        search
+      )
+      orIndex += 1
+      baseParams.set(
+        `filters[$or][${orIndex}][colegio][colegio_nombre][$containsi]`,
+        search
+      )
+      orIndex += 1
+
+      const maybeYear = parseInt(search, 10)
+      if (!Number.isNaN(maybeYear)) {
+        baseParams.set(
+          `filters[$or][${orIndex}][anio][$eq]`,
+          String(maybeYear)
+        )
+      }
     }
 
-    const json = await response.json()
+    const fetchAll = rawPageSize === '-1' || rawPageSize === 'all'
+    let allItems: any[] = []
+    let meta: any = null
 
-    const data = Array.isArray(json.data) ? json.data : json.data?.data ?? []
-    const meta = json.meta ?? null
+    if (fetchAll) {
+      const perPage = 300
+      let page = 1
+      let pageCount = 1
 
-    const transformed = data.map((item: any) => {
+      do {
+        baseParams.set('pagination[page]', page.toString())
+        baseParams.set('pagination[pageSize]', perPage.toString())
+
+        const url = `${getStrapiUrl('/api/cursos')}?${baseParams.toString()}`
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers,
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`Error ${response.status}: ${errorText}`)
+        }
+
+        const json = await response.json()
+        const data = Array.isArray(json.data) ? json.data : json.data?.data ?? []
+        meta = json.meta ?? null
+
+        allItems = allItems.concat(data)
+
+        const pagination = meta?.pagination
+        pageCount = pagination?.pageCount ?? page
+        page += 1
+      } while (page <= pageCount)
+    } else {
+      const page = parseInt(searchParams.get('page') || '1')
+      const pageSize = parseInt(rawPageSize || '100')
+
+      baseParams.set('pagination[page]', page.toString())
+      baseParams.set('pagination[pageSize]', pageSize.toString())
+
+      const url = `${getStrapiUrl('/api/cursos')}?${baseParams.toString()}`
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Error ${response.status}: ${errorText}`)
+      }
+
+      const json = await response.json()
+      allItems = Array.isArray(json.data) ? json.data : json.data?.data ?? []
+      meta = json.meta ?? null
+    }
+
+    const transformed = allItems.map((item: any) => {
       const attrs = item.attributes ?? item ?? {}
 
       const colegioRel = attrs.colegio?.data ?? attrs.colegio ?? null
