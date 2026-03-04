@@ -208,17 +208,9 @@ const CursoDetails = ({ curso, cursoId }: CursoDetailsProps) => {
                   placeholder={
                     loadingColegios ? 'Cargando colegios...' : 'Seleccionar colegio...'
                   }
-                  isDisabled={loadingColegios && colegios.length === 0}
+                  // En edición no permitimos cambiar el colegio del curso
+                  isDisabled
                   isLoading={loadingColegios}
-                  onInputChange={(input) => {
-                    setColegiosSearch(input)
-                    loadColegios(1, input, false)
-                  }}
-                  onMenuScrollToBottom={() => {
-                    if (!loadingColegios && colegiosHasMore) {
-                      loadColegios(colegiosPage + 1, colegiosSearch, true)
-                    }
-                  }}
                 />
               </Form.Group>
             </Col>
