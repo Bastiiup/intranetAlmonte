@@ -1,10 +1,11 @@
-'use client'
+"use client"
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from "react"
 import { useRouter } from 'next/navigation'
-import { Form, Button, Row, Col, Card, Modal } from 'react-bootstrap'
-import toast from 'react-hot-toast'
-import * as XLSX from 'xlsx'
+import { Form, Button, Row, Col, Card, Modal } from "react-bootstrap"
+import toast from "react-hot-toast"
+import * as XLSX from "xlsx"
+import SearchableSelect, { SearchableOption } from "@/components/form/SearchableSelect"
 
 type CategoriaEvaluacion = 'Basica' | 'Media' | 'Simce' | 'Paes' | 'Universitaria'
 
@@ -102,10 +103,16 @@ export function CrearEvaluacionOmrForm() {
   const [colegioId, setColegioId] = useState<number | ''>('')
   const [colegios, setColegios] = useState<ColegioOption[]>([])
   const [isLoadingColegios, setIsLoadingColegios] = useState(false)
+  const [colegiosPage, setColegiosPage] = useState(1)
+  const [colegiosHasMore, setColegiosHasMore] = useState(true)
+  const [colegiosSearch, setColegiosSearch] = useState('')
 
   const [cursoId, setCursoId] = useState<number | ''>('')
   const [cursos, setCursos] = useState<CursoOption[]>([])
   const [isLoadingCursos, setIsLoadingCursos] = useState(false)
+  const [cursosPage, setCursosPage] = useState(1)
+  const [cursosHasMore, setCursosHasMore] = useState(true)
+  const [cursosSearch, setCursosSearch] = useState('')
 
   const [evaluaciones, setEvaluaciones] = useState<EvaluacionState[]>([
     createEmptyEvaluacion(),
@@ -185,10 +192,17 @@ export function CrearEvaluacionOmrForm() {
     }
   }
 
-  const fetchColegios = async () => {
+  const loadColegios = async (page: number, search: string, append: boolean) => {
     try {
       setIsLoadingColegios(true)
-      const res = await fetch('/api/mira/colegios?pageSize=500')
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: '50',
+      })
+      if (search.trim()) {
+        params.set('search', search.trim())
+      }
+      const res = await fetch(`/api/mira/colegios?${params.toString()}`)
       const json = await res.json()
       if (!res.ok || json?.success === false) {
         throw new Error(json?.error || res.statusText)
@@ -198,19 +212,48 @@ export function CrearEvaluacionOmrForm() {
         id: item.id,
         nombre: item.colegio_nombre ?? item.nombre ?? `Colegio ${item.id}`,
       }))
-      setColegios(options)
+
+      setColegios((prev) => {
+        const base = append ? prev : []
+        const existingIds = new Set(base.map((c) => String(c.id)))
+        return [...base, ...options.filter((c) => !existingIds.has(String(c.id)))]
+      })
+
+      const pagination = json.meta?.pagination
+      const hasMore =
+        pagination?.page != null &&
+        pagination?.pageCount != null &&
+        pagination.page < pagination.pageCount
+      setColegiosHasMore(Boolean(hasMore))
+      setColegiosPage(page)
     } catch (error: any) {
       console.error('Error al cargar colegios', error)
       toast.error(error?.message || 'Error al cargar colegios')
+      setColegiosHasMore(false)
     } finally {
       setIsLoadingColegios(false)
     }
   }
 
-  const fetchCursos = async () => {
+  const loadCursos = async (
+    page: number,
+    search: string,
+    append: boolean,
+    colegioIdForFilter?: number | '',
+  ) => {
+    const colegioNumeric = colegioIdForFilter ?? colegioId
+    if (!colegioNumeric) return
     try {
       setIsLoadingCursos(true)
-      const res = await fetch('/api/mira/cursos?pageSize=500')
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: '50',
+        colegioId: String(colegioNumeric),
+      })
+      if (search.trim()) {
+        params.set('search', search.trim())
+      }
+      const res = await fetch(`/api/mira/cursos?${params.toString()}`)
       const json = await res.json()
       if (!res.ok || json?.success === false) {
         throw new Error(json?.error || res.statusText)
@@ -220,31 +263,44 @@ export function CrearEvaluacionOmrForm() {
         const nombreBase = item.nombre_curso ?? item.nombre ?? `Curso ${item.id}`
         const letra = item.letra ?? item.paralelo ?? null
         const anio = item.anio ?? null
-        const colegioNombre = item.colegio_nombre ?? item.colegio?.colegio_nombre ?? null
         const labelParts: string[] = []
         if (nombreBase) labelParts.push(nombreBase)
         if (letra) labelParts.push(String(letra))
         if (anio) labelParts.push(String(anio))
         const nombre = labelParts.join(' ')
-        const colegioIdValue =
-          item.colegio?.id ??
-          item.colegioId ??
-          item.colegio?.documentId ??
-          null
         return {
           id: item.id,
           nombre: nombre || `Curso ${item.id}`,
-          colegioId: colegioIdValue,
+          colegioId: colegioNumeric,
         }
       })
-      setCursos(options)
+
+      setCursos((prev) => {
+        const base = append ? prev : []
+        const existingIds = new Set(base.map((c) => String(c.id)))
+        return [...base, ...options.filter((c) => !existingIds.has(String(c.id)))]
+      })
+
+      const pagination = json.meta?.pagination
+      const hasMore =
+        pagination?.page != null &&
+        pagination?.pageCount != null &&
+        pagination.page < pagination.pageCount
+      setCursosHasMore(Boolean(hasMore))
+      setCursosPage(page)
     } catch (error: any) {
       console.error('Error al cargar cursos', error)
       toast.error(error?.message || 'Error al cargar cursos')
+      setCursosHasMore(false)
     } finally {
       setIsLoadingCursos(false)
     }
   }
+
+  useEffect(() => {
+    // Cargar primera página de colegios para el flujo institucional
+    loadColegios(1, '', false)
+  }, [])
 
   const handleEvaluacionFieldChange = (
     evalIndex: number,
@@ -893,14 +949,15 @@ export function CrearEvaluacionOmrForm() {
     }
   }
 
-  const cursosFiltrados: CursoOption[] =
-    tipoEvaluacionUI === 'institucional' && colegioId !== ''
-      ? cursos.filter((c) => {
-          if (c.colegioId === null || c.colegioId === undefined) return false
-          const colegioIdNum = Number(colegioId)
-          return Number(c.colegioId) === colegioIdNum
-        })
-      : []
+  const colegioOptions: SearchableOption[] = colegios.map((c) => ({
+    value: c.id,
+    label: c.nombre,
+  }))
+
+  const cursoOptions: SearchableOption[] = cursos.map((c) => ({
+    value: c.id,
+    label: c.nombre,
+  }))
 
   return (
     <Card className="mt-3">
@@ -1062,35 +1119,43 @@ export function CrearEvaluacionOmrForm() {
                     Colegio <span className="text-danger">*</span>
                   </Form.Label>
                   <div className="d-flex gap-2">
-                    <Form.Select
-                      value={colegioId}
-                      onChange={(e) => {
-                        const value = e.target.value ? Number(e.target.value) : ''
-                        setColegioId(value)
-                        setCursoId('')
-                      }}
-                      onFocus={() => {
-                        if (colegios.length === 0 && !isLoadingColegios) {
-                          fetchColegios()
+                    <div className="flex-grow-1">
+                      <SearchableSelect
+                        options={colegioOptions}
+                        value={colegioId === '' ? '' : colegioId}
+                        onChange={(val) => {
+                          const numeric = val ? Number(val) : ''
+                          setColegioId(numeric)
+                          setCursoId('')
+                          setCursos([])
+                          setCursosPage(1)
+                          setCursosHasMore(true)
+                          setCursosSearch('')
+                          if (numeric) {
+                            loadCursos(1, '', false, numeric)
+                          }
+                        }}
+                        placeholder={
+                          isLoadingColegios ? 'Cargando colegios...' : 'Seleccionar colegio...'
                         }
-                      }}
-                    >
-                      <option value="">
-                        {isLoadingColegios
-                          ? 'Cargando colegios...'
-                          : 'Selecciona un colegio'}
-                      </option>
-                      {colegios.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.nombre}
-                        </option>
-                      ))}
-                    </Form.Select>
+                        isDisabled={isLoadingColegios && colegios.length === 0}
+                        isLoading={isLoadingColegios}
+                        onInputChange={(input) => {
+                          setColegiosSearch(input)
+                          loadColegios(1, input, false)
+                        }}
+                        onMenuScrollToBottom={() => {
+                          if (!isLoadingColegios && colegiosHasMore) {
+                            loadColegios(colegiosPage + 1, colegiosSearch, true)
+                          }
+                        }}
+                      />
+                    </div>
                     <Button
                       variant="outline-secondary"
                       type="button"
                       disabled={isLoadingColegios}
-                      onClick={fetchColegios}
+                      onClick={() => loadColegios(1, colegiosSearch, false)}
                     >
                       {isLoadingColegios ? 'Actualizando...' : 'Actualizar'}
                     </Button>
@@ -1103,36 +1168,44 @@ export function CrearEvaluacionOmrForm() {
                     Curso <span className="text-danger">*</span>
                   </Form.Label>
                   <div className="d-flex gap-2">
-                    <Form.Select
-                      value={cursoId}
-                      onChange={(e) =>
-                        setCursoId(e.target.value ? Number(e.target.value) : '')
-                      }
-                      onFocus={() => {
-                        if (cursos.length === 0 && !isLoadingCursos) {
-                          fetchCursos()
+                    <div className="flex-grow-1">
+                      <SearchableSelect
+                        options={cursoOptions}
+                        value={cursoId === '' ? '' : cursoId}
+                        onChange={(val) =>
+                          setCursoId(val ? Number(val) : '')
                         }
-                      }}
-                      disabled={!colegioId}
-                    >
-                      <option value="">
-                        {!colegioId
-                          ? 'Selecciona primero un colegio'
-                          : isLoadingCursos
-                          ? 'Cargando cursos...'
-                          : 'Selecciona un curso'}
-                      </option>
-                      {cursosFiltrados.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.nombre}
-                        </option>
-                      ))}
-                    </Form.Select>
+                        placeholder={
+                          !colegioId
+                            ? 'Selecciona primero un colegio'
+                            : isLoadingCursos
+                            ? 'Cargando cursos...'
+                            : 'Seleccionar curso...'
+                        }
+                        isDisabled={!colegioId || (isLoadingCursos && cursos.length === 0)}
+                        isLoading={isLoadingCursos}
+                        onInputChange={(input) => {
+                          setCursosSearch(input)
+                          if (colegioId) {
+                            loadCursos(1, input, false)
+                          }
+                        }}
+                        onMenuScrollToBottom={() => {
+                          if (!colegioId) return
+                          if (!isLoadingCursos && cursosHasMore) {
+                            loadCursos(cursosPage + 1, cursosSearch, true)
+                          }
+                        }}
+                      />
+                    </div>
                     <Button
                       variant="outline-secondary"
                       type="button"
                       disabled={!colegioId || isLoadingCursos}
-                      onClick={fetchCursos}
+                      onClick={() => {
+                        if (!colegioId) return
+                        loadCursos(1, cursosSearch, false)
+                      }}
                     >
                       {isLoadingCursos ? 'Actualizando...' : 'Actualizar'}
                     </Button>

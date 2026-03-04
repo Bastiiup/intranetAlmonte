@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const rawPageSize = searchParams.get('pageSize')
+    const colegioIdFilter = (searchParams.get('colegioId') || '').trim()
     const search = (searchParams.get('search') || '').trim()
 
     const headers: HeadersInit = {
@@ -26,6 +27,11 @@ export async function GET(request: NextRequest) {
       'populate[colegio][fields][1]': 'rbd',
       sort: 'anio:desc',
     })
+
+    if (colegioIdFilter) {
+      // Limitamos los cursos al colegio seleccionado (por id interno)
+      baseParams.set('filters[colegio][id][$eq]', colegioIdFilter)
+    }
 
     if (search) {
       let orIndex = 0
