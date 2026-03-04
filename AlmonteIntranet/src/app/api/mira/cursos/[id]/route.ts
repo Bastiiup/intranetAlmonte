@@ -13,6 +13,67 @@ async function buildStrapiHeaders() {
   return headers
 }
 
+type ResolvedCursoIds = {
+  internalId: number
+  documentId: string | number
+}
+
+async function resolveCursoInternalIds(rawId: string): Promise<ResolvedCursoIds | null> {
+  const trimmedId = rawId?.trim()
+  if (!trimmedId) return null
+
+  const queryParams = new URLSearchParams({
+    'fields[0]': 'id',
+    'fields[1]': 'documentId',
+    'filters[$or][0][id][$eq]': trimmedId,
+    'filters[$or][1][documentId][$eq]': trimmedId,
+    'pagination[pageSize]': '1',
+  })
+
+  const listUrl = `${getStrapiUrl('/api/cursos')}?${queryParams.toString()}`
+
+  console.log('[API /api/mira/cursos/[id] resolveCursoInternalIds] Resolviendo ID interno', {
+    rawId,
+    trimmedId,
+    listUrl,
+  })
+
+  const response = await fetch(listUrl, {
+    method: 'GET',
+    headers: await buildStrapiHeaders(),
+  })
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    console.error(
+      '[API /api/mira/cursos/[id] resolveCursoInternalIds] Error al buscar curso en lista',
+      {
+        status: response.status,
+        statusText: response.statusText,
+        body: text.slice(0, 500),
+      }
+    )
+    return null
+  }
+
+  const json = await response.json().catch(() => ({}))
+  const dataArray = Array.isArray(json.data) ? json.data : json.data?.data ?? []
+  const first = dataArray[0]
+
+  console.log('[API /api/mira/cursos/[id] resolveCursoInternalIds] Resultado de búsqueda', {
+    cantidad: dataArray.length,
+    primerId: first?.id,
+    primerDocumentId: first?.documentId,
+  })
+
+  if (!first || first.id == null) return null
+
+  return {
+    internalId: Number(first.id),
+    documentId: first.documentId ?? first.id,
+  }
+}
+
 function mapStrapiCurso(item: any) {
   if (!item) return null
   const attrs = item.attributes ?? item ?? {}
@@ -141,7 +202,29 @@ export async function PUT(
       },
     }
 
-    const url = getStrapiUrl(`/api/cursos/${encodeURIComponent(id)}`)
+    console.log('[API /api/mira/cursos/[id] PUT] Iniciando actualización de curso', {
+      rawId: id,
+      payload,
+    })
+
+    const resolved = await resolveCursoInternalIds(id)
+    if (!resolved) {
+      console.error(
+        '[API /api/mira/cursos/[id] PUT] No se encontró ID interno en Strapi para el curso',
+        { rawId: id }
+      )
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Curso no encontrado en Strapi para actualizar (no se pudo resolver id interno a partir de id/documentId).',
+        },
+        { status: 404 }
+      )
+    }
+
+    const pathId = String(resolved.documentId ?? resolved.internalId)
+    const url = getStrapiUrl(`/api/cursos/${encodeURIComponent(pathId)}`)
 
     const response = await fetch(url, {
       method: 'PUT',
@@ -156,6 +239,15 @@ export async function PUT(
         json?.error?.message ??
         json?.error?.details?.errors?.[0]?.message ??
         JSON.stringify(json?.error ?? 'Error al actualizar curso')
+      console.error('[API /api/mira/cursos/[id] PUT] Error desde Strapi', {
+        rawId: id,
+        internalId: resolved.internalId,
+        documentId: resolved.documentId,
+        pathId,
+        status: response.status,
+        statusText: response.statusText,
+        error: errorMsg,
+      })
       throw new Error(errorMsg)
     }
 
@@ -190,7 +282,24 @@ export async function DELETE(
       )
     }
 
-    const url = getStrapiUrl(`/api/cursos/${encodeURIComponent(id)}`)
+    const resolved = await resolveCursoInternalIds(id)
+    if (!resolved) {
+      console.error(
+        '[API /api/mira/cursos/[id] DELETE] No se encontró ID interno en Strapi para el curso',
+        { rawId: id }
+      )
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Curso no encontrado en Strapi para eliminar (no se pudo resolver id interno a partir de id/documentId).',
+        },
+        { status: 404 }
+      )
+    }
+
+    const pathId = String(resolved.documentId ?? resolved.internalId)
+    const url = getStrapiUrl(`/api/cursos/${encodeURIComponent(pathId)}`)
 
     const response = await fetch(url, {
       method: 'DELETE',
