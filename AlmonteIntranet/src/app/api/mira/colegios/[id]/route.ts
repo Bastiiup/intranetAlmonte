@@ -16,6 +16,32 @@ async function buildStrapiHeaders() {
 function mapStrapiColegio(item: any) {
   if (!item) return null
   const attrs = item.attributes ?? item ?? {}
+
+  const telefonos = Array.isArray(attrs.telefonos) ? attrs.telefonos : []
+  const emails = Array.isArray(attrs.emails) ? attrs.emails : []
+  const direcciones = Array.isArray(attrs.direcciones) ? attrs.direcciones : []
+  const websites = Array.isArray(attrs.Website) ? attrs.Website : []
+
+  const telefonoPrincipal =
+    (telefonos[0]?.telefono_raw as string | undefined) ??
+    (telefonos[0]?.telefono_norm as string | undefined) ??
+    ''
+
+  const emailPrincipal = (emails[0]?.email as string | undefined) ?? ''
+
+  const direccionPrincipal = (() => {
+    const d = (direcciones[0] as any) ?? {}
+    const calle = (d.nombre_calle as string | undefined) ?? ''
+    const numero = (d.numero_calle as string | undefined) ?? ''
+    const complemento = (d.complemento_direccion as string | undefined) ?? ''
+    return [calle, numero, complemento].filter(Boolean).join(' ').trim()
+  })()
+
+  const websitePrincipal = (websites[0]?.website as string | undefined) ?? ''
+
+  const estadoNombre = attrs.estado_nombre ?? null
+  const estado = attrs.estado ?? estadoNombre ?? null
+
   return {
     id: item.id,
     documentId: item.documentId ?? String(item.id),
@@ -23,7 +49,16 @@ function mapStrapiColegio(item: any) {
     colegio_nombre: attrs.colegio_nombre ?? '',
     dependencia: attrs.dependencia ?? null,
     ruralidad: attrs.ruralidad ?? null,
-    estado: attrs.estado ?? attrs.estado_nombre ?? null,
+    estado,
+    estado_nombre: estadoNombre,
+    estado_estab: attrs.estado_estab ?? null,
+    region: attrs.region ?? '',
+    provincia: attrs.provincia ?? '',
+    zona: attrs.zona ?? '',
+    telefono_principal: telefonoPrincipal,
+    email_principal: emailPrincipal,
+    direccion_principal: direccionPrincipal,
+    website_principal: websitePrincipal,
   }
 }
 
@@ -109,10 +144,20 @@ export async function GET(
       'fields[3]': 'ruralidad',
       'fields[4]': 'estado',
       'fields[5]': 'estado_nombre',
+      'fields[6]': 'estado_estab',
+      'fields[7]': 'region',
+      'fields[8]': 'provincia',
+      'fields[9]': 'zona',
       // Buscar tanto por id numérico como por documentId
       'filters[$or][0][id][$eq]': trimmedId,
       'filters[$or][1][documentId][$eq]': trimmedId,
     })
+
+    // Necesitamos los componentes de contacto para poder editarlos desde Intranet
+    queryParams.set('populate[telefonos]', 'true')
+    queryParams.set('populate[emails]', 'true')
+    queryParams.set('populate[direcciones]', 'true')
+    queryParams.set('populate[Website]', 'true')
 
     const listUrl = `${getStrapiUrl('/api/colegios')}?${queryParams.toString()}`
 
@@ -172,6 +217,64 @@ export async function PUT(
 
     const body = await request.json().catch(() => ({}))
 
+    const telefonoPrincipal =
+      typeof body.telefono_principal === 'string'
+        ? body.telefono_principal.trim()
+        : ''
+    const emailPrincipal =
+      typeof body.email_principal === 'string'
+        ? body.email_principal.trim()
+        : ''
+    const direccionPrincipal =
+      typeof body.direccion_principal === 'string'
+        ? body.direccion_principal.trim()
+        : ''
+    const websitePrincipal =
+      typeof body.website_principal === 'string'
+        ? body.website_principal.trim()
+        : ''
+
+    const telefonosPayload =
+      telefonoPrincipal !== ''
+        ? [
+            {
+              telefono_raw: telefonoPrincipal,
+              principal: true,
+              status: true,
+            },
+          ]
+        : undefined
+
+    const emailsPayload =
+      emailPrincipal !== ''
+        ? [
+            {
+              email: emailPrincipal,
+              principal: true,
+              status: true,
+            },
+          ]
+        : undefined
+
+    const direccionesPayload =
+      direccionPrincipal !== ''
+        ? [
+            {
+              nombre_calle: direccionPrincipal,
+            },
+          ]
+        : undefined
+
+    const websitesPayload =
+      websitePrincipal !== ''
+        ? [
+            {
+              website: websitePrincipal,
+              status: true,
+            },
+          ]
+        : undefined
+
     const payload = {
       data: {
         rbd: body.rbd != null ? Number(body.rbd) : undefined,
@@ -179,6 +282,16 @@ export async function PUT(
         colegio_nombre: body.colegio_nombre ?? undefined,
         dependencia: body.dependencia ?? undefined,
         ruralidad: body.ruralidad ?? undefined,
+        estado_nombre: body.estado_nombre ?? undefined,
+        estado: body.estado ?? undefined,
+        estado_estab: body.estado_estab ?? undefined,
+        region: body.region ?? undefined,
+        provincia: body.provincia ?? undefined,
+        zona: body.zona ?? undefined,
+        telefonos: telefonosPayload,
+        emails: emailsPayload,
+        direcciones: direccionesPayload,
+        Website: websitesPayload,
       },
     }
 

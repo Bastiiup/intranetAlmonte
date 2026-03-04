@@ -16,6 +16,43 @@ const DEPENDENCIAS = [
 
 const RURALIDAD = ['Urbano', 'Rural'] as const
 
+const ESTADOS_NOMBRE = ['Por Verificar', 'Verificado', 'Aprobado', 'Rechazado'] as const
+const ESTADOS = ['Por Verificar', 'Verificado', 'Aprobado'] as const
+const ESTADOS_ESTAB = ['Funcionando', 'En receso', 'Cerrado', 'Autorizado sin matrícula'] as const
+
+const REGIONES_DE_CHILE = (
+  'Arica y Parinacota|Tarapacá|Antofagasta|Atacama|Coquimbo|Valparaíso|' +
+  'Metropolitana de Santiago|O’Higgins|Maule|Ñuble|Biobío|La Araucanía|' +
+  'Los Ríos|Los Lagos|Aysén|Magallanes y de la Antártica Chilena'
+).split('|')
+
+const PROVINCIAS_DE_CHILE = (
+  'Arica|Parinacota|Iquique|Tamarugal|Antofagasta|El Loa|Tocopilla|' +
+  'Copiapó|Chañaral|Huasco|Elqui|Choapa|Limarí|' +
+  'Valparaíso|Isla de Pascua|Los Andes|Petorca|Quillota|San Antonio|' +
+  'San Felipe de Aconcagua|Marga Marga|' +
+  'Santiago|Cordillera|Chacabuco|Maipo|Melipilla|Talagante|' +
+  'Cachapoal|Colchagua|Cardenal Caro|' +
+  'Talca|Cauquenes|Curicó|Linares|' +
+  'Diguillín|Itata|Punilla|' +
+  'Concepción|Arauco|Biobío|' +
+  'Cautín|Malleco|' +
+  'Valdivia|Ranco|' +
+  'Llanquihue|Chiloé|Osorno|Palena|' +
+  'Coihaique|Aisén|Capitán Prat|General Carrera|' +
+  'Magallanes|Antártica Chilena|Tierra del Fuego|Última Esperanza'
+).split('|')
+
+const ZONAS_DE_CHILE = [
+  'Norte Grande',
+  'Norte Chico',
+  'Centro',
+  'Centro-Sur',
+  'Sur',
+  'Austral',
+  'Insular',
+] as const
+
 interface ColegioDetailsProps {
   colegio: any
   colegioId: string
@@ -35,6 +72,16 @@ const ColegioDetails = ({ colegio, colegioId }: ColegioDetailsProps) => {
     colegio_nombre: colegio.colegio_nombre ?? '',
     dependencia: colegio.dependencia ?? '',
     ruralidad: colegio.ruralidad ?? '',
+    estado_nombre: colegio.estado_nombre ?? '',
+    estado: colegio.estado ?? '',
+    estado_estab: colegio.estado_estab ?? '',
+    region: colegio.region ?? '',
+    provincia: colegio.provincia ?? '',
+    zona: colegio.zona ?? '',
+    telefono_principal: colegio.telefono_principal ?? '',
+    email_principal: colegio.email_principal ?? '',
+    direccion_principal: colegio.direccion_principal ?? '',
+    website_principal: colegio.website_principal ?? '',
   })
 
   const handleChange = (
@@ -81,6 +128,16 @@ const ColegioDetails = ({ colegio, colegioId }: ColegioDetailsProps) => {
           colegio_nombre: formData.colegio_nombre.trim(),
           dependencia: formData.dependencia || undefined,
           ruralidad: formData.ruralidad || undefined,
+          estado_nombre: formData.estado_nombre || undefined,
+          estado: formData.estado || undefined,
+          estado_estab: formData.estado_estab || undefined,
+          region: formData.region || undefined,
+          provincia: formData.provincia || undefined,
+          zona: formData.zona || undefined,
+          telefono_principal: formData.telefono_principal || undefined,
+          email_principal: formData.email_principal || undefined,
+          direccion_principal: formData.direccion_principal || undefined,
+          website_principal: formData.website_principal || undefined,
         }),
       })
 
@@ -132,9 +189,9 @@ const ColegioDetails = ({ colegio, colegioId }: ColegioDetailsProps) => {
                   type="number"
                   name="rbd"
                   value={formData.rbd}
-                  onChange={handleChange}
                   required
                   min={0}
+                  disabled
                 />
               </Form.Group>
             </Col>
@@ -152,7 +209,7 @@ const ColegioDetails = ({ colegio, colegioId }: ColegioDetailsProps) => {
             </Col>
             <Col md={4}>
               <Form.Group>
-                <Form.Label>Estado</Form.Label>
+                <Form.Label>Estado actual</Form.Label>
                 <div>
                   {estado ? (
                     <Badge bg="info">{estado}</Badge>
@@ -160,6 +217,57 @@ const ColegioDetails = ({ colegio, colegioId }: ColegioDetailsProps) => {
                     <span className="text-muted">Sin estado</span>
                   )}
                 </div>
+              </Form.Group>
+            </Col>
+            <Col md={4}>
+              <Form.Group>
+                <Form.Label>Estado (interno)</Form.Label>
+                <Form.Select
+                  name="estado"
+                  value={formData.estado}
+                  onChange={handleChange}
+                >
+                  <option value="">Seleccionar...</option>
+                  {ESTADOS.map((e) => (
+                    <option key={e} value={e}>
+                      {e}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={4}>
+              <Form.Group>
+                <Form.Label>Estado nombre</Form.Label>
+                <Form.Select
+                  name="estado_nombre"
+                  value={formData.estado_nombre}
+                  onChange={handleChange}
+                >
+                  <option value="">Seleccionar...</option>
+                  {ESTADOS_NOMBRE.map((e) => (
+                    <option key={e} value={e}>
+                      {e}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={4}>
+              <Form.Group>
+                <Form.Label>Estado establecimiento</Form.Label>
+                <Form.Select
+                  name="estado_estab"
+                  value={formData.estado_estab}
+                  onChange={handleChange}
+                >
+                  <option value="">Seleccionar...</option>
+                  {ESTADOS_ESTAB.map((e) => (
+                    <option key={e} value={e}>
+                      {e}
+                    </option>
+                  ))}
+                </Form.Select>
               </Form.Group>
             </Col>
             <Col md={12}>
@@ -195,6 +303,105 @@ const ColegioDetails = ({ colegio, colegioId }: ColegioDetailsProps) => {
                   value={formData.ruralidad}
                   onChange={(val) => setFormData((prev) => ({ ...prev, ruralidad: val }))}
                   placeholder="Seleccionar ruralidad..."
+                />
+              </Form.Group>
+            </Col>
+            <Col md={4}>
+              <Form.Group>
+                <Form.Label>Región</Form.Label>
+                <Form.Select
+                  name="region"
+                  value={formData.region}
+                  onChange={handleChange}
+                >
+                  <option value="">Seleccionar región...</option>
+                  {REGIONES_DE_CHILE.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={4}>
+              <Form.Group>
+                <Form.Label>Provincia</Form.Label>
+                <Form.Select
+                  name="provincia"
+                  value={formData.provincia}
+                  onChange={handleChange}
+                >
+                  <option value="">Seleccionar provincia...</option>
+                  {PROVINCIAS_DE_CHILE.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={4}>
+              <Form.Group>
+                <Form.Label>Zona</Form.Label>
+                <Form.Select
+                  name="zona"
+                  value={formData.zona}
+                  onChange={handleChange}
+                >
+                  <option value="">Seleccionar zona...</option>
+                  {ZONAS_DE_CHILE.map((z) => (
+                    <option key={z} value={z}>
+                      {z}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>Teléfono principal</Form.Label>
+                <Form.Control
+                  type="text"
+                  name="telefono_principal"
+                  value={formData.telefono_principal}
+                  onChange={handleChange}
+                  placeholder="Ej: +56 9 1234 5678"
+                />
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>Email principal</Form.Label>
+                <Form.Control
+                  type="email"
+                  name="email_principal"
+                  value={formData.email_principal}
+                  onChange={handleChange}
+                  placeholder="Ej: contacto@colegio.cl"
+                />
+              </Form.Group>
+            </Col>
+            <Col md={8}>
+              <Form.Group>
+                <Form.Label>Dirección principal</Form.Label>
+                <Form.Control
+                  type="text"
+                  name="direccion_principal"
+                  value={formData.direccion_principal}
+                  onChange={handleChange}
+                  placeholder="Calle, número, comuna"
+                />
+              </Form.Group>
+            </Col>
+            <Col md={4}>
+              <Form.Group>
+                <Form.Label>Website</Form.Label>
+                <Form.Control
+                  type="text"
+                  name="website_principal"
+                  value={formData.website_principal}
+                  onChange={handleChange}
+                  placeholder="https://..."
                 />
               </Form.Group>
             </Col>
