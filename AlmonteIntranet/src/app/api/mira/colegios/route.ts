@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const rawPageSize = searchParams.get('pageSize')
+    const search = (searchParams.get('search') || '').trim()
 
     // Si pageSize = -1 o = all, traemos TODOS los colegios paginando internamente
     const fetchAll = rawPageSize === '-1' || rawPageSize === 'all'
@@ -24,8 +25,40 @@ export async function GET(request: NextRequest) {
       'fields[2]': 'dependencia',
       'fields[3]': 'estado',
       'fields[4]': 'estado_nombre',
+      'fields[5]': 'estado_estab',
+      'fields[6]': 'region',
+      'fields[7]': 'provincia',
+      'fields[8]': 'zona',
       sort: 'colegio_nombre:asc',
     })
+
+    if (search) {
+      let orIndex = 0
+      baseParams.set(
+        `filters[$or][${orIndex}][colegio_nombre][$containsi]`,
+        search
+      )
+      orIndex += 1
+      baseParams.set(
+        `filters[$or][${orIndex}][dependencia][$containsi]`,
+        search
+      )
+      orIndex += 1
+      baseParams.set(`filters[$or][${orIndex}][region][$containsi]`, search)
+      orIndex += 1
+      baseParams.set(`filters[$or][${orIndex}][provincia][$containsi]`, search)
+      orIndex += 1
+      baseParams.set(`filters[$or][${orIndex}][zona][$containsi]`, search)
+      orIndex += 1
+
+      const maybeRbd = parseInt(search, 10)
+      if (!Number.isNaN(maybeRbd)) {
+        baseParams.set(
+          `filters[$or][${orIndex}][rbd][$eq]`,
+          String(maybeRbd)
+        )
+      }
+    }
 
     let allItems: any[] = []
     let meta: any = null
@@ -94,6 +127,11 @@ export async function GET(request: NextRequest) {
         colegio_nombre: attrs.colegio_nombre ?? '',
         dependencia: attrs.dependencia ?? null,
         estado: attrs.estado ?? attrs.estado_nombre ?? null,
+        estado_nombre: attrs.estado_nombre ?? null,
+        estado_estab: attrs.estado_estab ?? null,
+        region: attrs.region ?? null,
+        provincia: attrs.provincia ?? null,
+        zona: attrs.zona ?? null,
       }
     })
 

@@ -9,7 +9,7 @@ import {
   SortingState,
   useReactTable,
 } from '@tanstack/react-table'
-import { useState, useEffect, useCallback, useDeferredValue, useMemo } from 'react'
+import { useState, useEffect, useCallback, useDeferredValue } from 'react'
 import { Button, Card, CardBody, CardFooter, CardHeader, Col, Row, Alert, Badge, Spinner } from 'react-bootstrap'
 import { LuSearch, LuBox, LuTag } from 'react-icons/lu'
 import { TbEye, TbEdit, TbTrash, TbPlus, TbLayoutGrid, TbList } from 'react-icons/tb'
@@ -27,6 +27,11 @@ export interface ColegioType {
   colegio_nombre: string
   dependencia: string | null
   estado: string | null
+  estado_nombre?: string | null
+  estado_estab?: string | null
+  region?: string | null
+  provincia?: string | null
+  zona?: string | null
 }
 
 const columnHelper = createColumnHelper<ColegioType>()
@@ -82,12 +87,17 @@ export default function ColegiosListing() {
   const [pageSize, setPageSize] = useState(25)
   const [totalItems, setTotalItems] = useState(0)
 
-  const fetchColegios = useCallback(async (pageParam: number, pageSizeParam: number) => {
+  const deferredSearch = useDeferredValue(searchTerm)
+
+  const fetchColegios = useCallback(async (pageParam: number, pageSizeParam: number, search: string) => {
     setLoading(true)
     setError(null)
     try {
       const apiPage = pageParam + 1 // backend es 1-based
-      const res = await fetch(`/api/mira/colegios?page=${apiPage}&pageSize=${pageSizeParam}`)
+      const searchParam = search ? `&search=${encodeURIComponent(search)}` : ''
+      const res = await fetch(
+        `/api/mira/colegios?page=${apiPage}&pageSize=${pageSizeParam}${searchParam}`
+      )
       const result = await res.json()
       if (result.success && Array.isArray(result.data)) {
         setData(result.data)
@@ -107,26 +117,13 @@ export default function ColegiosListing() {
   }, [])
 
   useEffect(() => {
-    fetchColegios(page, pageSize)
-  }, [fetchColegios, page, pageSize])
+    // Cuando cambia el término de búsqueda, volvemos a la primera página
+    setPage(0)
+  }, [deferredSearch])
 
-  // Buscar como en Autores: usar un valor diferido y memoizar el filtrado
-  const deferredSearch = useDeferredValue(searchTerm)
-
-  const filteredData = useMemo(() => {
-    if (!deferredSearch) return data
-    const term = deferredSearch.toLowerCase()
-    return data.filter((c) => {
-      const rbdStr = String(c.rbd ?? '')
-      const nombre = c.colegio_nombre.toLowerCase()
-      const dep = (c.dependencia ?? '').toLowerCase()
-      return (
-        rbdStr.includes(term) ||
-        nombre.includes(term) ||
-        dep.includes(term)
-      )
-    })
-  }, [data, deferredSearch])
+  useEffect(() => {
+    fetchColegios(page, pageSize, deferredSearch)
+  }, [fetchColegios, page, pageSize, deferredSearch])
 
   const openDeleteModal = (id: number | string) => {
     setSelectedColegioId(id)
@@ -207,6 +204,26 @@ export default function ColegiosListing() {
         return true
       },
     }),
+    columnHelper.accessor('estado_estab', {
+      header: 'Estado Estab.',
+      cell: (info) => info.getValue() ?? '-',
+      enableSorting: true,
+    }),
+    columnHelper.accessor('region', {
+      header: 'Región',
+      cell: (info) => info.getValue() ?? '-',
+      enableSorting: true,
+    }),
+    columnHelper.accessor('provincia', {
+      header: 'Provincia',
+      cell: (info) => info.getValue() ?? '-',
+      enableSorting: true,
+    }),
+    columnHelper.accessor('zona', {
+      header: 'Zona',
+      cell: (info) => info.getValue() ?? '-',
+      enableSorting: true,
+    }),
     columnHelper.display({
       id: 'acciones',
       header: 'Acciones',
@@ -236,7 +253,7 @@ export default function ColegiosListing() {
   ]
 
   const table = useReactTable({
-    data: filteredData,
+    data,
     columns,
     state: {
       sorting,
