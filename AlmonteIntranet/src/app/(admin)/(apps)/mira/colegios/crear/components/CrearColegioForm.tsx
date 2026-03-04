@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button, Card, CardBody, CardHeader, Col, Form, Row } from 'react-bootstrap'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
+import SearchableSelect, { SearchableOption } from '@/components/form/SearchableSelect'
 
 const DEPENDENCIAS = [
   'Corporación de Administración Delegada',
@@ -32,6 +33,16 @@ export default function CrearColegioForm() {
     if (name === 'rbd_digito_verificador' && value.length > 1) return
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
+
+  const dependenciaOptions: SearchableOption[] = DEPENDENCIAS.map((d) => ({
+    value: d,
+    label: d,
+  }))
+
+  const ruralidadOptions: SearchableOption[] = RURALIDAD.map((r) => ({
+    value: r,
+    label: r,
+  }))
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -127,35 +138,23 @@ export default function CrearColegioForm() {
             <Col md={6}>
               <Form.Group>
                 <Form.Label>Dependencia</Form.Label>
-                <Form.Select
-                  name="dependencia"
+                <SearchableSelect
+                  options={dependenciaOptions}
                   value={formData.dependencia}
-                  onChange={handleChange}
-                >
-                  <option value="">Seleccionar...</option>
-                  {DEPENDENCIAS.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </Form.Select>
+                  onChange={(val) => setFormData((prev) => ({ ...prev, dependencia: val }))}
+                  placeholder="Seleccionar dependencia..."
+                />
               </Form.Group>
             </Col>
             <Col md={6}>
               <Form.Group>
                 <Form.Label>Ruralidad</Form.Label>
-                <Form.Select
-                  name="ruralidad"
+                <SearchableSelect
+                  options={ruralidadOptions}
                   value={formData.ruralidad}
-                  onChange={handleChange}
-                >
-                  <option value="">Seleccionar...</option>
-                  {RURALIDAD.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </Form.Select>
+                  onChange={(val) => setFormData((prev) => ({ ...prev, ruralidad: val }))}
+                  placeholder="Seleccionar ruralidad..."
+                />
               </Form.Group>
             </Col>
           </Row>

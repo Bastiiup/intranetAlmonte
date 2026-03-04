@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button, Card, CardBody, CardHeader, Col, Form, Row, Spinner, Alert } from 'react-bootstrap'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
+import SearchableSelect, { SearchableOption } from '@/components/form/SearchableSelect'
 
 interface ColegioOption {
   id: number | string
@@ -62,6 +63,16 @@ export default function CrearCursoForm() {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
+
+  const colegioOptions: SearchableOption[] = colegios.map((c) => ({
+    value: c.id,
+    label: `${c.nombre}${c.rbd ? ` (RBD ${c.rbd})` : ''}`,
+  }))
+
+  const nivelOptions: SearchableOption[] = NIVELES.map((n) => ({
+    value: n,
+    label: n === 'Basica' ? 'Básica' : 'Media',
+  }))
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -140,21 +151,15 @@ export default function CrearCursoForm() {
                 <Form.Label>
                   Colegio <span className="text-danger">*</span>
                 </Form.Label>
-                <Form.Select
-                  name="colegioId"
+                <SearchableSelect
+                  options={colegioOptions}
                   value={formData.colegioId}
-                  onChange={handleChange}
-                  disabled={loadingColegios || !!errorColegios}
-                  required
-                >
-                  <option value="">{loadingColegios ? 'Cargando colegios...' : 'Seleccionar colegio...'}</option>
-                  {colegios.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nombre}
-                      {c.rbd ? ` (RBD ${c.rbd})` : ''}
-                    </option>
-                  ))}
-                </Form.Select>
+                  onChange={(val) => setFormData((prev) => ({ ...prev, colegioId: val }))}
+                  placeholder={
+                    loadingColegios ? 'Cargando colegios...' : 'Seleccionar colegio...'
+                  }
+                  isDisabled={loadingColegios || !!errorColegios}
+                />
               </Form.Group>
             </Col>
             <Col md={3}>
@@ -176,14 +181,12 @@ export default function CrearCursoForm() {
             <Col md={3}>
               <Form.Group>
                 <Form.Label>Nivel</Form.Label>
-                <Form.Select name="nivel" value={formData.nivel} onChange={handleChange}>
-                  <option value="">Seleccionar...</option>
-                  {NIVELES.map((n) => (
-                    <option key={n} value={n}>
-                      {n === 'Basica' ? 'Básica' : 'Media'}
-                    </option>
-                  ))}
-                </Form.Select>
+                <SearchableSelect
+                  options={nivelOptions}
+                  value={formData.nivel}
+                  onChange={(val) => setFormData((prev) => ({ ...prev, nivel: val }))}
+                  placeholder="Seleccionar nivel..."
+                />
               </Form.Group>
             </Col>
             <Col md={6}>
