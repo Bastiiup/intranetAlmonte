@@ -27,12 +27,18 @@ function mapStrapiColegio(item: any) {
   }
 }
 
-async function resolveColegioInternalId(rawId: string): Promise<number | null> {
+type ResolvedColegioIds = {
+  internalId: number
+  documentId: string | number
+}
+
+async function resolveColegioInternalIds(rawId: string): Promise<ResolvedColegioIds | null> {
   const trimmedId = rawId?.trim()
   if (!trimmedId) return null
 
   const queryParams = new URLSearchParams({
     'fields[0]': 'id',
+    'fields[1]': 'documentId',
     'filters[$or][0][id][$eq]': trimmedId,
     'filters[$or][1][documentId][$eq]': trimmedId,
     'pagination[pageSize]': '1',
@@ -76,7 +82,10 @@ async function resolveColegioInternalId(rawId: string): Promise<number | null> {
     }
   )
   if (!first || first.id == null) return null
-  return Number(first.id)
+  return {
+    internalId: Number(first.id),
+    documentId: first.documentId ?? first.id,
+  }
 }
 
 export async function GET(
@@ -178,9 +187,9 @@ export async function PUT(
       payload,
     })
 
-    // Resolver ID interno numérico en Strapi a partir de id o documentId
-    const internalId = await resolveColegioInternalId(id)
-    if (internalId == null) {
+    // Resolver IDs interno y documentId en Strapi a partir de id o documentId
+    const resolved = await resolveColegioInternalIds(id)
+    if (!resolved) {
       console.error(
         '[API /api/mira/colegios/[id] PUT] No se encontró ID interno en Strapi para el colegio',
         { rawId: id }
@@ -195,7 +204,9 @@ export async function PUT(
       )
     }
 
-    const url = getStrapiUrl(`/api/colegios/${encodeURIComponent(String(internalId))}`)
+    // Igual que en Autores: usamos documentId como identificador estable en la URL
+    const pathId = String(resolved.documentId ?? resolved.internalId)
+    const url = getStrapiUrl(`/api/colegios/${encodeURIComponent(pathId)}`)
 
     const response = await fetch(url, {
       method: 'PUT',
@@ -212,7 +223,9 @@ export async function PUT(
         JSON.stringify(json?.error ?? 'Error al actualizar colegio')
       console.error('[API /api/mira/colegios/[id] PUT] Error desde Strapi', {
         rawId: id,
-        internalId,
+        internalId: resolved.internalId,
+        documentId: resolved.documentId,
+        pathId,
         status: response.status,
         statusText: response.statusText,
         error: errorMsg,
@@ -250,8 +263,8 @@ export async function DELETE(
         { status: 400 }
       )
     }
-    const internalId = await resolveColegioInternalId(id)
-    if (internalId == null) {
+    const resolved = await resolveColegioInternalIds(id)
+    if (!resolved) {
       console.error(
         '[API /api/mira/colegios/[id] DELETE] No se encontró ID interno en Strapi para el colegio',
         { rawId: id }
@@ -266,7 +279,8 @@ export async function DELETE(
       )
     }
 
-    const url = getStrapiUrl(`/api/colegios/${encodeURIComponent(String(internalId))}`)
+    const pathId = String(resolved.documentId ?? resolved.internalId)
+    const url = getStrapiUrl(`/api/colegios/${encodeURIComponent(pathId)}`)
 
     const response = await fetch(url, {
       method: 'DELETE',
