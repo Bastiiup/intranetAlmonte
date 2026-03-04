@@ -5,7 +5,6 @@ import {
   createColumnHelper,
   getCoreRowModel,
   getFilteredRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   SortingState,
   useReactTable,
@@ -79,16 +78,24 @@ export default function ColegiosListing() {
   const [selectedColegioId, setSelectedColegioId] = useState<number | string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
+  const [page, setPage] = useState(0) // 0-based
+  const [pageSize, setPageSize] = useState(25)
+  const [totalItems, setTotalItems] = useState(0)
 
-  const fetchColegios = useCallback(async () => {
+  const fetchColegios = useCallback(async (pageParam: number, pageSizeParam: number) => {
     setLoading(true)
     setError(null)
     try {
-      // Usamos pageSize=-1 para que el BFF traiga TODOS los colegios paginando internamente
-      const res = await fetch('/api/mira/colegios?pageSize=-1')
+      const apiPage = pageParam + 1 // backend es 1-based
+      const res = await fetch(`/api/mira/colegios?page=${apiPage}&pageSize=${pageSizeParam}`)
       const result = await res.json()
       if (result.success && Array.isArray(result.data)) {
         setData(result.data)
+        const total =
+          result.meta?.pagination?.total != null
+            ? Number(result.meta.pagination.total)
+            : result.data.length
+        setTotalItems(total)
       } else {
         setError(result.error ?? 'Error al obtener colegios')
       }
@@ -100,8 +107,8 @@ export default function ColegiosListing() {
   }, [])
 
   useEffect(() => {
-    fetchColegios()
-  }, [fetchColegios])
+    fetchColegios(page, pageSize)
+  }, [fetchColegios, page, pageSize])
 
   // Buscar como en Autores: usar un valor diferido y memoizar el filtrado
   const deferredSearch = useDeferredValue(searchTerm)
@@ -242,17 +249,15 @@ export default function ColegiosListing() {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    initialState: {
-      pagination: { pageSize: 25 },
-    },
   })
 
-  const totalItems = table.getFilteredRowModel().rows.length
-  const pageIndex = table.getState().pagination.pageIndex
-  const pageSize = table.getState().pagination.pageSize
-  const start = totalItems === 0 ? 0 : pageIndex * pageSize + 1
-  const end = Math.min((pageIndex + 1) * pageSize, totalItems)
+  const currentRows = table.getRowModel().rows
+  const currentCount = currentRows.length
+
+  const totalForPagination = totalItems || currentCount
+  const start = totalForPagination === 0 ? 0 : page * pageSize + 1
+  const end = Math.min((page + 1) * pageSize, totalForPagination)
+  const pageCount = Math.max(1, Math.ceil(totalForPagination / pageSize))
 
   return (
     <Card>
@@ -313,7 +318,11 @@ export default function ColegiosListing() {
             <select
               className="form-select form-control my-1 my-md-0"
               value={pageSize}
-              onChange={(e) => table.setPageSize(Number(e.target.value))}
+              onChange={(e) => {
+                const newSize = Number(e.target.value)
+                setPageSize(newSize)
+                setPage(0)
+              }}
             >
               {[5, 8, 10, 15, 20, 25, 50].map((size) => (
                 <option key={size} value={size}>
@@ -438,18 +447,20 @@ export default function ColegiosListing() {
           )}
           <CardFooter>
             <TablePagination
-              totalItems={totalItems}
+              totalItems={totalForPagination}
               start={start}
               end={end}
               itemsName="colegios"
               showInfo
-              previousPage={table.previousPage}
-              canPreviousPage={table.getCanPreviousPage()}
-              pageCount={table.getPageCount()}
-              pageIndex={table.getState().pagination.pageIndex}
-              setPageIndex={table.setPageIndex}
-              nextPage={table.nextPage}
-              canNextPage={table.getCanNextPage()}
+              previousPage={() => setPage((prev) => Math.max(0, prev - 1))}
+              canPreviousPage={page > 0}
+              pageCount={pageCount}
+              pageIndex={page}
+              setPageIndex={(index) => setPage(Math.max(0, Math.min(index, pageCount - 1)))}
+              nextPage={() =>
+                setPage((prev) => (prev + 1 < pageCount ? prev + 1 : prev))
+              }
+              canNextPage={page + 1 < pageCount}
             />
           </CardFooter>
         </>
