@@ -101,8 +101,8 @@ export default function LibrosMiraListing() {
     fetchLibros(page, pageSize, deferredSearch)
   }, [fetchLibros, page, pageSize, deferredSearch])
 
-  const openDeleteModal = (id: number | string) => {
-    setSelectedId(id)
+  const openDeleteModal = (id: number | string, documentId?: string) => {
+    setSelectedId(documentId ?? id)
     setShowDeleteModal(true)
   }
 
@@ -124,7 +124,7 @@ export default function LibrosMiraListing() {
         throw new Error(message)
       }
 
-      setData((prev) => prev.filter((c) => c.id !== selectedId))
+      setData((prev) => prev.filter((c) => c.documentId !== selectedId))
       toast.success('Libro MIRA eliminado correctamente')
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al eliminar libro MIRA'
@@ -185,12 +185,12 @@ export default function LibrosMiraListing() {
       header: 'Acciones',
       cell: ({ row }) => (
         <div className="d-flex gap-1">
-          <Link href={`/mira/libros-mira/${row.original.id}`}>
+          <Link href={`/mira/libros-mira/${row.original.documentId || row.original.id}`}>
             <Button variant="default" size="sm" className="btn-icon rounded-circle">
               <TbEye className="fs-lg" />
             </Button>
           </Link>
-          <Link href={`/mira/libros-mira/${row.original.id}`}>
+          <Link href={`/mira/libros-mira/${row.original.documentId || row.original.id}`}>
             <Button variant="default" size="sm" className="btn-icon rounded-circle">
               <TbEdit className="fs-lg" />
             </Button>
@@ -199,7 +199,7 @@ export default function LibrosMiraListing() {
             variant="default"
             size="sm"
             className="btn-icon rounded-circle"
-            onClick={() => openDeleteModal(row.original.id)}
+            onClick={() => openDeleteModal(row.original.id, row.original.documentId)}
           >
             <TbTrash className="fs-lg" />
           </Button>
@@ -383,7 +383,9 @@ export default function LibrosMiraListing() {
                               </span>
                             </div>
                             <div className="d-flex gap-1">
-                              <Link href={`/mira/libros-mira/${libro.id}`}>
+                              <Link
+                                href={`/mira/libros-mira/${libro.documentId || libro.id}`}
+                              >
                                 <Button
                                   variant="default"
                                   size="sm"
@@ -392,7 +394,9 @@ export default function LibrosMiraListing() {
                                   <TbEye className="fs-lg" />
                                 </Button>
                               </Link>
-                              <Link href={`/mira/libros-mira/${libro.id}`}>
+                              <Link
+                                href={`/mira/libros-mira/${libro.documentId || libro.id}`}
+                              >
                                 <Button
                                   variant="default"
                                   size="sm"
@@ -405,7 +409,7 @@ export default function LibrosMiraListing() {
                                 variant="default"
                                 size="sm"
                                 className="btn-icon rounded-circle"
-                                onClick={() => openDeleteModal(libro.id)}
+                                onClick={() => openDeleteModal(libro.id, libro.documentId)}
                               >
                                 <TbTrash className="fs-lg" />
                               </Button>

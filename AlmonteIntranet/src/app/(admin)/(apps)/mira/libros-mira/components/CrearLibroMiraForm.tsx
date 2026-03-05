@@ -48,6 +48,7 @@ export default function CrearLibroMiraForm() {
     setErrorLibros(null)
     try {
       const params = new URLSearchParams()
+      params.set('page', String(page))
       if (search.trim()) {
         params.set('search', search.trim())
       }
@@ -68,9 +69,15 @@ export default function CrearLibroMiraForm() {
           return merged
         })
 
-        // API actual no retorna meta; dejamos paginación simple basada en search
-        setLibrosHasMore(false)
-        setLibrosPage(page)
+        const meta = result.meta?.pagination
+        if (meta && meta.page != null && meta.pageCount != null) {
+          setLibrosHasMore(meta.page < meta.pageCount)
+          setLibrosPage(meta.page)
+        } else {
+          // Fallback: si vienen exactamente 50, asumimos que puede haber más
+          setLibrosHasMore(mapped.length === 50)
+          setLibrosPage(page)
+        }
       } else {
         setErrorLibros(result.error ?? 'Error al obtener libros base')
         setLibrosHasMore(false)

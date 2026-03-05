@@ -12,8 +12,10 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const search = (searchParams.get('search') || '').trim()
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
 
     const params = new URLSearchParams({
+      'pagination[page]': String(page),
       'pagination[pageSize]': '50',
       'sort[0]': 'nombre_libro:asc',
       'fields[0]': 'nombre_libro',
@@ -59,7 +61,9 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({ success: true, data })
+    const meta = json.meta ?? null
+
+    return NextResponse.json({ success: true, data, meta })
   } catch (e: any) {
     console.error('[API /api/mira/libros-base] Error:', e)
     return NextResponse.json(

@@ -201,16 +201,13 @@ export default function LibroMiraDetails({ initialData, libroMiraId }: Props) {
             <SearchableSelect
               options={libroOptions}
               value={formData.libroId}
-              onChange={(val) => setFormData((prev) => ({ ...prev, libroId: val }))}
+              // En edición no permitimos cambiar el libro base
+              onChange={() => {}}
               placeholder={
-                loadingLibros ? 'Cargando libros...' : 'Buscar o seleccionar libro...'
+                loadingLibros ? 'Cargando libros...' : 'Libro base asignado'
               }
-              isDisabled={loadingLibros && librosBase.length === 0}
-              isLoading={loadingLibros}
-              onInputChange={(input) => {
-                setLibrosSearch(input)
-                loadLibrosBase(input)
-              }}
+              isDisabled
+              isLoading={loadingLibros && librosBase.length === 0}
             />
           </Form.Group>
         </Col>
