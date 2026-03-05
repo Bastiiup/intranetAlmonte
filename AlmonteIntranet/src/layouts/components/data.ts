@@ -217,6 +217,11 @@ export const menuItems: MenuItemType[] = [
         label: 'Crear evaluación (Hoja Maestra)',
         url: '/mira/evaluaciones/crear',
       },
+      {
+        key: 'mira-libros-mira',
+        label: 'Asignar Libros a MIRA',
+        url: '/mira/libros-mira',
+      },
       { key: 'mira-analiticas', label: 'Analíticas', url: '/mira/analiticas' },
       { key: 'mira-gestor-multimedia', label: 'Gestión Multimedia', url: '/mira/recursos' },
       { key: 'mira-profesores', label: 'Profesores', url: '/mira/profesores' },
