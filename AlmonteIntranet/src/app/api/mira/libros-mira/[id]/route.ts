@@ -52,6 +52,7 @@ export async function GET(
       'populate[libro][fields][0]': 'nombre_libro',
       'populate[libro][fields][1]': 'isbn_libro',
       'populate[asignatura][fields][0]': 'nombre',
+      publicationState: 'preview', // incluye borradores para que el admin pueda editar
     })
     const url = `${getStrapiUrl(`/api/libros-mira/${encodeURIComponent(id)}`)}?${queryParams.toString()}`
     const headers: HeadersInit = {}

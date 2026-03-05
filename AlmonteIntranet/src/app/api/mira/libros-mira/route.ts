@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
       'pagination[page]': String(page),
       'pagination[pageSize]': String(pageSize),
       'sort[0]': 'id:asc',
+      publicationState: 'preview', // incluye borradores en el listado admin
     })
 
     if (search) {
