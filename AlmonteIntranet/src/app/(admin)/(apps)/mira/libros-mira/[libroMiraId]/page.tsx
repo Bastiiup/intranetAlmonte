@@ -3,7 +3,7 @@ import { headers } from 'next/headers'
 import type { Metadata } from 'next'
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import LibroMiraDetails from './components/LibroMiraDetails'
+import LibroMiraDetails from '../components/LibroMiraDetails'
 
 export const dynamic = 'force-dynamic'
 
