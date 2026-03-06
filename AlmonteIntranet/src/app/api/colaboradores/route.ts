@@ -26,7 +26,8 @@ export async function GET(request: Request) {
     const pageSize = searchParams.get('pageSize') || '50'
 
     // Usar fields específicos para persona para evitar errores con campos que no existen (tags, etc)
-    let url = `/api/colaboradores?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[usuario]=*&pagination[page]=${page}&pagination[pageSize]=${pageSize}&sort=createdAt:desc`
+    // populate[usuario]=* pide persona_perfil que no existe en users-permissions; usar campos explícitos
+    let url = `/api/colaboradores?populate[persona][fields]=rut,nombres,primer_apellido,segundo_apellido,nombre_completo&populate[usuario][fields]=id,documentId,username,email,confirmed,blocked&pagination[page]=${page}&pagination[pageSize]=${pageSize}&sort=createdAt:desc`
     
     if (email) {
       url += `&filters[email_login][$contains]=${encodeURIComponent(email)}`

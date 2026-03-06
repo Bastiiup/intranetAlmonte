@@ -18,10 +18,10 @@ export async function GET(request: NextRequest) {
       'populate[libro_mira][fields][1]': 'tiene_omr',
       'populate[estudiante][populate][persona]': 'true',
       'populate[estudiante][populate][colegio]': 'true',
+      // NOTA: ya no pedimos "curso" como campo directo porque ahora es relación en persona-mira
       'populate[estudiante][fields][0]': 'email',
       'populate[estudiante][fields][1]': 'nivel',
-      'populate[estudiante][fields][2]': 'curso',
-      'populate[estudiante][fields][3]': 'activo',
+      'populate[estudiante][fields][2]': 'activo',
       'pagination[page]': page.toString(),
       'pagination[pageSize]': pageSize.toString(),
       'sort': 'createdAt:desc',
