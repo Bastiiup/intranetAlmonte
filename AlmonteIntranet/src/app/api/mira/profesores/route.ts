@@ -80,6 +80,7 @@ export async function GET(request: NextRequest) {
       // Profesores tienen usuario_login (up_users); estudiantes registro-estudiante no
       params.set('filters[usuario_login][id][$notNull]', 'true')
       params.set('publicationState', 'preview')
+      // Sintaxis por nombre (Strapi no acepta populate[0],[1],[2])
       params.set('populate[emails]', 'true')
       params.set('populate[usuario_login]', 'true')
       if (status === 'Aprobado') {
