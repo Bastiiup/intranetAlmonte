@@ -80,10 +80,9 @@ export async function GET(request: NextRequest) {
       // Profesores tienen usuario_login (up_users); estudiantes registro-estudiante no
       params.set('filters[usuario_login][id][$notNull]', 'true')
       params.set('publicationState', 'preview')
-      params.set('populate[0]', 'emails')
-      params.set('populate[1]', 'usuario_login')
+      params.set('populate[emails]', 'true')
+      params.set('populate[usuario_login]', 'true')
       if (status === 'Aprobado') {
-        params.set('populate[2]', 'trayectorias')
         params.set('populate[trayectorias][populate][colegio]', 'true')
         params.set('populate[trayectorias][populate][curso]', 'true')
         params.set('populate[trayectorias][populate][asignatura]', 'true')
