@@ -89,9 +89,9 @@ export async function GET(request: NextRequest) {
         params.set('filters[status_nombres][$eq]', status)
         console.log(`${LOG} 2. Filtro status: ${status}`)
       }
-      // Solo para Pendientes: excluir estudiantes. Activos (Aprobado/Verificado) no incluyen estudiantes
+      // Solo Pendientes: profesores tienen usuario_login (registro-profesor); estudiantes no (registro-estudiante)
       if (status === 'Por Verificar') {
-        params.set('filters[tipo_entidad][$ne]', 'Estudiante')
+        params.set('filters[usuario_login][id][$notNull]', 'true')
       }
       params.set('publicationState', 'preview')
       params.set('populate[emails]', 'true')
