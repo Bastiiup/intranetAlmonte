@@ -58,16 +58,20 @@ function buildCargaAcademica(trayectoriasRaw: any[]): { summary: string; items: 
  * GET /api/mira/profesores
  * Lista profesores (personas). Soporta filtro por estado de verificación.
  * - status=Por Verificar: personas con status_nombres 'Por Verificar' (pendientes de aprobación).
- * - status=Aprobado: personas con status_nombres 'Aprobado'.
+ * - status=Aprobado: personas con status_nombres 'Aprobado' o 'Verificado' (activos).
  * - Sin status: personas con usuario_login (comportamiento legacy); incluye status_nombres en respuesta.
  */
 export async function GET(request: NextRequest) {
+  const LOG = '[mira/profesores]'
+  console.log(`${LOG} 0. GET recibido: ${request.url}`)
   try {
     const { searchParams } = new URL(request.url)
     const page = searchParams.get('page') || '1'
     const pageSize = searchParams.get('pageSize') || '100'
     const search = searchParams.get('search') || ''
     const status = searchParams.get('status') || '' // 'Por Verificar' | 'Aprobado'
+
+    console.log(`${LOG} 1. Params recibidos: page=${page}, pageSize=${pageSize}, search="${search}", status="${status}"`)
 
     const params = new URLSearchParams({
       'pagination[page]': page,
@@ -76,11 +80,20 @@ export async function GET(request: NextRequest) {
     })
 
     if (status) {
-      params.set('filters[status_nombres][$eq]', status)
-      // Profesores tienen usuario_login (up_users); estudiantes registro-estudiante no
-      params.set('filters[usuario_login][id][$notNull]', 'true')
+      // Profesores activos: Aprobado o Verificado (legacy). Excluir solo estudiantes (tipo_entidad=Estudiante)
+      if (status === 'Aprobado') {
+        params.set('filters[$or][0][status_nombres][$eq]', 'Aprobado')
+        params.set('filters[$or][1][status_nombres][$eq]', 'Verificado')
+        console.log(`${LOG} 2. Filtro status: Aprobado o Verificado (profesores activos)`)
+      } else {
+        params.set('filters[status_nombres][$eq]', status)
+        console.log(`${LOG} 2. Filtro status: ${status}`)
+      }
+      // Solo para Pendientes: excluir estudiantes. Activos (Aprobado/Verificado) no incluyen estudiantes
+      if (status === 'Por Verificar') {
+        params.set('filters[tipo_entidad][$ne]', 'Estudiante')
+      }
       params.set('publicationState', 'preview')
-      // Sintaxis por nombre (Strapi no acepta populate[0],[1],[2])
       params.set('populate[emails]', 'true')
       params.set('populate[usuario_login]', 'true')
       if (status === 'Aprobado') {
@@ -88,6 +101,7 @@ export async function GET(request: NextRequest) {
         params.set('populate[trayectorias][populate][curso]', 'true')
         params.set('populate[trayectorias][populate][asignatura]', 'true')
       }
+      console.log(`${LOG} 3. Filtros: publicationState=preview, populate emails+usuario_login${status === 'Aprobado' ? '+trayectorias' : ''}`)
     } else {
       params.set('populate[usuario_login][fields][0]', 'email')
       params.set('populate[usuario_login][fields][1]', 'username')
@@ -98,16 +112,35 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      params.set('filters[$or][0][nombre_completo][$containsi]', search)
-      params.set('filters[$or][1][rut][$containsi]', search)
-      params.set('filters[$or][2][nombres][$containsi]', search)
-      params.set('filters[$or][3][primer_apellido][$containsi]', search)
+      if (status === 'Aprobado') {
+        params.delete('filters[$or][0][status_nombres][$eq]')
+        params.delete('filters[$or][1][status_nombres][$eq]')
+        params.set('filters[$and][0][$or][0][status_nombres][$eq]', 'Aprobado')
+        params.set('filters[$and][0][$or][1][status_nombres][$eq]', 'Verificado')
+        params.set('filters[$and][1][$or][0][nombre_completo][$containsi]', search)
+        params.set('filters[$and][1][$or][1][rut][$containsi]', search)
+        params.set('filters[$and][1][$or][2][nombres][$containsi]', search)
+        params.set('filters[$and][1][$or][3][primer_apellido][$containsi]', search)
+      } else {
+        params.set('filters[$or][0][nombre_completo][$containsi]', search)
+        params.set('filters[$or][1][rut][$containsi]', search)
+        params.set('filters[$or][2][nombres][$containsi]', search)
+        params.set('filters[$or][3][primer_apellido][$containsi]', search)
+      }
     }
 
-    const response = await strapiClient.get<any>(`/api/personas?${params.toString()}`)
+    const url = `/api/personas?${params.toString()}`
+    console.log(`${LOG} 4. URL Strapi: ${url}`)
+    const response = await strapiClient.get<any>(url)
 
     const personas = Array.isArray(response.data) ? response.data : response.data ? [response.data] : []
     const meta = response.meta || { pagination: { page: 1, pageSize: 25, pageCount: 1, total: personas.length } }
+
+    console.log(`${LOG} 5. Respuesta Strapi: ${personas.length} personas, meta=`, JSON.stringify(meta))
+    personas.forEach((p: any, i: number) => {
+      const a = p.attributes || p
+      console.log(`${LOG} 5.${i + 1} Persona id=${p.id} docId=${p.documentId} nombre="${a.nombre_completo || a.nombres}" status="${a.status_nombres}" tipo_entidad="${a.tipo_entidad}" usuario_login=${a.usuario_login ? 'Sí' : 'No'}`)
+    })
 
     const profesores = personas.map((p: any) => {
       const attrs = p.attributes || p
@@ -139,13 +172,14 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    console.log(`${LOG} 6. Devolviendo ${profesores.length} profesores`)
     return NextResponse.json({
       success: true,
       data: profesores,
       meta,
     })
   } catch (error: any) {
-    console.error('[API /mira/profesores GET] Error:', error.message)
+    console.error(`${LOG} ERROR:`, error?.message, error?.stack)
     return NextResponse.json(
       { success: false, error: error.message || 'Error al obtener profesores' },
       { status: error.status || 500 }
