@@ -77,11 +77,13 @@ export async function GET(request: NextRequest) {
 
     if (status) {
       params.set('filters[status_nombres][$eq]', status)
-      // Excluir solo estudiantes: profesores tienen Profesor/Otro, estudiantes tienen Estudiante
-      params.set('filters[tipo_entidad][$ne]', 'Estudiante')
+      // Profesores tienen usuario_login (up_users); estudiantes registro-estudiante no
+      params.set('filters[usuario_login][id][$notNull]', 'true')
+      params.set('publicationState', 'preview')
       params.set('populate[0]', 'emails')
+      params.set('populate[1]', 'usuario_login')
       if (status === 'Aprobado') {
-        params.set('populate[1]', 'trayectorias')
+        params.set('populate[2]', 'trayectorias')
         params.set('populate[trayectorias][populate][colegio]', 'true')
         params.set('populate[trayectorias][populate][curso]', 'true')
         params.set('populate[trayectorias][populate][asignatura]', 'true')
