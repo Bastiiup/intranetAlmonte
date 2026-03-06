@@ -77,6 +77,8 @@ export async function GET(request: NextRequest) {
 
     if (status) {
       params.set('filters[status_nombres][$eq]', status)
+      // Solo profesores: excluir estudiantes que tienen status Por Verificar por compartir flujo persona
+      params.set('filters[tipo_entidad][$eq]', 'Profesor')
       params.set('populate[0]', 'emails')
       if (status === 'Aprobado') {
         params.set('populate[1]', 'trayectorias')
