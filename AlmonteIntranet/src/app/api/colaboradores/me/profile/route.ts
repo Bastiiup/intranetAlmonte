@@ -9,6 +9,7 @@ import { getStreamClient } from '@/lib/stream/client'
 import { getColaboradorFromCookies } from '@/lib/auth/cookies'
 import { extractStrapiData, getStrapiId, normalizeColaborador, normalizePersona } from '@/lib/strapi/helpers'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import { STRAPI_API_URL } from '@/lib/strapi/config'
 
 export const dynamic = 'force-dynamic'
 
@@ -666,7 +667,7 @@ export async function GET(request: NextRequest) {
     // Si hay token y no tenemos colaboradorId, intentar obtener desde Strapi
     if (token && !colaboradorId) {
       try {
-        const userResponse = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/users/me`, {
+        const userResponse = await fetch(`${STRAPI_API_URL}/api/users/me`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },

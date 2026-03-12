@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import strapiClient from '@/lib/strapi/client'
 import type { StrapiResponse, StrapiEntity } from '@/lib/strapi/types'
+import { STRAPI_API_URL } from '@/lib/strapi/config'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
     const token = authHeader.replace('Bearer ', '')
 
     // Obtener el usuario autenticado desde Strapi
-    const userResponse = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/users/me`, {
+    const userResponse = await fetch(`${STRAPI_API_URL}/api/users/me`, {
       headers: {
         'Authorization': `Bearer ${token}`,
       },

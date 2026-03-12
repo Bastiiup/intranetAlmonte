@@ -19,20 +19,20 @@ const isDevelopment = process.env.NODE_ENV === 'development'
 // Verificar si se fuerza el uso del remoto
 const forceRemote = process.env.STRAPI_FORCE_REMOTE === 'true' || process.env.STRAPI_FORCE_REMOTE === '1'
 
-// URL base de Strapi
+// Normalizar URL: sin barra final para evitar dobles barras (//api/...)
+const normalizeBaseUrl = (url: string): string => (url || '').replace(/\/+$/, '')
+
+// URL base de Strapi (siempre sin barra final)
 const getStrapiApiUrl = (): string => {
-  // Si se fuerza remoto, siempre usar remoto
+  let url: string
   if (forceRemote) {
-    return process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'
+    url = process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'
+  } else if (isDevelopment && process.env.NEXT_PUBLIC_STRAPI_URL_LOCAL) {
+    url = process.env.NEXT_PUBLIC_STRAPI_URL_LOCAL
+  } else {
+    url = process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'
   }
-  
-  // En desarrollo, usar local solo si está explícitamente configurado
-  if (isDevelopment && process.env.NEXT_PUBLIC_STRAPI_URL_LOCAL) {
-    return process.env.NEXT_PUBLIC_STRAPI_URL_LOCAL
-  }
-  
-  // Por defecto, usar la URL remota
-  return process.env.NEXT_PUBLIC_STRAPI_URL || 'https://strapi.moraleja.cl'
+  return normalizeBaseUrl(url)
 }
 
 export const STRAPI_API_URL = getStrapiApiUrl()
