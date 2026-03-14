@@ -31,7 +31,8 @@ export async function uploadExcelToStrapi(
 ): Promise<{ url: string; id?: number }> {
   const uploadUrl = getStrapiUrl('/api/upload')
   const form = new FormData()
-  const blob = new Blob([buffer], {
+  // Uint8Array es BlobPart válido; Buffer en Node puede dar error de tipos en TS estricto
+  const blob = new Blob([new Uint8Array(buffer)], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   })
   form.append('files', blob, filename)
