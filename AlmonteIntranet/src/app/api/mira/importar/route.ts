@@ -333,7 +333,7 @@ export async function POST(request: NextRequest) {
       existentes.forEach((code) => codigosExistentes.add(code))
     }
     const licenciasSinColision = licenciasParaCrear.filter((l) => !codigosExistentes.has(l.codigo))
-    const omitidosColision = licenciasParaCrear.length - licenciasSinColision
+    const omitidosColision = licenciasParaCrear.length - licenciasSinColision.length
     if (omitidosColision > 0) {
       logs.push({ type: 'warning', message: `[ANTI-COLISION] ${omitidosColision} codigos ya existen en la BD, omitidos` })
     }
