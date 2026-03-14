@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getStrapiUrl, STRAPI_API_TOKEN } from '@/lib/strapi/config'
+import { buildLicenciasExcelFilename, uploadExcelToStrapi } from '@/lib/strapi/upload'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -8,6 +9,33 @@ export const maxDuration = 300 // 5 minutos para importaciones grandes
 interface LogEntry {
   type: 'info' | 'success' | 'warning' | 'error'
   message: string
+}
+
+const CHECK_BATCH = 100
+
+/** Devuelve Set de códigos que ya existen en Strapi. */
+async function codigosExistentesEnStrapi(codigos: string[]): Promise<Set<string>> {
+  if (codigos.length === 0) return new Set()
+  const baseUrl = getStrapiUrl('/api/licencias-estudiantes')
+  const existentes = new Set<string>()
+  const params = new URLSearchParams()
+  codigos.forEach((c, i) => {
+    params.set(`filters[codigo_activacion][$in][${i}]`, c)
+  })
+  params.set('pagination[pageSize]', String(codigos.length))
+  params.set('fields[0]', 'codigo_activacion')
+  const res = await fetch(`${baseUrl}?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${STRAPI_API_TOKEN}`, 'Content-Type': 'application/json' },
+  })
+  if (!res.ok) return existentes
+  const json = await res.json().catch(() => ({}))
+  const data = json.data ?? json
+  const list = Array.isArray(data) ? data : []
+  list.forEach((item: any) => {
+    const code = item?.attributes?.codigo_activacion ?? item?.codigo_activacion
+    if (typeof code === 'string') existentes.add(code)
+  })
+  return existentes
 }
 
 export async function POST(request: NextRequest) {
@@ -295,16 +323,31 @@ export async function POST(request: NextRequest) {
     
     console.log(`[IMPORTAR] Preparadas ${licenciasParaCrear.length} licencias para crear de ${totalFilas} filas procesadas`)
     logs.push({ type: 'info', message: `[PROCESO] Preparadas ${licenciasParaCrear.length} licencias para crear de ${totalFilas} filas procesadas` })
+
+    // Anti-colisión: filtrar códigos que ya existen en Strapi
+    const todosCodigos = licenciasParaCrear.map((l) => l.codigo)
+    const codigosExistentes = new Set<string>()
+    for (let c = 0; c < todosCodigos.length; c += CHECK_BATCH) {
+      const chunk = todosCodigos.slice(c, c + CHECK_BATCH)
+      const existentes = await codigosExistentesEnStrapi(chunk)
+      existentes.forEach((code) => codigosExistentes.add(code))
+    }
+    const licenciasSinColision = licenciasParaCrear.filter((l) => !codigosExistentes.has(l.codigo))
+    const omitidosColision = licenciasParaCrear.length - licenciasSinColision
+    if (omitidosColision > 0) {
+      logs.push({ type: 'warning', message: `[ANTI-COLISION] ${omitidosColision} codigos ya existen en la BD, omitidos` })
+    }
     
     // PASO 2: Crear licencias en lotes con Promise.all (concurrencia controlada)
     const BATCH_SIZE = 20 // Procesar 20 licencias a la vez
+    const licenciasCreadas: Array<{ codigo: string; libroNombre: string }> = []
     console.log(`[IMPORTAR] Iniciando creacion de licencias en lotes de ${BATCH_SIZE}`)
     logs.push({ type: 'info', message: `[LOTES] Creando licencias en lotes de ${BATCH_SIZE}...` })
     
-    for (let i = 0; i < licenciasParaCrear.length; i += BATCH_SIZE) {
-      const batch = licenciasParaCrear.slice(i, i + BATCH_SIZE)
+    for (let i = 0; i < licenciasSinColision.length; i += BATCH_SIZE) {
+      const batch = licenciasSinColision.slice(i, i + BATCH_SIZE)
       const batchNum = Math.floor(i / BATCH_SIZE) + 1
-      const totalBatches = Math.ceil(licenciasParaCrear.length / BATCH_SIZE)
+      const totalBatches = Math.ceil(licenciasSinColision.length / BATCH_SIZE)
       
       console.log(`[IMPORTAR] Procesando lote ${batchNum}/${totalBatches} con ${batch.length} licencias`)
       logs.push({ type: 'info', message: `[LOTE] Procesando lote ${batchNum}/${totalBatches} (${batch.length} licencias)...` })
@@ -407,6 +450,11 @@ export async function POST(request: NextRequest) {
       
       // Esperar a que todas las promesas del lote se completen
       const results = await Promise.all(promises)
+      batch.forEach((lic, idx) => {
+        if ((results[idx] as any)?.success) {
+          licenciasCreadas.push({ codigo: lic.codigo, libroNombre: lic.libroNombre })
+        }
+      })
       console.log(`[IMPORTAR] Lote ${batchNum} completado. Resultados:`, results)
     }
 
@@ -437,6 +485,33 @@ export async function POST(request: NextRequest) {
       logs.push({ type: 'info', message: '[INFO] Estos libros no estan activados en MIRA. Activarlos primero antes de importar sus licencias.' })
     }
 
+    let excelUrl: string | null = null
+    let excelFilename: string | null = null
+    const baseUrlApp = process.env.NEXT_PUBLIC_MIRA_APP_URL || process.env.MIRA_APP_URL || 'https://app.mira.cl'
+    const activarBase = `${baseUrlApp.replace(/\/$/, '')}/activar`
+
+    if (licenciasCreadas.length > 0) {
+      const rows = licenciasCreadas.map(({ codigo, libroNombre }) => ({
+        Libro_ID: libroNombre,
+        Codigo: codigo,
+        URL_QR: `${activarBase}?codigo=${encodeURIComponent(codigo)}`,
+      }))
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.json_to_sheet(rows)
+      XLSX.utils.book_append_sheet(wb, ws, 'Licencias')
+      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
+      const primerLibro = licenciasCreadas[0]?.libroNombre ?? 'Importacion'
+      excelFilename = buildLicenciasExcelFilename(primerLibro, licenciasCreadas.length)
+      try {
+        const { url } = await uploadExcelToStrapi(Buffer.from(buffer), excelFilename)
+        excelUrl = url
+        logs.push({ type: 'success', message: `[EXCEL] Archivo guardado en Strapi: ${excelFilename}` })
+      } catch (uploadErr: any) {
+        console.error('[IMPORTAR] Error subiendo Excel a Strapi:', uploadErr)
+        logs.push({ type: 'warning', message: `[EXCEL] No se pudo subir a Strapi: ${uploadErr.message || 'Error desconocido'}` })
+      }
+    }
+
     return NextResponse.json({
       success: true,
       logs,
@@ -447,6 +522,7 @@ export async function POST(request: NextRequest) {
         warnings: warningCount,
         librosNoEncontrados: Array.from(librosNoEncontrados),
       },
+      ...(excelUrl && excelFilename ? { excelUrl, excelFilename } : {}),
     })
   } catch (error: any) {
     const totalTime = ((Date.now() - startTime) / 1000).toFixed(2)

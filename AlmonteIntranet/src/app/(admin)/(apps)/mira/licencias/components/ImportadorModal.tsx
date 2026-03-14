@@ -39,6 +39,7 @@ export default function ImportadorModal({
     warnings: number
     librosNoEncontrados?: string[]
   } | null>(null)
+  const [excelDownload, setExcelDownload] = useState<{ url: string; filename: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const logsEndRef = useRef<HTMLDivElement>(null)
 
@@ -102,6 +103,7 @@ export default function ImportadorModal({
     setIsProcessing(true)
     setLogs([])
     setSummary(null)
+    setExcelDownload(null)
 
     try {
       // Subir archivo a la API del servidor
@@ -146,6 +148,9 @@ export default function ImportadorModal({
         if (result.summary) {
           setSummary(result.summary)
         }
+        if (result.excelUrl && result.excelFilename) {
+          setExcelDownload({ url: result.excelUrl, filename: result.excelFilename })
+        }
 
         if (onImportComplete) {
           onImportComplete()
@@ -170,6 +175,7 @@ export default function ImportadorModal({
       setFile(null)
       setLogs([])
       setSummary(null)
+      setExcelDownload(null)
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
@@ -253,6 +259,24 @@ export default function ImportadorModal({
             </div>
           )}
         </div>
+
+        {/* Descargar Excel (cuando el backend lo subió a Strapi) */}
+        {excelDownload && (
+          <Alert variant="success" className="mt-3">
+            <strong>Excel generado (también guardado en Historial de Archivos).</strong>
+            <div className="mt-2">
+              <a
+                href={excelDownload.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-sm btn-success"
+                download={excelDownload.filename}
+              >
+                Descargar Excel
+              </a>
+            </div>
+          </Alert>
+        )}
 
         {/* Resumen */}
         {summary && (

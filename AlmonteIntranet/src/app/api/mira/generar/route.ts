@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getStrapiUrl, STRAPI_API_TOKEN } from '@/lib/strapi/config'
+import { buildLicenciasExcelFilename, uploadExcelToStrapi } from '@/lib/strapi/upload'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -206,9 +207,17 @@ export async function POST(request: NextRequest) {
     const ws = XLSX.utils.json_to_sheet(rows)
     XLSX.utils.book_append_sheet(wb, ws, 'Licencias')
     const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
+    const bufferBuf = Buffer.from(buffer)
 
-    const filename = `licencias_generadas_${Date.now()}.xlsx`
-    return new NextResponse(buffer, {
+    const filename = buildLicenciasExcelFilename(libroNombre, codigos.length)
+    try {
+      await uploadExcelToStrapi(bufferBuf, filename)
+    } catch (uploadErr) {
+      console.error('[generar] Error subiendo Excel a Strapi:', uploadErr)
+      // Sigue devolviendo el archivo al frontend aunque falle la subida
+    }
+
+    return new NextResponse(bufferBuf, {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

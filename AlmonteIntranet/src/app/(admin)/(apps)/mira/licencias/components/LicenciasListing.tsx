@@ -23,6 +23,7 @@ import TablePagination from '@/components/table/TablePagination'
 import ImportadorModal from './ImportadorModal'
 import GeneradorModal from './GeneradorModal'
 import EditLicenciaModal from './EditLicenciaModal'
+import HistorialExcels from './HistorialExcels'
 
 export interface LicenciaType {
   id: number | string
@@ -89,6 +90,7 @@ export default function LicenciasListing({ licencias: licenciasProp, error: init
   const [showGeneradorModal, setShowGeneradorModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [selectedLicencia, setSelectedLicencia] = useState<LicenciaType | null>(null)
+  const [historialRefreshTrigger, setHistorialRefreshTrigger] = useState(0)
   const [data, setData] = useState<LicenciaType[]>([])
   const [error, setError] = useState<string | null>(initialError)
   const [paginationMeta, setPaginationMeta] = useState(initialMeta?.pagination || {
@@ -575,6 +577,8 @@ export default function LicenciasListing({ licencias: licenciasProp, error: init
             emptyMessage="No se encontraron licencias"
           />
 
+          <HistorialExcels refreshTrigger={historialRefreshTrigger} />
+
           {table.getRowModel().rows.length > 0 && (
             <CardFooter className="border-0">
               <TablePagination
@@ -611,6 +615,7 @@ export default function LicenciasListing({ licencias: licenciasProp, error: init
             onHide={() => setShowGeneradorModal(false)}
             onGenerateComplete={() => {
               recargarLicencias()
+              setHistorialRefreshTrigger((t) => t + 1)
             }}
           />
 
@@ -620,6 +625,7 @@ export default function LicenciasListing({ licencias: licenciasProp, error: init
             onImportComplete={() => {
               setShowImportModal(false)
               recargarLicencias()
+              setHistorialRefreshTrigger((t) => t + 1)
             }}
           />
         </Card>
