@@ -15,12 +15,13 @@ import {
 } from '@tanstack/react-table'
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Button, Card, CardFooter, CardHeader, Col, Row, Alert, Badge } from 'react-bootstrap'
-import { LuSearch, LuRefreshCw, LuUpload } from 'react-icons/lu'
+import { LuSearch, LuRefreshCw, LuUpload, LuPackage } from 'react-icons/lu'
 import { TbEdit } from 'react-icons/tb'
 
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import ImportadorModal from './ImportadorModal'
+import GeneradorModal from './GeneradorModal'
 import EditLicenciaModal from './EditLicenciaModal'
 
 export interface LicenciaType {
@@ -85,6 +86,7 @@ export default function LicenciasListing({ licencias: licenciasProp, error: init
   const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
+  const [showGeneradorModal, setShowGeneradorModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [selectedLicencia, setSelectedLicencia] = useState<LicenciaType | null>(null)
   const [data, setData] = useState<LicenciaType[]>([])
@@ -553,6 +555,13 @@ export default function LicenciasListing({ licencias: licenciasProp, error: init
                 {loading ? 'Recargando...' : 'Recargar'}
               </Button>
               <Button 
+                variant="primary" 
+                onClick={() => setShowGeneradorModal(true)}
+                title="Generar licencias y descargar Excel para imprenta"
+              >
+                <LuPackage className="fs-sm me-2" /> Generar Licencias
+              </Button>
+              <Button 
                 variant="success" 
                 onClick={() => setShowImportModal(true)}
               >
@@ -593,6 +602,14 @@ export default function LicenciasListing({ licencias: licenciasProp, error: init
             }}
             licencia={selectedLicencia}
             onSuccess={() => {
+              recargarLicencias()
+            }}
+          />
+
+          <GeneradorModal
+            show={showGeneradorModal}
+            onHide={() => setShowGeneradorModal(false)}
+            onGenerateComplete={() => {
               recargarLicencias()
             }}
           />
