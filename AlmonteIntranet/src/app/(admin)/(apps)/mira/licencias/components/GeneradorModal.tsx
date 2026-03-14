@@ -13,6 +13,18 @@ import {
 } from 'react-bootstrap'
 import { LuPackage } from 'react-icons/lu'
 
+// Alfabeto restringido: sin 0 ni O para evitar confusiones visuales
+const PREFIJO_ALLOWED = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789'
+
+function normalizePrefijoInput(value: string): string {
+  const upper = value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  return upper
+    .split('')
+    .filter((c) => PREFIJO_ALLOWED.includes(c))
+    .slice(0, 4)
+    .join('')
+}
+
 interface GeneradorModalProps {
   show: boolean
   onHide: () => void
@@ -75,6 +87,11 @@ export default function GeneradorModal({
       setError('Elige un libro y una cantidad mayor a 0.')
       return
     }
+    const prefijoFinal = normalizePrefijoInput(prefijo)
+    if (prefijo.length > 0 && prefijoFinal.length !== 4) {
+      setError('El prefijo debe tener exactamente 4 caracteres (A-Z sin O, 1-9 sin 0).')
+      return
+    }
     setError(null)
     setSuccess(null)
     setIsGenerating(true)
@@ -85,7 +102,7 @@ export default function GeneradorModal({
         body: JSON.stringify({
           libroMiraId: libroMiraId,
           cantidad: Number(cantidad),
-          prefijo: prefijo.trim() || undefined,
+          prefijo: prefijoFinal.length === 4 ? prefijoFinal : undefined,
         }),
       })
       if (!res.ok) {
@@ -178,16 +195,17 @@ export default function GeneradorModal({
           </Form.Group>
 
           <Form.Group className="mb-3">
-            <Form.Label>Prefijo (opcional)</Form.Label>
+            <Form.Label>Prefijo (opcional, 4 caracteres)</Form.Label>
             <Form.Control
               type="text"
-              placeholder="Ej: MAT26"
+              placeholder="Ej: MAT2"
+              maxLength={4}
               value={prefijo}
-              onChange={(e) => setPrefijo(e.target.value)}
+              onChange={(e) => setPrefijo(normalizePrefijoInput(e.target.value))}
               disabled={isGenerating}
             />
             <Form.Text className="text-muted">
-              Los códigos quedarán como PREFIJO-XXXX-XXXX (ej: MAT26-A1B2-C3D4)
+              Solo A-Z (sin O) y 1-9 (sin 0). Formato: PREFIJO XXXX XXXX XXXX (ej: MAT2 A1B2 C3D4 E5F6)
             </Form.Text>
           </Form.Group>
         </Form>

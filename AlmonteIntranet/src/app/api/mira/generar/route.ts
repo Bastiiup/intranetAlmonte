@@ -6,7 +6,8 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
 const BATCH_SIZE = 50
-const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+// Alfabeto restringido: sin 0 ni O para evitar confusiones visuales
+const CHARS = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789'
 
 function randomSegment(length: number): string {
   let s = ''
@@ -16,14 +17,62 @@ function randomSegment(length: number): string {
   return s
 }
 
-function generarCodigoUnico(prefijo: string, existentes: Set<string>): string {
-  const pre = prefijo ? `${prefijo.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')}-` : ''
+/** Formato: 16 caracteres en 4 bloques de 4 separados por espacio. [PREFIJO] [4] [4] [4] o [4] [4] [4] [4] */
+function generarCodigoUnico(prefijo4: string | null, existentes: Set<string>): string {
   let codigo: string
   do {
-    codigo = `${pre}${randomSegment(4)}-${randomSegment(4)}`
+    if (prefijo4 && prefijo4.length === 4) {
+      codigo = `${prefijo4} ${randomSegment(4)} ${randomSegment(4)} ${randomSegment(4)}`
+    } else {
+      codigo = `${randomSegment(4)} ${randomSegment(4)} ${randomSegment(4)} ${randomSegment(4)}`
+    }
   } while (existentes.has(codigo))
   existentes.add(codigo)
   return codigo
+}
+
+/** Normaliza prefijo: solo caracteres permitados, exactamente 4 caracteres. */
+function normalizarPrefijo(prefijo: string): string | null {
+  const cleaned = prefijo
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .split('')
+    .filter((c) => CHARS.includes(c))
+    .join('')
+  if (cleaned.length !== 4) return null
+  return cleaned
+}
+
+/** Verifica en Strapi qué códigos ya existen; devuelve Set de códigos existentes. */
+async function codigosExistentesEnStrapi(codigos: string[]): Promise<Set<string>> {
+  if (codigos.length === 0) return new Set()
+  const baseUrl = getStrapiUrl('/api/licencias-estudiantes')
+  const existentes = new Set<string>()
+  // Strapi $in: filters[codigo_activacion][$in][0]=...&[1]=...
+  const params = new URLSearchParams()
+  codigos.forEach((c, i) => {
+    params.set(`filters[codigo_activacion][$in][${i}]`, c)
+  })
+  params.set('pagination[pageSize]', String(codigos.length))
+  params.set('fields[0]', 'codigo_activacion')
+  const url = `${baseUrl}?${params.toString()}`
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+  })
+  if (!res.ok) return existentes
+  const json = await res.json().catch(() => ({}))
+  const data = json.data ?? json
+  const list = Array.isArray(data) ? data : []
+  list.forEach((item: any) => {
+    const code = item?.attributes?.codigo_activacion ?? item?.codigo_activacion
+    if (typeof code === 'string') existentes.add(code)
+  })
+  return existentes
 }
 
 export async function POST(request: NextRequest) {
@@ -31,7 +80,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}))
     const libroMiraId = body.libroMiraId ?? body.libro_mira_id
     const cantidad = typeof body.cantidad === 'number' ? body.cantidad : parseInt(String(body.cantidad || 0), 10)
-    const prefijo = typeof body.prefijo === 'string' ? body.prefijo : ''
+    const prefijoRaw = typeof body.prefijo === 'string' ? body.prefijo.trim() : ''
 
     if (!libroMiraId) {
       return NextResponse.json(
@@ -42,6 +91,14 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(cantidad) || cantidad < 1 || cantidad > 10000) {
       return NextResponse.json(
         { success: false, error: 'Cantidad debe ser un número entre 1 y 10000' },
+        { status: 400 }
+      )
+    }
+    // Prefijo: vacío o exactamente 4 caracteres del alfabeto restringido
+    const prefijo4 = prefijoRaw ? normalizarPrefijo(prefijoRaw) : null
+    if (prefijoRaw && !prefijo4) {
+      return NextResponse.json(
+        { success: false, error: 'El prefijo debe tener exactamente 4 caracteres (A-Z sin O, 1-9 sin 0)' },
         { status: 400 }
       )
     }
@@ -76,7 +133,7 @@ export async function POST(request: NextRequest) {
     const codigosUnicos = new Set<string>()
     const codigos: string[] = []
     for (let i = 0; i < cantidad; i++) {
-      codigos.push(generarCodigoUnico(prefijo, codigosUnicos))
+      codigos.push(generarCodigoUnico(prefijo4, codigosUnicos))
     }
 
     const licenciasUrl = getStrapiUrl('/api/licencias-estudiantes')
@@ -84,7 +141,22 @@ export async function POST(request: NextRequest) {
     let errores = 0
 
     for (let i = 0; i < codigos.length; i += BATCH_SIZE) {
-      const batch = codigos.slice(i, i + BATCH_SIZE)
+      let batch = codigos.slice(i, i + BATCH_SIZE)
+      const maxIntentos = 10
+      let intento = 0
+      while (intento < maxIntentos) {
+        const existentes = await codigosExistentesEnStrapi(batch)
+        if (existentes.size === 0) break
+        // Reemplazar los que colisionan por códigos nuevos
+        batch = batch.map((c) => {
+          if (existentes.has(c)) return generarCodigoUnico(prefijo4, codigosUnicos)
+          return c
+        })
+        intento++
+      }
+      // Sincronizar codigos con el batch final (para el Excel)
+      for (let k = 0; k < batch.length; k++) codigos[i + k] = batch[k]
+
       const promises = batch.map(async (codigo) => {
         try {
           const payload = {
